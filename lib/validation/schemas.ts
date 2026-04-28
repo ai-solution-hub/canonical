@@ -140,6 +140,17 @@ export const ReviewQueueParamsSchema = z.object({
     .default(0)
     .transform((v) => Math.max(0, v)),
   sort: z.enum(VALID_REVIEW_QUEUE_SORTS).default('created_at').optional(),
+  /**
+   * Optional opt-in widening: when the literal string 'true', the route
+   * broadens the verified_at filter to OR-include
+   * `governance_review_status = 'review_overdue'` rows. The route compares
+   * the raw query-string value via `searchParams.get(...)==='true'`
+   * (mirroring `assigned_to_me`) so explicit `?include_overdue=false`
+   * resolves to off — `z.coerce.boolean()` cannot be used here because it
+   * coerces every non-empty string (including the literal 'false') to
+   * true. See S205 WP-E T2 plan §T2 (H-1).
+   */
+  include_overdue: z.string().optional(),
 });
 
 /** POST /api/summaries/generate */

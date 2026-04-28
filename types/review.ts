@@ -26,6 +26,17 @@ export interface ReviewFilters {
   source_document_id?: string;
   sort?: ReviewQueueSortField;
   assigned_to_me?: boolean;
+  /**
+   * When true, broadens the queue to include verified-but-overdue rows
+   * (governance_review_status = 'review_overdue') alongside the current
+   * status filter. With status='unverified' (default), the
+   * `verified_at IS NULL` predicate is replaced by
+   * `(verified_at IS NULL OR governance_review_status = 'review_overdue')`.
+   * See S205 WP-E T2 / plan §T2 (H-2). Surfaced via the "Overdue reviews"
+   * toggle in `components/review/review-filters.tsx`; count badge reads
+   * `ReviewStatsResponse.overdue` (S204 WP-E T0 RPC extension).
+   */
+  include_overdue?: boolean;
 }
 
 // -- Action payload --

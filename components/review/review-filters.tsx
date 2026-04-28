@@ -48,6 +48,7 @@ export function ReviewFilters({
     filters.source_file ? 1 : 0,
     filters.source_document_id ? 1 : 0,
     filters.assigned_to_me ? 1 : 0,
+    filters.include_overdue ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   // Build domain options from stats
@@ -136,9 +137,19 @@ export function ReviewFilters({
     });
   };
 
+  const handleIncludeOverdueToggle = () => {
+    onFiltersChange({
+      ...filters,
+      include_overdue: filters.include_overdue ? undefined : true,
+    });
+  };
+
   const handleClearAll = () => {
     onFiltersChange({ status: 'unverified' });
   };
+
+  // S205 WP-E T2: count badge mirrors the T0 RPC overdue field.
+  const overdueCount = stats?.overdue ?? 0;
 
   return (
     <div className={className}>
@@ -181,6 +192,46 @@ export function ReviewFilters({
                   aria-hidden="true"
                 >
                   {filters.assigned_to_me && '✓'}
+                </span>
+              </button>
+            </div>
+
+            {/* Overdue reviews toggle (S205 WP-E T2 — plan §T2). Count pill
+                reads stats.overdue from get_review_breakdown_stats() RPC
+                (S204 T0 extension). aria-checked + text label per WCAG 2.1
+                AA; the count is shown alongside the label so users get the
+                signal without relying on colour alone. */}
+            <div className="p-3">
+              <button
+                onClick={handleIncludeOverdueToggle}
+                role="switch"
+                aria-checked={filters.include_overdue ?? false}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                  filters.include_overdue && 'bg-accent font-medium',
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span>Overdue reviews</span>
+                  {overdueCount > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="h-5 min-w-5 border-bid-overdue-border bg-bid-overdue-bg px-1.5 text-[10px] text-bid-overdue"
+                    >
+                      {overdueCount}
+                    </Badge>
+                  )}
+                </span>
+                <span
+                  className={cn(
+                    'inline-flex size-4 items-center justify-center rounded border text-[10px]',
+                    filters.include_overdue
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-input bg-background',
+                  )}
+                  aria-hidden="true"
+                >
+                  {filters.include_overdue && '✓'}
                 </span>
               </button>
             </div>
