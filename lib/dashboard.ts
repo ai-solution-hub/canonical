@@ -3,6 +3,7 @@ import type { Database } from '@/supabase/types/database.types';
 import type { TeamChange, RecentWorkItem, BidBriefing } from '@/types/reorient';
 import { fetchActiveBidsWithStats } from '@/lib/bid/bid-queries';
 import { formatRelativeDate } from '@/lib/format';
+import { getUserDisplayName } from '@/lib/user/display-name';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -640,21 +641,8 @@ export async function fetchUnifiedDashboardData(
   );
 
   // --- Resolve user display name ---
-  let userDisplayName: string | null = null;
-  const rawDisplayName =
-    (authUser?.user_metadata?.display_name as string | undefined) ??
-    (authUser?.user_metadata?.full_name as string | undefined);
-
-  if (rawDisplayName) {
-    userDisplayName = rawDisplayName.split(' ')[0] ?? rawDisplayName;
-  } else if (authUser?.email) {
-    const prefix = authUser.email.split('@')[0] ?? '';
-    const cleaned = prefix.replace(/[._]+/g, ' ').replace(/\d+$/g, '').trim();
-    if (cleaned.length > 0) {
-      userDisplayName =
-        cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
-    }
-  }
+  const { display_name: userDisplayName, has_display_name: hasDisplayName } =
+    getUserDisplayName(authUser);
 
   // --- Extract expiring certification count (query 6) ---
   let expiring_cert_count = 0;
@@ -707,7 +695,7 @@ export async function fetchUnifiedDashboardData(
     freshness_summary,
     reorient: {
       user_display_name: userDisplayName,
-      has_display_name: !!rawDisplayName,
+      has_display_name: hasDisplayName,
       last_active_relative: formatRelativeDate(lastActiveAt),
       last_active_at: lastActiveAt,
       team_changes,

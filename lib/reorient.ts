@@ -10,6 +10,7 @@ import type {
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
 import { fetchActiveBidsWithStats } from '@/lib/bid/bid-queries';
 import { formatRelativeDate } from '@/lib/format';
+import { getUserDisplayName } from '@/lib/user/display-name';
 
 // ---------------------------------------------------------------------------
 // Change type mapping
@@ -486,25 +487,8 @@ export async function fetchReorientData(
   urgent.sort((a, b) => a.priority - b.priority);
 
   // Get user display name from auth (reuse authUser fetched earlier)
-  // Profile saves to `display_name`; some providers populate `full_name`.
-  // Check both, preferring `display_name` (the key the Settings page writes).
-  let userDisplayName: string | null = null;
-  const rawDisplayName =
-    (authUser?.user_metadata?.display_name as string | undefined) ??
-    (authUser?.user_metadata?.full_name as string | undefined);
-
-  if (rawDisplayName) {
-    userDisplayName = rawDisplayName.split(' ')[0] ?? rawDisplayName;
-  } else if (authUser?.email) {
-    // Email-prefix fallback: strip trailing numbers/dots and title-case
-    const prefix = authUser.email.split('@')[0] ?? '';
-    const cleaned = prefix.replace(/[._]+/g, ' ').replace(/\d+$/g, '').trim();
-    if (cleaned.length > 0) {
-      userDisplayName =
-        cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
-    }
-    // If cleaning leaves nothing useful, leave null so greeting reads naturally
-  }
+  const { display_name: userDisplayName, has_display_name: hasDisplayName } =
+    getUserDisplayName(authUser);
 
   return {
     last_active_at: lastActiveAt,
@@ -521,7 +505,7 @@ export async function fetchReorientData(
     },
     generated_at: new Date().toISOString(),
     user_display_name: userDisplayName,
-    has_display_name: !!rawDisplayName,
+    has_display_name: hasDisplayName,
     errors,
   };
 }

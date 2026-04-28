@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/supabase/types/database.types';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
@@ -13,6 +15,47 @@ interface UserWithRole {
   role: string;
   created_at: string;
   last_sign_in_at: string | null;
+}
+
+/**
+ * Fetch a `userId -> last_sign_in_at` map via the GoTrue admin API.
+ *
+ * Always returns a Map. On any failure (network, S156-class corruption,
+ * permission) the Map is empty and downstream callers see `null` for
+ * every user — the documented soft-failure mode. Errors are logged but
+ * never re-thrown so the bulk read of user_profiles + user_roles
+ * remains the load-bearing path.
+ *
+ * The map values are explicitly `string | null`: a real ISO timestamp
+ * for users who have signed in, or `null` for users who have never
+ * signed in (GoTrue returns `null` for `last_sign_in_at` in that case).
+ */
+async function fetchLastSignInMap(
+  serviceClient: SupabaseClient<Database>,
+): Promise<Map<string, string | null>> {
+  const lastSignInById = new Map<string, string | null>();
+  try {
+    const { data: authData, error: authError } =
+      await serviceClient.auth.admin.listUsers({ perPage: 1000 });
+    if (authError) {
+      console.warn(
+        '[admin/users] auth.admin.listUsers degraded; last_sign_in_at will be NULL:',
+        authError.message,
+      );
+      return lastSignInById;
+    }
+    for (const u of authData.users ?? []) {
+      lastSignInById.set(u.id, u.last_sign_in_at ?? null);
+    }
+  } catch (signInErr) {
+    // Belt-and-braces: never let a GoTrue failure break the whole
+    // route. The bulk read is the load-bearing path.
+    console.warn(
+      '[admin/users] auth.admin.listUsers threw; last_sign_in_at will be NULL:',
+      safeErrorMessage(signInErr, 'unknown error'),
+    );
+  }
+  return lastSignInById;
 }
 
 /** GET /api/admin/users — list all users with their roles (admin only).
@@ -86,28 +129,13 @@ export async function GET() {
     // (S156-class corruption), the rest of the response still resolves —
     // the field just degrades to NULL across the board, which is the
     // intentional soft-failure mode.
-    const lastSignInById = new Map<string, string | null>();
-    try {
-      const { data: authData, error: authError } =
-        await serviceClient.auth.admin.listUsers({ perPage: 1000 });
-      if (authError) {
-        console.warn(
-          '[admin/users] auth.admin.listUsers degraded; last_sign_in_at will be NULL:',
-          authError.message,
-        );
-      } else {
-        for (const u of authData.users ?? []) {
-          lastSignInById.set(u.id, u.last_sign_in_at ?? null);
-        }
-      }
-    } catch (signInErr) {
-      // Belt-and-braces: never let a GoTrue failure break the whole
-      // route. The bulk read above is the load-bearing path.
-      console.warn(
-        '[admin/users] auth.admin.listUsers threw; last_sign_in_at will be NULL:',
-        safeErrorMessage(signInErr, 'unknown error'),
-      );
-    }
+    //
+    // The widened contract (WP-S8i): values are explicitly `string |
+    // null`. Missing rows MUST surface as `null`, never as `''`. The
+    // UI distinguishes "never signed in" (display "Never") from a real
+    // ISO timestamp; an empty string would be incorrectly rendered as
+    // an Invalid Date by Date parsers.
+    const lastSignInById = await fetchLastSignInMap(serviceClient);
 
     type ProfileRow = {
       id: string;
@@ -117,14 +145,20 @@ export async function GET() {
     };
 
     const users: UserWithRole[] = ((profiles ?? []) as ProfileRow[]).map(
-      (p) => ({
-        id: p.id,
-        email: p.email ?? '',
-        display_name: p.full_name,
-        role: (roleMap.get(p.id) as string) ?? 'viewer',
-        created_at: p.created_at,
-        last_sign_in_at: lastSignInById.get(p.id) ?? null,
-      }),
+      (p) => {
+        const lastSignIn = lastSignInById.get(p.id);
+        return {
+          id: p.id,
+          email: p.email ?? '',
+          display_name: p.full_name,
+          role: (roleMap.get(p.id) as string) ?? 'viewer',
+          created_at: p.created_at,
+          // Map.get() returns undefined when the key is missing; coerce
+          // to null so the field is always `string | null`, never
+          // `undefined` or `''`.
+          last_sign_in_at: lastSignIn === undefined ? null : lastSignIn,
+        };
+      },
     );
 
     return NextResponse.json(users);
