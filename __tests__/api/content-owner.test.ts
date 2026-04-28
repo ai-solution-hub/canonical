@@ -473,7 +473,7 @@ describe('GET /api/content-owners/stats', () => {
 
     const req = createTestRequest('/api/content-owners/stats');
 
-    const res = await statsGet(req);
+    const res = await statsGet();
     expect(res.status).toBe(401);
   });
 
@@ -485,7 +485,7 @@ describe('GET /api/content-owners/stats', () => {
 
     const req = createTestRequest('/api/content-owners/stats');
 
-    const res = await statsGet(req);
+    const res = await statsGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -529,7 +529,7 @@ describe('GET /api/content-owners/stats', () => {
 
     const req = createTestRequest('/api/content-owners/stats');
 
-    const res = await statsGet(req);
+    const res = await statsGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -545,7 +545,7 @@ describe('GET /api/content-owners/stats', () => {
 
     const req = createTestRequest('/api/content-owners/stats');
 
-    const res = await statsGet(req);
+    const res = await statsGet();
     expect(res.status).toBe(500);
 
     const body = await res.json();
@@ -561,7 +561,7 @@ describe('GET /api/content-owners/stats', () => {
 
     const req = createTestRequest('/api/content-owners/stats');
 
-    const res = await statsGet(req);
+    const res = await statsGet();
     expect(res.status).toBe(200);
   });
 });

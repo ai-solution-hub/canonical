@@ -199,7 +199,7 @@ describe('GET /api/digest/latest', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/digest/latest');
-    const res = await digestLatestGet(req);
+    const res = await digestLatestGet();
     expect(res.status).toBe(401);
 
     const body = await res.json();
@@ -213,7 +213,7 @@ describe('GET /api/digest/latest', () => {
     });
 
     const req = createTestRequest('/api/digest/latest');
-    const res = await digestLatestGet(req);
+    const res = await digestLatestGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -252,7 +252,7 @@ describe('GET /api/digest/latest', () => {
     });
 
     const req = createTestRequest('/api/digest/latest');
-    const res = await digestLatestGet(req);
+    const res = await digestLatestGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -273,7 +273,7 @@ describe('GET /api/digest/latest', () => {
     });
 
     const req = createTestRequest('/api/digest/latest');
-    const res = await digestLatestGet(req);
+    const res = await digestLatestGet();
     expect(res.status).toBe(500);
 
     const body = await res.json();
@@ -302,7 +302,7 @@ describe('GET /api/digest/latest', () => {
     });
 
     const req = createTestRequest('/api/digest/latest');
-    const res = await digestLatestGet(req);
+    const res = await digestLatestGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -521,7 +521,7 @@ describe('GET /api/coverage/guides', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/coverage/guides');
-    const res = await coverageGuidesGet(req);
+    const res = await coverageGuidesGet();
     expect(res.status).toBe(401);
 
     const body = await res.json();
@@ -532,7 +532,7 @@ describe('GET /api/coverage/guides', () => {
     mockCheckRateLimit.mockReturnValueOnce({ allowed: false, remaining: 0 });
 
     const req = createTestRequest('/api/coverage/guides');
-    const res = await coverageGuidesGet(req);
+    const res = await coverageGuidesGet();
     expect(res.status).toBe(429);
   });
 
@@ -540,7 +540,7 @@ describe('GET /api/coverage/guides', () => {
     mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
     const req = createTestRequest('/api/coverage/guides');
-    const res = await coverageGuidesGet(req);
+    const res = await coverageGuidesGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -590,7 +590,7 @@ describe('GET /api/coverage/guides', () => {
     mockSupabase.rpc.mockResolvedValueOnce({ data: rpcRows, error: null });
 
     const req = createTestRequest('/api/coverage/guides');
-    const res = await coverageGuidesGet(req);
+    const res = await coverageGuidesGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -614,7 +614,7 @@ describe('GET /api/coverage/guides', () => {
     });
 
     const req = createTestRequest('/api/coverage/guides');
-    const res = await coverageGuidesGet(req);
+    const res = await coverageGuidesGet();
     expect(res.status).toBe(500);
 
     const body = await res.json();
@@ -1235,7 +1235,7 @@ describe('GET /api/oauth/grants', () => {
     });
 
     const req = createTestRequest('/api/oauth/grants');
-    const res = await oauthGrantsGet(req);
+    const res = await oauthGrantsGet();
     expect(res.status).toBe(401);
 
     const body = await res.json();
@@ -1244,7 +1244,7 @@ describe('GET /api/oauth/grants', () => {
 
   it('returns 200 with empty grants list', async () => {
     const req = createTestRequest('/api/oauth/grants');
-    const res = await oauthGrantsGet(req);
+    const res = await oauthGrantsGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -1268,7 +1268,7 @@ describe('GET /api/oauth/grants', () => {
     });
 
     const req = createTestRequest('/api/oauth/grants');
-    const res = await oauthGrantsGet(req);
+    const res = await oauthGrantsGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -1284,7 +1284,7 @@ describe('GET /api/oauth/grants', () => {
     });
 
     const req = createTestRequest('/api/oauth/grants');
-    const res = await oauthGrantsGet(req);
+    const res = await oauthGrantsGet();
     expect(res.status).toBe(500);
 
     const body = await res.json();
