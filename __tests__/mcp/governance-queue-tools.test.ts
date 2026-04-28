@@ -231,11 +231,16 @@ describe('get_governance_queue MCP tool', () => {
     mocks.createMcpClient.mockReturnValue({ from });
     const tool = findTool(tools, 'get_governance_queue');
     await callTool(tool, { limit: 20, offset: 0, domain: 'audit-content' });
-    // `.eq` is invoked twice: first for governance_review_status='pending',
-    // then for primary_domain='audit-content' when the arg is supplied.
-    const calls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toContainEqual(['governance_review_status', 'pending']);
-    expect(calls).toContainEqual(['primary_domain', 'audit-content']);
+    // §5.5 Phase 4 — review-status filter switched from .eq('pending') to
+    // .in([...]). `.in` is invoked once for the review-status set; `.eq` is
+    // still invoked once for the primary_domain filter when supplied.
+    const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+    const eqCalls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
+    expect(inCalls).toContainEqual([
+      'governance_review_status',
+      ['pending', 'review_overdue'],
+    ]);
+    expect(eqCalls).toContainEqual(['primary_domain', 'audit-content']);
   });
 
   it('surfaces DB errors via isError', async () => {
@@ -245,6 +250,148 @@ describe('get_governance_queue MCP tool', () => {
     const res = await callTool(tool, { limit: 20, offset: 0 });
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain('db down');
+  });
+
+  // ──────────────────────────────────────────
+  // §5.5 Phase 4 — include_overdue + status_filter widening (S208 WP1)
+  // Spec: docs/specs/p0-document-control-lifecycle-spec.md §8.3
+  // AC3 (include_overdue=true → both states), AC4 (status_filter='review_overdue').
+  // ──────────────────────────────────────────
+
+  describe('§5.5 Phase 4 — review-status filter widening', () => {
+    it('default (no args) queries both pending AND review_overdue', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      const res = await callTool(tool, { limit: 20, offset: 0 });
+
+      expect(res.isError).toBeUndefined();
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual([
+        'governance_review_status',
+        ['pending', 'review_overdue'],
+      ]);
+      expect(res.structuredContent?.review_status_filter).toEqual([
+        'pending',
+        'review_overdue',
+      ]);
+    });
+
+    it('include_overdue=true (explicit) queries both states (AC3)', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      await callTool(tool, { limit: 20, offset: 0, include_overdue: true });
+
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual([
+        'governance_review_status',
+        ['pending', 'review_overdue'],
+      ]);
+    });
+
+    it('include_overdue=false restricts to pending only (legacy)', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      const res = await callTool(tool, {
+        limit: 20,
+        offset: 0,
+        include_overdue: false,
+      });
+
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual(['governance_review_status', ['pending']]);
+      expect(res.structuredContent?.review_status_filter).toEqual(['pending']);
+    });
+
+    it('status_filter="review_overdue" returns ONLY overdue items (AC4)', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      const res = await callTool(tool, {
+        limit: 20,
+        offset: 0,
+        status_filter: 'review_overdue',
+      });
+
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual([
+        'governance_review_status',
+        ['review_overdue'],
+      ]);
+      expect(res.structuredContent?.review_status_filter).toEqual([
+        'review_overdue',
+      ]);
+    });
+
+    it('status_filter="pending" restricts to pending only', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      await callTool(tool, {
+        limit: 20,
+        offset: 0,
+        status_filter: 'pending',
+      });
+
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual(['governance_review_status', ['pending']]);
+    });
+
+    it('status_filter="all" queries both states', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      await callTool(tool, {
+        limit: 20,
+        offset: 0,
+        status_filter: 'all',
+      });
+
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual([
+        'governance_review_status',
+        ['pending', 'review_overdue'],
+      ]);
+    });
+
+    it('status_filter takes precedence over include_overdue when both are set', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      // Conflicting: include_overdue=true would suggest both states, but
+      // status_filter='pending' should win and restrict to pending only.
+      await callTool(tool, {
+        limit: 20,
+        offset: 0,
+        include_overdue: true,
+        status_filter: 'pending',
+      });
+
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual(['governance_review_status', ['pending']]);
+    });
+
+    it('composes review-status set with publication_status filter (AND)', async () => {
+      const q = chain({ data: [], error: null, count: 0 });
+      mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
+      const tool = findTool(tools, 'get_governance_queue');
+      await callTool(tool, {
+        limit: 20,
+        offset: 0,
+        status_filter: 'review_overdue',
+        publication_status: 'published',
+      });
+
+      const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+      const eqCalls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
+      expect(inCalls).toContainEqual([
+        'governance_review_status',
+        ['review_overdue'],
+      ]);
+      expect(eqCalls).toContainEqual(['publication_status', 'published']);
+    });
   });
 });
 

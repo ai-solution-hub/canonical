@@ -276,4 +276,125 @@ describe('search_content_chunks tool handler', () => {
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent!.count).toBe(0);
   });
+
+  // ──────────────────────────────────────────
+  // §5.5 Phase 4 — review-cadence filter params (S208 WP1)
+  // Spec: docs/specs/p0-document-control-lifecycle-spec.md §8.2
+  // AC1 (overdue_review=true), AC2 (review_due_within_days=30), AC7 (no break).
+  // ──────────────────────────────────────────
+
+  describe('§5.5 Phase 4 — review-cadence filter params', () => {
+    it('passes overdue_review=true through to RPC filter_overdue_review (AC1)', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+
+      await handler({ query: 'q', overdue_review: true }, extra);
+
+      expect(mocks.rpcMock).toHaveBeenCalledWith(
+        'search_content_chunks',
+        expect.objectContaining({ filter_overdue_review: true }),
+      );
+    });
+
+    it('passes overdue_review=false through to RPC filter_overdue_review', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+
+      await handler({ query: 'q', overdue_review: false }, extra);
+
+      expect(mocks.rpcMock).toHaveBeenCalledWith(
+        'search_content_chunks',
+        expect.objectContaining({ filter_overdue_review: false }),
+      );
+    });
+
+    it('passes filter_overdue_review: undefined when omitted (AC7 backwards-compat)', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+
+      await handler({ query: 'q' }, extra);
+
+      const rpcParams = mocks.rpcMock.mock.calls[0][1] as Record<
+        string,
+        unknown
+      >;
+      expect(rpcParams).toHaveProperty('filter_overdue_review');
+      expect(rpcParams.filter_overdue_review).toBeUndefined();
+      expect(rpcParams.filter_overdue_review).not.toBeNull();
+    });
+
+    it('passes review_due_within_days through to filter_review_due_within_days (AC2)', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+
+      await handler({ query: 'q', review_due_within_days: 30 }, extra);
+
+      expect(mocks.rpcMock).toHaveBeenCalledWith(
+        'search_content_chunks',
+        expect.objectContaining({ filter_review_due_within_days: 30 }),
+      );
+    });
+
+    it('passes filter_review_due_within_days: undefined when omitted', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+
+      await handler({ query: 'q' }, extra);
+
+      const rpcParams = mocks.rpcMock.mock.calls[0][1] as Record<
+        string,
+        unknown
+      >;
+      expect(rpcParams).toHaveProperty('filter_review_due_within_days');
+      expect(rpcParams.filter_review_due_within_days).toBeUndefined();
+    });
+
+    it('combines content_item_id, overdue_review, and review_due_within_days in one call', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+      const contentItemId = '11111111-2222-4333-8444-555555555555';
+
+      await handler(
+        {
+          query: 'fire safety',
+          content_item_id: contentItemId,
+          overdue_review: true,
+          review_due_within_days: 14,
+        },
+        extra,
+      );
+
+      expect(mocks.rpcMock).toHaveBeenCalledWith(
+        'search_content_chunks',
+        expect.objectContaining({
+          filter_content_item_id: contentItemId,
+          filter_overdue_review: true,
+          filter_review_due_within_days: 14,
+        }),
+      );
+    });
+
+    it('surfaces the filter values in structuredContent', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+
+      const result = (await handler(
+        { query: 'q', overdue_review: true, review_due_within_days: 30 },
+        extra,
+      )) as ToolResult;
+
+      expect(result.structuredContent?.overdue_review_filter).toBe(true);
+      expect(result.structuredContent?.review_due_within_days_filter).toBe(30);
+    });
+
+    it('reports null for unset filters in structuredContent', async () => {
+      const handler = mockServer.getHandler('search_content_chunks')!;
+      mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
+
+      const result = (await handler({ query: 'q' }, extra)) as ToolResult;
+
+      expect(result.structuredContent?.overdue_review_filter).toBeNull();
+      expect(result.structuredContent?.review_due_within_days_filter).toBeNull();
+    });
+  });
 });

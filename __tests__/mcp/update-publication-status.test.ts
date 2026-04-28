@@ -723,9 +723,15 @@ describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', (
       offset: 0,
       publication_status: 'in_review',
     });
-    const calls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toContainEqual(['governance_review_status', 'pending']);
-    expect(calls).toContainEqual(['publication_status', 'in_review']);
+    // §5.5 Phase 4 — review-status filter switched from .eq('pending') to
+    // .in([...]). publication_status remains an .eq filter.
+    const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+    const eqCalls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
+    expect(inCalls).toContainEqual([
+      'governance_review_status',
+      ['pending', 'review_overdue'],
+    ]);
+    expect(eqCalls).toContainEqual(['publication_status', 'in_review']);
   });
 
   it('omits the .eq publication_status filter when the param is not supplied (backwards-compat)', async () => {
@@ -750,10 +756,16 @@ describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', (
       domain: 'compliance',
       publication_status: 'in_review',
     });
-    const calls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toContainEqual(['governance_review_status', 'pending']);
-    expect(calls).toContainEqual(['primary_domain', 'compliance']);
-    expect(calls).toContainEqual(['publication_status', 'in_review']);
+    // §5.5 Phase 4 — review-status filter via .in([...]); domain +
+    // publication_status remain .eq filters.
+    const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
+    const eqCalls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
+    expect(inCalls).toContainEqual([
+      'governance_review_status',
+      ['pending', 'review_overdue'],
+    ]);
+    expect(eqCalls).toContainEqual(['primary_domain', 'compliance']);
+    expect(eqCalls).toContainEqual(['publication_status', 'in_review']);
   });
 
   it('surfaces the publication_status filter in structuredContent metadata', async () => {
