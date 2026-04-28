@@ -624,6 +624,50 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
     expect(createServiceClientMock).toHaveBeenCalled();
   });
 
+  // S208 WP3 (OPS-40): The success-path recordPipelineRun call previously
+  // used the RLS-scoped `supabase` client, which cannot write `pipeline_runs`
+  // (RLS policy `pipeline_runs_insert` requires admin/service-role). Editor
+  // callers reaching the success path silently lost the audit row. Mirror of
+  // OPS-38 (pre-success), closing AC2.1 parity across all four invocation
+  // paths. Asserts the service-role client (NOT the RLS-scoped MCP client)
+  // is passed to recordPipelineRun on success.
+  it('uses service-role client (not RLS-scoped) for success-path pipeline_runs (OPS-40)', async () => {
+    // Note: success path calls createServiceClient() twice — once for the
+    // chunk-store service client, once for recordPipelineRun (this WP).
+    // Use mockReturnValue (not Once) so both calls receive the marker
+    // client; we only assert on the recordPipelineRun call site below.
+    const distinctServiceClient = {
+      from: vi.fn(),
+      rpc: vi.fn(),
+      __isServiceRoleMarker: true,
+    };
+    const serverModule = await import('@/lib/supabase/server');
+    const createServiceClientMock = vi.mocked(serverModule.createServiceClient);
+    createServiceClientMock.mockReturnValue(
+      distinctServiceClient as unknown as ReturnType<
+        typeof serverModule.createServiceClient
+      >,
+    );
+
+    const result = await createTool(
+      {
+        title: 'Success Path Service-Role',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.status).toBe('completed');
+    // Service-role client used — NOT the RLS-scoped MCP client.
+    expect(call.supabase).toBe(distinctServiceClient);
+    expect(call.supabase).not.toBe(mocks.mockSupabaseClient);
+    expect(createServiceClientMock).toHaveBeenCalled();
+  });
+
   it('records skipped_reason="draft" on the draft branch (1.1-AC9)', async () => {
     await createTool(
       {

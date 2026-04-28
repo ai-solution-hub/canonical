@@ -723,10 +723,17 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         //   warnings.length === 0 → 'completed'
         // Draft branch records skipped_reason='draft' per AC2.5 so dashboards
         // can distinguish draft creates from full-pipeline creates.
+        // S208 WP3 (OPS-40): use the service-role client to bypass the
+        // admin-only `pipeline_runs_insert` RLS policy, mirroring the
+        // pre-success failed-insert (L529-557, OPS-38), auth-fail (L376-378),
+        // and outer-catch (L797-799) patterns. Closes AC2.1 parity across
+        // all four invocation paths.
         const pipelineStatus: PipelineRunStatus =
           warnings.length > 0 ? 'completed_with_errors' : 'completed';
+        const { createServiceClient: createServiceClientForSuccess } =
+          await import('@/lib/supabase/server');
         await recordPipelineRun({
-          supabase,
+          supabase: createServiceClientForSuccess(),
           pipelineName: 'mcp_create_content_item',
           status: pipelineStatus,
           itemsProcessed: 1,
