@@ -69,7 +69,8 @@ afterEach(() => {
 function mockStatusResponse(
   data: typeof DRIFT_RESPONSE | typeof IN_SYNC_RESPONSE,
 ) {
-  fetchMock.mockImplementation((url: string) => {
+  fetchMock.mockImplementation((...args: unknown[]) => {
+    const url = args[0] as string;
     if (url === '/api/admin/taxonomy-sync/status') {
       return Promise.resolve({
         ok: true,
@@ -81,7 +82,8 @@ function mockStatusResponse(
 }
 
 function mockStatusError(status = 500) {
-  fetchMock.mockImplementation((url: string) => {
+  fetchMock.mockImplementation((...args: unknown[]) => {
+    const url = args[0] as string;
     if (url === '/api/admin/taxonomy-sync/status') {
       return Promise.resolve({
         ok: false,
@@ -159,7 +161,9 @@ describe('TaxonomyDriftBanner', () => {
   });
 
   it('fires POST and shows success toast on Regenerate now', async () => {
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((...args: unknown[]) => {
+      const url = args[0] as string;
+      const init = args[1] as RequestInit | undefined;
       if (url === '/api/admin/taxonomy-sync/status') {
         return Promise.resolve({
           ok: true,
@@ -198,7 +202,9 @@ describe('TaxonomyDriftBanner', () => {
   });
 
   it('shows error toast on POST failure', async () => {
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((...args: unknown[]) => {
+      const url = args[0] as string;
+      const init = args[1] as RequestInit | undefined;
       if (url === '/api/admin/taxonomy-sync/status') {
         return Promise.resolve({
           ok: true,

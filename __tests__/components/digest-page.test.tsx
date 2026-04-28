@@ -948,7 +948,7 @@ describe('DigestPage', () => {
     await new Promise((r) => setTimeout(r, 25));
 
     const generateCalls = mockFetch.mock.calls.filter(
-      (call: [string, ...unknown[]]) => {
+      (call) => {
         const url = String(call[0]);
         return url.includes('/api/digest/generate');
       },
@@ -983,7 +983,7 @@ describe('DigestPage', () => {
     // The auto-gen effect fires after the initial queries settle.
     await waitFor(() => {
       const generateCalls = mockFetch.mock.calls.filter(
-        (call: [string, ...unknown[]]) => {
+        (call) => {
           const url = String(call[0]);
           return url.includes('/api/digest/generate');
         },
@@ -993,7 +993,7 @@ describe('DigestPage', () => {
 
     // Verify the auto-gen payload matches the weekly default.
     const generateCall = mockFetch.mock.calls.find(
-      (call: [string, ...unknown[]]) => {
+      (call) => {
         const url = String(call[0]);
         return url.includes('/api/digest/generate');
       },
@@ -1028,7 +1028,7 @@ describe('DigestPage', () => {
     await new Promise((r) => setTimeout(r, 25));
 
     const generateCalls = mockFetch.mock.calls.filter(
-      (call: [string, ...unknown[]]) => {
+      (call) => {
         const url = String(call[0]);
         return url.includes('/api/digest/generate');
       },

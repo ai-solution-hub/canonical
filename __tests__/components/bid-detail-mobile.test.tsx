@@ -343,7 +343,7 @@ function findActionDivs(container: HTMLElement) {
   let desktopDiv: HTMLElement | null = null;
   let mobileDiv: HTMLElement | null = null;
 
-  allDivs.forEach((div) => {
+  for (const div of Array.from(allDivs)) {
     const cls = div.className;
     if (
       cls.includes('sm:flex') &&
@@ -360,7 +360,7 @@ function findActionDivs(container: HTMLElement) {
     ) {
       mobileDiv = div;
     }
-  });
+  }
 
   return { desktopDiv, mobileDiv };
 }
