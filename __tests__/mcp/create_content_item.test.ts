@@ -576,4 +576,72 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
     // Draft branch skips the AI sub-steps entirely → no warnings.
     expect(call.errorMessage).toBeNull();
   });
+
+  // S206 WP4 (S205 verifier deferral M-2): AC2.1 mandates pipeline_runs on
+  // ALL invocation paths — these two cases close the auth-fail and
+  // outer-catch gaps left open by S205.
+  it('records status="failed" with phase="auth_check" on auth-fail (S206 WP4)', async () => {
+    // Force the role check to deny.
+    mocks.checkMcpRole.mockResolvedValueOnce(null);
+
+    const result = await createTool(
+      {
+        title: 'Denied Caller',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(result.isError).toBe(true);
+    // Single emission — the auth-fail short-circuits before the success path.
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.pipelineName).toBe('mcp_create_content_item');
+    expect(call.status).toBe('failed');
+    expect(call.errorMessage).toBe('permission_denied');
+    expect(call.itemsProcessed).toBe(0);
+    expect(call.itemsCreated).toBeNull();
+    expect(call.result).toMatchObject({
+      phase: 'auth_check',
+      auth_info_present: true,
+    });
+  });
+
+  it('records status="failed" with phase="handler_catch_all" on outer catch (S206 WP4)', async () => {
+    // Force checkMcpRole to throw AFTER returning a successful resolve so
+    // execution enters the try-block and a later operation throws. The
+    // simplest reliable trigger: make checkMcpRole itself throw — control
+    // is inside the outer try, so the throw lands in the outer catch
+    // (not the auth-fail return path, which only fires on null).
+    mocks.checkMcpRole.mockRejectedValueOnce(
+      new Error('role lookup blew up'),
+    );
+
+    const result = await createTool(
+      {
+        title: 'Catch-All Caller',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(result.isError).toBe(true);
+    // Outer text surfaces the original error message.
+    const text = (result.content[0] as { text: string }).text;
+    expect(text).toContain('Failed to create item');
+    expect(text).toContain('role lookup blew up');
+
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.pipelineName).toBe('mcp_create_content_item');
+    expect(call.status).toBe('failed');
+    expect(call.errorMessage).toBe('role lookup blew up');
+    expect(call.itemsProcessed).toBe(0);
+    expect(call.itemsCreated).toBeNull();
+    expect(call.result).toMatchObject({
+      phase: 'handler_catch_all',
+    });
+  });
 });

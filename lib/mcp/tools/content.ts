@@ -367,6 +367,25 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       try {
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
+          // S206 WP4 (S205 verifier deferral M-2): emit pipeline_runs row on
+          // auth-fail per AC2.1 ("ALL invocation paths emit pipeline_runs").
+          // Uses the service-role client because the caller is BY DEFINITION
+          // not editor/admin and the `pipeline_runs_insert` RLS policy
+          // requires admin. recordPipelineRun is never-throws so this is
+          // safe even if the audit insert itself fails.
+          const { createServiceClient } = await import('@/lib/supabase/server');
+          await recordPipelineRun({
+            supabase: createServiceClient(),
+            pipelineName: 'mcp_create_content_item',
+            status: 'failed',
+            itemsProcessed: 0,
+            itemsCreated: null,
+            errorMessage: 'permission_denied',
+            result: {
+              phase: 'auth_check',
+              auth_info_present: extra.authInfo != null,
+            } as Json,
+          });
           return {
             content: [
               {
@@ -781,6 +800,31 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
+        // S206 WP4 (S205 verifier deferral M-2): emit pipeline_runs row on
+        // outer-catch per AC2.1. Uses the service-role client to bypass the
+        // admin-only `pipeline_runs_insert` RLS policy — the catch may fire
+        // for an editor caller whose RLS-scoped client cannot write the
+        // audit row. recordPipelineRun is never-throws so this is safe even
+        // if the audit insert itself fails. Wrapped in its own try/catch so
+        // the original error surface (the "Failed to create item" message)
+        // is never replaced by an unrelated audit failure.
+        try {
+          const { createServiceClient } = await import('@/lib/supabase/server');
+          await recordPipelineRun({
+            supabase: createServiceClient(),
+            pipelineName: 'mcp_create_content_item',
+            status: 'failed',
+            itemsProcessed: 0,
+            itemsCreated: null,
+            errorMessage: message,
+            result: { phase: 'handler_catch_all' } as Json,
+          });
+        } catch (auditErr) {
+          console.error(
+            'MCP create_content_item outer-catch pipeline_runs emission failed:',
+            auditErr,
+          );
+        }
         return {
           content: [
             {
