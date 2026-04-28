@@ -1,0 +1,465 @@
+/**
+ * MCP `create_content_item` — S205 WP-A Phase 1 (WP-A1 + WP-A2).
+ *
+ * Covers:
+ *   - WP-A1: typed-column persistence (source_url / source_file /
+ *     source_document_id) — spec §3.1 AC1.1, AC1.2.
+ *   - WP-A1: legacy `source_document` arg → Zod rejection with
+ *     replacement-field hint — spec §3.1 AC1.5, AC1.7.
+ *   - WP-A2: `recordPipelineRun()` called with pipeline_name
+ *     `'mcp_create_content_item'` for success / partial-failure / draft —
+ *     spec §3.2 AC2.1–2.5.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
+// ---------------------------------------------------------------------------
+// Hoisted mocks
+// ---------------------------------------------------------------------------
+
+const mocks = vi.hoisted(() => {
+  const createChain = () => {
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+    chain.select = vi.fn().mockReturnValue(chain);
+    chain.insert = vi.fn().mockReturnValue(chain);
+    chain.update = vi.fn().mockReturnValue(chain);
+    chain.eq = vi.fn().mockReturnValue(chain);
+    chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
+    chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
+    return chain;
+  };
+
+  const chain = createChain();
+
+  const mockSupabaseClient = {
+    from: vi.fn().mockReturnValue(chain),
+    rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
+    _chain: chain,
+  };
+
+  return {
+    mockSupabaseClient,
+    chain,
+    createMcpClient: vi.fn().mockReturnValue(mockSupabaseClient),
+    getMcpUserId: vi
+      .fn()
+      .mockReturnValue('a0000000-0000-4000-8000-000000000001'),
+    checkMcpRole: vi.fn(),
+    generateEmbedding: vi.fn().mockResolvedValue(new Array(1024).fill(0)),
+    classifyContent: vi.fn().mockResolvedValue(undefined),
+    generateSummary: vi.fn().mockResolvedValue(undefined),
+    recordPipelineRun: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock('@/lib/mcp/auth', () => ({
+  createMcpClient: mocks.createMcpClient,
+  getMcpUserId: mocks.getMcpUserId,
+  getMcpUserRole: vi.fn().mockResolvedValue('editor'),
+  checkMcpRole: mocks.checkMcpRole,
+}));
+
+vi.mock('@/lib/mcp/tools/shared', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/mcp/tools/shared')>(
+    '@/lib/mcp/tools/shared',
+  );
+  return {
+    ...actual,
+    getGenerateEmbedding: vi.fn().mockResolvedValue(mocks.generateEmbedding),
+    getClassifyContent: vi.fn().mockResolvedValue(mocks.classifyContent),
+    getGenerateSummary: vi.fn().mockResolvedValue(mocks.generateSummary),
+  };
+});
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServiceClient: vi.fn(() => mocks.mockSupabaseClient),
+}));
+
+vi.mock('@/lib/content/chunk-store', () => ({
+  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
+}));
+
+vi.mock('@/lib/layer-inference', () => ({
+  inferLayer: vi.fn().mockReturnValue({
+    suggestedLayer: 'capability',
+    reason: '',
+    confidence: 'high',
+  }),
+}));
+
+vi.mock('@/lib/guide-section-mapping', () => ({
+  suggestGuideSections: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('@/lib/pipeline/record-run', () => ({
+  recordPipelineRun: mocks.recordPipelineRun,
+}));
+
+// Import after mocks
+import { registerContentTools } from '@/lib/mcp/tools/content';
+
+// ---------------------------------------------------------------------------
+// Harness
+// ---------------------------------------------------------------------------
+
+interface RegisteredTool {
+  name: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  config: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handler: (args: any, extra: any) => Promise<any>;
+}
+
+function createTestServer(): {
+  server: McpServer;
+  tools: Map<string, RegisteredTool>;
+} {
+  const tools = new Map<string, RegisteredTool>();
+  const server = {
+    registerTool: vi.fn(
+      (
+        name: string,
+        config: RegisteredTool['config'],
+        handler: RegisteredTool['handler'],
+      ) => {
+        tools.set(name, { name, config, handler });
+        return { enabled: true };
+      },
+    ),
+  } as unknown as McpServer;
+  return { server, tools };
+}
+
+const MOCK_AUTH_INFO = {
+  token: 'test-token',
+  clientId: 'test-client',
+  scopes: ['read', 'write'],
+  extra: {
+    userId: 'a0000000-0000-4000-8000-000000000001',
+    role: 'editor',
+  },
+};
+
+const NEW_ITEM_ID = 'a1b2c3d4-e5f6-4789-8abc-def012345678';
+const SOURCE_DOC_ID = 'b2c3d4e5-f6a7-4890-9bcd-ef0123456789';
+
+const LONG_CONTENT =
+  'This is sufficiently long markdown content that exceeds the 50-character minimum for dedup hash checks. It describes our organisation capability.';
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
+  let createTool: RegisteredTool['handler'];
+  let createConfig: RegisteredTool['config'];
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    // Re-register default implementations cleared by clearAllMocks
+    mocks.mockSupabaseClient.from.mockReturnValue(mocks.chain);
+    mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: [], error: null });
+    mocks.chain.select.mockReturnValue(mocks.chain);
+    mocks.chain.insert.mockReturnValue(mocks.chain);
+    mocks.chain.update.mockReturnValue(mocks.chain);
+    mocks.chain.eq.mockReturnValue(mocks.chain);
+
+    const { server, tools } = createTestServer();
+    await registerContentTools(server);
+    const tool = tools.get('create_content_item');
+    if (!tool) throw new Error('create_content_item not registered');
+    createTool = tool.handler;
+    createConfig = tool.config;
+
+    // Default: editor role
+    mocks.checkMcpRole.mockResolvedValue('editor');
+
+    // Default insert returns the new item
+    mocks.chain.single.mockResolvedValue({
+      data: {
+        id: NEW_ITEM_ID,
+        title: 'New Item',
+        content_type: 'capability',
+      },
+      error: null,
+    });
+
+    mocks.recordPipelineRun.mockResolvedValue(undefined);
+  });
+
+  describe('typed-column persistence (1.1-AC1, 1.1-AC2)', () => {
+    it('persists source_url to the typed column when provided', async () => {
+      const result = await createTool(
+        {
+          title: 'Source URL Item',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          source_url: 'https://example.com/docs/page',
+        },
+        { authInfo: MOCK_AUTH_INFO },
+      );
+
+      expect(result.isError).toBeFalsy();
+      const insertCall = mocks.chain.insert.mock.calls[0][0];
+      expect(insertCall.source_url).toBe('https://example.com/docs/page');
+      expect(insertCall.source_file).toBeUndefined();
+      expect(insertCall.source_document_id).toBeUndefined();
+      // Legacy metadata.source_document must not be written.
+      expect(insertCall.metadata?.source_document).toBeUndefined();
+      // Structured response surfaces the typed value.
+      expect(result.structuredContent.source_url).toBe(
+        'https://example.com/docs/page',
+      );
+      expect(result.structuredContent.source_file).toBeNull();
+      expect(result.structuredContent.source_document_id).toBeNull();
+    });
+
+    it('persists source_file to the typed column when provided', async () => {
+      const result = await createTool(
+        {
+          title: 'Source File Item',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          source_file: 'docs/handbook/section-3.md',
+        },
+        { authInfo: MOCK_AUTH_INFO },
+      );
+
+      expect(result.isError).toBeFalsy();
+      const insertCall = mocks.chain.insert.mock.calls[0][0];
+      expect(insertCall.source_file).toBe('docs/handbook/section-3.md');
+      expect(insertCall.source_url).toBeUndefined();
+      expect(insertCall.source_document_id).toBeUndefined();
+      expect(insertCall.metadata?.source_document).toBeUndefined();
+      expect(result.structuredContent.source_file).toBe(
+        'docs/handbook/section-3.md',
+      );
+    });
+
+    it('persists source_document_id to the typed column when provided', async () => {
+      const result = await createTool(
+        {
+          title: 'Source Doc Lineage',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          source_document_id: SOURCE_DOC_ID,
+        },
+        { authInfo: MOCK_AUTH_INFO },
+      );
+
+      expect(result.isError).toBeFalsy();
+      const insertCall = mocks.chain.insert.mock.calls[0][0];
+      expect(insertCall.source_document_id).toBe(SOURCE_DOC_ID);
+      expect(insertCall.source_url).toBeUndefined();
+      expect(insertCall.source_file).toBeUndefined();
+      expect(insertCall.metadata?.source_document).toBeUndefined();
+      expect(result.structuredContent.source_document_id).toBe(SOURCE_DOC_ID);
+    });
+  });
+
+  describe('legacy source_document arg rejection (1.1-AC3)', () => {
+    it('Zod schema rejects source_document with a helpful replacement-field message', () => {
+      // The MCP SDK builds `z.object(inputSchema)` on the registered shape.
+      // We re-construct the same z.object and parse a payload containing
+      // `source_document` to assert the boundary error surfaces.
+      const schema = z.object(createConfig.inputSchema);
+
+      const parsed = schema.safeParse({
+        title: 'Legacy Caller',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+        source_document: 'old/file/path.md',
+      });
+
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        const issues = parsed.error.issues;
+        const sourceDocumentIssue = issues.find((i) =>
+          i.path.includes('source_document'),
+        );
+        expect(sourceDocumentIssue).toBeDefined();
+        // Error message MUST advertise the three replacement fields.
+        const message = sourceDocumentIssue!.message;
+        expect(message).toContain('source_url');
+        expect(message).toContain('source_file');
+        expect(message).toContain('source_document_id');
+      }
+    });
+
+    it('Zod schema accepts the three typed replacements', () => {
+      const schema = z.object(createConfig.inputSchema);
+
+      // source_url
+      expect(
+        schema.safeParse({
+          title: 'a',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          source_url: 'https://example.com',
+        }).success,
+      ).toBe(true);
+
+      // source_file
+      expect(
+        schema.safeParse({
+          title: 'a',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          source_file: 'path/to/file.md',
+        }).success,
+      ).toBe(true);
+
+      // source_document_id (UUID v4)
+      expect(
+        schema.safeParse({
+          title: 'a',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          source_document_id: SOURCE_DOC_ID,
+        }).success,
+      ).toBe(true);
+    });
+  });
+});
+
+describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
+  let createTool: RegisteredTool['handler'];
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    mocks.mockSupabaseClient.from.mockReturnValue(mocks.chain);
+    mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: [], error: null });
+    mocks.chain.select.mockReturnValue(mocks.chain);
+    mocks.chain.insert.mockReturnValue(mocks.chain);
+    mocks.chain.update.mockReturnValue(mocks.chain);
+    mocks.chain.eq.mockReturnValue(mocks.chain);
+
+    const { server, tools } = createTestServer();
+    await registerContentTools(server);
+    const tool = tools.get('create_content_item');
+    if (!tool) throw new Error('create_content_item not registered');
+    createTool = tool.handler;
+
+    mocks.checkMcpRole.mockResolvedValue('editor');
+    mocks.chain.single.mockResolvedValue({
+      data: {
+        id: NEW_ITEM_ID,
+        title: 'New Item',
+        content_type: 'capability',
+      },
+      error: null,
+    });
+    mocks.recordPipelineRun.mockResolvedValue(undefined);
+  });
+
+  it('records a pipeline_run with status="completed" on the success path (1.1-AC5/6/7/8)', async () => {
+    await createTool(
+      {
+        title: 'Successful Create',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+        source_file: 'docs/spec.md',
+        batch_tag: 'reorient-2026-04',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    // Exactly one call to recordPipelineRun for the success path.
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.pipelineName).toBe('mcp_create_content_item');
+    expect(call.status).toBe('completed');
+    expect(call.itemsProcessed).toBe(1);
+    expect(call.itemsCreated).toEqual([NEW_ITEM_ID]);
+    expect(call.errorMessage).toBeNull();
+    expect(call.result).toMatchObject({
+      source_url: null,
+      source_file: 'docs/spec.md',
+      source_document_id: null,
+      batch_tag: 'reorient-2026-04',
+      dedup_status: 'clean',
+      skipped_reason: null,
+    });
+  });
+
+  it('records status="completed_with_errors" when AI sub-steps throw (1.1-AC7)', async () => {
+    // Make classifyContent throw so the warnings array becomes non-empty.
+    mocks.classifyContent.mockRejectedValueOnce(
+      new Error('classification timed out'),
+    );
+
+    await createTool(
+      {
+        title: 'Partial Failure Create',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.status).toBe('completed_with_errors');
+    expect(call.errorMessage).toContain('classification timed out');
+    expect(call.itemsCreated).toEqual([NEW_ITEM_ID]);
+  });
+
+  it('records status="failed" when content_items insert fails', async () => {
+    // Force the insert .single() to return an error.
+    mocks.chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'duplicate key value violates unique constraint' },
+    });
+
+    const result = await createTool(
+      {
+        title: 'Insert Failure',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+        source_url: 'https://example.com/x',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(result.isError).toBe(true);
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.pipelineName).toBe('mcp_create_content_item');
+    expect(call.status).toBe('failed');
+    expect(call.itemsCreated).toBeNull();
+    expect(call.errorMessage).toContain('duplicate key value');
+    expect(call.result).toMatchObject({
+      source_url: 'https://example.com/x',
+      source_file: null,
+      source_document_id: null,
+      dedup_status: 'clean',
+      skipped_reason: null,
+    });
+  });
+
+  it('records skipped_reason="draft" on the draft branch (1.1-AC9)', async () => {
+    await createTool(
+      {
+        title: 'Draft Create',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+        publication_status: 'draft',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.status).toBe('completed');
+    expect(call.result).toMatchObject({
+      skipped_reason: 'draft',
+    });
+    // Draft branch skips the AI sub-steps entirely → no warnings.
+    expect(call.errorMessage).toBeNull();
+  });
+});
