@@ -3564,6 +3564,8 @@ export type Database = {
       search_content_chunks: {
         Args: {
           filter_content_item_id?: string
+          filter_overdue_review?: boolean
+          filter_review_due_within_days?: number
           limit_count?: number
           query_embedding: string
           similarity_threshold?: number
