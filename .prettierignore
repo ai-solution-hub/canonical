@@ -28,7 +28,7 @@ package-lock.json
 
 # Supabase
 supabase/.temp/
-supabase/types/database.ts
+supabase/types/database.types.ts
 types/supabase.ts
 
 # IDE
