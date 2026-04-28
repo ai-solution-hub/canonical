@@ -38,6 +38,9 @@ jobs:
       pull-requests: read
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Detect changed paths
         id: changes
         uses: dorny/paths-filter@v3
@@ -52,10 +55,6 @@ jobs:
         if: steps.changes.outputs.migrations != 'true'
         run: |
           echo "No changes under supabase/{migrations,seed.sql,config.toml}; skipping replay."
-
-      - name: Checkout
-        if: steps.changes.outputs.migrations == 'true'
-        uses: actions/checkout@v4
 
       - name: Setup Bun
         if: steps.changes.outputs.migrations == 'true'
