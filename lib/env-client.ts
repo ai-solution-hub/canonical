@@ -99,6 +99,11 @@ function parseClientEnv(): ClientEnv {
   // so at browser runtime `process.env` is the empty polyfill `{}` and Zod
   // throws with every field undefined. P0 production bug; fixed by enumerating
   // each field literal here.
+  //
+  // Regression guard: `__tests__/build/env-substitution.test.ts` (run via
+  // `RUN_BUILD_TESTS=1 bun run test:build` after `bun run build`) scans
+  // `.next/static/chunks/*.js` for any surviving `process.env.NEXT_PUBLIC_*`
+  // reference and fails the build if found. Wired into ci.yml.
   const result = clientSchema.safeParse({
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:

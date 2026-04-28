@@ -93,6 +93,18 @@ jobs:
           CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
         run: bun run build
 
+      - name: Build-output regression scan (NEXT_PUBLIC_* substitution)
+        # Guards against the S7 P0 (env-client safeParse(process.env)) class of
+        # regression: any `process.env.NEXT_PUBLIC_*` left unsubstituted in
+        # `.next/static/chunks/*.js` would crash the client bundle at first
+        # paint. See `__tests__/build/env-substitution.test.ts` + memory
+        # `feedback_env_client_literal_substitution.md`. Reuses the build
+        # artefacts from the previous step — no extra build cost.
+        env:
+          RUN_BUILD_TESTS: "1"
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+        run: bun run test:build
+
       - name: Test (Vitest)
         env:
           # Vitest setup imports validated env modules; mirror the build step.
