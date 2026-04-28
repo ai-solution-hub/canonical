@@ -14,47 +14,39 @@
 -- The migration is idempotent (`WHERE content_owner_id IS NULL` clause):
 -- re-running on a populated table is a no-op.
 
--- ─────────────────────────────────────────────
--- Step 1 — UPDATE content_items
--- ─────────────────────────────────────────────
-
-UPDATE public.content_items ci
-SET
-  content_owner_id = ci.created_by,
-  updated_at = now()
-WHERE ci.content_owner_id IS NULL
-  AND ci.created_by IS NOT NULL
-  AND ci.created_by <> ALL (ARRAY['a0000000-0000-4000-8000-000000000001']::uuid[]);
-
--- ─────────────────────────────────────────────
--- Step 2 — content_history audit row per affected item
--- ─────────────────────────────────────────────
+-- WP-A3 (S206): default content_owner_id = created_by for human-authored rows.
+-- Service-account rows remain NULL-owned (intentional — see spec §3.3 AC3.2).
+-- CTE-based for atomicity + replay-safe idempotency (UPDATE drives audit INSERT directly).
 --
--- The set_content_history_version trigger (function
--- auto_version_content_history) overwrites the explicit `version` value
--- with `MAX(version)+1` per content_item_id, so any non-null value here
--- is acceptable. We pass `1` as a placeholder to satisfy the NOT NULL
--- column constraint pre-trigger.
---
--- We identify "items just affected by step 1" via the 5-minute updated_at
--- window — restricted to rows where content_owner_id is now equal to
--- created_by (the post-condition of the backfill).
+-- Note on SQL form: `unnest(...)` exposes individual UUID values from the
+-- service-account list so the `NOT IN (...)` predicate has a uuid:uuid
+-- comparison (not uuid:uuid[]). Functionally equivalent to `<> ALL`.
 
+WITH service_account_ids AS (
+  SELECT unnest('{a0000000-0000-4000-8000-000000000001}'::uuid[]) AS uid
+),
+affected AS (
+  UPDATE public.content_items ci
+  SET
+    content_owner_id = ci.created_by,
+    updated_at = now()
+  WHERE ci.content_owner_id IS NULL
+    AND ci.created_by IS NOT NULL
+    AND ci.created_by NOT IN (SELECT uid FROM service_account_ids)
+  RETURNING id, created_by, title, content
+)
 INSERT INTO public.content_history (
   content_item_id, version, title, content,
   change_type, change_reason, change_summary,
   created_by, metadata
 )
 SELECT
-  ci.id,
-  1,
-  ci.title,
-  ci.content,
+  a.id,
+  COALESCE((SELECT MAX(version) FROM content_history WHERE content_item_id = a.id), 1) + 1,
+  a.title, a.content,
   'owner_change',
   'backfill_owner_assign_wp_a3',
   'Backfill: content_owner_id auto-assigned to created_by per WP-A3',
-  ci.created_by,
+  a.created_by,
   jsonb_build_object('backfill', true, 'wp', 'WP-A3')
-FROM public.content_items ci
-WHERE ci.content_owner_id = ci.created_by
-  AND ci.updated_at > now() - interval '5 minutes';
+FROM affected a;

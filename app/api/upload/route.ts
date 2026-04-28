@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { createServiceClient } from '@/lib/supabase/server';
@@ -222,10 +223,22 @@ export async function POST(request: NextRequest) {
     // S206 WP-A Phase 2 (AC3.1) — content owner override. Admin-only;
     // non-admins are silent-forced to their own userId via the helper.
     // The form field is a UUID string; resolveContentOwnerId() handles
-    // empty/null/undefined safely.
-    const contentOwnerIdField = formData.get('content_owner_id') as
+    // empty/null/undefined safely. Zod-validate the UUID shape before
+    // accepting it (fix M-2 — was previously bypassed for formData paths).
+    const contentOwnerIdRaw = formData.get('content_owner_id') as
       | string
       | null;
+    let contentOwnerIdField: string | null = null;
+    if (contentOwnerIdRaw !== null && contentOwnerIdRaw !== '') {
+      const parsed = z.string().uuid().safeParse(contentOwnerIdRaw);
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: 'Invalid content_owner_id: must be a valid UUID' },
+          { status: 400 },
+        );
+      }
+      contentOwnerIdField = parsed.data;
+    }
     const ownerId = resolveContentOwnerId({
       explicit: contentOwnerIdField,
       role,

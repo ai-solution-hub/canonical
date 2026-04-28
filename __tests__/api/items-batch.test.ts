@@ -442,6 +442,60 @@ describe('POST /api/items/batch', () => {
       }
     });
 
+    it('admin override: explicit content_owner_id is respected for every item when caller is admin', async () => {
+      configureRole(mockSupabase, 'admin');
+      const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
+
+      const res = await POST(
+        makeRequest({
+          items: makeSampleItems(2),
+          content_owner_id: OTHER_UUID,
+        }),
+      );
+      expect(res.status).toBe(201);
+
+      const insertCalls = mockContentChain.insert.mock.calls;
+      const itemInserts = insertCalls.filter(
+        (call: unknown[]) =>
+          typeof call[0] === 'object' &&
+          call[0] !== null &&
+          'content_type' in call[0],
+      );
+      expect(itemInserts.length).toBeGreaterThanOrEqual(1);
+      for (const call of itemInserts) {
+        expect(call[0].content_owner_id).toBe(OTHER_UUID);
+        // created_by always tracks the caller, not the override target
+        expect(call[0].created_by).toBe('user-1');
+      }
+    });
+
+    it('non-admin override is silent-forced: explicit content_owner_id ignored for editor', async () => {
+      configureRole(mockSupabase, 'editor');
+      const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
+
+      const res = await POST(
+        makeRequest({
+          items: makeSampleItems(2),
+          content_owner_id: OTHER_UUID,
+        }),
+      );
+      // Silent-force = legitimate write, not 403
+      expect(res.status).toBe(201);
+
+      const insertCalls = mockContentChain.insert.mock.calls;
+      const itemInserts = insertCalls.filter(
+        (call: unknown[]) =>
+          typeof call[0] === 'object' &&
+          call[0] !== null &&
+          'content_type' in call[0],
+      );
+      expect(itemInserts.length).toBeGreaterThanOrEqual(1);
+      for (const call of itemInserts) {
+        expect(call[0].content_owner_id).toBe('user-1');
+        expect(call[0].created_by).toBe('user-1');
+      }
+    });
+
     it('returns created and failed counts', async () => {
       configureRole(mockSupabase, 'editor');
 
