@@ -149,10 +149,10 @@ jobs:
         run: python3 -m pytest scripts/tests/
 
   e2e-smoke:
+    # WP-G4.3 — Curated Playwright smoke (~54 tests, target ≤5 min wall-clock)
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.3-e2e-smoke-spec.md
-    # Curated Playwright smoke (~54 tests, target ≤5 min wall-clock) against
-    # staging Supabase branch. Runs in parallel with `quality` (no `needs:`)
-    # so total CI wall-clock stays close to max(quality, e2e-smoke).
+    # Runs in parallel with `quality` (no `needs:`) so total CI wall-clock stays
+    # close to max(quality, e2e-smoke).
     name: E2E smoke
     runs-on: ubuntu-latest
     # Staging env scope per docs/runbooks/github-environments.md §2 —
@@ -199,10 +199,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
@@ -226,4 +222,191 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+          if-no-files-found: ignore
+
+  mcp-eval:
+    # WP-G4.4 — MCP eval Layers 1/3/4 in CI.
+    # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.4-mcp-eval-ci-spec.md
+    # Runs the three MCP eval scripts against a CI-local dev server backed by the
+    # Staging Supabase branch. Matrix entries report independently as
+    # `mcp-eval (l1)`, `mcp-eval (l3)`, `mcp-eval (l4)`.
+    #
+    # Skip-flag policy (per spec §3.2):
+    #   - push to main  → full mode (no skip flags)
+    #   - PR touching MCP paths (paths-filter) → full mode
+    #   - other PRs → --skip-ai (L1, L4) / --skip-search (L3) for cost-zero runs
+    #
+    # Independent of the `quality` job (no `needs:` chain) so eval results
+    # appear regardless of quality-job state.
+    name: MCP eval (${{ matrix.layer }})
+    runs-on: ubuntu-latest
+    # Staging-scoped: TEST_USER_1_* secrets only exist on Staging env scope
+    # (per docs/runbooks/github-environments.md §3.1). Eval scripts authenticate
+    # as TEST_USER_1 to obtain a Bearer token for the MCP server endpoint.
+    environment: Staging
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: [l1, l3, l4]
+
+    steps:
+      - name: Detect MCP-related path changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            mcp:
+              - 'lib/mcp/**'
+              - 'app/api/mcp/**'
+              - 'scripts/mcp-eval/**'
+              - 'lib/ai/**'
+              - 'lib/validation/schemas.ts'
+              - 'package.json'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build (Next.js)
+        env:
+          # Mirror the quality job's build env block — Staging-scoped secrets/vars.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
+        run: bun run build
+
+      - name: Start MCP server (background)
+        env:
+          # Runtime env block — same as Build step. `bun run start` reads these
+          # at boot to satisfy lib/env.ts + lib/env-client.ts validation.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+        run: |
+          bun run start > /tmp/server.log 2>&1 &
+          echo $! > /tmp/server.pid
+
+          # Health-check loop — POST to the MCP endpoint until any HTTP response
+          # is received (timeout 30s). A 401 here means the server is up and the
+          # MCP route handler is responding (auth-required is the expected
+          # default for the endpoint without a Bearer token). A connection
+          # failure (curl exit code 7) means the server is not yet listening.
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -X POST \
+                 -H "Content-Type: application/json" \
+                 -d '{}' \
+                 http://localhost:3000/api/mcp/streamable-http || echo "000")
+            if [ "$HTTP_CODE" != "000" ]; then
+              echo "MCP server up after ${i}s (HTTP $HTTP_CODE)"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "MCP server failed to start within 30s" >&2
+              echo "----- /tmp/server.log -----" >&2
+              cat /tmp/server.log >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Run MCP eval (${{ matrix.layer }})
+        env:
+          # Eval scripts authenticate as TEST_USER_1 → Bearer token to MCP endpoint.
+          TEST_USER_1_EMAIL: ${{ secrets.TEST_USER_1_EMAIL }}
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          # NEXT_PUBLIC_* needed by fixtures.ts to build the Supabase client
+          # (signs in as TEST_USER_1 to mint the Bearer token).
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          # Service-role key for fixtures.ts cleanup paths (deleting eval items).
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Workflow-injection mitigation: pass github context through env, not run:.
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          MCP_PATHS_CHANGED: ${{ steps.changes.outputs.mcp }}
+          LAYER: ${{ matrix.layer }}
+        run: |
+          # Skip-flag policy (per spec §3.2):
+          #   push to main  → full
+          #   MCP-touch PR  → full
+          #   other PRs     → skip flags active (cost-zero runs)
+          if [ "$GITHUB_EVENT_NAME" = "push" ] || [ "$MCP_PATHS_CHANGED" = "true" ]; then
+            SKIP_FLAGS=""
+            echo "Mode: full (no skip flags)"
+          else
+            case "$LAYER" in
+              l1) SKIP_FLAGS="--skip-ai" ;;
+              l3) SKIP_FLAGS="--skip-search" ;;
+              l4) SKIP_FLAGS="--skip-ai" ;;
+            esac
+            echo "Mode: skip ($SKIP_FLAGS)"
+          fi
+
+          case "$LAYER" in
+            l1) bun run test:mcp-eval $SKIP_FLAGS ;;
+            l3) bun run test:mcp-eval:rq $SKIP_FLAGS ;;
+            l4) bun run test:mcp-eval:fc $SKIP_FLAGS ;;
+            *)  echo "Unknown layer: $LAYER" >&2; exit 1 ;;
+          esac
+
+      - name: Stop MCP server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill "$(cat /tmp/server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-eval-${{ matrix.layer }}-server-log
+          path: /tmp/server.log
+          retention-days: 7
           if-no-files-found: ignore
