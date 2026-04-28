@@ -6,6 +6,7 @@ import { useItemProvenance } from '@/hooks/provenance/use-item-provenance';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import PerItemField from '@/components/provenance/per-item-field';
+import { formatDateUK } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // UUID validation
@@ -39,16 +40,9 @@ function formatConfidence(value: number | null): string | null {
 // Review-schedule formatting (T4-AC1/AC2/AC3)
 // ---------------------------------------------------------------------------
 
-function formatDateUK(value: string | null): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString('en-GB');
-}
-
 /** T4-AC1 — "{DD/MM/YYYY}" or "Not scheduled". */
 function formatNextReviewDate(nextReviewDate: string | null): string {
-  return formatDateUK(nextReviewDate) ?? 'Not scheduled';
+  return formatDateUK(nextReviewDate) || 'Not scheduled';
 }
 
 /**
@@ -77,7 +71,7 @@ function formatReviewCadence(
 
 /** T4-AC3 — "{DD/MM/YYYY}" derived from `verified_at`, or "Never reviewed". */
 function formatLastReviewed(lastReviewedAt: string | null): string {
-  return formatDateUK(lastReviewedAt) ?? 'Never reviewed';
+  return formatDateUK(lastReviewedAt) || 'Never reviewed';
 }
 
 // ---------------------------------------------------------------------------
