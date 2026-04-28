@@ -115,13 +115,14 @@ export function useDigestData() {
   });
 
   // Cancel in-flight generation (OPS-23)
+  const { reset: resetGenerateMutation } = generateMutation;
   const cancelGeneration = useCallback(() => {
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
     }
-    generateMutation.reset();
-  }, [generateMutation]);
+    resetGenerateMutation();
+  }, [resetGenerateMutation]);
 
   // ─── Load a specific past digest ───
 

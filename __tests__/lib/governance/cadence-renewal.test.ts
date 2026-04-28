@@ -18,7 +18,6 @@ import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
 // rounding quirks.
 const PINNED_TODAY_ISO = '2026-04-15T12:00:00.000Z';
 const PINNED_TODAY = new Date(PINNED_TODAY_ISO);
-const PINNED_TODAY_MS = PINNED_TODAY.getTime();
 
 describe('computeNextReviewDate', () => {
   beforeEach(() => {

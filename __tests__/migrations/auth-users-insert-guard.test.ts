@@ -211,7 +211,6 @@ describe('S156 guard — INSERT INTO auth.users requires token initialisation + 
     );
     if (exemptions.length > 0) {
       // Not a failure — just print so reviewers see them.
-      // eslint-disable-next-line no-console
       console.log(
         `\nS156 guard: ${exemptions.length} migration(s) marked S156-GUARD-EXEMPT:\n` +
           exemptions.map((e) => `  - ${e.name}`).join('\n'),

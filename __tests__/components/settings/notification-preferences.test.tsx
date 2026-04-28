@@ -84,13 +84,6 @@ function mockFetchPrefsDefault() {
   });
 }
 
-function mockFetchError() {
-  global.fetch = vi.fn().mockResolvedValue({
-    ok: false,
-    json: async () => ({ error: 'Server error' }),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -245,11 +238,9 @@ describe('NotificationPreferences', () => {
 
     // First call: GET prefs (all on)
     // Second call: PUT to toggle one off
-    let callCount = 0;
     global.fetch = vi
       .fn()
       .mockImplementation(async (url: string, init?: RequestInit) => {
-        callCount++;
         if (!init || init.method !== 'PUT') {
           // GET call
           return {
