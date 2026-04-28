@@ -119,7 +119,7 @@ const {
   ];
 
   return {
-    mockUseDisplayNames: vi.fn(
+    mockUseDisplayNames: vi.fn<(...args: unknown[]) => Map<string, string>>(
       () =>
         new Map([
           ['user-uuid-1', 'Jane Smith'],
@@ -147,8 +147,8 @@ const {
       updateQualityFlag: vi.fn(),
     })),
     mockItems,
-    mockContentGridProps: vi.fn(),
-    mockContentListProps: vi.fn(),
+    mockContentGridProps: vi.fn<(...args: unknown[]) => unknown>(),
+    mockContentListProps: vi.fn<(...args: unknown[]) => unknown>(),
   };
 });
 

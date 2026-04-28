@@ -30,7 +30,9 @@ const { mockEditor, mockUseEditor } = vi.hoisted(() => {
 
   return {
     mockEditor: editor,
-    mockUseEditor: vi.fn(() => editor),
+    mockUseEditor: vi.fn<(...args: unknown[]) => typeof editor | null>(
+      () => editor,
+    ),
   };
 });
 

@@ -4,7 +4,15 @@
  * Tests drift-detection banner rendering, dismiss behaviour,
  * regenerate mutation, error handling, and accessibility.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import {
   render,
   screen,
@@ -44,11 +52,11 @@ const IN_SYNC_RESPONSE = {
   synced_hash: 'abc123',
 };
 
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<(...args: unknown[]) => Promise<unknown>>;
 
 beforeEach(() => {
-  fetchMock = vi.fn();
-  global.fetch = fetchMock;
+  fetchMock = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+  global.fetch = fetchMock as unknown as typeof globalThis.fetch;
   mockToast.success.mockClear();
   mockToast.error.mockClear();
 });
