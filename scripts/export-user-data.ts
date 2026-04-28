@@ -101,7 +101,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       if (v === 'prod' || v === 'staging') {
         env = v;
       } else {
-        return { ...emptyArgs(), error: `--env must be 'prod' or 'staging', got '${v}'` };
+        return {
+          ...emptyArgs(),
+          error: `--env must be 'prod' or 'staging', got '${v}'`,
+        };
       }
       i++;
     } else if (arg.startsWith('--env=')) {
@@ -109,7 +112,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       if (v === 'prod' || v === 'staging') {
         env = v;
       } else {
-        return { ...emptyArgs(), error: `--env must be 'prod' or 'staging', got '${v}'` };
+        return {
+          ...emptyArgs(),
+          error: `--env must be 'prod' or 'staging', got '${v}'`,
+        };
       }
     } else if (arg === '--user-id' && argv[i + 1]) {
       userId = argv[i + 1];
@@ -131,7 +137,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       if (v === 'json' || v === 'both') {
         format = v;
       } else {
-        return { ...emptyArgs(), error: `--format must be 'json' or 'both', got '${v}'` };
+        return {
+          ...emptyArgs(),
+          error: `--format must be 'json' or 'both', got '${v}'`,
+        };
       }
       i++;
     } else if (arg.startsWith('--format=')) {
@@ -139,14 +148,20 @@ export function parseCliArgs(argv: string[]): CliArgs {
       if (v === 'json' || v === 'both') {
         format = v;
       } else {
-        return { ...emptyArgs(), error: `--format must be 'json' or 'both', got '${v}'` };
+        return {
+          ...emptyArgs(),
+          error: `--format must be 'json' or 'both', got '${v}'`,
+        };
       }
     } else if (arg === '--article' && argv[i + 1]) {
       const v = argv[i + 1];
       if (v === '15' || v === '20') {
         article = v;
       } else {
-        return { ...emptyArgs(), error: `--article must be '15' or '20', got '${v}'` };
+        return {
+          ...emptyArgs(),
+          error: `--article must be '15' or '20', got '${v}'`,
+        };
       }
       i++;
     } else if (arg.startsWith('--article=')) {
@@ -154,7 +169,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       if (v === '15' || v === '20') {
         article = v;
       } else {
-        return { ...emptyArgs(), error: `--article must be '15' or '20', got '${v}'` };
+        return {
+          ...emptyArgs(),
+          error: `--article must be '15' or '20', got '${v}'`,
+        };
       }
     }
   }
@@ -164,21 +182,34 @@ export function parseCliArgs(argv: string[]): CliArgs {
   }
 
   if (!env) {
-    return { ...emptyArgs(), error: '--env=prod or --env=staging is REQUIRED (no default — fail-fast per WP-S5.3 D-21).' };
+    return {
+      ...emptyArgs(),
+      error:
+        '--env=prod or --env=staging is REQUIRED (no default — fail-fast per WP-S5.3 D-21).',
+    };
   }
 
   if (!userId && !email) {
-    return { ...emptyArgs(), error: 'Either --user-id <uuid> OR --email <addr> is REQUIRED.' };
+    return {
+      ...emptyArgs(),
+      error: 'Either --user-id <uuid> OR --email <addr> is REQUIRED.',
+    };
   }
 
   if (userId && email) {
-    return { ...emptyArgs(), error: '--user-id and --email are mutually exclusive — pass exactly one.' };
+    return {
+      ...emptyArgs(),
+      error: '--user-id and --email are mutually exclusive — pass exactly one.',
+    };
   }
 
   if (userId) {
     const uuidResult = z.string().uuid().safeParse(userId);
     if (!uuidResult.success) {
-      return { ...emptyArgs(), error: `--user-id must be a valid v4 UUID, got '${userId}'` };
+      return {
+        ...emptyArgs(),
+        error: `--user-id must be a valid v4 UUID, got '${userId}'`,
+      };
     }
   }
 
@@ -231,7 +262,10 @@ export function loadEnvFile(filePath: string): void {
 // Env-flag assertion
 // ---------------------------------------------------------------------------
 
-export function assertEnvFlag(env: CliArgs['env'], url: string | undefined): void {
+export function assertEnvFlag(
+  env: CliArgs['env'],
+  url: string | undefined,
+): void {
   if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
     console.error(
       `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
@@ -291,7 +325,9 @@ export async function resolveSubjectUuid(
     if (error) {
       const status = (error as { status?: number }).status;
       if (status === 404) return null;
-      throw new Error(`auth.admin.getUserById(${userId}) failed: ${error.message ?? 'unknown'}`);
+      throw new Error(
+        `auth.admin.getUserById(${userId}) failed: ${error.message ?? 'unknown'}`,
+      );
     }
     if (!data?.user) return null;
     return data.user.id;
@@ -305,7 +341,9 @@ export async function resolveSubjectUuid(
         perPage: EMAIL_LOOKUP_PAGE_SIZE,
       });
       if (error) {
-        throw new Error(`auth.admin.listUsers(page=${page}) failed: ${error.message}`);
+        throw new Error(
+          `auth.admin.listUsers(page=${page}) failed: ${error.message}`,
+        );
       }
       const pageMatches = data.users.filter(
         (u: { email?: string | null }) => u.email === email,
@@ -393,9 +431,14 @@ export async function fetchByColumn(
   column: string,
   subjectUuid: string,
 ): Promise<Record<string, unknown>[]> {
-  const { data, error } = await client.from(table).select('*').eq(column, subjectUuid);
+  const { data, error } = await client
+    .from(table)
+    .select('*')
+    .eq(column, subjectUuid);
   if (error) {
-    throw new Error(`SELECT * FROM ${table} WHERE ${column} = '${subjectUuid}' failed: ${error.message}`);
+    throw new Error(
+      `SELECT * FROM ${table} WHERE ${column} = '${subjectUuid}' failed: ${error.message}`,
+    );
   }
   return (data ?? []) as Record<string, unknown>[];
 }
@@ -566,23 +609,78 @@ export async function assembleAuditTrailBundle(
   ] = await Promise.all([
     fetchByColumn(client, 'content_history', 'created_by', subjectUuid),
     fetchByColumn(client, 'bid_response_history', 'edited_by', subjectUuid),
-    fetchByAnyColumn(client, 'bid_responses', ['drafted_by', 'last_edited_by', 'approved_by'], subjectUuid),
-    fetchByAnyColumn(client, 'bid_questions', ['assigned_to', 'created_by'], subjectUuid),
+    fetchByAnyColumn(
+      client,
+      'bid_responses',
+      ['drafted_by', 'last_edited_by', 'approved_by'],
+      subjectUuid,
+    ),
+    fetchByAnyColumn(
+      client,
+      'bid_questions',
+      ['assigned_to', 'created_by'],
+      subjectUuid,
+    ),
     fetchByColumn(client, 'verification_history', 'performed_by', subjectUuid),
-    fetchByAnyColumn(client, 'classification_disputes', ['disputed_by', 'resolved_by'], subjectUuid),
-    fetchByAnyColumn(client, 'feed_flags', ['flagged_by', 'resolved_by'], subjectUuid),
-    fetchByColumn(client, 'tag_morphology_drift_flags', 'decided_by', subjectUuid),
-    fetchByAnyColumn(client, 'review_assignments', ['assigned_by', 'reviewer_id'], subjectUuid),
-    fetchByAnyColumn(client, 'source_document_diffs', ['created_by', 'reviewed_by'], subjectUuid),
-    fetchByAnyColumn(client, 'source_documents', ['archived_by', 'uploaded_by'], subjectUuid),
+    fetchByAnyColumn(
+      client,
+      'classification_disputes',
+      ['disputed_by', 'resolved_by'],
+      subjectUuid,
+    ),
+    fetchByAnyColumn(
+      client,
+      'feed_flags',
+      ['flagged_by', 'resolved_by'],
+      subjectUuid,
+    ),
+    fetchByColumn(
+      client,
+      'tag_morphology_drift_flags',
+      'decided_by',
+      subjectUuid,
+    ),
+    fetchByAnyColumn(
+      client,
+      'review_assignments',
+      ['assigned_by', 'reviewer_id'],
+      subjectUuid,
+    ),
+    fetchByAnyColumn(
+      client,
+      'source_document_diffs',
+      ['created_by', 'reviewed_by'],
+      subjectUuid,
+    ),
+    fetchByAnyColumn(
+      client,
+      'source_documents',
+      ['archived_by', 'uploaded_by'],
+      subjectUuid,
+    ),
     fetchByColumn(client, 'taxonomy_domains', 'recommended_by', subjectUuid),
     fetchByColumn(client, 'taxonomy_subtopics', 'recommended_by', subjectUuid),
     fetchByColumn(client, 'taxonomy_sync_state', 'synced_by', subjectUuid),
-    fetchByAnyColumn(client, 'digests', ['created_by', 'generated_by'], subjectUuid),
+    fetchByAnyColumn(
+      client,
+      'digests',
+      ['created_by', 'generated_by'],
+      subjectUuid,
+    ),
     fetchByColumn(client, 'processing_queue', 'created_by', subjectUuid),
     fetchByColumn(client, 'pipeline_runs', 'created_by', subjectUuid),
-    fetchByAnyColumn(client, 'ingestion_quality_log', ['created_by', 'resolved_by'], subjectUuid),
-    fetchByAnyColumn(client, 'governance_config', ['created_by', 'updated_by', 'reviewer_id'], subjectUuid),
+    fetchByAnyColumn(
+      client,
+      'ingestion_quality_log',
+      ['created_by', 'resolved_by'],
+      subjectUuid,
+    ),
+    fetchByAnyColumn(
+      client,
+      'governance_config',
+      ['created_by', 'updated_by', 'reviewer_id'],
+      subjectUuid,
+    ),
   ]);
   return {
     content_history: contentHistory,
@@ -627,17 +725,34 @@ export async function assembleAttributedContentBundle(
     fetchByAnyColumn(
       client,
       'content_items',
-      ['created_by', 'updated_by', 'archived_by', 'verified_by', 'governance_reviewer_id', 'content_owner_id'],
+      [
+        'created_by',
+        'updated_by',
+        'archived_by',
+        'verified_by',
+        'governance_reviewer_id',
+        'content_owner_id',
+      ],
       subjectUuid,
     ),
     fetchByColumn(client, 'content_citations', 'created_by', subjectUuid),
     fetchByColumn(client, 'feed_prompts', 'created_by', subjectUuid),
     fetchByColumn(client, 'feed_sources', 'created_by', subjectUuid),
-    fetchByAnyColumn(client, 'coverage_targets', ['created_by', 'updated_by'], subjectUuid),
+    fetchByAnyColumn(
+      client,
+      'coverage_targets',
+      ['created_by', 'updated_by'],
+      subjectUuid,
+    ),
     fetchByColumn(client, 'guides', 'created_by', subjectUuid),
     fetchByColumn(client, 'templates', 'created_by', subjectUuid),
     fetchByColumn(client, 'template_completions', 'created_by', subjectUuid),
-    fetchByAnyColumn(client, 'workspaces', ['created_by', 'updated_by'], subjectUuid),
+    fetchByAnyColumn(
+      client,
+      'workspaces',
+      ['created_by', 'updated_by'],
+      subjectUuid,
+    ),
     fetchByColumn(client, 'company_profiles', 'created_by', subjectUuid),
   ]);
   return {
@@ -674,16 +789,16 @@ export function buildSubjectSummaryCsv(bundle: SubjectBundle): string {
     ['user_role.role', stringField(bundle.user_role, 'role')],
     ['user_role.display_name', stringField(bundle.user_role, 'display_name')],
   ];
-  return UTF8_BOM + rows.map((r) => r.map(csvEscape).join(',')).join('\n') + '\n';
+  return (
+    UTF8_BOM + rows.map((r) => r.map(csvEscape).join(',')).join('\n') + '\n'
+  );
 }
 
 /**
  * Build a per-event CSV of activity (read_marks + notifications).
  */
 export function buildActivitySummaryCsv(activity: ActivityBundle): string {
-  const rows: string[][] = [
-    ['event_type', 'event_id', 'event_at', 'detail'],
-  ];
+  const rows: string[][] = [['event_type', 'event_id', 'event_at', 'detail']];
   for (const r of activity.read_marks) {
     rows.push([
       'read_mark',
@@ -700,7 +815,9 @@ export function buildActivitySummaryCsv(activity: ActivityBundle): string {
       `type=${String(n.type ?? '')};title=${String(n.title ?? '')};read_at=${String(n.read_at ?? '')}`,
     ]);
   }
-  return UTF8_BOM + rows.map((r) => r.map(csvEscape).join(',')).join('\n') + '\n';
+  return (
+    UTF8_BOM + rows.map((r) => r.map(csvEscape).join(',')).join('\n') + '\n'
+  );
 }
 
 function stringField(row: Record<string, unknown> | null, key: string): string {
@@ -726,9 +843,10 @@ export function buildReadme(
   invocation: BundleManifest['invocation'],
   generatedAtIso: string,
 ): string {
-  const articleLabel = invocation.article === '15'
-    ? 'Article 15 (right of access — full export)'
-    : 'Article 20 (right to data portability — structured data subset)';
+  const articleLabel =
+    invocation.article === '15'
+      ? 'Article 15 (right of access — full export)'
+      : 'Article 20 (right to data portability — structured data subset)';
   return `# Your Personal Data — Knowledge Hub Export
 
 **Generated:** ${formatUkDate(generatedAtIso)}
@@ -827,7 +945,10 @@ function formatUkDate(iso: string): string {
 // Manifest
 // ---------------------------------------------------------------------------
 
-export function buildManifestEntry(filename: string, content: string): ManifestEntry {
+export function buildManifestEntry(
+  filename: string,
+  content: string,
+): ManifestEntry {
   const buf = Buffer.from(content, 'utf-8');
   const sha = createHash('sha256').update(buf).digest('hex');
   return { filename, size_bytes: buf.byteLength, sha256: sha };
@@ -898,7 +1019,12 @@ export function writeBundle(
 
   filesToWrite.push({
     name: 'README.md',
-    content: buildReadme(subjectUuid, payload.subject.auth_user, payload.invocation, generatedAtIso),
+    content: buildReadme(
+      subjectUuid,
+      payload.subject.auth_user,
+      payload.invocation,
+      generatedAtIso,
+    ),
   });
 
   // Write all data files first so the manifest can include them.
@@ -934,7 +1060,11 @@ export function writeBundle(
   };
   const manifestContent = JSON.stringify(manifest, null, 2) + '\n';
   const manifestEntry = buildManifestEntry('manifest.json', manifestContent);
-  fs.writeFileSync(path.join(bundleDir, 'manifest.json'), manifestContent, 'utf-8');
+  fs.writeFileSync(
+    path.join(bundleDir, 'manifest.json'),
+    manifestContent,
+    'utf-8',
+  );
   manifestEntries.push(manifestEntry);
   totalBytes += manifestEntry.size_bytes;
 
@@ -996,11 +1126,14 @@ async function main(): Promise<number> {
     return EXIT_EXPORT_ERROR;
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in env.');
+    console.error(
+      'Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in env.',
+    );
     return EXIT_EXPORT_ERROR;
   }
 
@@ -1015,12 +1148,16 @@ async function main(): Promise<number> {
   try {
     subjectUuid = await resolveSubjectUuid(client, args.userId, args.email);
   } catch (err) {
-    console.error(`Error resolving subject: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(
+      `Error resolving subject: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return EXIT_EXPORT_ERROR;
   }
 
   if (!subjectUuid) {
-    const lookupKey = args.userId ? `--user-id ${args.userId}` : `--email ${args.email}`;
+    const lookupKey = args.userId
+      ? `--user-id ${args.userId}`
+      : `--email ${args.email}`;
     console.error(`Subject not found: no auth.users row matches ${lookupKey}.`);
     return EXIT_SUBJECT_NOT_FOUND;
   }
@@ -1036,11 +1173,15 @@ async function main(): Promise<number> {
   try {
     authUser = await fetchAuthUser(client, subjectUuid);
   } catch (err) {
-    console.error(`Error fetching auth user: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(
+      `Error fetching auth user: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return EXIT_EXPORT_ERROR;
   }
   if (!authUser) {
-    console.error(`Subject UUID resolved but auth.admin.getUserById returned no user: ${subjectUuid}`);
+    console.error(
+      `Subject UUID resolved but auth.admin.getUserById returned no user: ${subjectUuid}`,
+    );
     return EXIT_EXPORT_ERROR;
   }
 
@@ -1055,16 +1196,22 @@ async function main(): Promise<number> {
     activity = await assembleActivityBundle(client, subjectUuid);
     if (args.article === '15') {
       auditTrail = await assembleAuditTrailBundle(client, subjectUuid);
-      attributedContent = await assembleAttributedContentBundle(client, subjectUuid);
+      attributedContent = await assembleAttributedContentBundle(
+        client,
+        subjectUuid,
+      );
     }
   } catch (err) {
-    console.error(`Error assembling bundle: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(
+      `Error assembling bundle: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return EXIT_EXPORT_ERROR;
   }
 
   // Write bundle to disk.
   const generatedAtIso = new Date().toISOString();
-  const lookupSource: BundleManifest['invocation']['subject_lookup'] = args.userId ? 'user-id' : 'email';
+  const lookupSource: BundleManifest['invocation']['subject_lookup'] =
+    args.userId ? 'user-id' : 'email';
   let writeResult: WriteResult;
   try {
     writeResult = writeBundle(args.output, subjectUuid, generatedAtIso, {
@@ -1081,7 +1228,9 @@ async function main(): Promise<number> {
       format: args.format,
     });
   } catch (err) {
-    console.error(`Error writing bundle: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(
+      `Error writing bundle: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return EXIT_EXPORT_ERROR;
   }
 
@@ -1089,7 +1238,9 @@ async function main(): Promise<number> {
   console.log(`Bundle written: ${writeResult.bundleDir}`);
   console.log(`Files (${writeResult.files.length}):`);
   for (const f of writeResult.files) {
-    console.log(`  ${f.filename}  (${f.size_bytes} bytes, sha256=${f.sha256.slice(0, 16)}…)`);
+    console.log(
+      `  ${f.filename}  (${f.size_bytes} bytes, sha256=${f.sha256.slice(0, 16)}…)`,
+    );
   }
   console.log(`Total bundle size: ${writeResult.totalBytes} bytes`);
 

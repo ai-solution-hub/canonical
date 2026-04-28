@@ -145,7 +145,11 @@ function unhealthyMetrics() {
   };
 }
 
-function setupDefaults(metricsData: ReturnType<typeof activeMetrics> = quietMetrics() as ReturnType<typeof activeMetrics>) {
+function setupDefaults(
+  metricsData: ReturnType<typeof activeMetrics> = quietMetrics() as ReturnType<
+    typeof activeMetrics
+  >,
+) {
   mockUseParams.mockReturnValue({ workspaceId: WORKSPACE_ID });
   mockUseUserRole.mockReturnValue({
     role: 'admin',

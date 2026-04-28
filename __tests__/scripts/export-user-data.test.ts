@@ -33,8 +33,12 @@ describe('parseCliArgs', () => {
   });
 
   it('accepts --env=prod and --env=staging', () => {
-    expect(parseCliArgs(['--env=prod', '--user-id', VALID_UUID_A]).env).toBe('prod');
-    expect(parseCliArgs(['--env=staging', '--user-id', VALID_UUID_A]).env).toBe('staging');
+    expect(parseCliArgs(['--env=prod', '--user-id', VALID_UUID_A]).env).toBe(
+      'prod',
+    );
+    expect(parseCliArgs(['--env=staging', '--user-id', VALID_UUID_A]).env).toBe(
+      'staging',
+    );
   });
 
   it('accepts space form: --env prod', () => {
@@ -53,8 +57,10 @@ describe('parseCliArgs', () => {
   it('errors when both --user-id and --email are provided (mutually exclusive)', () => {
     const args = parseCliArgs([
       '--env=staging',
-      '--user-id', VALID_UUID_A,
-      '--email', 'test@example.com',
+      '--user-id',
+      VALID_UUID_A,
+      '--email',
+      'test@example.com',
     ]);
     expect(args.error).not.toBeNull();
     expect(args.error).toContain('mutually exclusive');
@@ -68,13 +74,21 @@ describe('parseCliArgs', () => {
 
   it('rejects v4-shaped but invalid UUID like 00000000-...0001', () => {
     // Per CLAUDE.md gotcha: zod UUID enforces RFC 4122 strictly.
-    const args = parseCliArgs(['--env=staging', '--user-id', '00000000-0000-0000-0000-000000000001']);
+    const args = parseCliArgs([
+      '--env=staging',
+      '--user-id',
+      '00000000-0000-0000-0000-000000000001',
+    ]);
     expect(args.error).not.toBeNull();
     expect(args.error).toContain('valid v4 UUID');
   });
 
   it('accepts --email as the subject identifier', () => {
-    const args = parseCliArgs(['--env=staging', '--email', 'subject@example.com']);
+    const args = parseCliArgs([
+      '--env=staging',
+      '--email',
+      'subject@example.com',
+    ]);
     expect(args.error).toBeNull();
     expect(args.email).toBe('subject@example.com');
     expect(args.userId).toBeNull();
@@ -88,19 +102,34 @@ describe('parseCliArgs', () => {
   });
 
   it('parses --article=20', () => {
-    const args = parseCliArgs(['--env=staging', '--user-id', VALID_UUID_A, '--article=20']);
+    const args = parseCliArgs([
+      '--env=staging',
+      '--user-id',
+      VALID_UUID_A,
+      '--article=20',
+    ]);
     expect(args.error).toBeNull();
     expect(args.article).toBe('20');
   });
 
   it('rejects invalid --article values', () => {
-    const args = parseCliArgs(['--env=staging', '--user-id', VALID_UUID_A, '--article=99']);
+    const args = parseCliArgs([
+      '--env=staging',
+      '--user-id',
+      VALID_UUID_A,
+      '--article=99',
+    ]);
     expect(args.error).not.toBeNull();
     expect(args.error).toContain("'15' or '20'");
   });
 
   it('parses --format=json', () => {
-    const args = parseCliArgs(['--env=staging', '--user-id', VALID_UUID_A, '--format=json']);
+    const args = parseCliArgs([
+      '--env=staging',
+      '--user-id',
+      VALID_UUID_A,
+      '--format=json',
+    ]);
     expect(args.error).toBeNull();
     expect(args.format).toBe('json');
   });
@@ -108,8 +137,10 @@ describe('parseCliArgs', () => {
   it('parses --output to a custom directory', () => {
     const args = parseCliArgs([
       '--env=staging',
-      '--user-id', VALID_UUID_A,
-      '--output', '/tmp/dsar-test',
+      '--user-id',
+      VALID_UUID_A,
+      '--output',
+      '/tmp/dsar-test',
     ]);
     expect(args.error).toBeNull();
     expect(args.output).toBe('/tmp/dsar-test');
@@ -142,12 +173,18 @@ const FIXTURE_AUTH_USER: AuthUserExport = {
   updated_at: '2026-04-28T09:30:00.000Z',
   raw_user_meta_data: { full_name: 'Jane Doe' },
   raw_app_meta_data: null,
-  identities_summary: [{ provider: 'email', created_at: '2026-01-15T10:00:00.000Z' }],
+  identities_summary: [
+    { provider: 'email', created_at: '2026-01-15T10:00:00.000Z' },
+  ],
 };
 
 const FIXTURE_SUBJECT_BUNDLE: SubjectBundle = {
   auth_user: FIXTURE_AUTH_USER,
-  user_profile: { id: VALID_UUID_A, email: 'subject@example.com', full_name: 'Jane Doe' },
+  user_profile: {
+    id: VALID_UUID_A,
+    email: 'subject@example.com',
+    full_name: 'Jane Doe',
+  },
   user_role: { user_id: VALID_UUID_A, role: 'editor', display_name: 'Jane D.' },
   user_notification_prefs: {
     user_id: VALID_UUID_A,
@@ -182,7 +219,10 @@ describe('buildSubjectSummaryCsv', () => {
   it('escapes commas and quotes in field values per RFC 4180', () => {
     const tricky: SubjectBundle = {
       ...FIXTURE_SUBJECT_BUNDLE,
-      user_role: { ...FIXTURE_SUBJECT_BUNDLE.user_role!, display_name: 'Jane "JD" Doe, Esq.' },
+      user_role: {
+        ...FIXTURE_SUBJECT_BUNDLE.user_role!,
+        display_name: 'Jane "JD" Doe, Esq.',
+      },
     };
     const csv = buildSubjectSummaryCsv(tricky);
     expect(csv).toContain('user_role.display_name,"Jane ""JD"" Doe, Esq."');
@@ -240,7 +280,12 @@ describe('buildReadme', () => {
       format: 'both',
       subject_lookup: 'email',
     };
-    const md = buildReadme(VALID_UUID_A, FIXTURE_AUTH_USER, invocation, '2026-04-28T12:00:00.000Z');
+    const md = buildReadme(
+      VALID_UUID_A,
+      FIXTURE_AUTH_USER,
+      invocation,
+      '2026-04-28T12:00:00.000Z',
+    );
     expect(md).toMatch(/^# Your Personal Data/);
     expect(md).toContain(`Subject UUID:** \`${VALID_UUID_A}\``);
     expect(md).toContain('Subject email:** `subject@example.com`');
@@ -259,7 +304,12 @@ describe('buildReadme', () => {
       format: 'json',
       subject_lookup: 'user-id',
     };
-    const md = buildReadme(VALID_UUID_A, FIXTURE_AUTH_USER, invocation, '2026-04-28T12:00:00.000Z');
+    const md = buildReadme(
+      VALID_UUID_A,
+      FIXTURE_AUTH_USER,
+      invocation,
+      '2026-04-28T12:00:00.000Z',
+    );
     expect(md).toContain('Article 20');
     expect(md).toContain('portability');
   });
@@ -305,7 +355,11 @@ describe('buildManifestEntry', () => {
 describe('test fixtures', () => {
   it('provides two distinct valid v4 UUIDs', () => {
     expect(VALID_UUID_A).not.toBe(VALID_UUID_B);
-    expect(VALID_UUID_A).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-    expect(VALID_UUID_B).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(VALID_UUID_A).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(VALID_UUID_B).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 });

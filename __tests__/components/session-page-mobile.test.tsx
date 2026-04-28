@@ -663,9 +663,9 @@ describe('Session Page Mobile Layout', () => {
       expect(sheetContent).not.toBeNull();
 
       // Inside the sheet, find the "Current Question" label
-      const currentQuestionLabels = within(sheetContent as HTMLElement).getAllByText(
-        'Current Question',
-      );
+      const currentQuestionLabels = within(
+        sheetContent as HTMLElement,
+      ).getAllByText('Current Question');
       expect(currentQuestionLabels.length).toBeGreaterThanOrEqual(1);
 
       // Also check the question text is present in the sheet
@@ -692,7 +692,9 @@ describe('Session Page Mobile Layout', () => {
         '[data-slot="sheet-content"]',
       );
       expect(sheetContent).not.toBeNull();
-      const navigator = within(sheetContent as HTMLElement).getByTestId('question-navigator');
+      const navigator = within(sheetContent as HTMLElement).getByTestId(
+        'question-navigator',
+      );
       expect(navigator).toBeInTheDocument();
     });
   });

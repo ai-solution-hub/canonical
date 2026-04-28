@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTranscript } from '@/hooks/use-transcript';
-import type {
-  TranscriptSegment,
-  TranscriptHighlight,
-} from '@/types/content';
+import type { TranscriptSegment, TranscriptHighlight } from '@/types/content';
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -275,7 +275,7 @@ async function waitForBranchReady(
     };
   }
   console.log(
-    `Polling branch ${branchRef} until ACTIVE_HEALTHY (max ${POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000}s)...`,
+    `Polling branch ${branchRef} until ACTIVE_HEALTHY (max ${(POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000}s)...`,
   );
   for (let attempt = 1; attempt <= POLL_MAX_ATTEMPTS; attempt++) {
     const branches = await listBranches(config);
@@ -318,7 +318,7 @@ async function waitForBranchReady(
     );
   }
   throw new Error(
-    `Branch ${branchRef} did not reach ACTIVE_HEALTHY within ${POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000}s`,
+    `Branch ${branchRef} did not reach ACTIVE_HEALTHY within ${(POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000}s`,
   );
 }
 
@@ -335,10 +335,7 @@ async function getBranchDetails(
       db_pass: 'dry-run-password',
     };
   }
-  return await managementApi<BranchDetails>(
-    config,
-    `/branches/${branchId}`,
-  );
+  return await managementApi<BranchDetails>(config, `/branches/${branchId}`);
 }
 
 async function deleteBranch(
@@ -386,7 +383,9 @@ function applyMigrations(
   branchDbPassword: string,
 ): ApplyResult {
   if (config.dryRun) {
-    console.log(`[dry-run] would supabase link --project-ref ${branchProjectRef}`);
+    console.log(
+      `[dry-run] would supabase link --project-ref ${branchProjectRef}`,
+    );
     console.log(`[dry-run] would supabase db push --linked --yes`);
     return { ok: true, stderr: '' };
   }
@@ -410,21 +409,19 @@ function applyMigrations(
     };
   }
 
-  console.log(`Running supabase db push --linked --yes (45+ migration files)...`);
-  const push = spawnSync(
-    'supabase',
-    ['db', 'push', '--linked', '--yes'],
-    {
-      env: {
-        ...process.env,
-        SUPABASE_ACCESS_TOKEN: config.accessToken,
-        SUPABASE_DB_PASSWORD: branchDbPassword,
-        PGPASSWORD: branchDbPassword,
-      },
-      encoding: 'utf-8',
-      maxBuffer: 16 * 1024 * 1024,
-    },
+  console.log(
+    `Running supabase db push --linked --yes (45+ migration files)...`,
   );
+  const push = spawnSync('supabase', ['db', 'push', '--linked', '--yes'], {
+    env: {
+      ...process.env,
+      SUPABASE_ACCESS_TOKEN: config.accessToken,
+      SUPABASE_DB_PASSWORD: branchDbPassword,
+      PGPASSWORD: branchDbPassword,
+    },
+    encoding: 'utf-8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
 
   const stderr = push.stderr ?? '';
   const stdout = push.stdout ?? '';
@@ -501,9 +498,7 @@ async function main(): Promise<number> {
       await cleanupLeakedBranches(config);
       return EXIT_OK;
     } catch (err) {
-      console.error(
-        `Cleanup-only run failed: ${(err as Error).message}`,
-      );
+      console.error(`Cleanup-only run failed: ${(err as Error).message}`);
       return EXIT_INFRA_ERROR;
     }
   }
@@ -559,8 +554,9 @@ async function main(): Promise<number> {
 // `import.meta.main` is the canonical signal but tsc rejects it under
 // some module targets (`module=esnext` is required); fall back to
 // process.argv[1] basename matching, which is portable.
-const isMain = process.argv[1]?.endsWith('migration-replay-check.ts')
-  || process.argv[1]?.endsWith('migration-replay-check');
+const isMain =
+  process.argv[1]?.endsWith('migration-replay-check.ts') ||
+  process.argv[1]?.endsWith('migration-replay-check');
 if (isMain) {
   main()
     .then((code) => process.exit(code))

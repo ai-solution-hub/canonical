@@ -947,12 +947,10 @@ describe('DigestPage', () => {
     // to land — a short delay is fine; we assert the absence of the POST.
     await new Promise((r) => setTimeout(r, 25));
 
-    const generateCalls = mockFetch.mock.calls.filter(
-      (call) => {
-        const url = String(call[0]);
-        return url.includes('/api/digest/generate');
-      },
-    );
+    const generateCalls = mockFetch.mock.calls.filter((call) => {
+      const url = String(call[0]);
+      return url.includes('/api/digest/generate');
+    });
     expect(generateCalls).toHaveLength(0);
 
     // Manual Generate button is still functional — the user can override
@@ -982,22 +980,18 @@ describe('DigestPage', () => {
 
     // The auto-gen effect fires after the initial queries settle.
     await waitFor(() => {
-      const generateCalls = mockFetch.mock.calls.filter(
-        (call) => {
-          const url = String(call[0]);
-          return url.includes('/api/digest/generate');
-        },
-      );
+      const generateCalls = mockFetch.mock.calls.filter((call) => {
+        const url = String(call[0]);
+        return url.includes('/api/digest/generate');
+      });
       expect(generateCalls).toHaveLength(1);
     });
 
     // Verify the auto-gen payload matches the weekly default.
-    const generateCall = mockFetch.mock.calls.find(
-      (call) => {
-        const url = String(call[0]);
-        return url.includes('/api/digest/generate');
-      },
-    );
+    const generateCall = mockFetch.mock.calls.find((call) => {
+      const url = String(call[0]);
+      return url.includes('/api/digest/generate');
+    });
     expect(generateCall?.[1]).toEqual(
       expect.objectContaining({
         method: 'POST',
@@ -1027,12 +1021,10 @@ describe('DigestPage', () => {
     // Give any stray effect time to run.
     await new Promise((r) => setTimeout(r, 25));
 
-    const generateCalls = mockFetch.mock.calls.filter(
-      (call) => {
-        const url = String(call[0]);
-        return url.includes('/api/digest/generate');
-      },
-    );
+    const generateCalls = mockFetch.mock.calls.filter((call) => {
+      const url = String(call[0]);
+      return url.includes('/api/digest/generate');
+    });
     expect(generateCalls).toHaveLength(0);
   });
 });

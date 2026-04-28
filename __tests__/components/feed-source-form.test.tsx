@@ -116,7 +116,9 @@ vi.mock('lucide-react', () => ({
   CheckCircle2: (props: Record<string, unknown>) => (
     <span
       data-testid="check-circle-icon"
-      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
+      aria-hidden={
+        props['aria-hidden'] as boolean | 'true' | 'false' | undefined
+      }
     />
   ),
 }));

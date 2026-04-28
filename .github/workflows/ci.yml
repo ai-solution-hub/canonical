@@ -74,10 +74,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           # Production stores bare names; mirror to NEXT_PUBLIC_* for the client schema.
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
@@ -113,9 +113,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
@@ -191,12 +191,12 @@ jobs:
         env:
           # Staging Supabase connection — env scope resolves these from the
           # `Staging` GH environment.
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # Mirror to NEXT_PUBLIC_* for the client schema (same pattern as
           # the `quality` job's build step).
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
@@ -205,11 +205,11 @@ jobs:
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
           # Test-user credentials — pre-seeded into staging by
           # scripts/seed-e2e-users.ts (per docs/runbooks/staging-refresh.md §4).
-          TEST_USER_1_EMAIL: ${{ secrets.TEST_USER_1_EMAIL }}
+          TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
           TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
-          TEST_USER_2_EMAIL: ${{ secrets.TEST_USER_2_EMAIL }}
+          TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}
           TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
-          TEST_USER_3_EMAIL: ${{ secrets.TEST_USER_3_EMAIL }}
+          TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
           TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
         run: bunx playwright test --project=smoke
 
@@ -255,6 +255,11 @@ jobs:
         layer: [l1, l3, l4]
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Detect MCP-related path changes
         id: changes
         uses: dorny/paths-filter@v3
@@ -267,11 +272,6 @@ jobs:
               - 'lib/ai/**'
               - 'lib/validation/schemas.ts'
               - 'package.json'
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -292,9 +292,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
@@ -318,9 +318,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
@@ -358,11 +358,11 @@ jobs:
       - name: Run MCP eval (${{ matrix.layer }})
         env:
           # Eval scripts authenticate as TEST_USER_1 → Bearer token to MCP endpoint.
-          TEST_USER_1_EMAIL: ${{ secrets.TEST_USER_1_EMAIL }}
+          TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
           TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
           # NEXT_PUBLIC_* needed by fixtures.ts to build the Supabase client
           # (signs in as TEST_USER_1 to mint the Bearer token).
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           # Service-role key for fixtures.ts cleanup paths (deleting eval items).

@@ -48,25 +48,33 @@ vi.mock('lucide-react', () => ({
   Loader2: (props: Record<string, unknown>) => (
     <span
       data-testid="loader-icon"
-      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
+      aria-hidden={
+        props['aria-hidden'] as boolean | 'true' | 'false' | undefined
+      }
     />
   ),
   CheckCircle: (props: Record<string, unknown>) => (
     <span
       data-testid="check-icon"
-      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
+      aria-hidden={
+        props['aria-hidden'] as boolean | 'true' | 'false' | undefined
+      }
     />
   ),
   AlertTriangle: (props: Record<string, unknown>) => (
     <span
       data-testid="alert-icon"
-      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
+      aria-hidden={
+        props['aria-hidden'] as boolean | 'true' | 'false' | undefined
+      }
     />
   ),
   RefreshCw: (props: Record<string, unknown>) => (
     <span
       data-testid="refresh-icon"
-      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
+      aria-hidden={
+        props['aria-hidden'] as boolean | 'true' | 'false' | undefined
+      }
     />
   ),
 }));

@@ -149,7 +149,10 @@ vi.mock('@/components/shared/verification-badge', () => ({
 
 vi.mock('@/components/shared/freshness-badge', () => ({
   FreshnessBadge: (props: Record<string, unknown>) => (
-    <span data-testid="freshness-badge" data-freshness={props.freshness as string}>
+    <span
+      data-testid="freshness-badge"
+      data-freshness={props.freshness as string}
+    >
       {props.freshness as string}
     </span>
   ),

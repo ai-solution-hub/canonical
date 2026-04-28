@@ -22,8 +22,7 @@ on:
     branches: [main, production-readiness]
 
 concurrency:
-  group:
-    migration-replay-${{ github.event.pull_request.number || github.ref }}
+  group: migration-replay-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -50,7 +49,7 @@ jobs:
               - 'supabase/config.toml'
 
       - name: Skip notice (no migration-relevant changes)
-        if: steps.changes.outputs.migrations \!= 'true'
+        if: steps.changes.outputs.migrations != 'true'
         run: |
           echo "No changes under supabase/{migrations,seed.sql,config.toml}; skipping replay."
 
@@ -86,8 +85,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           PROJECT_REF: rovrymhhffssilaftdwd
-          PR_NUMBER:
-            ${{ github.event.pull_request.number || github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.ref_name }}
           RUN_ID: ${{ github.run_id }}
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REF: ${{ github.head_ref }}
@@ -104,8 +102,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           PROJECT_REF: rovrymhhffssilaftdwd
-          PR_NUMBER:
-            ${{ github.event.pull_request.number || github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.ref_name }}
           RUN_ID: ${{ github.run_id }}
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REF: ${{ github.head_ref }}
