@@ -335,6 +335,34 @@ describe('ReviewCadenceEditor', () => {
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith('Server boom');
     });
+
+    // Rollback: optimistic local update reverted to initial value (null → '')
+    await waitFor(() => {
+      expect(dateInput.value).toBe('');
+    });
+  });
+
+  it('repeated blur with unchanged value does not re-PATCH (dup-blur regression)', async () => {
+    renderEditor({ nextReviewDate: null, reviewCadenceDays: null });
+
+    const dateInput = screen.getByLabelText(
+      'Next review date',
+    ) as HTMLInputElement;
+
+    fireEvent.change(dateInput, { target: { value: '2026-09-15' } });
+    fireEvent.blur(dateInput);
+
+    await waitFor(() => {
+      expect(findPatchCalls('next_review_date')).toHaveLength(1);
+    });
+
+    // Blur again without changing input value — should NOT fire a second PATCH.
+    fireEvent.blur(dateInput);
+    fireEvent.blur(dateInput);
+
+    // Allow microtasks to settle then assert call count unchanged.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(findPatchCalls('next_review_date')).toHaveLength(1);
   });
 
   // -------------------------------------------------------------------------

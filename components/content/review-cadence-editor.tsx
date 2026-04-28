@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -72,8 +72,9 @@ export function ReviewCadenceEditor({
 }: ReviewCadenceEditorProps) {
   const queryClient = useQueryClient();
 
-  // Local state — initialised from props. Parent re-mounts via `key={item.id}`
-  // when switching items; we never need a useEffect to sync prop → state.
+  // Local state — initialised from props. The per-item page route at
+  // `app/item/[id]/page.tsx` unmounts on URL change, so no useEffect sync
+  // from prop → state is needed within a single mount.
   const [dateValue, setDateValue] = useState<string | null>(nextReviewDate);
   const [cadencePreset, setCadencePreset] = useState<string>(
     presetKeyForDays(reviewCadenceDays),
@@ -85,6 +86,11 @@ export function ReviewCadenceEditor({
       : '',
   );
   const [customError, setCustomError] = useState<string | null>(null);
+
+  // Tracks the most-recently-persisted date so onBlur can skip duplicate
+  // PATCHes when the user re-blurs an unchanged input. Updated inside
+  // handleDateChange after a successful mutateAsync.
+  const lastPersistedDateRef = useRef<string | null>(nextReviewDate);
 
   // ---------------------------------------------------------------------
   // Mutation — PATCH /api/items/:id
@@ -128,17 +134,18 @@ export function ReviewCadenceEditor({
   // ---------------------------------------------------------------------
   const handleDateChange = useCallback(
     async (next: string | null) => {
-      const previous = dateValue;
-      // Optimistic local update
+      // Rollback target = last successfully persisted value (not the current
+      // local state, which onChange may have already updated optimistically).
+      const previous = lastPersistedDateRef.current;
       setDateValue(next);
       try {
         await mutateAsync({ field: 'next_review_date', value: next });
+        lastPersistedDateRef.current = next;
       } catch {
-        // Rollback on failure
         setDateValue(previous);
       }
     },
-    [dateValue, mutateAsync],
+    [mutateAsync],
   );
 
   // ---------------------------------------------------------------------
@@ -238,7 +245,7 @@ export function ReviewCadenceEditor({
             }}
             onBlur={(e) => {
               const next = e.target.value || null;
-              if (next !== nextReviewDate) {
+              if (next !== lastPersistedDateRef.current) {
                 handleDateChange(next);
               }
             }}
