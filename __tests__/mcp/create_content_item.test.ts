@@ -574,6 +574,56 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
     });
   });
 
+  // S207 WP4 (OPS-38): The pre-success failed-insert branch previously used
+  // the RLS-scoped `supabase` client which cannot write `pipeline_runs`
+  // (RLS policy `pipeline_runs_insert` requires editor+; admin-only). Editor
+  // callers hitting this branch silently lost the audit row. The fix mirrors
+  // S206 WP4 auth-fail and outer-catch patterns by lazy-importing
+  // `createServiceClient`. This test asserts the service-role client (NOT
+  // the RLS-scoped MCP client) is passed to recordPipelineRun.
+  it('uses service-role client (not RLS-scoped) for pre-success failed-insert pipeline_runs (OPS-38)', async () => {
+    // Distinct service-role client mock so we can verify the right client
+    // is passed. The default mock in the file aliases createServiceClient
+    // to the same instance as createMcpClient — re-mock here for this test.
+    const distinctServiceClient = {
+      from: vi.fn(),
+      rpc: vi.fn(),
+      __isServiceRoleMarker: true,
+    };
+    const serverModule = await import('@/lib/supabase/server');
+    const createServiceClientMock = vi.mocked(serverModule.createServiceClient);
+    createServiceClientMock.mockReturnValueOnce(
+      distinctServiceClient as unknown as ReturnType<
+        typeof serverModule.createServiceClient
+      >,
+    );
+
+    // Force the insert .single() to return an error so the pre-success
+    // failed-insert branch fires.
+    mocks.chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'rls policy violation' },
+    });
+
+    const result = await createTool(
+      {
+        title: 'Pre-Success Insert Failure',
+        content: LONG_CONTENT,
+        content_type: 'capability',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(result.isError).toBe(true);
+    expect(mocks.recordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mocks.recordPipelineRun.mock.calls[0][0];
+    expect(call.status).toBe('failed');
+    // Service-role client used — NOT the RLS-scoped MCP client.
+    expect(call.supabase).toBe(distinctServiceClient);
+    expect(call.supabase).not.toBe(mocks.mockSupabaseClient);
+    expect(createServiceClientMock).toHaveBeenCalled();
+  });
+
   it('records skipped_reason="draft" on the draft branch (1.1-AC9)', async () => {
     await createTool(
       {

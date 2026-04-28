@@ -529,8 +529,16 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (error || !item) {
           // S205 WP-A2 (spec §5.3 step 5): record the failed insert before
           // bailing so the dashboard sees the run.
+          // S207 WP4 (OPS-38): use the service-role client to bypass the
+          // admin-only `pipeline_runs_insert` RLS policy. The RLS-scoped
+          // `supabase` client cannot write the audit row when the caller is
+          // an editor, so editor failures were silently lost. Mirrors S206
+          // WP4 auth-fail (L376-378) and outer-catch (L797-799) patterns.
+          // recordPipelineRun is never-throws so this is safe even if the
+          // audit insert itself fails.
+          const { createServiceClient } = await import('@/lib/supabase/server');
           await recordPipelineRun({
-            supabase,
+            supabase: createServiceClient(),
             pipelineName: 'mcp_create_content_item',
             status: 'failed',
             itemsProcessed: 1,
