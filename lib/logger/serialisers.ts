@@ -259,25 +259,39 @@ export function serialiseResponse(value: unknown): SerialisedResponse {
  * `serialiseError` / caller discipline rather than by this list.
  */
 export const REDACT_PATHS: string[] = [
-  // Credentials at any depth
+  // Credentials — top-level + one-level-nested. Pino's `*.x` only matches
+  // depth=2, not the top-level field, so we list both shapes.
+  'password',
   '*.password',
+  'token',
   '*.token',
+  'apiKey',
   '*.apiKey',
+  'api_key',
   '*.api_key',
+  'secret',
   '*.secret',
+  'authorization',
   '*.authorization',
+  'cookie',
   '*.cookie',
   // Headers (belt-and-braces — serialiser already drops these)
   'req.headers.authorization',
   'req.headers.cookie',
   'request.headers.authorization',
   'request.headers.cookie',
-  // PII (D-12 superset)
+  // PII (D-12 superset) — top-level + one-level-nested
+  'email',
   '*.email',
+  'organisation_name',
   '*.organisation_name',
+  'client_name',
   '*.client_name',
+  'holder_name',
   '*.holder_name',
+  'author',
   '*.author',
+  'created_by',
   '*.created_by',
 ];
 
