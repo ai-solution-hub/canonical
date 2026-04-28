@@ -46,8 +46,11 @@ vi.mock('sonner', () => ({
   }),
 }));
 
-const mockCanTransition = vi.fn(() => true);
-const mockGetAvailableTransitions = vi.fn(() => ['drafting', 'submitted']);
+const mockCanTransition = vi.fn((..._args: unknown[]) => true);
+const mockGetAvailableTransitions = vi.fn((..._args: unknown[]) => [
+  'drafting',
+  'submitted',
+]);
 
 vi.mock('@/lib/bid/bid-state-machine', () => ({
   canTransition: (...args: unknown[]) => mockCanTransition(...args),
@@ -596,7 +599,9 @@ describe('useBidActions (TanStack Query)', () => {
         action: 'create' as const,
         content_text: 'text',
       },
-    ];
+    ] as unknown as Parameters<
+      ReturnType<typeof useBidActions>['handleOutcomeRecorded']
+    >[1];
     act(() => {
       result.current.handleOutcomeRecorded('won', candidates);
     });
@@ -706,7 +711,7 @@ describe('useBidActions (TanStack Query)', () => {
           ],
         },
       ],
-    } as ExtractionResult;
+    } as unknown as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);
@@ -742,7 +747,7 @@ describe('useBidActions (TanStack Query)', () => {
     const extractionResult = {
       sections: [],
       extracted_metadata: { title: 'Test Tender', deadline: '2026-04-01' },
-    } as ExtractionResult;
+    } as unknown as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);
@@ -1045,7 +1050,7 @@ describe('useBidActions (TanStack Query)', () => {
           ],
         },
       ],
-    } as ExtractionResult;
+    } as unknown as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);
@@ -1088,7 +1093,7 @@ describe('useBidActions (TanStack Query)', () => {
           ],
         },
       ],
-    } as ExtractionResult;
+    } as unknown as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);

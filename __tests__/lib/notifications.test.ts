@@ -6,8 +6,11 @@ import {
 } from '@/lib/notifications';
 
 function createMockSupabase(
-  insertResult = { error: null },
-  selectResult = { data: [], error: null },
+  insertResult: { error: { message: string } | null } = { error: null },
+  selectResult: {
+    data: Array<{ entity_id: string }> | null;
+    error: { message: string } | null;
+  } = { data: [], error: null },
 ) {
   return {
     from: vi.fn().mockReturnValue({

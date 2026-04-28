@@ -126,7 +126,7 @@ function extractResourceTemplateUrisFromSource(): Set<string> {
 
 describe('MCP Fixture Sync', () => {
   const sourceToolNames = extractToolNamesFromSource();
-  const fixtureToolNames = new Set(CANONICAL_TOOL_NAMES);
+  const fixtureToolNames = new Set<string>(CANONICAL_TOOL_NAMES);
 
   it('should find tools in source files', () => {
     expect(
@@ -187,7 +187,7 @@ describe('MCP Fixture Sync', () => {
 
 describe('MCP Prompts Fixture Sync', () => {
   const sourcePromptNames = extractPromptNamesFromSource();
-  const fixturePromptNames = new Set(CANONICAL_PROMPT_NAMES);
+  const fixturePromptNames = new Set<string>(CANONICAL_PROMPT_NAMES);
 
   it('should find prompts in source files', () => {
     expect(
@@ -230,7 +230,7 @@ describe('MCP Prompts Fixture Sync', () => {
 
 describe('MCP Static Resources Fixture Sync', () => {
   const sourceStaticUris = extractStaticResourceUrisFromSource();
-  const fixtureStaticUris = new Set(STATIC_RESOURCE_URIS);
+  const fixtureStaticUris = new Set<string>(STATIC_RESOURCE_URIS);
 
   it('should find static resources in source files', () => {
     expect(
@@ -269,7 +269,7 @@ describe('MCP Static Resources Fixture Sync', () => {
 
 describe('MCP Resource Templates Fixture Sync', () => {
   const sourceTemplateUris = extractResourceTemplateUrisFromSource();
-  const fixtureTemplateUris = new Set(RESOURCE_TEMPLATE_URIS);
+  const fixtureTemplateUris = new Set<string>(RESOURCE_TEMPLATE_URIS);
 
   it('should find resource templates in source files', () => {
     expect(

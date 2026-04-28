@@ -28,11 +28,11 @@ vi.mock('next/navigation', () => ({
 // Test types
 // ---------------------------------------------------------------------------
 
-interface SimpleFilters {
+type SimpleFilters = {
   search?: string;
   domain?: string;
   freshness?: string;
-}
+} & Record<string, unknown>;
 
 const simpleConfig: UrlFilterConfig<SimpleFilters> = {
   defaults: {
@@ -81,9 +81,9 @@ describe('useUrlFilters', () => {
   // -----------------------------------------------------------------------
 
   it('applies custom parser to URL param values', () => {
-    interface BoolFilter {
+    type BoolFilter = {
       starred?: boolean;
-    }
+    } & Record<string, unknown>;
 
     const config: UrlFilterConfig<BoolFilter> = {
       defaults: { starred: undefined },
@@ -135,9 +135,9 @@ describe('useUrlFilters', () => {
   // -----------------------------------------------------------------------
 
   it('applies custom serialiser when writing', () => {
-    interface ArrayFilter {
+    type ArrayFilter = {
       tags?: string[];
-    }
+    } & Record<string, unknown>;
 
     const config: UrlFilterConfig<ArrayFilter> = {
       defaults: { tags: undefined },
@@ -196,10 +196,10 @@ describe('useUrlFilters', () => {
   });
 
   it('counts boolean filters that differ from default', () => {
-    interface BoolFilters {
+    type BoolFilters = {
       starred?: boolean;
       active?: boolean;
-    }
+    } & Record<string, unknown>;
 
     const config: UrlFilterConfig<BoolFilters> = {
       defaults: { starred: undefined, active: undefined },
