@@ -57,11 +57,13 @@ jobs:
       - name: Run taxonomy sync
         id: sync
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          # Secrets (sensitive credentials, environment-scoped)
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          AI_EMBEDDING_MODEL: ${{ secrets.AI_EMBEDDING_MODEL }}
-          AI_EMBEDDING_DIMS: ${{ secrets.AI_EMBEDDING_DIMS }}
+          # Variables (non-sensitive config, environment-scoped)
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
         run: bun run sync:taxonomy
 
       - name: Check for changes and commit

@@ -10,8 +10,8 @@ code in this repository.
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
 structured data accessible by AI. The first domain applications are bid
-management and sector intelligence for UK SMBs. The knowledge base
-is the foundation for these and future applications.
+management and sector intelligence for UK SMBs. Next application is Sales Proposals.
+The knowledge base is the foundation for these and future applications.
 
 **Team:** Liam (product owner) + Claude Code as development partner.
 
@@ -80,35 +80,17 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 
 ## Environment
 
-Env vars in `.env.local` — full template in `.env.example`. (`.env`
-retired kh-prod-readiness-S6 27/04/2026 per WP-S5.2 D-20=α; `.env.local`
-is now the single source of truth for both TS and Python pipelines.)
+Env vars in `.env.local` — the single source of truth for both TS and Python pipelines.
+(`.env` retired kh-prod-readiness-S6 27/04/2026.)
 
-**Default target: staging.** Post-WP-S5.2 `.env.local` points at the
-persistent staging Supabase branch (`turayklvaunphgbgscat`). Prod-targeted
-CLI work opts in via `--env=prod` (top-10 scripts) or explicit env
+`.env.local` points at the persistent staging Supabase branch (`turayklvaunphgbgscat`). 
+Prod-targeted CLI work opts in via `--env=prod` or explicit env
 override. Full guidance: `docs/runbooks/local-development.md`.
-
-Required: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
-`SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
-`POSTGRES_PASSWORD`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_CLIENT_ID`
-(missing → BRANDING corrupts entity metadata), `CRON_SECRET`,
-`FIRECRAWL_API_KEY`. Sentry: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`,
-`SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`. Taxonomy sync:
-`GITHUB_SYNC_TOKEN`, `TAXONOMY_SYNC_CALLBACK_SECRET`.
-
-Optional model overrides:
-- `AI_SUMMARY_MODEL` — `claude-sonnet-4-6`
-- `AI_CLASSIFICATION_MODEL` — `claude-opus-4-6` (Python pipeline)
-- `AI_EMBEDDING_MODEL` — `text-embedding-3-large` (both pipelines)
-- `AI_EMBEDDING_DIMS` — `1024` (schema-locked to `vector(N)` columns)
 
 ## Supabase & Schema
 
 - **Project ID:** `rovrymhhffssilaftdwd` (eu-west-2 London), pgvector 0.8.0
-- **Staging:** persistent branch `turayklvaunphgbgscat` (provisioned
-  kh-prod-readiness-S3 26/04/2026; Vercel Preview target). Refresh
+- **Staging:** persistent branch `turayklvaunphgbgscat`. Refresh
   procedure: `docs/runbooks/staging-refresh.md`.
 - **CLI:** `/opt/homebrew/bin/supabase`
 - **DDL via CLI only** (`supabase migration new` + `db push`), never MCP
@@ -120,11 +102,6 @@ Optional model overrides:
 - **Schema reference:** `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 - RLS: role-based via `get_user_role()`. Embeddings: `vector(1024)`
   (text-embedding-3-large). Canonical constants: `lib/validation/schemas.ts`.
-- **Publication lifecycle (S202 §5.2):** `content_items.publication_status`
-  is NOT NULL, CHECK enum (`draft|in_review|published|archived`), paired
-  with `archived_at` via `enforce_archive_state_consistency` trigger.
-  `'draft'` removed from `governance_review_status` (S202 T9) — draft is
-  now a publication state exclusively. MCP tool: `update_publication_status`.
 
 ## Testing
 
@@ -141,9 +118,8 @@ Optional model overrides:
 - **Platform:** Vercel
 - **URL:** https://knowledge-hub-seven-kappa.vercel.app
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
-  (Vercel Preview target, branch `staging`)
 - **GitHub:** https://github.com/liam-jons/knowledge-hub (private)
-- **Region:** eu-west-2 (London) — matches Supabase region
+- **Region:** eu-west-2 (London)
 - **GitHub Environments:** `Production` + `Staging` (case-sensitive).
   Setup: `docs/runbooks/github-environments.md`.
 
@@ -174,18 +150,14 @@ Consult when adding or modifying UI elements.
 | Roadmap                   | `docs/reference/post-mvp-roadmap.md`                                  |
 | Product backlog           | `docs/reference/product-backlog.md`                                   |
 | Schema quick reference    | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                            |
-| Auto-generated stats      | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
-| AI visibility policy      | `docs/reference/ai-visibility-policy.md`                              |
 | Session handoffs          | `docs/continuation-prompts/`                                          |
-| Codebase mapping (7 docs) | `.planning/codebase/`                                                 |
-| Quality checks (11 files) | `.claude/checks/`                                                     |
+| Codebase mapping | `.planning/codebase/`                                                 |
 | Runbooks                  | `docs/runbooks/` — local-development, staging-refresh, github-environments |
 
 Full inventory of all reference docs: `docs/reference/documentation-inventory.md`
 
-Historical planning: `.planning/.archive/` (specs, audits, research, session
-handoffs s41–s131+). Grep explicitly when researching past decisions; treat as
-point-in-time snapshots.
+Historical planning: `.planning/.archive/{doc-type}` (`.specs/`, `.audits/`, `.research/`, `.coninuation-prompts/` etc.)
+Grep explicitly when researching past decisions; treat as point-in-time snapshots.
 
 ## Implementation Workflow
 
@@ -205,28 +177,17 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 `git worktree`):
 
 - **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
-  — client bid/SI product. Global session counter `kh-sN`.
 - **kh-knowledge-platform** (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`,
   branch `kh-knowledge-platform`) — engineering-docs dogfood + productisation
-  validation. Track-local counter `kh-kpf-sN`. One-way references only (does
-  NOT merge back to main). Supabase project: `ztiztwqlyqcsuyhtjoya`
-  (shared dev-KB `kb-aish-product-dev`, hosts multiple future dev projects).
+  validation.
   Primer: `docs/tracks/kh-knowledge-platform.md`.
 - **production-readiness** (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`,
   branch `production-readiness`) — CI/CD, staging DB, structured logging,
-  handover infra. Track-local counter `kh-prod-readiness-sN`.
-  **Bidirectional merge with main** (corrected S1 closeout 24/04/2026
-  — kickoff primer wrongly said one-way). Roadmap + runbook + handover
-  artefacts land here and merge to main; main fixes also merge in.
-  Unlike kh-knowledge-platform (which IS one-way). Primer:
-  `docs/tracks/production-readiness.md`.
-
-Closed tracks: UI simplification (`knowledge-hub-ui-ux-simplification`, closed
-24/04/2026 after S196 merge-back).
+  handover infra.
+Primer: `docs/tracks/production-readiness.md`.
 
 Memory reference: `reference_parallel_tracks_overview.md` — naming conventions,
-hook isolation, cross-track hygiene rules. Continuation-prompt filename
-conventions: `docs/continuation-prompts/README.md`.
+hook isolation, cross-track hygiene rules.
 
 ## Gotchas
 
@@ -277,9 +238,6 @@ conventions: `docs/continuation-prompts/README.md`.
 - **Agent escalation rule:** Test agents encountering unexpected production
   behaviour (wrong renders, dead code, tests that can only pass by not testing
   real logic) **MUST escalate to the main session**.
-- **SearchBar transitive renders need `QueryClientProvider`:** any test that
-  transitively renders SearchBar requires `createQueryWrapper().Wrapper` from
-  `__tests__/helpers/query-wrapper.tsx`.
 - **Verifier diff on long-lived branches:** use `git show --stat <commit>`, not
   `git diff main..<commit>` — the latter returns multi-session deltas and
   produces false-positive "commit contamination" reports.
@@ -294,8 +252,7 @@ conventions: `docs/continuation-prompts/README.md`.
   `dispatchEvent('click')` for partially obscured buttons.
 - **Auth timing:** Always `waitFor({ state: 'visible' })` before `fill()` on
   login inputs.
-- **Browser testing:** Never use `mcp__playwright__*` for parallel testing. Use
-  `agent-browser` skill with `--session` for isolated sessions.
+- **Browser testing:** Use `agent-browser` skill with `--session` for isolated, parallel sessions.
 - **Conditional fallbacks silently pass on empty DBs:** `if (await X.isVisible().catch(() => false))` skips assertions — use hard `expect(X).toBeVisible()` so missing fixtures fail honestly.
 
 ### Plugin / MCP
@@ -320,11 +277,7 @@ conventions: `docs/continuation-prompts/README.md`.
   Full spec: `docs/specs/silent-failure-prevention-spec.md`.
 - **Cron `pipeline_runs` inserts:** Use `recordPipelineRun()` from
   `@/lib/pipeline/record-run`, not raw insert.
-- **`BRANDING.organisationName` is camelCase, not snake_case:** Two distinct
-  symbols in `lib/client-config.ts` — `BRANDING` (export at line ~626; Zod-
-  derived `BrandingConfig`; camelCase `organisationName`) vs
-  `CLIENT_CONFIG.entity_examples.organisation_name` (snake; classifier-prompt
-  only). TS code referencing the client org name uses
+- **`BRANDING.organisationName` is camelCase, not snake_case:** TS code referencing the client org name uses
   `BRANDING.organisationName.toLowerCase()`.
 - **Data fetching:** TanStack Query exclusively. Keys in
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
@@ -417,10 +370,7 @@ conventions: `docs/continuation-prompts/README.md`.
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
 - **Default target is staging — prod CLI scripts return empty unless opted-in.**
-  Post-WP-S5.2 `.env.local` points at staging. Top-10 scripts (kb-search,
-  ingest.py, batch-generate-summaries, eval-*, normalise-entities,
-  import_bid_library, wipe-bid-responses) accept `--env=prod`; remaining
-  always-prod scripts use Pattern B (explicit `SUPABASE_URL=<prod> …` at
+  Post-WP-S5.2 `.env.local` points at staging. Scripts accept `--env=prod` or require explicit `SUPABASE_URL=<prod> …` at
   invocation). Full table: `docs/runbooks/local-development.md` §3.
 - **Dev server memory:** If OOM, run `bun run dev:clean`. Monitor with `btm`.
 - **Node 24 has V8 memory regressions:** `.node-version` pins to 22 LTS.
