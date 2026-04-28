@@ -288,6 +288,11 @@ def build_record(pair: dict) -> dict:
             "section_name": pair.get("section_name", ""),
             "import_batch": BATCH_TAG,
         },
+        # S207 WP-A4 (Plan Task 3.2): typed provenance column on content_items.
+        # Read by ensure_v1_history_at_commit() trigger to set
+        # content_history.change_reason='initial_ingest'. Stage 2 markdown
+        # batches share the canonical 'python_markdown' bucket.
+        "ingest_source": "python_markdown",
     }
 
     if content_type == "q_a_pair":

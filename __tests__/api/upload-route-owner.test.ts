@@ -366,6 +366,37 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     }
   });
 
+  // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+  // ensure_v1_history_at_commit() trigger to set
+  // content_history.change_reason='initial_ingest'.
+  it('writes ingest_source="upload" to the content_items insert payload', async () => {
+    configureRole(mockSupabase, 'editor');
+    configureSuccessFlow();
+
+    const file = createMockFile(
+      VALID_PDF_BYTES,
+      'sample.pdf',
+      'application/pdf',
+    );
+    const req = buildUploadRequest({ file });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const inserts = mockSupabase._chain.insert.mock.calls;
+    const contentItemInsert = inserts.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'object' &&
+        call[0] !== null &&
+        'ingest_source' in (call[0] as Record<string, unknown>),
+    );
+    expect(contentItemInsert).toBeDefined();
+    if (contentItemInsert) {
+      const payload = contentItemInsert[0] as Record<string, unknown>;
+      expect(payload.ingest_source).toBe('upload');
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────
   // M-2 — Zod UUID validation on the formData field
   // ─────────────────────────────────────────────────────────────────────

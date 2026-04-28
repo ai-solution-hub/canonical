@@ -419,6 +419,27 @@ describe('POST /api/items/batch', () => {
       }
     });
 
+    // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+    // ensure_v1_history_at_commit() trigger to set
+    // content_history.change_reason='initial_ingest'.
+    it('writes ingest_source="upload_autosplit" to every content_items insert', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      await POST(makeRequest({ items: makeSampleItems(2) }));
+
+      const insertCalls = mockContentChain.insert.mock.calls;
+      const itemInserts = insertCalls.filter(
+        (call: unknown[]) =>
+          typeof call[0] === 'object' &&
+          call[0] !== null &&
+          'content_type' in call[0],
+      );
+      expect(itemInserts.length).toBeGreaterThanOrEqual(1);
+      for (const call of itemInserts) {
+        expect(call[0].ingest_source).toBe('upload_autosplit');
+      }
+    });
+
     // ─────────────────────────────────────────────────────────────────
     // S206 WP-A Phase 2 — content_owner_id default at batch EP
     // ─────────────────────────────────────────────────────────────────

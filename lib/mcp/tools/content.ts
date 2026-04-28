@@ -471,43 +471,54 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           userId,
         });
 
-        const insertData: Database['public']['Tables']['content_items']['Insert'] =
-          {
-            title: args.title,
-            suggested_title: args.title,
-            content: args.content,
-            content_type: args.content_type,
-            platform: 'manual',
-            captured_date: new Date().toISOString(),
-            created_by: userId,
-            content_owner_id: ownerId,
-            dedup_status: dedupStamp.dedup_status,
-            ...(args.primary_domain && {
-              primary_domain: slugifyDomain(args.primary_domain),
-            }),
-            ...(args.primary_subtopic && {
-              primary_subtopic: slugifyDomain(args.primary_subtopic),
-            }),
-            ...(args.priority && { priority: args.priority }),
-            ...(embedding && { embedding: JSON.stringify(embedding) }),
-            ...(isDraft && { publication_status: 'draft' }),
-            // S205 WP-A1: typed provenance columns (spec §5.2 step 3).
-            ...(args.source_url && { source_url: args.source_url }),
-            ...(args.source_file && { source_file: args.source_file }),
-            ...(args.source_document_id && {
-              source_document_id: args.source_document_id,
-            }),
-            ...(Object.keys(metadata).length > 0 && {
-              metadata: metadata as unknown as Json,
-            }),
-            // P0-BM Phase 3 spec ss4.6 Path 4: populate answer_standard for
-            // q_a_pair so first PATCH edit does not destroy creation content
-            // (bug B2 fix). MCP callers may send composite "Q: {q}\n\n{answer}"
-            // content; extract the answer portion only to avoid double-prefix.
-            ...(args.content_type === 'q_a_pair' && args.content
-              ? { answer_standard: extractAnswerFromContent(args.content) }
-              : {}),
-          };
+        // S207 WP-A4 (Plan Task 3.2): trail-cast as Insert because
+        // ingest_source is a NEW typed column not yet in database.types
+        // (mid-session regen forbidden per `feedback_no_midsession_type_regen`).
+        const insertData = {
+          title: args.title,
+          suggested_title: args.title,
+          content: args.content,
+          content_type: args.content_type,
+          platform: 'manual',
+          captured_date: new Date().toISOString(),
+          created_by: userId,
+          content_owner_id: ownerId,
+          // S207 WP-A4: typed provenance column. Read by
+          // ensure_v1_history_at_commit() to set
+          // content_history.change_reason='initial_ingest'. Distinct
+          // edit-range from S205 WP-A1 typed provenance below (lines 494-499)
+          // and S205 WP-A2 pipeline_run instrumentation at line 519+.
+          ingest_source: 'mcp_create',
+          dedup_status: dedupStamp.dedup_status,
+          ...(args.primary_domain && {
+            primary_domain: slugifyDomain(args.primary_domain),
+          }),
+          ...(args.primary_subtopic && {
+            primary_subtopic: slugifyDomain(args.primary_subtopic),
+          }),
+          ...(args.priority && { priority: args.priority }),
+          ...(embedding && { embedding: JSON.stringify(embedding) }),
+          ...(isDraft && { publication_status: 'draft' }),
+          // S205 WP-A1: typed provenance columns (spec §5.2 step 3).
+          ...(args.source_url && { source_url: args.source_url }),
+          ...(args.source_file && { source_file: args.source_file }),
+          ...(args.source_document_id && {
+            source_document_id: args.source_document_id,
+          }),
+          ...(Object.keys(metadata).length > 0 && {
+            metadata: metadata as unknown as Json,
+          }),
+          // P0-BM Phase 3 spec ss4.6 Path 4: populate answer_standard for
+          // q_a_pair so first PATCH edit does not destroy creation content
+          // (bug B2 fix). MCP callers may send composite "Q: {q}\n\n{answer}"
+          // content; extract the answer portion only to avoid double-prefix.
+          ...(args.content_type === 'q_a_pair' && args.content
+            ? { answer_standard: extractAnswerFromContent(args.content) }
+            : {}),
+        } satisfies Record<
+          string,
+          unknown
+        > as Database['public']['Tables']['content_items']['Insert'];
 
         const { data: item, error } = await supabase
           .from('content_items')

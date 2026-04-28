@@ -647,6 +647,10 @@ async function storeAsContentItem(
       content_type: 'article',
       source_url: item.url,
       dedup_status: dedupStamp.dedup_status,
+      // S207 WP-A4 (Plan Task 3.2): typed provenance column. Read by
+      // ensure_v1_history_at_commit() to set
+      // content_history.change_reason='initial_ingest'.
+      ingest_source: 'rss_feed',
       metadata: {
         source: 'intelligence_pipeline',
         feed_source_id: source.id,

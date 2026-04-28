@@ -136,52 +136,69 @@ export async function POST(request: NextRequest) {
       ? [...new Set(ai_keywords.map(normaliseTag).filter((k) => k.length > 0))]
       : undefined;
 
-    // Build the insert payload
-    const insertData: Database['public']['Tables']['content_items']['Insert'] =
-      {
-        title,
-        content,
-        content_type,
-        suggested_title: title,
-        platform: 'manual',
-        captured_date: new Date().toISOString(),
-        created_by: user.id,
-        content_owner_id: ownerId,
-        metadata: {
-          ingestion_source: ingestion_source ?? 'manual',
-          ...(dedupStamp.suspected_duplicate_of && {
-            suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
-          }),
-        },
-        dedup_status: dedupStamp.dedup_status,
-        ...(primary_domain && { primary_domain }),
-        ...(primary_subtopic && { primary_subtopic }),
-        ...(secondary_domain && { secondary_domain }),
-        ...(secondary_subtopic && { secondary_subtopic }),
-        ...(priority && { priority }),
-        ...(user_tags?.length && { user_tags }),
-        ...(normalisedAiKeywords?.length && {
-          ai_keywords: normalisedAiKeywords,
+    // Build the insert payload.
+    //
+    // S207 WP-A4 (Plan Task 3.2): the `ingest_source` field is a NEW typed
+    // column on content_items but database.types.ts is intentionally NOT
+    // regenerated mid-session (`feedback_no_midsession_type_regen`) so the
+    // generated `Insert` row type does not yet include it. We trail-cast
+    // the literal as `Insert` rather than annotating the `const` to
+    // bypass excess-property checking on this single field; the trailing
+    // cast at the `.insert()` call site is the same pattern used at
+    // `app/api/items/[id]/route.ts:342` for content_history rows. Wave 5
+    // sweep regen will widen the type and the cast becomes a no-op.
+    const insertData = {
+      title,
+      content,
+      content_type,
+      suggested_title: title,
+      platform: 'manual',
+      captured_date: new Date().toISOString(),
+      created_by: user.id,
+      content_owner_id: ownerId,
+      // S207 WP-A4: typed provenance column. Preserves overrideability via
+      // `ingestion_source` body field per spec §5.5 Phase 2 (mirrors
+      // metadata.ingestion_source semantic). Read by
+      // ensure_v1_history_at_commit() trigger.
+      ingest_source: ingestion_source ?? 'manual',
+      metadata: {
+        ingestion_source: ingestion_source ?? 'manual',
+        ...(dedupStamp.suspected_duplicate_of && {
+          suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
         }),
-        ...(author_name && { author_name }),
-        ...(source_url && { source_url }),
-        ...(brief && { brief }),
-        ...(detail && { detail }),
-        ...(reference && { reference }),
-        ...(embeddingValue && { embedding: embeddingValue }),
-        ...(governance_review_status && { governance_review_status }),
-        // S202 §5.2 Phase 2.5 (T8b) — accept publication_status from the
-        // create body so the T8a UI rewire (web form sets
-        // publication_status='draft') actually persists. Per spec §4.2.3
-        // the canonical save-as-draft writer is publication_status='draft'.
-        ...(publication_status && { publication_status }),
-        ...(source_document_id && { source_document_id }),
-        // P0-BM Phase 3 spec ss4.6 Path 1: populate answer_standard for q_a_pair
-        // so first PATCH edit does not destroy creation content (bug B2 fix).
-        ...(content_type === 'q_a_pair' && content
-          ? { answer_standard: content }
-          : {}),
-      };
+      },
+      dedup_status: dedupStamp.dedup_status,
+      ...(primary_domain && { primary_domain }),
+      ...(primary_subtopic && { primary_subtopic }),
+      ...(secondary_domain && { secondary_domain }),
+      ...(secondary_subtopic && { secondary_subtopic }),
+      ...(priority && { priority }),
+      ...(user_tags?.length && { user_tags }),
+      ...(normalisedAiKeywords?.length && {
+        ai_keywords: normalisedAiKeywords,
+      }),
+      ...(author_name && { author_name }),
+      ...(source_url && { source_url }),
+      ...(brief && { brief }),
+      ...(detail && { detail }),
+      ...(reference && { reference }),
+      ...(embeddingValue && { embedding: embeddingValue }),
+      ...(governance_review_status && { governance_review_status }),
+      // S202 §5.2 Phase 2.5 (T8b) — accept publication_status from the
+      // create body so the T8a UI rewire (web form sets
+      // publication_status='draft') actually persists. Per spec §4.2.3
+      // the canonical save-as-draft writer is publication_status='draft'.
+      ...(publication_status && { publication_status }),
+      ...(source_document_id && { source_document_id }),
+      // P0-BM Phase 3 spec ss4.6 Path 1: populate answer_standard for q_a_pair
+      // so first PATCH edit does not destroy creation content (bug B2 fix).
+      ...(content_type === 'q_a_pair' && content
+        ? { answer_standard: content }
+        : {}),
+    } satisfies Record<
+      string,
+      unknown
+    > as Database['public']['Tables']['content_items']['Insert'];
 
     // Single INSERT with embedding included
     const { data: newItem, error: insertError } = await supabase

@@ -119,6 +119,15 @@ def insert_content_item(record: dict) -> tuple[bool, str]:
     """Insert a content_item. Returns (success, id_or_error).
 
     Automatically adds 'product_description' to ai_keywords for product_description items.
+
+    S207 WP-A4 (Plan Task 3.2): callers MUST set ``record['ingest_source']``
+    to one of the canonical values before calling this function. The DB
+    trigger ``ensure_v1_history_at_commit`` reads it to set
+    ``content_history.change_reason='initial_ingest'``. Recognised values
+    for Python pipelines: ``'python_url'``, ``'python_markdown'``,
+    ``'qa_import'`` (legacy NULL still accepted; trigger falls back to
+    ``'auto_v1_on_insert'``). See
+    docs/specs/ingest-path-consistency-spec.md §5.5 Phase 5.
     """
     # Auto-inject "product_description" keyword for product_description content type
     if record.get("content_type") == "product_description":

@@ -442,6 +442,10 @@ def process_markdown_file(
             "source_folder": folder_name,
             "original_format": "markdown",
         },
+        # S207 WP-A4 (Plan Task 3.2): typed provenance column on content_items.
+        # Read by ensure_v1_history_at_commit() trigger to set
+        # content_history.change_reason='initial_ingest'.
+        "ingest_source": "python_markdown",
     }
 
     # S183 WP2 — stamp dedup_status when content-hash matched.

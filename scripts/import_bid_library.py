@@ -282,6 +282,10 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
             "import_batch": batch_name,
             "has_tracked_changes": pair.get("has_tracked_changes", False),
         },
+        # S207 WP-A4 (Plan Task 3.2): typed provenance column on content_items.
+        # Read by ensure_v1_history_at_commit() trigger to set
+        # content_history.change_reason='initial_ingest'.
+        "ingest_source": "qa_import",
     }
 
     # Layer inference (non-blocking)

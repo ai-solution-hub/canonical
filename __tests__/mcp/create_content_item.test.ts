@@ -286,6 +286,24 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
       expect(insertCall.metadata?.source_document).toBeUndefined();
       expect(result.structuredContent.source_document_id).toBe(SOURCE_DOC_ID);
     });
+
+    // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+    // ensure_v1_history_at_commit() trigger to set
+    // content_history.change_reason='initial_ingest'.
+    it('writes ingest_source="mcp_create" to the content_items insert payload', async () => {
+      const result = await createTool(
+        {
+          title: 'Ingest Source MCP',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+        },
+        { authInfo: MOCK_AUTH_INFO },
+      );
+
+      expect(result.isError).toBeFalsy();
+      const insertCall = findContentItemsInsert(mocks.chain.insert);
+      expect(insertCall.ingest_source).toBe('mcp_create');
+    });
   });
 
   describe('legacy source_document arg rejection (1.1-AC3)', () => {

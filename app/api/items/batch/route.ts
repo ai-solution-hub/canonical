@@ -238,30 +238,39 @@ export async function POST(request: NextRequest) {
           metadata.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
         }
 
-        const insertData: Database['public']['Tables']['content_items']['Insert'] =
-          {
-            title: item.title,
-            content: item.content,
-            content_type: 'q_a_pair',
-            platform: 'extraction',
-            suggested_title: item.title,
-            captured_date: new Date().toISOString(),
-            created_by: user.id,
-            content_owner_id: ownerId,
-            metadata,
-            dedup_status: dedupStamp.dedup_status,
-            // P0-BM Phase 3 spec ss4.6 Path 2: populate answer_standard for
-            // q_a_pair so first PATCH edit does not destroy creation content
-            // (bug B2 fix). Prefer explicit answerStandard field when provided
-            // (Option A — avoids redundant composite→extract round-trip);
-            // fall back to extractAnswerFromContent for backward compatibility.
-            answer_standard:
-              item.answerStandard ?? extractAnswerFromContent(item.content),
-            ...(source_document_id ? { source_document_id } : {}),
-            ...(item.answerAdvanced
-              ? { answer_advanced: item.answerAdvanced }
-              : {}),
-          };
+        // S207 WP-A4 (Plan Task 3.2): trail-cast as Insert because
+        // ingest_source is a NEW typed column not yet in database.types
+        // (mid-session regen forbidden per `feedback_no_midsession_type_regen`).
+        const insertData = {
+          title: item.title,
+          content: item.content,
+          content_type: 'q_a_pair',
+          platform: 'extraction',
+          suggested_title: item.title,
+          captured_date: new Date().toISOString(),
+          created_by: user.id,
+          content_owner_id: ownerId,
+          // S207 WP-A4: typed provenance column. Read by
+          // ensure_v1_history_at_commit() to set
+          // content_history.change_reason='initial_ingest'.
+          ingest_source: 'upload_autosplit',
+          metadata,
+          dedup_status: dedupStamp.dedup_status,
+          // P0-BM Phase 3 spec ss4.6 Path 2: populate answer_standard for
+          // q_a_pair so first PATCH edit does not destroy creation content
+          // (bug B2 fix). Prefer explicit answerStandard field when provided
+          // (Option A — avoids redundant composite→extract round-trip);
+          // fall back to extractAnswerFromContent for backward compatibility.
+          answer_standard:
+            item.answerStandard ?? extractAnswerFromContent(item.content),
+          ...(source_document_id ? { source_document_id } : {}),
+          ...(item.answerAdvanced
+            ? { answer_advanced: item.answerAdvanced }
+            : {}),
+        } satisfies Record<
+          string,
+          unknown
+        > as Database['public']['Tables']['content_items']['Insert'];
 
         // Insert the content item
         const { data: newItem, error: insertError } = await serviceClient

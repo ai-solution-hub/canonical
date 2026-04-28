@@ -229,4 +229,54 @@ describe('content_history.change_reason guard (S153)', () => {
       `${migrationPath} should write the canonical change_reason value`,
     ).toMatch(/'backfill_owner_assign_wp_a3'/);
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // S207 WP-A4 (Plan Task 3.2) — Python parity: ingest_source written by
+  // every Python caller of insert_content_item() / supabase.table.insert()
+  //
+  // Per spec §5.5 Phase 5, every caller MUST set the typed
+  // `ingest_source` key on the record dict before INSERT so the DB
+  // trigger `ensure_v1_history_at_commit` can stamp
+  // content_history.change_reason='initial_ingest' (and the v1 row's
+  // metadata.ingest_source for granular observability).
+  // ─────────────────────────────────────────────────────────────────────
+  it('Python callers pass ingest_source to insert_content_item / supabase.insert', () => {
+    const expected: Array<{ rel: string; pattern: RegExp; value: string }> = [
+      {
+        rel: 'scripts/kb_pipeline/pipeline.py',
+        pattern: /["']ingest_source["']\s*:\s*["']python_url["']/,
+        value: 'python_url',
+      },
+      {
+        rel: 'scripts/ingest_markdown.py',
+        pattern: /["']ingest_source["']\s*:\s*["']python_markdown["']/,
+        value: 'python_markdown',
+      },
+      {
+        rel: 'scripts/import_bid_library.py',
+        pattern: /["']ingest_source["']\s*:\s*["']qa_import["']/,
+        value: 'qa_import',
+      },
+      {
+        rel: 'scripts/ingest_stage2_markdown.py',
+        pattern: /["']ingest_source["']\s*:\s*["']python_markdown["']/,
+        value: 'python_markdown',
+      },
+    ];
+    for (const { rel, pattern, value } of expected) {
+      const callerContent = readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
+      expect(
+        callerContent,
+        `${rel} should set record["ingest_source"] = "${value}" before insert`,
+      ).toMatch(pattern);
+    }
+  });
+
+  it('store.py documents ingest_source as a recognised top-level record key', () => {
+    const storePath = path.join(REPO_ROOT, 'scripts/kb_pipeline/store.py');
+    const content = readFileSync(storePath, 'utf-8');
+    // The docstring on `insert_content_item` should mention ingest_source as a
+    // canonical caller-supplied field (per S207 plan §3.2).
+    expect(content).toMatch(/ingest_source/);
+  });
 });

@@ -363,6 +363,57 @@ describe('POST /api/items', () => {
     expect(insertCall.created_by).toBe('test-user-id');
   });
 
+  // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+  // ensure_v1_history_at_commit() trigger to set
+  // content_history.change_reason='initial_ingest'.
+  it('writes ingest_source defaulting to "manual" when ingestion_source omitted', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        title: 'Default Source',
+        content_type: 'article',
+        created_at: '2026-03-05T12:00:00Z',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody(),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertCall.ingest_source).toBe('manual');
+  });
+
+  it('writes ingest_source from caller-supplied ingestion_source override', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        title: 'Override Source',
+        content_type: 'article',
+        created_at: '2026-03-05T12:00:00Z',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({ ingestion_source: 'url_import' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertCall.ingest_source).toBe('url_import');
+  });
+
   // ─────────────────────────────────────────────────────────────────────
   // S206 WP-A Phase 2 — content_owner_id default + admin override
   // ─────────────────────────────────────────────────────────────────────
