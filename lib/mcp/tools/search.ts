@@ -456,7 +456,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     {
       title: 'Search Content Chunks',
       description:
-        'Search within content at the section level using semantic search. Returns individual sections (chunks) of documents rather than whole items, enabling fine-grained retrieval. Each chunk includes its heading path (breadcrumb) showing where it sits in the document structure. Useful for finding specific sections within long documents — e.g. "the Risk Assessment section of a health and safety policy". Use search_knowledge_base for whole-document search, use this for section-level precision.',
+        'Search within content at the section level using semantic search. Returns individual sections (chunks) of documents rather than whole items, enabling fine-grained retrieval. Each chunk includes its heading path (breadcrumb) showing where it sits in the document structure. Useful for finding specific sections within long documents — e.g. "the Risk Assessment section of a health and safety policy". Use search_knowledge_base for whole-document search, use this for section-level precision. Optional review-cadence filters (`overdue_review`, `review_due_within_days`) restrict results to chunks from items with active document-control review obligations.',
       inputSchema: {
         query: z
           .string()
@@ -473,6 +473,26 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .optional()
           .describe(
             'Optional: restrict search to chunks within a specific content item. Useful for navigating within a known document.',
+          ),
+        // §5.5 Phase 4 — review-cadence filters (S208 WP1)
+        // Spec: docs/specs/p0-document-control-lifecycle-spec.md §8.2
+        // Both pass through to the RPC's filter_overdue_review +
+        // filter_review_due_within_days params (Option A — RPC-level filter
+        // via existing JOIN, zero round-trip cost).
+        overdue_review: z
+          .boolean()
+          .optional()
+          .describe(
+            'If true, only return chunks from content items that are overdue for review (governance_review_status = "review_overdue"). Default: no filter.',
+          ),
+        review_due_within_days: z
+          .number()
+          .int()
+          .min(1)
+          .max(365)
+          .optional()
+          .describe(
+            'Only return chunks from content items whose next_review_date is within this many days from today. Useful for finding items approaching their review date.',
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
@@ -492,6 +512,14 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             similarity_threshold: 0.3,
             limit_count: searchLimit,
             filter_content_item_id: args.content_item_id ?? undefined,
+            // §5.5 Phase 4 — pass-through to the new RPC params. `?? undefined`
+            // keeps the JSON-RPC payload free of `null` values (matches the
+            // existing `filter_content_item_id` convention and the
+            // search-chunks-tool.test.ts assertion that null-omits send
+            // `undefined`, not `null`).
+            filter_overdue_review: args.overdue_review ?? undefined,
+            filter_review_due_within_days:
+              args.review_due_within_days ?? undefined,
           },
         );
 
@@ -518,6 +546,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             query: args.query,
             count: chunkResults.length,
             content_item_id: args.content_item_id ?? null,
+            // §5.5 Phase 4 — surface the review-cadence filters so callers
+            // can trace which slice of the index they're looking at.
+            // `null` (not `undefined`) when omitted to match the existing
+            // `content_item_id` convention.
+            overdue_review_filter: args.overdue_review ?? null,
+            review_due_within_days_filter: args.review_due_within_days ?? null,
             results: chunkResults,
           }),
         };

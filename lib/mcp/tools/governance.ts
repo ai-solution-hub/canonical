@@ -893,7 +893,7 @@ export async function registerGovernanceTools(
     {
       title: 'Get Governance Queue',
       description:
-        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). Optional `domain` filter restricts by `primary_domain`; optional `publication_status` filter restricts by publication lifecycle state (e.g. set `publication_status="in_review"` to surface items awaiting publication approval — a separate axis from change-management `governance_review_status="pending"`). All filters compose via AND. Editor or admin role required.',
+        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). By default the queue includes both `pending` (recent edits awaiting review) and `review_overdue` (cadence-elapsed items flagged by the §5.5 Phase 2 cron). Set `include_overdue=false` to restrict to `pending` only, or use `status_filter` for granular control (`pending`, `review_overdue`, or `all` for both). Optional `domain` filter restricts by `primary_domain`; optional `publication_status` filter restricts by publication lifecycle state (e.g. set `publication_status="in_review"` to surface items awaiting publication approval — a separate axis from change-management `governance_review_status`). All filters compose via AND. Editor or admin role required.',
       inputSchema: {
         limit: z
           .number()
@@ -920,6 +920,26 @@ export async function registerGovernanceTools(
           .describe(
             'If set, restrict the queue to items in this publication state. Common usage: publication_status="in_review" to surface items awaiting publication approval (separate axis from change-management governance_review_status="pending").',
           ),
+        // §5.5 Phase 4 — review-cadence widening (S208 WP1).
+        // Spec: docs/specs/p0-document-control-lifecycle-spec.md §8.3
+        // Defaults to TRUE so the tool surfaces both 'pending' (change-
+        // management) and 'review_overdue' (cadence-elapsed) items in one
+        // queue. Existing callers that didn't pass the param see a wider set
+        // — but only on databases that have any 'review_overdue' rows; on
+        // pre-§5.5 data the set is identical.
+        include_overdue: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            'When true (default), include items in BOTH pending and review_overdue states. When false, restrict to pending only (legacy change-management semantics). Ignored when status_filter is set.',
+          ),
+        status_filter: z
+          .enum(['pending', 'review_overdue', 'all'])
+          .optional()
+          .describe(
+            'Granular review-status filter. "pending" = change-management only (recent edits). "review_overdue" = cadence-elapsed only. "all" = both (same as include_overdue=true). When set, takes precedence over include_overdue.',
+          ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -940,13 +960,30 @@ export async function registerGovernanceTools(
 
         const supabase = createMcpClient(extra.authInfo);
 
+        // §5.5 Phase 4 — resolve the review-status set. status_filter takes
+        // precedence over include_overdue when both are supplied. Default
+        // (neither set) → include_overdue=true → ['pending', 'review_overdue'].
+        let reviewStatuses: string[];
+        if (args.status_filter === 'pending') {
+          reviewStatuses = ['pending'];
+        } else if (args.status_filter === 'review_overdue') {
+          reviewStatuses = ['review_overdue'];
+        } else if (args.status_filter === 'all') {
+          reviewStatuses = ['pending', 'review_overdue'];
+        } else if (args.include_overdue === false) {
+          reviewStatuses = ['pending'];
+        } else {
+          // Default (include_overdue=true OR omitted) — both states.
+          reviewStatuses = ['pending', 'review_overdue'];
+        }
+
         let query = supabase
           .from('content_items')
           .select(
             'id, title, suggested_title, primary_domain, governance_review_status, governance_review_due, governance_reviewer_id, updated_by, updated_at',
             { count: 'exact' },
           )
-          .eq('governance_review_status', 'pending')
+          .in('governance_review_status', reviewStatuses)
           .order('governance_review_due', {
             ascending: true,
             nullsFirst: false,
@@ -990,7 +1027,14 @@ export async function registerGovernanceTools(
         const markdown = formatGovernanceQueue(result);
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(result),
+          // §5.5 Phase 4 — surface the resolved review-status filter so
+          // downstream callers (and tests) can verify which statuses were
+          // queried. Always set: defaults to `['pending', 'review_overdue']`
+          // so the value is observable on the no-arg path too.
+          structuredContent: toStructuredContent({
+            ...result,
+            review_status_filter: reviewStatuses,
+          }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
