@@ -9,17 +9,14 @@
  * 2. Gold-standard DB integration (gated by EVAL_CLASSIFICATION=1) — runs the
  *    cached scoring path against real DB classifications.
  *
- * 3. Optional live integration (gated by EVAL_LIVE_TEST=1) — runs the live
- *    pipeline with mocked Claude calls on a single small fixture.
+ * 3. Live integration with mocked Claude — runs the live pipeline with mocked
+ *    Anthropic calls on a single small fixture (no external dep, runs in PR).
  *
  * Run unit tests:
  *   bun run test classification-eval
  *
  * Run gold-standard DB eval:
  *   EVAL_CLASSIFICATION=1 bun run test classification-eval
- *
- * Run live mock integration:
- *   EVAL_LIVE_TEST=1 bun run test classification-eval
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
@@ -268,48 +265,43 @@ describe('Classification Eval — Unit Tests', () => {
   });
 });
 
-// ── Live mode integration with mocked Claude (gated) ───────────────
+// ── Live mode integration with mocked Claude ──────────────────────
 
-const isLiveMockEnabled = process.env.EVAL_LIVE_TEST === '1';
+describe('Classification Eval — Live mode (mocked Anthropic)', () => {
+  it('produces a non-empty classification result when classifyContent is mocked', async () => {
+    // Mock classifyContent so no real API calls happen. The mock returns
+    // a deterministic classification result for the given itemId.
+    vi.doMock('../../lib/ai/classify', () => ({
+      classifyContent: vi.fn().mockResolvedValue({
+        primary_domain: 'security',
+        primary_subtopic: 'cyber-security',
+        secondary_domain: null,
+        ai_keywords: ['penetration testing', 'CREST'],
+        summary: 'Mocked summary',
+        suggested_title: 'Mocked title',
+        classification_confidence: 0.92,
+        classification_reasoning: 'Mocked reasoning',
+      }),
+    }));
 
-describe.skipIf(!isLiveMockEnabled)(
-  'Classification Eval — Live mode (mocked Anthropic)',
-  () => {
-    it('produces a non-empty classification result when classifyContent is mocked', async () => {
-      // Mock classifyContent so no real API calls happen. The mock returns
-      // a deterministic classification result for the given itemId.
-      vi.doMock('../../lib/ai/classify', () => ({
-        classifyContent: vi.fn().mockResolvedValue({
-          primary_domain: 'security',
-          primary_subtopic: 'cyber-security',
-          secondary_domain: null,
-          ai_keywords: ['penetration testing', 'CREST'],
-          summary: 'Mocked summary',
-          suggested_title: 'Mocked title',
-          classification_confidence: 0.92,
-          classification_reasoning: 'Mocked reasoning',
-        }),
-      }));
-
-      const { classifyContent } = await import('../../lib/ai/classify');
-      const result = await classifyContent({
-        // The mock ignores all parameters; we just need a typed shape.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase: {} as any,
-        itemId: '00000000-0000-4000-8000-000000000001',
-        force: true,
-        userId: 'eval-runner',
-      });
-
-      expect(result.primary_domain).toBe('security');
-      expect(result.primary_subtopic).toBe('cyber-security');
-      expect(result.classification_confidence).toBeGreaterThan(0);
-      expect(result.ai_keywords?.length ?? 0).toBeGreaterThan(0);
-
-      vi.doUnmock('../../lib/ai/classify');
+    const { classifyContent } = await import('../../lib/ai/classify');
+    const result = await classifyContent({
+      // The mock ignores all parameters; we just need a typed shape.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: {} as any,
+      itemId: '00000000-0000-4000-8000-000000000001',
+      force: true,
+      userId: 'eval-runner',
     });
-  },
-);
+
+    expect(result.primary_domain).toBe('security');
+    expect(result.primary_subtopic).toBe('cyber-security');
+    expect(result.classification_confidence).toBeGreaterThan(0);
+    expect(result.ai_keywords?.length ?? 0).toBeGreaterThan(0);
+
+    vi.doUnmock('../../lib/ai/classify');
+  });
+});
 
 // ── Cached gold-standard integration (gated) ───────────────────────
 
