@@ -483,7 +483,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .boolean()
           .optional()
           .describe(
-            'If true, only return chunks from content items that are overdue for review (governance_review_status = "review_overdue"). Default: no filter.',
+            'If true, only return chunks from content items that are overdue for review (governance_review_status = "review_overdue"). If false, exclude overdue items (return only items not in "review_overdue" status). Omit (undefined) for no filter.',
           ),
         review_due_within_days: z
           .number()

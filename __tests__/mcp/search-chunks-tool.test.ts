@@ -281,6 +281,10 @@ describe('search_content_chunks tool handler', () => {
   // §5.5 Phase 4 — review-cadence filter params (S208 WP1)
   // Spec: docs/specs/p0-document-control-lifecycle-spec.md §8.2
   // AC1 (overdue_review=true), AC2 (review_due_within_days=30), AC7 (no break).
+  // Note: row-filtering correctness (the actual SQL JOIN + WHERE conditions
+  // in supabase/migrations/20260428212936_extend_search_content_chunks_review_filters.sql)
+  // is exercised by MCP eval Layer 4 (bun run test:mcp-eval:fc). The handler-
+  // pass-through assertions below verify the params reach the RPC call.
   // ──────────────────────────────────────────
 
   describe('§5.5 Phase 4 — review-cadence filter params', () => {
