@@ -69,6 +69,7 @@ function makeItem(
     secondary_domain: null,
     secondary_subtopic: null,
     quality_score: null,
+    last_reviewed_at: null,
     ...overrides,
   };
 }

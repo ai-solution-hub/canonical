@@ -44,19 +44,25 @@ function createRelatedItem(
   return {
     id,
     title,
-    content_type: 'article',
+    suggested_title: null,
+    summary: null,
     primary_domain: 'Corporate',
     primary_subtopic: null,
-    freshness: 'fresh',
-    priority: null,
-    created_at: '2026-01-01',
-    updated_at: '2026-01-01',
-    summary: null,
-    user_tags: [],
+    content_type: 'article',
+    platform: null,
+    author_name: null,
+    source_domain: null,
+    thumbnail_url: null,
+    captured_date: '2026-01-01',
     ai_keywords: [],
+    classification_confidence: null,
+    priority: null,
+    freshness: 'fresh',
+    user_tags: [],
     governance_review_status: null,
+    metadata: null,
     similarity: 0.85,
-  } as ContentListItem & { similarity: number };
+  };
 }
 
 // ---------------------------------------------------------------------------
