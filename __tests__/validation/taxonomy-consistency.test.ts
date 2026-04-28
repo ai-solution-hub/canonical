@@ -14,7 +14,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { parseCanonicalTaxonomy } from '../../scripts/lib/taxonomy-parser';
 
 const PROJECT_ROOT = join(__dirname, '../..');
