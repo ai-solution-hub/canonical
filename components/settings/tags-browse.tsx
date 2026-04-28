@@ -224,6 +224,7 @@ export function TagsBrowse({
     return result;
   }, [tags, searchQuery, sortField, sortOrder, showSingletons]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual upstream limitation; useVirtualizer returns non-memoizable getters
   const virtualizer = useVirtualizer({
     count: filteredTags.length,
     getScrollElement: () => parentRef.current,
