@@ -654,18 +654,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Record initial version in content_history
-    await supabase.from('content_history').insert({
-      content_item_id: itemId,
-      version: 1,
-      title: title,
-      content: extractedText || '',
-      change_type: 'create',
-      change_summary: 'Initial upload',
-      // S152B WP3 / S153: file upload ingest = initial_ingest.
-      change_reason: 'initial_ingest',
-      created_by: user.id,
-    });
+    // S207 WP-A4 Task 3.4: app-level v1 content_history insert removed —
+    // the deferred trigger `trg_content_items_ensure_v1_history` is now the
+    // single authority for v1 history rows. See spec
+    // docs/specs/ingest-path-consistency-spec.md §3.4 AC4.3.
 
     // Step 2 complete: text extracted
     if (pipelineRunId) {

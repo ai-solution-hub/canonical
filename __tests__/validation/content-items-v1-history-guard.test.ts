@@ -1,27 +1,54 @@
 /**
- * Guard test — S186 WP-E structural prevention for the v1 content_history
- * gap.
+ * Guard test — v1 `content_history` is now trigger-authored exclusively.
  *
- * Context: the S186 WP-A quality gate found 475 real-content items without
- * v1 history rows. Root causes:
- *   1. Pre-S153 Python ingest scripts (closed S153 + S185 WP-D).
- *   2. `lib/mcp/tools/content.ts::create_content_item` never wrote v1
- *      history (closed S186 WP-E).
- *   3. No DB-level guarantee (closed S186 WP-E via migration
- *      `20260422060118_ensure_content_items_v1_history.sql`).
+ * Inversion rationale (S207 WP-A4 / spec
+ * `docs/specs/ingest-path-consistency-spec.md` §3.4 AC4.4):
  *
- * This guard enforces two invariants going forward:
- *   A. The deferred constraint trigger migration exists in-tree.
- *   B. Every code path that inserts into `content_items` either writes a
- *      paired v1 `content_history` row OR is on the ALLOWLIST (known to
- *      rely on the DB trigger).
+ * The S186 design wrote v1 history rows from app code at every ingest
+ * entry point (5 sites: items, items/batch, upload, ingest/url,
+ * mcp/tools/content) AND fell back to a deferred trigger if any of them
+ * dropped the write. The original guard test scanned for
+ * `.from('content_items').insert(...)` sites and asserted that each
+ * paired with a v1 history write OR appeared on an ALLOWLIST.
  *
- * If you add a new `.from('content_items').insert(...)` call, either:
- *   - Add an explicit `content_history` insert within 80 lines (see
- *     `app/api/items/route.ts` for the canonical pattern), OR
- *   - Add the file path to ALLOWLIST below with a comment explaining why.
+ * S207 WP-A4 promotes ingest provenance to a typed
+ * `content_items.ingest_source` column and rewrites the deferred trigger
+ * to read it (Task 3.1). All five app-level v1 history writes are
+ * deleted (Task 3.4). The trigger is now the SINGLE authority for v1
+ * rows. The original guard's pairing requirement no longer matches the
+ * production design; it is inverted here.
  *
- * Either way, the DB trigger is the safety net.
+ * Inverted invariant:
+ *   No production code in `lib/`, `app/`, or `scripts/` may write a
+ *   `content_history` row with `version: 1` outside the
+ *   `BACKFILL_HISTORY_ALLOWLIST`. The trigger
+ *   `trg_content_items_ensure_v1_history` (migration 20260422060118,
+ *   rewritten by 20260428174512 via Option D) is the only authority.
+ *
+ * BACKFILL_HISTORY_ALLOWLIST handling (plan v1.1 fix C-1):
+ *   `scripts/backfill-content-history-v1.ts` writes `version: 1` rows
+ *   by design — it is the S186 backfill helper for items missing v1
+ *   history. Allowlisting it is mandatory; without the allowlist the
+ *   inverted guard would fail on first CI run. The script's
+ *   `buildHistoryRow()` constructs rows with `version: 1`; its
+ *   `.from('content_history').insert(rows)` call writes them. Both
+ *   markers must remain visible in the file (validated below).
+ *
+ * `scripts/mcp-eval/fixtures.ts` is intentionally NOT allowlisted (plan
+ * v1.1 fix C-2). The original spec §3.4 AC4.4 fix M-7 claimed it
+ * "builds synthetic content_history rows for eval scenarios". That is
+ * factually incorrect — verified at fixtures.ts:427 the file only
+ * `.delete()`s from content_history; it never inserts. The original
+ * ALLOWLIST entry exempted fixtures.ts from the OUTGOING (paired-write)
+ * guard scope, which is a different scope from this inverted guard.
+ * Tracked as OQ-A4-FIXTURES-ALLOWLIST in the plan §11 for spec v1.2.
+ *
+ * If a NEW v1 content_history insert lands in the codebase outside the
+ * backfill helper, this guard will fail. The fix is one of:
+ *   1. Delete the insert — the trigger covers it. (Default.)
+ *   2. If the insert is a backfill helper of similar shape, add the
+ *      file to BACKFILL_HISTORY_ALLOWLIST below with a comment citing
+ *      the relevant spec session.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -33,24 +60,18 @@ const SCAN_DIRS = ['lib', 'app', 'scripts'];
 const EXTENSIONS = ['.ts', '.tsx'];
 
 /**
- * Files known to insert into content_items without a paired v1 history
- * write. These rely on the DB trigger `trg_content_items_ensure_v1_history`
- * (migration 20260422060118).
+ * Files that are expected to write v1 `content_history` rows.
  *
- * Each entry MUST have a comment explaining why an explicit write is not
- * appropriate (e.g. the insert path is non-critical, or adding the write
- * would duplicate trigger-provided semantics).
+ * Each entry MUST have a comment citing the spec/session that justifies
+ * the exemption AND the file MUST contain both a content_history insert
+ * AND a `version: 1` marker (validated by the stale-list assertion).
  */
-const ALLOWLIST = [
-  // SI pipeline ingest — creates content_items from sector intelligence
-  // feeds. Volume is low; DB trigger is sufficient backstop.
-  'lib/intelligence/pipeline.ts',
-  // Bid outcome integration — creates a synthetic content item summarising
-  // a bid outcome. Trigger-provided auto_v1_on_insert is semantically
-  // acceptable here (no human-authored change_reason is needed).
-  'app/api/bids/[id]/outcome/integrate/route.ts',
-  // MCP eval fixtures — not a production path; test setup only.
-  'scripts/mcp-eval/fixtures.ts',
+const BACKFILL_HISTORY_ALLOWLIST = [
+  // S186 v1-history backfill helper. `buildHistoryRow()` constructs
+  // rows with `version: 1`; the `.from('content_history').insert(rows)`
+  // call writes them. Required by the spec's S186 backfill design.
+  // See `docs/specs/backfill-content-history-v1-spec.md`.
+  'scripts/backfill-content-history-v1.ts',
 ] as const;
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -71,74 +92,75 @@ function walk(dir: string, out: string[] = []): string[] {
     } else if (EXTENSIONS.some((ext) => entry.endsWith(ext))) {
       // Skip test/spec files.
       if (entry.includes('.test.') || entry.includes('.spec.')) continue;
+      // Skip generated bundles — they bake in third-party library code
+      // (e.g. zod's internal version literals) that look like matches.
+      if (entry === 'app-bundles.ts' || entry === 'plugin-bundle.ts') continue;
       out.push(relative(REPO_ROOT, full));
     }
   }
   return out;
 }
 
-interface InsertSite {
+interface V1InsertSite {
   file: string;
   line: number;
-  hasPairedHistory: boolean;
 }
 
-const FROM_PATTERN = /\.from\((['"])content_items\1\)/;
-// Match both `.insert(` and `.upsert(` — upsert is also a write path that
-// creates a row on miss and therefore must pair with a v1 history write.
-const INSERT_PATTERN = /\.(insert|upsert)\(/;
+/**
+ * A file is a v1-history INSERT site iff:
+ *   (a) it contains at least one `.from('content_history').insert(` call, AND
+ *   (b) it contains at least one `version: 1` literal.
+ *
+ * The two markers may live in the same statement (the deleted S186 pattern)
+ * or be split across helper + caller (the backfill script pattern). Both
+ * shapes are caught.
+ */
 const HISTORY_INSERT_PATTERN =
-  /\.from\((['"])content_history\1\)[\s\S]*?\.(insert|upsert)\(/;
+  /\.from\((['"])content_history\1\)[\s\S]{0,80}?\.(insert|upsert)\(/;
+const VERSION_ONE_PATTERN = /version:\s*1(?![0-9])/;
 
-function findInsertSites(): InsertSite[] {
-  const sites: InsertSite[] = [];
+function findV1HistoryInsertSites(): V1InsertSite[] {
+  const sites: V1InsertSite[] = [];
 
   for (const dir of SCAN_DIRS) {
     const files = walk(dir);
     for (const file of files) {
       const content = readFileSync(join(REPO_ROOT, file), 'utf-8');
+      if (!HISTORY_INSERT_PATTERN.test(content)) continue;
+      if (!VERSION_ONE_PATTERN.test(content)) continue;
+
+      // Report at the line of the first content_history insert call (most
+      // useful for human readers; the version-1 literal may be elsewhere).
       const lines = content.split('\n');
-
-      // File-level check: does this file contain any content_history insert?
-      // A "paired" insert is anywhere-in-file since upload + batch routes can
-      // have the history write hundreds of lines after the items insert.
-      const fileHasHistoryInsert = HISTORY_INSERT_PATTERN.test(content);
-
+      let line = -1;
       for (let i = 0; i < lines.length; i++) {
-        if (!FROM_PATTERN.test(lines[i])) continue;
-        // Check next 5 lines for .insert( — supabase-js chains may wrap.
-        const window = lines.slice(i, Math.min(i + 6, lines.length)).join('\n');
-        if (!INSERT_PATTERN.test(window)) continue;
-
-        sites.push({
-          file,
-          line: i + 1,
-          hasPairedHistory: fileHasHistoryInsert,
-        });
+        if (/\.from\((['"])content_history\1\)/.test(lines[i])) {
+          line = i + 1;
+          break;
+        }
       }
+      sites.push({ file, line: line === -1 ? 1 : line });
     }
   }
 
   return sites;
 }
 
-describe('content_items v1 history guard', () => {
-  const sites = findInsertSites();
+describe('content_items v1 history guard (inverted)', () => {
+  const sites = findV1HistoryInsertSites();
 
-  it('at least one content_items insert site was scanned (sanity)', () => {
-    // Sanity: if this fails, the scanner is broken.
-    expect(sites.length).toBeGreaterThan(0);
-  });
-
-  it('every content_items insert either pairs with a v1 history write or is allowlisted', () => {
-    const offenders = sites
-      .filter((s) => !s.hasPairedHistory)
-      .filter((s) => !ALLOWLIST.includes(s.file as (typeof ALLOWLIST)[number]));
+  it('every v1 content_history insert site is on BACKFILL_HISTORY_ALLOWLIST', () => {
+    const offenders = sites.filter(
+      (s) =>
+        !BACKFILL_HISTORY_ALLOWLIST.includes(
+          s.file as (typeof BACKFILL_HISTORY_ALLOWLIST)[number],
+        ),
+    );
 
     if (offenders.length > 0) {
       const msg = offenders.map((s) => `  - ${s.file}:${s.line}`).join('\n');
       throw new Error(
-        `Found ${offenders.length} content_items insert site(s) without paired v1 content_history write and not on ALLOWLIST:\n${msg}\n\nFix: add an explicit content_history insert within 80 lines (see app/api/items/route.ts pattern), OR add the file to ALLOWLIST with a justification comment.`,
+        `Found ${offenders.length} v1 content_history insert site(s) outside BACKFILL_HISTORY_ALLOWLIST:\n${msg}\n\nExpected: v1 rows are now trigger-authored exclusively (see docs/specs/ingest-path-consistency-spec.md §3.4 AC4.4). The deferred trigger trg_content_items_ensure_v1_history is the single authority. Fix: delete the explicit v1 write — the trigger covers it. If the insert is a backfill helper of similar shape to scripts/backfill-content-history-v1.ts, add the file to BACKFILL_HISTORY_ALLOWLIST with a comment citing the spec/session.`,
       );
     }
   });
@@ -157,9 +179,18 @@ describe('content_items v1 history guard', () => {
     expect(migration).toMatch(/SET search_path\s*=\s*public,\s*extensions/);
   });
 
-  it('ALLOWLIST entries actually exist in the repo (stale-list detection)', () => {
-    for (const file of ALLOWLIST) {
-      expect(() => readFileSync(join(REPO_ROOT, file), 'utf-8')).not.toThrow();
+  it('every BACKFILL_HISTORY_ALLOWLIST entry exists and writes v1 rows (stale-list detection)', () => {
+    for (const file of BACKFILL_HISTORY_ALLOWLIST) {
+      let content: string;
+      expect(() => {
+        content = readFileSync(join(REPO_ROOT, file), 'utf-8');
+      }).not.toThrow();
+      // Both markers must be present — the file IS expected to write v1
+      // history rows. If either is missing, the allowlist entry is stale
+      // (the file may have been refactored to no longer write v1 rows,
+      // in which case the entry should be deleted).
+      expect(HISTORY_INSERT_PATTERN.test(content!)).toBe(true);
+      expect(VERSION_ONE_PATTERN.test(content!)).toBe(true);
     }
   });
 });

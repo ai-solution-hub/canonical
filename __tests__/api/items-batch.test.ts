@@ -645,20 +645,24 @@ describe('POST /api/items/batch', () => {
       expect(mockContentChain.update).toHaveBeenCalled();
     });
 
-    it('creates content_history entry per item', async () => {
+    it('does not write v1 content_history row from app code (trigger is single authority)', async () => {
+      // S207 WP-A4 Task 3.4: app-level v1 content_history insert removed.
+      // The deferred trigger trg_content_items_ensure_v1_history is now
+      // the single authority for v1 history rows. See spec
+      // docs/specs/ingest-path-consistency-spec.md §3.4 AC4.3.
       configureRole(mockSupabase, 'editor');
 
       await POST(makeRequest({ items: makeSampleItems(1) }));
 
       const historyInsertCalls = mockHistoryChain.insert.mock.calls;
-      expect(historyInsertCalls.length).toBeGreaterThanOrEqual(1);
-
-      if (historyInsertCalls.length > 0) {
-        const entry = historyInsertCalls[0][0];
-        expect(entry.version).toBe(1);
-        expect(entry.change_type).toBe('create');
-        expect(entry.change_summary).toContain('auto-split');
-      }
+      const v1Inserts = historyInsertCalls.filter(
+        (call: unknown[]) =>
+          typeof call[0] === 'object' &&
+          call[0] !== null &&
+          'version' in call[0] &&
+          (call[0] as Record<string, unknown>).version === 1,
+      );
+      expect(v1Inserts).toHaveLength(0);
     });
   });
 

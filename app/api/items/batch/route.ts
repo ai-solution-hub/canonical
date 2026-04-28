@@ -285,22 +285,10 @@ export async function POST(request: NextRequest) {
 
         createdIds.push(newItem.id);
 
-        // Create initial version in content_history (best-effort)
-        try {
-          await serviceClient.from('content_history').insert({
-            content_item_id: newItem.id,
-            version: 1,
-            title: item.title,
-            content: item.content,
-            change_type: 'create',
-            change_summary: 'Batch creation via Q&A auto-split',
-            // S152B WP3 / S153: batch Q&A import = initial_ingest.
-            change_reason: 'initial_ingest',
-            created_by: user.id,
-          });
-        } catch {
-          // Non-fatal — continue without history entry
-        }
+        // S207 WP-A4 Task 3.4: app-level v1 content_history insert removed —
+        // the deferred trigger `trg_content_items_ensure_v1_history` is now the
+        // single authority for v1 history rows. See spec
+        // docs/specs/ingest-path-consistency-spec.md §3.4 AC4.3.
 
         // -------------------------------------------------------------------
         // AI processing pipeline (per item)

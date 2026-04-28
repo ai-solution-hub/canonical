@@ -215,27 +215,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create version 1 entry in content_history (best-effort)
-    try {
-      await supabase.from('content_history').insert({
-        content_item_id: newItem.id,
-        version: 1,
-        title,
-        content,
-        brief: brief ?? null,
-        detail: detail ?? null,
-        reference: reference ?? null,
-        change_summary: 'Initial creation',
-        // S152B WP3 / S153: canonical change_reason for manual item creation
-        // via the items API. See supabase/migrations/20260407220000_*.sql
-        // COMMENT for the full enum list.
-        change_reason: 'initial_ingest',
-        change_type: 'create',
-        created_by: user.id,
-      });
-    } catch (historyErr) {
-      console.error('Failed to create initial version history:', historyErr);
-    }
+    // S207 WP-A4 Task 3.4: app-level v1 content_history insert removed —
+    // the deferred trigger `trg_content_items_ensure_v1_history` is now the
+    // single authority for v1 history rows. See spec
+    // docs/specs/ingest-path-consistency-spec.md §3.4 AC4.3.
 
     // Chunking — split markdown into heading-based chunks with embeddings.
     // Skips drafts (drafts stay private; chunks become searchable once published).

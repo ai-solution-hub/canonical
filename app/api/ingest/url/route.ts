@@ -205,22 +205,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 13. Content history version 1
-    try {
-      await supabase.from('content_history').insert({
-        content_item_id: newItem.id,
-        version: 1,
-        title: insertData.title,
-        content: extracted.content,
-        change_summary: `Imported from ${url}`,
-        // S152B WP3 / S153: URL ingest = initial_ingest.
-        change_reason: 'initial_ingest',
-        change_type: 'create',
-        created_by: user.id,
-      });
-    } catch {
-      /* best-effort */
-    }
+    // 13. Content history version 1 — S207 WP-A4 Task 3.4: app-level v1
+    // content_history insert removed. The deferred trigger
+    // `trg_content_items_ensure_v1_history` is now the single authority for
+    // v1 history rows. See spec docs/specs/ingest-path-consistency-spec.md
+    // §3.4 AC4.3.
 
     // 13a. Chunking — split content into searchable sections
     try {
