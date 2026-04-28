@@ -150,31 +150,30 @@ describe('Admin API routes', () => {
     it('returns user list with roles for admin', async () => {
       configureRole(mockSupabase, 'admin');
 
-      mockSupabase.auth.admin.listUsers.mockResolvedValueOnce({
-        data: {
-          users: [
-            {
-              id: 'user-1',
-              email: 'alice@example.com',
-              user_metadata: { display_name: 'Alice' },
-              created_at: '2026-01-01T00:00:00Z',
-              last_sign_in_at: '2026-03-01T10:00:00Z',
-            },
-            {
-              id: 'user-2',
-              email: 'bob@example.com',
-              user_metadata: {},
-              created_at: '2026-02-01T00:00:00Z',
-              last_sign_in_at: null,
-            },
-          ],
-        },
-        error: null,
-      });
-
-      // Role lookup returns roles for both users
-      mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
+      // WP-G3.4 Batch 2: bulk read goes through user_profiles + user_roles
+      // (two sequential .from().select() calls). Mock the .then() resolver
+      // in order: first call → user_profiles, second call → user_roles.
+      mockSupabase._chain.then
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              {
+                id: 'user-1',
+                email: 'alice@example.com',
+                full_name: 'Alice',
+                created_at: '2026-01-01T00:00:00Z',
+              },
+              {
+                id: 'user-2',
+                email: 'bob@example.com',
+                full_name: null,
+                created_at: '2026-02-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
           resolve({
             data: [
               { user_id: 'user-1', role: 'editor' },
@@ -182,7 +181,27 @@ describe('Admin API routes', () => {
             ],
             error: null,
           }),
-      );
+        );
+
+      // last_sign_in_at still comes from the residual auth.admin.listUsers()
+      // call retained for the one column not in the v1 mirror (D-G3.4-7).
+      mockSupabase.auth.admin.listUsers.mockResolvedValueOnce({
+        data: {
+          users: [
+            {
+              id: 'user-1',
+              email: 'alice@example.com',
+              last_sign_in_at: '2026-03-01T10:00:00Z',
+            },
+            {
+              id: 'user-2',
+              email: 'bob@example.com',
+              last_sign_in_at: null,
+            },
+          ],
+        },
+        error: null,
+      });
 
       const response = await listUsers();
       expect(response.status).toBe(200);
@@ -204,25 +223,28 @@ describe('Admin API routes', () => {
     it('defaults role to viewer when user_roles entry is missing', async () => {
       configureRole(mockSupabase, 'admin');
 
+      mockSupabase._chain.then
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              {
+                id: 'user-no-role',
+                email: 'norole@example.com',
+                full_name: null,
+                created_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({ data: [], error: null }),
+        );
+
       mockSupabase.auth.admin.listUsers.mockResolvedValueOnce({
-        data: {
-          users: [
-            {
-              id: 'user-no-role',
-              email: 'norole@example.com',
-              user_metadata: {},
-              created_at: '2026-01-01T00:00:00Z',
-              last_sign_in_at: null,
-            },
-          ],
-        },
+        data: { users: [] },
         error: null,
       });
-
-      // Empty roles list
-      mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-      );
 
       const response = await listUsers();
       expect(response.status).toBe(200);
@@ -231,19 +253,93 @@ describe('Admin API routes', () => {
       expect(body[0].role).toBe('viewer');
     });
 
-    it('returns 500 when listUsers fails', async () => {
+    it('returns 500 when user_profiles read fails', async () => {
       configureRole(mockSupabase, 'admin');
 
-      mockSupabase.auth.admin.listUsers.mockResolvedValueOnce({
-        data: { users: [] },
-        error: { message: 'Service unavailable' },
-      });
+      // First .from().select() — user_profiles — fails.
+      mockSupabase._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({
+            data: null,
+            error: { message: 'permission denied' },
+          }),
+      );
 
       const response = await listUsers();
       expect(response.status).toBe(500);
 
       const body = await response.json();
       expect(body.error).toBe('Failed to list users');
+    });
+
+    it('returns 500 when user_roles read fails', async () => {
+      configureRole(mockSupabase, 'admin');
+
+      mockSupabase._chain.then
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              {
+                id: 'user-1',
+                email: 'alice@example.com',
+                full_name: 'Alice',
+                created_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: { message: 'permission denied' } }),
+        );
+
+      const response = await listUsers();
+      expect(response.status).toBe(500);
+
+      const body = await response.json();
+      expect(body.error).toBe('Failed to fetch user roles');
+    });
+
+    it('degrades last_sign_in_at to NULL when listUsers fails (S156 soft-fallback)', async () => {
+      configureRole(mockSupabase, 'admin');
+
+      mockSupabase._chain.then
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              {
+                id: 'user-1',
+                email: 'alice@example.com',
+                full_name: 'Alice',
+                created_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [{ user_id: 'user-1', role: 'editor' }],
+            error: null,
+          }),
+        );
+
+      // Simulate S156-class GoTrue corruption.
+      mockSupabase.auth.admin.listUsers.mockResolvedValueOnce({
+        data: { users: [] },
+        error: { message: 'Service unavailable' },
+      });
+
+      const response = await listUsers();
+      expect(response.status).toBe(200);
+
+      const body = await response.json();
+      expect(body).toHaveLength(1);
+      expect(body[0].last_sign_in_at).toBeNull();
+      // Load-bearing assertion: bulk read still succeeds even when GoTrue
+      // is degraded. The S156 incident proved this is the right contract.
+      expect(body[0].id).toBe('user-1');
+      expect(body[0].role).toBe('editor');
     });
   });
 

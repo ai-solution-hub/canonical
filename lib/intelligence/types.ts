@@ -96,7 +96,7 @@ export interface CompanyContext {
 // ── Constants ──
 
 /** System user ID for pipeline operations (classifyContent requires a userId).
- *  This is a real service account in auth.users (email: pipeline@system.knowledge-hub.internal). */
+ *  This is a real service account in auth.users (mirrored to public.user_profiles per WP-G3.4) — email: pipeline@system.knowledge-hub.internal. */
 export const PIPELINE_SYSTEM_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 /** Minimum word count to accept extracted content (below this, escalate to Firecrawl) */

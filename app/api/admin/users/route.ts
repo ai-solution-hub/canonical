@@ -15,7 +15,26 @@ interface UserWithRole {
   last_sign_in_at: string | null;
 }
 
-/** GET /api/admin/users — list all users with their roles (admin only) */
+/** GET /api/admin/users — list all users with their roles (admin only).
+ *
+ * WP-G3.4 Batch 2: bulk read now goes through public.user_profiles +
+ * public.user_roles via PostgREST. The S156 incident proved that
+ * auth.admin.listUsers() can 500 on a single corrupt token-column row
+ * and poison the entire scan; PostgREST against the mirror has no such
+ * scan path. The mirror is populated by the on_auth_user_created
+ * AFTER INSERT trigger and kept in sync by on_auth_user_updated, so
+ * the data shape matches auth.users by construction.
+ *
+ * user_profiles and user_roles each have an FK to auth.users(id), but
+ * NOT to each other — PostgREST cannot auto-embed the join. We fetch
+ * both tables in parallel and stitch on user_id in JS. With under 10
+ * users today this is cheaper than restructuring the schema.
+ *
+ * One residual auth.admin.listUsers() call is retained ONLY to map
+ * last_sign_in_at (which is not in the v1 mirror per D-G3.4-7
+ * minimum-scope decision). If GoTrue ever 500s again, the rest of
+ * the response still resolves and last_sign_in_at degrades to NULL —
+ * a soft failure rather than a hard 500. */
 export async function GET() {
   try {
     const auth = await getAuthorisedClient(['admin']);
@@ -23,25 +42,32 @@ export async function GET() {
 
     const serviceClient = createServiceClient();
 
-    // Fetch all users from Supabase Auth
-    const { data: authData, error: authError } =
-      await serviceClient.auth.admin.listUsers({ perPage: 1000 });
+    // Bulk read 1: user_profiles. Filter out the pipeline service
+    // account at the DB layer — the Team Members UI is a roster of
+    // humans, and the cosmetic filter is the same contract the pre-
+    // WP-G3.4 implementation honoured (route.ts:58-61 before the rewrite).
+    const { data: profiles, error: profilesError } = await serviceClient
+      .from('user_profiles')
+      .select('id, email, full_name, created_at')
+      .neq('id', PIPELINE_SYSTEM_USER_ID);
 
-    if (authError) {
-      console.error('Failed to list users:', authError);
+    if (profilesError) {
+      console.error('Failed to fetch user_profiles:', profilesError);
       return NextResponse.json(
         { error: 'Failed to list users' },
         { status: 500 },
       );
     }
 
-    // Fetch all user roles
+    // Bulk read 2: user_roles. There is no FK between user_profiles
+    // and user_roles (both FK to auth.users separately) so PostgREST
+    // cannot auto-embed; join in JS.
     const { data: roles, error: rolesError } = await serviceClient
       .from('user_roles')
       .select('user_id, role');
 
     if (rolesError) {
-      console.error('Failed to fetch user roles:', rolesError);
+      console.error('Failed to fetch user_roles:', rolesError);
       return NextResponse.json(
         { error: 'Failed to fetch user roles' },
         { status: 500 },
@@ -55,23 +81,51 @@ export async function GET() {
       ]),
     );
 
-    // Filter out infrastructure service accounts. The Team Members UI is
-    // a roster of humans — the pipeline service account is not a person
-    // and would confuse the UI. Note this is NOT a mitigation for the
-    // S156 listUsers() scan-error bug (that's fixed at the DB layer by the
-    // 20260408134124 corrective migration); it is a UI presentation choice.
-    // See docs/audits/s156-auth-admin-sweep.md and WP-6 of the resolution
-    // spec for context.
-    const users: UserWithRole[] = (authData.users ?? [])
-      .filter((u) => u.id !== PIPELINE_SYSTEM_USER_ID)
-      .map((u) => ({
-        id: u.id,
-        email: u.email ?? '',
-        display_name: (u.user_metadata?.display_name as string) ?? null,
-        role: (roleMap.get(u.id) as string) ?? 'viewer',
-        created_at: u.created_at,
-        last_sign_in_at: u.last_sign_in_at ?? null,
-      }));
+    // last_sign_in_at is not in user_profiles v1 (D-G3.4-7). Fall back
+    // to GoTrue admin API for that column only. If listUsers() fails
+    // (S156-class corruption), the rest of the response still resolves —
+    // the field just degrades to NULL across the board, which is the
+    // intentional soft-failure mode.
+    const lastSignInById = new Map<string, string | null>();
+    try {
+      const { data: authData, error: authError } =
+        await serviceClient.auth.admin.listUsers({ perPage: 1000 });
+      if (authError) {
+        console.warn(
+          '[admin/users] auth.admin.listUsers degraded; last_sign_in_at will be NULL:',
+          authError.message,
+        );
+      } else {
+        for (const u of authData.users ?? []) {
+          lastSignInById.set(u.id, u.last_sign_in_at ?? null);
+        }
+      }
+    } catch (signInErr) {
+      // Belt-and-braces: never let a GoTrue failure break the whole
+      // route. The bulk read above is the load-bearing path.
+      console.warn(
+        '[admin/users] auth.admin.listUsers threw; last_sign_in_at will be NULL:',
+        safeErrorMessage(signInErr, 'unknown error'),
+      );
+    }
+
+    type ProfileRow = {
+      id: string;
+      email: string | null;
+      full_name: string | null;
+      created_at: string;
+    };
+
+    const users: UserWithRole[] = ((profiles ?? []) as ProfileRow[]).map(
+      (p) => ({
+        id: p.id,
+        email: p.email ?? '',
+        display_name: p.full_name,
+        role: (roleMap.get(p.id) as string) ?? 'viewer',
+        created_at: p.created_at,
+        last_sign_in_at: lastSignInById.get(p.id) ?? null,
+      }),
+    );
 
     return NextResponse.json(users);
   } catch (err) {
