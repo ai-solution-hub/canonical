@@ -32,6 +32,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 import { TranscriptReaderCard } from '@/components/reader-cards/transcript-reader-card';
+import type { TranscriptChapter } from '@/types/content';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -40,7 +41,7 @@ import { TranscriptReaderCard } from '@/components/reader-cards/transcript-reade
 describe('TranscriptReaderCard', () => {
   const defaultProps = {
     content: 'Transcript text content',
-    chapters: [] as { title: string; startTime: number }[],
+    chapters: [] as TranscriptChapter[],
     metadata: {} as Record<string, unknown> | null,
     authorName: null as string | null,
     sourceUrl: null as string | null,
@@ -111,9 +112,24 @@ describe('TranscriptReaderCard', () => {
       <TranscriptReaderCard
         {...defaultProps}
         chapters={[
-          { title: 'Introduction', startTime: 0 },
-          { title: 'Main Topic', startTime: 120 },
-          { title: 'Conclusion', startTime: 600 },
+          {
+            title: 'Introduction',
+            start_seconds: 0,
+            end_seconds: 120,
+            word_count: 0,
+          },
+          {
+            title: 'Main Topic',
+            start_seconds: 120,
+            end_seconds: 600,
+            word_count: 0,
+          },
+          {
+            title: 'Conclusion',
+            start_seconds: 600,
+            end_seconds: 900,
+            word_count: 0,
+          },
         ]}
         metadata={{ host: 'Channel' }}
       />,
