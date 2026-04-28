@@ -519,7 +519,32 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       expect(res.status).toBe(500);
       const body = await res.json();
       expect(body.error).toBeDefined();
-      expect(mockCaptureException).toHaveBeenCalledTimes(1);
+      // The route fires Sentry twice deliberately under W4 Phase 1: once
+      // via the explicit Sentry.captureException with route-specific tags
+      // (route.ts:147), and once via safeErrorMessage → Sentry.captureException
+      // with the fallback message in `extra` (lib/error.ts). Phase 2 will
+      // migrate the route to call logger.error directly inside its catch
+      // arm and drop the explicit Sentry call here — at which point this
+      // assertion drops to toHaveBeenCalledTimes(1). Locking the dual
+      // shape in forces the Phase 2 PR to deliberately update this test.
+      expect(mockCaptureException).toHaveBeenCalledTimes(2);
+      expect(mockCaptureException).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Error),
+        expect.objectContaining({
+          tags: { pipeline: 'taxonomy_sync', phase: 'callback' },
+          extra: expect.objectContaining({ run_id: expect.any(String) }),
+        }),
+      );
+      expect(mockCaptureException).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Error),
+        expect.objectContaining({
+          extra: expect.objectContaining({
+            fallback: 'Failed to process taxonomy sync callback',
+          }),
+        }),
+      );
     });
   });
 });

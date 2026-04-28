@@ -9,7 +9,7 @@ inflect==7.5.0
 
 # Content extraction
 trafilatura==2.0.0
-requests==2.32.5
+requests==2.33.0
 extruct==0.18.0
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
