@@ -315,76 +315,24 @@ describe('ingest_source fan-out — trigger sole authority', () => {
 // ---------------------------------------------------------------------------
 // Test 4 (4.1-AC4) — Trigger idempotency.
 //
-// The trigger guards against duplicate v1 rows via
-//   IF v_v1_exists THEN RETURN NULL;
-// at the top of ensure_v1_history_at_commit(). This is defensive against
-// a re-fire scenario under DEFERRABLE INITIALLY DEFERRED — in practice
-// the AFTER INSERT trigger fires once per row, but the guard means a
-// hypothetical re-execution (or a manual v1 backfill that races the
-// trigger) cannot produce a duplicate.
+// REMOVED in S209 W5 (FIX-S207-WPA4-2). The original block at this site
+// asserted idempotency through paths that bypass the trigger — both tests
+// pass without exercising the `IF v_v1_exists THEN RETURN NULL` guard. The
+// AFTER INSERT FOR EACH ROW trigger fires exactly once per content_items
+// INSERT; the guard is defensive against scenarios that only an in-database
+// direct invocation of `ensure_v1_history_at_commit()` (or DEFERRABLE
+// INITIALLY DEFERRED re-fire complexity) could produce, which is not
+// reachable from a supabase-js client.
 //
-// We exercise the guard via a manual INSERT that pre-populates a v1 row
-// for a content_items row, then run an UPDATE that bumps a column. The
-// trigger does NOT fire on UPDATE (it is AFTER INSERT only), so this
-// test alone cannot exercise re-fire — instead we verify the structural
-// guard by inserting a content_history row first and confirming a
-// subsequent direct re-call of the trigger function (or equivalently, an
-// idempotent re-run scenario) produces no duplicate. The cleanest way to
-// hit the IF v_v1_exists branch without re-firing the trigger is to
-// pre-seed v1 manually and then assert that no second v1 row appears.
+// The genuine assertions for the trigger's exactly-once contract are
+// already covered above:
+//   - Test 2 ("typed column → content_history trigger") asserts ONE v1 row
+//     per insert across all 10 ingest_source values (toHaveLength(1)).
+//   - Test 3a asserts ONE v1 row, change_reason='initial_ingest'.
+//   - Test 3b asserts ONE v1 row with NULL ingest_source falls back to
+//     'auto_v1_on_insert'.
+//
+// Adding the dropped tests back would require either a schema-level RPC
+// wrapper around the trigger function (out of scope) or DEFERRABLE
+// transaction semantics that supabase-js does not expose.
 // ---------------------------------------------------------------------------
-
-describe('ingest_source fan-out — idempotency', () => {
-  it('pre-existing v1 row prevents trigger from inserting a duplicate v1', async () => {
-    // First: seed a normal item — trigger fires, v1 row written.
-    const id = await seedItemWithIngestSource('manual', 'idempotency-base');
-
-    // Sanity check: exactly one v1 row.
-    const { data: firstPass } = await serviceClient
-      .from('content_history')
-      .select('id, version')
-      .eq('content_item_id', id)
-      .eq('version', 1);
-    expect(firstPass).toHaveLength(1);
-
-    // Now: attempt a second INSERT into content_history with version=1
-    // and SAME content_item_id. The auto_version_content_history
-    // BEFORE-INSERT trigger (from S185 WP-D) will rewrite version to 2
-    // because version is computed; we cannot bypass it from the client.
-    // What we CAN do is assert that there is still exactly one row with
-    // version=1 — proving the trigger did NOT add a second.
-    //
-    // Test the trigger's IF v_v1_exists branch indirectly: if the
-    // ensure_v1_history_at_commit function is re-callable (e.g. via a
-    // scheduled job), it must short-circuit. Since we cannot easily
-    // re-invoke an AFTER-INSERT trigger from the client, we exercise
-    // the guard by re-counting v1 rows after a no-op re-read.
-    const { data: secondPass } = await serviceClient
-      .from('content_history')
-      .select('id, version, change_reason')
-      .eq('content_item_id', id)
-      .eq('version', 1);
-    expect(secondPass).toHaveLength(1);
-    expect(secondPass![0].id).toBe(firstPass![0].id);
-  });
-
-  it('inserting a NEW content_items row never produces a v2 from the trigger', async () => {
-    // The trigger only writes version=1. Subsequent versions come from
-    // app-level updates that hit auto_version_content_history. Verify by
-    // checking that a freshly-seeded item has v1 only — no v2+.
-    const id = await seedItemWithIngestSource(
-      'mcp_create',
-      'no-v2-from-trigger',
-    );
-
-    const { data, error } = await serviceClient
-      .from('content_history')
-      .select('version')
-      .eq('content_item_id', id)
-      .order('version', { ascending: true });
-
-    expect(error).toBeNull();
-    expect(data).toHaveLength(1);
-    expect(data![0].version).toBe(1);
-  });
-});
