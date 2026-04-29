@@ -6,6 +6,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { CoverageMatrixParamsSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -26,12 +27,12 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (matrixResult.error) {
-      console.error('Coverage matrix RPC error:', matrixResult.error);
+      logger.error({ err: matrixResult.error }, 'Coverage matrix RPC error');
       return NextResponse.json({ error: 'Failed to load coverage data' }, { status: 500 });
     }
 
     if (summaryResult.error) {
-      console.error('Coverage summary RPC error:', summaryResult.error);
+      logger.error({ err: summaryResult.error }, 'Coverage summary RPC error');
       return NextResponse.json({ error: 'Failed to load coverage summary' }, { status: 500 });
     }
 

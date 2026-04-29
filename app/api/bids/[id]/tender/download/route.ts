@@ -4,6 +4,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
 import { parseSearchParams } from '@/lib/validation';
 import { TenderDownloadParamsSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -63,9 +64,9 @@ export async function GET(
       .createSignedUrl(storagePath, 300);
 
     if (signError || !signedUrl?.signedUrl) {
-      console.error(
-        'Failed to create signed URL for tender document:',
-        signError,
+      logger.error(
+        { err: signError },
+        'Failed to create signed URL for tender document',
       );
       return NextResponse.json(
         { error: 'Failed to generate download link' },

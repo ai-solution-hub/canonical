@@ -10,6 +10,7 @@ import { guideCreateSchema } from '@/lib/validation/guide-schemas';
 import { GuideListParamsSchema } from '@/lib/validation/schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Failed to fetch guides:', error);
+      logger.error({ err: error }, 'Failed to fetch guides');
       return NextResponse.json(
         { error: 'Failed to fetch guides' },
         { status: 500 },
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
           { status: 409 },
         );
       }
-      console.error('Failed to create guide:', error);
+      logger.error({ err: error }, 'Failed to create guide');
       return NextResponse.json(
         { error: 'Failed to create guide' },
         { status: 500 },

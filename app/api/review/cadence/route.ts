@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -71,7 +72,7 @@ export async function GET() {
       );
 
     if (itemsError) {
-      console.error('Review cadence items query error:', itemsError);
+      logger.error({ err: itemsError }, 'Review cadence items query error');
       return NextResponse.json(
         { error: 'Failed to fetch content items' },
         { status: 500 },
@@ -84,7 +85,7 @@ export async function GET() {
       .select('domain, timeout_days');
 
     if (configError) {
-      console.error('Review cadence config query error:', configError);
+      logger.error({ err: configError }, 'Review cadence config query error');
       // Non-fatal — fall back to default timeout
     }
 

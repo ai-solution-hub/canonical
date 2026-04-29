@@ -23,6 +23,7 @@ import {
 } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -107,9 +108,9 @@ export async function GET(request: NextRequest) {
       );
 
     if (govConfigsError) {
-      console.error(
+      logger.error(
+        { err: govConfigsError },
         'freshness-transitions: failed to fetch governance_config',
-        govConfigsError,
       );
       return NextResponse.json(
         {
@@ -139,7 +140,10 @@ export async function GET(request: NextRequest) {
     // previous_freshness !== freshness in-app below (line ~93).
 
     if (queryError) {
-      console.error('Failed to query freshness transitions:', queryError);
+      logger.error(
+        { err: queryError },
+        'Failed to query freshness transitions',
+      );
       return NextResponse.json(
         { error: safeErrorMessage(queryError, 'Failed to query transitions') },
         { status: 500 },
@@ -189,7 +193,7 @@ export async function GET(request: NextRequest) {
     // Fetch recipients: admins + editors
     const userIds = await getUsersByRole(supabase, ['admin', 'editor']);
     if (userIds.length === 0) {
-      console.warn('No admin/editor users found for freshness notifications');
+      logger.warn('No admin/editor users found for freshness notifications');
       cronWarnings.push('No admin/editor users found — notifications skipped.');
       return NextResponse.json({
         success: false,
@@ -652,7 +656,10 @@ async function checkDateExpiryReminders(
       .is('archived_at', null);
 
     if (expiringError) {
-      console.error('Failed to query expiring content items:', expiringError);
+      logger.error(
+        { err: expiringError },
+        'Failed to query expiring content items',
+      );
       return {
         notificationsCreated: 0,
         warning: `Failed to query expiring content items: ${expiringError.message}`,
@@ -749,7 +756,10 @@ async function checkDateExpiryReminders(
       .not('metadata', 'is', null);
 
     if (entityError) {
-      console.error('Failed to query entity mentions for expiry:', entityError);
+      logger.error(
+        { err: entityError },
+        'Failed to query entity mentions for expiry',
+      );
       return {
         notificationsCreated,
         warning: `Failed to query entity mentions for expiry: ${entityError.message}`,
@@ -855,7 +865,7 @@ async function checkDateExpiryReminders(
       }
     }
   } catch (err) {
-    console.error('Date expiry reminder check failed:', err);
+    logger.error({ err }, 'Date expiry reminder check failed');
     return {
       notificationsCreated,
       warning: `Date expiry reminders failed: ${safeErrorMessage(err, 'unknown error')}`,
@@ -878,14 +888,17 @@ async function cleanupExpiredNotifications(
       .lt('expires_at', thirtyDaysAgo)
       .not('dismissed_at', 'is', null);
     if (deleteError) {
-      console.error('Failed to clean up expired notifications:', deleteError);
+      logger.error(
+        { err: deleteError },
+        'Failed to clean up expired notifications',
+      );
       return {
         warning: `Notification cleanup failed: ${deleteError.message}`,
       };
     }
     return {};
   } catch (err) {
-    console.error('Failed to clean up expired notifications:', err);
+    logger.error({ err }, 'Failed to clean up expired notifications');
     return {
       warning: `Notification cleanup threw: ${safeErrorMessage(err, 'unknown error')}`,
     };

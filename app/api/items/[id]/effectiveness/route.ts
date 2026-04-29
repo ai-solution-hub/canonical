@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -78,7 +79,7 @@ export async function GET(
     );
 
     if (rpcError) {
-      console.error('get_content_win_rate RPC error:', rpcError);
+      logger.error({ err: rpcError }, 'get_content_win_rate RPC error');
       return NextResponse.json(
         { error: 'Failed to fetch effectiveness data' },
         { status: 500 },
@@ -116,7 +117,7 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (citationsError) {
-      console.error('Citations query error:', citationsError);
+      logger.error({ err: citationsError }, 'Citations query error');
       return NextResponse.json(
         { error: 'Failed to fetch citation data' },
         { status: 500 },
@@ -172,7 +173,7 @@ export async function GET(
 
     return NextResponse.json(response);
   } catch (err) {
-    console.error('Effectiveness route error:', err);
+    logger.error({ err }, 'Effectiveness route error');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

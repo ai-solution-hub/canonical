@@ -31,6 +31,7 @@ import type {
   GuideGap,
   PriorityTier,
 } from '@/types/unified-gap';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -326,7 +327,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (matrixResult.error) {
-      console.error('Coverage matrix RPC error:', matrixResult.error);
+      logger.error({ err: matrixResult.error }, 'Coverage matrix RPC error');
       return NextResponse.json(
         { error: 'Failed to load taxonomy coverage data' },
         { status: 500 },
@@ -334,7 +335,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (targetsResult.error) {
-      console.error('Coverage targets query error:', targetsResult.error);
+      logger.error({ err: targetsResult.error }, 'Coverage targets query error');
       return NextResponse.json(
         { error: 'Failed to load coverage targets' },
         { status: 500 },
@@ -342,7 +343,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (guideResult.error) {
-      console.error('Guide coverage RPC error:', guideResult.error);
+      logger.error({ err: guideResult.error }, 'Guide coverage RPC error');
       return NextResponse.json(
         { error: 'Failed to load guide coverage data' },
         { status: 500 },

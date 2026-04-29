@@ -12,6 +12,7 @@ import {
 } from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -67,7 +68,7 @@ export async function GET(
     );
 
     if (statsError) {
-      console.error('Failed to fetch bid question stats:', statsError);
+      logger.error({ err: statsError }, 'Failed to fetch bid question stats');
       warnings.push(
         'Question stats could not be loaded: ' +
           safeErrorMessage(statsError, 'stats RPC failed'),
@@ -83,7 +84,7 @@ export async function GET(
       });
 
     if (filesError) {
-      console.error('Failed to list tender documents:', filesError);
+      logger.error({ err: filesError }, 'Failed to list tender documents');
       warnings.push(
         'Tender documents could not be listed: ' +
           safeErrorMessage(filesError, 'storage list failed'),
@@ -205,7 +206,7 @@ export async function PATCH(
           { status: 409 },
         );
       }
-      console.error('Failed to update bid:', updateError);
+      logger.error({ err: updateError }, 'Failed to update bid');
       return NextResponse.json(
         { error: 'Failed to update bid' },
         { status: 500 },
@@ -268,9 +269,9 @@ export async function DELETE(
           .from('tender-documents')
           .list(id, { limit: 200 });
       if (tenderListError) {
-        console.error(
-          'Bid DELETE: failed to list tender documents for cleanup',
+        logger.error(
           { bidId: id, error: tenderListError },
+          'Bid DELETE: failed to list tender documents for cleanup',
         );
       }
       if (tenderFiles?.length) {
@@ -278,9 +279,9 @@ export async function DELETE(
           .from('tender-documents')
           .remove(tenderFiles.map((f) => `${id}/${f.name}`));
         if (tenderRemoveError) {
-          console.error(
-            'Bid DELETE: failed to remove tender documents (orphaned)',
+          logger.error(
             { bidId: id, error: tenderRemoveError },
+            'Bid DELETE: failed to remove tender documents (orphaned)',
           );
         }
       }
@@ -291,9 +292,9 @@ export async function DELETE(
         .select('id, storage_path, structure_path')
         .eq('project_id', id);
       if (templatesError) {
-        console.error(
-          'Bid DELETE: failed to list templates for cleanup (orphaned files possible)',
+        logger.error(
           { bidId: id, error: templatesError },
+          'Bid DELETE: failed to list templates for cleanup (orphaned files possible)',
         );
       }
 
@@ -309,9 +310,9 @@ export async function DELETE(
           .select('storage_path')
           .in('template_id', templateIds);
         if (completionsError) {
-          console.error(
-            'Bid DELETE: failed to list template completions for cleanup (orphaned files possible)',
+          logger.error(
             { bidId: id, error: completionsError },
+            'Bid DELETE: failed to list template completions for cleanup (orphaned files possible)',
           );
         }
 
@@ -325,15 +326,15 @@ export async function DELETE(
             .from('templates')
             .remove(allPaths);
           if (templateRemoveError) {
-            console.error(
-              'Bid DELETE: failed to remove template files (orphaned)',
+            logger.error(
               { bidId: id, error: templateRemoveError },
+              'Bid DELETE: failed to remove template files (orphaned)',
             );
           }
         }
       }
     } catch (storageErr) {
-      console.error('Storage cleanup failed (non-fatal):', storageErr);
+      logger.error({ err: storageErr }, 'Storage cleanup failed (non-fatal)');
     }
 
     // Remove content_item_workspaces junction rows first — FK is NO ACTION
@@ -350,7 +351,7 @@ export async function DELETE(
       .eq('type', 'bid');
 
     if (error) {
-      console.error('Failed to delete bid:', error);
+      logger.error({ err: error }, 'Failed to delete bid');
       return NextResponse.json(
         { error: 'Failed to delete bid' },
         { status: 500 },

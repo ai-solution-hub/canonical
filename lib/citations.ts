@@ -8,6 +8,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CitationEntry } from '@/types/bid-metadata';
+import { logger } from '@/lib/logger';
 
 /** Minimal content item shape needed for citation mapping */
 export interface CitationSourceItem {
@@ -148,7 +149,7 @@ export async function checkOrphanedSourceIds(
   if (error || !data) {
     // On error, return empty set -- fail open (don't mark things as orphaned
     // when we can't verify)
-    console.warn('check_content_exists RPC failed:', error);
+    logger.warn({ err: error }, 'check_content_exists RPC failed');
     return new Set();
   }
 

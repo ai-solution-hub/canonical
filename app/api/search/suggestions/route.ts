@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -14,7 +15,7 @@ export async function GET() {
     });
 
     if (error) {
-      console.error('Failed to fetch popular keywords:', error);
+      logger.error({ err: error }, 'Failed to fetch popular keywords');
       return NextResponse.json({ keywords: [] });
     }
 
@@ -24,7 +25,7 @@ export async function GET() {
 
     return NextResponse.json({ keywords });
   } catch (err) {
-    console.error('Search suggestions error:', err);
+    logger.error({ err }, 'Search suggestions error');
     return NextResponse.json({ keywords: [] });
   }
 }

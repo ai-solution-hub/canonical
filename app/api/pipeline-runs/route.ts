@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { PipelineRunsParamsSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 15;
 
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Failed to fetch pipeline runs:', error);
+      logger.error({ err: error }, 'Failed to fetch pipeline runs');
       return NextResponse.json(
         { error: 'Failed to fetch pipeline runs' },
         { status: 500 },

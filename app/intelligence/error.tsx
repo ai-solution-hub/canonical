@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { Newspaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger';
 
 export default function IntelligenceError({
   error,
@@ -13,7 +14,7 @@ export default function IntelligenceError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Intelligence error:', error);
+    logger.error({ err: error }, 'Intelligence error');
     Sentry.captureException(error);
   }, [error]);
 

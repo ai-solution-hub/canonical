@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { buildItemMetadataUpdateSchema } from '@/lib/validation/schemas';
 import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -82,9 +83,9 @@ export async function PATCH(
         .eq('id', id);
 
       if (columnError) {
-        console.error(
-          'Failed to update promoted metadata columns:',
-          columnError,
+        logger.error(
+          { err: columnError },
+          'Failed to update promoted metadata columns',
         );
         return NextResponse.json(
           {
@@ -110,9 +111,9 @@ export async function PATCH(
       .single();
 
     if (fetchError) {
-      console.error(
-        'Failed to re-fetch item metadata after update:',
-        fetchError,
+      logger.error(
+        { err: fetchError },
+        'Failed to re-fetch item metadata after update',
       );
       return NextResponse.json({
         success: true,

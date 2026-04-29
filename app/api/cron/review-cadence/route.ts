@@ -36,6 +36,7 @@ import {
 import { sb, tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -87,9 +88,9 @@ export async function GET(request: NextRequest) {
     );
 
     if (!candidatesResult.ok) {
-      console.error(
+      logger.error(
+        { err: candidatesResult.error },
         'review-cadence: failed to query candidates',
-        candidatesResult.error,
       );
       await recordPipelineRun({
         supabase,
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
         hadFailures = true;
         const msg = err instanceof Error ? err.message : String(err);
         failureMessages.push(`update ${item.id}: ${msg}`);
-        console.error(`review-cadence: failed to flag item ${item.id}`, err);
+        logger.error({ err }, `review-cadence: failed to flag item ${item.id}`);
       }
     }
 
@@ -277,9 +278,9 @@ export async function GET(request: NextRequest) {
       if (bulkError) {
         hadFailures = true;
         failureMessages.push(`createBulkNotifications: ${bulkError.message}`);
-        console.error(
+        logger.error(
+          { err: bulkError },
           'review-cadence: createBulkNotifications failed',
-          bulkError,
         );
       } else {
         notificationsCreated = notifications.length;
@@ -309,7 +310,7 @@ export async function GET(request: NextRequest) {
       executed_at: executedAt,
     });
   } catch (err) {
-    console.error('review-cadence: unhandled error', err);
+    logger.error({ err }, 'review-cadence: unhandled error');
     await recordPipelineRun({
       supabase,
       pipelineName: 'review_cadence',

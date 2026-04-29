@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { PriorityUpdateBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -43,7 +44,7 @@ export async function PATCH(
       if (!data && !error) {
         return NextResponse.json({ error: 'Item not found' }, { status: 404 });
       }
-      console.error('Failed to update priority:', error);
+      logger.error({ err: error }, 'Failed to update priority');
       return NextResponse.json(
         { error: 'Failed to update priority' },
         { status: 500 },

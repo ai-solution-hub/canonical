@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger';
 
 export default function ReviewError({
   error,
@@ -13,7 +14,7 @@ export default function ReviewError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Review error:', error);
+    logger.error({ err: error }, 'Review error');
     Sentry.captureException(error);
   }, [error]);
 

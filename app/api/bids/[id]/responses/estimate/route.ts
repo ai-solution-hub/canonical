@@ -9,6 +9,7 @@ import {
   type BatchCostEstimate,
 } from '@/lib/coverage/cost-estimation';
 import type { BidState } from '@/lib/bid/bid-state-machine';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -76,9 +77,9 @@ export async function POST(
       .order('question_sequence', { ascending: true });
 
     if (questionsError) {
-      console.error(
-        'Failed to fetch questions for cost estimate:',
-        questionsError,
+      logger.error(
+        { err: questionsError },
+        'Failed to fetch questions for cost estimate',
       );
       return NextResponse.json(
         { error: 'Failed to fetch questions' },
@@ -112,9 +113,9 @@ export async function POST(
         .in('question_id', eligibleIds);
 
       if (existingError) {
-        console.error(
-          'Failed to fetch existing responses for cost estimate:',
-          existingError,
+        logger.error(
+          { err: existingError },
+          'Failed to fetch existing responses for cost estimate',
         );
         return NextResponse.json(
           {
@@ -165,9 +166,9 @@ export async function POST(
         .in('id', Array.from(allContentIds));
 
       if (contentError) {
-        console.error(
-          'Failed to fetch matched content for cost estimate:',
-          contentError,
+        logger.error(
+          { err: contentError },
+          'Failed to fetch matched content for cost estimate',
         );
         return NextResponse.json(
           {

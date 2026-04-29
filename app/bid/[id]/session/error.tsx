@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger';
 
 export default function BidSessionError({
   error,
@@ -14,7 +15,7 @@ export default function BidSessionError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Bid session error:', error);
+    logger.error({ err: error }, 'Bid session error');
     Sentry.captureException(error);
   }, [error]);
 

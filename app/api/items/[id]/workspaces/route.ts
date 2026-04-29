@@ -10,6 +10,7 @@ import {
   ItemWorkspaceBodySchema,
   WorkspaceCreateBodySchema,
 } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -39,7 +40,7 @@ export async function GET(
     });
 
     if (error) {
-      console.error('Failed to fetch item workspaces:', error);
+      logger.error({ err: error }, 'Failed to fetch item workspaces');
       return NextResponse.json(
         { error: 'Failed to fetch item workspaces' },
         { status: 500 },
@@ -100,7 +101,7 @@ export async function POST(
             { status: 409 },
           );
         }
-        console.error('Failed to create workspace:', createError);
+        logger.error({ err: createError }, 'Failed to create workspace');
         return NextResponse.json(
           { error: 'Failed to create workspace' },
           { status: 500 },
@@ -116,7 +117,7 @@ export async function POST(
         });
 
       if (assignError) {
-        console.error('Failed to assign workspace:', assignError);
+        logger.error({ err: assignError }, 'Failed to assign workspace');
         return NextResponse.json(
           { error: 'Workspace created but failed to assign to item' },
           { status: 500 },
@@ -145,7 +146,7 @@ export async function POST(
             { status: 409 },
           );
         }
-        console.error('Failed to assign workspace:', error);
+        logger.error({ err: error }, 'Failed to assign workspace');
         return NextResponse.json(
           { error: 'Failed to assign workspace' },
           { status: 500 },
@@ -159,7 +160,7 @@ export async function POST(
         .eq('workspace_id', workspace_id);
 
       if (error) {
-        console.error('Failed to unassign workspace:', error);
+        logger.error({ err: error }, 'Failed to unassign workspace');
         return NextResponse.json(
           { error: 'Failed to unassign workspace' },
           { status: 500 },

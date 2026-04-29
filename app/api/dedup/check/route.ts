@@ -9,6 +9,7 @@ import { checkForDuplicates } from '@/lib/dedup';
 import { safeErrorMessage } from '@/lib/error';
 import { z } from 'zod';
 import { parseBody } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 15;
 
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       })),
     });
   } catch (err) {
-    console.error('Dedup check failed:', err);
+    logger.error({ err }, 'Dedup check failed');
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Dedup check failed') },
       { status: 500 },

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -39,7 +40,10 @@ export async function POST(request: NextRequest) {
       .select('id');
 
     if (error) {
-      console.error('Failed to batch update governance review status:', error);
+      logger.error(
+        { err: error },
+        'Failed to batch update governance review status',
+      );
       return NextResponse.json(
         { error: 'Failed to update governance review status' },
         { status: 500 },

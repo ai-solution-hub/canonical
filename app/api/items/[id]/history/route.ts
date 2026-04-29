@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { paginationParams } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -53,7 +54,7 @@ export async function GET(
       .range(offset, offset + limit - 1);
 
     if (error) {
-      console.error('Failed to fetch version history:', error);
+      logger.error({ err: error }, 'Failed to fetch version history');
       return NextResponse.json(
         { error: 'Failed to fetch version history' },
         { status: 500 },

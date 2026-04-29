@@ -21,6 +21,7 @@ import { createMcpUserClient } from '@/lib/mcp/auth';
 import { registerTools } from '@/lib/mcp/tools';
 import { registerResources, registerPrompts } from '@/lib/mcp/resources';
 import { clientEnv } from '@/lib/env-client';
+import { logger } from '@/lib/logger';
 
 const RESOURCE_URL = clientEnv.NEXT_PUBLIC_APP_URL;
 
@@ -58,7 +59,10 @@ async function verifyToken(
     // to viewer. Any other error is a real DB failure and must reject
     // auth rather than silently downgrade (see comment above).
     if (roleError && roleError.code !== 'PGRST116') {
-      console.error('[mcp] role lookup failed for user', user.id, roleError);
+      logger.error(
+        { err: roleError, userId: user.id },
+        '[mcp] role lookup failed for user',
+      );
       return undefined;
     }
 
@@ -142,7 +146,7 @@ export async function GET(request: Request) {
   try {
     return await handleMcpRequest(request);
   } catch (err) {
-    console.error('MCP GET handler error:', err);
+    logger.error({ err }, 'MCP GET handler error');
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -153,7 +157,7 @@ export async function POST(request: Request) {
   try {
     return await handleMcpRequest(request);
   } catch (err) {
-    console.error('MCP POST handler error:', err);
+    logger.error({ err }, 'MCP POST handler error');
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -164,7 +168,7 @@ export async function DELETE(request: Request) {
   try {
     return await handleMcpRequest(request);
   } catch (err) {
-    console.error('MCP DELETE handler error:', err);
+    logger.error({ err }, 'MCP DELETE handler error');
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

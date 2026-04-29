@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -50,7 +51,7 @@ export async function GET() {
     ]);
 
     if (listResult.error) {
-      console.error('Failed to fetch notifications:', listResult.error);
+      logger.error({ err: listResult.error }, 'Failed to fetch notifications');
       return NextResponse.json(
         { error: 'Failed to fetch notifications' },
         { status: 500 },
@@ -58,7 +59,10 @@ export async function GET() {
     }
 
     if (countResult.error) {
-      console.error('Failed to count unread notifications:', countResult.error);
+      logger.error(
+        { err: countResult.error },
+        'Failed to count unread notifications',
+      );
       // Non-fatal: fall back to client-side count from the capped list
       const notifications = listResult.data ?? [];
       return NextResponse.json({

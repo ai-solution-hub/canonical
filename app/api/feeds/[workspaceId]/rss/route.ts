@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { parseSearchParams } from '@/lib/validation';
 import { generateRss, toRfc2822 } from '@/lib/intelligence/rss-generator';
 import { clientEnv } from '@/lib/env-client';
+import { logger } from '@/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -57,10 +58,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (articlesError) {
       // Do not return an empty 200 RSS document on DB error — feed readers
       // will not retry and the user will silently lose updates.
-      console.error(
+      logger.error(
+        { err: articlesError, workspaceId },
         'RSS feed: failed to fetch articles for workspace',
-        workspaceId,
-        articlesError,
       );
       return new NextResponse('Failed to load feed articles', { status: 500 });
     }
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
   } catch (err) {
-    console.error('RSS feed: unexpected error', err);
+    logger.error({ err }, 'RSS feed: unexpected error');
     return new NextResponse('Internal server error', { status: 500 });
   }
 }

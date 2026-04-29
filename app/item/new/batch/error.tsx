@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger';
 
 export default function BatchCreateError({
   error,
@@ -14,7 +15,7 @@ export default function BatchCreateError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Batch creation error:', error);
+    logger.error({ err: error }, 'Batch creation error');
     Sentry.captureException(error);
   }, [error]);
 

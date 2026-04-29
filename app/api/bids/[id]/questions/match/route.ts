@@ -14,6 +14,7 @@ import { deduplicateResults, assessConfidence } from '@/lib/ai/match';
 import type { MatchResult } from '@/lib/ai/match';
 import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -83,7 +84,10 @@ export async function POST(
     const { data: questions, error: questionsError } = await questionsQuery;
 
     if (questionsError) {
-      console.error('Failed to fetch questions for matching:', questionsError);
+      logger.error(
+        { err: questionsError },
+        'Failed to fetch questions for matching',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch questions' },
         { status: 500 },
@@ -186,9 +190,9 @@ export async function POST(
         if (outcome.status === 'fulfilled') {
           results.push(outcome.value);
         } else {
-          console.error(
-            `Failed to match question ${question.id}:`,
-            outcome.reason,
+          logger.error(
+            { err: outcome.reason },
+            `Failed to match question ${question.id}`,
           );
           // Record failure rather than crashing the entire batch
           results.push({

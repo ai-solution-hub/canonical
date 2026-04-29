@@ -11,6 +11,7 @@ import path from 'path';
 import crypto from 'crypto';
 import mammoth from 'mammoth';
 import { turndown } from '@/lib/extraction/turndown';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 60;
 
@@ -159,7 +160,7 @@ async function updatePipelineProgress(
       })
       .eq('id', pipelineRunId);
   } catch (err) {
-    console.error('Failed to update pipeline progress:', err);
+    logger.error({ err }, 'Failed to update pipeline progress');
   }
 }
 
@@ -324,7 +325,7 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (reuploadErr) {
-      console.error('Re-upload detection failed:', reuploadErr);
+      logger.error({ err: reuploadErr }, 'Re-upload detection failed');
       // Non-fatal — continue with upload
     }
 
@@ -357,7 +358,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError || !newItem) {
-      console.error('Failed to create content item:', insertError);
+      logger.error({ err: insertError }, 'Failed to create content item');
       if (pipelineRunId) {
         await updatePipelineProgress(
           pipelineRunId,
@@ -400,7 +401,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Failed to upload to storage:', uploadError);
+      logger.error({ err: uploadError }, 'Failed to upload to storage');
       // Clean up the content_item record (use service client to bypass RLS for editors)
       await serviceClient.from('content_items').delete().eq('id', itemId);
       if (pipelineRunId) {
@@ -463,7 +464,7 @@ export async function POST(request: NextRequest) {
           .eq('id', itemId);
       }
     } catch (srcDocErr) {
-      console.error('Source document tracking failed:', srcDocErr);
+      logger.error({ err: srcDocErr }, 'Source document tracking failed');
       // Non-fatal — upload continues without lineage tracking
     }
 
@@ -501,7 +502,7 @@ export async function POST(request: NextRequest) {
         extractedText = buffer.toString('utf-8');
       }
     } catch (extractErr) {
-      console.error('Text extraction failed:', extractErr);
+      logger.error({ err: extractErr }, 'Text extraction failed');
       // Update item with a note about extraction failure, but don't fail the upload
       extractedText = '';
     }
@@ -519,7 +520,7 @@ export async function POST(request: NextRequest) {
         const dates = extractDates(extractedText);
         expiryDate = findExpiryDate(dates);
       } catch (dateErr) {
-        console.error('Date extraction failed:', dateErr);
+        logger.error({ err: dateErr }, 'Date extraction failed');
         // Non-fatal — continue without date extraction
       }
     }
@@ -567,7 +568,7 @@ export async function POST(request: NextRequest) {
         );
         dedupStamp = resolveDedupStamp(exactMatch?.id, { skipDedup });
       } catch (dedupErr) {
-        console.error('Dedup check failed:', dedupErr);
+        logger.error({ err: dedupErr }, 'Dedup check failed');
       }
     }
 
@@ -622,7 +623,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (updateError || !updatedItem) {
-      console.error('Failed to update content item:', updateError);
+      logger.error({ err: updateError }, 'Failed to update content item');
       // The item and file exist, just the update failed
       return NextResponse.json(
         { error: 'File uploaded but failed to update content record.' },
@@ -647,9 +648,9 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', sourceDocumentId);
       } catch (srcUpdateErr) {
-        console.error(
-          'Source document extraction update failed:',
-          srcUpdateErr,
+        logger.error(
+          { err: srcUpdateErr },
+          'Source document extraction update failed',
         );
       }
     }
@@ -693,7 +694,10 @@ export async function POST(request: NextRequest) {
           .update({ embedding: JSON.stringify(embedding) })
           .eq('id', itemId);
       } catch (embedErr) {
-        console.error(`Embedding generation failed for ${itemId}:`, embedErr);
+        logger.error(
+          { err: embedErr },
+          `Embedding generation failed for ${itemId}`,
+        );
         warnings.push('Embedding generation failed');
       }
 
@@ -721,7 +725,7 @@ export async function POST(request: NextRequest) {
           );
         }
       } catch (chunkErr) {
-        console.error(`Chunking failed for ${itemId}:`, chunkErr);
+        logger.error({ err: chunkErr }, `Chunking failed for ${itemId}`);
         warnings.push('Content chunking failed');
       }
 
@@ -745,7 +749,10 @@ export async function POST(request: NextRequest) {
       } catch (classifyErr) {
         const msg =
           classifyErr instanceof Error ? classifyErr.message : 'Unknown error';
-        console.error(`Classification failed for ${itemId}:`, classifyErr);
+        logger.error(
+          { err: classifyErr },
+          `Classification failed for ${itemId}`,
+        );
         warnings.push(`Classification failed: ${msg}`);
       }
 
@@ -765,7 +772,10 @@ export async function POST(request: NextRequest) {
       } catch (summaryErr) {
         const msg =
           summaryErr instanceof Error ? summaryErr.message : 'Unknown error';
-        console.error(`Summary generation failed for ${itemId}:`, summaryErr);
+        logger.error(
+          { err: summaryErr },
+          `Summary generation failed for ${itemId}`,
+        );
         warnings.push(`Summary generation failed: ${msg}`);
       }
     } else {
@@ -809,7 +819,7 @@ export async function POST(request: NextRequest) {
             .eq('id', itemId);
         }
       } catch (qualityErr) {
-        console.error('Quality score calculation failed:', qualityErr);
+        logger.error({ err: qualityErr }, 'Quality score calculation failed');
         warnings.push('Quality score calculation failed');
       }
     }
@@ -838,7 +848,7 @@ export async function POST(request: NextRequest) {
           .update({ layer: suggestion.suggestedLayer })
           .eq('id', itemId);
       } catch (layerErr) {
-        console.error('Layer inference failed:', layerErr);
+        logger.error({ err: layerErr }, 'Layer inference failed');
         // Non-fatal — item is still usable without a layer suggestion
       }
     }
@@ -887,7 +897,7 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (topicErr) {
-        console.error('Topic suggestion failed:', topicErr);
+        logger.error({ err: topicErr }, 'Topic suggestion failed');
         // Non-fatal — item is still usable without a topic suggestion
       }
     }
@@ -912,7 +922,7 @@ export async function POST(request: NextRequest) {
           guideSectionSuggestions = matches;
         }
       } catch (guideErr) {
-        console.error('Guide section suggestion failed:', guideErr);
+        logger.error({ err: guideErr }, 'Guide section suggestion failed');
         // Non-fatal — item is still usable without guide section suggestions
       }
     }
@@ -925,7 +935,10 @@ export async function POST(request: NextRequest) {
           .update({ status: 'processed' })
           .eq('id', sourceDocumentId);
       } catch (srcStatusErr) {
-        console.error('Source document status update failed:', srcStatusErr);
+        logger.error(
+          { err: srcStatusErr },
+          'Source document status update failed',
+        );
       }
     }
 
@@ -993,7 +1006,7 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (diffErr) {
-        console.error('Diff computation failed:', diffErr);
+        logger.error({ err: diffErr }, 'Diff computation failed');
         warnings.push('Re-upload diff computation failed');
         // Non-fatal — upload is still successful
       }
@@ -1048,7 +1061,7 @@ export async function POST(request: NextRequest) {
           qualityScore = processedItem.quality_score ?? undefined;
         }
       } catch (enrichErr) {
-        console.error('Failed to fetch enriched item data:', enrichErr);
+        logger.error({ err: enrichErr }, 'Failed to fetch enriched item data');
         // Non-fatal — response will just lack enrichment data
       }
     }

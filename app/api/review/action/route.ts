@@ -8,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ReviewActionBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
         .eq('id', item_id);
 
       if (error) {
-        console.error('Failed to verify content item:', error);
+        logger.error({ err: error }, 'Failed to verify content item');
         return NextResponse.json(
           { error: 'Failed to verify item' },
           { status: 500 },
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (error) {
-        console.error('Failed to flag content item:', error);
+        logger.error({ err: error }, 'Failed to flag content item');
         return NextResponse.json(
           { error: 'Failed to flag item' },
           { status: 500 },
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
         .eq('id', item_id);
 
       if (error) {
-        console.error('Failed to unverify content item:', error);
+        logger.error({ err: error }, 'Failed to unverify content item');
         return NextResponse.json(
           { error: 'Failed to unverify item' },
           { status: 500 },
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (fetchFlagError) {
-        console.error('Failed to find quality flag:', fetchFlagError);
+        logger.error({ err: fetchFlagError }, 'Failed to find quality flag');
         return NextResponse.json(
           { error: 'Failed to unflag item' },
           { status: 500 },
@@ -180,7 +181,10 @@ export async function POST(request: NextRequest) {
           .eq('id', flag.id);
 
         if (resolveFlagError) {
-          console.error('Failed to unflag content item:', resolveFlagError);
+          logger.error(
+            { err: resolveFlagError },
+            'Failed to unflag content item',
+          );
           return NextResponse.json(
             { error: 'Failed to unflag item' },
             { status: 500 },

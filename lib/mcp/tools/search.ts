@@ -29,6 +29,7 @@ import {
   defineTool,
   READ_ONLY_ANNOTATIONS,
 } from './shared';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Load domain names from DB at registration time so tool descriptions stay
@@ -147,9 +148,9 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             'mcp.search.workspace_junction',
           );
           if (!junctionResult.ok) {
-            console.warn(
-              '[mcp.search.workspace_junction] degraded — no workspace filter applied:',
-              junctionResult.error.message,
+            logger.warn(
+              { err: junctionResult.error.message },
+              '[mcp.search.workspace_junction] degraded — no workspace filter applied',
             );
           } else {
             const workspaceItemIds = new Set(

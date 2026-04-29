@@ -17,6 +17,7 @@ import type { BidResponseMetadata } from '@/types/bid-metadata';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -294,7 +295,10 @@ export async function POST(
 
               await supabase.from('content_citations').insert(citationRows);
             } catch (citationErr) {
-              console.error('Failed to record content citations:', citationErr);
+              logger.error(
+                { err: citationErr },
+                'Failed to record content citations',
+              );
               // Non-fatal — response is already saved
             }
           }

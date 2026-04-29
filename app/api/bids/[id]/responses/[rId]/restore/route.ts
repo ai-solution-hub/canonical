@@ -4,6 +4,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ResponseRestoreBodySchema } from '@/lib/validation/schemas';
 import { sb } from '@/lib/supabase/safe';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -106,7 +107,7 @@ export async function POST(
       .single();
 
     if (updateError) {
-      console.error('Failed to restore response version:', updateError);
+      logger.error({ err: updateError }, 'Failed to restore response version');
       return NextResponse.json(
         { error: 'Failed to restore response version' },
         { status: 500 },

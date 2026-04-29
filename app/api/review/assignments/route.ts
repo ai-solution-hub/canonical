@@ -14,6 +14,7 @@ import {
 } from '@/lib/validation/schemas';
 import { createNotification } from '@/lib/notifications';
 import type { Database } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Failed to fetch review assignments:', error);
+      logger.error({ err: error }, 'Failed to fetch review assignments');
       return NextResponse.json(
         { error: 'Failed to fetch review assignments' },
         { status: 500 },
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
     const { count: itemCount, error: countError } = await countQuery;
 
     if (countError) {
-      console.error('Failed to count matching items:', countError);
+      logger.error({ err: countError }, 'Failed to count matching items');
       return NextResponse.json(
         { error: 'Failed to compute item count for assignment' },
         { status: 500 },
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError || !rawAssignment) {
-      console.error('Failed to create review assignment:', insertError);
+      logger.error({ err: insertError }, 'Failed to create review assignment');
       return NextResponse.json(
         { error: 'Failed to create review assignment' },
         { status: 500 },
@@ -187,7 +188,10 @@ export async function POST(request: NextRequest) {
       });
     } catch (notifErr) {
       // Non-fatal — log but don't fail the assignment creation
-      console.warn('Failed to create assignment notification:', notifErr);
+      logger.warn(
+        { err: notifErr },
+        'Failed to create assignment notification',
+      );
     }
 
     return NextResponse.json({ assignment: rawAssignment }, { status: 201 });
@@ -236,7 +240,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (updateError) {
-      console.error('Failed to update review assignment:', updateError);
+      logger.error({ err: updateError }, 'Failed to update review assignment');
       return NextResponse.json(
         { error: 'Failed to update review assignment' },
         { status: 500 },

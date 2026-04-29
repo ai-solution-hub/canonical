@@ -7,6 +7,7 @@ import { safeErrorMessage } from '@/lib/error';
 import crypto from 'crypto';
 import type { Database, Json } from '@/supabase/types/database.types';
 import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -214,7 +215,10 @@ export async function POST(request: NextRequest) {
             { skipDedup },
           );
         } catch (dedupErr) {
-          console.error(`Dedup check failed for batch item ${i}:`, dedupErr);
+          logger.error(
+            { err: dedupErr },
+            `Dedup check failed for batch item ${i}`,
+          );
         }
         if (dedupStamp.dedup_status === 'suspected_duplicate') {
           suspectedDuplicateCount++;
@@ -307,7 +311,10 @@ export async function POST(request: NextRequest) {
             .update({ embedding: JSON.stringify(embedding) })
             .eq('id', newItem.id);
         } catch (embedErr) {
-          console.error(`Embedding failed for batch item ${i}:`, embedErr);
+          logger.error(
+            { err: embedErr },
+            `Embedding failed for batch item ${i}`,
+          );
         }
 
         // 2. Classify
@@ -320,9 +327,9 @@ export async function POST(request: NextRequest) {
             userId: user.id,
           });
         } catch (classifyErr) {
-          console.error(
-            `Classification failed for batch item ${i}:`,
-            classifyErr,
+          logger.error(
+            { err: classifyErr },
+            `Classification failed for batch item ${i}`,
           );
         }
 
@@ -336,9 +343,9 @@ export async function POST(request: NextRequest) {
             userId: user.id,
           });
         } catch (summaryErr) {
-          console.error(
-            `Summary generation failed for batch item ${i}:`,
-            summaryErr,
+          logger.error(
+            { err: summaryErr },
+            `Summary generation failed for batch item ${i}`,
           );
         }
 
@@ -364,9 +371,9 @@ export async function POST(request: NextRequest) {
             .update({ layer: suggestion.suggestedLayer })
             .eq('id', newItem.id);
         } catch (layerErr) {
-          console.error(
-            `Layer inference failed for batch item ${i}:`,
-            layerErr,
+          logger.error(
+            { err: layerErr },
+            `Layer inference failed for batch item ${i}`,
           );
         }
 
@@ -399,9 +406,9 @@ export async function POST(request: NextRequest) {
             }
           }
         } catch (topicErr) {
-          console.error(
-            `Topic suggestion failed for batch item ${i}:`,
-            topicErr,
+          logger.error(
+            { err: topicErr },
+            `Topic suggestion failed for batch item ${i}`,
           );
         }
 
@@ -438,9 +445,9 @@ export async function POST(request: NextRequest) {
               .eq('id', newItem.id);
           }
         } catch (qualityErr) {
-          console.error(
-            `Quality score failed for batch item ${i}:`,
-            qualityErr,
+          logger.error(
+            { err: qualityErr },
+            `Quality score failed for batch item ${i}`,
           );
         }
 
@@ -457,7 +464,7 @@ export async function POST(request: NextRequest) {
         failedCount++;
         const errorMsg =
           itemErr instanceof Error ? itemErr.message : 'Unknown error';
-        console.error(`Batch item ${i} failed:`, itemErr);
+        logger.error({ err: itemErr }, `Batch item ${i} failed`);
         createdItems.push({
           id: '',
           title: item.title,

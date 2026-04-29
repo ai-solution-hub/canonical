@@ -18,6 +18,7 @@ import { calculateAndRoundQualityScore } from '@/lib/quality/quality-score';
 import { createBulkNotifications } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 50;
 
@@ -83,7 +84,10 @@ export async function GET(request: NextRequest) {
     if (govConfigsError) {
       // Without governance_config the cron silently uses DEFAULT_THRESHOLD
       // for every domain, which can mass-flag items. Fail loudly.
-      console.error('Failed to fetch governance_config:', govConfigsError);
+      logger.error(
+        { err: govConfigsError },
+        'Failed to fetch governance_config',
+      );
       return NextResponse.json(
         {
           error: 'Failed to fetch governance_config',
@@ -154,7 +158,10 @@ export async function GET(request: NextRequest) {
         .range(offset, offset + BATCH_SIZE - 1);
 
       if (fetchError) {
-        console.error('Failed to fetch content items batch:', fetchError);
+        logger.error(
+          { err: fetchError },
+          'Failed to fetch content items batch',
+        );
         failedFetches.push({ offset, error: fetchError.message });
         break;
       }
@@ -267,10 +274,9 @@ export async function GET(request: NextRequest) {
           })
           .eq('id', update.id);
         if (updateError) {
-          console.error(
+          logger.error(
+            { err: updateError, itemId: update.id },
             'Quality score update failed for item',
-            update.id,
-            updateError,
           );
           failedUpdates.push({ id: update.id, error: updateError.message });
         } else {

@@ -13,6 +13,7 @@ import {
   type AllowedReviewInputStatus,
 } from '@/lib/governance/review-input-statuses';
 import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
         .eq('governance_review_status', 'pending');
 
       if (error) {
-        console.error('Failed to count governance reviews:', error);
+        logger.error({ err: error }, 'Failed to count governance reviews');
         return NextResponse.json({ count: 0 });
       }
 
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      console.error('Failed to fetch governance reviews:', error);
+      logger.error({ err: error }, 'Failed to fetch governance reviews');
       return NextResponse.json(
         { error: 'Failed to fetch governance reviews' },
         { status: 500 },
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (updateError || !updated) {
-      console.error('Failed to process governance review:', updateError);
+      logger.error({ err: updateError }, 'Failed to process governance review');
       return NextResponse.json(
         { error: 'Item not found or governance review update failed' },
         { status: updateError ? 500 : 404 },
@@ -193,9 +194,9 @@ export async function POST(request: NextRequest) {
         'governance.review.item_detail',
       );
       if (!isOk(itemDetailResult)) {
-        console.warn(
+        logger.warn(
+          { err: itemDetailResult.error },
           'governance.review.item_detail failed — skipping notifications',
-          itemDetailResult.error,
         );
       }
       const itemDetail = isOk(itemDetailResult) ? itemDetailResult.data : null;
@@ -223,7 +224,7 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (err) {
-      console.warn('Failed to create governance notification:', err);
+      logger.warn({ err }, 'Failed to create governance notification');
     }
 
     return NextResponse.json({

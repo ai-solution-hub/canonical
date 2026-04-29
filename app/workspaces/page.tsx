@@ -1,6 +1,7 @@
 import { getAuthenticatedClient } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { WorkspacesContent } from './workspaces-content';
+import { logger } from '@/lib/logger';
 
 async function getWorkspaceTypeCounts(): Promise<Record<string, number>> {
   const auth = await getAuthenticatedClient();
@@ -12,7 +13,10 @@ async function getWorkspaceTypeCounts(): Promise<Record<string, number>> {
     .eq('is_archived', false);
 
   if (error) {
-    console.error('Failed to fetch workspace type counts:', error.message);
+    logger.error(
+      { err: error.message },
+      'Failed to fetch workspace type counts',
+    );
     return {};
   }
 

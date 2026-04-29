@@ -19,6 +19,7 @@ import { classifyContent } from '@/lib/ai/classify';
 import { createBulkNotifications } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -89,7 +90,10 @@ export async function GET(request: NextRequest) {
       .limit(batchSize);
 
     if (queryError) {
-      console.error('Failed to query classification candidates:', queryError);
+      logger.error(
+        { err: queryError },
+        'Failed to query classification candidates',
+      );
       return NextResponse.json(
         { error: safeErrorMessage(queryError, 'Failed to query candidates') },
         { status: 500 },
@@ -115,7 +119,7 @@ export async function GET(request: NextRequest) {
 
     // We need a userId for classifyContent — skip if no admin exists
     if (adminIds.length === 0) {
-      console.warn('Classification quality: no admin user found, skipping run');
+      logger.warn('Classification quality: no admin user found, skipping run');
       return NextResponse.json({
         success: true,
         skipped_reason: 'no_admin_user',
@@ -129,7 +133,7 @@ export async function GET(request: NextRequest) {
     for (const item of items) {
       // Check timeout
       if (Date.now() - startTime > TIMEOUT_BUFFER_MS) {
-        console.warn(
+        logger.warn(
           `Classification quality: timeout approaching after ${results.length} items`,
         );
         break;
@@ -229,14 +233,14 @@ export async function GET(request: NextRequest) {
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`Classification failed for ${item.id}:`, errMsg);
+        logger.error({ err: errMsg }, `Classification failed for ${item.id}`);
 
         // Stop on rate limit
         if (
           errMsg.includes('429') ||
           errMsg.toLowerCase().includes('rate limit')
         ) {
-          console.warn('Claude API rate limited — stopping batch');
+          logger.warn('Claude API rate limited — stopping batch');
           results.push({
             itemId: item.id,
             title: item.title,

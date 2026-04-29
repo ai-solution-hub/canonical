@@ -10,6 +10,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sb } from '@/lib/supabase/safe';
+import { logger } from '@/lib/logger';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -171,7 +172,10 @@ export async function POST(
       });
 
     if (uploadError) {
-      console.error('Failed to upload template to storage:', uploadError);
+      logger.error(
+        { err: uploadError },
+        'Failed to upload template to storage',
+      );
       return NextResponse.json(
         { error: 'Failed to upload template to storage.' },
         { status: 500 },
@@ -201,7 +205,7 @@ export async function POST(
     if (insertError) {
       // Clean up uploaded file on insert failure
       await serviceClient.storage.from('templates').remove([storagePath]);
-      console.error('Failed to create template record:', insertError);
+      logger.error({ err: insertError }, 'Failed to create template record');
       return NextResponse.json(
         { error: 'Failed to create template record.' },
         { status: 500 },
@@ -260,7 +264,7 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Failed to fetch templates:', error);
+      logger.error({ err: error }, 'Failed to fetch templates');
       return NextResponse.json(
         { error: 'Failed to fetch templates' },
         { status: 500 },

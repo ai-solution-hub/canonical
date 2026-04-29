@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { z } from 'zod';
+import { logger } from '@/lib/logger';
 
 /**
  * Extract the tool_use result from a Claude response.
@@ -25,9 +26,9 @@ export function extractToolResult<T>(
   if (schema) {
     const parsed = schema.safeParse(toolBlock.input);
     if (!parsed.success) {
-      console.error(
-        `AI response validation failed for ${toolName}:`,
-        parsed.error.issues,
+      logger.error(
+        { err: parsed.error.issues },
+        `AI response validation failed for ${toolName}`,
       );
       // Fall back to unvalidated result — log the issue but don't break the feature
       return toolBlock.input as T;

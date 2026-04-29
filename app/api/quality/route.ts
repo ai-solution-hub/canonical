@@ -10,6 +10,7 @@ import {
   QualityResolveBodySchema,
   QualityFlagsParamsSchema,
 } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('Quality flags query error:', error);
+      logger.error({ err: error }, 'Quality flags query error');
       return NextResponse.json(
         { error: 'Failed to fetch quality flags' },
         { status: 500 },
@@ -117,7 +118,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Quality flag resolve error:', error);
+      logger.error({ err: error }, 'Quality flag resolve error');
       return NextResponse.json(
         { error: 'Failed to resolve quality flag' },
         { status: 500 },

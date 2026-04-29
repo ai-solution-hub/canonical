@@ -6,6 +6,7 @@ import {
   ReadMarkBodySchema,
   ReadMarkCheckParamsSchema,
 } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (readResult.error) {
-      console.error('Failed to check read status:', readResult.error);
+      logger.error({ err: readResult.error }, 'Failed to check read status');
       return NextResponse.json(
         { error: 'Failed to check read status' },
         { status: 500 },
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
           { onConflict: 'user_id,content_item_id' },
         );
       if (error) {
-        console.error('Failed to mark as read:', error);
+        logger.error({ err: error }, 'Failed to mark as read');
         return NextResponse.json(
           { error: 'Failed to mark as read' },
           { status: 500 },
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
         .eq('content_item_id', item_id)
         .eq('user_id', user.id);
       if (error) {
-        console.error('Failed to mark as unread:', error);
+        logger.error({ err: error }, 'Failed to mark as unread');
         return NextResponse.json(
           { error: 'Failed to mark as unread' },
           { status: 500 },
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
         .from('read_marks')
         .upsert(rows, { onConflict: 'user_id,content_item_id' });
       if (error) {
-        console.error('Failed to bulk mark as read:', error);
+        logger.error({ err: error }, 'Failed to bulk mark as read');
         return NextResponse.json(
           { error: 'Failed to bulk mark as read' },
           { status: 500 },

@@ -24,6 +24,7 @@ import {
   isProfileComplete,
 } from '@/lib/organisation-profile';
 import type { ReorientData } from '@/types/reorient';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -48,7 +49,10 @@ async function getDashboardData() {
 
   const roleWarnings: string[] = [];
   if (roleError && roleError.code !== 'PGRST116') {
-    console.error('Failed to look up user role for dashboard:', roleError);
+    logger.error(
+      { err: roleError },
+      'Failed to look up user role for dashboard',
+    );
     roleWarnings.push(
       'Could not verify your role; some sections may be hidden until you reload.',
     );

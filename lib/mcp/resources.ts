@@ -36,6 +36,7 @@ import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js'
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { sb } from '@/lib/supabase/safe';
+import { logger } from '@/lib/logger';
 
 // Lazy import — dashboard module pulls in bid-queries and other heavy modules
 // that can cause Vercel serverless cold start crashes at module evaluation time.
@@ -84,7 +85,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             ),
           };
         } catch (err) {
-          console.error('Failed to list content item resources:', err);
+          logger.error({ err }, 'Failed to list content item resources');
           return { resources: [] };
         }
       },
@@ -182,7 +183,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             ),
           };
         } catch (err) {
-          console.error('Failed to list bid workspace resources:', err);
+          logger.error({ err }, 'Failed to list bid workspace resources');
           return { resources: [] };
         }
       },
@@ -286,7 +287,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             ),
           };
         } catch (err) {
-          console.error('Failed to list Q&A pair resources:', err);
+          logger.error({ err }, 'Failed to list Q&A pair resources');
           return { resources: [] };
         }
       },

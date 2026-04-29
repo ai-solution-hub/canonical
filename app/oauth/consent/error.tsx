@@ -7,6 +7,7 @@ import { ShieldX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { BRANDING } from '@/lib/client-config';
+import { logger } from '@/lib/logger';
 
 export default function ConsentError({
   error,
@@ -16,7 +17,7 @@ export default function ConsentError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('OAuth consent error:', error);
+    logger.error({ err: error }, 'OAuth consent error');
     Sentry.captureException(error);
   }, [error]);
 

@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { QuestionUpdateBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -65,7 +66,7 @@ export async function PATCH(
           { status: 404 },
         );
       }
-      console.error('Failed to update bid question:', error);
+      logger.error({ err: error }, 'Failed to update bid question');
       return NextResponse.json(
         { error: 'Failed to update bid question' },
         { status: 500 },
@@ -112,7 +113,7 @@ export async function DELETE(
       .eq('project_id', id);
 
     if (error) {
-      console.error('Failed to delete bid question:', error);
+      logger.error({ err: error }, 'Failed to delete bid question');
       return NextResponse.json(
         { error: 'Failed to delete bid question' },
         { status: 500 },

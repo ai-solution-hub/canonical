@@ -6,6 +6,7 @@ import {
   WorkspaceUpdateBodySchema,
   WorkspaceDeleteParamsSchema,
 } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -54,7 +55,7 @@ export async function PATCH(
           { status: 409 },
         );
       }
-      console.error('Failed to update workspace:', error);
+      logger.error({ err: error }, 'Failed to update workspace');
       return NextResponse.json(
         { error: 'Failed to update workspace' },
         { status: 500 },
@@ -123,7 +124,7 @@ export async function DELETE(
       const { error } = await supabase.from('workspaces').delete().eq('id', id);
 
       if (error) {
-        console.error('Failed to delete workspace:', error);
+        logger.error({ err: error }, 'Failed to delete workspace');
         return NextResponse.json(
           { error: 'Failed to delete workspace' },
           { status: 500 },
@@ -148,7 +149,7 @@ export async function DELETE(
           { status: 404 },
         );
       }
-      console.error('Failed to archive workspace:', error);
+      logger.error({ err: error }, 'Failed to archive workspace');
       return NextResponse.json(
         { error: 'Failed to archive workspace' },
         { status: 500 },

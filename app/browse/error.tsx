@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { Library } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger';
 
 export default function BrowseError({
   error,
@@ -14,7 +15,7 @@ export default function BrowseError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Browse error:', error);
+    logger.error({ err: error }, 'Browse error');
     Sentry.captureException(error);
   }, [error]);
 

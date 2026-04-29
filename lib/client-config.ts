@@ -575,6 +575,7 @@ export function derivePrimaryForeground(primary: string): string {
 import defaultBranding from '@/lib/branding/clients/default.json';
 import example-clientBranding from '@/lib/branding/clients/example-client.json';
 import { clientEnv } from '@/lib/env-client';
+import { logger } from '@/lib/logger';
 
 const CLIENT_BRANDING_MAP: Record<string, unknown> = {
   default: defaultBranding,
@@ -612,7 +613,7 @@ export function loadBranding(idOverride?: string): BrandingConfig {
   for (const w of report.warnings) {
     // Build-time warning — printed to the build log so it's visible in
     // CI, but does not fail the build.
-    console.warn(`[branding] ${w}`);
+    logger.warn(`[branding] ${w}`);
   }
   if (report.errors.length > 0) {
     throw new Error(

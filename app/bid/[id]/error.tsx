@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger';
 
 export default function BidDetailError({
   error,
@@ -14,7 +15,7 @@ export default function BidDetailError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Bid detail error:', error);
+    logger.error({ err: error }, 'Bid detail error');
     Sentry.captureException(error);
   }, [error]);
 

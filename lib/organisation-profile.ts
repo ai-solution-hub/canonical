@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 type CompanyProfileRow =
   Database['public']['Tables']['company_profiles']['Row'];
@@ -115,9 +116,9 @@ export async function getOrganisationProfile(
     .maybeSingle();
 
   if (error) {
-    console.error(
-      '[organisation-profile] Failed to fetch primary profile:',
-      error,
+    logger.error(
+      { err: error },
+      '[organisation-profile] Failed to fetch primary profile',
     );
     return null;
   }
@@ -140,9 +141,9 @@ export async function getFullPrimaryProfile(
     .maybeSingle();
 
   if (error) {
-    console.error(
-      '[organisation-profile] Failed to fetch full primary profile:',
-      error,
+    logger.error(
+      { err: error },
+      '[organisation-profile] Failed to fetch full primary profile',
     );
     return null;
   }

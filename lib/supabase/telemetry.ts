@@ -1,5 +1,6 @@
 // lib/supabase/telemetry.ts
 import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/lib/logger';
 
 /**
  * Log a best-effort warning from an API route.
@@ -41,7 +42,7 @@ export function logBestEffortWarn(
   // here (no `no-console` rule is currently configured for this file); if
   // a global ban is added later, re-add `// eslint-disable-next-line no-console`
   // above the line below with a comment explaining the sanction.
-  console.warn(`[${category}] ${message}`, context);
+  logger.warn({ ...(context ?? {}), category }, message);
 
   Sentry.addBreadcrumb({
     category,
@@ -76,7 +77,7 @@ export function logSwallowedError(
   const payload = { ...context, error: errMessage, code };
 
   // Sanctioned swallow path — see the note on `logBestEffortWarn` above.
-  console.warn(`[${category}] ${message ?? 'Swallowed error'}`, payload);
+  logger.warn({ ...payload, category }, message ?? 'Swallowed error');
 
   Sentry.addBreadcrumb({
     category,

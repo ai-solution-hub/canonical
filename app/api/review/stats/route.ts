@@ -7,6 +7,7 @@ import {
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import type { ReviewStatsResponse } from '@/types/review';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -34,7 +35,7 @@ export async function GET() {
     const { data, error } = await supabase.rpc('get_review_breakdown_stats');
 
     if (error) {
-      console.error('Failed to fetch review breakdown stats:', error);
+      logger.error({ err: error }, 'Failed to fetch review breakdown stats');
       return NextResponse.json(
         { error: 'Failed to fetch review statistics' },
         { status: 500 },

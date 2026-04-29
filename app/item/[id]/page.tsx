@@ -5,6 +5,7 @@ import { CONTENT_DETAIL_COLUMNS } from '@/types/content';
 import { parseJsonb, SummaryDataSchema } from '@/lib/validation/jsonb';
 import type { ContentListItem } from '@/types/content';
 import type { ItemData } from './item-detail-client';
+import { logger } from '@/lib/logger';
 
 export default async function ItemDetailPage({
   params,
@@ -31,7 +32,7 @@ export default async function ItemDetailPage({
     if (item) break;
     const isNotFound = error?.code === 'PGRST116';
     if (!isNotFound || attempt >= 2) break;
-    console.warn(
+    logger.warn(
       `[item/${id}] Retry ${attempt + 1}/2: item not found yet (read-after-write race)`,
     );
     await new Promise((r) => setTimeout(r, 500));

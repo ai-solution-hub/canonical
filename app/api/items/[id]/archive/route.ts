@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ArchiveBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -62,7 +63,7 @@ export async function POST(
       .single();
 
     if (error) {
-      console.error('Failed to archive content item:', error);
+      logger.error({ err: error }, 'Failed to archive content item');
       return NextResponse.json(
         { error: 'Failed to archive item' },
         { status: 500 },

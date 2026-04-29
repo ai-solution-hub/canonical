@@ -13,6 +13,7 @@ import { parseBody } from '@/lib/validation';
 import { QuestionCreateBodySchema } from '@/lib/validation/schemas';
 import { z } from 'zod';
 import { sb } from '@/lib/supabase/safe';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -82,7 +83,7 @@ export async function GET(
       .order('question_sequence', { ascending: true });
 
     if (questionsError) {
-      console.error('Failed to fetch bid questions:', questionsError);
+      logger.error({ err: questionsError }, 'Failed to fetch bid questions');
       return NextResponse.json(
         { error: 'Failed to fetch bid questions' },
         { status: 500 },
@@ -104,7 +105,10 @@ export async function GET(
         .in('question_id', questionIds);
 
       if (responsesError) {
-        console.error('Failed to fetch response previews:', responsesError);
+        logger.error(
+          { err: responsesError },
+          'Failed to fetch response previews',
+        );
         warnings.push(
           'Response previews could not be loaded; questions may appear unanswered. ' +
             safeErrorMessage(responsesError, 'response preview fetch failed'),
@@ -149,7 +153,7 @@ export async function GET(
     );
 
     if (statsError) {
-      console.error('Failed to fetch bid question stats:', statsError);
+      logger.error({ err: statsError }, 'Failed to fetch bid question stats');
       warnings.push(
         'Question stats could not be loaded. ' +
           safeErrorMessage(statsError, 'stats RPC failed'),
@@ -257,7 +261,7 @@ export async function POST(
       .single();
 
     if (insertError) {
-      console.error('Failed to create bid question:', insertError);
+      logger.error({ err: insertError }, 'Failed to create bid question');
       return NextResponse.json(
         { error: 'Failed to create bid question' },
         { status: 500 },
@@ -299,7 +303,7 @@ async function handleBatchInsert(
     );
 
   if (insertError) {
-    console.error('Failed to batch create bid questions:', insertError);
+    logger.error({ err: insertError }, 'Failed to batch create bid questions');
     return NextResponse.json(
       { error: 'Failed to batch create bid questions' },
       { status: 500 },

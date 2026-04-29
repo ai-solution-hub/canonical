@@ -24,6 +24,7 @@ import {
 } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
       .eq('is_current', true);
 
     if (templateError) {
-      console.error('Failed to query templates:', templateError);
+      logger.error({ err: templateError }, 'Failed to query templates');
       return NextResponse.json(
         { error: safeErrorMessage(templateError, 'Failed to query templates') },
         { status: 500 },
@@ -104,9 +105,9 @@ export async function GET(request: NextRequest) {
       'cron.content_gaps.previous_run',
     );
     if (!isOk(previousRunResult)) {
-      console.warn(
+      logger.warn(
+        { err: previousRunResult.error },
         'cron.content_gaps.previous_run failed — treating as first run',
-        previousRunResult.error,
       );
     }
     const previousRun = isOk(previousRunResult) ? previousRunResult.data : null;
@@ -148,7 +149,7 @@ export async function GET(request: NextRequest) {
     for (const [templateName, templateVersion] of uniqueTemplates) {
       // Timeout check
       if (Date.now() - startTime > 25_000) {
-        console.warn(
+        logger.warn(
           'Content gaps: timeout approaching, stopping template processing',
         );
         break;
@@ -223,7 +224,10 @@ export async function GET(request: NextRequest) {
           coverage_score: coverage.score,
         });
       } catch (err) {
-        console.error(`Content gap analysis failed for ${templateName}:`, err);
+        logger.error(
+          { err },
+          `Content gap analysis failed for ${templateName}`,
+        );
         failedTemplates.push({
           template: templateName,
           error: err instanceof Error ? err.message : String(err),

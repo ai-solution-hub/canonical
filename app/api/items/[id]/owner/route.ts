@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { OwnerAssignSchema } from '@/lib/validation/schemas';
 import { parseBody } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -103,9 +104,9 @@ export async function PATCH(
         .maybeSingle();
 
       if (maxVersionError) {
-        console.error(
-          'Failed to fetch max content_history version:',
-          maxVersionError,
+        logger.error(
+          { err: maxVersionError },
+          'Failed to fetch max content_history version',
         );
         warnings.push(
           'Owner change saved, but version history was not recorded',
@@ -132,9 +133,9 @@ export async function PATCH(
             changed_by: user.id,
           });
         if (historyInsertError) {
-          console.error(
-            'Failed to insert content_history row for owner change:',
-            historyInsertError,
+          logger.error(
+            { err: historyInsertError },
+            'Failed to insert content_history row for owner change',
           );
           warnings.push(
             'Owner change saved, but version history was not recorded',
@@ -142,7 +143,7 @@ export async function PATCH(
         }
       }
     } catch (err) {
-      console.warn('Failed to record content history for owner change:', err);
+      logger.warn({ err }, 'Failed to record content history for owner change');
       warnings.push('Owner change saved, but version history was not recorded');
     }
 
@@ -162,16 +163,16 @@ export async function PATCH(
             message: null,
           });
         if (notifInsertError) {
-          console.error(
-            'Failed to create owner assignment notification:',
-            notifInsertError,
+          logger.error(
+            { err: notifInsertError },
+            'Failed to create owner assignment notification',
           );
           warnings.push(
             'Owner saved, but the new owner was not notified — please tell them directly',
           );
         }
       } catch (err) {
-        console.warn('Failed to create owner assignment notification:', err);
+        logger.warn({ err }, 'Failed to create owner assignment notification');
         warnings.push(
           'Owner saved, but the new owner was not notified — please tell them directly',
         );

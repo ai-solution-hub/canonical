@@ -14,6 +14,7 @@ import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -90,7 +91,10 @@ export async function POST(
     const { data: questions, error: questionsError } = await questionsQuery;
 
     if (questionsError) {
-      console.error('Failed to fetch questions for drafting:', questionsError);
+      logger.error(
+        { err: questionsError },
+        'Failed to fetch questions for drafting',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch questions' },
         { status: 500 },
@@ -221,9 +225,9 @@ export async function POST(
           .single();
 
         if (upsertError) {
-          console.error(
-            `Failed to save response for question ${question.id}:`,
-            upsertError,
+          logger.error(
+            { err: upsertError },
+            `Failed to save response for question ${question.id}`,
           );
           results.push({
             question_id: question.id,
@@ -247,7 +251,10 @@ export async function POST(
           quality_score: draftResult.metadata.quality_data?.overall_score,
         });
       } catch (draftErr) {
-        console.error(`Failed to draft question ${question.id}:`, draftErr);
+        logger.error(
+          { err: draftErr },
+          `Failed to draft question ${question.id}`,
+        );
         results.push({
           question_id: question.id,
           status: 'failed',
