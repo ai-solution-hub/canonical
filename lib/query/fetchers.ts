@@ -206,3 +206,25 @@ export async function fetchAdminDedupItem(
 ): Promise<DedupItemResponse> {
   return fetchJson<DedupItemResponse>(`/api/admin/content-dedup/${id}`);
 }
+
+/**
+ * Response shape for POST /api/admin/content-dedup/[id]/supersede.
+ *
+ * `pathId` is always the dedup-queue row (subject). `retiredId` is the
+ * row whose `superseded_by` got set. `direction` echoes the request.
+ * `pathDedupStatus` is only present when direction =
+ * `'subject-supersedes-canonical'` (the kept-subject flips to
+ * `'confirmed_unique'`); for the default direction the path IS the
+ * retired side, so a separate path status would duplicate
+ * `retiredDedupStatus`.
+ *
+ * Spec: docs/specs/§1.7-admin-dedup-supersede-fix-spec.md §2.9
+ */
+export interface DedupSupersedeResponse {
+  pathId: string;
+  retiredId: string;
+  canonicalId: string;
+  direction: 'canonical-supersedes-subject' | 'subject-supersedes-canonical';
+  retiredDedupStatus: 'superseded';
+  pathDedupStatus?: 'confirmed_unique';
+}

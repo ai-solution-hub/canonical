@@ -2044,6 +2044,9 @@ export const DedupActionBodySchema = z.object({
 /** POST /api/admin/content-dedup/[id]/supersede */
 export const DedupSupersedeBodySchema = z.object({
   canonicalId: z.string().uuid(),
+  direction: z
+    .enum(['canonical-supersedes-subject', 'subject-supersedes-canonical'])
+    .default('canonical-supersedes-subject'),
   note: z.string().max(500).optional(),
 });
 

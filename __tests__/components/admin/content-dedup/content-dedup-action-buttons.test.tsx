@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
@@ -160,9 +160,15 @@ describe('ContentDedupActionButtons', () => {
     });
   });
 
-  it('opens supersede dialog and POSTs with default direction (canonical supersedes subject)', async () => {
+  it('C-1: default-direction supersede — body has direction=canonical-supersedes-subject and path id is subject', async () => {
     const user = userEvent.setup();
-    mockMutationFetchJson.mockResolvedValueOnce({ id: SUBJECT_ID });
+    mockMutationFetchJson.mockResolvedValueOnce({
+      pathId: SUBJECT_ID,
+      retiredId: SUBJECT_ID,
+      canonicalId: CANONICAL_ID,
+      direction: 'canonical-supersedes-subject',
+      retiredDedupStatus: 'superseded',
+    });
 
     renderWithProviders(makeRow(), makeRow({ id: CANONICAL_ID }));
 
@@ -184,13 +190,23 @@ describe('ContentDedupActionButtons', () => {
     });
     expect(mockMutationFetchJson).toHaveBeenCalledWith(
       `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
-      { canonicalId: CANONICAL_ID },
+      {
+        canonicalId: CANONICAL_ID,
+        direction: 'canonical-supersedes-subject',
+      },
     );
   });
 
-  it('swaps path id and body id when subject-supersedes-canonical is selected', async () => {
+  it('C-2: reverse-direction supersede — body has direction=subject-supersedes-canonical and path id is STILL subject (no path swap)', async () => {
     const user = userEvent.setup();
-    mockMutationFetchJson.mockResolvedValueOnce({ id: SUBJECT_ID });
+    mockMutationFetchJson.mockResolvedValueOnce({
+      pathId: SUBJECT_ID,
+      retiredId: CANONICAL_ID,
+      canonicalId: CANONICAL_ID,
+      direction: 'subject-supersedes-canonical',
+      retiredDedupStatus: 'superseded',
+      pathDedupStatus: 'confirmed_unique',
+    });
 
     renderWithProviders(makeRow(), makeRow({ id: CANONICAL_ID }));
 
@@ -206,9 +222,106 @@ describe('ContentDedupActionButtons', () => {
       expect(mockMutationFetchJson).toHaveBeenCalledTimes(1);
     });
     expect(mockMutationFetchJson).toHaveBeenCalledWith(
-      `/api/admin/content-dedup/${CANONICAL_ID}/supersede`,
-      { canonicalId: SUBJECT_ID },
+      `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+      {
+        canonicalId: CANONICAL_ID,
+        direction: 'subject-supersedes-canonical',
+      },
     );
+  });
+
+  it('C-3: regression-lock — path id is NEVER canonical.id regardless of direction', async () => {
+    const user = userEvent.setup();
+    // Run twice — once for each direction — and assert the URL never
+    // contains the canonical id segment. This is the test that would
+    // have caught the original W3 reverse-supersede bug.
+    for (const dirTestId of [
+      'supersede-direction-canonical-supersedes-subject',
+      'supersede-direction-subject-supersedes-canonical',
+    ]) {
+      // Clean up any DOM from the previous iteration (RTL doesn't
+      // auto-cleanup between manual render() calls inside one `it`).
+      cleanup();
+      mockMutationFetchJson.mockReset();
+      mockMutationFetchJson.mockResolvedValueOnce({});
+
+      renderWithProviders(makeRow(), makeRow({ id: CANONICAL_ID }));
+
+      await user.click(screen.getByTestId('dedup-supersede-trigger'));
+      await screen.findByRole('dialog', { name: /mark superseded/i });
+
+      await user.click(screen.getByTestId(dirTestId));
+      await user.click(screen.getByTestId('supersede-confirm'));
+
+      await waitFor(() => {
+        expect(mockMutationFetchJson).toHaveBeenCalled();
+      });
+
+      const [calledUrl] = mockMutationFetchJson.mock.calls[0];
+      expect(calledUrl).toBe(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+      );
+      expect(calledUrl).not.toContain(CANONICAL_ID);
+    }
+  });
+
+  it('C-4: direction toggle in dialog drives the body sent', async () => {
+    const user = userEvent.setup();
+    mockMutationFetchJson.mockResolvedValue({});
+
+    renderWithProviders(makeRow(), makeRow({ id: CANONICAL_ID }));
+
+    await user.click(screen.getByTestId('dedup-supersede-trigger'));
+    await screen.findByRole('dialog', { name: /mark superseded/i });
+
+    // Toggle to subject-supersedes-canonical
+    await user.click(
+      screen.getByTestId('supersede-direction-subject-supersedes-canonical'),
+    );
+    expect(
+      screen.getByTestId('supersede-direction-subject-supersedes-canonical'),
+    ).toBeChecked();
+    expect(
+      screen.getByTestId('supersede-direction-canonical-supersedes-subject'),
+    ).not.toBeChecked();
+
+    // Toggle back to canonical-supersedes-subject
+    await user.click(
+      screen.getByTestId('supersede-direction-canonical-supersedes-subject'),
+    );
+    expect(
+      screen.getByTestId('supersede-direction-canonical-supersedes-subject'),
+    ).toBeChecked();
+
+    await user.click(screen.getByTestId('supersede-confirm'));
+    await waitFor(() => {
+      expect(mockMutationFetchJson).toHaveBeenCalled();
+    });
+    const [, body] = mockMutationFetchJson.mock.calls[0] as [
+      string,
+      { canonicalId: string; direction: string },
+    ];
+    expect(body.direction).toBe('canonical-supersedes-subject');
+  });
+
+  it('C-5: 409 toast still routes back to queue for supersede', async () => {
+    const user = userEvent.setup();
+    mockMutationFetchJson.mockRejectedValueOnce(
+      new ApiError('row already resolved', 409, undefined, {}),
+    );
+
+    renderWithProviders(makeRow(), makeRow({ id: CANONICAL_ID }));
+
+    await user.click(screen.getByTestId('dedup-supersede-trigger'));
+    await screen.findByRole('dialog', { name: /mark superseded/i });
+    await user.click(screen.getByTestId('supersede-confirm'));
+
+    await waitFor(() => {
+      expect(mockToast.error).toHaveBeenCalledWith(
+        expect.stringMatching(/already resolved/i),
+      );
+    });
+    expect(mockRouterPush).toHaveBeenCalledWith('/admin/content-dedup');
   });
 
   it('disables supersede button when canonical is null', () => {

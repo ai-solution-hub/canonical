@@ -229,8 +229,8 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
     });
   });
 
-  describe('happy path', () => {
-    it('returns 200 with id, superseded_by, dedup_status="superseded"', async () => {
+  describe('happy path (Direction A — default)', () => {
+    it('returns 200 with new D9 response shape (canonical-supersedes-subject)', async () => {
       configureRole(mockSupabase, 'admin');
       configureSubjectLoadOk();
       configureHelperHappyPath();
@@ -248,9 +248,16 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.id).toBe(SUBJECT_ID);
-      expect(body.superseded_by).toBe(CANONICAL_ID);
-      expect(body.dedup_status).toBe('superseded');
+      expect(body).toEqual({
+        pathId: SUBJECT_ID,
+        retiredId: SUBJECT_ID,
+        canonicalId: CANONICAL_ID,
+        direction: 'canonical-supersedes-subject',
+        retiredDedupStatus: 'superseded',
+      });
+      // Direction-A response intentionally omits pathDedupStatus — the
+      // path IS the retired side.
+      expect(body.pathDedupStatus).toBeUndefined();
     });
 
     it('invokes setSupersession with oldId=subject, newId=canonical, actorUserId=user.id', async () => {
@@ -273,7 +280,7 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
       });
     });
 
-    it('inserts content_history with change_reason="dedup_admin_review_superseded"', async () => {
+    it('inserts content_history with new metadata (direction + peerId)', async () => {
       configureRole(mockSupabase, 'admin');
       configureSubjectLoadOk();
       configureHelperHappyPath();
@@ -294,6 +301,8 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
           metadata: expect.objectContaining({
             superseded_by: CANONICAL_ID,
             dedup_review_action: 'supersede',
+            direction: 'canonical-supersedes-subject',
+            peerId: CANONICAL_ID,
           }),
         }),
       );
@@ -457,6 +466,294 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
       });
       expect(response.status).toBe(409);
       expect(mockSetSupersession).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Direction-B + new-guard tests (B-1..B-6 from §1.7 fix-spec §2.8).
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('Direction B (subject-supersedes-canonical)', () => {
+    function configureDirectionBHappyPath() {
+      mockSetSupersession.mockResolvedValue({
+        oldItem: {
+          id: CANONICAL_ID,
+          title: 'Cloud security policy',
+          superseded_by: SUBJECT_ID,
+          dedup_status: 'superseded',
+        },
+        newItem: {
+          id: SUBJECT_ID,
+          title: SUBJECT_ROW.title,
+          superseded_by: null,
+          dedup_status: 'suspected_duplicate',
+        },
+      });
+      // Direction-B awaits the chain five times in sequence (each
+      // `await` on the chain consumes a `.then` mock):
+      //   1. UPDATE subject dedup_status='confirmed_unique'
+      //   2. SELECT version on canonical (history lookup)
+      //   3. INSERT canonical history (await consumes the chain)
+      //   4. SELECT version on subject (history lookup)
+      //   5. INSERT subject history (await consumes the chain)
+      // We mock #2 + #4 to return the per-row version sequence; #1, #3,
+      // #5 we leave for the default mockImplementation (data=[], no err).
+      // .then() consumes mockImplementationOnce in order, so we
+      // explicitly enqueue 5 entries to keep the sequence deterministic.
+      mockSupabase._chain.then
+        // #1 UPDATE subject
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: null, count: 0 }),
+        )
+        // #2 canonical version lookup → 2 (next=3)
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({ data: [{ version: 2 }], error: null, count: 1 }),
+        )
+        // #3 canonical INSERT
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: null, count: 0 }),
+        )
+        // #4 subject version lookup → 2 (next=3)
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({ data: [{ version: 2 }], error: null, count: 1 }),
+        )
+        // #5 subject INSERT
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: null, count: 0 }),
+        );
+    }
+
+    it('B-1: happy path — helper called with reversed oldId/newId, response shape matches D9 reverse', async () => {
+      configureRole(mockSupabase, 'admin');
+      configureSubjectLoadOk();
+      configureDirectionBHappyPath();
+
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+        {
+          method: 'POST',
+          body: {
+            canonicalId: CANONICAL_ID,
+            direction: 'subject-supersedes-canonical',
+          },
+        },
+      );
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body).toEqual({
+        pathId: SUBJECT_ID,
+        retiredId: CANONICAL_ID,
+        canonicalId: CANONICAL_ID,
+        direction: 'subject-supersedes-canonical',
+        retiredDedupStatus: 'superseded',
+        pathDedupStatus: 'confirmed_unique',
+      });
+
+      // Helper called with the ROLE-SWAPPED ids: canonical = old, subject = new.
+      expect(mockSetSupersession).toHaveBeenCalledTimes(1);
+      expect(mockSetSupersession.mock.calls[0][0]).toEqual({
+        oldId: CANONICAL_ID,
+        newId: SUBJECT_ID,
+        actorUserId: 'admin-user-id',
+      });
+
+      // Subject UPDATE flips dedup_status to 'confirmed_unique' so the
+      // queue clears.
+      expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ dedup_status: 'confirmed_unique' }),
+      );
+
+      // 2 history rows inserted: against canonical (merge) + against
+      // subject (metadata_change), both with the new metadata fields.
+      expect(mockSupabase._chain.insert).toHaveBeenCalledTimes(2);
+      expect(mockSupabase._chain.insert).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          content_item_id: CANONICAL_ID,
+          version: 3,
+          change_type: 'merge',
+          change_reason: 'dedup_admin_review_superseded',
+          metadata: expect.objectContaining({
+            superseded_by: SUBJECT_ID,
+            direction: 'subject-supersedes-canonical',
+            peerId: SUBJECT_ID,
+          }),
+        }),
+      );
+      expect(mockSupabase._chain.insert).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          content_item_id: SUBJECT_ID,
+          version: 3,
+          change_type: 'metadata_change',
+          change_reason: 'dedup_admin_review_superseded',
+          metadata: expect.objectContaining({
+            direction: 'subject-supersedes-canonical',
+            peerId: CANONICAL_ID,
+            resolution: 'kept_as_canonical',
+          }),
+        }),
+      );
+    });
+
+    it('B-2: returns 409 on OLD_ALREADY_SUPERSEDED (canonical already retired)', async () => {
+      configureRole(mockSupabase, 'admin');
+      configureSubjectLoadOk();
+      mockSetSupersession.mockRejectedValueOnce(
+        new SupersessionError(
+          'OLD_ALREADY_SUPERSEDED',
+          `Old item ${CANONICAL_ID} already superseded`,
+          { oldId: CANONICAL_ID, existingSupersededBy: SUBJECT_ID },
+        ),
+      );
+
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+        {
+          method: 'POST',
+          body: {
+            canonicalId: CANONICAL_ID,
+            direction: 'subject-supersedes-canonical',
+          },
+        },
+      );
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
+
+      expect(response.status).toBe(409);
+      const body = await response.json();
+      expect(body.code).toBe('OLD_ALREADY_SUPERSEDED');
+    });
+
+    it('B-3: returns 409 on NEW_ALREADY_SUPERSEDED (defensive — subject normally guards via dedup_status)', async () => {
+      configureRole(mockSupabase, 'admin');
+      configureSubjectLoadOk();
+      mockSetSupersession.mockRejectedValueOnce(
+        new SupersessionError(
+          'NEW_ALREADY_SUPERSEDED',
+          'chain prevention',
+          {},
+        ),
+      );
+
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+        {
+          method: 'POST',
+          body: {
+            canonicalId: CANONICAL_ID,
+            direction: 'subject-supersedes-canonical',
+          },
+        },
+      );
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
+
+      expect(response.status).toBe(409);
+      const body = await response.json();
+      expect(body.code).toBe('NEW_ALREADY_SUPERSEDED');
+    });
+  });
+
+  describe('SAME_ID + invalid direction', () => {
+    it('B-4: returns 400 SAME_ID_PRE_HELPER when canonicalId === path id (direction A)', async () => {
+      configureRole(mockSupabase, 'admin');
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+        {
+          method: 'POST',
+          body: {
+            canonicalId: SUBJECT_ID,
+            direction: 'canonical-supersedes-subject',
+          },
+        },
+      );
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.code).toBe('SAME_ID_PRE_HELPER');
+      expect(mockSetSupersession).not.toHaveBeenCalled();
+    });
+
+    it('B-4b: returns 400 SAME_ID_PRE_HELPER when canonicalId === path id (direction B)', async () => {
+      configureRole(mockSupabase, 'admin');
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+        {
+          method: 'POST',
+          body: {
+            canonicalId: SUBJECT_ID,
+            direction: 'subject-supersedes-canonical',
+          },
+        },
+      );
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.code).toBe('SAME_ID_PRE_HELPER');
+      expect(mockSetSupersession).not.toHaveBeenCalled();
+    });
+
+    it('B-5: returns 400 on invalid direction enum value', async () => {
+      configureRole(mockSupabase, 'admin');
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+        {
+          method: 'POST',
+          body: { canonicalId: CANONICAL_ID, direction: 'banana' },
+        },
+      );
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(mockSetSupersession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('explicit direction A regression', () => {
+    it('B-6: explicit direction="canonical-supersedes-subject" works the same as default', async () => {
+      configureRole(mockSupabase, 'admin');
+      configureSubjectLoadOk();
+      configureHelperHappyPath();
+
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
+        {
+          method: 'POST',
+          body: {
+            canonicalId: CANONICAL_ID,
+            direction: 'canonical-supersedes-subject',
+          },
+        },
+      );
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.direction).toBe('canonical-supersedes-subject');
+      expect(body.pathId).toBe(SUBJECT_ID);
+      expect(body.retiredId).toBe(SUBJECT_ID);
+
+      expect(mockSetSupersession).toHaveBeenCalledWith(
+        { oldId: SUBJECT_ID, newId: CANONICAL_ID, actorUserId: 'admin-user-id' },
+        expect.anything(),
+      );
     });
   });
 });

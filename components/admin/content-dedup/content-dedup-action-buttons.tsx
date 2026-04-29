@@ -102,17 +102,19 @@ export function ContentDedupActionButtons({
 
   const supersede = useMutation({
     mutationFn: ({
-      pathId,
       canonicalId,
+      direction: dir,
       n,
     }: {
-      pathId: string;
       canonicalId: string;
+      direction: SupersedeDirection;
       n: string | undefined;
     }) =>
       mutationFetchJson(
-        `/api/admin/content-dedup/${pathId}/supersede`,
-        n ? { canonicalId, note: n } : { canonicalId },
+        `/api/admin/content-dedup/${subject.id}/supersede`,
+        n
+          ? { canonicalId, direction: dir, note: n }
+          : { canonicalId, direction: dir },
       ),
     onSuccess: () => {
       toast.success('Marked superseded');
@@ -131,25 +133,14 @@ export function ContentDedupActionButtons({
 
   const handleSupersedeConfirm = () => {
     if (!canonical) return;
-    // The route's [id] path-param is the row whose superseded_by is being
-    // set (the "old" row in setSupersession() terms). Body's canonicalId
-    // is the replacement (the "new" row). Direction toggles which is which.
-    if (direction === 'canonical-supersedes-subject') {
-      // Subject is the old; canonical replaces it. (Default — matches
-      // the typical re-upload-of-canonical pattern.)
-      supersede.mutate({
-        pathId: subject.id,
-        canonicalId: canonical.id,
-        n: trimmedNote,
-      });
-    } else {
-      // Canonical is the old; subject replaces it.
-      supersede.mutate({
-        pathId: canonical.id,
-        canonicalId: subject.id,
-        n: trimmedNote,
-      });
-    }
+    // The route's [id] path-param is ALWAYS the subject (queue row). The
+    // direction body field selects which side gets retired. The route
+    // handler derives oldId/newId from direction internally.
+    supersede.mutate({
+      canonicalId: canonical.id,
+      direction,
+      n: trimmedNote,
+    });
   };
 
   return (
