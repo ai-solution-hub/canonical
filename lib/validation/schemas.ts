@@ -2050,6 +2050,35 @@ export const DedupSupersedeBodySchema = z.object({
   note: z.string().max(500).optional(),
 });
 
+// ──────────────────────────────────────────
+// §1.9 Near-Duplicate Merge Dashboard (S212B)
+// Spec: docs/specs/§1.9-near-dup-merge-dashboard-spec.md §5.2
+// ──────────────────────────────────────────
+
+/** GET /api/admin/content-dedup/near-duplicates — list filters */
+export const NearDupPairsQuerySchema = z.object({
+  threshold: z.coerce.number().min(0.85).max(0.99).optional().default(0.95),
+  domain: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+});
+
+/** POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique */
+export const NearDupConfirmUniqueBodySchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+/** POST /api/admin/content-dedup/near-duplicates/[pairId]/merge */
+export const NearDupMergeBodySchema = z
+  .object({
+    oldId: z.string().uuid(),
+    newId: z.string().uuid(),
+    note: z.string().max(500).optional(),
+  })
+  .refine((b) => b.oldId !== b.newId, {
+    message: 'oldId and newId must differ',
+    path: ['newId'],
+  });
+
 /** POST /api/items/[id]/vision */
 export const VisionBodySchema = z.object({
   prompt: z.string().max(5000).optional(),

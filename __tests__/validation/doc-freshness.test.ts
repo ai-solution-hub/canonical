@@ -164,6 +164,10 @@ describe('Doc Freshness: data-entry-points.md', () => {
         'app/api/admin/content-dedup/[id]/confirm-duplicate/route.ts',
         'app/api/admin/content-dedup/[id]/confirm-unique/route.ts',
         'app/api/admin/content-dedup/[id]/supersede/route.ts',
+        // §1.9 admin near-dup dashboard — UPDATE content_items via
+        // setSupersession + transactional RPC + INSERT content_history
+        'app/api/admin/content-dedup/near-duplicates/[pairId]/merge/route.ts',
+        'app/api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique/route.ts',
         'lib/mcp/tools/governance.ts', // governance tools
         'lib/mcp/tools/review.ts', // review tools (S180 P0-23) — head-count queries only; no content_items INSERTs
       ];
