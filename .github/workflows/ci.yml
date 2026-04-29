@@ -211,7 +211,7 @@ jobs:
   e2e-smoke:
     # WP-G4.3 — Curated Playwright smoke (~54 tests, target ≤5 min wall-clock)
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.3-e2e-smoke-spec.md
-    # Runs in parallel with `quality` (no `needs:`) so total CI wall-clock stays
+    # Runs in parallel with `quality-precheck`/`quality-test` (no `needs:`) so total CI wall-clock stays
     # close to max(quality, e2e-smoke).
     name: E2E smoke
     runs-on: ubuntu-latest
@@ -309,7 +309,7 @@ jobs:
     #   - PR touching MCP paths (paths-filter) → full mode
     #   - other PRs → --skip-ai (L1, L4) / --skip-search (L3) for cost-zero runs
     #
-    # Independent of the `quality` job (no `needs:` chain) so eval results
+    # Independent of `quality-precheck`/`quality-test` (no `needs:` chain) so eval results
     # appear regardless of quality-job state.
     name: MCP eval (${{ matrix.layer }})
     runs-on: ubuntu-latest
