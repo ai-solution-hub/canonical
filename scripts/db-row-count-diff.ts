@@ -289,7 +289,11 @@ export function loadAllowlist(filePath: string): {
 // Diff logic
 // ---------------------------------------------------------------------------
 
-export type DiffStatus = 'match' | 'within-allowlist' | 'expected-empty' | 'drift';
+export type DiffStatus =
+  | 'match'
+  | 'within-allowlist'
+  | 'expected-empty'
+  | 'drift';
 
 export interface RowCount {
   table: string;
@@ -569,8 +573,7 @@ export function resolveCredentials(
   const roleKey = env[`${rolePrefix}_SUPABASE_SERVICE_ROLE_KEY`];
   if (roleUrl && roleKey) return { url: roleUrl, key: roleKey };
 
-  const fallbackUrl =
-    env.NEXT_PUBLIC_SUPABASE_URL ?? env.SUPABASE_URL ?? null;
+  const fallbackUrl = env.NEXT_PUBLIC_SUPABASE_URL ?? env.SUPABASE_URL ?? null;
   const fallbackKey = env.SUPABASE_SERVICE_ROLE_KEY ?? null;
   if (fallbackUrl && fallbackKey) {
     const expectedRef =
@@ -672,7 +675,10 @@ export async function countAllTables(
   for (let i = 0; i < tables.length; i += maxParallel) {
     const batch = tables.slice(i, i + maxParallel);
     const batchResults = await Promise.all(
-      batch.map(async (t) => ({ table: t, count: await countOneTable(client, t) })),
+      batch.map(async (t) => ({
+        table: t,
+        count: await countOneTable(client, t),
+      })),
     );
     results.push(...batchResults);
   }
@@ -739,10 +745,7 @@ async function main(args: CliArgs): Promise<number> {
   }
 
   // Defensive ref assertion.
-  if (
-    args.source === 'prod' &&
-    !sourceCreds.url.includes(PROD_PROJECT_REF)
-  ) {
+  if (args.source === 'prod' && !sourceCreds.url.includes(PROD_PROJECT_REF)) {
     console.error(
       `db-row-count-diff: --source=prod but URL does not include '${PROD_PROJECT_REF}'.`,
     );
@@ -757,10 +760,7 @@ async function main(args: CliArgs): Promise<number> {
     );
     return EXIT_QUERY_FAILED;
   }
-  if (
-    args.target === 'prod' &&
-    !targetCreds.url.includes(PROD_PROJECT_REF)
-  ) {
+  if (args.target === 'prod' && !targetCreds.url.includes(PROD_PROJECT_REF)) {
     console.error(
       `db-row-count-diff: --target=prod but URL does not include '${PROD_PROJECT_REF}'.`,
     );

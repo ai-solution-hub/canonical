@@ -37,10 +37,10 @@ const loggerMocks = vi.hoisted(() => ({
 vi.mock('@/lib/logger', () => ({
   logger: loggerMocks,
   getRequestContext: () => undefined,
-  runWithRequestContext: <T,>(_ctx: unknown, fn: () => T) => fn(),
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
   updateRequestContext: vi.fn(),
-  withRequestContext: <T,>(handler: T) => handler,
-  withRequestContextBare: <T,>(handler: T) => handler,
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
   applyRequestContextToSentry: vi.fn(),
 }));
 

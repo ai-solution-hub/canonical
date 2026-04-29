@@ -148,10 +148,7 @@ afterAll(async () => {
       .from('content_history')
       .delete()
       .in('content_item_id', seededItemIds);
-    await serviceClient
-      .from('content_items')
-      .delete()
-      .in('id', seededItemIds);
+    await serviceClient.from('content_items').delete().in('id', seededItemIds);
   }
   if (seededPipelineRunIds.length > 0) {
     await serviceClient

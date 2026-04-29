@@ -11,11 +11,7 @@ import { ClassifyBodySchema } from '@/lib/validation/schemas';
 import { classifyContent } from '@/lib/ai/classify';
 import { AIServiceError } from '@/lib/ai/errors';
 import { tryQuery } from '@/lib/supabase/safe';
-import {
-  logger,
-  updateRequestContext,
-  withRequestContext,
-} from '@/lib/logger';
+import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -120,10 +116,7 @@ export const POST = withRequestContext(
           { status: err.status },
         );
       }
-      logger.error(
-        { err, op: 'classify' },
-        'Failed to classify content item',
-      );
+      logger.error({ err, op: 'classify' }, 'Failed to classify content item');
       return NextResponse.json(
         { error: safeErrorMessage(err, 'Failed to classify content item') },
         { status: 500 },

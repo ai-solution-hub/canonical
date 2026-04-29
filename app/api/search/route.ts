@@ -9,11 +9,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { SearchBodySchema } from '@/lib/validation/schemas';
 import { generateEmbedding } from '@/lib/ai/embed';
-import {
-  logger,
-  updateRequestContext,
-  withRequestContext,
-} from '@/lib/logger';
+import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 
 export const maxDuration = 60;
 
@@ -49,10 +45,7 @@ export const POST = withRequestContext(async (request: NextRequest) => {
     try {
       embedding = await generateEmbedding(query.trim());
     } catch (err) {
-      logger.error(
-        { err, op: 'search.embed' },
-        'OpenAI embedding error',
-      );
+      logger.error({ err, op: 'search.embed' }, 'OpenAI embedding error');
       return NextResponse.json(
         {
           error: 'Search unavailable — please try again',

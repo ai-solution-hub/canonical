@@ -445,8 +445,8 @@ export function MetadataSidebar({
             summary: item.summary as string | null,
             citation_count: item.citation_count ?? 0,
             next_review_date:
-              (item as { next_review_date?: string | null })
-                .next_review_date ?? null,
+              (item as { next_review_date?: string | null }).next_review_date ??
+              null,
             review_cadence_days:
               (item as { review_cadence_days?: number | null })
                 .review_cadence_days ?? null,

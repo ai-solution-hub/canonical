@@ -72,7 +72,9 @@ function fixtureCtx(overrides: Partial<RequestContext> = {}): RequestContext {
 
 const SUPPLIED_ID = '7d3f2a1e-4b6c-4f8a-9c1d-2e3f4a5b6c7d';
 
-function makeRequest(opts: { headers?: Record<string, string> } = {}): NextRequest {
+function makeRequest(
+  opts: { headers?: Record<string, string> } = {},
+): NextRequest {
   return new NextRequest(new URL('/api/test', 'http://localhost:3000'), {
     method: 'POST',
     headers: opts.headers ?? {},
@@ -283,10 +285,7 @@ describe('lib/logger/request-context', () => {
 
     it('forwards Next.js dynamic-route params to the handler', async () => {
       const handler = withRequestContext(
-        async (
-          _req: NextRequest,
-          ctx: { params: Promise<{ id: string }> },
-        ) => {
+        async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
           const { id } = await ctx.params;
           return NextResponse.json({ id });
         },

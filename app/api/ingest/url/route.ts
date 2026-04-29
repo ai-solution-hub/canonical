@@ -13,11 +13,7 @@ import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { validateUrl } from '@/lib/extraction/url-validation';
 import { detectContentType } from '@/lib/extraction/content-type-detect';
-import {
-  logger,
-  updateRequestContext,
-  withRequestContext,
-} from '@/lib/logger';
+import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 
 export const maxDuration = 60;
 
