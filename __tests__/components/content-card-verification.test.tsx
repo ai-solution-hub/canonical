@@ -77,6 +77,7 @@ function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
     brief: null,
     verified_at: null,
     verified_by: null,
+    publication_status: null,
     ...overrides,
   };
 }

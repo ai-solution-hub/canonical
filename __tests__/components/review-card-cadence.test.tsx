@@ -81,6 +81,7 @@ function makeReviewItem(
     secondary_domain: null,
     secondary_subtopic: null,
     quality_score: 72,
+    publication_status: null,
     ...overrides,
   };
 }

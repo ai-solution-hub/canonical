@@ -65,6 +65,7 @@ function makeQueueItem(
     secondary_subtopic: null,
     quality_score: null,
     last_reviewed_at: null,
+    publication_status: null,
     ...overrides,
   };
 }

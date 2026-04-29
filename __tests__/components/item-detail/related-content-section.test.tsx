@@ -61,6 +61,7 @@ function createRelatedItem(
     user_tags: [],
     governance_review_status: null,
     metadata: null,
+    publication_status: null,
     similarity: 0.85,
   };
 }

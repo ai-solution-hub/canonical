@@ -1,4 +1,5 @@
 import type { Database } from '@/supabase/types/database.types';
+import type { PublicationStatus } from '@/lib/governance/publication-transitions';
 
 type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
@@ -58,11 +59,19 @@ export interface ContentListItem {
   /**
    * Publication lifecycle state (DB column is `string` NOT NULL with DEFAULT
    * `'published'`). One of `'draft' | 'in_review' | 'published' | 'archived'`
-   * — see `lib/governance/publication-transitions.ts` for the canonical
-   * union. Optional/nullable here to tolerate pre-normalisation rows in
-   * partial-projection list queries.
+   * — canonical union exported as `PublicationStatus` from
+   * `lib/governance/publication-transitions.ts`.
+   *
+   * Required (not optional) on this type because S212 W3 added
+   * `publication_status` to `CONTENT_LIST_COLUMNS` so every row fetched via
+   * `.select(CONTENT_LIST_COLUMNS)` carries the column. Nullable to tolerate
+   * the rare row produced by code paths that bypass the projection (e.g.
+   * partial mocks). Without narrowing, `publication_status?: string | null`
+   * silently masked the W3 finding where the column was missing from the
+   * projection — every browse/library row arrived with
+   * `publication_status === undefined` and the badge mounted as `null`.
    */
-  publication_status?: string | null;
+  publication_status: PublicationStatus | null;
 }
 
 /** Content list item with read state */
@@ -226,7 +235,8 @@ export const CONTENT_LIST_COLUMNS = `
   content_owner_id, quality_score,
   source_document_id, citation_count, source_file,
   layer, starred,
-  next_review_date, review_cadence_days
+  next_review_date, review_cadence_days,
+  publication_status
 ` as const;
 
 /** Columns selected for detail view */

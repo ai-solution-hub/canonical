@@ -106,6 +106,7 @@ function makeContentItem(
     brief: null,
     verified_at: null,
     classification_confidence: null,
+    publication_status: null,
     ...overrides,
   };
 }

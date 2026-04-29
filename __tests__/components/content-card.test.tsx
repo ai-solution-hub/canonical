@@ -79,6 +79,7 @@ function makeContentItem(
     content: null,
     brief: null,
     verified_at: null,
+    publication_status: null,
     ...overrides,
   };
 }

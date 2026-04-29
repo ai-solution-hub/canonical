@@ -42,6 +42,7 @@ function createQAItem(
     governance_review_status: null,
     metadata: overrides.metadata ?? null,
     source_file: overrides.source_file ?? null,
+    publication_status: null,
     ...overrides,
   };
 }

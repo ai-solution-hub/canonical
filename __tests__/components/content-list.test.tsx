@@ -84,6 +84,7 @@ function createItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
     user_tags: [],
     governance_review_status: null,
     metadata: null,
+    publication_status: null,
     ...overrides,
   };
 }

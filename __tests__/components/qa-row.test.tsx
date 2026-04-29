@@ -65,6 +65,7 @@ function createQAItem(
     answer_standard: null,
     answer_advanced: null,
     content: null,
+    publication_status: null,
     ...overrides,
   };
 }

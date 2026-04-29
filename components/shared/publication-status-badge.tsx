@@ -40,7 +40,13 @@ const VARIANT_CONFIG: Record<
     label: 'Draft',
     icon: Pencil,
     // Muted tone — drafts are neutral / in-progress, not urgent.
-    chipClass: 'border-border bg-muted text-muted-foreground',
+    // V_W3 LOW: `border-border` tokenises identically to the card border
+    // (both `oklch(0.78 0.012 48)` light / `oklch(0.3 0.014 48)` dark in
+    // app/globals.css), so the chip had no visible border against the card
+    // — the bordered-chip aesthetic of ReviewCadenceBadge requires a tinted
+    // border. `border-muted-foreground/30` is the established Warm-Meridian
+    // convention for muted chip outlines (see `bid-state-indicator.tsx`).
+    chipClass: 'border-muted-foreground/30 bg-muted text-muted-foreground',
   },
   in_review: {
     label: 'In Review',
@@ -95,6 +101,7 @@ export function PublicationStatusBadge({
     <span
       role="img"
       aria-label={ariaLabel}
+      title={ariaLabel}
       className={cn(
         'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium',
         config.chipClass,
