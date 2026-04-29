@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
+import { useMutation } from '@tanstack/react-query';
 import {
   Upload,
   Layers,
@@ -10,6 +11,7 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,11 +28,27 @@ import { ReuploadBanner } from '@/components/source-document/reupload-banner';
 import { UploadReviewStep } from '@/components/create-content/upload-review-step';
 import { QAPreviewList } from '@/components/qa/qa-preview-list';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
+import { MarkdownAnalysisTable } from '@/components/ingest/markdown-analysis-table';
+import { ImportSummaryCard } from '@/components/ingest/import-summary-card';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { useFileUploadPipeline } from '@/hooks/use-file-upload-pipeline';
+import {
+  analyseMarkdownBatch,
+  importMarkdownBatch,
+  type MarkdownPerFileOverrideWire,
+} from '@/lib/query/fetchers';
 import type { QACreateInput } from '@/lib/quality/qa-detection';
 import type { DedupCheckResult } from '@/components/qa/qa-preview-list';
+import type {
+  MarkdownIngestAnalysis,
+  MarkdownPerFileOverride,
+  MarkdownBatchResultsSummary,
+} from '@/types/ingest';
+
+// Stable empty defaults per G14 — avoid recreating per render.
+const EMPTY_OVERRIDES: MarkdownPerFileOverride[] = [];
+const EMPTY_ANALYSES: MarkdownIngestAnalysis[] = [];
 
 // ---------------------------------------------------------------------------
 // Props
@@ -43,6 +61,27 @@ interface UploadTabContentProps {
   detectedQAPairs?: QACreateInput[];
   /** Source document ID to link batch-created items to. */
   sourceDocumentId?: string;
+  /**
+   * Caller's role — gates admin-only controls inside the markdown-batch
+   * surface (per-row skip-dedup checkbox + batch-wide auto-supersede toggle).
+   * Defaults to 'editor' so admin-only controls stay hidden until the
+   * caller plumbs the role through.
+   */
+  userRole?: 'admin' | 'editor' | 'viewer';
+}
+
+/** Sub-state for the markdown-batch surface (spec §6.1). */
+type MarkdownBatchPhase =
+  | 'idle'
+  | 'analysing'
+  | 'reviewing'
+  | 'importing'
+  | 'done';
+
+/** Result of the markdown-batch import phase, surfaced in the summary card. */
+interface MarkdownBatchResult {
+  pipeline_run_id: string;
+  results_summary: MarkdownBatchResultsSummary;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +92,7 @@ export function UploadTabContent({
   onSwitchTab,
   detectedQAPairs,
   sourceDocumentId,
+  userRole = 'editor',
 }: UploadTabContentProps) {
   const { layers, getLayerLabel } = useLayerVocabulary();
 
@@ -77,6 +117,156 @@ export function UploadTabContent({
     hasResults,
     hasActiveUploads,
   } = pipeline;
+
+  // ---------------------------------------------------------------------------
+  // Markdown-batch sub-mode (spec §6.1, EP2 §1.11 Phase 2)
+  // ---------------------------------------------------------------------------
+  // Detection: every dropped file has a `.md` extension AND there is more
+  // than one file. Single-`.md` drops continue to flow through EP3 (the
+  // user-toggle preview flag is post-EP2 and is NOT wired in this session).
+
+  /** Whether the dropped files trigger the markdown-batch surface. */
+  const isMarkdownBatch = useMemo(
+    () =>
+      files.length > 1 &&
+      files.every((f) => f.file.name.toLowerCase().endsWith('.md')),
+    [files],
+  );
+
+  /**
+   * Whether the dropped batch is a mixed type set (some `.md` + some non-md).
+   * Surfaces the §4.1 fall-back banner.
+   */
+  const isMixedBatch = useMemo(
+    () =>
+      files.length > 1 &&
+      files.some((f) => f.file.name.toLowerCase().endsWith('.md')) &&
+      files.some((f) => !f.file.name.toLowerCase().endsWith('.md')),
+    [files],
+  );
+
+  const [mdPhase, setMdPhase] = useState<MarkdownBatchPhase>('idle');
+  const [mdAnalyses, setMdAnalyses] = useState<MarkdownIngestAnalysis[]>(
+    EMPTY_ANALYSES,
+  );
+  const [mdOverrides, setMdOverrides] = useState<MarkdownPerFileOverride[]>(
+    EMPTY_OVERRIDES,
+  );
+  const [mdAutoSupersede, setMdAutoSupersede] = useState<boolean>(false);
+  const [mdResult, setMdResult] = useState<MarkdownBatchResult | null>(null);
+
+  const safeMdAnalyses = useMemo(
+    () => mdAnalyses ?? EMPTY_ANALYSES,
+    [mdAnalyses],
+  );
+  const safeMdOverrides = useMemo(
+    () => mdOverrides ?? EMPTY_OVERRIDES,
+    [mdOverrides],
+  );
+
+  /** Reset markdown-batch substate. */
+  const resetMarkdownBatch = useCallback(() => {
+    setMdPhase('idle');
+    setMdAnalyses(EMPTY_ANALYSES);
+    setMdOverrides(EMPTY_OVERRIDES);
+    setMdAutoSupersede(false);
+    setMdResult(null);
+  }, []);
+
+  const analyseMutation = useMutation({
+    mutationFn: async (rawFiles: File[]) => analyseMarkdownBatch(rawFiles),
+    onMutate: () => {
+      setMdPhase('analysing');
+    },
+    onSuccess: (data) => {
+      setMdAnalyses(data.analysis);
+      setMdPhase('reviewing');
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof Error ? err.message : 'Markdown analysis failed';
+      toast.error(message);
+      setMdPhase('idle');
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async (args: {
+      rawFiles: File[];
+      options: {
+        per_file_overrides?: MarkdownPerFileOverrideWire[];
+        batch?: { auto_supersede?: boolean };
+      };
+    }) =>
+      importMarkdownBatch({ files: args.rawFiles, options: args.options }),
+    onMutate: () => {
+      setMdPhase('importing');
+    },
+    onSuccess: (data) => {
+      setMdResult({
+        pipeline_run_id: data.pipeline_run_id,
+        results_summary: data.results_summary,
+      });
+      setMdPhase('done');
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof Error ? err.message : 'Markdown import failed';
+      toast.error(message);
+      setMdPhase('reviewing');
+    },
+  });
+
+  // Destructure mutate functions to keep useCallback dep arrays referentially
+  // stable (TanStack Query mutation objects are NOT stable per render — see
+  // ESLint rule @tanstack/query/no-unstable-deps).
+  const { mutate: analyseMutate, isPending: analyseIsPending } =
+    analyseMutation;
+  const { mutate: importMutate, isPending: importIsPending } = importMutation;
+
+  const handleAnalyseMarkdownBatch = useCallback(() => {
+    const rawFiles = files.map((f) => f.file);
+    analyseMutate(rawFiles);
+  }, [files, analyseMutate]);
+
+  const handleImportMarkdownBatch = useCallback(() => {
+    const rawFiles = files.map((f) => f.file);
+    const perFileOverrides: MarkdownPerFileOverrideWire[] = safeMdOverrides
+      .map((o) => {
+        const wire: MarkdownPerFileOverrideWire = { filename: o.filename };
+        if (o.excluded !== undefined) wire.excluded = o.excluded;
+        if (o.draftOrFinal) wire.draft_or_final = o.draftOrFinal;
+        // Editors silently lose `skip_dedup` per spec §8.2 — but we forward
+        // it here when set; the orchestrator drops it for non-admin callers.
+        if (o.skipDedup !== undefined) wire.skip_dedup = o.skipDedup;
+        return wire;
+      })
+      .filter(
+        (o) =>
+          o.excluded !== undefined ||
+          o.draft_or_final !== undefined ||
+          o.skip_dedup !== undefined,
+      );
+
+    importMutate({
+      rawFiles,
+      options: {
+        per_file_overrides:
+          perFileOverrides.length > 0 ? perFileOverrides : undefined,
+        batch: mdAutoSupersede ? { auto_supersede: true } : undefined,
+      },
+    });
+  }, [files, safeMdOverrides, mdAutoSupersede, importMutate]);
+
+  const handleMarkdownImportAnother = useCallback(() => {
+    resetMarkdownBatch();
+    reset();
+  }, [resetMarkdownBatch, reset]);
+
+  const handleMarkdownDone = useCallback(() => {
+    resetMarkdownBatch();
+    reset();
+  }, [resetMarkdownBatch, reset]);
 
   // ---------------------------------------------------------------------------
   // Q&A batch creation state
@@ -457,6 +647,114 @@ export function UploadTabContent({
   }
 
   // ---------------------------------------------------------------------------
+  // Render: Markdown-batch sub-mode (spec §6.1) — done state
+  // ---------------------------------------------------------------------------
+
+  if (mdPhase === 'done' && mdResult) {
+    return (
+      <div
+        className="mx-auto max-w-3xl space-y-4"
+        data-testid="markdown-batch-done"
+      >
+        <ImportSummaryCard
+          pipelineRunId={mdResult.pipeline_run_id}
+          resultsSummary={mdResult.results_summary}
+          onImportAnother={handleMarkdownImportAnother}
+          onDone={handleMarkdownDone}
+        />
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Markdown-batch sub-mode — analysing / reviewing / importing
+  // ---------------------------------------------------------------------------
+
+  if (
+    isMarkdownBatch &&
+    (mdPhase === 'analysing' || mdPhase === 'reviewing' || mdPhase === 'importing')
+  ) {
+    return (
+      <div
+        className="mx-auto max-w-4xl space-y-4"
+        data-testid="markdown-batch-active"
+      >
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <Upload className="size-5" aria-hidden="true" />
+            Markdown batch — {files.length} file
+            {files.length === 1 ? '' : 's'}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pre-flight analysis runs front-matter, encoding, and dedup checks
+            before the import pipeline.
+          </p>
+        </div>
+
+        {mdPhase === 'analysing' && (
+          <div
+            className="flex items-center gap-2 rounded-md border border-border bg-card p-6 text-sm text-muted-foreground"
+            data-testid="markdown-batch-analysing"
+          >
+            <Loader2
+              className="size-4 animate-spin text-primary"
+              aria-hidden="true"
+            />
+            Analysing {files.length} file{files.length === 1 ? '' : 's'}
+            &hellip;
+          </div>
+        )}
+
+        {mdPhase === 'reviewing' && (
+          <>
+            <MarkdownAnalysisTable
+              analyses={safeMdAnalyses}
+              overrides={safeMdOverrides}
+              autoSupersede={mdAutoSupersede}
+              role={userRole}
+              onChangeOverrides={setMdOverrides}
+              onChangeAutoSupersede={setMdAutoSupersede}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  resetMarkdownBatch();
+                  reset();
+                }}
+                data-testid="markdown-batch-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleImportMarkdownBatch}
+                data-testid="markdown-batch-import"
+                disabled={importIsPending}
+              >
+                Import
+              </Button>
+            </div>
+          </>
+        )}
+
+        {mdPhase === 'importing' && (
+          <div
+            className="flex items-center gap-2 rounded-md border border-border bg-card p-6 text-sm text-muted-foreground"
+            data-testid="markdown-batch-importing"
+          >
+            <Loader2
+              className="size-4 animate-spin text-primary"
+              aria-hidden="true"
+            />
+            Importing {files.length} file{files.length === 1 ? '' : 's'} &mdash;
+            this typically takes 80&ndash;100 seconds.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Render: Upload phase (select + uploading)
   // ---------------------------------------------------------------------------
 
@@ -478,6 +776,49 @@ export function UploadTabContent({
         onFilesAdded={handleFilesAdded}
         onFileRemoved={handleFileRemoved}
       />
+
+      {/* Mixed-batch fallback banner (spec §4.1 lines 344-347). */}
+      {isMixedBatch && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground"
+          data-testid="markdown-batch-mixed-banner"
+        >
+          <Info
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span>
+            Tip: drop only .md files together to use the markdown batch
+            review surface.
+          </span>
+        </div>
+      )}
+
+      {/* Markdown-batch idle CTA — pre-analyse. */}
+      {isMarkdownBatch && mdPhase === 'idle' && (
+        <div
+          className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm"
+          data-testid="markdown-batch-idle-banner"
+        >
+          <div>
+            <p className="font-medium text-foreground">
+              Markdown batch detected ({files.length} files)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Run pre-flight analysis to review front-matter, encoding, and
+              dedup verdicts before importing.
+            </p>
+          </div>
+          <Button
+            onClick={handleAnalyseMarkdownBatch}
+            disabled={analyseIsPending}
+            data-testid="markdown-batch-analyse-button"
+          >
+            Analyse files
+          </Button>
+        </div>
+      )}
 
       {/* Per-file pipeline progress */}
       {files.some((f) => f.status !== 'pending') && (

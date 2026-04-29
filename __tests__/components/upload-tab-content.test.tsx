@@ -62,6 +62,45 @@ vi.mock('@/components/qa/qa-preview-list', () => ({
   QAPreviewList: () => <div data-testid="qa-preview-list">QAPreviewList</div>,
 }));
 
+// Stub markdown-batch surface children — we test their rendering separately
+vi.mock('@/components/ingest/markdown-analysis-table', () => ({
+  MarkdownAnalysisTable: ({
+    analyses,
+  }: {
+    analyses: unknown[];
+  }) => (
+    <div data-testid="markdown-analysis-table">
+      AnalysisTable ({analyses.length} rows)
+    </div>
+  ),
+}));
+
+vi.mock('@/components/ingest/import-summary-card', () => ({
+  ImportSummaryCard: ({
+    pipelineRunId,
+  }: {
+    pipelineRunId: string;
+  }) => (
+    <div data-testid="import-summary-card">SummaryCard ({pipelineRunId})</div>
+  ),
+}));
+
+// Stub the markdown-batch fetchers so tests can drive analyse + import.
+const mockAnalyseMarkdownBatch = vi.fn();
+const mockImportMarkdownBatch = vi.fn();
+vi.mock('@/lib/query/fetchers', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/query/fetchers')
+  >('@/lib/query/fetchers');
+  return {
+    ...actual,
+    analyseMarkdownBatch: (...args: unknown[]) =>
+      mockAnalyseMarkdownBatch(...args),
+    importMarkdownBatch: (...args: unknown[]) =>
+      mockImportMarkdownBatch(...args),
+  };
+});
+
 vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: ({ label }: { label: string }) => (
     <button data-testid="claude-prompt-button">{label}</button>
@@ -150,10 +189,37 @@ vi.mock('@/hooks/use-file-upload-pipeline', () => ({
 
 import { UploadTabContent } from '@/components/create-content/upload-tab-content';
 import { toast } from 'sonner';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Render UploadTabContent inside a QueryClientProvider so that the
+ * markdown-batch surface's `useMutation` hooks have a client. We create
+ * a fresh wrapper per render to keep cache state isolated.
+ */
+function renderTab(props: Parameters<typeof UploadTabContent>[0] = {}) {
+  const { Wrapper } = createQueryWrapper();
+  return render(<UploadTabContent {...props} />, { wrapper: Wrapper });
+}
+
+/** Build a fake UploadFile entry for the pipeline mock. */
+function makeFile(name: string): {
+  id: string;
+  file: File;
+  status: 'pending' | 'uploading' | 'extracting' | 'done' | 'error';
+  progress: number;
+  resultId?: string;
+} {
+  return {
+    id: name,
+    file: new File(['hello'], name, { type: 'text/plain' }),
+    status: 'pending',
+    progress: 0,
+  };
+}
 
 function resetHookReturn() {
   hookReturn.phase = 'select';
@@ -188,14 +254,14 @@ describe('UploadTabContent', () => {
 
   describe('select phase', () => {
     it('renders the FileUpload dropzone in the initial select phase', () => {
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(screen.getByTestId('file-upload')).toBeInTheDocument();
       expect(screen.getByText('Upload Documents')).toBeInTheDocument();
     });
 
     it('renders the Upload button', () => {
-      render(<UploadTabContent />);
+      renderTab();
 
       const uploadBtn = screen.getByRole('button', { name: /upload/i });
       expect(uploadBtn).toBeInTheDocument();
@@ -204,7 +270,7 @@ describe('UploadTabContent', () => {
     it('upload button is disabled when no pending files', () => {
       hookReturn.pendingCount = 0;
 
-      render(<UploadTabContent />);
+      renderTab();
 
       const uploadBtn = screen.getByRole('button', { name: /upload/i });
       expect(uploadBtn).toBeDisabled();
@@ -213,7 +279,7 @@ describe('UploadTabContent', () => {
     it('upload button is enabled when files are pending', () => {
       hookReturn.pendingCount = 2;
 
-      render(<UploadTabContent />);
+      renderTab();
 
       const uploadBtn = screen.getByRole('button', { name: /upload/i });
       expect(uploadBtn).not.toBeDisabled();
@@ -222,7 +288,7 @@ describe('UploadTabContent', () => {
     it('shows file count in upload button when pending files exist', () => {
       hookReturn.pendingCount = 3;
 
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(screen.getByText(/Upload \(3\)/)).toBeInTheDocument();
     });
@@ -235,7 +301,7 @@ describe('UploadTabContent', () => {
   describe('cross-method links', () => {
     it('renders cross-method links when onSwitchTab is provided', () => {
       const onSwitchTab = vi.fn();
-      render(<UploadTabContent onSwitchTab={onSwitchTab} />);
+      renderTab({ onSwitchTab });
 
       expect(screen.getByText('import from a URL')).toBeInTheDocument();
       expect(screen.getByText('write it manually')).toBeInTheDocument();
@@ -243,7 +309,7 @@ describe('UploadTabContent', () => {
 
     it('calls onSwitchTab with "url" when URL link is clicked', () => {
       const onSwitchTab = vi.fn();
-      render(<UploadTabContent onSwitchTab={onSwitchTab} />);
+      renderTab({ onSwitchTab });
 
       fireEvent.click(screen.getByText('import from a URL'));
       expect(onSwitchTab).toHaveBeenCalledWith('url');
@@ -251,14 +317,14 @@ describe('UploadTabContent', () => {
 
     it('calls onSwitchTab with "write" when write link is clicked', () => {
       const onSwitchTab = vi.fn();
-      render(<UploadTabContent onSwitchTab={onSwitchTab} />);
+      renderTab({ onSwitchTab });
 
       fireEvent.click(screen.getByText('write it manually'));
       expect(onSwitchTab).toHaveBeenCalledWith('write');
     });
 
     it('does not render cross-method links when onSwitchTab is not provided', () => {
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(screen.queryByText('import from a URL')).not.toBeInTheDocument();
       expect(screen.queryByText('write it manually')).not.toBeInTheDocument();
@@ -273,7 +339,7 @@ describe('UploadTabContent', () => {
     it('shows Processing text when uploading', () => {
       hookReturn.isUploading = true;
 
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(screen.getByText(/Processing/)).toBeInTheDocument();
     });
@@ -294,7 +360,7 @@ describe('UploadTabContent', () => {
         skipReview: false,
       });
 
-      render(<UploadTabContent />);
+      renderTab();
 
       const uploadBtn = screen.getByRole('button', { name: /upload/i });
       await act(async () => {
@@ -314,7 +380,7 @@ describe('UploadTabContent', () => {
         skipReview: true,
       });
 
-      render(<UploadTabContent />);
+      renderTab();
 
       const uploadBtn = screen.getByRole('button', { name: /upload/i });
       await act(async () => {
@@ -337,7 +403,7 @@ describe('UploadTabContent', () => {
         skipReview: true,
       });
 
-      render(<UploadTabContent />);
+      renderTab();
 
       const uploadBtn = screen.getByRole('button', { name: /upload/i });
       await act(async () => {
@@ -356,7 +422,7 @@ describe('UploadTabContent', () => {
         skipReview: false,
       });
 
-      render(<UploadTabContent />);
+      renderTab();
 
       const uploadBtn = screen.getByRole('button', { name: /upload/i });
       await act(async () => {
@@ -385,7 +451,7 @@ describe('UploadTabContent', () => {
         },
       ];
 
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(screen.getByTestId('upload-review-step')).toBeInTheDocument();
       expect(
@@ -405,7 +471,7 @@ describe('UploadTabContent', () => {
         },
       ];
 
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(screen.queryByTestId('file-upload')).not.toBeInTheDocument();
     });
@@ -422,7 +488,7 @@ describe('UploadTabContent', () => {
         },
       ];
 
-      render(<UploadTabContent />);
+      renderTab();
 
       fireEvent.click(screen.getByTestId('mock-dismiss-review'));
 
@@ -439,7 +505,7 @@ describe('UploadTabContent', () => {
       hookReturn.hasResults = true;
       hookReturn.isUploading = false;
 
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(
         screen.getByRole('button', { name: /clear/i }),
@@ -449,7 +515,7 @@ describe('UploadTabContent', () => {
     it('hides Clear button when no results', () => {
       hookReturn.hasResults = false;
 
-      render(<UploadTabContent />);
+      renderTab();
 
       expect(
         screen.queryByRole('button', { name: /clear/i }),
@@ -460,7 +526,7 @@ describe('UploadTabContent', () => {
       hookReturn.hasResults = true;
       hookReturn.isUploading = false;
 
-      render(<UploadTabContent />);
+      renderTab();
 
       fireEvent.click(screen.getByRole('button', { name: /clear/i }));
       expect(mockReset).toHaveBeenCalled();
@@ -472,11 +538,111 @@ describe('UploadTabContent', () => {
   // =========================================================================
 
   it('renders Claude suggestion button', () => {
-    render(<UploadTabContent />);
+    renderTab();
 
     expect(screen.getByTestId('claude-prompt-button')).toBeInTheDocument();
     expect(screen.getByTestId('claude-prompt-button')).toHaveTextContent(
       'Open in Claude',
     );
+  });
+
+  // =========================================================================
+  // EP2 §1.11 Phase 2 — Markdown-batch sub-mode
+  // =========================================================================
+
+  describe('markdown-batch sub-mode', () => {
+    it('does NOT enter markdown-batch mode by default with no files', () => {
+      renderTab();
+
+      expect(
+        screen.queryByTestId('markdown-batch-idle-banner'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('markdown-batch-mixed-banner'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders the markdown-batch idle banner on .md-only multi-file drop', () => {
+      hookReturn.files = [makeFile('foo.md'), makeFile('bar.md')];
+
+      renderTab();
+
+      expect(
+        screen.getByTestId('markdown-batch-idle-banner'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('markdown-batch-analyse-button'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('markdown-batch-mixed-banner'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders mixed-batch fallback banner when types are mixed', () => {
+      hookReturn.files = [makeFile('foo.md'), makeFile('bar.pdf')];
+
+      renderTab();
+
+      expect(
+        screen.getByTestId('markdown-batch-mixed-banner'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('markdown-batch-idle-banner'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does NOT enter markdown-batch mode for a single .md file', () => {
+      hookReturn.files = [makeFile('only.md')];
+
+      renderTab();
+
+      expect(
+        screen.queryByTestId('markdown-batch-idle-banner'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('markdown-batch-mixed-banner'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('calls analyseMarkdownBatch on Analyse-files click', async () => {
+      hookReturn.files = [makeFile('foo.md'), makeFile('bar.md')];
+
+      // Resolve to a one-row analysis so the surface transitions to reviewing
+      mockAnalyseMarkdownBatch.mockResolvedValue({
+        analysis: [
+          {
+            filename: 'foo.md',
+            sizeBytes: 12,
+            encodingOk: true,
+            empty: false,
+            frontMatter: { present: false, parsedOk: true, fields: {} },
+            title: 'Foo',
+            titleProvenance: 'filename',
+            contentHash: 'abc',
+            hasConflictMarkers: false,
+            diffMarkers: {
+              gitConflictCount: 0,
+              plusMinusLineCount: 0,
+              warning: false,
+            },
+            draftOrFinalHeuristic: 'draft',
+            dedupVerdict: { isDuplicate: false },
+            sourceFileMatch: null,
+          },
+        ],
+      });
+
+      renderTab();
+
+      const btn = screen.getByTestId('markdown-batch-analyse-button');
+      await act(async () => {
+        fireEvent.click(btn);
+      });
+
+      expect(mockAnalyseMarkdownBatch).toHaveBeenCalledTimes(1);
+      const callArg = mockAnalyseMarkdownBatch.mock.calls[0][0] as File[];
+      expect(callArg).toHaveLength(2);
+      expect(callArg[0].name).toBe('foo.md');
+    });
   });
 });

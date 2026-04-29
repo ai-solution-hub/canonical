@@ -304,6 +304,15 @@ export const queryKeys = {
   // Taxonomy sync (drift-detection banner, P0-TX)
   taxonomySyncStatus: ['taxonomy-sync-status'] as const,
 
+  // Markdown-batch ingest (EP2 §1.11) — analyse-phase result is cached by a
+  // signature of the dropped filenames so re-drops of the same set hit cache.
+  // Mutations (analyse + import) are fired via useMutation and don't need keys.
+  markdownIngest: {
+    all: ['markdown-ingest'] as const,
+    analyse: (filenamesKey: string) =>
+      ['markdown-ingest', 'analyse', filenamesKey] as const,
+  },
+
   // Admin monitoring (pipeline_runs dashboard tile, S152B WP4)
   admin: {
     all: ['admin'] as const,

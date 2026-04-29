@@ -114,6 +114,114 @@ export async function updateNotificationPreferences(
   return result.preferences;
 }
 
+// ---------------------------------------------------------------------------
+// EP2 §1.11 markdown-batch ingest fetchers
+// ---------------------------------------------------------------------------
+//
+// Both endpoints POST multipart form-data to /api/ingest/markdown — the route
+// rejects JSON bodies (it calls req.formData()). Files are sent as `files[]`
+// and the import-phase options blob is JSON-stringified into the `options`
+// field per spec §5.2.
+//
+// Wire shape uses snake_case (see lib/ingest/markdown-batch-schema.ts) — the
+// route maps to camelCase before calling the orchestrator.
+
+import type {
+  MarkdownIngestAnalysis,
+  MarkdownBatchResultsSummary,
+} from '@/types/ingest';
+
+/** Per-file override on the wire (snake_case mirror of MarkdownPerFileOverride). */
+export interface MarkdownPerFileOverrideWire {
+  filename: string;
+  excluded?: boolean;
+  draft_or_final?: 'draft' | 'final';
+  /** Admin-only — silently ignored for editors per spec §8.2. */
+  skip_dedup?: boolean;
+}
+
+/** Batch-wide options on the wire (mirror of MarkdownBatchOptions.batch). */
+export interface MarkdownBatchWireOptions {
+  per_file_overrides?: MarkdownPerFileOverrideWire[];
+  batch?: {
+    tag?: string | null;
+    author?: string | null;
+    /** Admin-only — silently ignored for editors per spec §5.2. */
+    auto_supersede?: boolean;
+  };
+}
+
+/** Throw an ApiError parsed from a non-OK fetch response. */
+async function throwApiError(res: Response): Promise<never> {
+  // Body may be empty / non-JSON for some error responses; the catch is the
+  // intentional fall-back path (NOT a silent swallow — control immediately
+  // re-throws with a synthetic ApiError below).
+  const body = await res.json().catch((_err) => ({}));
+  const data = body as Record<string, unknown>;
+  const message =
+    (data.error as string) ??
+    (data.message as string) ??
+    `Request failed: ${res.status}`;
+  const code = data.code as string | undefined;
+  throw new ApiError(message, res.status, code, data);
+}
+
+/**
+ * Analyse-phase fetcher — POST multipart to /api/ingest/markdown with
+ * phase='analyse'. Returns per-file MarkdownIngestAnalysis records.
+ *
+ * Read-only: orchestrator does NOT open a pipeline_runs row.
+ */
+export async function analyseMarkdownBatch(
+  files: File[],
+): Promise<{ analysis: MarkdownIngestAnalysis[] }> {
+  const formData = new FormData();
+  formData.append('phase', 'analyse');
+  for (const file of files) {
+    formData.append('files[]', file);
+  }
+  const res = await fetch('/api/ingest/markdown', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    return throwApiError(res);
+  }
+  return res.json() as Promise<{ analysis: MarkdownIngestAnalysis[] }>;
+}
+
+/**
+ * Import-phase fetcher — POST multipart to /api/ingest/markdown with
+ * phase='import' + options JSON-stringified. Blocks for ~80-100s while the
+ * orchestrator runs the per-file pipeline (spec §4.4 / §7.2 Pattern E).
+ */
+export async function importMarkdownBatch(args: {
+  files: File[];
+  options: MarkdownBatchWireOptions;
+}): Promise<{
+  pipeline_run_id: string;
+  results_summary: MarkdownBatchResultsSummary;
+}> {
+  const { files, options } = args;
+  const formData = new FormData();
+  formData.append('phase', 'import');
+  for (const file of files) {
+    formData.append('files[]', file);
+  }
+  formData.append('options', JSON.stringify(options));
+  const res = await fetch('/api/ingest/markdown', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    return throwApiError(res);
+  }
+  return res.json() as Promise<{
+    pipeline_run_id: string;
+    results_summary: MarkdownBatchResultsSummary;
+  }>;
+}
+
 export async function mutationFetchJson<T>(
   url: string,
   body: unknown,
