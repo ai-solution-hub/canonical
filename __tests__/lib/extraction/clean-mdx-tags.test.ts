@@ -37,7 +37,7 @@ Body.`;
     expect(out).toContain('Body.');
   });
 
-  it('strips top-level import and export statements', () => {
+  it('preserves top-level import and export statements (Python parity)', () => {
     const input = `import Foo from './foo';
 export const bar = 1;
 
@@ -47,8 +47,8 @@ Body.`;
 
     const out = cleanMdxTags(input);
 
-    expect(out).not.toContain('import Foo');
-    expect(out).not.toContain('export const bar');
+    expect(out).toContain("import Foo from './foo';");
+    expect(out).toContain('export const bar = 1;');
     expect(out).toContain('# Real title');
     expect(out).toContain('Body.');
   });
@@ -89,7 +89,7 @@ Body.`;
     expect(out).toContain('Body.');
   });
 
-  it('handles mixed self-closing, paired, and import/export in one document', () => {
+  it('preserves import/export alongside stripping MDX components in one document', () => {
     const input = `import { Card } from './card';
 export const meta = { title: 'x' };
 
@@ -106,8 +106,10 @@ Final.`;
 
     const out = cleanMdxTags(input);
 
-    expect(out).not.toContain('import {');
-    expect(out).not.toContain('export const meta');
+    // Python parity — import/export passes through untouched.
+    expect(out).toContain("import { Card } from './card';");
+    expect(out).toContain("export const meta = { title: 'x' };");
+    // PascalCase MDX tags stripped.
     expect(out).not.toContain('<Steps>');
     expect(out).not.toContain('</Steps>');
     expect(out).not.toContain('<Tip');

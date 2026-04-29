@@ -57,6 +57,17 @@ describe('extractMarkdownTitle', () => {
     expect(result.provenance).toBe('bold-after-article-n');
   });
 
+  it('extracts bold title even when trailing text follows on the bold line (Python parity, no end anchor)', () => {
+    const result = extractMarkdownTitle({
+      frontMatter: {},
+      body: '# Article 5\n\n**The Real Title** — by Alice\n\nBody.',
+      filename: 'article-5.md',
+    });
+
+    expect(result.title).toBe('The Real Title');
+    expect(result.provenance).toBe('bold-after-article-n');
+  });
+
   it('skips H1s that match generic "Article N" and continues to filename fallback', () => {
     const result = extractMarkdownTitle({
       frontMatter: {},
@@ -99,5 +110,16 @@ describe('extractMarkdownTitle', () => {
 
     expect(result.title).toBe('Real H1');
     expect(result.provenance).toBe('h1');
+  });
+
+  it('treats null frontMatter as falling through to the body / filename chain', () => {
+    const result = extractMarkdownTitle({
+      frontMatter: null,
+      body: 'No heading at all.',
+      filename: 'orphan-doc.md',
+    });
+
+    expect(result.title).toBe('Orphan Doc');
+    expect(result.provenance).toBe('filename');
   });
 });

@@ -4,13 +4,21 @@
  * Supports YAML (`---` delimited) and TOML (`+++` delimited) front-matter at
  * the start of the file. Hand-rolled — covers scalars (string, number,
  * boolean), simple sequences (`- item` lines), and `key: value` / `key = value`
- * pairs. Malformed front-matter is swallowed (returns empty object + best-effort
- * body) rather than thrown — caller decides whether to flag.
+ * pairs.
+ *
+ * Return contract:
+ *   - No front-matter block: `{ frontMatter: null, body: input }`
+ *   - Well-formed FM:        `{ frontMatter: {...}, body: <after-closing-delim> }`
+ *   - Malformed YAML/TOML:   `{ frontMatter: null, body: <best-effort>, error: <msg> }`
+ *
+ * Malformed front-matter is captured (not thrown) so callers can decide whether
+ * to surface a warning to the user.
  */
 
 export interface ParsedMarkdownFrontMatter {
-  frontMatter: Record<string, unknown>;
+  frontMatter: Record<string, unknown> | null;
   body: string;
+  error?: string;
 }
 
 const BOM = '﻿';
@@ -23,16 +31,30 @@ export function parseMarkdownFrontMatter(
   const yamlMatch = matchDelimited(stripped, '---');
   if (yamlMatch) {
     const parsed = safeParseYaml(yamlMatch.frontMatterRaw);
-    return { frontMatter: parsed, body: yamlMatch.body };
+    if (parsed.error !== undefined) {
+      return {
+        frontMatter: null,
+        body: yamlMatch.body,
+        error: parsed.error,
+      };
+    }
+    return { frontMatter: parsed.value, body: yamlMatch.body };
   }
 
   const tomlMatch = matchDelimited(stripped, '+++');
   if (tomlMatch) {
     const parsed = safeParseToml(tomlMatch.frontMatterRaw);
-    return { frontMatter: parsed, body: tomlMatch.body };
+    if (parsed.error !== undefined) {
+      return {
+        frontMatter: null,
+        body: tomlMatch.body,
+        error: parsed.error,
+      };
+    }
+    return { frontMatter: parsed.value, body: tomlMatch.body };
   }
 
-  return { frontMatter: {}, body: input };
+  return { frontMatter: null, body: input };
 }
 
 interface DelimitedMatch {
@@ -64,19 +86,26 @@ function matchDelimited(
   return null;
 }
 
-function safeParseYaml(raw: string): Record<string, unknown> {
+interface ParseResult {
+  value: Record<string, unknown>;
+  error?: string;
+}
+
+function safeParseYaml(raw: string): ParseResult {
   try {
-    return parseYamlSimple(raw);
-  } catch {
-    return {};
+    return { value: parseYamlSimple(raw) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'malformed yaml';
+    return { value: {}, error: message };
   }
 }
 
-function safeParseToml(raw: string): Record<string, unknown> {
+function safeParseToml(raw: string): ParseResult {
   try {
-    return parseTomlSimple(raw);
-  } catch {
-    return {};
+    return { value: parseTomlSimple(raw) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'malformed toml';
+    return { value: {}, error: message };
   }
 }
 

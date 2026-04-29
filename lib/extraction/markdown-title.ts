@@ -5,6 +5,10 @@
  *   3. First H1 (`^# ...`) within the first 20 body lines, skipping bare
  *      `Article N` headings
  *   4. Filename without extension, hyphens/underscores → spaces, title-cased
+ *
+ * `frontMatter` may be `null` when the input had no FM block or the FM was
+ * malformed — the priority chain falls through to bold-after-Article-N / H1 /
+ * filename in that case.
  */
 
 export type TitleProvenance =
@@ -14,7 +18,7 @@ export type TitleProvenance =
   | 'filename';
 
 export interface ExtractMarkdownTitleInput {
-  frontMatter: Record<string, unknown>;
+  frontMatter: Record<string, unknown> | null;
   body: string;
   filename: string;
 }
@@ -26,14 +30,16 @@ export interface ExtractedMarkdownTitle {
 
 const ARTICLE_N_HEADING_RE = /^#\s+Article\s+\d+\s*$/;
 const H1_RE = /^#\s+(.+)$/;
-const BOLD_LINE_RE = /^\*\*(.+?)\*\*\s*$/;
+// Python parity: `re.match(r"^\*\*(.+?)\*\*", line.strip())` — no end anchor,
+// so trailing text on the bold line is permitted.
+const BOLD_LINE_RE = /^\*\*(.+?)\*\*/;
 
 export function extractMarkdownTitle(
   input: ExtractMarkdownTitleInput,
 ): ExtractedMarkdownTitle {
   const { frontMatter, body, filename } = input;
 
-  const fmTitle = frontMatter.title;
+  const fmTitle = frontMatter?.title;
   if (typeof fmTitle === 'string' && fmTitle.trim() !== '') {
     return { title: fmTitle.trim(), provenance: 'front-matter' };
   }
