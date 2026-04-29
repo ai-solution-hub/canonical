@@ -98,15 +98,8 @@ function loadT1Helpers(): T1Helpers {
 /** Service-account UUID for classifier identity (CLAUDE.md gotcha + G2). */
 const SERVICE_ACCOUNT_UUID = 'a0000000-0000-4000-8000-000000000001';
 
-/** Pipeline name written to `pipeline_runs.pipeline_name`. */
-const PIPELINE_NAME = 'markdown_ui_ingest';
-
-// Module-level immutable empty defaults (CLAUDE.md "Stable empty array
-// defaults"). Returned-shape arrays are computed per-call but we still avoid
-// repeated empty-literal allocations in the no-op paths.
-const EMPTY_CREATED: readonly string[] = [];
-const EMPTY_SKIPPED: readonly string[] = [];
-const EMPTY_FAILED: readonly { filename: string; reason: string }[] = [];
+/** Pipeline name written to `pipeline_runs.pipeline_name` (spec §5.2 line 559). */
+const PIPELINE_NAME = 'upload_markdown_batch';
 
 // ────────────────────────────────────────────────────────────────────────
 // Public types
@@ -346,7 +339,7 @@ async function analyseFile(
       .maybeSingle();
     if (result.error) {
       logBestEffortWarn(
-        'markdown_ui_ingest.analyse.source_file_lookup',
+        'upload_markdown_batch.analyse.source_file_lookup',
         `source_file lookup failed for ${filename}`,
         { filename, error: result.error.message },
       );
@@ -358,7 +351,7 @@ async function analyseFile(
     }
   } catch (err) {
     logBestEffortWarn(
-      'markdown_ui_ingest.analyse.source_file_lookup',
+      'upload_markdown_batch.analyse.source_file_lookup',
       `source_file lookup threw for ${filename}`,
       { filename, error: err instanceof Error ? err.message : String(err) },
     );
@@ -478,7 +471,7 @@ async function runImportPhase(
       // Best-effort breadcrumb so a per-file failure surfaces alongside the
       // summary Sentry alert below.
       logBestEffortWarn(
-        'markdown_ui_ingest.import.file_failed',
+        'upload_markdown_batch.import.file_failed',
         `Markdown import failed for ${file.filename}`,
         { filename: file.filename, reason },
       );
@@ -530,9 +523,9 @@ async function runImportPhase(
   return {
     pipeline_run_id: pipelineRunId,
     results_summary: {
-      created: created.length === 0 ? [...EMPTY_CREATED] : created,
-      skipped: skipped.length === 0 ? [...EMPTY_SKIPPED] : skipped,
-      failed: failed.length === 0 ? [...EMPTY_FAILED] : failed,
+      created,
+      skipped,
+      failed,
     },
   };
 }
@@ -621,7 +614,7 @@ async function importOneFile(
   const insertMetadata: { [k: string]: Json } = {
     original_filename: file.filename,
     file_size: file.sizeBytes ?? Buffer.byteLength(file.content, 'utf8'),
-    ingestion_source: 'markdown_ui_ingest',
+    ingestion_source: 'upload',
   };
   if (suspected_duplicate_of) {
     insertMetadata.suspected_duplicate_of = suspected_duplicate_of;
@@ -648,7 +641,7 @@ async function importOneFile(
       .insert(insertPayload)
       .select('id, title')
       .single(),
-    'markdown_ui_ingest.content_items.insert',
+    'upload_markdown_batch.content_items.insert',
   );
 
   // Classification (G1 + G2). Reads the row back from DB; updates in place.
@@ -669,13 +662,13 @@ async function importOneFile(
         .update({ embedding: JSON.stringify(embedding) })
         .eq('id', inserted.id)
         .select('id'),
-      'markdown_ui_ingest.content_items.embedding_update',
+      'upload_markdown_batch.content_items.embedding_update',
     );
   } catch (err) {
     // Embedding failure is non-fatal — the item still exists with no
     // semantic-search vector; backfill scripts can repair. Log + continue.
     logBestEffortWarn(
-      'markdown_ui_ingest.import.embedding_failed',
+      'upload_markdown_batch.import.embedding_failed',
       `Embedding generation failed for ${file.filename}`,
       {
         filename: file.filename,
@@ -691,7 +684,7 @@ async function importOneFile(
     await regenerateChunks(supabase, inserted.id, cleanedBody);
   } catch (err) {
     logBestEffortWarn(
-      'markdown_ui_ingest.import.chunking_failed',
+      'upload_markdown_batch.import.chunking_failed',
       `Chunk regeneration failed for ${file.filename}`,
       {
         filename: file.filename,
@@ -814,7 +807,7 @@ async function persistPipelineRun(
           error_message: errorMessage,
         })
         .select('id'),
-      'markdown_ui_ingest.pipeline_runs.insert',
+      'upload_markdown_batch.pipeline_runs.insert',
     );
   } catch (err) {
     const message =
@@ -825,7 +818,7 @@ async function persistPipelineRun(
           : String(err);
 
     logBestEffortWarn(
-      'markdown_ui_ingest.pipeline_runs.insert_failed',
+      'upload_markdown_batch.pipeline_runs.insert_failed',
       `Failed to insert pipeline_runs row for ${PIPELINE_NAME}`,
       { pipelineName: PIPELINE_NAME, status, errorMessage, dbError: message },
     );

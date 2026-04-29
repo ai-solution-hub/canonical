@@ -329,6 +329,10 @@ describe('orchestrateMarkdownBatch', () => {
       expect(payload.platform).toBe('manual');
       expect(payload.source_file).toBe('foo-final.md');
       expect(payload.dedup_status).toBe('clean');
+      // Spec §3.4.1 — metadata.ingestion_source recorded as 'upload'.
+      expect(
+        (payload.metadata as Record<string, unknown>).ingestion_source,
+      ).toBe('upload');
 
       // pipeline_runs row written with status='completed' + the pre-generated id.
       const pipelineRunInsertCall = insertCalls.find(
@@ -336,7 +340,7 @@ describe('orchestrateMarkdownBatch', () => {
           call[0] &&
           typeof call[0] === 'object' &&
           (call[0] as Record<string, unknown>).pipeline_name ===
-            'markdown_ui_ingest',
+            'upload_markdown_batch',
       );
       expect(pipelineRunInsertCall).toBeDefined();
       const runPayload = pipelineRunInsertCall![0] as Record<string, unknown>;
@@ -410,7 +414,7 @@ describe('orchestrateMarkdownBatch', () => {
           call[0] &&
           typeof call[0] === 'object' &&
           (call[0] as Record<string, unknown>).pipeline_name ===
-            'markdown_ui_ingest',
+            'upload_markdown_batch',
       )?.[0] as Record<string, unknown> | undefined;
       expect(runPayload).toBeDefined();
       expect(runPayload!.status).toBe('completed_with_errors');
@@ -451,7 +455,7 @@ describe('orchestrateMarkdownBatch', () => {
           call[0] &&
           typeof call[0] === 'object' &&
           (call[0] as Record<string, unknown>).pipeline_name ===
-            'markdown_ui_ingest',
+            'upload_markdown_batch',
       )?.[0] as Record<string, unknown> | undefined;
       expect(runPayload).toBeDefined();
       expect(runPayload!.status).toBe('failed');
@@ -548,7 +552,7 @@ describe('orchestrateMarkdownBatch', () => {
           call[0] &&
           typeof call[0] === 'object' &&
           (call[0] as Record<string, unknown>).pipeline_name ===
-            'markdown_ui_ingest',
+            'upload_markdown_batch',
       )?.[0] as Record<string, unknown> | undefined;
       expect(runPayload!.status).toBe('completed');
       expect(runPayload!.items_processed).toBe(0);
