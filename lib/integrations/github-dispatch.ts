@@ -10,7 +10,7 @@
  */
 
 const GITHUB_DISPATCH_URL =
-  'https://api.github.com/repos/liam-jons/knowledge-hub/dispatches';
+  'https://api.github.com/repos/ai-solution-hub/knowledge-hub/dispatches';
 
 interface DispatchResult {
   ok: boolean;
