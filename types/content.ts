@@ -55,6 +55,14 @@ export interface ContentListItem {
   next_review_date?: string | null;
   /** Recurring review cadence in days (null = one-off review) */
   review_cadence_days?: number | null;
+  /**
+   * Publication lifecycle state (DB column is `string` NOT NULL with DEFAULT
+   * `'published'`). One of `'draft' | 'in_review' | 'published' | 'archived'`
+   * — see `lib/governance/publication-transitions.ts` for the canonical
+   * union. Optional/nullable here to tolerate pre-normalisation rows in
+   * partial-projection list queries.
+   */
+  publication_status?: string | null;
 }
 
 /** Content list item with read state */

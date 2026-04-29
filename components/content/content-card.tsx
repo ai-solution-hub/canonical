@@ -19,6 +19,7 @@ import { ContentTypeIcon } from '@/components/shared/content-type-icon';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { GovernanceBadge } from '@/components/shared/governance-badge';
 import { ReviewCadenceBadge } from '@/components/shared/review-cadence-badge';
+import { PublicationStatusBadge } from '@/components/shared/publication-status-badge';
 import { QualityBadge } from '@/components/shared/quality-badge';
 import { calculateQualityScore } from '@/lib/quality/quality-score';
 import { AlertTriangle, Copy, FileText } from 'lucide-react';
@@ -301,6 +302,10 @@ function CardStatusRow({
         nextReviewDate={item.next_review_date}
         governanceStatus={item.governance_review_status}
       />
+      {/* §5.2 Phase 4A: Publication-status badge — auto-hides on
+          `'published'` per spec §15 R8 (clutter mitigation for the typical
+          case). Renders only for 'draft' | 'in_review' | 'archived'. */}
+      <PublicationStatusBadge status={item.publication_status} />
       {hasSecondaryBadges && (
         <span className="inline-flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
           {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}

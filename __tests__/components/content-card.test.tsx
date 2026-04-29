@@ -407,4 +407,26 @@ describe('ContentCard', () => {
     expect(layerBadge?.className).not.toContain('text-[10px]');
     expect(layerBadge?.className).toContain('text-xs');
   });
+
+  // ── §5.2 Phase 4A: PublicationStatusBadge mount ──
+
+  it("mounts PublicationStatusBadge for non-'published' statuses (e.g. 'draft')", () => {
+    render(
+      <ContentCard item={makeContentItem({ publication_status: 'draft' })} />,
+    );
+    expect(
+      screen.getByRole('img', { name: 'Publication status: Draft' }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render PublicationStatusBadge when status === 'published' (R8)", () => {
+    render(
+      <ContentCard
+        item={makeContentItem({ publication_status: 'published' })}
+      />,
+    );
+    expect(
+      screen.queryByRole('img', { name: /Publication status:/ }),
+    ).toBeNull();
+  });
 });
