@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import type { Json } from '@/supabase/types/database.types';
-import { logger } from '@/lib/logger';
 
 // ── Read-side schemas ──
 // Use .passthrough() to allow extra fields (future-proofing against schema additions)
@@ -98,7 +97,7 @@ export function parseJsonb<T>(schema: z.ZodType<T>, data: unknown): T | null {
   }
   const result = schema.safeParse(input);
   if (!result.success) {
-    logger.warn({ err: result.error.issues }, 'JSONB parse warning');
+    console.warn('JSONB parse warning:', result.error.issues);
     return null;
   }
   return result.data;

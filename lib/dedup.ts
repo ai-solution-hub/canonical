@@ -10,7 +10,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import { logger } from '@/lib/logger';
 
 /** Default cosine similarity threshold for near-duplicate detection */
 export const DEFAULT_NEAR_DUPLICATE_THRESHOLD = 0.92;
@@ -82,7 +81,7 @@ async function findExactDuplicates(
   });
 
   if (error || !results) {
-    logger.error({ err: error }, 'Exact dedup query failed');
+    console.error('Exact dedup query failed:', error);
     return [];
   }
 
@@ -111,7 +110,7 @@ async function findNearDuplicates(
   });
 
   if (error || !results) {
-    logger.error({ err: error }, 'Near-duplicate search failed');
+    console.error('Near-duplicate search failed:', error);
     return [];
   }
 
@@ -162,7 +161,7 @@ export async function checkForDuplicates(
     );
     allMatches.push(...exactMatches);
   } catch (err) {
-    logger.error({ err }, 'Exact dedup check failed');
+    console.error('Exact dedup check failed:', err);
   }
 
   // 2. Near-duplicate check (only if embedding available)
@@ -182,7 +181,7 @@ export async function checkForDuplicates(
         }
       }
     } catch (err) {
-      logger.error({ err }, 'Near-duplicate check failed');
+      console.error('Near-duplicate check failed:', err);
     }
   }
 

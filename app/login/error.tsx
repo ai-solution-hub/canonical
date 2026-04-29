@@ -6,7 +6,6 @@ import { KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { BRANDING } from '@/lib/client-config';
-import { logger } from '@/lib/logger';
 
 export default function LoginError({
   error,
@@ -16,7 +15,7 @@ export default function LoginError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Login error');
+    console.error('Login error:', error);
     Sentry.captureException(error);
   }, [error]);
 

@@ -347,10 +347,7 @@ function validateExtractedMetadata(
   const parsed = TenderExtractedMetadataSchema.safeParse(raw);
   if (!parsed.success) {
     logger.warn(
-      {
-        issues: parsed.error.issues,
-        op: 'extract-questions.metadata.validate',
-      },
+      { issues: parsed.error.issues, op: 'extract-questions.metadata.validate' },
       'Extracted metadata failed validation',
     );
     return {

@@ -2,7 +2,6 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
-import { logger } from '@/lib/logger';
 
 export default function GlobalError({
   error,
@@ -12,7 +11,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Global error');
+    console.error('Global error:', error);
     Sentry.captureException(error);
   }, [error]);
 

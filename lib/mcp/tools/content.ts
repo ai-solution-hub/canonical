@@ -49,7 +49,6 @@ import {
 } from './shared';
 import { slugifyDomain } from '@/lib/ai/classify';
 import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
-import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Shared helper: fetch content items by ID array and format as batch result.
@@ -433,9 +432,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             dedupExistingTitle = dedupCheck.existingTitle;
           }
         } catch (dedupErr) {
-          logger.error(
-            { err: dedupErr },
-            'MCP create_content_item dedup check failed',
+          console.error(
+            'MCP create_content_item dedup check failed:',
+            dedupErr,
           );
         }
 
@@ -449,7 +448,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             );
           } catch (error) {
             // Embedding failure is non-fatal — item is still created but invisible to search
-            logger.error({ err: error }, 'Failed to generate embeddings');
+            console.error('Failed to generate embeddings:', error);
           }
         }
 
@@ -605,7 +604,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               .eq('id', item.id);
           } catch (layerErr) {
             // Non-fatal — item is still usable without a layer
-            logger.error({ err: layerErr }, 'MCP layer inference failed');
+            console.error('MCP layer inference failed:', layerErr);
           }
         }
 
@@ -624,9 +623,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             warnings.push(`Classification failed: ${msg}`);
-            logger.error(
-              { err },
-              `MCP create_content_item classification failed for ${item.id}`,
+            console.error(
+              `MCP create_content_item classification failed for ${item.id}:`,
+              err,
             );
           }
 
@@ -641,9 +640,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             warnings.push(`Summary generation failed: ${msg}`);
-            logger.error(
-              { err },
-              `MCP create_content_item summary failed for ${item.id}`,
+            console.error(
+              `MCP create_content_item summary failed for ${item.id}:`,
+              err,
             );
           }
 
@@ -665,9 +664,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
             }
           } catch (chunkErr) {
-            logger.error(
-              { err: chunkErr },
-              `MCP create_content_item chunking failed for ${item.id}`,
+            console.error(
+              `MCP create_content_item chunking failed for ${item.id}:`,
+              chunkErr,
             );
             warnings.push('Content chunking failed');
           }
@@ -713,10 +712,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               guideSectionSuggestions = matches;
             }
           } catch (guideErr) {
-            logger.error(
-              { err: guideErr },
-              'MCP guide section suggestion failed',
-            );
+            console.error('MCP guide section suggestion failed:', guideErr);
             // Non-fatal — item is still usable without guide section suggestions
           }
         }
@@ -824,9 +820,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             result: { phase: 'handler_catch_all' } as Json,
           });
         } catch (auditErr) {
-          logger.error(
-            { err: auditErr },
-            'MCP create_content_item outer-catch pipeline_runs emission failed',
+          console.error(
+            'MCP create_content_item outer-catch pipeline_runs emission failed:',
+            auditErr,
           );
         }
         return {

@@ -17,7 +17,6 @@ import type {
   TemplateWithDetail,
   TemplateCompletion,
 } from '@/types/template';
-import { logger } from '@/lib/logger';
 
 interface BidQuestion {
   id: string;
@@ -79,7 +78,7 @@ export default function TemplateCompletionPage() {
           setBidQuestions(data.questions ?? []);
         }
       } catch (err) {
-        logger.error({ err }, 'Failed to load template data');
+        console.error('Failed to load template data:', err);
         toast.error('Failed to load template data');
       } finally {
         setLoading(false);
@@ -116,7 +115,7 @@ export default function TemplateCompletionPage() {
           setStep('review');
         }
       } catch (err) {
-        logger.error({ err }, 'Failed to load template details');
+        console.error('Failed to load template details:', err);
         toast.error('Failed to load template details');
       } finally {
         setLoadingTemplateId(null);
@@ -185,7 +184,7 @@ export default function TemplateCompletionPage() {
             await loadTemplateDetail(selectedTemplate.id);
           }
         } catch (err) {
-          logger.error({ err }, 'Failed to poll analysis status');
+          console.error('Failed to poll analysis status:', err);
           // Polling errors are non-fatal — keep retrying
         }
       }, 2000);
@@ -211,7 +210,7 @@ export default function TemplateCompletionPage() {
       if (!res.ok) throw new Error('Auto-mapping failed');
       await loadTemplateDetail(selectedTemplate.id);
     } catch (err) {
-      logger.error({ err }, 'Failed to auto-map template fields');
+      console.error('Failed to auto-map template fields:', err);
       toast.error('Failed to auto-map template fields');
     }
   }, [bidId, selectedTemplate, loadTemplateDetail]);
@@ -234,7 +233,7 @@ export default function TemplateCompletionPage() {
         if (!res.ok) throw new Error('Update failed');
         await loadTemplateDetail(selectedTemplate.id);
       } catch (err) {
-        logger.error({ err }, 'Failed to update field mapping');
+        console.error('Failed to update field mapping:', err);
         toast.error('Failed to update field mapping');
       }
     },
@@ -265,7 +264,7 @@ export default function TemplateCompletionPage() {
       if (!res.ok) throw new Error('Bulk accept failed');
       await loadTemplateDetail(selectedTemplate.id);
     } catch (err) {
-      logger.error({ err }, 'Failed to bulk accept mappings');
+      console.error('Failed to bulk accept mappings:', err);
       toast.error('Failed to bulk accept mappings');
     }
   }, [bidId, selectedTemplate, loadTemplateDetail]);
@@ -292,7 +291,7 @@ export default function TemplateCompletionPage() {
         if (!res.ok) throw new Error('Bulk reject failed');
         await loadTemplateDetail(selectedTemplate.id);
       } catch (err) {
-        logger.error({ err }, 'Failed to bulk reject mappings');
+        console.error('Failed to bulk reject mappings:', err);
         toast.error('Failed to bulk reject mappings');
       }
     },
@@ -348,7 +347,7 @@ export default function TemplateCompletionPage() {
       const { download_url } = await res.json();
       window.open(download_url, '_blank');
     } catch (err) {
-      logger.error({ err }, 'Failed to download completed template');
+      console.error('Failed to download completed template:', err);
       toast.error('Failed to download completed template');
     }
   }, [bidId, selectedTemplate, latestCompletion]);
@@ -363,7 +362,7 @@ export default function TemplateCompletionPage() {
       const { download_url } = await res.json();
       window.open(download_url, '_blank');
     } catch (err) {
-      logger.error({ err }, 'Failed to download original template');
+      console.error('Failed to download original template:', err);
       toast.error('Failed to download original template');
     }
   }, [bidId, selectedTemplate]);

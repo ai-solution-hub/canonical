@@ -4,7 +4,6 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger';
 
 export default function Error({
   error,
@@ -14,7 +13,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Page error');
+    console.error('Page error:', error);
     Sentry.captureException(error);
   }, [error]);
 

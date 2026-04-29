@@ -4,7 +4,6 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { Newspaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger';
 
 export default function DigestError({
   error,
@@ -14,7 +13,7 @@ export default function DigestError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Digest error');
+    console.error('Digest error:', error);
     Sentry.captureException(error);
   }, [error]);
 

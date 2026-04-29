@@ -5,7 +5,6 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { FileSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger';
 
 export default function ProvenanceError({
   error,
@@ -15,7 +14,7 @@ export default function ProvenanceError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Provenance error');
+    console.error('Provenance error:', error);
     Sentry.captureException(error);
   }, [error]);
 

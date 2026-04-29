@@ -56,7 +56,6 @@ import {
   type PublicationStatus,
   type UserRole,
 } from '@/lib/governance/publication-transitions';
-import { logger } from '@/lib/logger';
 
 export async function registerGovernanceTools(
   server: McpServer,
@@ -498,9 +497,9 @@ export async function registerGovernanceTools(
                     classifyErr instanceof Error
                       ? classifyErr.message
                       : 'Unknown classification error';
-                  logger.error(
-                    { err: classifyErr },
-                    `MCP publish classify failed for ${itemId}`,
+                  console.error(
+                    `MCP publish classify failed for ${itemId}:`,
+                    classifyErr,
                   );
                 }
                 await recordPipelineRun({
@@ -520,9 +519,9 @@ export async function registerGovernanceTools(
                     row.content,
                   );
                 } catch (chunkErr) {
-                  logger.error(
-                    { err: chunkErr },
-                    `MCP publish chunking failed for ${itemId}`,
+                  console.error(
+                    `MCP publish chunking failed for ${itemId}:`,
+                    chunkErr,
                   );
                 }
               }
@@ -1254,9 +1253,9 @@ export async function registerGovernanceTools(
             });
           }
         } catch (notifErr) {
-          logger.warn(
-            { err: notifErr },
+          console.warn(
             'review_governance_item: notification dispatch failed',
+            notifErr,
           );
         }
 

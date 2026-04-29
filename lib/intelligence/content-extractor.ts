@@ -3,7 +3,6 @@ import type { ParsedFeedItem, ExtractionResult } from './types';
 import { MIN_CONTENT_WORDS, EXTRACTION_TIMEOUT_MS } from './types';
 import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
 import { turndown } from '@/lib/extraction/turndown';
-import { logger } from '@/lib/logger';
 
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
@@ -154,7 +153,7 @@ export function checkFirecrawlApiKey(): void {
 
   // Non-production: log a prominent warning once.
   if (!firecrawlWarningLogged) {
-    logger.warn(
+    console.warn(
       '[SI Pipeline] WARNING: FIRECRAWL_API_KEY is not set — Firecrawl extraction tier will be unavailable. ' +
         'The pipeline will fall back to summary_fallback for any article that earlier tiers cannot extract, ' +
         'which produces very low-quality content. This would FAIL FAST in production.',
@@ -180,7 +179,7 @@ export async function extractContent(
   if (item.contentEncoded) {
     const markdown = turndown.turndown(item.contentEncoded).trim();
     if (wordCount(markdown) >= MIN_CONTENT_WORDS) {
-      logger.info(
+      console.log(
         `[Extraction] ${item.url} — Tier 1 (rss_content), ${wordCount(markdown)} words`,
       );
       return {
@@ -220,7 +219,7 @@ export async function extractContent(
         const contentHtml = extractMainContentHtml(html);
         const markdown = turndown.turndown(contentHtml).trim();
         if (wordCount(markdown) >= MIN_CONTENT_WORDS) {
-          logger.info(
+          console.log(
             `[Extraction] ${item.url} — Tier 2 (fetch), ${wordCount(markdown)} words`,
           );
           return {
@@ -233,9 +232,9 @@ export async function extractContent(
       }
     }
   } catch (err) {
-    logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
-      `[Extraction] ${item.url} — Tier 2 (fetch) failed`,
+    console.error(
+      `[Extraction] ${item.url} — Tier 2 (fetch) failed:`,
+      err instanceof Error ? err.message : String(err),
     );
   }
 
@@ -253,7 +252,7 @@ export async function extractContent(
     if (response.ok) {
       const text = await response.text();
       if (wordCount(text) >= MIN_CONTENT_WORDS) {
-        logger.info(
+        console.log(
           `[Extraction] ${item.url} — Tier 2.5 (jina_reader), ${wordCount(text)} words`,
         );
         return {
@@ -265,9 +264,9 @@ export async function extractContent(
       }
     }
   } catch (err) {
-    logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
-      `[Extraction] ${item.url} — Tier 2.5 (jina_reader) failed`,
+    console.error(
+      `[Extraction] ${item.url} — Tier 2.5 (jina_reader) failed:`,
+      err instanceof Error ? err.message : String(err),
     );
   }
 
@@ -289,11 +288,11 @@ export async function extractContent(
       const resolvedUrl =
         sourceURL && sourceURL !== item.url ? sourceURL : undefined;
       if (resolvedUrl) {
-        logger.info(
+        console.log(
           `[Extraction] ${item.url} — Firecrawl resolved publisher URL: ${resolvedUrl}`,
         );
       }
-      logger.info(
+      console.log(
         `[Extraction] ${item.url} — Tier 3 (firecrawl), ${wordCount(text)} words`,
       );
       return {
@@ -308,9 +307,9 @@ export async function extractContent(
       };
     }
   } catch (err) {
-    logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
-      `[Extraction] ${item.url} — Tier 3 (firecrawl) failed`,
+    console.error(
+      `[Extraction] ${item.url} — Tier 3 (firecrawl) failed:`,
+      err instanceof Error ? err.message : String(err),
     );
   }
 
@@ -322,7 +321,7 @@ export async function extractContent(
   const fallbackReason = firecrawlKeyMissing
     ? 'all extraction tiers failed and Firecrawl is not configured (FIRECRAWL_API_KEY missing)'
     : 'all extraction tiers failed (rss_content, fetch, jina_reader, firecrawl)';
-  logger.warn(
+  console.warn(
     `[Extraction] WARN ${item.url} — degraded to Tier 4 (summary_fallback), ${wordCount(fallbackContent)} words. Reason: ${fallbackReason}`,
   );
   return {

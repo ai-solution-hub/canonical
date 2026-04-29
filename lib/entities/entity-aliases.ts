@@ -1,5 +1,3 @@
-import { logger } from '@/lib/logger';
-
 /**
  * Entity alias resolution — maps variant names to canonical form.
  *
@@ -61,9 +59,9 @@ export async function loadAliases(
       .eq('is_active', true);
 
     if (error || !data) {
-      logger.warn(
-        { err: error },
-        'Failed to load entity aliases from DB, using baseline',
+      console.warn(
+        'Failed to load entity aliases from DB, using baseline:',
+        error,
       );
       cachedAliases = { ...BASELINE_ALIASES };
     } else {
@@ -74,7 +72,7 @@ export async function loadAliases(
       }
     }
   } catch {
-    logger.warn('Entity alias DB fetch threw, using baseline');
+    console.warn('Entity alias DB fetch threw, using baseline');
     cachedAliases = { ...BASELINE_ALIASES };
   }
 

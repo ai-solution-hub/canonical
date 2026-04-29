@@ -5,7 +5,6 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger';
 
 export default function DiffError({
   error,
@@ -15,7 +14,7 @@ export default function DiffError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Diff review error');
+    console.error('Diff review error:', error);
     Sentry.captureException(error);
   }, [error]);
 

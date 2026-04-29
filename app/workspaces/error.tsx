@@ -4,7 +4,6 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger';
 
 export default function WorkspacesError({
   error,
@@ -14,7 +13,7 @@ export default function WorkspacesError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Workspaces error');
+    console.error('Workspaces error:', error);
     Sentry.captureException(error);
   }, [error]);
 

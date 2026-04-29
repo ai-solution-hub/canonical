@@ -25,7 +25,6 @@ import {
   DEFAULT_RELEVANCE_THRESHOLD,
 } from './types';
 import { RateLimitError } from './rate-limiter';
-import { logger } from '@/lib/logger';
 
 type Supabase = SupabaseClient<Database>;
 
@@ -374,7 +373,7 @@ export async function processFeedSource(
 
       // 2b.5. Minimum content gate — skip scoring for very short content
       if (extraction.wordCount < 50) {
-        logger.warn(
+        console.warn(
           `[Pipeline] ${normalisedUrl} — content too short (${extraction.wordCount} words), skipping scoring`,
         );
 
@@ -633,9 +632,9 @@ async function storeAsContentItem(
       dedupCheck.isDuplicate ? dedupCheck.existingId : undefined,
     );
   } catch (err) {
-    logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
-      `[Pipeline] Dedup check failed for ${item.url}`,
+    console.error(
+      `[Pipeline] Dedup check failed for ${item.url}:`,
+      err instanceof Error ? err.message : String(err),
     );
   }
 
@@ -718,7 +717,7 @@ async function storeAsContentItem(
           .eq('id', contentItem.id);
 
         if (contentTypeError) {
-          logger.error(
+          console.error(
             `[Pipeline] SI-L3: content_type update failed for item ${contentItem.id} (inferred: "${inferredType}", domain: "${classified.primary_domain ?? 'null'}", subtopic: "${classified.primary_subtopic ?? 'null'}"): ${contentTypeError.message}`,
           );
         }
@@ -726,9 +725,9 @@ async function storeAsContentItem(
     }
   } catch (err) {
     // Classification failure is non-fatal — item is still stored
-    logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
-      `[Pipeline] Classification failed for content item ${contentItem.id}`,
+    console.error(
+      `[Pipeline] Classification failed for content item ${contentItem.id}:`,
+      err instanceof Error ? err.message : String(err),
     );
   }
 
