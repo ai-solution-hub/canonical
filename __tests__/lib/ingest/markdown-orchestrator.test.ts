@@ -361,9 +361,15 @@ describe('orchestrateMarkdownBatch', () => {
         skipped_excluded: [],
       });
 
-      expect(result.results_summary.created).toEqual(['new-id-1']);
-      expect(result.results_summary.failed).toEqual([]);
-      expect(result.results_summary.skipped).toEqual([]);
+      // Spec §5.4 rich shape contract.
+      expect(result.results_summary.files_processed).toBe(1);
+      expect(result.results_summary.stored).toEqual([
+        { id: 'new-id-1', title: 'Item new-id-1', filename: 'foo-final.md' },
+      ]);
+      expect(result.results_summary.dedup_flagged).toEqual([]);
+      expect(result.results_summary.superseded).toEqual([]);
+      expect(result.results_summary.skipped_excluded).toEqual([]);
+      expect(result.results_summary.errored).toEqual([]);
       expect(result.pipeline_run_id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
@@ -401,11 +407,15 @@ describe('orchestrateMarkdownBatch', () => {
         callerRole: 'admin',
       });
 
-      expect(result.results_summary.created).toEqual(['ok-id']);
-      expect(result.results_summary.failed).toEqual([
-        { filename: 'bad.md', reason: 'Classifier upstream timeout' },
+      expect(result.results_summary.files_processed).toBe(2);
+      expect(result.results_summary.stored).toEqual([
+        { id: 'ok-id', title: 'Item ok-id', filename: 'good.md' },
       ]);
-      expect(result.results_summary.skipped).toEqual([]);
+      expect(result.results_summary.errored).toEqual([
+        { filename: 'bad.md', error: 'Classifier upstream timeout' },
+      ]);
+      expect(result.results_summary.skipped_excluded).toEqual([]);
+      expect(result.results_summary.superseded).toEqual([]);
 
       // pipeline_runs.status === 'completed_with_errors'
       const insertCalls = supabase._chain.insert.mock.calls;
@@ -444,9 +454,10 @@ describe('orchestrateMarkdownBatch', () => {
         callerRole: 'admin',
       });
 
-      expect(result.results_summary.created).toEqual([]);
-      expect(result.results_summary.failed).toEqual([
-        { filename: 'lonely.md', reason: 'Classifier offline' },
+      expect(result.results_summary.files_processed).toBe(1);
+      expect(result.results_summary.stored).toEqual([]);
+      expect(result.results_summary.errored).toEqual([
+        { filename: 'lonely.md', error: 'Classifier offline' },
       ]);
 
       const insertCalls = supabase._chain.insert.mock.calls;
@@ -532,9 +543,10 @@ describe('orchestrateMarkdownBatch', () => {
         },
       });
 
-      expect(result.results_summary.skipped).toEqual(['skip.md']);
-      expect(result.results_summary.created).toEqual([]);
-      expect(result.results_summary.failed).toEqual([]);
+      expect(result.results_summary.files_processed).toBe(1);
+      expect(result.results_summary.skipped_excluded).toEqual(['skip.md']);
+      expect(result.results_summary.stored).toEqual([]);
+      expect(result.results_summary.errored).toEqual([]);
 
       // No content_items insert.
       const insertCalls = supabase._chain.insert.mock.calls;

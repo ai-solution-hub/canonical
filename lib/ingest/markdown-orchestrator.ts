@@ -75,7 +75,8 @@ import type {
   MarkdownImportPhaseParams,
   MarkdownImportPhaseResult,
   MarkdownIngestAnalysis,
-  MarkdownImportFailure,
+  MarkdownImportError,
+  MarkdownBatchResultsSummary,
   MarkdownOrchestratorParams,
 } from '@/types/ingest';
 
@@ -87,7 +88,7 @@ export type {
   MarkdownPerFileOverride,
   MarkdownBatchOptions,
   MarkdownIngestAnalysis,
-  MarkdownImportFailure,
+  MarkdownImportError,
   MarkdownBatchResultsSummary,
   MarkdownAnalysePhaseResult,
   MarkdownImportPhaseResult,
@@ -324,28 +325,25 @@ async function runImportPhase(
     overridesByFilename.set(o.filename, o);
   }
 
-  const created: string[] = [];
-  const skipped: string[] = [];
-  const failed: MarkdownImportFailure[] = [];
-  // Detailed shape stamped onto pipeline_runs.result for dashboard view.
-  const detailedStored: Array<{
-    id: string;
-    title: string;
-    filename: string;
-  }> = [];
-  const detailedDedupFlagged: Array<{
-    id: string;
-    title: string;
-    filename: string;
-    suspected_duplicate_of: string;
-  }> = [];
+  // `itemsCreated` carries the inserted row IDs onto `pipeline_runs.items_created`
+  // (string[] DB column). The rich `stored[]`/`dedup_flagged[]` arrays below
+  // are what the orchestrator returns to the caller (spec §5.4 contract).
+  const itemsCreated: string[] = [];
+  const stored: MarkdownBatchResultsSummary['stored'] = [];
+  const dedupFlagged: MarkdownBatchResultsSummary['dedup_flagged'] = [];
+  // Auto-supersede ships post-EP2 (spec §5.4 + plan EP2-T3 note); the
+  // orchestrator currently never emits superseded rows, but the field is
+  // present in the response for forward-compatibility.
+  const superseded: MarkdownBatchResultsSummary['superseded'] = [];
+  const skippedExcluded: string[] = [];
+  const errored: MarkdownImportError[] = [];
 
   for (const file of files) {
     const override = overridesByFilename.get(file.filename);
 
-    // Per-row exclusion — listed in skipped, no DB writes.
+    // Per-row exclusion — listed in skipped_excluded, no DB writes.
     if (override?.excluded) {
-      skipped.push(file.filename);
+      skippedExcluded.push(file.filename);
       continue;
     }
 
@@ -359,14 +357,14 @@ async function runImportPhase(
         override,
         t1,
       });
-      created.push(outcome.id);
-      detailedStored.push({
+      itemsCreated.push(outcome.id);
+      stored.push({
         id: outcome.id,
         title: outcome.title,
         filename: file.filename,
       });
       if (outcome.suspectedDuplicateOf) {
-        detailedDedupFlagged.push({
+        dedupFlagged.push({
           id: outcome.id,
           title: outcome.title,
           filename: file.filename,
@@ -374,44 +372,46 @@ async function runImportPhase(
         });
       }
     } catch (err) {
-      const reason =
+      const message =
         err instanceof Error ? err.message : `Unknown error: ${String(err)}`;
-      failed.push({ filename: file.filename, reason });
+      errored.push({ filename: file.filename, error: message });
       // Best-effort breadcrumb so a per-file failure surfaces alongside the
       // summary Sentry alert below.
       logBestEffortWarn(
         'upload_markdown_batch.import.file_failed',
         `Markdown import failed for ${file.filename}`,
-        { filename: file.filename, reason },
+        { filename: file.filename, error: message },
       );
     }
   }
 
-  const attemptedCount = files.length - skipped.length;
+  const attemptedCount = files.length - skippedExcluded.length;
   const status = computeRunStatus({
-    failedCount: failed.length,
-    createdCount: created.length,
+    failedCount: errored.length,
+    createdCount: itemsCreated.length,
     attemptedCount,
   });
 
   const errorMessage =
-    failed.length > 0
-      ? `${failed.length}/${attemptedCount} files failed`
+    errored.length > 0
+      ? `${errored.length}/${attemptedCount} files failed`
       : null;
 
-  // Build the rich result shape stamped onto pipeline_runs.result. This
-  // matches spec §5.4 results_summary shape so the dashboard view + late
-  // pollers can read it. Cast via `unknown` because Json's index-signature
-  // requirement does not match our nominal MarkdownImportFailure interface,
-  // even though the runtime payload is safely JSON-serialisable.
-  const resultPayload = {
+  // Spec §5.4 rich shape — returned to the caller AND stamped onto
+  // `pipeline_runs.result` for the dashboard view + late-arriving pollers.
+  const resultsSummary: MarkdownBatchResultsSummary = {
     files_processed: files.length,
-    stored: detailedStored,
-    dedup_flagged: detailedDedupFlagged,
-    superseded: [] as never[],
-    skipped_excluded: skipped,
-    errored: failed,
-  } as unknown as Json;
+    stored,
+    dedup_flagged: dedupFlagged,
+    superseded,
+    skipped_excluded: skippedExcluded,
+    errored,
+  };
+
+  // Cast via `unknown` because Json's index-signature requirement does not
+  // match our nominal interface, even though the runtime payload is safely
+  // JSON-serialisable.
+  const resultPayload = resultsSummary as unknown as Json;
 
   // Insert the pipeline_runs row with the pre-generated id. We do this
   // ourselves (not via `recordPipelineRun()`) because the helper does not
@@ -425,17 +425,13 @@ async function runImportPhase(
     status,
     errorMessage,
     itemsProcessed: attemptedCount,
-    itemsCreated: created,
+    itemsCreated,
     resultPayload,
   });
 
   return {
     pipeline_run_id: pipelineRunId,
-    results_summary: {
-      created,
-      skipped,
-      failed,
-    },
+    results_summary: resultsSummary,
   };
 }
 

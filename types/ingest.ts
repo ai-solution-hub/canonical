@@ -87,26 +87,33 @@ export interface MarkdownIngestAnalysis {
 }
 
 /**
- * Per-file failure record returned in import-phase summary.
+ * Per-file error record returned in import-phase summary.
+ * Mirrors spec §5.4 `errored: Array<{ filename: string; error: string }>`.
  */
-export interface MarkdownImportFailure {
+export interface MarkdownImportError {
   filename: string;
-  reason: string;
+  error: string;
 }
 
 /**
  * Import-phase summary returned to the route handler.
  *
- * Note: spec §5.4 enumerates a richer shape (stored / dedup_flagged /
- * superseded / skipped_excluded / errored). The orchestrator surfaces the
- * compact contract from the W1-T2 prompt — `created` / `skipped` / `failed`
- * — and stamps the rich shape onto `pipeline_runs.result` for dashboard view.
- * The route layer (T3) shapes the HTTP response further if needed.
+ * Mirrors spec §5.4 verbatim — the same shape is also stamped onto
+ * `pipeline_runs.result` so the dashboard view + late-arriving pollers can
+ * read it.
  */
 export interface MarkdownBatchResultsSummary {
-  created: string[];
-  skipped: string[];
-  failed: MarkdownImportFailure[];
+  files_processed: number;
+  stored: Array<{ id: string; title: string; filename: string }>;
+  dedup_flagged: Array<{
+    id: string;
+    title: string;
+    filename: string;
+    suspected_duplicate_of: string;
+  }>;
+  superseded: Array<{ new_id: string; old_id: string; filename: string }>;
+  skipped_excluded: string[];
+  errored: MarkdownImportError[];
 }
 
 export type MarkdownAnalysePhaseResult = {
