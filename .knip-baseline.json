@@ -1,12 +1,12 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
-  "capturedAt": "2026-04-28",
-  "capturedFromCommit": "kh-prod-readiness-S11",
+  "capturedAt": "2026-04-29",
+  "capturedFromCommit": "s211b-admin-dedup",
   "counts": {
     "dependencies": 1,
     "devDependencies": 1,
-    "exports": 59,
-    "types": 255,
+    "exports": 58,
+    "types": 275,
     "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,
