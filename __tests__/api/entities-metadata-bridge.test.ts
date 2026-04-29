@@ -11,8 +11,16 @@ import { createTestRequest, createTestParams } from '../helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
 
-const { mockCookies } = vi.hoisted(() => ({
+const { mockCookies, loggerMocks } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
+  loggerMocks: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+    fatal: vi.fn(),
+    trace: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -21,6 +29,10 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('next/headers', () => ({
   cookies: mockCookies,
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
 }));
 
 // Import route AFTER mocks
@@ -219,7 +231,7 @@ describe('PATCH /api/entities/[canonical_name]/metadata — reverse bridge', () 
       throw new Error('DB connection failed');
     });
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
 
     const req = createTestRequest('/api/entities/ISO%2027001/metadata', {
       method: 'PATCH',
@@ -230,11 +242,9 @@ describe('PATCH /api/entities/[canonical_name]/metadata — reverse bridge', () 
 
     // Should still return 200 — bridge failure is non-fatal
     expect(res.status).toBe(200);
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Reverse bridge propagation failed:',
-      expect.any(Error),
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'Reverse bridge propagation failed',
     );
-
-    consoleSpy.mockRestore();
   });
 });
