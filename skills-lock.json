@@ -6,6 +6,12 @@
       "sourceType": "github",
       "computedHash": "4cb0414576cb608b720753cc3e52c5a109bd05dc796735ceb186ba40b28ade24"
     },
+    "cloud-run-basics": {
+      "source": "google/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloud/cloud-run-basics/SKILL.md",
+      "computedHash": "bc11572a238ce911487c58f2f6ebbb947525fd1a69514a44842c904af6fce319"
+    },
     "convert-web-app": {
       "source": "modelcontextprotocol/ext-apps",
       "sourceType": "github",
