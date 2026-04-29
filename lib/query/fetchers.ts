@@ -139,3 +139,70 @@ export async function mutationFetchJson<T>(
   }
   return res.json() as Promise<T>;
 }
+
+// ---------------------------------------------------------------------------
+// Admin Cross-System Dedup Review (§1.7)
+// ---------------------------------------------------------------------------
+
+/**
+ * A row surfaced by the admin dedup queue. Mirrors the columns that
+ * `/api/admin/content-dedup/queue` selects from `content_items`. Note
+ * `dedup_status` is intentionally typed as `string` rather than the CHECK
+ * enum because the API may surface intermediate states during transitions
+ * and the UI tolerates anything starting with `'suspected_duplicate'`.
+ */
+export interface SuspectedDuplicateRow {
+  id: string;
+  title: string | null;
+  content: string | null;
+  dedup_status: string;
+  created_at: string;
+  domain_primary: string | null;
+  content_owner_id: string | null;
+  ingest_source: string | null;
+  superseded_by: string | null;
+  publication_status: string;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface DedupQueueResponse {
+  items: SuspectedDuplicateRow[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+export interface DedupQueueFilters {
+  domain?: string;
+  cursor?: string;
+  limit?: number;
+  sort?: 'created_at_desc' | 'similarity_desc';
+}
+
+/** Fetch the admin dedup queue (suspected_duplicate rows pending review). */
+export async function fetchAdminDedupQueue(
+  filters: DedupQueueFilters = {},
+): Promise<DedupQueueResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, String(value));
+    }
+  }
+  const qs = params.toString();
+  return fetchJson<DedupQueueResponse>(
+    `/api/admin/content-dedup/queue${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export interface DedupItemResponse {
+  subject: SuspectedDuplicateRow;
+  canonical: SuspectedDuplicateRow | null;
+  similarity: number;
+}
+
+/** Fetch a single dedup queue item plus its canonical match. */
+export async function fetchAdminDedupItem(
+  id: string,
+): Promise<DedupItemResponse> {
+  return fetchJson<DedupItemResponse>(`/api/admin/content-dedup/${id}`);
+}

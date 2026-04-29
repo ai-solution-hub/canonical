@@ -320,4 +320,12 @@ export const queryKeys = {
         ] as const,
     },
   },
+
+  // Admin Cross-System Dedup Review (§1.7)
+  adminDedup: {
+    all: ['admin', 'content-dedup'] as const,
+    queue: (filters?: Record<string, unknown>) =>
+      ['admin', 'content-dedup', 'queue', filters ?? {}] as const,
+    item: (id: string) => ['admin', 'content-dedup', 'item', id] as const,
+  },
 } as const;
