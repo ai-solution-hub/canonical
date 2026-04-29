@@ -553,12 +553,9 @@ jobs:
           # field must be set or the first test import throws before any
           # `it()` runs).
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          # AI keys additionally required (e2e-smoke does NOT include these
-          # because Playwright never imports lib/ai/* — but every integration
-          # test importing lib/ai/classify or lib/ai/embed resolves them via
-          # lib/env-server.ts Zod validation at module load. Sourced from
-          # Staging env scope, already provisioned per mcp-eval consumption
-          # at ci.yml:310-311).
+          # AI keys (ANTHROPIC + OPENAI) are required because integration tests import
+          # lib/ai/classify + lib/ai/embed at module load. e2e-smoke also carries them
+          # today for the same Zod-load reason.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # CRON_SECRET — review-cadence-lifecycle.integration.test.ts asserts
