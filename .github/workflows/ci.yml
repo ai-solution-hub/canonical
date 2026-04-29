@@ -483,3 +483,120 @@ jobs:
           path: /tmp/server.log
           retention-days: 7
           if-no-files-found: ignore
+
+  integration:
+    # WP-CI.RES.3 — Integration-tier tests in CI (Phase 1).
+    # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res3-integration-tier-ci-spec.md
+    # Closes roadmap §9.16.12 Phase 1.
+    #
+    # Runs `bun run test:integration` against the staging Supabase branch
+    # (`turayklvaunphgbgscat`) with real Anthropic + OpenAI calls. Exercises
+    # production code paths unit tests cannot: RLS policies, real auth flows,
+    # AI-pipeline classification + embedding, migration triggers, cookie-store
+    # auth-helper resolution.
+    #
+    # `continue-on-error: true` is the Phase 1 graceful-skip lever (per
+    # `feedback_eval_scripts_assume_populated_db.md`) — ~3 files hard-assert
+    # prod-shaped cohort counts (publication-status-migration,
+    # golden-path-real-db, intelligence-golden-path) which fail honestly on
+    # data-empty staging. Phase 2 close-out (lock-step with roadmap §9.16.10
+    # staging mirror cutover) drops the flag here AND on `e2e-smoke` AND
+    # removes the MCP eval graceful-skip in `scripts/mcp-eval/fixtures.ts:328`
+    # atomically.
+    #
+    # Independent of the `quality` / `e2e-smoke` / `mcp-eval` jobs (no
+    # `needs:` chain) so total CI wall-clock = max(quality, e2e-smoke,
+    # mcp-eval, integration).
+    name: Integration tests
+    runs-on: ubuntu-latest
+    # Staging-scoped: TEST_USER_{1,2,3}_* + staging Supabase secrets only
+    # exist on Staging env scope (per docs/runbooks/github-environments.md
+    # §3.1). Case-sensitive — must exactly match `Staging`.
+    environment: Staging
+    # Phase 1 only — removed Phase 2 lock-step with roadmap §9.16.10
+    # close-out. See spec §2.4 + AC3.14/AC3.15.
+    continue-on-error: true
+    # Point estimate 5-7 min wall-clock under default gating + single shard
+    # (spec §2.5). 25 min ceiling absorbs cold-cache + AI-API tail-latency
+    # variance (~3.5x point estimate). Re-evaluate after 5 green runs.
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run integration tests
+        env:
+          # Mirror e2e-smoke env block (spec §2.2) — staging Supabase
+          # connection + TEST_USER_{1,2,3} credentials.
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Server-side secrets the integration runner boots with
+          # (lib/env-server.ts validates at module load — every Zod-required
+          # field must be set or the first test import throws before any
+          # `it()` runs).
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          # AI keys additionally required (e2e-smoke does NOT include these
+          # because Playwright never imports lib/ai/* — but every integration
+          # test importing lib/ai/classify or lib/ai/embed resolves them via
+          # lib/env-server.ts Zod validation at module load. Sourced from
+          # Staging env scope, already provisioned per mcp-eval consumption
+          # at ci.yml:310-311).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # CRON_SECRET — review-cadence-lifecycle.integration.test.ts asserts
+          # cron-route Bearer-token gate.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Mirror to NEXT_PUBLIC_* for the client schema (auth-session.ts
+          # sign-in path uses these).
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          # Test-user credentials — pre-seeded into staging by
+          # scripts/seed-e2e-users.ts (per docs/runbooks/staging-refresh.md
+          # §4). 3 personas: TEST_USER_1 admin, TEST_USER_2 editor,
+          # TEST_USER_3 viewer; auth-session.ts caps each test file at 3
+          # sign-ins for rate-limit safety.
+          TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          # INTEGRATION_INTELLIGENCE and KH_RUN_INTEGRATION are intentionally
+          # NOT set — they default-off-skip ~28 cases and parity with
+          # local-dev `bun run test:integration` is preserved (spec §2.2,
+          # D-CI.RES.3-7).
+        # `tee` so the log appears live in the GH Actions step UI as it
+        # streams, not just post-failure (spec §2.8).
+        run: bun run test:integration 2>&1 | tee /tmp/integration.log
+
+      - name: Upload integration log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-log
+          path: /tmp/integration.log
+          retention-days: 14
+          if-no-files-found: ignore
