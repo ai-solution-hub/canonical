@@ -80,6 +80,8 @@ work packages were completed, partially completed, or deferred.
 
 **File:** `docs/reference/post-mvp-roadmap.md`
 
+> **Before editing, apply the [Ship-event discipline](#ship-event-discipline-applies-to-steps-3-and-8) rule below**: any item that shipped this session is REMOVED from the roadmap (no strikethrough, no "Status: Done") and its capability narrative is folded into SoTP §5/§8 + change-log in the SAME commit.
+
 Read the file, then:
 
 1. Move any completed roadmap items to `state-of-the-product.md` (the canonical
@@ -93,6 +95,32 @@ Read the file, then:
 3. Add new items discovered during the session — under the appropriate domain
    section (Sector Intelligence, AI Evaluation, Bid Workflow, etc.).
 4. Reorder if priorities have shifted based on user feedback.
+
+---
+
+## Ship-event discipline (applies to Steps 3 and 8)
+
+**Rule: ship-event = remove + SoTP fold-in in the SAME commit. Never strikethrough-and-keep.**
+
+When a roadmap or backlog item ships during the session:
+
+1. **REMOVE the row entirely** from `post-mvp-roadmap.md` or `product-backlog.md`. No strikethrough (`~~OPS-N~~`), no "Status: Done"/"Status: Shipped"/"Status: Closed" annotation, no "kept here for cross-ref" preservation, no "promoted to roadmap §X" stub. Closed = removed.
+2. **Fold the capability narrative into SoTP** in the SAME commit as the row removal:
+   - Update or add the relevant capability bullet under `state-of-the-product.md` §5 / §8 (per Step 5's discipline).
+   - Append a row to `state-of-the-product-change-log.md` describing the session-level delta.
+   - Both edits ship atomically with the roadmap/backlog removal — no follow-up "fix change-log" commits.
+3. **The git commit ref + session number is the audit trail.** The roadmap and backlog must never carry historical Done/Shipped/Closed/Wontfix rows. Continuation prompts (`docs/continuation-prompts/`) and session-deliverable memory files preserve the per-session log; `git log` preserves the line-level history.
+
+**Rationale.** Closed/Done rows accumulating in the roadmap and backlog re-create the bloat that S210-C1 (backlog purge) and S210-C2 (roadmap purge) just removed (~21 backlog rows + ~6 roadmap rows + ~9 ship-crumb rewrites). Forward-looking discipline must be enforced at write-time, not retroactively in a future cleanup wave.
+
+**Forward-discipline guards (S210-C3).** Two Vitest tests fail CI on any Done/Shipped/Closed row that slips through:
+
+- `__tests__/docs/roadmap-no-shipped-rows.test.ts` — fails if `post-mvp-roadmap.md` contains a row with `Status: Done|Shipped S\d|Completed S\d` (excluding the `## Operational Notes` section).
+- `__tests__/docs/backlog-no-closed-rows.test.ts` — fails if `product-backlog.md` contains a `~~`-strikethrough row, or `Status: Closed|Done|Wontfix|Completed` inside the active table.
+
+If either guard fails, the fix is to follow this rule: remove the row, fold the narrative into SoTP, ship the commit. Do NOT relax the regex — the guards exist precisely to prevent re-accumulation.
+
+**Relationship to Step 5.** Step 5 explains *how* to fold a capability into SoTP (which sub-section, banner preservation, change-log row format). This rule explains *when* to remove the corresponding roadmap/backlog row (in the same commit as the SoTP fold-in, never deferred, never strikethrough-and-keep). The two rules are complementary: Step 5 is the destination; this rule is the source-side discipline.
 
 ---
 
@@ -386,6 +414,8 @@ prompt **only** — never duplicated into roadmap or backlog (memory
 ## Step 8: Update Product Backlog (Conditional)
 
 **File:** `docs/reference/product-backlog.md`
+
+> **Before editing, apply the [Ship-event discipline](#ship-event-discipline-applies-to-steps-3-and-8) rule above**: any backlog item that shipped or closed this session is REMOVED entirely (no strikethrough, no "Status: Closed/Done/Wontfix"). Capability narrative folds into SoTP §5/§8 + change-log in the SAME commit.
 
 If new work items were discovered in the session which aren't related to
 sections already covered by the product roadmap, these will need to be added to
