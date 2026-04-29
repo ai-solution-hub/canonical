@@ -1,7 +1,7 @@
 # Dependabot configuration — explicit hygiene over GitHub UI auto-defaults.
 #
 # Three ecosystems tracked:
-#   - npm: package.json + bun.lock surface
+#   - bun: package.json + bun.lock surface
 #   - pip: requirements.txt (Python pipeline)
 #   - github-actions: workflows under .github/workflows/
 #
@@ -16,14 +16,14 @@
 
 version: 2
 updates:
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
     groups:
-      npm-minor-patch:
+      bun-minor-patch:
         update-types:
           - "minor"
           - "patch"
