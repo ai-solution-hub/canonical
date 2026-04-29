@@ -326,33 +326,67 @@ Read the file, then for each item that was identified in this session:
 
 ## Step 9: Update Wave Status Ledgers (Conditional)
 
-**Directory:** `docs/audits/*/STATUS.md`
+**Directory:** `docs/audits/*/STATUS.md` (and sibling split files where they
+exist).
 
 If the session touched items in an active multi-session wave that maintains a
 `STATUS.md` ledger (for example `docs/audits/{wave-name}-{yyyy-mm}/STATUS.md`),
 update the ledger to reflect shipped state. One ledger per wave.
+
+**Two layouts exist — check which the wave uses before editing:**
+
+- **Single-file ledger** (default) — everything lives in `STATUS.md`: snapshot,
+  gates, items, change log, handoffs.
+- **Split ledger** — when a single STATUS.md grows too large to read, the wave
+  may split into siblings:
+  - `STATUS.md` — at-a-glance view (snapshot, gates, items, pending pickup
+    list).
+  - `STATUS-change-log.md` — per-session net-delta log; append-only.
+  - `STATUS-handoffs.md` — multi-paragraph outcome-and-next-scope blocks;
+    written only when the next session needs deeper handoff narrative than the
+    change-log row provides.
+
+  Detect by `ls docs/audits/<wave>/STATUS-*.md`. If the split exists, treat
+  each file as the canonical home for its content type — never duplicate
+  content across the split, and never put change-log rows or handoff prose
+  back into `STATUS.md`.
+
+  Currently using split layout: `kh-production-readiness-phase-1/`.
 
 **When to update:**
 
 - Any item in the ledger transitioned state this session (`Not started` →
   `In progress`, `In progress` → `Shipped`, blocker discovered, spec written,
   etc.).
-- A C-series or similar gate cleared.
-- A new item was added to the underlying DECISIONS/SPEC-SEQUENCE and needs a
+- A gate cleared.
+- A new item was added to the underlying DECISIONS / SPEC-SEQUENCE and needs a
   ledger row.
 
-**What to update:**
+**What to update (single-file or split — same content, different homes):**
 
-1. **Per-item rows (numbered sections in the ledger).** Flip the `Status`
-   column, populate `Shipped` with `S{NNN} • {short_sha}` (first commit only —
-   session prompt captures the full SHA range), update `Artefact` if the spec
-   was written or archived, and append a one-line note to `Notes` if a blocker
-   surfaced or a dependency closed.
-2. **Gate status (§3).** If a C-series gate cleared, mark **Cleared** and record
-   the `Cleared in` session.
-3. **Summary counts (§2).** Adjust the status-count and wave-count tables.
-4. **Change log (§6).** Add one line for the session — the net delta (items
-   shipped, gates cleared, blockers surfaced).
+1. **Per-item rows (item tables in `STATUS.md` §4 or equivalent).** Flip the
+   `Status` column, populate `Shipped in` with `S{NNN} ({DD/MM/YYYY},
+   `{short_sha}`)`, update `Artefact` if the spec was written or archived, and
+   append a one-line note to `Notes` if a blocker surfaced or a dependency
+   closed.
+2. **Gate status (`STATUS.md` §2 or equivalent).** If a gate cleared, mark
+   **Cleared** and record the `Cleared in` session.
+3. **Snapshot counts (`STATUS.md` §1 or equivalent).** Adjust the
+   shipped-per-session line and any cumulative totals. Update §1.1 external
+   holds: tag any holds that closed this session with ✅ CLOSED + session ref.
+4. **Pending pickup list (`STATUS.md` §4.x or equivalent).** Remove items that
+   shipped; add items newly identified as pending; reflect any held-on-X
+   transitions.
+5. **Change log row.**
+   - **Split layout:** append one row to `STATUS-change-log.md` §1 with
+     `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`.
+   - **Single-file:** append one row to `STATUS.md` §8 (or equivalent) under
+     the change-log section.
+6. **Handoff narrative (split layout only — conditional).** If the next session
+   needs deeper handoff context than a change-log row carries (deferred scope,
+   pending decisions, focus pivot), append a `### S{N} → S{N+1} handoff` block
+   to `STATUS-handoffs.md` §1. Otherwise skip — the change-log row plus the
+   continuation prompt is sufficient.
 
 **What NOT to do:**
 
@@ -363,12 +397,15 @@ update the ledger to reflect shipped state. One ledger per wave.
 - Do not create a `STATUS.md` ledger for a wave that does not have one already —
   the existing ones were created deliberately. Flag in the continuation prompt
   if a new wave would benefit from one.
+- Do not duplicate content between split files. Change-log rows do not belong in
+  `STATUS.md`; gates and item tables do not belong in `STATUS-change-log.md`;
+  cross-link instead.
 
 **Edge cases:**
 
 - **Reverts.** If a previously-shipped item is reverted, flip its status back to
   `In progress` or `Not started`, clear the shipped SHA, note the revert commit,
-  and log in the ledger's change log.
+  and log in the change log (or split change-log file).
 - **Multi-session items.** Specs written one session but implementation landing
   later must hold at `Spec in progress` or `In progress`; do not mark `Shipped`
   until the item lands on main.
