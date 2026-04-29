@@ -42,6 +42,7 @@ export {
   runWithRequestContext,
   updateRequestContext,
   withRequestContext,
+  withRequestContextBare,
 } from './request-context';
 export { applyRequestContextToSentry } from './sentry-bridge';
 

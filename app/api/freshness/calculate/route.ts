@@ -9,8 +9,11 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { FreshnessCalculateBodySchema } from '@/lib/validation/schemas';
 import { batchCalculateFreshness } from '@/lib/freshness';
-import { logger, updateRequestContext } from '@/lib/logger';
-import { withRequestContext } from '@/lib/route-context';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContext,
+} from '@/lib/logger';
 
 export const maxDuration = 30;
 

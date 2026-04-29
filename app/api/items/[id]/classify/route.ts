@@ -11,8 +11,11 @@ import { ClassifyBodySchema } from '@/lib/validation/schemas';
 import { classifyContent } from '@/lib/ai/classify';
 import { AIServiceError } from '@/lib/ai/errors';
 import { tryQuery } from '@/lib/supabase/safe';
-import { logger, updateRequestContext } from '@/lib/logger';
-import { withRequestContext } from '@/lib/route-context';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContext,
+} from '@/lib/logger';
 
 export const maxDuration = 30;
 

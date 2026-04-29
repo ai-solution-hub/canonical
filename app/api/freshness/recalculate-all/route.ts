@@ -6,8 +6,11 @@ import {
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { logger, updateRequestContext } from '@/lib/logger';
-import { withRequestContextBare } from '@/lib/route-context';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContextBare,
+} from '@/lib/logger';
 
 export const maxDuration = 30;
 

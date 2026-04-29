@@ -12,8 +12,11 @@ import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
-import { logger, updateRequestContext } from '@/lib/logger';
-import { withRequestContext } from '@/lib/route-context';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContext,
+} from '@/lib/logger';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;

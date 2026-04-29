@@ -25,8 +25,11 @@ import {
   VALID_PUBLICATION_STATUSES,
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
-import { logger, updateRequestContext } from '@/lib/logger';
-import { withRequestContext } from '@/lib/route-context';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContext,
+} from '@/lib/logger';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;
