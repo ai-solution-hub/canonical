@@ -40,6 +40,12 @@ export interface MarkdownBatchOptions {
   author?: string | null;
   /** Admin-only override — caller's resolved content_owner_id default. */
   contentOwnerIdOverride?: string | null;
+  /**
+   * Admin-only — auto-supersede heuristic match. Currently forwarded as
+   * no-op until orchestrator wires `setSupersession` in §1.11 EP2 Phase 2.
+   * Silently ignored for non-admin callers per spec §5.2.
+   */
+  autoSupersede?: boolean;
 }
 
 /**

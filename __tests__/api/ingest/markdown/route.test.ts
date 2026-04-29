@@ -483,4 +483,24 @@ describe('POST /api/ingest/markdown — options validation', () => {
       expect(callArg.options?.perFileOverrides).toBeUndefined();
     }
   });
+
+  it('auto_supersede forwards through wire→orchestrator mapping', async () => {
+    configureAdmin();
+    orchestrateMock.mockResolvedValue({
+      pipeline_run_id: '44444444-4444-4444-8444-444444444444',
+      results_summary: { created: [], skipped: [], failed: [] },
+    } as never);
+
+    const req = makeRequest({
+      phase: 'import',
+      files: [{ name: 'foo.md', content: 'body' }],
+      optionsJson: JSON.stringify({ batch: { auto_supersede: true } }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const callArg = orchestrateMock.mock.calls[0][0];
+    if (callArg.phase === 'import') {
+      expect(callArg.options?.autoSupersede).toBe(true);
+    }
+  });
 });

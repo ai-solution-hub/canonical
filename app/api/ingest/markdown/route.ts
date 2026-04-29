@@ -237,6 +237,7 @@ export async function POST(req: NextRequest) {
       })),
       tag: validatedOptions.batch?.tag ?? null,
       author: validatedOptions.batch?.author ?? null,
+      autoSupersede: validatedOptions.batch?.auto_supersede,
     };
 
     const result = await orchestrateMarkdownBatch({
