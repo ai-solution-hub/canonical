@@ -12,6 +12,7 @@ import type { SummaryResponse } from '@/lib/validation/ai-schemas';
 import { toJson } from '@/lib/validation/jsonb';
 import type { SummaryData } from '@/types/content';
 import { AIServiceError } from '@/lib/ai/errors';
+import { logger } from '@/lib/logger';
 
 // ──────────────────────────────────────────
 // Types
@@ -237,7 +238,10 @@ export async function generateSummary(
     .eq('id', itemId);
 
   if (updateError) {
-    console.error('Failed to store summary:', updateError);
+    logger.error(
+      { err: updateError, op: 'summarise.store', itemId },
+      'Failed to store summary',
+    );
     throw new AIServiceError('Summary generated but failed to store', 500);
   }
 

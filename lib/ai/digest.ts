@@ -22,6 +22,7 @@ import { generateContentSuggestions } from '@/lib/content/content-suggestions';
 import type { ContentSuggestion } from '@/lib/content/content-suggestions';
 import { tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { logger } from '@/lib/logger';
 
 // ──────────────────────────────────────────
 // Constants
@@ -222,7 +223,10 @@ export async function generateDigest(
   const { data: items, error: fetchError } = await query;
 
   if (fetchError) {
-    console.error('Failed to fetch content items:', fetchError);
+    logger.error(
+      { err: fetchError, op: 'digest.fetch-items' },
+      'Failed to fetch content items',
+    );
     throw new AIServiceError('Failed to fetch content items for digest', 500);
   }
 
@@ -342,9 +346,9 @@ export async function generateDigest(
       domainFilter: filterDomain ?? undefined,
     });
   } catch (suggestionsErr) {
-    console.warn(
-      'Failed to fetch content suggestions for digest:',
-      suggestionsErr,
+    logger.warn(
+      { err: suggestionsErr, op: 'digest.fetch-suggestions' },
+      'Failed to fetch content suggestions for digest',
     );
   }
 
@@ -586,7 +590,10 @@ export async function generateDigest(
       freshness_breakdown: freshnessCounts,
     };
   } catch (govErr) {
-    console.error('Failed to collect governance data for digest:', govErr);
+    logger.error(
+      { err: govErr, op: 'digest.collect-governance' },
+      'Failed to collect governance data for digest',
+    );
   }
 
   // Extract content opportunities from Claude response
@@ -621,7 +628,10 @@ export async function generateDigest(
     .single();
 
   if (insertError || !insertedDigest) {
-    console.error('Failed to store digest:', insertError);
+    logger.error(
+      { err: insertError, op: 'digest.store' },
+      'Failed to store digest',
+    );
     throw new AIServiceError('Digest generated but failed to store', 500);
   }
 
