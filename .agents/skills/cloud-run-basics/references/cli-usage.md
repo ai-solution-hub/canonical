@@ -12,103 +12,104 @@ gcloud run [GROUP] [COMMAND] [FLAGS]
 
 ### Cloud Run service
 
--   **Deploy a service from an image:**
+- **Deploy a service from an image:**
 
-    ```bash
-    gcloud run deploy my-service \
-        --image us-docker.pkg.dev/cloudrun/container/hello:latest
-    ```
+  ```bash
+  gcloud run deploy my-service \
+      --image us-docker.pkg.dev/cloudrun/container/hello:latest
+  ```
 
--   **Deploy from source code:**
+- **Deploy from source code:**
 
-    ```bash
-    gcloud run deploy my-service --source .
-    ```
+  ```bash
+  gcloud run deploy my-service --source .
+  ```
 
--   **Deploy a Cloud Run function:** 
+- **Deploy a Cloud Run function:**
 
-    ```bash
-    gcloud run deploy my-service
-    --source . --function example-hello --base-image go126 --region us-central1
-    ```
+  ```bash
+  gcloud run deploy my-service
+  --source . --function example-hello --base-image go126 --region us-central1
+  ```
 
--   **List services:**
+- **List services:**
 
-    ```bash
-    gcloud run services list
-    ```
+  ```bash
+  gcloud run services list
+  ```
 
--   **Update traffic split:**
+- **Update traffic split:**
 
-    ```bash
-    gcloud run services update-traffic my-service --to-revisions=REV1=50,REV2=50
-    ```
+  ```bash
+  gcloud run services update-traffic my-service --to-revisions=REV1=50,REV2=50
+  ```
 
 ### Cloud Run job
 
--   **Create a job:**
+- **Create a job:**
 
-    ```bash
-    gcloud run jobs create my-job \
-      --image us-docker.pkg.dev/cloudrun/container/job:latest
-    ```
+  ```bash
+  gcloud run jobs create my-job \
+    --image us-docker.pkg.dev/cloudrun/container/job:latest
+  ```
 
--   **Execute a job:**
+- **Execute a job:**
 
-    ```bash
-    gcloud run jobs execute my-job
-    ```
+  ```bash
+  gcloud run jobs execute my-job
+  ```
 
--   **List jobs:** `gcloud run jobs list`
+- **List jobs:** `gcloud run jobs list`
 
--   **List job executions:**
+- **List job executions:**
 
-    ```bash
-    gcloud run executions list --job my-job
-    ```
+  ```bash
+  gcloud run executions list --job my-job
+  ```
 
 ### Cloud Run worker pools
 
--   **Deploy a worker pool from an image:**
+- **Deploy a worker pool from an image:**
 
-    ```bash
-    gcloud run worker-pools deploy my-workerpool \
-      --image us-docker.pkg.dev/cloudrun/container/worker-pool:latest
-    ```
+  ```bash
+  gcloud run worker-pools deploy my-workerpool \
+    --image us-docker.pkg.dev/cloudrun/container/worker-pool:latest
+  ```
 
--   **Deploy from source code:**
+- **Deploy from source code:**
 
-    ```bash
-    gcloud run worker-pools deploy my-workerpool --source .
-    ```
+  ```bash
+  gcloud run worker-pools deploy my-workerpool --source .
+  ```
 
--   **List worker pools:**
+- **List worker pools:**
 
-    ```bash
-    gcloud run worker-pools list --region us-central1
-    ```
+  ```bash
+  gcloud run worker-pools list --region us-central1
+  ```
 
--   **Configure scaling (manual):**
+- **Configure scaling (manual):**
 
-    ```bash
-    gcloud run worker-pools deploy my-workerpool --instances=5 \
-      --image us-docker.pkg.dev/cloudrun/container/worker-pool:latest
-    ```
+  ```bash
+  gcloud run worker-pools deploy my-workerpool --instances=5 \
+    --image us-docker.pkg.dev/cloudrun/container/worker-pool:latest
+  ```
 
 ### Configuration and logs
 
--   **View more details about a service:** `gcloud run services describe my-service`
+- **View more details about a service:**
+  `gcloud run services describe my-service`
 
--   **View logs:**
+- **View logs:**
 
-    ```bash
-    gcloud logging read "resource.type=cloud_run_revision AND \
-      resource.labels.service_name=my-service"
-    ```
+  ```bash
+  gcloud logging read "resource.type=cloud_run_revision AND \
+    resource.labels.service_name=my-service"
+  ```
 
 ## Common Flags
 
--   `--region`: The region where the service or job is located.
--   `--allow-unauthenticated`: Makes the service publicly accessible.
+- `--region`: The region where the service or job is located.
+- `--allow-unauthenticated`: Makes the service publicly accessible.
 
--   `--no-allow-unauthenticated`: Restricts access to authenticated users only.
+- `--no-allow-unauthenticated`: Restricts access to authenticated users only.

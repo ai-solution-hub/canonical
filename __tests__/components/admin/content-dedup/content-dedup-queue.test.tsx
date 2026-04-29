@@ -16,10 +16,9 @@ const { mockFetchQueue } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/query/fetchers', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/lib/query/fetchers')>(
-      '@/lib/query/fetchers',
-    );
+  const actual = await vi.importActual<typeof import('@/lib/query/fetchers')>(
+    '@/lib/query/fetchers',
+  );
   return {
     ...actual,
     fetchAdminDedupQueue: mockFetchQueue,
@@ -87,9 +86,7 @@ describe('ContentDedupQueueClient', () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Cloud security policy v3'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Cloud security policy v3')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Other policy')).toBeInTheDocument();

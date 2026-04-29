@@ -95,7 +95,9 @@ describe('parseCliArgs', () => {
 
   it('rejects empty --tables list (only commas)', () => {
     const args = parseCliArgs(['--tables=,,, ']);
-    expect(args.error).toContain('--tables provided but parsed to an empty list');
+    expect(args.error).toContain(
+      '--tables provided but parsed to an empty list',
+    );
   });
 
   it('parses --allowlist=<path>', () => {
@@ -288,9 +290,7 @@ describe('computeDiff', () => {
   });
 
   it('preserves allowlistApplied when status is match', () => {
-    const counts: RowCount[] = [
-      { table: 'a', sourceCount: 5, targetCount: 5 },
-    ];
+    const counts: RowCount[] = [{ table: 'a', sourceCount: 5, targetCount: 5 }];
     const rows = computeDiff(counts, { a: 100 });
     expect(rows[0].status).toBe('match');
     expect(rows[0].allowlistApplied).toBe(100);
@@ -550,9 +550,7 @@ describe('fetchTableInventory', () => {
     });
     await expect(
       fetchTableInventory(mock as unknown as SupabaseClient),
-    ).rejects.toThrow(
-      /apply the migration|--tables=/,
-    );
+    ).rejects.toThrow(/apply the migration|--tables=/);
   });
 
   it('throws when RPC returns non-array data', async () => {
@@ -580,15 +578,25 @@ describe('countOneTable', () => {
   it('returns null on relation-not-found (42P01)', async () => {
     const mock = createMockSupabaseClient();
     mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { code: '42P01', message: 'relation gone' }, count: null }),
+      resolve({
+        data: null,
+        error: { code: '42P01', message: 'relation gone' },
+        count: null,
+      }),
     ) as typeof mock._chain.then;
-    expect(await countOneTable(mock as unknown as SupabaseClient, 'gone')).toBeNull();
+    expect(
+      await countOneTable(mock as unknown as SupabaseClient, 'gone'),
+    ).toBeNull();
   });
 
   it('throws on other PG errors', async () => {
     const mock = createMockSupabaseClient();
     mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }),
+      resolve({
+        data: null,
+        error: { code: '42501', message: 'permission denied' },
+        count: null,
+      }),
     ) as typeof mock._chain.then;
     await expect(
       countOneTable(mock as unknown as SupabaseClient, 't'),
@@ -622,7 +630,11 @@ describe('countAllTables', () => {
   it('returns null count when relation does not exist (42P01)', async () => {
     const mock = createMockSupabaseClient();
     mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { code: '42P01', message: 'no relation' }, count: null }),
+      resolve({
+        data: null,
+        error: { code: '42P01', message: 'no relation' },
+        count: null,
+      }),
     ) as typeof mock._chain.then;
     const out = await countAllTables(
       mock as unknown as SupabaseClient,
@@ -635,7 +647,11 @@ describe('countAllTables', () => {
   it('throws on non-relation-not-found errors', async () => {
     const mock = createMockSupabaseClient();
     mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { code: 'XX000', message: 'boom' }, count: null }),
+      resolve({
+        data: null,
+        error: { code: 'XX000', message: 'boom' },
+        count: null,
+      }),
     ) as typeof mock._chain.then;
     await expect(
       countAllTables(mock as unknown as SupabaseClient, ['t1'], 5),

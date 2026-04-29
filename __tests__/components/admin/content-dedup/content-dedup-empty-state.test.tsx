@@ -19,9 +19,7 @@ describe('ContentDedupEmptyState', () => {
         name: /no suspected duplicates pending review/i,
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/exact-hash dedup gate/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/exact-hash dedup gate/i)).toBeInTheDocument();
   });
 
   it('exposes an aria-labelled region', () => {

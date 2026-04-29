@@ -217,9 +217,21 @@ describe('GET /api/admin/content-dedup/queue', () => {
       configureRole(mockSupabase, 'admin');
       // limit defaults to 50; mock 3 rows with limit=2 query string
       const rows = [
-        { ...SAMPLE_ROW, id: '11111111-1111-4111-8111-111111111111', created_at: '2026-04-28T12:00:00Z' },
-        { ...SAMPLE_ROW, id: '22222222-2222-4222-8222-222222222222', created_at: '2026-04-28T11:00:00Z' },
-        { ...SAMPLE_ROW, id: '33333333-3333-4333-8333-333333333333', created_at: '2026-04-28T10:00:00Z' },
+        {
+          ...SAMPLE_ROW,
+          id: '11111111-1111-4111-8111-111111111111',
+          created_at: '2026-04-28T12:00:00Z',
+        },
+        {
+          ...SAMPLE_ROW,
+          id: '22222222-2222-4222-8222-222222222222',
+          created_at: '2026-04-28T11:00:00Z',
+        },
+        {
+          ...SAMPLE_ROW,
+          id: '33333333-3333-4333-8333-333333333333',
+          created_at: '2026-04-28T10:00:00Z',
+        },
       ];
       configureQueueRows(rows);
 

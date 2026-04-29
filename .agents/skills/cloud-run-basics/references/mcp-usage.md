@@ -7,8 +7,8 @@ enables agents to deploy, manage, and monitor serverless applications.
 
 The Cloud Run MCP server typically includes tools for:
 
-- `get_service`: Get info about a Cloud Run service, such as its URI and
-  whether the deploy succeeded.
+- `get_service`: Get info about a Cloud Run service, such as its URI and whether
+  the deploy succeeded.
 - `list_services`: List Cloud Run services in a given Google Cloud project and
   region.
 - `deploy_service_from_image`: Deploy a container image from Artifact Registry
@@ -17,11 +17,11 @@ The Cloud Run MCP server typically includes tools for:
   self-contained source code archive (.tar.gz), skipping the container image
   build step for faster deployment. The archive must include all dependencies.
 - `deploy_service_from_file_contents`: Deploys a Cloud Run service directly from
-  local source files. This method is suitable for scripting languages like Python
-  and Node.js, of which the source code can be embedded in the request. This is
-  ideal for quick tests and development feedback loops. You must include all
-  necessary dependencies within the source files because it skips the build step
-  for faster deployment.
+  local source files. This method is suitable for scripting languages like
+  Python and Node.js, of which the source code can be embedded in the request.
+  This is ideal for quick tests and development feedback loops. You must include
+  all necessary dependencies within the source files because it skips the build
+  step for faster deployment.
 
 ## Setup Instructions
 
@@ -40,4 +40,6 @@ Agents using the Cloud Run MCP can:
 - Troubleshoot failing deployments by inspecting logs and status.
 - Manage scheduled jobs and verify their execution history.
 
-Alternatively, use the [open source Cloud Run MCP server](https://github.com/GoogleCloudPlatform/cloud-run-mcp) which runs locally.
+Alternatively, use the
+[open source Cloud Run MCP server](https://github.com/GoogleCloudPlatform/cloud-run-mcp)
+which runs locally.

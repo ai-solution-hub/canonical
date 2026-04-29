@@ -139,7 +139,8 @@ function makeRequest(args: {
       return null;
     }),
     getAll: vi.fn((key: string): FormDataEntryValue[] => {
-      if (key === 'files[]') return builtFiles as unknown as FormDataEntryValue[];
+      if (key === 'files[]')
+        return builtFiles as unknown as FormDataEntryValue[];
       return [];
     }),
   };
@@ -290,7 +291,12 @@ describe('POST /api/ingest/markdown — phase=import', () => {
     if (callArg.phase === 'import') {
       expect(callArg.callerRole).toBe('editor');
       expect(callArg.options?.perFileOverrides).toEqual([
-        { filename: 'foo.md', skipDedup: true, excluded: undefined, draftOrFinal: undefined },
+        {
+          filename: 'foo.md',
+          skipDedup: true,
+          excluded: undefined,
+          draftOrFinal: undefined,
+        },
       ]);
     }
   });
@@ -359,9 +365,7 @@ describe('POST /api/ingest/markdown — validation', () => {
     const res = await POST(req);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toBe(
-      'Markdown batch mode requires all files to be .md',
-    );
+    expect(body.error).toBe('Markdown batch mode requires all files to be .md');
   });
 
   it('file >1 MB → 413', async () => {

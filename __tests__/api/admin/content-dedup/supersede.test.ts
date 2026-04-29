@@ -38,10 +38,9 @@ vi.mock('next/headers', () => ({
 }));
 
 vi.mock('@/lib/supersession/set', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/lib/supersession/set')>(
-      '@/lib/supersession/set',
-    );
+  const actual = await vi.importActual<typeof import('@/lib/supersession/set')>(
+    '@/lib/supersession/set',
+  );
   return {
     ...actual,
     setSupersession: mockSetSupersession,
@@ -314,9 +313,13 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
       configureRole(mockSupabase, 'admin');
       configureSubjectLoadOk();
       mockSetSupersession.mockRejectedValueOnce(
-        new SupersessionError('OLD_NOT_FOUND', `Old item not found: ${SUBJECT_ID}`, {
-          oldId: SUBJECT_ID,
-        }),
+        new SupersessionError(
+          'OLD_NOT_FOUND',
+          `Old item not found: ${SUBJECT_ID}`,
+          {
+            oldId: SUBJECT_ID,
+          },
+        ),
       );
 
       const request = createTestRequest(
@@ -379,11 +382,7 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
       configureRole(mockSupabase, 'admin');
       configureSubjectLoadOk();
       mockSetSupersession.mockRejectedValueOnce(
-        new SupersessionError(
-          'NEW_ALREADY_SUPERSEDED',
-          'chain prevention',
-          {},
-        ),
+        new SupersessionError('NEW_ALREADY_SUPERSEDED', 'chain prevention', {}),
       );
 
       const request = createTestRequest(
@@ -634,11 +633,7 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
       configureRole(mockSupabase, 'admin');
       configureSubjectLoadOk();
       mockSetSupersession.mockRejectedValueOnce(
-        new SupersessionError(
-          'NEW_ALREADY_SUPERSEDED',
-          'chain prevention',
-          {},
-        ),
+        new SupersessionError('NEW_ALREADY_SUPERSEDED', 'chain prevention', {}),
       );
 
       const request = createTestRequest(
@@ -751,7 +746,11 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
       expect(body.retiredId).toBe(SUBJECT_ID);
 
       expect(mockSetSupersession).toHaveBeenCalledWith(
-        { oldId: SUBJECT_ID, newId: CANONICAL_ID, actorUserId: 'admin-user-id' },
+        {
+          oldId: SUBJECT_ID,
+          newId: CANONICAL_ID,
+          actorUserId: 'admin-user-id',
+        },
         expect.anything(),
       );
     });

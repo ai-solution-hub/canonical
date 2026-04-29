@@ -10,7 +10,10 @@ import {
   configureRole,
   configureUnauthenticated,
 } from '../../../helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '../../../helpers/mock-next';
+import {
+  createTestRequest,
+  createTestParams,
+} from '../../../helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
 
@@ -111,7 +114,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
   describe('authentication', () => {
     it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });
@@ -120,7 +125,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
 
     it('returns 403 for editor role', async () => {
       configureRole(mockSupabase, 'editor');
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });
@@ -152,7 +159,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });
@@ -184,7 +193,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });
@@ -210,7 +221,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });
@@ -229,7 +242,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
         error: { code: 'PGRST116', message: 'no rows' },
       });
 
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });
@@ -243,7 +258,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });
@@ -259,7 +276,9 @@ describe('GET /api/admin/content-dedup/[id]', () => {
         error: { code: '42P01', message: 'relation does not exist' },
       });
 
-      const request = createTestRequest(`/api/admin/content-dedup/${SUBJECT_ID}`);
+      const request = createTestRequest(
+        `/api/admin/content-dedup/${SUBJECT_ID}`,
+      );
       const response = await GET(request, {
         params: createTestParams({ id: SUBJECT_ID }),
       });

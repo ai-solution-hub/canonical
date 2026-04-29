@@ -14,10 +14,9 @@ const { mockFetchItem } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/query/fetchers', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/lib/query/fetchers')>(
-      '@/lib/query/fetchers',
-    );
+  const actual = await vi.importActual<typeof import('@/lib/query/fetchers')>(
+    '@/lib/query/fetchers',
+  );
   return {
     ...actual,
     fetchAdminDedupItem: mockFetchItem,

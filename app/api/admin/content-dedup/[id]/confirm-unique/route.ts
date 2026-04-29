@@ -108,7 +108,10 @@ export async function POST(
       .limit(1);
 
     if (latestHistoryErr) {
-      console.error('Failed to read latest content_history version:', latestHistoryErr);
+      console.error(
+        'Failed to read latest content_history version:',
+        latestHistoryErr,
+      );
     }
 
     const nextVersion = (latestHistory?.[0]?.version ?? 0) + 1;

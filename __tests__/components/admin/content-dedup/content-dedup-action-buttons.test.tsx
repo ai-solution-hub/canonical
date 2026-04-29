@@ -19,24 +19,21 @@ import userEvent from '@testing-library/user-event';
 
 import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
-const { mockMutationFetchJson, mockToast, mockRouterPush } = vi.hoisted(
-  () => ({
-    mockMutationFetchJson: vi.fn(),
-    mockToast: {
-      success: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-    },
-    mockRouterPush: vi.fn(),
-  }),
-);
+const { mockMutationFetchJson, mockToast, mockRouterPush } = vi.hoisted(() => ({
+  mockMutationFetchJson: vi.fn(),
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
+  mockRouterPush: vi.fn(),
+}));
 
 vi.mock('@/lib/query/fetchers', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/lib/query/fetchers')>(
-      '@/lib/query/fetchers',
-    );
+  const actual = await vi.importActual<typeof import('@/lib/query/fetchers')>(
+    '@/lib/query/fetchers',
+  );
   return {
     ...actual,
     mutationFetchJson: mockMutationFetchJson,
@@ -146,10 +143,7 @@ describe('ContentDedupActionButtons', () => {
 
     renderWithProviders(makeRow(), makeRow({ id: CANONICAL_ID }));
 
-    await user.type(
-      screen.getByTestId('dedup-note-input'),
-      'looks identical',
-    );
+    await user.type(screen.getByTestId('dedup-note-input'), 'looks identical');
     await user.click(screen.getByTestId('dedup-confirm-unique'));
 
     await waitFor(() => {

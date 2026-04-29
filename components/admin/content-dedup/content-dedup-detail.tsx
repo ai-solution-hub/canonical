@@ -66,10 +66,7 @@ export function ContentDedupDetailClient({
           </CardContent>
         </Card>
       ) : query.isError ? (
-        <Card
-          role="alert"
-          className="border-status-error/30 bg-status-error/5"
-        >
+        <Card role="alert" className="border-status-error/30 bg-status-error/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base text-status-error">
               <AlertTriangle className="size-4" aria-hidden="true" />
@@ -111,10 +108,7 @@ export function ContentDedupDetailClient({
 
           {query.data.canonical ? (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <ContentDedupRowCard
-                row={query.data.subject}
-                label="subject"
-              />
+              <ContentDedupRowCard row={query.data.subject} label="subject" />
               <ContentDedupRowCard
                 row={query.data.canonical}
                 label="canonical"
@@ -122,10 +116,7 @@ export function ContentDedupDetailClient({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              <ContentDedupRowCard
-                row={query.data.subject}
-                label="subject"
-              />
+              <ContentDedupRowCard row={query.data.subject} label="subject" />
               <Card
                 role="status"
                 className="border-status-warning/30 bg-status-warning/5"

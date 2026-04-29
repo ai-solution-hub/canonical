@@ -232,9 +232,9 @@ export function ContentDedupActionButtons({
           <DialogHeader>
             <DialogTitle>Mark superseded</DialogTitle>
             <DialogDescription>
-              Choose the supersession direction. The &ldquo;old&rdquo; row
-              gets `superseded_by` pointed at the &ldquo;new&rdquo; row and
-              its `dedup_status` flips to `superseded`.
+              Choose the supersession direction. The &ldquo;old&rdquo; row gets
+              `superseded_by` pointed at the &ldquo;new&rdquo; row and its
+              `dedup_status` flips to `superseded`.
             </DialogDescription>
           </DialogHeader>
 
@@ -246,9 +246,7 @@ export function ContentDedupActionButtons({
                 name="supersede-direction"
                 value="canonical-supersedes-subject"
                 checked={direction === 'canonical-supersedes-subject'}
-                onChange={() =>
-                  setDirection('canonical-supersedes-subject')
-                }
+                onChange={() => setDirection('canonical-supersedes-subject')}
                 disabled={supersede.isPending}
                 className="mt-0.5"
                 data-testid="supersede-direction-canonical-supersedes-subject"
@@ -268,9 +266,7 @@ export function ContentDedupActionButtons({
                 name="supersede-direction"
                 value="subject-supersedes-canonical"
                 checked={direction === 'subject-supersedes-canonical'}
-                onChange={() =>
-                  setDirection('subject-supersedes-canonical')
-                }
+                onChange={() => setDirection('subject-supersedes-canonical')}
                 disabled={supersede.isPending}
                 className="mt-0.5"
                 data-testid="supersede-direction-subject-supersedes-canonical"

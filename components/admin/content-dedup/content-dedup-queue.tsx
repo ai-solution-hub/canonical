@@ -67,8 +67,8 @@ export function ContentDedupQueueClient() {
           Cross-System Dedup Review
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Review suspected-duplicate content rows soft-blocked at ingest. Confirm
-          duplicate, confirm unique, or mark superseded.
+          Review suspected-duplicate content rows soft-blocked at ingest.
+          Confirm duplicate, confirm unique, or mark superseded.
         </p>
       </header>
 
@@ -89,10 +89,7 @@ export function ContentDedupQueueClient() {
           </CardContent>
         </Card>
       ) : query.isError ? (
-        <Card
-          role="alert"
-          className="border-status-error/30 bg-status-error/5"
-        >
+        <Card role="alert" className="border-status-error/30 bg-status-error/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base text-status-error">
               <AlertTriangle className="size-4" aria-hidden="true" />

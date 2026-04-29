@@ -20,15 +20,15 @@ user reviews the continuation prompt at the end.
 The planning documents have distinct, non-overlapping roles. Future agents must
 respect this distinction or the docs will drift back into chaos:
 
-| Document                           | File                                                               | Role                                                                                                                                                                                                                                                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **State of the product**           | `docs/reference/state-of-the-product.md`                           | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to `state-of-the-product-change-log.md` atomically. |
-| **Roadmap**                        | `docs/reference/post-mvp-roadmap.md`                               | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Resolved items.                                                                                                                                                       |
-| **Product backlog**                | `docs/reference/product-backlog.md`                                | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap.   |
-| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md`             | **Append-only per-session change-log** for SoTP capability deltas (the warm tier, S186 onwards). Newest at bottom. Mirrors `STATUS-change-log.md` shape (commit `a1b3b0e3` on production-readiness; skill update `a295eed9`). For the canonical present-tense capability ledger, see `state-of-the-product.md`. For pre-S186 history, see `state-of-the-product-history.md`. |
-| **State of the product — history** | `docs/reference/state-of-the-product-history.md`                   | **Frozen historical archive — the cold tier (S53→S185).** Per-session "what shipped in session N" narrative blocks split out of the canonical doc in S152B WP10 (commit `3e3eccc5`). Append nothing here directly — the change-log file is the warm append surface; cold-archive sweeps move blocks from change-log → history when the change-log crosses ~5000 lines.                                                              |
-| **Backlog completed archive**      | `docs/reference/product-backlog-completed.md`                      | Frozen historical record of completed backlog items.                                                                                                                                                                                                                                                 |
-| **Wave status ledgers**            | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`) | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                 |
+| Document                              | File                                                               | Role                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **State of the product**              | `docs/reference/state-of-the-product.md`                           | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to `state-of-the-product-change-log.md` atomically. |
+| **Roadmap**                           | `docs/reference/post-mvp-roadmap.md`                               | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Resolved items.                                                                                                                                                                                                                                                                                      |
+| **Product backlog**                   | `docs/reference/product-backlog.md`                                | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap.                                                                                                                                  |
+| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md`                | **Append-only per-session change-log** for SoTP capability deltas (the warm tier, S186 onwards). Newest at bottom. Mirrors `STATUS-change-log.md` shape (commit `a1b3b0e3` on production-readiness; skill update `a295eed9`). For the canonical present-tense capability ledger, see `state-of-the-product.md`. For pre-S186 history, see `state-of-the-product-history.md`.                                                        |
+| **State of the product — history**    | `docs/reference/state-of-the-product-history.md`                   | **Frozen historical archive — the cold tier (S53→S185).** Per-session "what shipped in session N" narrative blocks split out of the canonical doc in S152B WP10 (commit `3e3eccc5`). Append nothing here directly — the change-log file is the warm append surface; cold-archive sweeps move blocks from change-log → history when the change-log crosses ~5000 lines.                                                              |
+| **Backlog completed archive**         | `docs/reference/product-backlog-completed.md`                      | Frozen historical record of completed backlog items.                                                                                                                                                                                                                                                                                                                                                                                |
+| **Wave status ledgers**               | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`) | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                                                                                                                                                |
 
 ---
 
@@ -80,7 +80,11 @@ work packages were completed, partially completed, or deferred.
 
 **File:** `docs/reference/post-mvp-roadmap.md`
 
-> **Before editing, apply the [Ship-event discipline](#ship-event-discipline-applies-to-steps-3-and-8) rule below**: any item that shipped this session is REMOVED from the roadmap (no strikethrough, no "Status: Done") and its capability narrative is folded into SoTP §5/§8 + change-log in the SAME commit.
+> **Before editing, apply the
+> [Ship-event discipline](#ship-event-discipline-applies-to-steps-3-and-8) rule
+> below**: any item that shipped this session is REMOVED from the roadmap (no
+> strikethrough, no "Status: Done") and its capability narrative is folded into
+> SoTP §5/§8 + change-log in the SAME commit.
 
 Read the file, then:
 
@@ -100,27 +104,56 @@ Read the file, then:
 
 ## Ship-event discipline (applies to Steps 3 and 8)
 
-**Rule: ship-event = remove + SoTP fold-in in the SAME commit. Never strikethrough-and-keep.**
+**Rule: ship-event = remove + SoTP fold-in in the SAME commit. Never
+strikethrough-and-keep.**
 
 When a roadmap or backlog item ships during the session:
 
-1. **REMOVE the row entirely** from `post-mvp-roadmap.md` or `product-backlog.md`. No strikethrough (`~~OPS-N~~`), no "Status: Done"/"Status: Shipped"/"Status: Closed" annotation, no "kept here for cross-ref" preservation, no "promoted to roadmap §X" stub. Closed = removed.
-2. **Fold the capability narrative into SoTP** in the SAME commit as the row removal:
-   - Update or add the relevant capability bullet under `state-of-the-product.md` §5 / §8 (per Step 5's discipline).
-   - Append a row to `state-of-the-product-change-log.md` describing the session-level delta.
-   - Both edits ship atomically with the roadmap/backlog removal — no follow-up "fix change-log" commits.
-3. **The git commit ref + session number is the audit trail.** The roadmap and backlog must never carry historical Done/Shipped/Closed/Wontfix rows. Continuation prompts (`docs/continuation-prompts/`) and session-deliverable memory files preserve the per-session log; `git log` preserves the line-level history.
+1. **REMOVE the row entirely** from `post-mvp-roadmap.md` or
+   `product-backlog.md`. No strikethrough (`~~OPS-N~~`), no "Status:
+   Done"/"Status: Shipped"/"Status: Closed" annotation, no "kept here for
+   cross-ref" preservation, no "promoted to roadmap §X" stub. Closed = removed.
+2. **Fold the capability narrative into SoTP** in the SAME commit as the row
+   removal:
+   - Update or add the relevant capability bullet under
+     `state-of-the-product.md` §5 / §8 (per Step 5's discipline).
+   - Append a row to `state-of-the-product-change-log.md` describing the
+     session-level delta.
+   - Both edits ship atomically with the roadmap/backlog removal — no follow-up
+     "fix change-log" commits.
+3. **The git commit ref + session number is the audit trail.** The roadmap and
+   backlog must never carry historical Done/Shipped/Closed/Wontfix rows.
+   Continuation prompts (`docs/continuation-prompts/`) and session-deliverable
+   memory files preserve the per-session log; `git log` preserves the line-level
+   history.
 
-**Rationale.** Closed/Done rows accumulating in the roadmap and backlog re-create the bloat that S210-C1 (backlog purge) and S210-C2 (roadmap purge) just removed (~21 backlog rows + ~6 roadmap rows + ~9 ship-crumb rewrites). Forward-looking discipline must be enforced at write-time, not retroactively in a future cleanup wave.
+**Rationale.** Closed/Done rows accumulating in the roadmap and backlog
+re-create the bloat that S210-C1 (backlog purge) and S210-C2 (roadmap purge)
+just removed (~21 backlog rows + ~6 roadmap rows + ~9 ship-crumb rewrites).
+Forward-looking discipline must be enforced at write-time, not retroactively in
+a future cleanup wave.
 
-**Forward-discipline guards (S210-C3).** Two Vitest tests fail CI on any Done/Shipped/Closed row that slips through:
+**Forward-discipline guards (S210-C3).** Two Vitest tests fail CI on any
+Done/Shipped/Closed row that slips through:
 
-- `__tests__/docs/roadmap-no-shipped-rows.test.ts` — fails if `post-mvp-roadmap.md` contains a row with `Status: Done|Shipped S\d|Completed S\d` (excluding the `## Operational Notes` section).
-- `__tests__/docs/backlog-no-closed-rows.test.ts` — fails if `product-backlog.md` contains a `~~`-strikethrough row, or `Status: Closed|Done|Wontfix|Completed` inside the active table.
+- `__tests__/docs/roadmap-no-shipped-rows.test.ts` — fails if
+  `post-mvp-roadmap.md` contains a row with
+  `Status: Done|Shipped S\d|Completed S\d` (excluding the `## Operational Notes`
+  section).
+- `__tests__/docs/backlog-no-closed-rows.test.ts` — fails if
+  `product-backlog.md` contains a `~~`-strikethrough row, or
+  `Status: Closed|Done|Wontfix|Completed` inside the active table.
 
-If either guard fails, the fix is to follow this rule: remove the row, fold the narrative into SoTP, ship the commit. Do NOT relax the regex — the guards exist precisely to prevent re-accumulation.
+If either guard fails, the fix is to follow this rule: remove the row, fold the
+narrative into SoTP, ship the commit. Do NOT relax the regex — the guards exist
+precisely to prevent re-accumulation.
 
-**Relationship to Step 5.** Step 5 explains *how* to fold a capability into SoTP (which sub-section, banner preservation, change-log row format). This rule explains *when* to remove the corresponding roadmap/backlog row (in the same commit as the SoTP fold-in, never deferred, never strikethrough-and-keep). The two rules are complementary: Step 5 is the destination; this rule is the source-side discipline.
+**Relationship to Step 5.** Step 5 explains _how_ to fold a capability into SoTP
+(which sub-section, banner preservation, change-log row format). This rule
+explains _when_ to remove the corresponding roadmap/backlog row (in the same
+commit as the SoTP fold-in, never deferred, never strikethrough-and-keep). The
+two rules are complementary: Step 5 is the destination; this rule is the
+source-side discipline.
 
 ---
 
@@ -156,19 +189,21 @@ git diff --cached --quiet || git commit -m "chore: archive completed specs"
 
 **Files:**
 
-- `docs/reference/state-of-the-product.md` — canonical present-tense capability ledger
-- `docs/reference/state-of-the-product-change-log.md` — append-only per-session narrative (warm tier, S186 onwards)
+- `docs/reference/state-of-the-product.md` — canonical present-tense capability
+  ledger
+- `docs/reference/state-of-the-product-change-log.md` — append-only per-session
+  narrative (warm tier, S186 onwards)
 
-The two files have distinct, non-overlapping roles. SoTP carries the bullet
-list of what is currently built; the change-log carries when/how/why each
-capability changed. **Capability edits and change-log appends always ship in
-the SAME COMMIT** so a future reader can diff both surfaces together.
+The two files have distinct, non-overlapping roles. SoTP carries the bullet list
+of what is currently built; the change-log carries when/how/why each capability
+changed. **Capability edits and change-log appends always ship in the SAME
+COMMIT** so a future reader can diff both surfaces together.
 
 **1. Determine the type of session work:**
 
-- **Capability change** — new feature, removed feature, behaviour shift, or
-  any visible-from-outside change to the platform's shape: update the relevant
-  SoTP capability bullet AND append a row to the change-log.
+- **Capability change** — new feature, removed feature, behaviour shift, or any
+  visible-from-outside change to the platform's shape: update the relevant SoTP
+  capability bullet AND append a row to the change-log.
 - **Session-narrative only** — bug fix, refactor, perf tweak, doc cleanup, or
   any work that didn't change the capability shape: append a change-log row
   only. Do not edit SoTP.
@@ -185,76 +220,76 @@ the SAME COMMIT** so a future reader can diff both surfaces together.
    session marker in the body** — `(S155 WP3)` belongs in the change-log row,
    not the SoTP bullet. The capability statement is what's true; the change-log
    carries when/how/why it changed.
-3. **If a feature was REMOVED**, delete the bullet outright. Do not strikethrough.
-   Do not leave both old and new descriptions side-by-side.
+3. **If a feature was REMOVED**, delete the bullet outright. Do not
+   strikethrough. Do not leave both old and new descriptions side-by-side.
 4. **If the section does not exist**, add a new bullet under the most
-   appropriate sub-section. Do NOT create a new top-level section without
-   strong reason. New top-level sections are a red flag for unbounded growth.
+   appropriate sub-section. Do NOT create a new top-level section without strong
+   reason. New top-level sections are a red flag for unbounded growth.
 5. **Preserve the section-header banner** at the top of each §5/§8 sub-section:
    `> Capability summary only. Session-by-session narrative lives in [state-of-the-product-change-log.md](state-of-the-product-change-log.md).`
-   The banner is the second-line defence against changelog drift — never delete it.
+   The banner is the second-line defence against changelog drift — never delete
+   it.
 
 **3. Append a change-log row** to `state-of-the-product-change-log.md`.
 
-   - Find the relevant `## §N ... — change log` section (or sub-section under
-     §8). Append a row at the bottom of its table:
+- Find the relevant `## §N ... — change log` section (or sub-section under §8).
+  Append a row at the bottom of its table:
 
-     ```
-     | DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
-     ```
+  ```
+  | DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
+  ```
 
-   - **Newest at bottom** — never reorder.
-   - **Append-only** — never edit prior rows except for typo / factual error fixes.
-   - The `Δ` cell can be multi-paragraph (Markdown table cells handle this fine).
-     For sessions with multi-area changes, a single multi-paragraph row keeps
-     the change diffable; resist the temptation to spread one session across
-     multiple rows in different sections unless the changes are genuinely
-     orthogonal.
+- **Newest at bottom** — never reorder.
+- **Append-only** — never edit prior rows except for typo / factual error fixes.
+- The `Δ` cell can be multi-paragraph (Markdown table cells handle this fine).
+  For sessions with multi-area changes, a single multi-paragraph row keeps the
+  change diffable; resist the temptation to spread one session across multiple
+  rows in different sections unless the changes are genuinely orthogonal.
 
 **4. Migration discipline rules** (the four guardrails that prevent regrowth):
 
-   1. **Section-header banner preserved** at the top of every §5/§8 sub-section.
-   2. **No session markers in SoTP body.** A bullet may name a feature shipped
-      post-S196 but cannot end with `(S196 §1.19)` — that's the change-log's job.
-      Only deliberate exception: brief session-arc bookmark lines like
-      "Re-ingestion arc S175-S182" which is itself a link to the history doc.
-   3. **Append-only change-log.** Never reorder, never edit prior rows except
-      to fix typos or correct factual errors (with edit annotation).
-   4. **One commit per session** touching both files when a capability shipped.
-      Diff readers see both surfaces together. No follow-up "fix change-log"
-      commits — atomic edit + append.
+1.  **Section-header banner preserved** at the top of every §5/§8 sub-section.
+2.  **No session markers in SoTP body.** A bullet may name a feature shipped
+    post-S196 but cannot end with `(S196 §1.19)` — that's the change-log's job.
+    Only deliberate exception: brief session-arc bookmark lines like
+    "Re-ingestion arc S175-S182" which is itself a link to the history doc.
+3.  **Append-only change-log.** Never reorder, never edit prior rows except to
+    fix typos or correct factual errors (with edit annotation).
+4.  **One commit per session** touching both files when a capability shipped.
+    Diff readers see both surfaces together. No follow-up "fix change-log"
+    commits — atomic edit + append.
 
 **5. Worked example.** Hypothetical S214 ships a new "Per-domain entity
-   confidence threshold" feature in `lib/entities/confidence.ts`.
+confidence threshold" feature in `lib/entities/confidence.ts`.
 
-   *SoTP edit* — update the capability bullet under §5 Classification & AI:
+_SoTP edit_ — update the capability bullet under §5 Classification & AI:
 
-   ```diff
-    ### Classification & AI
+```diff
+ ### Classification & AI
 
-    > Capability summary only. Session-by-session narrative lives in [state-of-the-product-change-log.md](state-of-the-product-change-log.md).
+ > Capability summary only. Session-by-session narrative lives in [state-of-the-product-change-log.md](state-of-the-product-change-log.md).
 
-    - Classifier prompt v4.5 with two-pass validation; entity taxonomy enforced.
-   -- Confidence is reported per entity but applied uniformly across domains.
-   +- Confidence is reported per entity and **applied per-domain** via configurable
-   +  threshold table; low-confidence entities are surfaced for review rather than
-   +  auto-merged.
-   ```
+ - Classifier prompt v4.5 with two-pass validation; entity taxonomy enforced.
+-- Confidence is reported per entity but applied uniformly across domains.
++- Confidence is reported per entity and **applied per-domain** via configurable
++  threshold table; low-confidence entities are surfaced for review rather than
++  auto-merged.
+```
 
-   *Change-log append* — add a row at the bottom of §5's change-log table in
-   `state-of-the-product-change-log.md`:
+_Change-log append_ — add a row at the bottom of §5's change-log table in
+`state-of-the-product-change-log.md`:
 
-   ```
-   | 02/05/2026 | S214 | Per-domain entity confidence threshold landed (`lib/entities/confidence.ts`, spec `docs/specs/entity-confidence-spec.md`, commit `abc12345`). Replaces the uniform threshold with a per-domain table; low-confidence entities now route to the review queue rather than auto-merging. SoTP §5 Classification & AI bullet updated. |
-   ```
+```
+| 02/05/2026 | S214 | Per-domain entity confidence threshold landed (`lib/entities/confidence.ts`, spec `docs/specs/entity-confidence-spec.md`, commit `abc12345`). Replaces the uniform threshold with a per-domain table; low-confidence entities now route to the review queue rather than auto-merging. SoTP §5 Classification & AI bullet updated. |
+```
 
-   Both edits ship in one commit:
-   `docs(s214): per-domain entity confidence threshold + SoTP fold-in`.
+Both edits ship in one commit:
+`docs(s214): per-domain entity confidence threshold + SoTP fold-in`.
 
-6. **If you notice that a section hasn't followed this approach** (e.g.
-   content reads like a session-by-session changelog rather than a capability
-   summary), resolve it if it's a section you're actively updating, or flag it
-   as an action for the next session in the continuation prompt created during
+6. **If you notice that a section hasn't followed this approach** (e.g. content
+   reads like a session-by-session changelog rather than a capability summary),
+   resolve it if it's a section you're actively updating, or flag it as an
+   action for the next session in the continuation prompt created during
    /handoff. This keeps SoTP aligned with the canonical present-tense
    discipline.
 
@@ -415,7 +450,11 @@ prompt **only** — never duplicated into roadmap or backlog (memory
 
 **File:** `docs/reference/product-backlog.md`
 
-> **Before editing, apply the [Ship-event discipline](#ship-event-discipline-applies-to-steps-3-and-8) rule above**: any backlog item that shipped or closed this session is REMOVED entirely (no strikethrough, no "Status: Closed/Done/Wontfix"). Capability narrative folds into SoTP §5/§8 + change-log in the SAME commit.
+> **Before editing, apply the
+> [Ship-event discipline](#ship-event-discipline-applies-to-steps-3-and-8) rule
+> above**: any backlog item that shipped or closed this session is REMOVED
+> entirely (no strikethrough, no "Status: Closed/Done/Wontfix"). Capability
+> narrative folds into SoTP §5/§8 + change-log in the SAME commit.
 
 If new work items were discovered in the session which aren't related to
 sections already covered by the product roadmap, these will need to be added to
@@ -459,10 +498,10 @@ update the ledger to reflect shipped state. One ledger per wave.
     written only when the next session needs deeper handoff narrative than the
     change-log row provides.
 
-  Detect by `ls docs/audits/<wave>/STATUS-*.md`. If the split exists, treat
-  each file as the canonical home for its content type — never duplicate
-  content across the split, and never put change-log rows or handoff prose
-  back into `STATUS.md`.
+  Detect by `ls docs/audits/<wave>/STATUS-*.md`. If the split exists, treat each
+  file as the canonical home for its content type — never duplicate content
+  across the split, and never put change-log rows or handoff prose back into
+  `STATUS.md`.
 
   Currently using split layout: `kh-production-readiness-phase-1/`.
 
@@ -478,10 +517,10 @@ update the ledger to reflect shipped state. One ledger per wave.
 **What to update (single-file or split — same content, different homes):**
 
 1. **Per-item rows (item tables in `STATUS.md` §4 or equivalent).** Flip the
-   `Status` column, populate `Shipped in` with `S{NNN} ({DD/MM/YYYY},
-   `{short_sha}`)`, update `Artefact` if the spec was written or archived, and
-   append a one-line note to `Notes` if a blocker surfaced or a dependency
-   closed.
+   `Status` column, populate `Shipped in` with
+   `S{NNN} ({DD/MM/YYYY}, `{short_sha}`)`, update `Artefact` if the spec was
+   written or archived, and append a one-line note to `Notes` if a blocker
+   surfaced or a dependency closed.
 2. **Gate status (`STATUS.md` §2 or equivalent).** If a gate cleared, mark
    **Cleared** and record the `Cleared in` session.
 3. **Snapshot counts (`STATUS.md` §1 or equivalent).** Adjust the
@@ -493,8 +532,8 @@ update the ledger to reflect shipped state. One ledger per wave.
 5. **Change log row.**
    - **Split layout:** append one row to `STATUS-change-log.md` §1 with
      `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`.
-   - **Single-file:** append one row to `STATUS.md` §8 (or equivalent) under
-     the change-log section.
+   - **Single-file:** append one row to `STATUS.md` §8 (or equivalent) under the
+     change-log section.
 6. **Handoff narrative (split layout only — conditional).** If the next session
    needs deeper handoff context than a change-log row carries (deferred scope,
    pending decisions, focus pivot), append a `### S{N} → S{N+1} handoff` block

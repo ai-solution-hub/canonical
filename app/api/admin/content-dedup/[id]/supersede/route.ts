@@ -78,7 +78,10 @@ export async function POST(
     // Distinct error code keeps the route's contract self-describing.
     if (canonicalId === id) {
       return NextResponse.json(
-        { error: 'canonicalId cannot equal path id', code: 'SAME_ID_PRE_HELPER' },
+        {
+          error: 'canonicalId cannot equal path id',
+          code: 'SAME_ID_PRE_HELPER',
+        },
         { status: 400 },
       );
     }
@@ -118,14 +121,13 @@ export async function POST(
     // 2. Derive (oldId, newId) from direction. The path id is ALWAYS the
     //    subject (queue row); direction selects which side becomes the
     //    "old" (retired) row in setSupersession() terms.
-    const oldId = direction === 'canonical-supersedes-subject' ? id : canonicalId;
-    const newId = direction === 'canonical-supersedes-subject' ? canonicalId : id;
+    const oldId =
+      direction === 'canonical-supersedes-subject' ? id : canonicalId;
+    const newId =
+      direction === 'canonical-supersedes-subject' ? canonicalId : id;
 
     try {
-      await setSupersession(
-        { oldId, newId, actorUserId: user.id },
-        supabase,
-      );
+      await setSupersession({ oldId, newId, actorUserId: user.id }, supabase);
     } catch (helperErr) {
       if (helperErr instanceof SupersessionError) {
         if (

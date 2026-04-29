@@ -164,7 +164,10 @@ describe('POST /api/admin/content-dedup/[id]/confirm-unique', () => {
 
       const request = createTestRequest(
         `/api/admin/content-dedup/${SUBJECT_ID}/confirm-unique`,
-        { method: 'POST', body: { note: 'false positive — quarterly boilerplate' } },
+        {
+          method: 'POST',
+          body: { note: 'false positive — quarterly boilerplate' },
+        },
       );
       const response = await POST(request, {
         params: createTestParams({ id: SUBJECT_ID }),

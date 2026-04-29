@@ -27,9 +27,7 @@ export function ContentDedupRowCard({ row, label }: ContentDedupRowCardProps) {
   const isSubject = label === 'subject';
   const labelText = isSubject ? 'Subject (suspected)' : 'Canonical (existing)';
   const Icon = isSubject ? AlertTriangle : BookOpen;
-  const iconClass = isSubject
-    ? 'text-status-warning'
-    : 'text-status-success';
+  const iconClass = isSubject ? 'text-status-warning' : 'text-status-success';
 
   return (
     <Card aria-label={labelText} className="flex flex-col">

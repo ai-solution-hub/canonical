@@ -490,7 +490,8 @@ async function importOneFile(
     const fm = fmResult.frontMatter;
     if (fm) {
       if (fm.draft === true || fm.draft === 'true') return 'draft';
-      const status = typeof fm.status === 'string' ? fm.status.toLowerCase() : '';
+      const status =
+        typeof fm.status === 'string' ? fm.status.toLowerCase() : '';
       if (status === 'draft') return 'draft';
       if (status === 'final' || status === 'published' || status === 'live') {
         return 'final';
