@@ -328,4 +328,12 @@ export const queryKeys = {
       ['admin', 'content-dedup', 'queue', filters ?? {}] as const,
     item: (id: string) => ['admin', 'content-dedup', 'item', id] as const,
   },
+
+  // Admin Near-Duplicate Merge Dashboard (§1.9)
+  adminNearDup: {
+    all: ['admin', 'near-dup-pairs'] as const,
+    pairs: (threshold: number, domain?: string) =>
+      ['admin', 'near-dup-pairs', threshold, domain ?? null] as const,
+    pair: (pairId: string) => ['admin', 'near-dup-pair', pairId] as const,
+  },
 } as const;

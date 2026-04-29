@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ChevronRight, Loader2 } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Loader2, GitMerge } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -62,14 +62,30 @@ export function ContentDedupQueueClient() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:px-6">
-      <header>
-        <h1 className="text-xl font-semibold text-foreground">
-          Cross-System Dedup Review
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Review suspected-duplicate content rows soft-blocked at ingest.
-          Confirm duplicate, confirm unique, or mark superseded.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">
+            Cross-System Dedup Review
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Review suspected-duplicate content rows soft-blocked at ingest.
+            Confirm duplicate, confirm unique, or mark superseded.
+          </p>
+        </div>
+        {/* §1.9 navigation link — sibling sub-route for embedding-based
+            near-duplicate review. Per §1.9 spec §6.1, this surfaces both
+            surfaces from a single landing point. */}
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          data-testid="dedup-near-duplicates-link"
+        >
+          <Link href="/admin/content-dedup/near-duplicates" className="gap-1.5">
+            <GitMerge className="size-4" aria-hidden="true" />
+            Near-duplicate review
+          </Link>
+        </Button>
       </header>
 
       <ContentDedupFilterBar

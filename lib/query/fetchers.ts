@@ -228,3 +228,136 @@ export interface DedupSupersedeResponse {
   retiredDedupStatus: 'superseded';
   pathDedupStatus?: 'confirmed_unique';
 }
+
+// ---------------------------------------------------------------------------
+// Admin Near-Duplicate Merge Dashboard (§1.9)
+// ---------------------------------------------------------------------------
+
+/**
+ * A near-duplicate pair surfaced by `find_duplicate_pairs` RPC, shaped
+ * for the §1.9 dashboard list view. Aliases the RPC's
+ * `id1/title1/type1/domain1/id2/...` columns into `left*`/`right*` so
+ * downstream UI doesn't think in terms of the raw RPC ordinals.
+ */
+export interface NearDupPair {
+  pairId: string;
+  similarity: number;
+  left: {
+    id: string;
+    title: string | null;
+    contentType: string | null;
+    primaryDomain: string | null;
+  };
+  right: {
+    id: string;
+    title: string | null;
+    contentType: string | null;
+    primaryDomain: string | null;
+  };
+}
+
+export interface NearDupPairsResponse {
+  pairs: NearDupPair[];
+  threshold: number;
+  total: number;
+}
+
+/**
+ * Per-row detail returned by GET
+ * `/api/admin/content-dedup/near-duplicates/[pairId]`. Mirrors the
+ * `content_items` columns the detail view reads (per spec §4.1).
+ */
+export interface NearDupPairMember {
+  id: string;
+  title: string | null;
+  content: string | null;
+  dedup_status: string;
+  created_at: string;
+  primary_domain: string | null;
+  content_type: string | null;
+  content_owner_id: string | null;
+  ingest_source: string | null;
+  superseded_by: string | null;
+  archived_at: string | null;
+  publication_status: string;
+}
+
+export interface NearDupPairDetail {
+  left: NearDupPairMember;
+  right: NearDupPairMember;
+  similarity: number;
+}
+
+/** Response shape for the merge POST endpoint. */
+export interface NearDupMergeResult {
+  pairId: string;
+  oldId: string;
+  newId: string;
+  dedup_status: 'superseded';
+}
+
+/** Response shape for the confirm-unique POST endpoint. */
+export interface NearDupConfirmUniqueResult {
+  pairId: string;
+  leftDedupStatus: 'confirmed_unique';
+  rightDedupStatus: 'confirmed_unique';
+}
+
+/** Filters accepted by the list-view fetcher. */
+export interface NearDupPairsFilters {
+  threshold?: number;
+  domain?: string;
+  limit?: number;
+}
+
+/** Fetch near-duplicate candidate pairs above the threshold. */
+export async function fetchAdminNearDupPairs(
+  filters: NearDupPairsFilters = {},
+): Promise<NearDupPairsResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, String(value));
+    }
+  }
+  const qs = params.toString();
+  return fetchJson<NearDupPairsResponse>(
+    `/api/admin/content-dedup/near-duplicates${qs ? `?${qs}` : ''}`,
+  );
+}
+
+/** Fetch a single near-duplicate pair detail (both rows + similarity). */
+export async function fetchAdminNearDupPair(
+  pairId: string,
+): Promise<NearDupPairDetail> {
+  return fetchJson<NearDupPairDetail>(
+    `/api/admin/content-dedup/near-duplicates/${pairId}`,
+  );
+}
+
+/**
+ * POST merge — supersede `oldId` by `newId`. Both ids must be members
+ * of the pair identified by `pairId`. Server returns 409 on
+ * SupersessionError preconditions; the UI handles 409 as a non-fatal
+ * toast + redirect (matches §1.7 pattern).
+ */
+export async function postAdminNearDupMerge(
+  pairId: string,
+  body: { oldId: string; newId: string; note?: string },
+): Promise<NearDupMergeResult> {
+  return mutationFetchJson<NearDupMergeResult>(
+    `/api/admin/content-dedup/near-duplicates/${pairId}/merge`,
+    body,
+  );
+}
+
+/** POST confirm-unique — flip both rows to `confirmed_unique`. */
+export async function postAdminNearDupConfirmUnique(
+  pairId: string,
+  body: { note?: string },
+): Promise<NearDupConfirmUniqueResult> {
+  return mutationFetchJson<NearDupConfirmUniqueResult>(
+    `/api/admin/content-dedup/near-duplicates/${pairId}/confirm-unique`,
+    body,
+  );
+}
