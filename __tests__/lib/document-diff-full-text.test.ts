@@ -15,7 +15,30 @@
  * WP6 Phase 1.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// W4 Logging Phase 3: document-diff.ts now emits the entries-capped warning
+// via @/lib/logger (logger.warn) instead of console.warn. Mock the logger
+// surface so the cap assertion targets the structured shape directly.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T,>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T,>(handler: T) => handler,
+  withRequestContextBare: <T,>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 import {
   computeDocumentDiff,
   computeFullTextDiff,
@@ -25,6 +48,10 @@ import {
   MAX_DIFF_ENTRIES,
 } from '@/lib/source-documents/document-diff';
 import type { DiffEntry } from '@/lib/source-documents/document-diff';
+
+beforeEach(() => {
+  loggerMocks.warn.mockClear();
+});
 
 const OLD_ID = '00000000-0000-0000-0000-000000000001';
 const NEW_ID = '00000000-0000-0000-0000-000000000002';
@@ -226,8 +253,6 @@ describe('computeFullTextDiff — max-entries cap', () => {
       }
     }
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
     const result = computeFullTextDiff(
       OLD_ID,
       NEW_ID,
@@ -238,10 +263,14 @@ describe('computeFullTextDiff — max-entries cap', () => {
     // Should be capped at MAX_DIFF_ENTRIES + 1 (includes the synthetic entry)
     expect(result.entries.length).toBeLessThanOrEqual(MAX_DIFF_ENTRIES + 1);
 
-    // Should have logged a warning about exceeding cap
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('exceed cap'));
-
-    warnSpy.mockRestore();
+    // Should have logged a warning about exceeding cap with structured op tag.
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: 'document-diff.full-text.entries-capped',
+        cap: MAX_DIFF_ENTRIES,
+      }),
+      expect.stringContaining('exceed cap'),
+    );
   });
 
   it('preserves start and end context when capping', () => {
@@ -257,8 +286,6 @@ describe('computeFullTextDiff — max-entries cap', () => {
         newLines.push(`New unique ${i}`);
       }
     }
-
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = computeFullTextDiff(
       OLD_ID,
@@ -284,8 +311,6 @@ describe('computeFullTextDiff — max-entries cap', () => {
         (lastEntry.old_content ?? '').includes(`${lastLineIdx - 1}`) ||
         (lastEntry.new_content ?? '').includes(`${lastLineIdx - 1}`),
     ).toBe(true);
-
-    warnSpy.mockRestore();
   });
 
   it('includes a synthetic collapsed indicator when capping', () => {
@@ -302,8 +327,6 @@ describe('computeFullTextDiff — max-entries cap', () => {
       }
     }
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
     const result = computeFullTextDiff(
       OLD_ID,
       NEW_ID,
@@ -317,22 +340,16 @@ describe('computeFullTextDiff — max-entries cap', () => {
     );
     expect(syntheticEntry).toBeDefined();
     expect(syntheticEntry!.diff_type).toBe('unchanged');
-
-    warnSpy.mockRestore();
   });
 
   it('does not cap when entries are within limit', () => {
     const oldText = 'Line 1.\nLine 2.\nLine 3.';
     const newText = 'Line 1.\nLine 2 modified.\nLine 3.';
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
     const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
 
     expect(result.entries.length).toBeLessThan(MAX_DIFF_ENTRIES);
-    expect(warnSpy).not.toHaveBeenCalled();
-
-    warnSpy.mockRestore();
+    expect(loggerMocks.warn).not.toHaveBeenCalled();
   });
 });
 
