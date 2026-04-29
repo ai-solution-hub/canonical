@@ -15,19 +15,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Quality gates
+  quality-precheck:
+    # WP-CI.RES.1 (S15) — Pattern A 4-way file-shard. Quality precheck runs the
+    # build-bound work whose cost is independent of shard count: lint, format
+    # check, knip baseline guard, Next.js build, build-output regression scan,
+    # and (paths-filter-gated) Python pytest. The Vitest unit suite has been
+    # split into the `quality-test` matrix below. Closes roadmap §9.16.11.
+    # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res1-vitest-perf-spec.md
+    name: Quality pre-check
     runs-on: ubuntu-latest
     # Resolves ${{ secrets.X }} and ${{ vars.X }} from the Production
     # environment scope (per docs/runbooks/github-environments.md §4.1).
     # Case-sensitive — must exactly match `Production`.
     environment: Production
-    # 30 min covers the full vitest suite on push-to-main runs (PR runs use
-    # `--changed` and finish in <5 min). Bumped from 20 min in S11 after
-    # accumulated test count post-S207/S10/S11 pushed full-run wall-clock
-    # past the prior limit. Re-evaluate when vitest pool moves forks → threads
-    # (project_vitest_threads_deferred.md) or test count drops.
-    timeout-minutes: 30
+    # 10 min headroom covers lint + format + knip + build + test:build + (gated)
+    # Python pytest at ~3-4 min observed on push-to-main. Vitest now lives in
+    # `quality-test`. Per spec D-CI.RES.1-3 + D-CI.RES.1-11.
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -37,7 +41,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           # fetch-depth: 0 lets `vitest run --changed origin/<base>` diff
-          # the PR head against the merge base on PR runs.
+          # the PR head against the merge base on PR runs (consumed in the
+          # downstream `quality-test` matrix job).
           fetch-depth: 0
 
       - name: Detect changed paths
@@ -110,7 +115,69 @@ jobs:
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
         run: bun run test:build
 
-      - name: Test (Vitest)
+      - name: Setup Python
+        if: steps.changes.outputs.python == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        if: steps.changes.outputs.python == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Test (pytest)
+        if: steps.changes.outputs.python == 'true'
+        run: python3 -m pytest scripts/tests/
+
+  quality-test:
+    # WP-CI.RES.1 (S15) — Vitest 4-way file-shard matrix. Each entry runs
+    # `bunx vitest run --shard=N/4` with the existing forks pool (per spec
+    # D-CI.RES.1-1; threads-pool migration deferred per
+    # `feedback_vitest_threads_deferred`). `fail-fast: false` so all 4 shards
+    # report independently. R-3 carry: Vitest's `--shard` partition algorithm
+    # is alphabetical-by-resolved-path; Vitest is pinned at `^4.0.18` in
+    # package.json — re-balance only on minor-version bump.
+    # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res1-vitest-perf-spec.md
+    name: Quality test (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    environment: Production
+    needs: quality-precheck
+    # 10 min headroom covers slowest shard at ~2-3 min observed wall-clock
+    # (~30-45 s bun install + ~2 min test step). Per spec D-CI.RES.1-3.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+
+    strategy:
+      # `fail-fast: false` — surface the full failure picture across all 4
+      # shards in a single CI run rather than aborting siblings on first
+      # failure. Per spec D-CI.RES.1-2.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 required for `vitest run --changed origin/<base>`
+          # PR-diff path retained below.
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test (Vitest, shard ${{ matrix.shard }}/4)
         env:
           # Vitest setup imports validated env modules; mirror the build step.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -127,31 +194,19 @@ jobs:
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
-          # Workflow-injection mitigation: pass github context through env, not run:.
+          # Workflow-injection mitigation: route github + matrix context through
+          # env: rather than direct ${{ }} interpolation in the run: shell.
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_BASE_REF: ${{ github.base_ref }}
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             git fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF"
-            bunx vitest run --changed "origin/$GITHUB_BASE_REF"
+            bunx vitest run --changed "origin/$GITHUB_BASE_REF" \
+              --shard="${SHARD_INDEX}/4"
           else
-            bun run test
+            bunx vitest run --shard="${SHARD_INDEX}/4"
           fi
-
-      - name: Setup Python
-        if: steps.changes.outputs.python == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-
-      - name: Install Python dependencies
-        if: steps.changes.outputs.python == 'true'
-        run: pip install -r requirements.txt
-
-      - name: Test (pytest)
-        if: steps.changes.outputs.python == 'true'
-        run: python3 -m pytest scripts/tests/
 
   e2e-smoke:
     # WP-G4.3 — Curated Playwright smoke (~54 tests, target ≤5 min wall-clock)
