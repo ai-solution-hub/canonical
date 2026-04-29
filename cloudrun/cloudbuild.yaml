@@ -17,58 +17,39 @@
 # single GH Actions invocation.
 steps:
   # kh-pipeline-slim — routine ingest jobs.
+  # Multi-tag publish: pack build accepts repeated --tag for additional tags;
+  # with --publish, pack pushes all tags to the registry in one step
+  # (avoids the broken pack --publish + docker tag pattern where the local
+  # daemon never sees the SHA-tagged image).
   - id: build-slim
     name: gcr.io/k8s-skaffold/pack
     entrypoint: pack
     args:
       - build
       - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
+      - --tag=europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/ingest.py
       - --env=GOOGLE_RUNTIME=python
       - --publish
 
-  - id: tag-slim-latest
-    name: gcr.io/cloud-builders/docker
-    waitFor: ["build-slim"]
-    args:
-      - tag
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
-
-  - id: push-slim-latest
-    name: gcr.io/cloud-builders/docker
-    waitFor: ["tag-slim-latest"]
-    args:
-      - push
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
-
   # kh-pipeline-eval — bert-score + full requirements.txt.
+  # Forward reference: scripts/eval-classification.py is authored in Phase 2
+  # (per spec §4 file changes table line 623). T1b.5 first-deploy smoke
+  # only executes the slim image, never the eval image — eval image is
+  # built here so that AC-2 (both variants present) verifies green; eval
+  # invocation is gated until Phase 2 lands the entrypoint.
   - id: build-eval
     name: gcr.io/k8s-skaffold/pack
     entrypoint: pack
     args:
       - build
       - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
+      - --tag=europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/eval-classification.py
       - --env=GOOGLE_RUNTIME=python
       - --publish
-
-  - id: tag-eval-latest
-    name: gcr.io/cloud-builders/docker
-    waitFor: ["build-eval"]
-    args:
-      - tag
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
-
-  - id: push-eval-latest
-    name: gcr.io/cloud-builders/docker
-    waitFor: ["tag-eval-latest"]
-    args:
-      - push
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
 
 # Images recorded for provenance + AC-2 verifier (gcloud artifacts docker images list).
 images:

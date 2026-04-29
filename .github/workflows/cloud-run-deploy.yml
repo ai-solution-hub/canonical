@@ -132,8 +132,16 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOY_SA_EMAIL }}
+          # GCP_WIF_PROVIDER + GCP_DEPLOY_SA_EMAIL are stored as Environment
+          # variables (vars.*), not secrets, because they are non-sensitive
+          # resource paths (the WIF provider name + SA email are public IDs).
+          # Using vars makes them visible in workflow logs which aids debug
+          # of WIF binding mismatches; per
+          # feedback_gha_secrets_vs_vars_silent_empty.md, mismatch between
+          # workflow access form and storage type returns empty string
+          # silently. See docs/runbooks/cloud-run-phase-1-handover.md §4.
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA_EMAIL }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2

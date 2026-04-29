@@ -10,8 +10,6 @@ metadata:
   labels:
     tenant: example-client
     env: prod
-  annotations:
-    run.googleapis.com/launch-stage: GA
 spec:
   template:
     spec:
