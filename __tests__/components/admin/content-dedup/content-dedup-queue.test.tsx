@@ -45,7 +45,7 @@ function makeRow(
     content: 'Body',
     dedup_status: 'suspected_duplicate',
     created_at: '2026-04-28T12:00:00Z',
-    domain_primary: 'tech-it',
+    primary_domain: 'tech-it',
     content_owner_id: null,
     ingest_source: 'url_import',
     superseded_by: null,
@@ -68,7 +68,7 @@ describe('ContentDedupQueueClient', () => {
         makeRow({
           id: '22222222-2222-4222-8222-222222222222',
           title: 'Other policy',
-          domain_primary: 'compliance',
+          primary_domain: 'compliance',
         }),
       ],
       hasMore: false,

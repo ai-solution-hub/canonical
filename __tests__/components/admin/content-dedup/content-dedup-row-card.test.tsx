@@ -21,7 +21,7 @@ function buildRow(
     content: 'Lorem ipsum body',
     dedup_status: 'suspected_duplicate',
     created_at: '2026-04-28T12:00:00Z',
-    domain_primary: 'tech-it',
+    primary_domain: 'tech-it',
     content_owner_id: null,
     ingest_source: 'url_import',
     superseded_by: null,
@@ -58,7 +58,7 @@ describe('ContentDedupRowCard', () => {
         row={buildRow({
           title: null,
           content: null,
-          domain_primary: null,
+          primary_domain: null,
           ingest_source: null,
         })}
         label="subject"

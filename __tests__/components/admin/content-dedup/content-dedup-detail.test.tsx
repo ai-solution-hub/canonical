@@ -43,7 +43,7 @@ function makeRow(
     content: 'subject body',
     dedup_status: 'suspected_duplicate',
     created_at: '2026-04-28T12:00:00Z',
-    domain_primary: 'tech-it',
+    primary_domain: 'tech-it',
     content_owner_id: null,
     ingest_source: 'url_import',
     superseded_by: null,

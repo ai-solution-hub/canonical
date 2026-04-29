@@ -56,7 +56,7 @@ export function ContentDedupRowCard({ row, label }: ContentDedupRowCardProps) {
           </span>
           <span className="block">
             <span className="font-medium text-foreground">Domain:</span>{' '}
-            {row.domain_primary ?? '—'}
+            {row.primary_domain ?? '—'}
           </span>
           <span className="flex items-center gap-2 pt-1">
             <span className="font-medium text-foreground">Status:</span>

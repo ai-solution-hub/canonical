@@ -157,7 +157,7 @@ export interface SuspectedDuplicateRow {
   content: string | null;
   dedup_status: string;
   created_at: string;
-  domain_primary: string | null;
+  primary_domain: string | null;
   content_owner_id: string | null;
   ingest_source: string | null;
   superseded_by: string | null;

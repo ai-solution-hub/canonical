@@ -160,6 +160,10 @@ describe('Doc Freshness: data-entry-points.md', () => {
         'app/api/items/[id]/rollback/route.ts', // rollback
         'app/api/cron/classification-quality/route.ts', // classification quality cron
         'app/api/bids/[id]/responses/draft-stream/route.ts', // bid draft stream
+        // §1.7 admin dedup review — UPDATE content_items + INSERT content_history
+        'app/api/admin/content-dedup/[id]/confirm-duplicate/route.ts',
+        'app/api/admin/content-dedup/[id]/confirm-unique/route.ts',
+        'app/api/admin/content-dedup/[id]/supersede/route.ts',
         'lib/mcp/tools/governance.ts', // governance tools
         'lib/mcp/tools/review.ts', // review tools (S180 P0-23) — head-count queries only; no content_items INSERTs
       ];

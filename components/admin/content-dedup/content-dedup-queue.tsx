@@ -55,7 +55,7 @@ export function ContentDedupQueueClient() {
     if (!items) return EMPTY_DOMAINS;
     const domains = new Set<string>();
     for (const row of items) {
-      if (row.domain_primary) domains.add(row.domain_primary);
+      if (row.primary_domain) domains.add(row.primary_domain);
     }
     return [...domains].sort();
   }, [items]);
@@ -169,7 +169,7 @@ export function ContentDedupQueueClient() {
                     </td>
                     <td className="px-4 py-3 text-xs">
                       <Badge variant="outline">
-                        {row.domain_primary ?? '—'}
+                        {row.primary_domain ?? '—'}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
