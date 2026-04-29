@@ -119,7 +119,7 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 - **Platform:** Vercel
 - **URL:** https://knowledge-hub-seven-kappa.vercel.app
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
-- **GitHub:** https://github.com/liam-jons/knowledge-hub (private)
+- **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
 - **Region:** eu-west-2 (London)
 - **GitHub Environments:** `Production` + `Staging` (case-sensitive). Setup:
   `docs/runbooks/github-environments.md`.
