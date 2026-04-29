@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Upload,
   Layers,
@@ -36,8 +36,10 @@ import { useFileUploadPipeline } from '@/hooks/use-file-upload-pipeline';
 import {
   analyseMarkdownBatch,
   importMarkdownBatch,
+  fetchPipelineRun,
   type MarkdownPerFileOverrideWire,
 } from '@/lib/query/fetchers';
+import { queryKeys } from '@/lib/query/query-keys';
 import type { QACreateInput } from '@/lib/quality/qa-detection';
 import type { DedupCheckResult } from '@/components/qa/qa-preview-list';
 import type {
@@ -155,6 +157,13 @@ export function UploadTabContent({
   const [mdAutoSupersede, setMdAutoSupersede] = useState<boolean>(false);
   const [mdResult, setMdResult] = useState<MarkdownBatchResult | null>(null);
 
+  // Pattern E (S212 W2): client generates pipeline_run_id BEFORE the import
+  // mutation fires so the polling query can target /api/pipeline-runs/[id]
+  // immediately. Cleared when the mutation settles or the surface resets.
+  const [importPipelineRunId, setImportPipelineRunId] = useState<string | null>(
+    null,
+  );
+
   const safeMdAnalyses = useMemo(
     () => mdAnalyses ?? EMPTY_ANALYSES,
     [mdAnalyses],
@@ -171,6 +180,7 @@ export function UploadTabContent({
     setMdOverrides(EMPTY_OVERRIDES);
     setMdAutoSupersede(false);
     setMdResult(null);
+    setImportPipelineRunId(null);
   }, []);
 
   const analyseMutation = useMutation({
@@ -196,6 +206,7 @@ export function UploadTabContent({
       options: {
         per_file_overrides?: MarkdownPerFileOverrideWire[];
         batch?: { auto_supersede?: boolean };
+        pipeline_run_id: string;
       };
     }) =>
       importMarkdownBatch({ files: args.rawFiles, options: args.options }),
@@ -215,6 +226,30 @@ export function UploadTabContent({
       toast.error(message);
       setMdPhase('reviewing');
     },
+    onSettled: () => {
+      // Stop polling once the mutation resolves (success OR error). The
+      // final summary card consumes the resolved `data` payload directly,
+      // so we no longer need /api/pipeline-runs/[id] data after settle.
+      setImportPipelineRunId(null);
+    },
+  });
+
+  // Pattern E (S212 W2) — poll the pipeline_runs row mid-flight so the
+  // importing-phase UI can surface the running detail string +
+  // files_completed/files_total without waiting for the mutation to resolve.
+  // Polling is gated on `mdPhase === 'importing'` and a non-null id; the
+  // fetcher tolerates 404 (returns null) for the racy at-start window
+  // where the server's INSERT hasn't landed yet (~sub-100ms after send).
+  // 1500 ms refetch cadence — fast enough for ~80-100 s imports to feel
+  // alive without hammering the API.
+  const { data: pipelineRun } = useQuery({
+    queryKey: queryKeys.pipelineRuns.detail(importPipelineRunId ?? ''),
+    queryFn: () =>
+      importPipelineRunId
+        ? fetchPipelineRun(importPipelineRunId).catch(() => null)
+        : null,
+    enabled: !!importPipelineRunId && mdPhase === 'importing',
+    refetchInterval: 1500,
   });
 
   // Destructure mutate functions to keep useCallback dep arrays referentially
@@ -248,12 +283,23 @@ export function UploadTabContent({
           o.skip_dedup !== undefined,
       );
 
+    // Pattern E (S212 W2): generate the pipeline_run_id BEFORE firing
+    // the mutation so polling against /api/pipeline-runs/[id] can begin
+    // immediately. The server's at-start INSERT adopts this id verbatim.
+    const pipelineRunId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : // jsdom fallback for tests / pre-Node-19 environments
+          `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setImportPipelineRunId(pipelineRunId);
+
     importMutate({
       rawFiles,
       options: {
         per_file_overrides:
           perFileOverrides.length > 0 ? perFileOverrides : undefined,
         batch: mdAutoSupersede ? { auto_supersede: true } : undefined,
+        pipeline_run_id: pipelineRunId,
       },
     });
   }, [files, safeMdOverrides, mdAutoSupersede, importMutate]);
@@ -739,15 +785,49 @@ export function UploadTabContent({
 
         {mdPhase === 'importing' && (
           <div
-            className="flex items-center gap-2 rounded-md border border-border bg-card p-6 text-sm text-muted-foreground"
+            className="space-y-2 rounded-md border border-border bg-card p-6 text-sm"
             data-testid="markdown-batch-importing"
           >
-            <Loader2
-              className="size-4 animate-spin text-primary"
-              aria-hidden="true"
-            />
-            Importing {files.length} file{files.length === 1 ? '' : 's'} &mdash;
-            this typically takes 80&ndash;100 seconds.
+            <div className="flex items-center gap-2 text-foreground">
+              <Loader2
+                className="size-4 animate-spin text-primary"
+                aria-hidden="true"
+              />
+              <span className="font-medium">Importing markdown batch</span>
+            </div>
+            {/* Pattern E poll-driven detail — the polling query updates
+                this every 1.5s while the orchestrator runs. Pre-row-arrival
+                fallback ("Starting…") covers the racy ~sub-100ms window
+                where the server's at-start INSERT hasn't landed yet. */}
+            {pipelineRun?.progress?.detail ? (
+              <p
+                className="text-muted-foreground"
+                data-testid="markdown-batch-importing-detail"
+              >
+                {pipelineRun.progress.detail}
+              </p>
+            ) : (
+              <p
+                className="text-muted-foreground"
+                data-testid="markdown-batch-importing-detail"
+              >
+                Starting&hellip;
+              </p>
+            )}
+            {typeof pipelineRun?.progress?.files_completed === 'number' &&
+              typeof pipelineRun?.progress?.files_total === 'number' && (
+                <p
+                  className="text-xs text-muted-foreground"
+                  data-testid="markdown-batch-importing-counts"
+                >
+                  {pipelineRun.progress.files_completed} /{' '}
+                  {pipelineRun.progress.files_total} files
+                </p>
+              )}
+            <p className="text-xs text-muted-foreground">
+              Imports of {files.length} file{files.length === 1 ? '' : 's'}{' '}
+              typically take 80&ndash;100 seconds.
+            </p>
           </div>
         )}
       </div>

@@ -46,6 +46,15 @@ export interface MarkdownBatchOptions {
    * Silently ignored for non-admin callers per spec §5.2.
    */
   autoSupersede?: boolean;
+  /**
+   * Pre-generated pipeline_run_id (Pattern E client-UUID flow — S212 W2).
+   * When provided, the orchestrator adopts this id verbatim on the at-start
+   * INSERT so the calling client can begin polling
+   * `GET /api/pipeline-runs/[id]` immediately after firing the mutation.
+   * When absent (any non-UI caller — e.g. future background-queue worker),
+   * the orchestrator generates one locally via `randomUUID()`.
+   */
+  pipelineRunIdOverride?: string | null;
 }
 
 /**

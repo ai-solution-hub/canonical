@@ -208,7 +208,11 @@ describe('ImportSummaryCard', () => {
 
     const link = screen.getByTestId('summary-pipeline-run-link');
     expect(link).toHaveTextContent('run-abc-123');
-    expect(link.getAttribute('href')).toBe('/provenance');
+    // S212 W2 (V_W1 MEDIUM): link surfaces the pipeline-health tab
+    // fragment so the row resolves directly inside the existing UI.
+    expect(link.getAttribute('href')).toBe(
+      '/provenance?tab=pipeline-health',
+    );
   });
 
   it('renders empty-state message when nothing was processed', () => {

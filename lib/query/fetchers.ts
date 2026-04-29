@@ -149,6 +149,13 @@ export interface MarkdownBatchWireOptions {
     /** Admin-only — silently ignored for editors per spec §5.2. */
     auto_supersede?: boolean;
   };
+  /**
+   * Pre-generated pipeline_run_id (Pattern E client-UUID flow — S212 W2).
+   * The client generates `crypto.randomUUID()` BEFORE firing the import
+   * mutation so polling against `GET /api/pipeline-runs/[id]` can begin
+   * immediately. The server's at-start INSERT adopts this id verbatim.
+   */
+  pipeline_run_id?: string;
 }
 
 /** Throw an ApiError parsed from a non-OK fetch response. */
@@ -164,6 +171,64 @@ async function throwApiError(res: Response): Promise<never> {
     `Request failed: ${res.status}`;
   const code = data.code as string | undefined;
   throw new ApiError(message, res.status, code, data);
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline runs — single-row polling (S212 W2 Pattern E)
+// ---------------------------------------------------------------------------
+//
+// The markdown-batch importer (and any future Pattern E pipeline) generates a
+// pipeline_run_id client-side BEFORE firing the import mutation, then polls
+// `GET /api/pipeline-runs/[id]` on a 1.5s interval to surface progress
+// (`progress.detail`, `progress.files_completed/files_total`) until the
+// mutation resolves. `fetchPipelineRun` tolerates 404 by returning null so
+// the polling query can survive the racy at-start window where the
+// server's INSERT hasn't landed yet (~sub-100ms after mutation send).
+
+/** Row shape returned by GET /api/pipeline-runs/[id]. */
+export interface PipelineRunRow {
+  id: string;
+  pipeline_name: string;
+  status: 'running' | 'completed' | 'completed_with_errors' | 'failed';
+  progress: {
+    step?: string;
+    steps_completed?: number;
+    steps_total?: number;
+    files_completed?: number;
+    files_total?: number;
+    detail?: string;
+    [k: string]: unknown;
+  } | null;
+  source_filename: string | null;
+  items_created: string[] | null;
+  items_processed: number | null;
+  workspace_id: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  created_by: string | null;
+  result: unknown;
+}
+
+/**
+ * Fetch a single `pipeline_runs` row by id. Returns `null` on 404 so polling
+ * can tolerate the racy at-start window where the row has not yet been
+ * inserted by the server (Pattern E: client generates the id BEFORE the
+ * import mutation; the server's at-start INSERT lands shortly after).
+ *
+ * Any other error status throws an `ApiError` so the caller can surface
+ * the failure (auth/role/network/server).
+ */
+export async function fetchPipelineRun(
+  id: string,
+): Promise<PipelineRunRow | null> {
+  try {
+    return await fetchJson<PipelineRunRow>(`/api/pipeline-runs/${id}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 /**

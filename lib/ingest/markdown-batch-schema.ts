@@ -55,6 +55,17 @@ export const BatchOptionsSchema = z
   .object({
     per_file_overrides: z.array(PerFileOverrideSchema).optional(),
     batch: BatchWideOptionsSchema.optional(),
+    /**
+     * Pre-generated pipeline_run_id (Pattern E client-UUID flow — S212 W2).
+     * The UI generates `crypto.randomUUID()` BEFORE firing the import
+     * mutation so polling against `GET /api/pipeline-runs/[id]` can begin
+     * immediately. The route forwards this to the orchestrator's
+     * `pipelineRunIdOverride` and the orchestrator's at-start INSERT
+     * adopts it verbatim. Optional — non-UI callers (e.g. future
+     * background-queue worker) can omit and the orchestrator generates
+     * one locally.
+     */
+    pipeline_run_id: z.string().uuid().optional(),
   })
   .strict();
 

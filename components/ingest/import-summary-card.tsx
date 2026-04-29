@@ -19,8 +19,9 @@ import type { MarkdownBatchResultsSummary } from '@/types/ingest';
 // Renders the post-flight summary card returned by the import-phase
 // orchestrator. The shape is `MarkdownBatchResultsSummary` (spec §5.4
 // verbatim — same shape stamped onto `pipeline_runs.result`). The
-// pipeline_run_id link points at /provenance which is the existing pipeline
-// health UI on main (no `/admin/monitoring/pipeline-runs/[id]` route exists).
+// pipeline_run_id link points at /provenance?tab=pipeline-health which is
+// the existing pipeline health UI on main (no `/admin/monitoring/pipeline-
+// runs/[id]` route exists).
 //
 // "Retry" buttons on per-file errors are stubs — they fire `onRetry?(filename)`
 // and the parent decides what to do. Background-queue retry is a post-EP2
@@ -316,7 +317,7 @@ export function ImportSummaryCard({
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-border pt-3">
         <a
-          href="/provenance"
+          href="/provenance?tab=pipeline-health"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"

@@ -4,6 +4,14 @@
  * Spec: docs/specs/ep2-markdown-ui-ingest-spec.md v1.3
  * Plan: docs/plans/§1.11-ep2-build-plan.md (EP2-T3)
  *
+ * S212 W2 (Pattern E retrofit): the orchestrator now writes the
+ * pipeline_runs row in three operations:
+ *   1. AT-START INSERT  via @/lib/pipeline/start-run         (mocked here)
+ *   2. MID-FLIGHT UPDATE via @/lib/pipeline/update-progress  (mocked here)
+ *   3. TERMINAL UPDATE   via supabase .update().eq().select  (real chain)
+ *
+ * Tests assert all three boundaries to lock in the lifecycle contract.
+ *
  * Sibling W1-T1 ships the extraction helpers; until that merges, those
  * helpers do not exist, so we mock them by path. The mock signatures here
  * MUST track spec §3.4 — corpus drift between this mock and the real T1
@@ -31,6 +39,11 @@ const mocks = vi.hoisted(() => ({
   generateEmbedding: vi.fn(),
   regenerateChunks: vi.fn(),
   sentryCaptureMessage: vi.fn(),
+  // S212 W2 Pattern E lifecycle helpers — mocked so the orchestrator
+  // can be unit-tested without touching the createServiceClient() service
+  // role or the real Supabase client.
+  startPipelineRun: vi.fn(),
+  updatePipelineProgress: vi.fn(),
 }));
 
 vi.mock('@/lib/extraction/markdown-front-matter', () => ({
@@ -73,6 +86,13 @@ vi.mock('@sentry/nextjs', () => ({
   withScope: vi.fn((fn: (s: { setContext: () => void }) => void) =>
     fn({ setContext: () => undefined }),
   ),
+}));
+
+vi.mock('@/lib/pipeline/start-run', () => ({
+  startPipelineRun: mocks.startPipelineRun,
+}));
+vi.mock('@/lib/pipeline/update-progress', () => ({
+  updatePipelineProgress: mocks.updatePipelineProgress,
 }));
 
 // Import the orchestrator AFTER mocks are registered.
@@ -124,6 +144,13 @@ function setDefaultMocks() {
   });
   mocks.generateEmbedding.mockResolvedValue(new Array(1024).fill(0.01));
   mocks.regenerateChunks.mockResolvedValue({ stored: 1, errors: [] });
+  // Pattern E (S212 W2): startPipelineRun returns the id the caller
+  // supplied (mirrors the real DB-adopt flow). updatePipelineProgress is
+  // a silent-catch helper; default to a resolved-undefined for tests.
+  mocks.startPipelineRun.mockImplementation(
+    async (params: { id?: string }) => params.id ?? 'generated-fallback-id',
+  );
+  mocks.updatePipelineProgress.mockResolvedValue(undefined);
 }
 
 /**
@@ -274,7 +301,7 @@ describe('orchestrateMarkdownBatch', () => {
   // ────────── Phase 2: import ──────────
 
   describe('phase: import — full pipeline success', () => {
-    it('inserts content_items with ingest_source=upload + publication_status, classifies, embeds, chunks, then writes pipeline_runs row', async () => {
+    it('runs Pattern E lifecycle: at-start INSERT → mid-flight UPDATE → terminal UPDATE; inserts content_items with ingest_source=upload + publication_status; classifies, embeds, chunks', async () => {
       const supabase = buildSupabaseWithSequentialInserts(['new-id-1']);
 
       const result = await orchestrateMarkdownBatch({
@@ -291,6 +318,33 @@ describe('orchestrateMarkdownBatch', () => {
         callerRole: 'admin',
         options: { perFileOverrides: [] },
       });
+
+      // ─── Pattern E Step 1: AT-START INSERT ────────────────────────────
+      // The orchestrator generates a pipelineRunId locally when
+      // pipelineRunIdOverride is absent, then calls startPipelineRun with it.
+      expect(mocks.startPipelineRun).toHaveBeenCalledTimes(1);
+      const startCall = mocks.startPipelineRun.mock.calls[0][0] as {
+        id: string;
+        pipelineName: string;
+        createdBy: string;
+        progress: Record<string, unknown>;
+      };
+      expect(startCall.pipelineName).toBe('upload_markdown_batch');
+      expect(startCall.createdBy).toBe(ADMIN_USER_ID);
+      expect(startCall.id).toBe(result.pipeline_run_id);
+      expect(startCall.progress.step).toBe('starting');
+      expect(startCall.progress.files_total).toBe(1);
+      expect(startCall.progress.files_completed).toBe(0);
+
+      // ─── Pattern E Step 2: MID-FLIGHT UPDATE (per file) ──────────────
+      // 1 file → exactly 1 mid-flight progress update at the file boundary.
+      expect(mocks.updatePipelineProgress).toHaveBeenCalledTimes(1);
+      const midFlightCall = mocks.updatePipelineProgress.mock.calls[0];
+      expect(midFlightCall[0]).toBe(result.pipeline_run_id);
+      const midFlightUpdate = midFlightCall[1] as Record<string, unknown>;
+      expect(midFlightUpdate.step).toBe('importing');
+      expect(midFlightUpdate.files_total).toBe(1);
+      expect(midFlightUpdate.files_completed).toBe(1);
 
       // Verify the per-file pipeline ran in the documented order.
       expect(mocks.classifyContent).toHaveBeenCalledTimes(1);
@@ -334,7 +388,11 @@ describe('orchestrateMarkdownBatch', () => {
         (payload.metadata as Record<string, unknown>).ingestion_source,
       ).toBe('upload');
 
-      // pipeline_runs row written with status='completed' + the pre-generated id.
+      // ─── Pattern E Step 3: TERMINAL UPDATE ────────────────────────────
+      // pipeline_runs row finalised with status='completed' via .update().
+      // No pipeline_runs INSERT should appear under the new lifecycle —
+      // startPipelineRun is mocked, so the only `insert` calls are
+      // content_items rows.
       const pipelineRunInsertCall = insertCalls.find(
         (call) =>
           call[0] &&
@@ -342,10 +400,19 @@ describe('orchestrateMarkdownBatch', () => {
           (call[0] as Record<string, unknown>).pipeline_name ===
             'upload_markdown_batch',
       );
-      expect(pipelineRunInsertCall).toBeDefined();
-      const runPayload = pipelineRunInsertCall![0] as Record<string, unknown>;
+      expect(pipelineRunInsertCall).toBeUndefined();
+
+      const updateCalls = supabase._chain.update.mock.calls;
+      const pipelineRunUpdateCall = updateCalls.find(
+        (call) =>
+          call[0] &&
+          typeof call[0] === 'object' &&
+          (call[0] as Record<string, unknown>).status === 'completed' &&
+          'items_processed' in (call[0] as Record<string, unknown>),
+      );
+      expect(pipelineRunUpdateCall).toBeDefined();
+      const runPayload = pipelineRunUpdateCall![0] as Record<string, unknown>;
       expect(runPayload.status).toBe('completed');
-      expect(runPayload.id).toBe(result.pipeline_run_id);
       expect(runPayload.items_created).toEqual(['new-id-1']);
       expect(runPayload.items_processed).toBe(1);
       expect(runPayload.error_message).toBeNull();
@@ -373,6 +440,27 @@ describe('orchestrateMarkdownBatch', () => {
       expect(result.pipeline_run_id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
+    });
+
+    it('adopts client-supplied pipelineRunIdOverride verbatim (Pattern E client-UUID flow)', async () => {
+      const supabase = buildSupabaseWithSequentialInserts(['new-id-1']);
+      const clientId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+      const result = await orchestrateMarkdownBatch({
+        phase: 'import',
+        files: [{ filename: 'foo.md', content: '# Foo' }],
+        supabase: supabase as unknown as SupabaseClient<Database>,
+        callerUserId: ADMIN_USER_ID,
+        callerRole: 'admin',
+        options: { pipelineRunIdOverride: clientId },
+      });
+
+      // The orchestrator forwarded the client-supplied id verbatim.
+      const startCall = mocks.startPipelineRun.mock.calls[0][0] as {
+        id: string;
+      };
+      expect(startCall.id).toBe(clientId);
+      expect(result.pipeline_run_id).toBe(clientId);
     });
   });
 
@@ -417,14 +505,14 @@ describe('orchestrateMarkdownBatch', () => {
       expect(result.results_summary.skipped_excluded).toEqual([]);
       expect(result.results_summary.superseded).toEqual([]);
 
-      // pipeline_runs.status === 'completed_with_errors'
-      const insertCalls = supabase._chain.insert.mock.calls;
-      const runPayload = insertCalls.find(
+      // pipeline_runs.status === 'completed_with_errors' (terminal UPDATE).
+      const updateCalls = supabase._chain.update.mock.calls;
+      const runPayload = updateCalls.find(
         (call) =>
           call[0] &&
           typeof call[0] === 'object' &&
-          (call[0] as Record<string, unknown>).pipeline_name ===
-            'upload_markdown_batch',
+          (call[0] as Record<string, unknown>).status ===
+            'completed_with_errors',
       )?.[0] as Record<string, unknown> | undefined;
       expect(runPayload).toBeDefined();
       expect(runPayload!.status).toBe('completed_with_errors');
@@ -460,13 +548,12 @@ describe('orchestrateMarkdownBatch', () => {
         { filename: 'lonely.md', error: 'Classifier offline' },
       ]);
 
-      const insertCalls = supabase._chain.insert.mock.calls;
-      const runPayload = insertCalls.find(
+      const updateCalls = supabase._chain.update.mock.calls;
+      const runPayload = updateCalls.find(
         (call) =>
           call[0] &&
           typeof call[0] === 'object' &&
-          (call[0] as Record<string, unknown>).pipeline_name ===
-            'upload_markdown_batch',
+          (call[0] as Record<string, unknown>).status === 'failed',
       )?.[0] as Record<string, unknown> | undefined;
       expect(runPayload).toBeDefined();
       expect(runPayload!.status).toBe('failed');
@@ -558,16 +645,24 @@ describe('orchestrateMarkdownBatch', () => {
       );
       expect(ciInsert).toBeUndefined();
 
-      // pipeline_runs row still written with status='completed'.
-      const runPayload = insertCalls.find(
+      // pipeline_runs row still finalised with status='completed' via
+      // the terminal UPDATE — at-start INSERT happens via the mocked
+      // startPipelineRun helper.
+      const updateCalls = supabase._chain.update.mock.calls;
+      const runPayload = updateCalls.find(
         (call) =>
           call[0] &&
           typeof call[0] === 'object' &&
-          (call[0] as Record<string, unknown>).pipeline_name ===
-            'upload_markdown_batch',
+          (call[0] as Record<string, unknown>).status === 'completed' &&
+          'items_processed' in (call[0] as Record<string, unknown>),
       )?.[0] as Record<string, unknown> | undefined;
+      expect(runPayload).toBeDefined();
       expect(runPayload!.status).toBe('completed');
       expect(runPayload!.items_processed).toBe(0);
+
+      // Mid-flight UPDATE still emitted for the excluded file (so the
+      // polling UI surfaces "Skipped foo.md (excluded by user)" detail).
+      expect(mocks.updatePipelineProgress).toHaveBeenCalled();
     });
   });
 });

@@ -530,4 +530,72 @@ describe('POST /api/ingest/markdown — options validation', () => {
       expect(callArg.options?.autoSupersede).toBe(true);
     }
   });
+
+  it('pipeline_run_id forwards from wire into orchestrator pipelineRunIdOverride (Pattern E client-UUID flow)', async () => {
+    configureAdmin();
+    const clientId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    orchestrateMock.mockResolvedValue({
+      pipeline_run_id: clientId,
+      results_summary: {
+        files_processed: 1,
+        stored: [],
+        dedup_flagged: [],
+        superseded: [],
+        skipped_excluded: [],
+        errored: [],
+      },
+    } as never);
+
+    const req = makeRequest({
+      phase: 'import',
+      files: [{ name: 'foo.md', content: 'body' }],
+      optionsJson: JSON.stringify({ pipeline_run_id: clientId }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const callArg = orchestrateMock.mock.calls[0][0];
+    if (callArg.phase === 'import') {
+      expect(callArg.options?.pipelineRunIdOverride).toBe(clientId);
+    }
+  });
+
+  it('rejects malformed pipeline_run_id (not a UUID) → 400 via parseBody', async () => {
+    configureAdmin();
+    const req = makeRequest({
+      phase: 'import',
+      files: [{ name: 'foo.md', content: 'body' }],
+      optionsJson: JSON.stringify({ pipeline_run_id: 'not-a-uuid' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Validation failed');
+  });
+
+  it('omitted pipeline_run_id → orchestrator receives null override', async () => {
+    configureAdmin();
+    orchestrateMock.mockResolvedValue({
+      pipeline_run_id: 'server-generated-id',
+      results_summary: {
+        files_processed: 1,
+        stored: [],
+        dedup_flagged: [],
+        superseded: [],
+        skipped_excluded: [],
+        errored: [],
+      },
+    } as never);
+
+    const req = makeRequest({
+      phase: 'import',
+      files: [{ name: 'foo.md', content: 'body' }],
+      optionsJson: JSON.stringify({}),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const callArg = orchestrateMock.mock.calls[0][0];
+    if (callArg.phase === 'import') {
+      expect(callArg.options?.pipelineRunIdOverride).toBeNull();
+    }
+  });
 });

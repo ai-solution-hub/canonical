@@ -88,6 +88,7 @@ vi.mock('@/components/ingest/import-summary-card', () => ({
 // Stub the markdown-batch fetchers so tests can drive analyse + import.
 const mockAnalyseMarkdownBatch = vi.fn();
 const mockImportMarkdownBatch = vi.fn();
+const mockFetchPipelineRun = vi.fn();
 vi.mock('@/lib/query/fetchers', async () => {
   const actual = await vi.importActual<
     typeof import('@/lib/query/fetchers')
@@ -98,6 +99,7 @@ vi.mock('@/lib/query/fetchers', async () => {
       mockAnalyseMarkdownBatch(...args),
     importMarkdownBatch: (...args: unknown[]) =>
       mockImportMarkdownBatch(...args),
+    fetchPipelineRun: (...args: unknown[]) => mockFetchPipelineRun(...args),
   };
 });
 
@@ -643,6 +645,141 @@ describe('UploadTabContent', () => {
       const callArg = mockAnalyseMarkdownBatch.mock.calls[0][0] as File[];
       expect(callArg).toHaveLength(2);
       expect(callArg[0].name).toBe('foo.md');
+    });
+  });
+
+  // ===========================================================================
+  // EP2 §1.11 Phase 4 — Pattern E (S212 W2): client UUID + polling
+  // ===========================================================================
+
+  describe('markdown-batch — Pattern E client UUID + polling', () => {
+    beforeEach(() => {
+      // Ensure crypto.randomUUID is available in jsdom (it is in modern
+      // Node/jsdom builds, but stub deterministically for assertion).
+      vi.stubGlobal('crypto', {
+        ...(globalThis.crypto ?? {}),
+        randomUUID: () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    /**
+     * Helper to drive the surface into the 'reviewing' phase so the
+     * Import button is visible. Uses the existing analyse mutation flow.
+     */
+    async function transitionToReviewing(
+      analyses: ReturnType<typeof analysesFixture>,
+    ) {
+      mockAnalyseMarkdownBatch.mockResolvedValue({ analysis: analyses });
+      const btn = screen.getByTestId('markdown-batch-analyse-button');
+      await act(async () => {
+        fireEvent.click(btn);
+      });
+    }
+
+    function analysesFixture() {
+      return [
+        {
+          filename: 'foo.md',
+          sizeBytes: 12,
+          encodingOk: true,
+          empty: false,
+          frontMatter: { present: false, parsedOk: true, fields: {} },
+          title: 'Foo',
+          titleProvenance: 'filename' as const,
+          contentHash: 'abc',
+          hasConflictMarkers: false,
+          diffMarkers: {
+            gitConflictCount: 0,
+            plusMinusLineCount: 0,
+            warning: false,
+          },
+          draftOrFinalHeuristic: 'draft' as const,
+          dedupVerdict: { isDuplicate: false },
+          sourceFileMatch: null,
+        },
+      ];
+    }
+
+    it('Import click forwards a client-generated pipeline_run_id to importMarkdownBatch', async () => {
+      hookReturn.files = [makeFile('foo.md'), makeFile('bar.md')];
+
+      renderTab();
+      await transitionToReviewing(analysesFixture());
+
+      // Make import never resolve so we can inspect the in-flight wire payload.
+      mockImportMarkdownBatch.mockImplementation(() => new Promise(() => {}));
+      mockFetchPipelineRun.mockResolvedValue(null);
+
+      const importBtn = screen.getByTestId('markdown-batch-import');
+      await act(async () => {
+        fireEvent.click(importBtn);
+      });
+
+      expect(mockImportMarkdownBatch).toHaveBeenCalledTimes(1);
+      const args = mockImportMarkdownBatch.mock.calls[0][0] as {
+        files: File[];
+        options: { pipeline_run_id: string };
+      };
+      expect(args.options.pipeline_run_id).toBe(
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      );
+    });
+
+    it('renders poll-driven detail string + counts when polling returns progress', async () => {
+      hookReturn.files = [makeFile('foo.md'), makeFile('bar.md')];
+
+      renderTab();
+      await transitionToReviewing(analysesFixture());
+
+      // Hold the import open + return a meaningful poll response.
+      mockImportMarkdownBatch.mockImplementation(() => new Promise(() => {}));
+      mockFetchPipelineRun.mockResolvedValue({
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        pipeline_name: 'upload_markdown_batch',
+        status: 'running',
+        progress: {
+          step: 'importing',
+          files_completed: 1,
+          files_total: 3,
+          detail: 'Processing foo.md…',
+        },
+        source_filename: null,
+        items_created: ['item-1'],
+        items_processed: null,
+        workspace_id: null,
+        error_message: null,
+        started_at: '2026-04-29T22:00:00Z',
+        completed_at: null,
+        created_at: '2026-04-29T22:00:00Z',
+        created_by: 'user-1',
+        result: null,
+      });
+
+      const importBtn = screen.getByTestId('markdown-batch-import');
+      await act(async () => {
+        fireEvent.click(importBtn);
+      });
+
+      // Allow the poll to fire at least once (refetchInterval=1500 — but
+      // useQuery fires immediately on mount with enabled=true).
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // The importing surface should have rendered the detail line.
+      expect(
+        screen.getByTestId('markdown-batch-importing'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('markdown-batch-importing-detail'),
+      ).toHaveTextContent('Processing foo.md');
+      expect(
+        screen.getByTestId('markdown-batch-importing-counts'),
+      ).toHaveTextContent('1 / 3 files');
     });
   });
 });

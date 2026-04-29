@@ -46,8 +46,9 @@ import type {
 // duplicate-match-card.tsx` does not yet exist on main (§1.7 has not shipped).
 // ---------------------------------------------------------------------------
 
-// Module-level stable empty default — avoid recreating per render (G14).
+// Module-level stable empty defaults — avoid recreating per render (G14).
 const EMPTY_OVERRIDES: MarkdownPerFileOverride[] = [];
+const EMPTY_ANALYSES: MarkdownIngestAnalysis[] = [];
 
 type DraftOrFinalChoice = 'draft' | 'final';
 type Role = 'admin' | 'editor' | 'viewer';
@@ -231,7 +232,10 @@ export function MarkdownAnalysisTable({
     () => overrides ?? EMPTY_OVERRIDES,
     [overrides],
   );
-  const safeAnalyses = useMemo(() => analyses ?? [], [analyses]);
+  const safeAnalyses = useMemo(
+    () => analyses ?? EMPTY_ANALYSES,
+    [analyses],
+  );
 
   const isAdmin = role === 'admin';
 

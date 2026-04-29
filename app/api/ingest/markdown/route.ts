@@ -238,6 +238,11 @@ export async function POST(req: NextRequest) {
       tag: validatedOptions.batch?.tag ?? null,
       author: validatedOptions.batch?.author ?? null,
       autoSupersede: validatedOptions.batch?.auto_supersede,
+      // Pattern E client-UUID flow (S212 W2). When the UI pre-generates
+      // a UUID and sends it via the wire field, the orchestrator's at-
+      // start INSERT adopts it verbatim so polling against
+      // /api/pipeline-runs/[id] resolves the same row.
+      pipelineRunIdOverride: validatedOptions.pipeline_run_id ?? null,
     };
 
     const result = await orchestrateMarkdownBatch({

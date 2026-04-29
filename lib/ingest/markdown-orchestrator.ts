@@ -10,11 +10,23 @@
 //                  detect diff markers, detect draft/final, run dedup checks
 //                  (content-hash + source_file). NO DB writes. Returns one
 //                  `MarkdownIngestAnalysis` per file.
-//   - 'import'   → FULL pipeline: per-file pipeline + pipeline_runs row.
-//                  INSERT content_items (with `ingest_source: 'upload'` so the
-//                  deferred trigger `ensure_v1_history_at_commit` writes the
-//                  v1 content_history row with `change_reason='initial_ingest'`
-//                  per spec §7.6 G17 + memory feedback_content_history_change_reason_mandatory),
+//   - 'import'   → FULL pipeline + Pattern E pipeline_runs lifecycle (S212 W2):
+//                  1. AT-START INSERT — pipeline_runs row with status='running'
+//                     before the per-file loop begins (via `startPipelineRun`).
+//                     Adopts `options.pipelineRunIdOverride` when supplied
+//                     (client-UUID flow) so polling can begin immediately.
+//                  2. MID-FLIGHT UPDATE — `updatePipelineProgress()` after
+//                     each file boundary surfaces `{ step, files_completed,
+//                     files_total, detail }` for the polling UI (§7.2).
+//                  3. TERMINAL UPDATE — final row write with status,
+//                     completed_at, items_processed, items_created, result,
+//                     error_message via `sb()` (insert failure surfaces to
+//                     Sentry — never silent-catch on the audit-trail write).
+//                  Per-file pipeline: INSERT content_items (with
+//                  `ingest_source: 'upload'` so the deferred trigger
+//                  `ensure_v1_history_at_commit` writes the v1 content_history
+//                  row with `change_reason='initial_ingest'` per spec §7.6
+//                  G17 + memory feedback_content_history_change_reason_mandatory),
 //                  classify, embed, regenerate chunks. Returns
 //                  `{ pipeline_run_id, results_summary }`.
 //
@@ -32,12 +44,12 @@
 //   written by the deferred trigger when `ingest_source` is set on insert; we
 //   never write content_history directly. Trigger emits
 //   `change_reason='initial_ingest'`.
-// - G6 / CLAUDE.md "Cron pipeline_runs inserts": we mirror the
-//   `recordPipelineRun()` semantics inline (sb() + Sentry capture) because the
-//   helper does not return the inserted row's id, but the orchestrator must
-//   surface `pipeline_run_id` to the caller per spec §5.4. The pipeline_runs
-//   row carries the same fields (status / items_processed / items_created /
-//   pipeline_name / result / error_message) as the helper would write.
+// - G6 / CLAUDE.md "Cron pipeline_runs inserts": `recordPipelineRun()` is
+//   terminal-only and never-throws, neither of which fits Pattern E. We use
+//   the dedicated `startPipelineRun()` (at-start, fail-fast) +
+//   `updatePipelineProgress()` (mid-flight, silent-catch) +
+//   final-UPDATE-via-sb (terminal, fail-fast) trio. See memory
+//   `feedback_record_pipeline_run_signature`.
 // - G8 / CLAUDE.md embedding vector serialisation: `JSON.stringify(embedding)`
 //   on the `embedding` column write.
 // - G17 / spec §7.6: `ingest_source: 'upload'` on every content_items insert
@@ -52,6 +64,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/supabase/types/database.types';
 import { sb, SupabaseError } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { startPipelineRun } from '@/lib/pipeline/start-run';
+import { updatePipelineProgress } from '@/lib/pipeline/update-progress';
 import {
   checkExactDuplicate,
   resolveDedupStamp,
@@ -307,10 +321,11 @@ async function runImportPhase(
   const { files, supabase, callerUserId, callerRole, options } = params;
   const t1 = loadT1Helpers();
 
-  // Pre-generate the pipeline_runs.id so we can return it to the caller and
-  // also write it onto the row (single insert, no select-back round-trip).
-  const pipelineRunId = randomUUID();
-  const startedAt = new Date().toISOString();
+  // Pattern E (S212 W2): adopt the client-supplied `pipelineRunIdOverride`
+  // when the UI pre-generates a UUID before firing the import mutation.
+  // Falls back to a server-generated UUID for non-UI callers (e.g. future
+  // background-queue worker) so the pipeline_run_id is always defined.
+  const pipelineRunId = options?.pipelineRunIdOverride ?? randomUUID();
 
   // Resolve the owner ID once for the batch — admin override applies to every
   // row in the batch (spec §7.3 + lib/auth/owner-default.ts silent-force).
@@ -338,12 +353,63 @@ async function runImportPhase(
   const skippedExcluded: string[] = [];
   const errored: MarkdownImportError[] = [];
 
+  // ────────────────────────────────────────────────────────────────────
+  // Pattern E Step 1: AT-START INSERT (status='running').
+  // Throws on insert failure — Pattern E requires the row to exist before
+  // the per-file loop runs so the polling client can immediately surface
+  // mid-flight progress. The startedAt is captured by the helper.
+  // ────────────────────────────────────────────────────────────────────
+  const filesTotal = files.length;
+  const startedAt = new Date().toISOString();
+  const insertedId = await startPipelineRun({
+    id: pipelineRunId,
+    pipelineName: PIPELINE_NAME,
+    createdBy: callerUserId,
+    progress: {
+      step: 'starting',
+      files_completed: 0,
+      files_total: filesTotal,
+      detail:
+        filesTotal === 1
+          ? 'Beginning batch import (1 file)…'
+          : `Beginning batch import (${filesTotal} files)…`,
+    },
+  });
+  // Sanity: the helper should have returned the same id we passed.
+  if (insertedId !== pipelineRunId) {
+    // The DB adopted a different id (column DEFAULT fired despite our
+    // explicit value — should never happen for UUID columns with no
+    // generated-always constraint, but guard against drift). Use the DB's
+    // id so subsequent UPDATEs target the correct row.
+    Sentry.captureMessage(
+      `startPipelineRun adopted unexpected id for ${PIPELINE_NAME}`,
+      {
+        level: 'warning',
+        extra: { requested: pipelineRunId, adopted: insertedId },
+      },
+    );
+  }
+  const effectivePipelineRunId = insertedId;
+
+  // ────────────────────────────────────────────────────────────────────
+  // Pattern E Step 2: per-file loop with MID-FLIGHT UPDATEs at each
+  // file boundary. Mid-flight UPDATE is silent-catch — a transient DB
+  // blip while the worker is running must not fail the import.
+  // ────────────────────────────────────────────────────────────────────
+  let filesCompleted = 0;
   for (const file of files) {
     const override = overridesByFilename.get(file.filename);
 
     // Per-row exclusion — listed in skipped_excluded, no DB writes.
     if (override?.excluded) {
       skippedExcluded.push(file.filename);
+      filesCompleted += 1;
+      await updatePipelineProgress(effectivePipelineRunId, {
+        step: 'importing',
+        files_completed: filesCompleted,
+        files_total: filesTotal,
+        detail: `Skipped ${file.filename} (excluded by user).`,
+      });
       continue;
     }
 
@@ -383,6 +449,21 @@ async function runImportPhase(
         { filename: file.filename, error: message },
       );
     }
+
+    filesCompleted += 1;
+    // Mid-flight progress signal for the polling UI. Detail copy mirrors
+    // the spec §7.2 mockup ("Processing foo-final.md…"). Silent-catch
+    // inside the helper means a failed UPDATE here cannot abort the
+    // import worker.
+    await updatePipelineProgress(effectivePipelineRunId, {
+      step: 'importing',
+      files_completed: filesCompleted,
+      files_total: filesTotal,
+      detail:
+        filesCompleted < filesTotal
+          ? `Processing ${files[filesCompleted]?.filename ?? '…'}…`
+          : `Processed ${filesCompleted}/${filesTotal} files.`,
+    });
   }
 
   const attemptedCount = files.length - skippedExcluded.length;
@@ -413,24 +494,27 @@ async function runImportPhase(
   // JSON-serialisable.
   const resultPayload = resultsSummary as unknown as Json;
 
-  // Insert the pipeline_runs row with the pre-generated id. We do this
-  // ourselves (not via `recordPipelineRun()`) because the helper does not
-  // return the inserted row's id, and the orchestrator contract requires
-  // surfacing `pipeline_run_id` to the caller. Failure modes below mirror
-  // the helper's semantics (Sentry capture + best-effort logging).
-  await persistPipelineRun({
+  // ────────────────────────────────────────────────────────────────────
+  // Pattern E Step 3: TERMINAL UPDATE — close the row out with status,
+  // completed_at, and the final results_summary. Insert failure surfaces
+  // to Sentry (audit-trail integrity) — never silent-catch on the
+  // terminal write.
+  // ────────────────────────────────────────────────────────────────────
+  await finaliseRun({
     supabase,
-    pipelineRunId,
+    pipelineRunId: effectivePipelineRunId,
     startedAt,
     status,
     errorMessage,
     itemsProcessed: attemptedCount,
     itemsCreated,
     resultPayload,
+    filesCompleted,
+    filesTotal,
   });
 
   return {
-    pipeline_run_id: pipelineRunId,
+    pipeline_run_id: effectivePipelineRunId,
     results_summary: resultsSummary,
   };
 }
@@ -633,7 +717,7 @@ function computeRunStatus(params: {
   return 'completed_with_errors';
 }
 
-interface PersistPipelineRunParams {
+interface FinaliseRunParams {
   supabase: SupabaseClient<Database>;
   pipelineRunId: string;
   startedAt: string;
@@ -642,19 +726,26 @@ interface PersistPipelineRunParams {
   itemsProcessed: number;
   itemsCreated: string[];
   resultPayload: Json;
+  filesCompleted: number;
+  filesTotal: number;
 }
 
 /**
- * Insert the final pipeline_runs row and emit a Sentry signal for non-healthy
- * runs. Mirrors `recordPipelineRun()` semantics inline so the orchestrator can
- * surface the pre-generated id back to the caller.
+ * Pattern E Step 3: TERMINAL UPDATE on the existing pipeline_runs row
+ * (the at-start INSERT in `startPipelineRun()` already created it). Closes
+ * the row out with status, completed_at, items_*, result, and the final
+ * progress JSONB. Emits a Sentry signal for non-healthy runs.
  *
- * Never throws — a failed audit-trail insert must not take the orchestrator
- * down with it; the breadcrumb + Sentry capture is the escalation.
+ * Audit-trail integrity: a failed terminal UPDATE is reported via
+ * Sentry but does NOT throw — the import work has already happened, and
+ * the caller still receives the rich `results_summary` envelope. The
+ * row will show as 'running' indefinitely until a manual repair, but
+ * the caller's response still surfaces the per-file outcomes.
+ *
+ * Renamed from `persistPipelineRun()` (which was an INSERT) → this
+ * is now an UPDATE to align with the at-start lifecycle.
  */
-async function persistPipelineRun(
-  params: PersistPipelineRunParams,
-): Promise<void> {
+async function finaliseRun(params: FinaliseRunParams): Promise<void> {
   const {
     supabase,
     pipelineRunId,
@@ -664,16 +755,32 @@ async function persistPipelineRun(
     itemsProcessed,
     itemsCreated,
     resultPayload,
+    filesCompleted,
+    filesTotal,
   } = params;
+
+  // Final progress block — mirrors the EP3 'complete' / 'failed' shapes.
+  const finalProgress: Json = {
+    step: status === 'failed' ? 'failed' : 'complete',
+    files_completed: filesCompleted,
+    files_total: filesTotal,
+    detail:
+      status === 'failed'
+        ? errorMessage ?? 'Batch import failed.'
+        : status === 'completed_with_errors'
+          ? `Completed with ${errorMessage ?? 'errors'}.`
+          : 'All files processed successfully.',
+  };
 
   try {
     await sb(
       supabase
         .from('pipeline_runs')
-        .insert({
-          id: pipelineRunId,
-          pipeline_name: PIPELINE_NAME,
+        .update({
           status,
+          // Re-stamp started_at on the terminal write — defensive against the
+          // (rare) case where the at-start INSERT raced ahead of clock skew.
+          // The DB column is the source of truth either way.
           started_at: startedAt,
           completed_at: new Date().toISOString(),
           items_processed: itemsProcessed,
@@ -681,9 +788,11 @@ async function persistPipelineRun(
           source_filename: null, // batch — no single source filename
           result: resultPayload as Json,
           error_message: errorMessage,
+          progress: finalProgress,
         })
+        .eq('id', pipelineRunId)
         .select('id'),
-      'upload_markdown_batch.pipeline_runs.insert',
+      'upload_markdown_batch.pipeline_runs.update',
     );
   } catch (err) {
     const message =
@@ -694,13 +803,13 @@ async function persistPipelineRun(
           : String(err);
 
     logBestEffortWarn(
-      'upload_markdown_batch.pipeline_runs.insert_failed',
-      `Failed to insert pipeline_runs row for ${PIPELINE_NAME}`,
+      'upload_markdown_batch.pipeline_runs.update_failed',
+      `Failed to finalise pipeline_runs row for ${PIPELINE_NAME}`,
       { pipelineName: PIPELINE_NAME, status, errorMessage, dbError: message },
     );
 
     Sentry.captureMessage(
-      `pipeline_runs insert failed for ${PIPELINE_NAME}: ${message}`,
+      `pipeline_runs update failed for ${PIPELINE_NAME}: ${message}`,
       {
         level: 'error',
         extra: { pipelineName: PIPELINE_NAME, status, errorMessage },

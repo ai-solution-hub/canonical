@@ -5,6 +5,7 @@ import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { parseBody } from '@/lib/validation';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
+import { updatePipelineProgress } from '@/lib/pipeline/update-progress';
 import type { Json } from '@/supabase/types/database.types';
 import { extractPdfText as sharedExtractPdf } from '@/lib/extraction/pdf';
 import path from 'path';
@@ -135,33 +136,10 @@ async function extractDocxText(buffer: Buffer): Promise<{ text: string }> {
   return { text: markdown };
 }
 
-/**
- * Update pipeline run progress. Uses service client to bypass RLS.
- * Silently catches errors to avoid disrupting the upload pipeline.
- */
-async function updatePipelineProgress(
-  pipelineRunId: string,
-  update: {
-    step: string;
-    steps_completed: number;
-    steps_total: number;
-    detail: string;
-  },
-  extraFields?: Record<string, unknown>,
-): Promise<void> {
-  try {
-    const serviceClient = createServiceClient();
-    await serviceClient
-      .from('pipeline_runs')
-      .update({
-        progress: update,
-        ...extraFields,
-      })
-      .eq('id', pipelineRunId);
-  } catch (err) {
-    console.error('Failed to update pipeline progress:', err);
-  }
-}
+// Note: `updatePipelineProgress` extracted to `@/lib/pipeline/update-progress`
+// (S212 W2 Pattern E retrofit) so EP2's markdown-batch orchestrator can
+// share the same silent-catch / service-client wiring. The 10 mid-flight
+// call sites in this file now call the imported helper.
 
 export async function POST(request: NextRequest) {
   let pipelineRunId: string | null = null;
