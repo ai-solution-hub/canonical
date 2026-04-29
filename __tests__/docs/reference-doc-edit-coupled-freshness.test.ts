@@ -74,10 +74,16 @@ describe('Reference doc edit-coupled freshness', () => {
  * `[skip-doc-freshness-guard]` escape hatch in its commit body — same
  * convention as the existing guard above).
  *
- * Escape-hatch use cases:
- *   - Pure DML backfills (no DDL impact, e.g. UPDATE-only migrations)
- *   - Index renames or other cosmetic migrations
- *   - Migrations that only re-affirm existing schema (idempotent guards)
+ * Auto-skip: pure-DML migrations (UPDATE / INSERT / DELETE only — no DDL
+ * keywords like ALTER / CREATE / DROP / RENAME / GRANT / REVOKE / COMMENT ON)
+ * are auto-detected from the migration body and skipped. SCHEMA-QUICK-REF
+ * documents schema shape, not row state, so data-only backfills don't need
+ * a doc bump. Reference: B-schema-quick-ref-automation.md §4.4 carve-out
+ * for "cosmetic migrations (index renames, no schema impact)".
+ *
+ * Manual escape hatch: `[skip-doc-freshness-guard]` in the commit body for
+ * edge cases the auto-detect can't classify (e.g. complex DO-blocks that
+ * contain DDL syntax for documentation purposes only).
  *
  * Why this exists: per the scoping doc, 19 of the last 20 migration commits
  * did NOT pair with a SCHEMA-QUICK-REF bump, and the doc has been touched
@@ -86,6 +92,30 @@ describe('Reference doc edit-coupled freshness', () => {
  */
 describe('Migration-coupled SCHEMA-QUICK-REF freshness', () => {
   const SCHEMA_DOC = 'docs/reference/SCHEMA-QUICK-REFERENCE.md';
+  const DDL_PATTERN = /\b(ALTER|CREATE|DROP|RENAME|GRANT|REVOKE|COMMENT\s+ON|TRUNCATE)\b/i;
+
+  function isDataOnlyMigration(sha: string): boolean {
+    const migrationFiles = git(['show', '--name-only', '--format=', sha])
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /^supabase\/migrations\/.*\.sql$/.test(line));
+
+    if (migrationFiles.length === 0) return false;
+
+    const combined = migrationFiles
+      .map((file) => {
+        try {
+          return git(['show', `${sha}:${file}`]);
+        } catch {
+          return '';
+        }
+      })
+      .join('\n')
+      .replace(/--[^\n]*/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+
+    return !DDL_PATTERN.test(combined);
+  }
 
   it('most recent migration commit must also bump SCHEMA-QUICK-REF', () => {
     const sha = git([
@@ -103,9 +133,15 @@ describe('Migration-coupled SCHEMA-QUICK-REF freshness', () => {
 
     const message = git(['show', '-s', '--format=%B', sha]);
     if (message.includes('[skip-doc-freshness-guard]')) {
-      // skipped: pure DML backfill, cosmetic migration (e.g. index rename),
-      // or otherwise schema-noop. Same convention as the seed-commit escape
-      // hatch in the parameterised guard above.
+      // manual escape hatch — same convention as the seed-commit skip in the
+      // parameterised guard above.
+      expect(true).toBe(true);
+      return;
+    }
+
+    if (isDataOnlyMigration(sha)) {
+      // auto-skip: pure-DML migration (no DDL keywords detected in body).
+      // SCHEMA-QUICK-REF describes schema shape, not row state.
       expect(true).toBe(true);
       return;
     }
