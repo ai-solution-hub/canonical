@@ -12,17 +12,32 @@ import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
+import { logger, updateRequestContext } from '@/lib/logger';
+import { withRequestContext } from '@/lib/route-context';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
 
-/** POST /api/items -- create new content item */
-export async function POST(request: NextRequest) {
+/**
+ * POST /api/items -- create new content item.
+ *
+ * Phase 2 (S15 WP1): wrapped with `withRequestContext` so every log line
+ * and any Sentry event raised from inside this handler — and from the
+ * background classify/summarise helpers it awaits — share the same
+ * request id minted upstream by `proxy.ts`. Highest-volume direct-log
+ * site in the codebase per spec §5 Phase 2 (was 12 raw console-call
+ * sites pre-S15).
+ */
+export const POST = withRequestContext(async (request: NextRequest) => {
   try {
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase, role } = auth;
+
+    // Upgrade the request scope with the resolved user so subsequent
+    // log lines + any Sentry events carry userId/userRole.
+    updateRequestContext({ userId: user.id, userRole: role });
 
     // Rate limit: 20 requests per minute
     const { allowed } = checkRateLimit(
@@ -86,7 +101,10 @@ export async function POST(request: NextRequest) {
         embeddingArray = await generateEmbedding(embeddingText);
         embeddingValue = JSON.stringify(embeddingArray);
       } catch (embedErr) {
-        console.error('Embedding generation failed:', embedErr);
+        logger.warn(
+          { err: embedErr, op: 'items.create.embed' },
+          'Embedding generation failed',
+        );
         // Continue without embedding -- item is still usable
       }
     }
@@ -126,7 +144,10 @@ export async function POST(request: NextRequest) {
       );
       dedupStamp = resolveDedupStamp(exactMatch?.id, { skipDedup });
     } catch (dedupErr) {
-      console.error('Dedup check failed:', dedupErr);
+      logger.warn(
+        { err: dedupErr, op: 'items.create.dedup' },
+        'Dedup check failed',
+      );
       // Non-fatal — continue with creation
     }
 
@@ -208,7 +229,10 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError || !newItem) {
-      console.error('Failed to create content item:', insertError);
+      logger.error(
+        { err: insertError, op: 'items.create.insert' },
+        'Failed to create content item',
+      );
       return NextResponse.json(
         { error: 'Failed to create content item' },
         { status: 500 },
@@ -243,7 +267,10 @@ export async function POST(request: NextRequest) {
           warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
         }
       } catch (chunkErr) {
-        console.error(`Chunking failed for ${newItem.id}:`, chunkErr);
+        logger.warn(
+          { err: chunkErr, op: 'items.create.chunking', itemId: newItem.id },
+          'Chunking failed',
+        );
         warnings.push('Content chunking failed');
       }
     }
@@ -259,7 +286,10 @@ export async function POST(request: NextRequest) {
       try {
         await classifyInBackground(newItem.id, user.id);
       } catch (err) {
-        console.error('Classification failed during item creation:', err);
+        logger.warn(
+          { err, op: 'items.create.classify' },
+          'Classification failed during item creation',
+        );
         warnings.push('Classification failed');
       }
     }
@@ -268,7 +298,10 @@ export async function POST(request: NextRequest) {
       try {
         await summariseInBackground(newItem.id, user.id);
       } catch (err) {
-        console.error('Summary generation failed during item creation:', err);
+        logger.warn(
+          { err, op: 'items.create.summarise' },
+          'Summary generation failed during item creation',
+        );
         warnings.push('Summary generation failed');
       }
     }
@@ -305,7 +338,10 @@ export async function POST(request: NextRequest) {
         .update({ layer: suggestion.suggestedLayer })
         .eq('id', newItem.id);
     } catch (layerErr) {
-      console.error('Layer inference failed:', layerErr);
+      logger.warn(
+        { err: layerErr, op: 'items.create.layer_inference' },
+        'Layer inference failed',
+      );
       // Non-fatal — item is still usable without a layer suggestion
     }
 
@@ -345,7 +381,10 @@ export async function POST(request: NextRequest) {
           .eq('id', newItem.id);
       }
     } catch (qualityErr) {
-      console.error('Quality score calculation failed:', qualityErr);
+      logger.warn(
+        { err: qualityErr, op: 'items.create.quality_score' },
+        'Quality score calculation failed',
+      );
       // Non-fatal — item is still usable without a stored quality score
     }
 
@@ -380,7 +419,10 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (topicErr) {
-      console.error('Topic suggestion failed:', topicErr);
+      logger.warn(
+        { err: topicErr, op: 'items.create.topic_suggestion' },
+        'Topic suggestion failed',
+      );
       // Non-fatal — item is still usable without a topic suggestion
     }
 
@@ -409,7 +451,10 @@ export async function POST(request: NextRequest) {
             guideSectionSuggestions = matches;
           }
         } catch (guideErr) {
-          console.error('Guide section suggestion failed:', guideErr);
+          logger.warn(
+            { err: guideErr, op: 'items.create.guide_section_suggestion' },
+            'Guide section suggestion failed',
+          );
           // Non-fatal — item is still usable without guide section suggestions
         }
       }
@@ -436,12 +481,16 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (err) {
+    logger.error(
+      { err, op: 'items.create' },
+      'Failed to create content item',
+    );
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to create content item') },
       { status: 500 },
     );
   }
-}
+});
 
 /**
  * Awaited classification step.
@@ -465,7 +514,10 @@ async function classifyInBackground(
     status = 'failed';
     errorMessage =
       err instanceof Error ? err.message : 'Unknown classification error';
-    console.error(`Background classification failed for ${itemId}:`, err);
+    logger.error(
+      { err, op: 'items.background_classify', itemId },
+      'Background classification failed',
+    );
     caughtError = err;
   }
 
@@ -501,7 +553,10 @@ async function summariseInBackground(
   } catch (err) {
     status = 'failed';
     errorMessage = err instanceof Error ? err.message : 'Unknown summary error';
-    console.error(`Background summary failed for ${itemId}:`, err);
+    logger.error(
+      { err, op: 'items.background_summarise', itemId },
+      'Background summary failed',
+    );
     caughtError = err;
   }
 

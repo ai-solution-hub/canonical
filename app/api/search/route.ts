@@ -9,15 +9,28 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { SearchBodySchema } from '@/lib/validation/schemas';
 import { generateEmbedding } from '@/lib/ai/embed';
+import { logger, updateRequestContext } from '@/lib/logger';
+import { withRequestContext } from '@/lib/route-context';
 
 export const maxDuration = 60;
 
-export async function POST(request: NextRequest) {
+/**
+ * POST /api/search — hybrid (embedding + keyword) semantic search.
+ *
+ * Phase 2 (S15 WP1): wrapped with `withRequestContext` so every log line
+ * and any Sentry event raised from inside the handler carries the shared
+ * `requestId` minted upstream by `proxy.ts`. Highest-traffic read path.
+ */
+export const POST = withRequestContext(async (request: NextRequest) => {
   try {
     // Auth check
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
+
+    // Upgrade the request scope with the resolved user so subsequent
+    // log lines + any Sentry events carry userId.
+    updateRequestContext({ userId: user.id });
 
     // Rate limit: 30 requests per minute
     const rl = checkRateLimit(`search:${user.id}`, 30, 60_000);
@@ -33,7 +46,10 @@ export async function POST(request: NextRequest) {
     try {
       embedding = await generateEmbedding(query.trim());
     } catch (err) {
-      console.error('OpenAI embedding error:', err);
+      logger.error(
+        { err, op: 'search.embed' },
+        'OpenAI embedding error',
+      );
       return NextResponse.json(
         {
           error: 'Search unavailable — please try again',
@@ -56,7 +72,10 @@ export async function POST(request: NextRequest) {
     );
 
     if (rpcError) {
-      console.error('Search RPC error:', rpcError);
+      logger.error(
+        { err: rpcError, op: 'search.hybrid_rpc' },
+        'Search RPC error',
+      );
       return NextResponse.json(
         { error: 'Search query failed' },
         { status: 500 },
@@ -76,9 +95,10 @@ export async function POST(request: NextRequest) {
       count: filtered.length,
     });
   } catch (err) {
+    logger.error({ err, op: 'search' }, 'Search failed');
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Search failed') },
       { status: 500 },
     );
   }
-}
+});
