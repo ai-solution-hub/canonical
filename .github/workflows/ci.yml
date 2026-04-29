@@ -15,19 +15,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Quality gates
+  quality-precheck:
+    # WP-CI.RES.1 (S15) — Pattern A 4-way file-shard. Quality precheck runs the
+    # build-bound work whose cost is independent of shard count: lint, format
+    # check, knip baseline guard, Next.js build, build-output regression scan,
+    # and (paths-filter-gated) Python pytest. The Vitest unit suite has been
+    # split into the `quality-test` matrix below. Closes roadmap §9.16.11.
+    # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res1-vitest-perf-spec.md
+    name: Quality pre-check
     runs-on: ubuntu-latest
     # Resolves ${{ secrets.X }} and ${{ vars.X }} from the Production
     # environment scope (per docs/runbooks/github-environments.md §4.1).
     # Case-sensitive — must exactly match `Production`.
     environment: Production
-    # 30 min covers the full vitest suite on push-to-main runs (PR runs use
-    # `--changed` and finish in <5 min). Bumped from 20 min in S11 after
-    # accumulated test count post-S207/S10/S11 pushed full-run wall-clock
-    # past the prior limit. Re-evaluate when vitest pool moves forks → threads
-    # (project_vitest_threads_deferred.md) or test count drops.
-    timeout-minutes: 30
+    # 10 min headroom covers lint + format + knip + build + test:build + (gated)
+    # Python pytest at ~3-4 min observed on push-to-main. Vitest now lives in
+    # `quality-test`. Per spec D-CI.RES.1-3 + D-CI.RES.1-11.
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -37,7 +41,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           # fetch-depth: 0 lets `vitest run --changed origin/<base>` diff
-          # the PR head against the merge base on PR runs.
+          # the PR head against the merge base on PR runs (consumed in the
+          # downstream `quality-test` matrix job).
           fetch-depth: 0
 
       - name: Detect changed paths
@@ -110,7 +115,69 @@ jobs:
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
         run: bun run test:build
 
-      - name: Test (Vitest)
+      - name: Setup Python
+        if: steps.changes.outputs.python == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        if: steps.changes.outputs.python == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Test (pytest)
+        if: steps.changes.outputs.python == 'true'
+        run: python3 -m pytest scripts/tests/
+
+  quality-test:
+    # WP-CI.RES.1 (S15) — Vitest 4-way file-shard matrix. Each entry runs
+    # `bunx vitest run --shard=N/4` with the existing forks pool (per spec
+    # D-CI.RES.1-1; threads-pool migration deferred per
+    # `feedback_vitest_threads_deferred`). `fail-fast: false` so all 4 shards
+    # report independently. R-3 carry: Vitest's `--shard` partition algorithm
+    # is alphabetical-by-resolved-path; Vitest is pinned at `^4.0.18` in
+    # package.json — re-balance only on minor-version bump.
+    # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res1-vitest-perf-spec.md
+    name: Quality test (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    environment: Production
+    needs: quality-precheck
+    # 10 min headroom covers slowest shard at ~2-3 min observed wall-clock
+    # (~30-45 s bun install + ~2 min test step). Per spec D-CI.RES.1-3.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+
+    strategy:
+      # `fail-fast: false` — surface the full failure picture across all 4
+      # shards in a single CI run rather than aborting siblings on first
+      # failure. Per spec D-CI.RES.1-2.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 required for `vitest run --changed origin/<base>`
+          # PR-diff path retained below.
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test (Vitest, shard ${{ matrix.shard }}/4)
         env:
           # Vitest setup imports validated env modules; mirror the build step.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -127,36 +194,24 @@ jobs:
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
-          # Workflow-injection mitigation: pass github context through env, not run:.
+          # Workflow-injection mitigation: route github + matrix context through
+          # env: rather than direct ${{ }} interpolation in the run: shell.
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_BASE_REF: ${{ github.base_ref }}
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             git fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF"
-            bunx vitest run --changed "origin/$GITHUB_BASE_REF"
+            bunx vitest run --changed "origin/$GITHUB_BASE_REF" \
+              --shard="${SHARD_INDEX}/4"
           else
-            bun run test
+            bunx vitest run --shard="${SHARD_INDEX}/4"
           fi
-
-      - name: Setup Python
-        if: steps.changes.outputs.python == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-
-      - name: Install Python dependencies
-        if: steps.changes.outputs.python == 'true'
-        run: pip install -r requirements.txt
-
-      - name: Test (pytest)
-        if: steps.changes.outputs.python == 'true'
-        run: python3 -m pytest scripts/tests/
 
   e2e-smoke:
     # WP-G4.3 — Curated Playwright smoke (~54 tests, target ≤5 min wall-clock)
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.3-e2e-smoke-spec.md
-    # Runs in parallel with `quality` (no `needs:`) so total CI wall-clock stays
+    # Runs in parallel with `quality-precheck`/`quality-test` (no `needs:`) so total CI wall-clock stays
     # close to max(quality, e2e-smoke).
     name: E2E smoke
     runs-on: ubuntu-latest
@@ -254,7 +309,7 @@ jobs:
     #   - PR touching MCP paths (paths-filter) → full mode
     #   - other PRs → --skip-ai (L1, L4) / --skip-search (L3) for cost-zero runs
     #
-    # Independent of the `quality` job (no `needs:` chain) so eval results
+    # Independent of `quality-precheck`/`quality-test` (no `needs:` chain) so eval results
     # appear regardless of quality-job state.
     name: MCP eval (${{ matrix.layer }})
     runs-on: ubuntu-latest
@@ -427,4 +482,118 @@ jobs:
           name: mcp-eval-${{ matrix.layer }}-server-log
           path: /tmp/server.log
           retention-days: 7
+          if-no-files-found: ignore
+
+  integration:
+    # WP-CI.RES.3 — Integration-tier tests in CI (Phase 1).
+    # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res3-integration-tier-ci-spec.md
+    # Closes roadmap §9.16.12 Phase 1.
+    #
+    # Runs `bun run test:integration` against the staging Supabase branch
+    # (`turayklvaunphgbgscat`) with real Anthropic + OpenAI calls. Exercises
+    # production code paths unit tests cannot: RLS policies, real auth flows,
+    # AI-pipeline classification + embedding, migration triggers, cookie-store
+    # auth-helper resolution.
+    #
+    # `continue-on-error: true` is the Phase 1 graceful-skip lever (per
+    # `feedback_eval_scripts_assume_populated_db.md`) — ~3 files hard-assert
+    # prod-shaped cohort counts (publication-status-migration,
+    # golden-path-real-db, intelligence-golden-path) which fail honestly on
+    # data-empty staging. Phase 2 close-out (lock-step with roadmap §9.16.10
+    # staging mirror cutover) drops the flag here AND on `e2e-smoke` AND
+    # removes the MCP eval graceful-skip in `scripts/mcp-eval/fixtures.ts:328`
+    # atomically.
+    #
+    # Independent of the `quality` / `e2e-smoke` / `mcp-eval` jobs (no
+    # `needs:` chain) so total CI wall-clock = max(quality, e2e-smoke,
+    # mcp-eval, integration).
+    name: Integration tests
+    runs-on: ubuntu-latest
+    # Staging-scoped: TEST_USER_{1,2,3}_* + staging Supabase secrets only
+    # exist on Staging env scope (per docs/runbooks/github-environments.md
+    # §3.1). Case-sensitive — must exactly match `Staging`.
+    environment: Staging
+    # Phase 1 only — removed Phase 2 lock-step with roadmap §9.16.10
+    # close-out. See spec §2.4 + AC3.14/AC3.15.
+    continue-on-error: true
+    # Point estimate 5-7 min wall-clock under default gating + single shard
+    # (spec §2.5). 25 min ceiling absorbs cold-cache + AI-API tail-latency
+    # variance (~3.5x point estimate). Re-evaluate after 5 green runs.
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run integration tests
+        env:
+          # Mirror e2e-smoke env block (spec §2.2) — staging Supabase
+          # connection + TEST_USER_{1,2,3} credentials.
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Server-side secrets the integration runner boots with
+          # (lib/env-server.ts validates at module load — every Zod-required
+          # field must be set or the first test import throws before any
+          # `it()` runs).
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          # AI keys (ANTHROPIC + OPENAI) are required because integration tests import
+          # lib/ai/classify + lib/ai/embed at module load. e2e-smoke also carries them
+          # today for the same Zod-load reason.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # CRON_SECRET — review-cadence-lifecycle.integration.test.ts asserts
+          # cron-route Bearer-token gate.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Mirror to NEXT_PUBLIC_* for the client schema (auth-session.ts
+          # sign-in path uses these).
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          # Test-user credentials — pre-seeded into staging by
+          # scripts/seed-e2e-users.ts (per docs/runbooks/staging-refresh.md
+          # §4). 3 personas: TEST_USER_1 admin, TEST_USER_2 editor,
+          # TEST_USER_3 viewer; auth-session.ts caps each test file at 3
+          # sign-ins for rate-limit safety.
+          TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          # INTEGRATION_INTELLIGENCE and KH_RUN_INTEGRATION are intentionally
+          # NOT set — they default-off-skip ~28 cases and parity with
+          # local-dev `bun run test:integration` is preserved (spec §2.2,
+          # D-CI.RES.3-7).
+        # `tee` so the log appears live in the GH Actions step UI as it
+        # streams, not just post-failure (spec §2.8).
+        run: bun run test:integration 2>&1 | tee /tmp/integration.log
+
+      - name: Upload integration log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-log
+          path: /tmp/integration.log
+          retention-days: 14
           if-no-files-found: ignore

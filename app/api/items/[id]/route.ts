@@ -25,6 +25,11 @@ import {
   VALID_PUBLICATION_STATUSES,
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContext,
+} from '@/lib/logger';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;
@@ -32,7 +37,7 @@ export const maxDuration = 60;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function PATCH(
+async function patchHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -41,6 +46,10 @@ export async function PATCH(
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase, role } = auth;
+
+    // Upgrade the request scope with the resolved user so subsequent
+    // log lines + any Sentry events carry userId/userRole.
+    updateRequestContext({ userId: user.id, userRole: role });
 
     const { id } = await params;
 
@@ -155,11 +164,19 @@ export async function PATCH(
           );
         }
         if (err instanceof SupabaseError) {
+          logger.error(
+            { err, op: 'items.patch.supersession.db' },
+            'Supersession DB error',
+          );
           return NextResponse.json(
             { error: `Supersession failed: ${err.message}` },
             { status: 500 },
           );
         }
+        logger.error(
+          { err, op: 'items.patch.supersession' },
+          'Unexpected supersession error',
+        );
         return NextResponse.json(
           {
             error: `Unexpected error: ${safeErrorMessage(err, 'unknown error')}`,
@@ -526,7 +543,10 @@ export async function PATCH(
           updateData.embedding = JSON.stringify(embedding);
         }
       } catch (embedErr) {
-        console.error('Embedding generation failed during publish:', embedErr);
+        logger.error(
+          { err: embedErr, op: 'items.patch.publish.embed' },
+          'Embedding generation failed during publish',
+        );
         return NextResponse.json(
           {
             error:
@@ -544,7 +564,10 @@ export async function PATCH(
       .eq('id', id);
 
     if (error) {
-      console.error('Failed to update content item:', error);
+      logger.error(
+        { err: error, op: 'items.patch.update' },
+        'Failed to update content item',
+      );
       return NextResponse.json(
         { error: 'Failed to update item' },
         { status: 500 },
@@ -587,7 +610,10 @@ export async function PATCH(
           classifyErr instanceof Error
             ? classifyErr.message
             : 'Unknown classification error';
-        console.error(`Publish classify failed for ${id}:`, classifyErr);
+        logger.error(
+          { err: classifyErr, op: 'items.patch.publish.classify', itemId: id },
+          'Publish classify failed',
+        );
         warnings.add('Classification failed on publish');
       }
       await recordPipelineRun({
@@ -602,7 +628,10 @@ export async function PATCH(
         const { regenerateChunks } = await import('@/lib/content/chunk-store');
         await regenerateChunks(publishServiceClient, id, currentItem.content);
       } catch (chunkErr) {
-        console.error(`Publish chunking failed for ${id}:`, chunkErr);
+        logger.warn(
+          { err: chunkErr, op: 'items.patch.publish.chunking', itemId: id },
+          'Publish chunking failed',
+        );
         warnings.add('Chunk generation failed on publish');
       }
     }
@@ -906,6 +935,10 @@ export async function PATCH(
 
     return warningsEnvelope({ success: true }, warnings);
   } catch (err) {
+    logger.error(
+      { err, op: 'items.patch' },
+      'Failed to process item PATCH request',
+    );
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to process item request') },
       { status: 500 },
@@ -913,8 +946,19 @@ export async function PATCH(
   }
 }
 
-/** DELETE /api/items/:id -- delete content item (admin only) */
-export async function DELETE(
+/**
+ * Phase 2 (S15 WP1): expose the handler through `withRequestContext` so
+ * every log line and any Sentry event raised from inside `patchHandler`
+ * carries the shared `requestId` minted upstream by `proxy.ts`.
+ */
+export const PATCH = withRequestContext(patchHandler);
+
+/**
+ * DELETE /api/items/:id -- delete content item (admin only).
+ *
+ * Phase 2 (S15 WP1): wrapped with `withRequestContext` (see PATCH above).
+ */
+async function deleteHandler(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -922,7 +966,11 @@ export async function DELETE(
     // Auth + role check (admin only)
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+    const { user, supabase } = auth;
+
+    // Upgrade the request scope with the resolved user so subsequent
+    // log lines + any Sentry events carry userId.
+    updateRequestContext({ userId: user.id, userRole: 'admin' });
 
     const { id } = await params;
 
@@ -952,7 +1000,10 @@ export async function DELETE(
       .eq('id', id);
 
     if (deleteError) {
-      console.error('Failed to delete content item:', deleteError);
+      logger.error(
+        { err: deleteError, op: 'items.delete', itemId: id },
+        'Failed to delete content item',
+      );
       return NextResponse.json(
         { error: 'Failed to delete content item' },
         { status: 500 },
@@ -961,9 +1012,19 @@ export async function DELETE(
 
     return NextResponse.json({ deleted: true, id });
   } catch (err) {
+    logger.error(
+      { err, op: 'items.delete' },
+      'Failed to delete content item',
+    );
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to delete content item') },
       { status: 500 },
     );
   }
 }
+
+/**
+ * Phase 2 (S15 WP1): expose the handler through `withRequestContext` (see
+ * PATCH at the top of this file).
+ */
+export const DELETE = withRequestContext(deleteHandler);

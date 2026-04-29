@@ -13,15 +13,31 @@ import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { validateUrl } from '@/lib/extraction/url-validation';
 import { detectContentType } from '@/lib/extraction/content-type-detect';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContext,
+} from '@/lib/logger';
 
 export const maxDuration = 60;
 
-export async function POST(request: NextRequest) {
+/**
+ * POST /api/ingest/url — extract → dedup → classify → embed → store.
+ *
+ * Phase 2 (S15 WP1): wrapped with `withRequestContext` so this multi-step
+ * pipeline emits one shared `requestId` across every log line. Spec §6
+ * AC3: "multi-step pipelines carry a correlation ID".
+ */
+export const POST = withRequestContext(async (request: NextRequest) => {
   try {
     // 1. Auth check: editor or admin
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase, role } = auth;
+
+    // Upgrade the request scope with the resolved user so subsequent
+    // log lines + any Sentry events carry userId/userRole.
+    updateRequestContext({ userId: user.id, userRole: role });
 
     // 2. Rate limit: 10 req/min
     const rl = checkRateLimit(`ingest:url:${user.id}`, 10, 60_000);
@@ -225,7 +241,10 @@ export async function POST(request: NextRequest) {
         warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
       }
     } catch (chunkErr) {
-      console.error(`Chunking failed for ${newItem.id}:`, chunkErr);
+      logger.warn(
+        { err: chunkErr, op: 'ingest_url.chunking', itemId: newItem.id },
+        'Chunking failed',
+      );
       warnings.push('Content chunking failed');
     }
 
@@ -266,7 +285,10 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (dateErr) {
-      console.error('Date extraction failed:', dateErr);
+      logger.warn(
+        { err: dateErr, op: 'ingest_url.date_extraction' },
+        'Date extraction failed',
+      );
     }
 
     // 14. Classify (awaited)
@@ -333,7 +355,10 @@ export async function POST(request: NextRequest) {
           .eq('id', newItem.id);
       }
     } catch (qualityErr) {
-      console.error('Quality score calculation failed:', qualityErr);
+      logger.warn(
+        { err: qualityErr, op: 'ingest_url.quality_score' },
+        'Quality score calculation failed',
+      );
     }
 
     // 16. Layer inference — suggest and store a layer
@@ -362,7 +387,10 @@ export async function POST(request: NextRequest) {
         .update({ layer: suggestion.suggestedLayer })
         .eq('id', newItem.id);
     } catch (layerErr) {
-      console.error('Layer inference failed:', layerErr);
+      logger.warn(
+        { err: layerErr, op: 'ingest_url.layer_inference' },
+        'Layer inference failed',
+      );
       // Non-fatal — item is still usable without a layer suggestion
     }
 
@@ -415,7 +443,10 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (topicErr) {
-      console.error('Topic suggestion failed:', topicErr);
+      logger.warn(
+        { err: topicErr, op: 'ingest_url.topic_suggestion' },
+        'Topic suggestion failed',
+      );
       // Non-fatal — item is still usable without a topic suggestion
     }
 
@@ -441,7 +472,10 @@ export async function POST(request: NextRequest) {
           guideSectionSuggestions = matches;
         }
       } catch (guideErr) {
-        console.error('Guide section suggestion failed:', guideErr);
+        logger.warn(
+          { err: guideErr, op: 'ingest_url.guide_section_suggestion' },
+          'Guide section suggestion failed',
+        );
         // Non-fatal — item is still usable without guide section suggestions
       }
     }
@@ -478,9 +512,10 @@ export async function POST(request: NextRequest) {
       }),
     });
   } catch (err) {
+    logger.error({ err, op: 'ingest_url' }, 'Failed to ingest URL');
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to ingest URL') },
       { status: 500 },
     );
   }
-}
+});

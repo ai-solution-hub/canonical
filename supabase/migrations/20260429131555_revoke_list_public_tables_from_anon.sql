@@ -1,0 +1,28 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- S14 WP3 fix-up — REVOKE EXECUTE on public.list_public_tables() FROM anon
+--
+-- Continuation of `20260429131443_revoke_list_public_tables_from_public.sql`.
+-- That migration revoked PUBLIC's default GRANT, but Wave 4 verification
+-- discovered `anon` retained EXECUTE because Supabase's `pg_default_acl`
+-- for object_type='f' in schema `public` explicitly grants EXECUTE to
+-- anon + authenticated + service_role on every new function created by
+-- the postgres role. The PUBLIC revoke was therefore a no-op for anon's
+-- access — Supabase's default-acl cascade beat it.
+--
+-- This follow-up explicitly revokes EXECUTE from anon so the function's
+-- effective ACL matches the original migration's documented intent
+-- ("authenticated + service_role only — anon does not receive schema
+--  metadata access"). Verified post-apply via `has_function_privilege`:
+--   anon=false, authenticated=true, service_role=true.
+--
+-- Idempotent: REVOKE on a non-grant is a no-op (no error).
+--
+-- WIDER CONCERN (logged for follow-up, not addressed here):
+--   The Supabase `pg_default_acl` pattern auto-grants anon EXECUTE on every
+--   function created in `public` by `postgres`. New PL/pgSQL helpers landing
+--   without an explicit anon-revoke will silently surface to anon. A repo-
+--   wide review of existing `public.*` functions + a default-acl tightening
+--   are out of scope for S14 and should be tracked as a future workpackage.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+REVOKE EXECUTE ON FUNCTION public.list_public_tables() FROM anon;

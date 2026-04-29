@@ -9,6 +9,11 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { FreshnessCalculateBodySchema } from '@/lib/validation/schemas';
 import { batchCalculateFreshness } from '@/lib/freshness';
+import {
+  logger,
+  updateRequestContext,
+  withRequestContext,
+} from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -18,12 +23,20 @@ export const maxDuration = 30;
  * Batch calculate freshness for a list of content items.
  * Updates the freshness column in the database and returns the results.
  * Requires editor+ role.
+ *
+ * Phase 2 (S15 WP1): wrapped with `withRequestContext` so every log line
+ * and any Sentry event raised from inside the handler carries the shared
+ * `requestId` minted upstream by `proxy.ts`.
  */
-export async function POST(request: NextRequest) {
+export const POST = withRequestContext(async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
+
+    // Upgrade the request scope with the resolved user so subsequent
+    // log lines + any Sentry events carry userId/userRole.
+    updateRequestContext({ userId: user.id });
 
     const { allowed } = checkRateLimit(
       `freshness:calculate:${user.id}`,
@@ -45,9 +58,9 @@ export async function POST(request: NextRequest) {
       .in('id', item_ids);
 
     if (fetchError) {
-      console.error(
-        'Failed to fetch items for freshness calculation:',
-        fetchError,
+      logger.error(
+        { err: fetchError, op: 'freshness.calculate.fetch' },
+        'Failed to fetch items for freshness calculation',
       );
       return NextResponse.json(
         { error: 'Failed to fetch items' },
@@ -80,7 +93,10 @@ export async function POST(request: NextRequest) {
         .eq('id', itemId);
 
       if (updateError) {
-        console.error(`Failed to update freshness for ${itemId}:`, updateError);
+        logger.error(
+          { err: updateError, op: 'freshness.calculate.update', itemId },
+          'Failed to update freshness for item',
+        );
         failed.push({
           id: itemId,
           error: safeErrorMessage(updateError, 'Update failed'),
@@ -98,9 +114,13 @@ export async function POST(request: NextRequest) {
       failed,
     });
   } catch (err) {
+    logger.error(
+      { err, op: 'freshness.calculate' },
+      'Failed to calculate freshness',
+    );
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to calculate freshness') },
       { status: 500 },
     );
   }
-}
+});
