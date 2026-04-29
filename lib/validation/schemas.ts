@@ -2021,6 +2021,32 @@ export const ArchiveBodySchema = z.object({
   reason: z.string().trim().min(1, 'Reason is required').max(1000),
 });
 
+// ──────────────────────────────────────────
+// §1.7 Admin Cross-System Dedup Review (S211B)
+// ──────────────────────────────────────────
+
+/** GET /api/admin/content-dedup/queue — list filters + cursor pagination */
+export const DedupQueueQuerySchema = z.object({
+  domain: z.string().optional(),
+  cursor: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  sort: z
+    .enum(['created_at_desc', 'similarity_desc'])
+    .optional()
+    .default('created_at_desc'),
+});
+
+/** POST /api/admin/content-dedup/[id]/{confirm-duplicate,confirm-unique} */
+export const DedupActionBodySchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+/** POST /api/admin/content-dedup/[id]/supersede */
+export const DedupSupersedeBodySchema = z.object({
+  canonicalId: z.string().uuid(),
+  note: z.string().max(500).optional(),
+});
+
 /** POST /api/items/[id]/vision */
 export const VisionBodySchema = z.object({
   prompt: z.string().max(5000).optional(),
