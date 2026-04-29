@@ -22,10 +22,11 @@ respect this distinction or the docs will drift back into chaos:
 
 | Document                           | File                                                               | Role                                                                                                                                                                                                                                                                                                 |
 | ---------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **State of the product**           | `docs/reference/state-of-the-product.md`                           | **Canonical record of what is CURRENTLY built.** Describes the platform in its present state, organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Updated whenever a significant feature lands — updates integrate into the relevant functional section. |
+| **State of the product**           | `docs/reference/state-of-the-product.md`                           | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to `state-of-the-product-change-log.md` atomically. |
 | **Roadmap**                        | `docs/reference/post-mvp-roadmap.md`                               | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Resolved items.                                                                                                                                                       |
 | **Product backlog**                | `docs/reference/product-backlog.md`                                | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap.   |
-| **State of the product — history** | `docs/reference/state-of-the-product-history.md`                   | **Frozen historical archive** of per-session "what shipped in session N" narrative blocks (S53→S152A), split out of the canonical doc in S152B WP10 (commit `3e3eccc5`) to keep the canonical doc under control.                                                                                     |
+| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md`             | **Append-only per-session change-log** for SoTP capability deltas (the warm tier, S186 onwards). Newest at bottom. Mirrors `STATUS-change-log.md` shape (commit `a1b3b0e3` on production-readiness; skill update `a295eed9`). For the canonical present-tense capability ledger, see `state-of-the-product.md`. For pre-S186 history, see `state-of-the-product-history.md`. |
+| **State of the product — history** | `docs/reference/state-of-the-product-history.md`                   | **Frozen historical archive — the cold tier (S53→S185).** Per-session "what shipped in session N" narrative blocks split out of the canonical doc in S152B WP10 (commit `3e3eccc5`). Append nothing here directly — the change-log file is the warm append surface; cold-archive sweeps move blocks from change-log → history when the change-log crosses ~5000 lines.                                                              |
 | **Backlog completed archive**      | `docs/reference/product-backlog-completed.md`                      | Frozen historical record of completed backlog items.                                                                                                                                                                                                                                                 |
 | **Wave status ledgers**            | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`) | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                 |
 
@@ -125,41 +126,123 @@ git diff --cached --quiet || git commit -m "chore: archive completed specs"
 
 ## Step 5: Update State of the Product
 
-**File:** `docs/reference/state-of-the-product.md` (canonical — CURRENT state)
+**Files:**
 
-If the session introduced significant architecture changes, new features, or
-removed major components, update `state-of-the-product.md`. Skip if the session
-was primarily bug fixes, styling, or minor enhancements.
+- `docs/reference/state-of-the-product.md` — canonical present-tense capability ledger
+- `docs/reference/state-of-the-product-change-log.md` — append-only per-session narrative (warm tier, S186 onwards)
 
-**How to update:**
+The two files have distinct, non-overlapping roles. SoTP carries the bullet
+list of what is currently built; the change-log carries when/how/why each
+capability changed. **Capability edits and change-log appends always ship in
+the SAME COMMIT** so a future reader can diff both surfaces together.
 
-1. **Find the relevant functional section** (e.g. "Sector Intelligence", "AI
-   Evaluation", "Test Infrastructure", "MCP Server Integration" etc.). Read the
-   existing section structure — each section describes the present-tense
-   capability, not a session-by-session changelog.
-2. **Integrate the new capability into the section's narrative.** If the new
-   work extends an existing bullet (e.g. "Phase 1c Prompt Refinement Skill
-   landed Phase 1b"), update the bullet in place. If it's a genuinely new
-   sub-capability, add a new bullet with a session marker in parentheses (e.g.
-   "(S155 WP3)").
-3. **If a feature was REMOVED or rewritten**, update the description to match
-   the new state, not to track both old and new.
-4. **If a functional section does not exist for the work** (rare), add a new
-   section at the bottom of §5 Feature State or §8 AI Integration Points,
-   whichever fits. Do not create an entirely new top-level section unless the
-   work warrants it.
-5. **If you notice that a section hasn't followed this aproach** (e.g., content
-   appears like a session-by-session changelog), resolve this if it's the
-   section(s) your actively updating, or for separate sections flag this as an
-   action to be resolved in the next session and add to the continuation prompt
-   created during /handoff - this keeps the document aligned and representative
-   of the canonical product state.
+**1. Determine the type of session work:**
+
+- **Capability change** — new feature, removed feature, behaviour shift, or
+  any visible-from-outside change to the platform's shape: update the relevant
+  SoTP capability bullet AND append a row to the change-log.
+- **Session-narrative only** — bug fix, refactor, perf tweak, doc cleanup, or
+  any work that didn't change the capability shape: append a change-log row
+  only. Do not edit SoTP.
+- **Skip both** — purely cosmetic work (e.g. lint sweep, prettier reflow) with
+  no functional or audit value.
+
+**2. For capability changes — update SoTP:**
+
+1. **Find the relevant functional section** under §5 Feature State or §8 AI
+   Integration Points (e.g. "Sector Intelligence", "AI Evaluation", "Test
+   Infrastructure", "MCP Server Integration"). Each section describes the
+   present-tense capability — never a session-by-session changelog.
+2. **Update the capability bullet in place.** Describe what is true now. **No
+   session marker in the body** — `(S155 WP3)` belongs in the change-log row,
+   not the SoTP bullet. The capability statement is what's true; the change-log
+   carries when/how/why it changed.
+3. **If a feature was REMOVED**, delete the bullet outright. Do not strikethrough.
+   Do not leave both old and new descriptions side-by-side.
+4. **If the section does not exist**, add a new bullet under the most
+   appropriate sub-section. Do NOT create a new top-level section without
+   strong reason. New top-level sections are a red flag for unbounded growth.
+5. **Preserve the section-header banner** at the top of each §5/§8 sub-section:
+   `> Capability summary only. Session-by-session narrative lives in [state-of-the-product-change-log.md](state-of-the-product-change-log.md).`
+   The banner is the second-line defence against changelog drift — never delete it.
+
+**3. Append a change-log row** to `state-of-the-product-change-log.md`.
+
+   - Find the relevant `## §N ... — change log` section (or sub-section under
+     §8). Append a row at the bottom of its table:
+
+     ```
+     | DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
+     ```
+
+   - **Newest at bottom** — never reorder.
+   - **Append-only** — never edit prior rows except for typo / factual error fixes.
+   - The `Δ` cell can be multi-paragraph (Markdown table cells handle this fine).
+     For sessions with multi-area changes, a single multi-paragraph row keeps
+     the change diffable; resist the temptation to spread one session across
+     multiple rows in different sections unless the changes are genuinely
+     orthogonal.
+
+**4. Migration discipline rules** (the four guardrails that prevent regrowth):
+
+   1. **Section-header banner preserved** at the top of every §5/§8 sub-section.
+   2. **No session markers in SoTP body.** A bullet may name a feature shipped
+      post-S196 but cannot end with `(S196 §1.19)` — that's the change-log's job.
+      Only deliberate exception: brief session-arc bookmark lines like
+      "Re-ingestion arc S175-S182" which is itself a link to the history doc.
+   3. **Append-only change-log.** Never reorder, never edit prior rows except
+      to fix typos or correct factual errors (with edit annotation).
+   4. **One commit per session** touching both files when a capability shipped.
+      Diff readers see both surfaces together. No follow-up "fix change-log"
+      commits — atomic edit + append.
+
+**5. Worked example.** Hypothetical S214 ships a new "Per-domain entity
+   confidence threshold" feature in `lib/entities/confidence.ts`.
+
+   *SoTP edit* — update the capability bullet under §5 Classification & AI:
+
+   ```diff
+    ### Classification & AI
+
+    > Capability summary only. Session-by-session narrative lives in [state-of-the-product-change-log.md](state-of-the-product-change-log.md).
+
+    - Classifier prompt v4.5 with two-pass validation; entity taxonomy enforced.
+   -- Confidence is reported per entity but applied uniformly across domains.
+   +- Confidence is reported per entity and **applied per-domain** via configurable
+   +  threshold table; low-confidence entities are surfaced for review rather than
+   +  auto-merged.
+   ```
+
+   *Change-log append* — add a row at the bottom of §5's change-log table in
+   `state-of-the-product-change-log.md`:
+
+   ```
+   | 02/05/2026 | S214 | Per-domain entity confidence threshold landed (`lib/entities/confidence.ts`, spec `docs/specs/entity-confidence-spec.md`, commit `abc12345`). Replaces the uniform threshold with a per-domain table; low-confidence entities now route to the review queue rather than auto-merging. SoTP §5 Classification & AI bullet updated. |
+   ```
+
+   Both edits ship in one commit:
+   `docs(s214): per-domain entity confidence threshold + SoTP fold-in`.
+
+6. **If you notice that a section hasn't followed this approach** (e.g.
+   content reads like a session-by-session changelog rather than a capability
+   summary), resolve it if it's a section you're actively updating, or flag it
+   as an action for the next session in the continuation prompt created during
+   /handoff. This keeps SoTP aligned with the canonical present-tense
+   discipline.
 
 ---
 
 ## Step 6: Update Product Functionality Docs (Conditional)
 
 **File directory:** `docs/product-functionality/`
+
+The directory exists with seven functional area sub-directories
+(`administration/`, `ai-integration/`, `bid-management/`, `content-management/`,
+`knowledge-organisation/`, `quality-governance/`, `search/`) plus a shared
+`_templates/` directory and area-level `README.md`. Per-area docs are
+session-dated snapshots that capture deeper feature behaviour than the SoTP
+capability bullets — read `docs/product-functionality/README.md` for the
+authoring conventions.
 
 The product-functionality docs are session-dated snapshots. They must be kept
 aligned as the Sector Intelligence, AI/Prompt Engineering, and other workstreams
@@ -427,13 +510,16 @@ git diff --quiet docs/audits/ || \
 
 ## Step 10: Commit Reference Doc Changes
 
-Stage the canonical docs.
+Stage the canonical docs. The change-log file is included so capability edits
+and the corresponding session narrative ship together (Step 5 atomic-pairing
+rule).
 
 ```bash
 # Commit reference doc updates
 git diff --quiet docs/reference/ || \
   (git add docs/reference/post-mvp-roadmap.md docs/reference/state-of-the-product.md \
-  docs/reference/product-backlog.md 2>/dev/null && \
+   docs/reference/state-of-the-product-change-log.md \
+   docs/reference/product-backlog.md 2>/dev/null && \
 
    git commit -m "docs: update reference docs for session")
 ```
@@ -450,6 +536,7 @@ Present a summary to the user:
 > - **Roadmap:** {N items updated — X done, Y partial, Z new}
 > - **Specs archived:** {N specs archived / none eligible}
 > - **State of product:** {updated / no changes needed}
+> - **Change-log:** {row appended / N/A}
 > - **Product-functionality docs:** {N areas updated / no existing docs affected
 >   / N areas flagged for doc session}
 > - **Wave ledger:** {N items transitioned — X shipped, Y blocked / no active
