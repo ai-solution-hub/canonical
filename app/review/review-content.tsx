@@ -41,8 +41,34 @@ import { ConceptHelp } from '@/components/ui/concept-help';
  * Main client component for the Content Review page.
  * Delegates all state, data fetching, and handlers to the useReviewQueue hook.
  * This component is pure rendering only.
+ *
+ * S215 W1: accepts `initialStatus` + `hideStatusPills` props so the
+ * S215 ReviewTabs container can preset the filter to the active tab's
+ * status while hiding the redundant status pill group from the
+ * `<ReviewFilters />` popover. Default values preserve the legacy
+ * behaviour for direct `?status=` URL access (deep-linked older
+ * bookmarks still work, mediated by `useReviewSession`).
+ *
+ * Spec: docs/specs/review-page-tabs-refactor-spec.md §4 + AC (e).
  */
-export function ReviewContent() {
+export interface ReviewContentProps {
+  /**
+   * Optional preset for the underlying status filter. When omitted, the
+   * existing `useReviewSession` legacy URL parser keeps the behaviour
+   * (`?status=` query param wins; absent → 'unverified').
+   */
+  initialStatus?: import('@/types/review').ReviewStatus;
+  /**
+   * Forwarded to `<ReviewFilters />` to hide the status pill group when
+   * the parent tabs surface owns `status`.
+   */
+  hideStatusPills?: boolean;
+}
+
+export function ReviewContent({
+  initialStatus,
+  hideStatusPills = false,
+}: ReviewContentProps = {}) {
   const {
     // State
     queue,
@@ -88,7 +114,7 @@ export function ReviewContent() {
     // Keyboard shortcuts
     showHelp,
     setShowHelp,
-  } = useReviewQueue();
+  } = useReviewQueue(initialStatus);
 
   // Fetch review history for the current item
   const { history: reviewHistory, isLoading: reviewHistoryLoading } =
@@ -250,6 +276,7 @@ export function ReviewContent() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             stats={stats}
+            hideStatusPills={hideStatusPills}
           />
         </div>
 
@@ -337,6 +364,7 @@ export function ReviewContent() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             stats={stats}
+            hideStatusPills={hideStatusPills}
           />
         </div>
         <ReviewProgressBar progress={progress} className="mb-6" />
@@ -401,6 +429,7 @@ export function ReviewContent() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             stats={stats}
+            hideStatusPills={hideStatusPills}
           />
         </div>
 

@@ -20,6 +20,17 @@ interface ReviewFiltersProps {
   onFiltersChange: (filters: ReviewFiltersType) => void;
   stats: ReviewStatsResponse | null;
   className?: string;
+  /**
+   * When true, hides the status pill group at L240-261 (the "Status"
+   * section of the filter popover). Used by the S215 W1 tabs refactor:
+   * tabs own the `status` filter, so showing pills inside the popover
+   * would be redundant and would let users desync the tab from the
+   * filter. Active-filter count badge also excludes `status` when this
+   * prop is true so the badge does not blink on tab switches.
+   *
+   * Spec: docs/specs/review-page-tabs-refactor-spec.md §4 + AC (e).
+   */
+  hideStatusPills?: boolean;
 }
 
 const STATUS_OPTIONS: Array<{
@@ -38,11 +49,18 @@ export function ReviewFilters({
   onFiltersChange,
   stats,
   className = '',
+  hideStatusPills = false,
 }: ReviewFiltersProps) {
   const [open, setOpen] = useState(false);
 
+  // S215 W1: when the tabs surface owns `status` (`hideStatusPills` true),
+  // the popover badge must NOT count `status` — otherwise switching tabs
+  // would visually flip the badge on/off and double-count what the tab
+  // already communicates. Other filter contributions are unchanged.
   const activeFilterCount = [
-    filters.status && filters.status !== 'unverified' ? 1 : 0,
+    !hideStatusPills && filters.status && filters.status !== 'unverified'
+      ? 1
+      : 0,
     filters.domain?.length ? 1 : 0,
     filters.content_type?.length ? 1 : 0,
     filters.source_file ? 1 : 0,
@@ -236,29 +254,32 @@ export function ReviewFilters({
               </button>
             </div>
 
-            {/* Status filter */}
-            <div className="p-3">
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Status
-              </h4>
-              <div className="flex flex-wrap gap-1.5">
-                {STATUS_OPTIONS.map(({ value, label }) => (
-                  <Button
-                    key={value}
-                    variant={
-                      (filters.status ?? 'unverified') === value
-                        ? 'default'
-                        : 'outline'
-                    }
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => handleStatusChange(value)}
-                  >
-                    {label}
-                  </Button>
-                ))}
+            {/* Status filter — hidden when tabs own status (S215 W1).
+                Spec: docs/specs/review-page-tabs-refactor-spec.md §4 + AC (e). */}
+            {!hideStatusPills && (
+              <div className="p-3">
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Status
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {STATUS_OPTIONS.map(({ value, label }) => (
+                    <Button
+                      key={value}
+                      variant={
+                        (filters.status ?? 'unverified') === value
+                          ? 'default'
+                          : 'outline'
+                      }
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => handleStatusChange(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Domain filter */}
             {domainOptions.length > 0 && (

@@ -41,6 +41,7 @@ function renderFilters(
   filters: ReviewFiltersType = { status: 'unverified' },
   onFiltersChange = vi.fn(),
   stats: ReviewStatsResponse | null = baseStats,
+  hideStatusPills = false,
 ) {
   const user = userEvent.setup();
   const result = render(
@@ -48,6 +49,7 @@ function renderFilters(
       filters={filters}
       onFiltersChange={onFiltersChange}
       stats={stats}
+      hideStatusPills={hideStatusPills}
     />,
   );
   return { user, onFiltersChange, ...result };
@@ -269,6 +271,58 @@ describe('ReviewFilters', () => {
       // Active-filter count badge on the trigger button itself shows "1".
       const badge = within(filterButton).getByText('1');
       expect(badge).toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // S215 W1 — hideStatusPills prop (review-page tabs refactor)
+  // Spec: docs/specs/review-page-tabs-refactor-spec.md §4 + AC (e)/(k).
+  // -------------------------------------------------------------------------
+
+  describe('hideStatusPills (S215 W1 tabs refactor)', () => {
+    it('does NOT render the status pill section when prop is true', async () => {
+      // Default: status section is present.
+      const { user } = renderFilters({ status: 'unverified' }, vi.fn(), baseStats, false);
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      await user.click(filterButton);
+      expect(screen.getByText(/^Status$/)).toBeInTheDocument();
+    });
+
+    it('hides the status section heading when hideStatusPills=true', async () => {
+      const { user } = renderFilters(
+        { status: 'unverified' },
+        vi.fn(),
+        baseStats,
+        true,
+      );
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      await user.click(filterButton);
+
+      // The "Status" h4 heading is gone.
+      expect(screen.queryByText(/^Status$/)).not.toBeInTheDocument();
+      // None of the status pill button labels render either.
+      expect(
+        screen.queryByRole('button', { name: 'Drafts' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('excludes status from active-filter count when hideStatusPills=true', () => {
+      // Without the prop, status='flagged' contributes 1 to the badge.
+      const { unmount } = renderFilters(
+        { status: 'flagged' },
+        vi.fn(),
+        baseStats,
+        false,
+      );
+      const button = screen.getByRole('button', { name: /filters/i });
+      expect(within(button).getByText('1')).toBeInTheDocument();
+      unmount();
+
+      // With the prop, status='flagged' is excluded → no badge at all
+      // (no other filters are set in this test).
+      renderFilters({ status: 'flagged' }, vi.fn(), baseStats, true);
+      const button2 = screen.getByRole('button', { name: /filters/i });
+      expect(within(button2).queryByText(/^\d+$/)).not.toBeInTheDocument();
     });
   });
 });

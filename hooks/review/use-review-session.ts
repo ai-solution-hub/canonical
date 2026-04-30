@@ -43,9 +43,17 @@ export interface UseReviewSessionReturn {
 /**
  * Manages ephemeral session state: filters, progress, UI toggles,
  * announcements. Pure client state — no server fetching.
+ *
+ * S215 W1: when `statusOverride` is provided (by the ReviewTabs parent),
+ * the session boots with that status regardless of the URL `?status=`
+ * value. Tabs are the source of truth for status post-S215; the URL
+ * `?status=` parser is kept for backwards compatibility with legacy
+ * deep-links (someone clicking an old `?status=draft` URL lands on the
+ * Drafts tab via the page wrapper, NOT through this hook).
  */
 export function useReviewSession(
   searchParams: ReadonlyURLSearchParams,
+  statusOverride?: ReviewFiltersType['status'],
 ): UseReviewSessionReturn {
   // -----------------------------------------------------------------------
   // Initialise filters from URL search params (for shareability / back-button)
@@ -59,12 +67,18 @@ export function useReviewSession(
     const source_document_id = searchParams.get('source_document_id');
     const assigned_to_me = searchParams.get('assigned_to_me') === 'true';
 
-    return {
-      status: ['unverified', 'verified', 'flagged', 'draft', 'all'].includes(
-        status ?? '',
-      )
+    // statusOverride wins when provided (S215 ReviewTabs parent). Else
+    // the legacy URL parser path runs unchanged.
+    const resolvedStatus: ReviewFiltersType['status'] = statusOverride
+      ? statusOverride
+      : ['unverified', 'verified', 'flagged', 'draft', 'all'].includes(
+            status ?? '',
+          )
         ? (status as ReviewFiltersType['status'])
-        : 'unverified',
+        : 'unverified';
+
+    return {
+      status: resolvedStatus,
       domain: domain.length > 0 ? domain : undefined,
       content_type: content_type.length > 0 ? content_type : undefined,
       source_file: source_file ?? undefined,
@@ -81,12 +95,29 @@ export function useReviewSession(
 
   const [filters, setFilters] = useState<ReviewFiltersType>(initialFilters);
 
-  // Sync filters to URL search params for shareability
+  // Sync filters to URL search params for shareability.
+  //
+  // S215 W1: NO LONGER writes the `status` key — status is owned by the
+  // ReviewTabs parent and encoded into the URL as `?tab=`. Writing
+  // `status` here would cause two sources of truth and cause back-button
+  // history to grow on every filter tweak. Tab-orthogonal filters
+  // (domain, content_type, source_file, source_document_id,
+  // assigned_to_me) continue to be written so deep-link sharing still
+  // round-trips. The previous-session window.history.replaceState() is
+  // preserved per `useReviewSession` semantics: filter writes are
+  // history-replace, not history-push.
+  //
+  // Spec: docs/specs/review-page-tabs-refactor-spec.md §5 (URL state).
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (filters.status && filters.status !== 'unverified') {
-      params.set('status', filters.status);
-    }
+    const params = new URLSearchParams(window.location.search);
+    // Remove only the keys this hook owns. We must NOT clobber `?tab=` or
+    // any other unrelated query parameter the page renderer added.
+    params.delete('status');
+    params.delete('domain');
+    params.delete('content_type');
+    params.delete('source_file');
+    params.delete('source_document_id');
+    params.delete('assigned_to_me');
     if (filters.domain?.length) {
       for (const d of filters.domain) {
         params.append('domain', d);

@@ -88,15 +88,21 @@ export interface UseReviewQueueReturn {
  *
  * Dependency graph (no cycles):
  *   useReviewSession -> useReviewQueueData -> useReviewNavigation -> useReviewActions
+ *
+ * S215 W1: optional `statusOverride` arg lets the new ReviewTabs parent
+ * preset the boot status to match the active tab. When omitted, behaviour
+ * is identical to pre-S215 (URL `?status=` parser owns boot status).
  */
-export function useReviewQueue(): UseReviewQueueReturn {
+export function useReviewQueue(
+  statusOverride?: import('@/types/review').ReviewStatus,
+): UseReviewQueueReturn {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // -------------------------------------------------------------------------
   // 1. Session state (filters, progress, UI toggles, announcements)
   // -------------------------------------------------------------------------
-  const session = useReviewSession(searchParams);
+  const session = useReviewSession(searchParams, statusOverride);
 
   // -------------------------------------------------------------------------
   // 2. Server data (queue via infinite query, stats, assignments)
