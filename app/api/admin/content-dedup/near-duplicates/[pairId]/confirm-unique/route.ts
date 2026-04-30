@@ -80,24 +80,18 @@ export async function POST(
     }
 
     const { error: rpcErr } = await supabase.rpc(
-      // The function lives behind a freshly-applied migration; the
-      // generated database types do NOT include it yet (per the
-      // mid-session type-regen ban). Cast the rpc invocation through
-      // unknown to satisfy the typed wrapper while preserving runtime
-      // safety — the RPC name is a literal string and the param object
-      // matches the signature exactly.
-      // TODO: drop `as never` casts after next `bun run gen-types` pass
-      // (memory: feedback_no_midsession_type_regen).
-      'resolve_near_dup_confirm_unique' as never,
+      'resolve_near_dup_confirm_unique',
       {
         p_left_id: parsedPair.leftId,
         p_right_id: parsedPair.rightId,
         p_actor_user_id: user.id,
         p_pair_id: pairId,
-        p_note: body.data.note ?? null,
-        p_similarity_at_resolution: body.data.similarity_at_resolution ?? null,
-        p_threshold_at_resolution: body.data.threshold_at_resolution ?? null,
-      } as never,
+        p_note: body.data.note ?? undefined,
+        p_similarity_at_resolution:
+          body.data.similarity_at_resolution ?? undefined,
+        p_threshold_at_resolution:
+          body.data.threshold_at_resolution ?? undefined,
+      },
     );
 
     if (rpcErr) {

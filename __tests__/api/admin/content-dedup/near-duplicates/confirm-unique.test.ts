@@ -228,13 +228,13 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique'
           p_actor_user_id: 'admin-user-id',
           p_pair_id: PAIR_ID,
           p_note: 'intentionally distinct',
-          p_similarity_at_resolution: null,
-          p_threshold_at_resolution: null,
+          p_similarity_at_resolution: undefined,
+          p_threshold_at_resolution: undefined,
         },
       );
     });
 
-    it('passes p_note=null when note is omitted', async () => {
+    it('passes p_note=undefined when note is omitted', async () => {
       configureRole(mockSupabase, 'admin');
       configurePairExists();
       configureRpcOk();
@@ -249,7 +249,7 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique'
 
       expect(mockSupabase.rpc).toHaveBeenCalledWith(
         'resolve_near_dup_confirm_unique',
-        expect.objectContaining({ p_note: null }),
+        expect.objectContaining({ p_note: undefined }),
       );
     });
 

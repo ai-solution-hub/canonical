@@ -14,75 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _backup_taxonomy_financial_merge_20260427: {
-        Row: {
-          old_value: string | null
-          primary_domain: string | null
-          row_id: string | null
-          source_table_column: string | null
-          title: string | null
-        }
-        Insert: {
-          old_value?: string | null
-          primary_domain?: string | null
-          row_id?: string | null
-          source_table_column?: string | null
-          title?: string | null
-        }
-        Update: {
-          old_value?: string | null
-          primary_domain?: string | null
-          row_id?: string | null
-          source_table_column?: string | null
-          title?: string | null
-        }
-        Relationships: []
-      }
-      _backup_taxonomy_subtopics_financial_20260427: {
-        Row: {
-          accepted_at: string | null
-          created_at: string | null
-          description: string | null
-          display_name: string | null
-          display_order: number | null
-          domain_id: string | null
-          id: string | null
-          is_active: boolean | null
-          name: string | null
-          provenance: string | null
-          recommended_at: string | null
-          recommended_by: string | null
-        }
-        Insert: {
-          accepted_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          display_name?: string | null
-          display_order?: number | null
-          domain_id?: string | null
-          id?: string | null
-          is_active?: boolean | null
-          name?: string | null
-          provenance?: string | null
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Update: {
-          accepted_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          display_name?: string | null
-          display_order?: number | null
-          domain_id?: string | null
-          id?: string | null
-          is_active?: boolean | null
-          name?: string | null
-          provenance?: string | null
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Relationships: []
-      }
       bid_questions: {
         Row: {
           assigned_to: string | null
@@ -3474,6 +3405,7 @@ export type Database = {
           verified_by: string
         }[]
       }
+      list_public_tables: { Args: never; Returns: string[] }
       merge_entities: {
         Args: {
           p_entity_type: string
@@ -3503,6 +3435,21 @@ export type Database = {
       rename_tag: {
         Args: { p_new: string; p_old: string; p_type: string }
         Returns: number
+      }
+      resolve_near_dup_confirm_unique: {
+        Args: {
+          p_actor_user_id: string
+          p_left_id: string
+          p_note?: string
+          p_pair_id: string
+          p_right_id: string
+          p_similarity_at_resolution?: number
+          p_threshold_at_resolution?: number
+        }
+        Returns: {
+          dedup_status: string
+          id: string
+        }[]
       }
       run_quality_scan: {
         Args: { p_batch_name?: string }
