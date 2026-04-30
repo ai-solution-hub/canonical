@@ -26,7 +26,7 @@ steps:
     entrypoint: pack
     args:
       - build
-      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
+      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:${_COMMIT_SHA}
       - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/ingest.py
@@ -44,7 +44,7 @@ steps:
     entrypoint: pack
     args:
       - build
-      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
+      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:${_COMMIT_SHA}
       - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/eval-classification.py
@@ -52,10 +52,14 @@ steps:
       - --publish
 
 # Images recorded for provenance + AC-2 verifier (gcloud artifacts docker images list).
+# `_COMMIT_SHA` is a user-defined substitution (leading underscore required) — passed
+# from the GHA workflow via `--substitutions=_COMMIT_SHA=$GITHUB_SHA`. Built-in
+# `$COMMIT_SHA` only populates for trigger-invoked builds; direct `gcloud builds
+# submit` leaves it empty and the image reference fails to parse.
 images:
-  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:${_COMMIT_SHA}
   - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
-  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:${_COMMIT_SHA}
   - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
 
 options:

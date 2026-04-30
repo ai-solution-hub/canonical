@@ -169,12 +169,18 @@ jobs:
           # Cloud Build needs at build time. cloudbuild.yaml's
           # `options.logging: CLOUD_LOGGING_ONLY` keeps logs flowing to Cloud
           # Logging without a logs bucket.
+          #
+          # `_COMMIT_SHA` is a user-defined substitution (leading underscore
+          # required by Cloud Build for non-built-in subs). Passed through to
+          # cloudbuild.yaml so the image SHA tag resolves; built-in
+          # `$COMMIT_SHA` is empty for direct `submit` (only set by triggers).
           DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA_EMAIL }}
         run: |
           gcloud builds submit \
             --project="$GCP_PROJECT" \
             --service-account="projects/${GCP_PROJECT}/serviceAccounts/${DEPLOY_SA}" \
             --config=cloudrun/cloudbuild.yaml \
+            --substitutions="_COMMIT_SHA=${GITHUB_SHA}" \
             .
 
       - name: Deploy tenant manifests
