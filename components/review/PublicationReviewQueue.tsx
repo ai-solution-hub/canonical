@@ -1,10 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
 import { queryKeys } from '@/lib/query/query-keys';
-import { fetchPublicationReviewQueue } from '@/lib/query/fetchers';
+import {
+  fetchPublicationReviewQueue,
+  type PublicationReviewQueueFilters,
+} from '@/lib/query/fetchers';
 import { PublicationReviewCard } from '@/components/review/publication-review-card';
 import { PublicationReviewActionBar } from '@/components/review/publication-review-action-bar';
 import type { ReviewQueueItem } from '@/types/review';
@@ -25,15 +29,62 @@ import type { ReviewQueueItem } from '@/types/review';
  * const so the `useMemo` pulling items off the response keeps a stable
  * identity when the response is null/undefined.
  *
- * Spec: docs/specs/review-page-tabs-refactor-spec.md §7, §8 (f).
+ * Deep-link URL params (V_W1 Finding 1 fix). Spec §5 third bullet:
+ * "Pasting `/review?tab=publication-review&domain=technical` lands on the
+ * tab with the domain filter pre-applied." Reads `domain`, `content_type`,
+ * `source_file`, `source_document_id` from `useSearchParams()` and forwards
+ * them BOTH into the fetcher and the query key so the cache shards per
+ * filter combination (matching the fetcher signature widening).
+ *
+ * Spec: docs/specs/review-page-tabs-refactor-spec.md §5, §7, §8 (f).
  */
 
 const EMPTY_ITEMS: ReviewQueueItem[] = [];
+const EMPTY_DOMAIN: string[] = [];
+const EMPTY_CONTENT_TYPE: string[] = [];
 
 export function PublicationReviewQueue() {
+  const searchParams = useSearchParams();
+
+  // Parse the URL filters. Both `domain` and `content_type` accept either
+  // repeated keys (`?domain=a&domain=b`) or comma-separated (`?domain=a,b`),
+  // mirroring the standard /api/review/queue route helper.
+  const filters = useMemo<PublicationReviewQueueFilters>(() => {
+    const domainValues = searchParams
+      .getAll('domain')
+      .flatMap((v) => v.split(','))
+      .filter(Boolean);
+    const contentTypeValues = searchParams
+      .getAll('content_type')
+      .flatMap((v) => v.split(','))
+      .filter(Boolean);
+    const sourceFile = searchParams.get('source_file');
+    const sourceDocumentId = searchParams.get('source_document_id');
+
+    const result: PublicationReviewQueueFilters = {};
+    if (domainValues.length > 0) result.domain = domainValues;
+    if (contentTypeValues.length > 0) result.content_type = contentTypeValues;
+    if (sourceFile) result.source_file = sourceFile;
+    if (sourceDocumentId) result.source_document_id = sourceDocumentId;
+    return result;
+  }, [searchParams]);
+
+  // Build a cache-key-friendly object so the query key is a stable JSON
+  // shape across renders — `useMemo` already gives us reference stability
+  // for `filters`, but we project to a plain object for the query key.
+  const queryKeyFilters = useMemo(
+    () => ({
+      domain: filters.domain ?? EMPTY_DOMAIN,
+      content_type: filters.content_type ?? EMPTY_CONTENT_TYPE,
+      source_file: filters.source_file ?? null,
+      source_document_id: filters.source_document_id ?? null,
+    }),
+    [filters],
+  );
+
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: queryKeys.review.publicationReviewQueue(),
-    queryFn: () => fetchPublicationReviewQueue(),
+    queryKey: queryKeys.review.publicationReviewQueue(queryKeyFilters),
+    queryFn: () => fetchPublicationReviewQueue(filters),
   });
 
   const items = useMemo<ReviewQueueItem[]>(

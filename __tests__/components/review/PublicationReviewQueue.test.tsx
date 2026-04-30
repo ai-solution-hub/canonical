@@ -7,7 +7,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { PublicationReviewQueue } from '@/components/review/PublicationReviewQueue';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 import type { ReviewQueueItem, ReviewQueueResponse } from '@/types/review';
 
@@ -18,6 +17,28 @@ vi.mock('sonner', () => ({
   },
 }));
 import { toast } from 'sonner';
+
+// V_W1 Finding 1 fix — mock next/navigation BEFORE importing the component
+// under test, with a controllable searchParams reference per test. We use a
+// mutable ref pattern (resetSearchParams() rebuilds the value) so each test
+// can inject `?domain=technical&content_type=policy` etc. and exercise the
+// deep-link behaviour mandated by spec §5.
+let mockSearchParams = new URLSearchParams();
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => mockSearchParams,
+}));
+
+function setSearchParams(entries: Array<[string, string]>) {
+  const next = new URLSearchParams();
+  for (const [key, value] of entries) {
+    next.append(key, value);
+  }
+  mockSearchParams = next;
+}
+
+// Import AFTER mocks are in place so the component picks them up.
+import { PublicationReviewQueue } from '@/components/review/PublicationReviewQueue';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -84,6 +105,7 @@ describe('PublicationReviewQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    setSearchParams([]);
   });
 
   it('renders the spec-cited empty-state copy when no items (spec §7)', async () => {
@@ -209,6 +231,48 @@ describe('PublicationReviewQueue', () => {
     expect(JSON.parse(patchInit!.body as string)).toEqual({
       field: 'publication_status',
       value: 'draft',
+    });
+  });
+
+  // V_W1 Finding 1 fix — deep-link URL params must reach the fetcher AND
+  // the query key. Spec §5 third bullet:
+  //   "Pasting `/review?tab=publication-review&domain=technical` lands on
+  //    the tab with the domain filter pre-applied."
+  describe('deep-link URL params (V_W1 Finding 1)', () => {
+    it('forwards ?domain=technical to GET /api/review/queue (spec §5)', async () => {
+      setSearchParams([['domain', 'technical']]);
+      mockQueueResponse([]);
+      renderQueue();
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+      const [url] = mockFetch.mock.calls[0];
+      // Must contain BOTH publication_status=in_review (the tab discriminator)
+      // AND domain=technical (the deep-linked filter).
+      expect(url).toMatch(/publication_status=in_review/);
+      expect(url).toMatch(/domain=technical/);
+    });
+
+    it('forwards multi-value content_type + source_file params', async () => {
+      setSearchParams([
+        ['content_type', 'q_a_pair'],
+        ['content_type', 'capability'],
+        ['source_file', 'sample.docx'],
+      ]);
+      mockQueueResponse([]);
+      renderQueue();
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+      const [url] = mockFetch.mock.calls[0];
+      // URLSearchParams roundtrip — the fetcher must append both content_type
+      // values and the source_file. Order isn't load-bearing; presence is.
+      const parsed = new URL(url, 'http://localhost').searchParams;
+      expect(parsed.get('publication_status')).toBe('in_review');
+      expect(parsed.getAll('content_type')).toEqual(['q_a_pair', 'capability']);
+      expect(parsed.get('source_file')).toBe('sample.docx');
     });
   });
 });
