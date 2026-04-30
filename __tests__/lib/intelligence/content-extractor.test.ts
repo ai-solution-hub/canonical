@@ -2,6 +2,30 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Firecrawl mock surface requires flexible typing */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// WP2 (S19): lib/intelligence/content-extractor.ts now routes pipeline
+// telemetry through @/lib/logger (logger.info/warn/error) instead of
+// console.log/warn/error. Mock the server logger surface so we can assert
+// the structured shape directly while keeping the existing regression
+// guards (P0 "no silent failures", tier-logging) on the new sink.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 // Mock rate limiter to avoid delays in tests
 vi.mock('@/lib/intelligence/rate-limiter', () => ({
   getGlobalRateLimiter: () => ({
@@ -103,7 +127,7 @@ describe('extractContent', () => {
   });
 
   it('logs errors when fetch extraction fails (P0: no silent failures)', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     const item = { ...baseItem, contentEncoded: null, summary: 'Fallback' };
 
     // Tier 2 (fetch) fails
@@ -113,31 +137,29 @@ describe('extractContent', () => {
 
     await extractContent(item);
 
-    // Should log errors for both failed tiers
-    expect(consoleSpy).toHaveBeenCalledWith(
+    // Should log errors for both failed tiers — assert structured shape so
+    // the P0 "no silent failures" regression guard now lives on logger.error.
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: 'Connection refused' }),
       expect.stringContaining('Tier 2 (fetch) failed'),
-      expect.stringContaining('Connection refused'),
     );
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: 'Jina timeout' }),
       expect.stringContaining('Tier 2.5 (jina_reader) failed'),
-      expect.stringContaining('Jina timeout'),
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('logs which extraction tier was used (P0: tier logging)', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    loggerMocks.info.mockClear();
     const item = { ...baseItem, contentEncoded: 'Word '.repeat(150) };
 
     await extractContent(item);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
+    // P0 tier-logging guard now asserts via logger.info (single-arg form
+    // — content-extractor uses interpolated message strings, no context obj).
+    expect(loggerMocks.info).toHaveBeenCalledWith(
       expect.stringContaining('Tier 1 (rss_content)'),
-      // No need to check exact word count
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('uses Jina Reader when fetch returns insufficient content', async () => {
@@ -438,7 +460,7 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
   });
 
   it('logs a prominent warning in non-production when FIRECRAWL_API_KEY is missing', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
     const mod = await import('@/lib/intelligence/content-extractor');
     delete process.env.FIRECRAWL_API_KEY;
     (process.env as Record<string, string | undefined>).NODE_ENV =
@@ -446,32 +468,28 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
 
     expect(() => mod.checkFirecrawlApiKey()).not.toThrow();
 
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
       expect.stringContaining('WARNING: FIRECRAWL_API_KEY is not set'),
     );
     // Also confirm the prominent message about prod failing fast is included
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
       expect.stringContaining('would FAIL FAST in production'),
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('does not throw or warn when FIRECRAWL_API_KEY is set', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
     const mod = await import('@/lib/intelligence/content-extractor');
     process.env.FIRECRAWL_API_KEY = 'fc-test-key';
     (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
 
     expect(() => mod.checkFirecrawlApiKey()).not.toThrow();
-    expect(consoleSpy).not.toHaveBeenCalled();
+    expect(loggerMocks.warn).not.toHaveBeenCalled();
     expect(mod.isFirecrawlConfigured()).toBe(true);
-
-    consoleSpy.mockRestore();
   });
 
   it('isFirecrawlConfigured() reports false after a missing-key check in dev', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
     const mod = await import('@/lib/intelligence/content-extractor');
     delete process.env.FIRECRAWL_API_KEY;
     (process.env as Record<string, string | undefined>).NODE_ENV =
@@ -479,12 +497,10 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
 
     mod.checkFirecrawlApiKey();
     expect(mod.isFirecrawlConfigured()).toBe(false);
-
-    consoleSpy.mockRestore();
   });
 
   it('warning is logged only once per process', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
     const mod = await import('@/lib/intelligence/content-extractor');
     delete process.env.FIRECRAWL_API_KEY;
     (process.env as Record<string, string | undefined>).NODE_ENV =
@@ -494,12 +510,10 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
     mod.checkFirecrawlApiKey();
     mod.checkFirecrawlApiKey();
 
-    const warnCalls = consoleSpy.mock.calls.filter((args) =>
+    const warnCalls = loggerMocks.warn.mock.calls.filter((args) =>
       String(args[0]).includes('WARNING: FIRECRAWL_API_KEY'),
     );
     expect(warnCalls).toHaveLength(1);
-
-    consoleSpy.mockRestore();
   });
 });
 
@@ -526,9 +540,7 @@ describe('summary_fallback logging (SI-H4)', () => {
   });
 
   it('logs a WARN with reason when extraction degrades to summary_fallback (all tiers failed)', async () => {
-    const consoleWarnSpy = vi
-      .spyOn(console, 'warn')
-      .mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
     // Re-import to get a fresh module with FIRECRAWL_API_KEY set so the
     // "all tiers failed" branch (not the "missing key" branch) is exercised.
     vi.resetModules();
@@ -558,21 +570,19 @@ describe('summary_fallback logging (SI-H4)', () => {
     const result = await mod.extractContent(item);
     expect(result.method).toBe('summary_fallback');
 
-    const warnMessages = consoleWarnSpy.mock.calls
+    // logger.warn is called with single-arg messages here
+    // (content-extractor uses interpolated strings, not (ctx, msg) form).
+    const warnMessages = loggerMocks.warn.mock.calls
       .map((args) => args.join(' '))
       .join('\n');
     expect(warnMessages).toContain('WARN');
     expect(warnMessages).toContain('summary_fallback');
     expect(warnMessages).toContain(item.url);
     expect(warnMessages).toContain('all extraction tiers failed');
-
-    consoleWarnSpy.mockRestore();
   });
 
   it('logs a WARN naming the missing Firecrawl key when it is the cause', async () => {
-    const consoleWarnSpy = vi
-      .spyOn(console, 'warn')
-      .mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
     vi.resetModules();
     delete process.env.FIRECRAWL_API_KEY;
     (process.env as Record<string, string | undefined>).NODE_ENV =
@@ -601,11 +611,9 @@ describe('summary_fallback logging (SI-H4)', () => {
     const result = await mod.extractContent(item);
     expect(result.method).toBe('summary_fallback');
 
-    const warnMessages = consoleWarnSpy.mock.calls
+    const warnMessages = loggerMocks.warn.mock.calls
       .map((args) => args.join(' '))
       .join('\n');
     expect(warnMessages).toContain('FIRECRAWL_API_KEY missing');
-
-    consoleWarnSpy.mockRestore();
   });
 });

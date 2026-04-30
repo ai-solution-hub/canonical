@@ -27,7 +27,7 @@ spec:
     spec:
       template:
         spec:
-          serviceAccountName: example-client-pipeline-sa@kh-staging.iam.gserviceaccount.com
+          serviceAccountName: example-client-pipeline-sa@kh-staging-494815.iam.gserviceaccount.com
           containers:
             - name: kh-pipeline-slim
               image: europe-west2-docker.pkg.dev/kh-staging-494815/pipeline/kh-pipeline-slim:latest

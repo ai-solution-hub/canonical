@@ -1,9 +1,37 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// WP2 (S19): lib/notifications.ts now routes failure logs through
+// @/lib/logger (logger.error) instead of console.error.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 import {
   createNotification,
   createBulkNotifications,
   getExistingNotificationIds,
 } from '@/lib/notifications';
+
+beforeEach(() => {
+  loggerMocks.error.mockClear();
+  loggerMocks.warn.mockClear();
+  loggerMocks.info.mockClear();
+});
 
 function createMockSupabase(
   insertResult: { error: { message: string } | null } = { error: null },
@@ -84,7 +112,6 @@ describe('createNotification', () => {
   });
 
   it('logs error on insert failure', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const mockSupabase = {
       from: vi.fn().mockReturnValue({
         insert: vi
@@ -103,8 +130,12 @@ describe('createNotification', () => {
     });
 
     expect(error).toBeTruthy();
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    // logger.error is invoked with the structured `{ err }` shape and the
+    // notification type interpolated into the message.
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: { message: 'insert failed' } }),
+      'Failed to create notification (freshness_transition)',
+    );
   });
 });
 
@@ -187,7 +218,6 @@ describe('getExistingNotificationIds', () => {
   });
 
   it('returns empty set on error', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const mockSupabase = createMockSupabase(
       { error: null },
       { data: null, error: { message: 'query failed' } },
@@ -201,6 +231,9 @@ describe('getExistingNotificationIds', () => {
     );
 
     expect(result.size).toBe(0);
-    consoleSpy.mockRestore();
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: { message: 'query failed' } }),
+      'Failed to check existing notifications (freshness_transition)',
+    );
   });
 });

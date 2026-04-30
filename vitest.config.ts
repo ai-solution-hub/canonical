@@ -5,6 +5,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './'),
+      // `server-only` throws at import time outside React Server Components.
+      // For Vitest (jsdom env) we route it to the no-op `empty.js` so
+      // server-side modules can be tested without RSC ceremony. Production
+      // builds use the real entry — Turbopack catches accidental client
+      // imports of server-only files at build time (the original WP2 goal).
+      'server-only': path.resolve(
+        __dirname,
+        'node_modules/server-only/empty.js',
+      ),
     },
   },
   test: {

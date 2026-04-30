@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger/client';
 
 export default function ItemError({
   error,
@@ -14,7 +15,7 @@ export default function ItemError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Item error:', error);
+    logger.error({ err: error }, 'Item error');
     Sentry.captureException(error);
   }, [error]);
 

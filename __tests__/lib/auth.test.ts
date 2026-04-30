@@ -13,6 +13,28 @@ import {
   configureRole,
 } from '../helpers/mock-supabase';
 
+// WP2 (S19): lib/auth.ts now routes auth-service-error logs through
+// @/lib/logger (logger.error) instead of console.error. Mock the server
+// logger surface so we can assert the structured `{ err }` shape directly.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 const mockSupabase = createMockSupabaseClient();
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -38,6 +60,9 @@ describe('lib/auth helpers', () => {
     });
     mockSupabase._chain.single.mockReset();
     mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
+    loggerMocks.error.mockClear();
+    loggerMocks.warn.mockClear();
+    loggerMocks.info.mockClear();
   });
 
   describe('getAuthenticatedClient', () => {
@@ -60,21 +85,20 @@ describe('lib/auth helpers', () => {
     });
 
     it('returns reason=auth_service_failed on a real auth-service error', async () => {
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
       configureAuthServiceError(mockSupabase);
       const result = await getAuthenticatedClient();
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.reason).toBe('auth_service_failed');
       }
-      // Underlying error must be logged so ops can debug
-      expect(consoleSpy).toHaveBeenCalledWith(
-        '[auth] supabase.auth.getUser() failed:',
-        expect.objectContaining({ name: 'AuthApiError' }),
+      // Underlying error must be logged so ops can debug. Assert the
+      // structured `{ err }` shape so the AuthApiError is captured.
+      expect(loggerMocks.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          err: expect.objectContaining({ name: 'AuthApiError' }),
+        }),
+        '[auth] supabase.auth.getUser() failed',
       );
-      consoleSpy.mockRestore();
     });
 
     it('returns reason=unauthenticated when user is null with no error', async () => {
@@ -92,7 +116,6 @@ describe('lib/auth helpers', () => {
 
   describe('getAuthorisedClient', () => {
     it('inherits auth_service_failed from getAuthenticatedClient', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {});
       configureAuthServiceError(mockSupabase);
       const result = await getAuthorisedClient(['admin']);
       expect(result.success).toBe(false);

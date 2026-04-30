@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 /**
  * Verify that the request carries a valid cron secret.
@@ -17,7 +18,7 @@ export function verifyCronAuth(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
-    console.error('CRON_SECRET environment variable not set');
+    logger.error('CRON_SECRET environment variable not set');
     return false;
   }
 
@@ -38,7 +39,7 @@ export async function getUsersByRole(
     .in('role', roles);
 
   if (error) {
-    console.error('Failed to fetch users by role:', error);
+    logger.error({ err: error }, 'Failed to fetch users by role');
     return [];
   }
 

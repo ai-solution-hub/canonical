@@ -1,6 +1,22 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// WP2 (S19): error boundaries now route via @/lib/logger/client (logger.error)
+// instead of console.error.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
+
 import ItemError from '@/app/item/[id]/error';
 import ItemDetailLoading from '@/app/item/[id]/loading';
 import ItemNewError from '@/app/item/new/error';
@@ -31,7 +47,7 @@ describe('Item Detail Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -66,9 +82,12 @@ describe('Item Detail Error Boundary', () => {
     ).toHaveAttribute('href', '/browse');
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<ItemError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Item error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Item error',
+    );
   });
 });
 
@@ -99,7 +118,7 @@ describe('Item New Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -127,9 +146,12 @@ describe('Item New Error Boundary', () => {
     expect(reset).toHaveBeenCalledOnce();
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<ItemNewError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Page error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Page error',
+    );
   });
 });
 
@@ -160,7 +182,7 @@ describe('Batch Create Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -197,9 +219,12 @@ describe('Batch Create Error Boundary', () => {
     ).toHaveAttribute('href', '/item/new');
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<BatchCreateError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Batch creation error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Batch creation error',
+    );
   });
 });
 

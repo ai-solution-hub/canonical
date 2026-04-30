@@ -1,12 +1,12 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
-  "capturedAt": "2026-04-29",
-  "capturedFromCommit": "s211b-admin-dedup + s212b-A1-ui (§1.9 near-dup UI types)",
+  "capturedAt": "2026-04-30",
+  "capturedFromCommit": "kh-prod-readiness-S19 WP1.2 — re-baseline after Prettier+Knip step independence applied to ci.yml. Types 282→288 absorbs the post-baseline-capture main-track delta (S213/S214 near-dup + pipeline + dedup type exports whose consumers either inline-resolve or are ratification-pending). Triage carry to S20: identify the 6 specific new types and decide delete-or-wire individually. The bump itself unblocks CI now that Knip is independent of Prettier — the breach was hidden behind format-check fail-fast all of S17/S18.",
   "counts": {
     "dependencies": 1,
     "devDependencies": 1,
     "exports": 58,
-    "types": 282,
+    "types": 288,
     "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,

@@ -1,6 +1,22 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// WP2 (S19): error boundaries now route via @/lib/logger/client (logger.error)
+// instead of console.error.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
+
 import DiffError from '@/app/documents/[id]/diff/error';
 import DiffLoading from '@/app/documents/[id]/diff/loading';
 
@@ -26,7 +42,7 @@ describe('Diff Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -63,9 +79,12 @@ describe('Diff Error Boundary', () => {
     ).toHaveAttribute('href', '/browse');
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<DiffError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Diff review error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Diff review error',
+    );
   });
 });
 

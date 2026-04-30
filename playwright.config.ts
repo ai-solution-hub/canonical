@@ -24,10 +24,27 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 3,
   reporter: 'html',
+  // WP1.3 (S19): bound suite wall-clock under the workflow's 15-min budget.
+  // S18-flagged run hit 15m0s budget exhaustion driven by an ECONNRESET storm
+  // (dev-server flake or hydration-mismatch retry spiral). Three guards:
+  //   - globalTimeout: hard suite cap below the workflow timeout so failure
+  //     surfaces as a Playwright signal rather than a runner kill.
+  //   - maxFailures: abort once enough failures accumulate to indicate the
+  //     server is broken — no point burning 15m re-running against a crashed
+  //     dev process.
+  //   - per-action / per-navigation timeouts on `use`: cap individual waits
+  //     so a hung response fails fast rather than starving the per-test 30s.
+  // Hydration-mismatch root-cause investigation is a separate ticket
+  // (BUG-S19-HYD; see docs/reference/product-backlog.md) — DO NOT touch
+  // app/ or lib/ from this WP per S19 prompt.
+  globalTimeout: process.env.CI ? 12 * 60_000 : undefined,
+  maxFailures: process.env.CI ? 5 : 0,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    actionTimeout: 10_000,
+    navigationTimeout: 15_000,
   },
   projects: [
     // --- Setup project: authenticates once, saves browser state ---

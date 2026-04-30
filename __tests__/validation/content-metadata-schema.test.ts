@@ -1,9 +1,32 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// WP2 (S19): lib/validation/schemas.ts (parseContentMetadata) now routes the
+// validation-failure log through @/lib/logger/client (logger.warn) instead of
+// console.warn.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
+
 import {
   ContentMetadataSchema,
   parseContentMetadata,
   type ContentMetadata,
 } from '@/lib/validation/schemas';
+
+beforeEach(() => {
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+  loggerMocks.info.mockClear();
+});
 
 describe('ContentMetadataSchema', () => {
   // ── Valid complete metadata ──────────────────────────────
@@ -228,21 +251,18 @@ describe('parseContentMetadata', () => {
   });
 
   it('should return null and warn for invalid input', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = parseContentMetadata('not-an-object');
     expect(result).toBeNull();
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Invalid content metadata:',
-      expect.anything(),
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.anything() }),
+      'Invalid content metadata',
     );
-    warnSpy.mockRestore();
   });
 
   it('should return null for type violations', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = parseContentMetadata({ file_size: 'not-a-number' });
     expect(result).toBeNull();
-    warnSpy.mockRestore();
+    expect(loggerMocks.warn).toHaveBeenCalled();
   });
 
   it('should preserve unknown keys via passthrough', () => {

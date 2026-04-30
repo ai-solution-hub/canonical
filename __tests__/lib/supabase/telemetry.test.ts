@@ -1,16 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as Sentry from '@sentry/nextjs';
-import { logBestEffortWarn, logSwallowedError } from '@/lib/supabase/telemetry';
+
+// WP2 (S19): lib/supabase/telemetry.ts now routes the swallow-warning log
+// through @/lib/logger/client (logger.warn) instead of console.warn.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
 
 vi.mock('@sentry/nextjs', () => ({
   addBreadcrumb: vi.fn(),
   captureMessage: vi.fn(),
 }));
 
+import { logBestEffortWarn, logSwallowedError } from '@/lib/supabase/telemetry';
+
 describe('logBestEffortWarn', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
   });
 
   it('emits a Sentry breadcrumb', () => {
@@ -25,17 +41,19 @@ describe('logBestEffortWarn', () => {
     );
   });
 
-  it('also writes a console.warn for dev visibility', () => {
-    const spy = vi.spyOn(console, 'warn');
+  it('also writes a structured logger.warn for dev visibility', () => {
     logBestEffortWarn('x.y', 'msg');
-    expect(spy).toHaveBeenCalledWith('[x.y] msg', undefined);
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'x.y' }),
+      'msg',
+    );
   });
 });
 
 describe('logSwallowedError', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
   });
 
   it('captures a Sentry message when severity is elevated', () => {

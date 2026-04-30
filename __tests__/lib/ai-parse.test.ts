@@ -1,7 +1,29 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import type Anthropic from '@anthropic-ai/sdk';
+
+// WP2 (S19): lib/ai-parse.ts now routes the schema-validation failure log
+// through @/lib/logger/client (logger.error) instead of console.error.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
+
 import { extractToolResult } from '@/lib/ai-parse';
+
+beforeEach(() => {
+  loggerMocks.error.mockClear();
+  loggerMocks.warn.mockClear();
+  loggerMocks.info.mockClear();
+});
 
 // Helper: create a mock Anthropic message
 function createMockMessage(
@@ -260,8 +282,6 @@ describe('extractToolResult', () => {
       createToolUseBlock('return_summary', invalidInput),
     ]);
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
     const result = extractToolResult<TestSchemaType>(
       message,
       'return_summary',
@@ -270,15 +290,11 @@ describe('extractToolResult', () => {
 
     // Should fall back to the raw input without throwing
     expect(result).toEqual(invalidInput);
-    // Should log the validation error
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'AI response validation failed for return_summary',
-      ),
-      expect.any(Array),
+    // Should log the validation error via logger.error with structured shape
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Array) }),
+      'AI response validation failed for return_summary',
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('should still work without schema (backwards compatibility)', () => {

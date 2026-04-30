@@ -174,6 +174,7 @@ interface BranchSummary {
   name: string;
   status: string;
   git_branch?: string;
+  persistent?: boolean;
 }
 
 interface BranchDetails extends BranchSummary {
@@ -232,25 +233,57 @@ async function createBranch(config: ReplayConfig): Promise<BranchSummary> {
   console.log(
     `Creating ephemeral branch '${branchName}' (git_branch=${gitBranch}, region=${BRANCH_REGION})...`,
   );
-  const branch = await managementApi<BranchSummary>(
-    config,
-    `/projects/${config.projectRef}/branches`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        branch_name: branchName,
-        git_branch: gitBranch,
-        persistent: false,
-        region: BRANCH_REGION,
-      }),
-    },
-  );
-  if (!config.dryRun) {
-    console.log(
-      `  Created branch id=${branch.id} project_ref=${branch.project_ref} status=${branch.status}`,
+  try {
+    const branch = await managementApi<BranchSummary>(
+      config,
+      `/projects/${config.projectRef}/branches`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          branch_name: branchName,
+          git_branch: gitBranch,
+          persistent: false,
+          region: BRANCH_REGION,
+        }),
+      },
     );
+    if (!config.dryRun) {
+      console.log(
+        `  Created branch id=${branch.id} project_ref=${branch.project_ref} status=${branch.status}`,
+      );
+    }
+    return branch;
+  } catch (err) {
+    // 409 on POST /branches typically means name collision OR per-project
+    // branch quota hit. Pre-flight orphan sweep should have absorbed
+    // collisions; if we still see 409, dump the live branch list to make
+    // debugging one-step (S19 WP1.4).
+    const msg = (err as Error).message ?? String(err);
+    if (msg.includes('HTTP 409')) {
+      try {
+        const live = await listBranches(config);
+        const summary = live
+          .map(
+            (b) =>
+              `    ${b.name} (status=${b.status}, persistent=${b.persistent ?? '?'})`,
+          )
+          .join('\n');
+        console.error(
+          `::error::Branch CREATE returned 409. Live branches at fail-time ` +
+            `(${live.length} total):\n${summary || '    (none)'}\n` +
+            `Run pre-flight orphan sweep manually if any 'ci-replay-*' ` +
+            `entries are listed; otherwise this is a per-project quota hit ` +
+            `(raise via Supabase dashboard) or a transient API flake (re-run).`,
+        );
+      } catch (listErr) {
+        console.error(
+          `::error::Branch CREATE returned 409 and follow-up list_branches ` +
+            `failed: ${(listErr as Error).message}`,
+        );
+      }
+    }
+    throw err;
   }
-  return branch;
 }
 
 async function listBranches(config: ReplayConfig): Promise<BranchSummary[]> {
@@ -456,20 +489,50 @@ export function extractFailingMigration(output: string): string | undefined {
 
 // ── Cleanup-only mode ──────────────────────────────────────────────────────
 
-async function cleanupLeakedBranches(config: ReplayConfig): Promise<void> {
-  console.log(
-    `Cleanup-only mode: looking for branches matching ci-replay-${config.prNumber}-${config.runId}...`,
-  );
+/**
+ * Match scope:
+ *   - 'exact' — current-run branch only (post-job cleanup belt+braces)
+ *   - 'prefix' — all `ci-replay-<prNumber>-*` branches (pre-flight orphan
+ *      sweep; absorbs leaks from previous crashed/cancelled runs that never
+ *      reached their `finally` cleanup, which is the leading 409
+ *      `Failed to insert preview branch` cause when a prior run's branch
+ *      lingered in a stuck state — see S19 WP1.4 / run 25162738483)
+ */
+type CleanupScope = 'exact' | 'prefix';
+
+export function shouldDeleteBranch(
+  branchName: string,
+  prNumber: string,
+  runId: string,
+  scope: CleanupScope,
+): boolean {
+  const exactName = `ci-replay-${prNumber}-${runId}`;
+  if (scope === 'exact') return branchName === exactName;
+  // Prefix scope: delete all `ci-replay-<prNumber>-*` EXCEPT the current run
+  // (the current run owns its own branch; same-run cleanup happens in the
+  // `finally` arm, not here).
+  const prefix = `ci-replay-${prNumber}-`;
+  return branchName.startsWith(prefix) && branchName !== exactName;
+}
+
+async function cleanupLeakedBranches(
+  config: ReplayConfig,
+  scope: CleanupScope = 'exact',
+): Promise<void> {
+  const label =
+    scope === 'prefix'
+      ? `pre-flight orphan sweep matching ci-replay-${config.prNumber}-* (excluding current run)`
+      : `current-run branch ci-replay-${config.prNumber}-${config.runId}`;
+  console.log(`Cleanup: ${label}...`);
   const branches = await listBranches(config);
-  const expectedName = buildBranchName(config);
-  const matches = branches.filter((b) => b.name === expectedName);
+  const matches = branches.filter((b) =>
+    shouldDeleteBranch(b.name, config.prNumber, config.runId, scope),
+  );
   if (matches.length === 0) {
-    console.log('  No leaked branches found — nothing to clean up.');
+    console.log('  No matching branches found.');
     return;
   }
-  console.log(
-    `  Found ${matches.length} branch(es) matching this run; deleting...`,
-  );
+  console.log(`  Found ${matches.length} branch(es); deleting...`);
   for (const b of matches) {
     await deleteBranch(config, b.id);
   }
@@ -507,6 +570,20 @@ async function main(): Promise<number> {
   let branchProjectRef: string | undefined;
 
   try {
+    // Pre-flight orphan sweep — delete any leaked `ci-replay-<prNumber>-*`
+    // branches from previous runs that crashed/were-cancelled before
+    // hitting their `finally` arm. Cleanup failure is non-fatal; if a
+    // genuine resource is blocking createBranch, the next CREATE call
+    // surfaces 409 with the branch list logged.
+    try {
+      await cleanupLeakedBranches(config, 'prefix');
+    } catch (err) {
+      console.warn(
+        `::warning::Pre-flight orphan sweep failed (${(err as Error).message}); ` +
+          `continuing with create attempt.`,
+      );
+    }
+
     const created = await createBranch(config);
     branchId = created.id;
     const ready = await waitForBranchReady(config, created.project_ref);

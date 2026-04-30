@@ -1,6 +1,23 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// WP2 (S19): error boundaries now route via @/lib/logger/client (logger.error)
+// instead of console.error. Mock the client logger surface so we can assert
+// the structured `{ err }` shape directly.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
+
 import BidError from '@/app/bid/error';
 import BidLoading from '@/app/bid/loading';
 import BidDetailError from '@/app/bid/[id]/error';
@@ -33,7 +50,7 @@ describe('Bid Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -69,9 +86,12 @@ describe('Bid Error Boundary', () => {
     );
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<BidError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Bid error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Bid error',
+    );
   });
 });
 
@@ -102,7 +122,7 @@ describe('Bid Detail Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -138,9 +158,12 @@ describe('Bid Detail Error Boundary', () => {
     );
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<BidDetailError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Bid detail error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Bid detail error',
+    );
   });
 });
 
@@ -171,7 +194,7 @@ describe('Bid Session Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -209,9 +232,12 @@ describe('Bid Session Error Boundary', () => {
     );
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<BidSessionError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Bid session error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Bid session error',
+    );
   });
 });
 
@@ -242,7 +268,7 @@ describe('Template Completion Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -280,11 +306,11 @@ describe('Template Completion Error Boundary', () => {
     );
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<TemplateCompletionError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith(
-      'Template completion error:',
-      error,
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Template completion error',
     );
   });
 });

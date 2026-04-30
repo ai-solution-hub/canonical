@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import pluralize from 'pluralize';
 import { getValidTypeValues } from '@/lib/workspace-types';
+import { logger } from '@/lib/logger/client';
 
 // ──────────────────────────────────────────
 // Tag morphology — domain uncountable registration
@@ -941,7 +942,7 @@ export function parseBidMetadata(
 ): z.infer<typeof BidMetadataSchema> | null {
   const result = BidMetadataSchema.safeParse(raw);
   if (!result.success) {
-    console.warn('Invalid bid metadata:', result.error.format());
+    logger.warn({ err: result.error.format() }, 'Invalid bid metadata');
     return null;
   }
   return result.data;
@@ -1619,7 +1620,7 @@ export type ContentMetadata = z.infer<typeof ContentMetadataSchema>;
 export function parseContentMetadata(raw: unknown): ContentMetadata | null {
   const result = ContentMetadataSchema.safeParse(raw);
   if (!result.success) {
-    console.warn('Invalid content metadata:', result.error.format());
+    logger.warn({ err: result.error.format() }, 'Invalid content metadata');
     return null;
   }
   return result.data;

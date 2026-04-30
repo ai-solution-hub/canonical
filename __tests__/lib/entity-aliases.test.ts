@@ -1,4 +1,26 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// WP2 (S19): lib/entities/entity-aliases.ts now routes DB-fallback warnings
+// through @/lib/logger (logger.warn) instead of console.warn.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 import {
   resolveAlias,
   BASELINE_ALIASES,
@@ -10,6 +32,9 @@ import { canonicalise } from '@/lib/entities/entity-dedup';
 
 beforeEach(() => {
   clearAliasCache();
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+  loggerMocks.info.mockClear();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -145,13 +170,15 @@ describe('loadAliases', () => {
 
   it('falls back to baseline on DB error', async () => {
     const mockSb = createMockSupabase(null, { message: 'table not found' });
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = await loadAliases(mockSb);
 
     expect(result).toEqual(BASELINE_ALIASES);
-    expect(warnSpy).toHaveBeenCalled();
-    warnSpy.mockRestore();
+    // logger.warn invoked with structured shape including err.
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: { message: 'table not found' } }),
+      'Failed to load entity aliases from DB, using baseline',
+    );
   });
 
   it('falls back to baseline when DB fetch throws', async () => {
@@ -162,12 +189,14 @@ describe('loadAliases', () => {
         }),
       }),
     };
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = await loadAliases(mockSb);
 
     expect(result).toEqual(BASELINE_ALIASES);
-    warnSpy.mockRestore();
+    // logger.warn invoked with single-arg message form (no context).
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      'Entity alias DB fetch threw, using baseline',
+    );
   });
 
   it('returns cached result on subsequent calls within TTL', async () => {

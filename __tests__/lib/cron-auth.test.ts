@@ -1,4 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// WP2 (S19): lib/cron-auth.ts now routes failure logs through @/lib/logger
+// (logger.error) instead of console.error.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 
 describe('verifyCronAuth', () => {
@@ -6,6 +28,9 @@ describe('verifyCronAuth', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    loggerMocks.error.mockClear();
+    loggerMocks.warn.mockClear();
+    loggerMocks.info.mockClear();
   });
 
   afterEach(() => {
@@ -36,15 +61,14 @@ describe('verifyCronAuth', () => {
 
   it('returns false when CRON_SECRET is not set', () => {
     delete process.env.CRON_SECRET;
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const request = new Request('http://localhost/api/cron/test', {
       headers: { authorization: 'Bearer anything' },
     });
     expect(verifyCronAuth(request)).toBe(false);
-    expect(consoleSpy).toHaveBeenCalledWith(
+    // logger.error is invoked with a single string argument (no context object).
+    expect(loggerMocks.error).toHaveBeenCalledWith(
       'CRON_SECRET environment variable not set',
     );
-    consoleSpy.mockRestore();
   });
 
   it('requires exact Bearer prefix match', () => {
@@ -86,10 +110,13 @@ describe('getUsersByRole', () => {
       }),
     };
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const result = await getUsersByRole(mockSupabase as never, ['admin']);
     expect(result).toEqual([]);
-    consoleSpy.mockRestore();
+    // logger.error is invoked with the structured `{ err }` shape.
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: { message: 'fail' } }),
+      'Failed to fetch users by role',
+    );
   });
 
   it('returns empty array when data is null', async () => {

@@ -1,4 +1,21 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// WP2 (S19): lib/citations.ts now routes the RPC failure warning through
+// @/lib/logger/client (logger.warn) instead of console.warn. Mock the
+// client logger surface so we can assert the structured shape directly.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
+
 import {
   extractCitedResponse,
   deduplicateCitations,
@@ -8,6 +25,12 @@ import {
 } from '@/lib/citations';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CitationEntry } from '@/types/bid-metadata';
+
+beforeEach(() => {
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+  loggerMocks.info.mockClear();
+});
 
 const mockContent = [
   {
@@ -567,25 +590,21 @@ describe('checkOrphanedSourceIds', () => {
   });
 
   it('returns empty set on RPC error (fails open)', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const supabase = createMockSupabase(null, { message: 'RPC failed' });
 
     const result = await checkOrphanedSourceIds(['uuid-1'], supabase);
     expect(result.size).toBe(0);
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'check_content_exists RPC failed:',
-      { message: 'RPC failed' },
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: { message: 'RPC failed' } }),
+      'check_content_exists RPC failed',
     );
-    consoleSpy.mockRestore();
   });
 
   it('returns empty set when RPC returns null data', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const supabase = createMockSupabase(null);
 
     const result = await checkOrphanedSourceIds(['uuid-1'], supabase);
     expect(result.size).toBe(0);
-    consoleSpy.mockRestore();
   });
 
   it('handles single orphaned source correctly', async () => {

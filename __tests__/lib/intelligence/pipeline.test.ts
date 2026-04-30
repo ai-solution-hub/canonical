@@ -1,11 +1,42 @@
 // __tests__/lib/intelligence/pipeline.test.ts
 /* eslint-disable @typescript-eslint/no-explicit-any -- mock supabase clients require flexible typing */
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import {
-  processFeedSource,
-  getDueFeedSources,
-  runPipeline,
-} from '@/lib/intelligence/pipeline';
+
+// WP2 (S19): pipeline.ts routes telemetry through @/lib/logger (logger.warn/
+// logger.error) and the embedding-failure best-effort path goes through
+// `logBestEffortWarn` -> @/lib/logger/client. Mock both surfaces so the
+// existing P0 regression checks (no silent failures, embedding load warning)
+// remain assertable on the new sinks.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+const clientLoggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: clientLoggerMocks,
+}));
 
 // Mock all dependencies
 vi.mock('@/lib/intelligence/feed-poller', () => ({
@@ -32,6 +63,12 @@ vi.mock('@/lib/intelligence/article-summariser', () => ({
     .fn()
     .mockResolvedValue('A concise article summary.'),
 }));
+
+import {
+  processFeedSource,
+  getDueFeedSources,
+  runPipeline,
+} from '@/lib/intelligence/pipeline';
 
 describe('getDueFeedSources', () => {
   it('queries active sources using RPC for interval-aware filtering', async () => {
@@ -293,7 +330,7 @@ describe('processFeedSource', () => {
       wordCount: 4,
     });
 
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerMocks.warn.mockClear();
     const insertCalls: any[] = [];
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => ({
@@ -347,8 +384,10 @@ describe('processFeedSource', () => {
     );
     expect(feedArticleInsert.data.extraction_method).toBe('summary_fallback');
 
-    // Should log a warning
-    expect(consoleSpy).toHaveBeenCalledWith(
+    // Should log a warning. pipeline.ts uses logger.warn with a single
+    // interpolated string here (no context object), so the assertion stays
+    // a substring match on the first argument.
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
       expect.stringContaining('content too short'),
     );
 
@@ -357,8 +396,6 @@ describe('processFeedSource', () => {
       (c) => c.table === 'content_items',
     );
     expect(contentItemInsert).toBeUndefined();
-
-    consoleSpy.mockRestore();
   });
 
   // ── S189 WP1: Firecrawl resolvedUrl preference ──
@@ -1307,7 +1344,7 @@ describe('runPipeline (§2.1.8 hoist regression)', () => {
       },
     });
 
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    clientLoggerMocks.warn.mockClear();
 
     const result = await runPipeline(supabase);
 
@@ -1323,16 +1360,16 @@ describe('runPipeline (§2.1.8 hoist regression)', () => {
     expect(tracking.companyProfileLoads).toBe(2);
     expect(tracking.feedPromptLoads).toBe(2);
 
-    // The best-effort warning was logged for workspace A.
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('intelligence.pipeline.embedding.load'),
+    // The best-effort warning was logged for workspace A. logBestEffortWarn
+    // routes via @/lib/logger/client with shape `({...context, category}, message)`.
+    expect(clientLoggerMocks.warn).toHaveBeenCalledWith(
       expect.objectContaining({
+        category: 'intelligence.pipeline.embedding.load',
         workspaceId: 'ws-A',
         error: expect.stringContaining('OpenAI rate limit'),
       }),
+      'Company embedding generation failed',
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('processes sources in workspace-grouped order (Map insertion order)', async () => {
