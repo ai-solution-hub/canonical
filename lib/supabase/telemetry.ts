@@ -1,12 +1,15 @@
 // lib/supabase/telemetry.ts
 import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/lib/logger/client';
 
 /**
  * Log a best-effort warning from an API route.
  *
  * This is the ONLY sanctioned way to swallow a non-fatal error in a route
- * handler. It writes a `console.warn` for local development visibility AND
- * emits a Sentry breadcrumb so the swallow is observable in production.
+ * handler. It writes a structured `logger.warn` (via the client-safe shim
+ * — usable from both client and server bundles) for local development
+ * visibility AND emits a Sentry breadcrumb so the swallow is observable
+ * in production.
  *
  * **Category naming convention (JSDoc-only, not enforced at runtime).**
  * Use lowercase dot-delimited paths matching `/^[a-z]+(\.[a-z]+)+$/`. The
@@ -37,11 +40,11 @@ export function logBestEffortWarn(
   message: string,
   context?: Record<string, unknown>,
 ): void {
-  // This helper IS the sanctioned swallow path. `console.warn` is allowed
-  // here (no `no-console` rule is currently configured for this file); if
-  // a global ban is added later, re-add `// eslint-disable-next-line no-console`
-  // above the line below with a comment explaining the sanction.
-  console.warn(`[${category}] ${message}`, context);
+  // This helper IS the sanctioned swallow path. The structured logger
+  // routes via the client-safe shim so the call works in both client and
+  // server bundles (importers include client components like
+  // `components/shell/sign-out-button.tsx`).
+  logger.warn({ ...(context ?? {}), category }, message);
 
   Sentry.addBreadcrumb({
     category,
@@ -76,7 +79,7 @@ export function logSwallowedError(
   const payload = { ...context, error: errMessage, code };
 
   // Sanctioned swallow path — see the note on `logBestEffortWarn` above.
-  console.warn(`[${category}] ${message ?? 'Swallowed error'}`, payload);
+  logger.warn({ ...payload, category }, message ?? 'Swallowed error');
 
   Sentry.addBreadcrumb({
     category,

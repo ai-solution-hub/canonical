@@ -20,7 +20,19 @@
  *
  * Phase 1 ships JSON to stdout only (Vercel captures it per invocation).
  * Phase 6 will wire Vercel Log Drain → Axiom for searchable retention.
+ *
+ * **Server-only.** Pino + AsyncLocalStorage + Sentry SDK are all Node
+ * runtime modules — importing them into the client bundle breaks Turbopack.
+ * The `import 'server-only'` directive on the next line forces the failure
+ * to surface deterministically at build time rather than failing silently
+ * (S17 hit this — see commit 29a659e3 for the revert). Files in client-
+ * bundled paths (`app/**` page/layout/error/loading, `'use client'`
+ * modules, anything they transitively import) MUST import from
+ * `@/lib/logger/client` instead — that module is a console-backed shim
+ * with the same `(ctx, msg)` interface and zero Node-only deps.
  */
+
+import 'server-only';
 
 import pino, { type Logger as PinoLogger, type LoggerOptions } from 'pino';
 

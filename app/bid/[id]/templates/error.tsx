@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger/client';
 
 export default function TemplateCompletionError({
   error,
@@ -14,7 +15,7 @@ export default function TemplateCompletionError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Template completion error:', error);
+    logger.error({ err: error }, 'Template completion error');
     Sentry.captureException(error);
   }, [error]);
 

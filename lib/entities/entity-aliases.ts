@@ -10,6 +10,8 @@
  * exclusively in the DB and differ per deployment.
  */
 
+import { logger } from '@/lib/logger';
+
 // ── Generic baseline (client-independent, always available) ─────────
 export const BASELINE_ALIASES: Record<string, string> = {
   'ISO Certification': 'ISO 27001',
@@ -59,9 +61,9 @@ export async function loadAliases(
       .eq('is_active', true);
 
     if (error || !data) {
-      console.warn(
-        'Failed to load entity aliases from DB, using baseline:',
-        error,
+      logger.warn(
+        { err: error },
+        'Failed to load entity aliases from DB, using baseline',
       );
       cachedAliases = { ...BASELINE_ALIASES };
     } else {
@@ -72,7 +74,7 @@ export async function loadAliases(
       }
     }
   } catch {
-    console.warn('Entity alias DB fetch threw, using baseline');
+    logger.warn('Entity alias DB fetch threw, using baseline');
     cachedAliases = { ...BASELINE_ALIASES };
   }
 

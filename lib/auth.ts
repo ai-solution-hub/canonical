@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import type { UserRole } from '@/lib/roles';
+import { logger } from '@/lib/logger';
 
 interface AuthenticatedClient {
   user: User;
@@ -58,7 +59,7 @@ export async function getAuthenticatedClient(): Promise<AuthenticatedResult> {
   // transient Supabase Auth outage. Note: AuthSessionMissingError is the
   // normal "not logged in" case, treat as unauthenticated.
   if (error && error.name !== 'AuthSessionMissingError') {
-    console.error('[auth] supabase.auth.getUser() failed:', error);
+    logger.error({ err: error }, '[auth] supabase.auth.getUser() failed');
     return { success: false, reason: 'auth_service_failed' };
   }
 
@@ -99,7 +100,7 @@ export async function getAuthorisedClient(
   // would strip privileges on a transient glitch. Return a typed failure
   // so the caller can surface a 500 instead of 403.
   if (error && error.code !== 'PGRST116') {
-    console.error('[auth] user_roles lookup failed:', error);
+    logger.error({ err: error }, '[auth] user_roles lookup failed');
     return { success: false, reason: 'role_lookup_failed' };
   }
 

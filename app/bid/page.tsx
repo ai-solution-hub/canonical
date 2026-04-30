@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import type { Bid, BidMetadata, BidState } from '@/types/bid';
+import { logger } from '@/lib/logger/client';
 
 const BIDS_PER_PAGE = 20;
 
@@ -73,7 +74,7 @@ export default function BidsPage() {
       const data = await response.json();
       setBids(data.bids ?? []);
     } catch (err) {
-      console.error('Failed to load bids:', err);
+      logger.error({ err }, 'Failed to load bids');
       toast.error('Failed to load bids');
     } finally {
       setLoading(false);

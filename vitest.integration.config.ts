@@ -14,6 +14,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './'),
+      // Mirror the unit-test config: route `server-only` to the no-op so
+      // tests that import from `@/lib/logger` (or any server-only module)
+      // can evaluate freely. Production builds use the real entry point.
+      'server-only': path.resolve(
+        __dirname,
+        'node_modules/server-only/empty.js',
+      ),
     },
   },
   test: {

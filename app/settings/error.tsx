@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger/client';
 
 export default function SettingsError({
   error,
@@ -14,7 +15,7 @@ export default function SettingsError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Settings error:', error);
+    logger.error({ err: error }, 'Settings error');
     Sentry.captureException(error);
   }, [error]);
 

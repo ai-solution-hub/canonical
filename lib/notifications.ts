@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export type NotificationType =
   | 'governance_review_needed'
@@ -64,7 +65,7 @@ export async function createNotification(params: CreateNotificationParams) {
   });
 
   if (error) {
-    console.error(`Failed to create notification (${type}):`, error);
+    logger.error({ err: error }, `Failed to create notification (${type})`);
   }
 
   return { error };
@@ -122,7 +123,10 @@ export async function getExistingNotificationIds(
     .in('entity_id', entityIds);
 
   if (error) {
-    console.error(`Failed to check existing notifications (${type}):`, error);
+    logger.error(
+      { err: error },
+      `Failed to check existing notifications (${type})`,
+    );
     return new Set();
   }
 

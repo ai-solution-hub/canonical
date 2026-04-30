@@ -1,5 +1,6 @@
 import { Briefcase, FileText, FileSignature, Newspaper } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { logger } from '@/lib/logger/client';
 
 /**
  * Configuration for a workspace type. Each registered type provides the
@@ -55,7 +56,7 @@ const WORKSPACE_TYPE_REGISTRY: Record<string, WorkspaceTypeConfig> = {};
 /** Register a workspace type. Called at module init time. */
 function registerType(config: WorkspaceTypeConfig): void {
   if (WORKSPACE_TYPE_REGISTRY[config.type]) {
-    console.warn(`Workspace type "${config.type}" is already registered`);
+    logger.warn(`Workspace type "${config.type}" is already registered`);
     return;
   }
   WORKSPACE_TYPE_REGISTRY[config.type] = config;

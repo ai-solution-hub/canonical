@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { BulkProgress, BulkRunnerReturn } from './types';
+import { logger } from '@/lib/logger/client';
 
 /**
  * Shared sequential bulk-operation runner with progress tracking.
@@ -53,9 +54,9 @@ export function useContentBulkRunner<TItem = unknown>(
           else errorCount++;
         } catch (err) {
           errorCount++;
-          console.error(
-            `Bulk operation "${label}" failed for item ${ids[i]}:`,
-            err,
+          logger.error(
+            { err },
+            `Bulk operation "${label}" failed for item ${ids[i]}`,
           );
         }
 

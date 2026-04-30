@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger/client';
 
 export default function LibraryError({
   error,
@@ -13,7 +14,7 @@ export default function LibraryError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Q&A Library error:', error);
+    logger.error({ err: error }, 'Q&A Library error');
     Sentry.captureException(error);
   }, [error]);
 

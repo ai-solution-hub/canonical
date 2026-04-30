@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger/client';
 
 export default function GuideDetailError({
   error,
@@ -14,7 +15,7 @@ export default function GuideDetailError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Guide detail error:', error);
+    logger.error({ err: error }, 'Guide detail error');
     Sentry.captureException(error);
   }, [error]);
 
