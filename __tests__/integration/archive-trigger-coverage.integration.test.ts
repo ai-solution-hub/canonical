@@ -34,6 +34,19 @@
  *    dual filter `(publication_status='published' OR
  *    archived_at IS NULL)`."
  *
+ * V_W1 HIGH fix (S216 W2): The spec was authored before S211B shipped
+ * the §1.7 admin dedup review surface, so §10.3 above only enumerates
+ * two direct `archived_at` writers. A third now exists in production:
+ *      - app/api/admin/content-dedup/[id]/confirm-duplicate/route.ts:88-98
+ *        (admin confirms a suspected-duplicate as an actual duplicate;
+ *        UPDATE writes `archived_at`/`archived_by`/`archive_reason` and
+ *        `dedup_status='confirmed_duplicate'` — no `publication_status`
+ *        in the SET clause, so Direction 3 must flip it to 'archived').
+ *   Without the W1 pre-flight covering this writer, the gate verdict
+ *   was a false-positive PASS. Writer-3 block below closes the gap.
+ *   Backlog item: spec §6.1 / §10.3 cross-reference updates queued
+ *   for the W1→W3 handoff to align spec text with the test.
+ *
  * Spec drift NOTE (S216 W1 brief observation):
  *   Spec §10.3 line 1761 describes the route as "PATCH /api/items/[id]/
  *   archive" but the actual handler in `app/api/items/[id]/archive/
@@ -142,6 +155,9 @@ vi.mock('next/headers', () => ({
 const { POST: archivePost } = await import(
   '@/app/api/items/[id]/archive/route'
 );
+const { POST: confirmDuplicatePost } = await import(
+  '@/app/api/admin/content-dedup/[id]/confirm-duplicate/route'
+);
 const { registerGovernanceTools } = await import('@/lib/mcp/tools/governance');
 
 import { NextRequest } from 'next/server';
@@ -232,7 +248,9 @@ async function seedItem(
 async function readRow(itemId: string) {
   const { data, error } = await serviceClient
     .from('content_items')
-    .select('publication_status, archived_at, archived_by, archive_reason')
+    .select(
+      'publication_status, archived_at, archived_by, archive_reason, dedup_status',
+    )
     .eq('id', itemId)
     .single();
   if (error || !data) {
@@ -261,6 +279,56 @@ async function postArchive(
     },
   );
   return archivePost(req, { params: Promise.resolve({ id: itemId }) });
+}
+
+/**
+ * Invoke the production POST confirm-duplicate route handler.
+ * Writer 3 — shipped via S211B (admin dedup review surface) after the
+ * §5.2 Phase 3 spec was authored. Direction 3 of the §6.6 trigger MUST
+ * fire on this path too.
+ */
+async function postConfirmDuplicate(
+  itemId: string,
+  body: { note?: string },
+): Promise<Response> {
+  const req = new NextRequest(
+    `http://localhost/api/admin/content-dedup/${itemId}/confirm-duplicate`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+  return confirmDuplicatePost(req, {
+    params: Promise.resolve({ id: itemId }),
+  });
+}
+
+/**
+ * Set `dedup_status` on a seeded row via service-role UPDATE.
+ * The `seedItem()` helper INSERTs with the column defaulted to `'clean'`,
+ * so the dedup-flow tests must flip it to `'suspected_duplicate'` (or
+ * `'confirmed_duplicate'` for the idempotency case) before invoking the
+ * production handler.
+ *
+ * INSERT does not fire BEFORE UPDATE on the inserted row, but a plain
+ * UPDATE that sets only `dedup_status` does — predicate Direction 3
+ * does NOT match (we are not writing `archived_at`), so this update
+ * leaves `publication_status`/`archived_at` untouched. Verified safe.
+ */
+async function setDedupStatus(
+  itemId: string,
+  status: 'suspected_duplicate' | 'confirmed_duplicate',
+): Promise<void> {
+  const { error } = await serviceClient
+    .from('content_items')
+    .update({ dedup_status: status })
+    .eq('id', itemId);
+  if (error) {
+    throw new Error(
+      `setDedupStatus(${itemId}, ${status}) failed: ${error.message}`,
+    );
+  }
 }
 
 interface CapturedTool {
@@ -587,6 +655,155 @@ describeIfEnv(
         expect(post.publication_status).toBe('archived');
         // archived_at MUST equal pre-seed value (no DB UPDATE occurred).
         expect(post.archived_at).toBe(preTs);
+      },
+      60_000,
+    );
+  },
+);
+
+describeIfEnv(
+  'Archive trigger coverage — POST /api/admin/content-dedup/[id]/confirm-duplicate (writer 3)',
+  () => {
+    it(
+      'Case A — happy path: suspected_duplicate row → POST confirm-duplicate → trigger Direction 3 fires',
+      async () => {
+        // Writer 3 — shipped via S211B (admin dedup review surface)
+        // after the §5.2 Phase 3 spec was authored. Phase 3's
+        // simplified WHERE clause (`archived_at IS NULL` →
+        // `publication_status='published'`) only holds if Direction 3
+        // fires on this writer too. Spec drift queued: §6.1 / §10.3
+        // cross-reference for backlog.
+        //
+        // Route: app/api/admin/content-dedup/[id]/confirm-duplicate/
+        //   route.ts:88-98 — UPDATE writes `archived_at`, `archived_by`,
+        //   `archive_reason='dedup_admin_confirmed_duplicate'`,
+        //   `dedup_status='confirmed_duplicate'` — NO publication_status
+        //   in the SET clause. Direction 3 must flip it to 'archived'.
+        const itemId = await seedItem(
+          'published',
+          'dedup-A-happy-path',
+          TEST_USER_ADMIN_ID,
+        );
+        await setDedupStatus(itemId, 'suspected_duplicate');
+
+        const pre = await readRow(itemId);
+        expect(pre.publication_status).toBe('published');
+        expect(pre.archived_at).toBeNull();
+        expect(pre.dedup_status).toBe('suspected_duplicate');
+
+        // Admin session restored in beforeEach; route enforces ['admin']
+        // and authFailureResponse() routes other roles to 403/401.
+        const beforeMs = Date.now();
+        const res = await postConfirmDuplicate(itemId, {
+          note: 'V_W1 fix coverage',
+        });
+
+        expect(
+          res.status,
+          `confirm-duplicate POST failed: ${await res.clone().text()}`,
+        ).toBe(200);
+
+        const post = await readRow(itemId);
+        // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11) — Direction 3
+        // fires on the dedup writer.
+        expect(post.publication_status).toBe('archived');
+        expect(post.archived_at).not.toBeNull();
+        const archivedTs = new Date(post.archived_at as string).getTime();
+        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+        expect(post.archive_reason).toBe('dedup_admin_confirmed_duplicate');
+        expect(post.dedup_status).toBe('confirmed_duplicate');
+
+        // content_history audit row — route inserts with
+        // change_type='archive' + change_reason='dedup_admin_review_
+        // confirmed_duplicate'. Mirror W1's existing history-style
+        // assertion: assert at least one row of that exact shape exists.
+        const { data: historyRows, error: historyErr } = await serviceClient
+          .from('content_history')
+          .select('change_type, change_reason')
+          .eq('content_item_id', itemId)
+          .eq('change_type', 'archive')
+          .eq('change_reason', 'dedup_admin_review_confirmed_duplicate');
+        expect(historyErr).toBeNull();
+        expect(historyRows).not.toBeNull();
+        expect((historyRows ?? []).length).toBeGreaterThanOrEqual(1);
+      },
+      60_000,
+    );
+
+    it(
+      'Case B — idempotency 409: already-resolved row is rejected and DB state unchanged',
+      async () => {
+        // Per route.ts:76-84, the handler rejects with HTTP 409 when
+        // dedup_status is no longer 'suspected_duplicate'. Pre-flight
+        // contract: the rejected request MUST NOT mutate
+        // publication_status or archived_at (Direction 3 contract relies
+        // on the writer being the ONLY mutator of archived_at on this
+        // path; an idempotency leak would corrupt §5.2 Phase 3 reasoning).
+        const itemId = await seedItem(
+          'published',
+          'dedup-B-idempotent',
+          TEST_USER_ADMIN_ID,
+        );
+        await setDedupStatus(itemId, 'confirmed_duplicate');
+
+        // Stamp a fixed prior archived_at via service-role UPDATE so we
+        // can assert epoch-equal preservation post-409. We deliberately
+        // set both archived_at and publication_status='archived' here
+        // so the §6.6 trigger Direction 3 predicate is satisfied on
+        // this seed UPDATE (NEW.publication_status IS already archived
+        // → no-op), leaving a coherent post-seed state to compare
+        // against. NOTE: PostgreSQL serialises timestamps with offset
+        // notation (`+00:00`) rather than the input `Z` suffix, so all
+        // archived_at comparisons normalise via Date.parse() / .getTime()
+        // for instant equality rather than byte equality.
+        const priorTimestampInput = '2026-01-15T10:30:00.000Z';
+        const priorEpochMs = Date.parse(priorTimestampInput);
+        const { error: stampErr } = await serviceClient
+          .from('content_items')
+          .update({
+            archived_at: priorTimestampInput,
+            publication_status: 'archived',
+            archived_by: TEST_USER_ADMIN_ID,
+            archive_reason: 'prior-archive-for-idempotency-fixture',
+          })
+          .eq('id', itemId);
+        expect(stampErr).toBeNull();
+
+        const pre = await readRow(itemId);
+        expect(pre.publication_status).toBe('archived');
+        expect(pre.archived_at).not.toBeNull();
+        expect(new Date(pre.archived_at as string).getTime()).toBe(
+          priorEpochMs,
+        );
+        expect(pre.dedup_status).toBe('confirmed_duplicate');
+
+        const res = await postConfirmDuplicate(itemId, {
+          note: 'V_W1 fix coverage — idempotency check',
+        });
+
+        expect(res.status).toBe(409);
+        const body = (await res.json()) as {
+          error: string;
+          current_status?: string;
+        };
+        expect(body.error).toBe('row already resolved');
+        expect(body.current_status).toBe('confirmed_duplicate');
+
+        // DB state UNCHANGED — the 409 short-circuit must not write.
+        // archived_at must round-trip to the same instant we stamped.
+        const post = await readRow(itemId);
+        expect(post.publication_status).toBe('archived');
+        expect(post.archived_at).not.toBeNull();
+        expect(new Date(post.archived_at as string).getTime()).toBe(
+          priorEpochMs,
+        );
+        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+        expect(post.archive_reason).toBe(
+          'prior-archive-for-idempotency-fixture',
+        );
+        expect(post.dedup_status).toBe('confirmed_duplicate');
       },
       60_000,
     );
