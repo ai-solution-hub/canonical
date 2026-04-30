@@ -230,5 +230,105 @@ describe('ReviewTabs', () => {
       });
       expect(publicationTab).toBeInTheDocument();
     });
+
+    // V_W1 Finding 6 fix — extend coverage beyond the awaiting_publication
+    // tab. The aria-label template is `${label} — ${count} ${count === 1
+    // ? 'item' : 'items'}`, so we exercise BOTH plural ("5 items") and
+    // singular ("1 item") forms across at least 2 additional tabs to lock
+    // in the WCAG-friendly pluralisation behaviour spec §5 implies via the
+    // tab-switch deep-link AC.
+    it('renders the drafts count with plural "items" formatting (5 items)', async () => {
+      setSearchParam('tab', null);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          total: 100,
+          verified: 30,
+          flagged: 5,
+          unverified: 60,
+          draft: 5,
+          overdue: 0,
+          awaiting_publication: 7,
+          by_domain: {},
+          by_content_type: {},
+          by_source_file: {},
+          by_source_document: {},
+        }),
+      });
+      const { Wrapper } = createQueryWrapper();
+      render(
+        <Wrapper>
+          <ReviewTabs />
+        </Wrapper>,
+      );
+
+      const draftsTab = await screen.findByRole('tab', {
+        name: /drafts.*5 items/i,
+      });
+      expect(draftsTab).toBeInTheDocument();
+    });
+
+    it('renders singular "item" formatting when count is exactly 1', async () => {
+      setSearchParam('tab', null);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          total: 100,
+          verified: 30,
+          flagged: 1,
+          unverified: 60,
+          draft: 5,
+          overdue: 0,
+          awaiting_publication: 7,
+          by_domain: {},
+          by_content_type: {},
+          by_source_file: {},
+          by_source_document: {},
+        }),
+      });
+      const { Wrapper } = createQueryWrapper();
+      render(
+        <Wrapper>
+          <ReviewTabs />
+        </Wrapper>,
+      );
+
+      // Pending Changes is wired to flagged=1 → "1 item" (singular).
+      const pendingTab = await screen.findByRole('tab', {
+        name: /pending changes.*1 item(?!s)/i,
+      });
+      expect(pendingTab).toBeInTheDocument();
+    });
+
+    it('renders the verified (audit) count with plural formatting (30 items)', async () => {
+      setSearchParam('tab', null);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          total: 100,
+          verified: 30,
+          flagged: 5,
+          unverified: 60,
+          draft: 5,
+          overdue: 0,
+          awaiting_publication: 7,
+          by_domain: {},
+          by_content_type: {},
+          by_source_file: {},
+          by_source_document: {},
+        }),
+      });
+      const { Wrapper } = createQueryWrapper();
+      render(
+        <Wrapper>
+          <ReviewTabs />
+        </Wrapper>,
+      );
+
+      const auditTab = await screen.findByRole('tab', {
+        name: /verified \(audit\).*30 items/i,
+      });
+      expect(auditTab).toBeInTheDocument();
+    });
   });
 });
