@@ -121,11 +121,50 @@ describe('setSupersession', () => {
 
     expect(result.oldItem).toEqual(updatedOldRow);
     expect(result.newItem).toEqual(newRow);
+    // S216 §5.2 Phase 5 — the UPDATE payload is now extended to include
+    // archive side-effects on the OLD row (publication_status, archived_at,
+    // archived_by, archive_reason, updated_by). The default archive_reason
+    // is `Superseded by item ${newId}` when archiveReason is omitted.
     expect(updateChain.update).toHaveBeenCalledWith({
       superseded_by: NEW_ID,
       dedup_status: 'superseded',
+      publication_status: 'archived',
+      archived_at: expect.any(String),
+      archived_by: ACTOR_ID,
+      archive_reason: `Superseded by item ${NEW_ID}`,
+      updated_by: ACTOR_ID,
     });
+    // archived_at must be a parseable ISO 8601 timestamp.
+    const updateCall = updateChain.update.mock.calls[0]?.[0] as {
+      archived_at: string;
+    };
+    expect(Number.isFinite(Date.parse(updateCall.archived_at))).toBe(true);
     expect(updateChain.eq).toHaveBeenCalledWith('id', OLD_ID);
+  });
+
+  it('uses the provided archiveReason when supplied', async () => {
+    const { client, updateChain } = makeMockClient(
+      { data: oldRow, error: null },
+      { data: newRow, error: null },
+      { data: updatedOldRow, error: null },
+    );
+
+    const customReason = 'Confirmed near-duplicate via admin review';
+    await setSupersession(
+      {
+        oldId: OLD_ID,
+        newId: NEW_ID,
+        actorUserId: ACTOR_ID,
+        archiveReason: customReason,
+      },
+      client,
+    );
+
+    expect(updateChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        archive_reason: customReason,
+      }),
+    );
   });
 
   it('emits a Sentry breadcrumb with actor + both titles on success', async () => {

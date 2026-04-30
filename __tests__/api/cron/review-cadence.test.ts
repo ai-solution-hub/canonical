@@ -136,15 +136,19 @@ function configureDetailedMock(options: {
   // Hoisted so tests can assert filter-chain shape (per spec §6.3 exclusion table).
   // Without these spies the (b)/(c)/(d)/(e) exclusion tests would tautologically pass
   // even if the route's PostgREST filter chain were deleted.
+  // S216 §5.2 Phase 5 — `neq` added for the new `publication_status != 'archived'`
+  // belt-and-braces filter (per spec §6.4 lines 1003-1006).
   const selectChain = {
     lt: vi.fn().mockReturnThis() as unknown,
     is: vi.fn().mockReturnThis() as unknown,
+    neq: vi.fn().mockReturnThis() as unknown,
     or: vi.fn().mockReturnThis() as unknown,
     then: (resolve: (v: unknown) => unknown) =>
       resolve({ data: candidates, error: null }),
   };
   (selectChain.lt as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
   (selectChain.is as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
+  (selectChain.neq as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
   (selectChain.or as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
 
   mockSupabase.from.mockImplementation((table: string) => {
@@ -287,6 +291,12 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
     );
     expect(selectChain.is).toHaveBeenNthCalledWith(1, 'superseded_by', null);
     expect(selectChain.is).toHaveBeenNthCalledWith(2, 'archived_at', null);
+    // S216 §5.2 Phase 5 / §6.4 — `publication_status != 'archived'` filter
+    // pairs with `archived_at IS NULL` for defence-in-depth.
+    expect(selectChain.neq).toHaveBeenCalledWith(
+      'publication_status',
+      'archived',
+    );
     expect(selectChain.or).toHaveBeenCalledWith(
       'governance_review_status.is.null,governance_review_status.eq.approved',
     );
