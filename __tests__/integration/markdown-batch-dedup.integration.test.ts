@@ -63,7 +63,15 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from 'vitest';
 // service-client MUST be imported first — it loads dotenv for all env vars.
 import { serviceClient } from './helpers/service-client';
 import {
@@ -107,9 +115,8 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import handler AFTER the mock is registered.
-const { POST: markdownIngestPost } = await import(
-  '@/app/api/ingest/markdown/route'
-);
+const { POST: markdownIngestPost } =
+  await import('@/app/api/ingest/markdown/route');
 
 import { NextRequest } from 'next/server';
 
@@ -127,9 +134,9 @@ let TEST_USER_1_ID = '';
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -160,7 +167,9 @@ async function seedItem(opts: {
       content: opts.content,
       content_type: 'article',
       created_by: TEST_USER_1_ID,
-      ...(opts.sourceFile !== undefined ? { source_file: opts.sourceFile } : {}),
+      ...(opts.sourceFile !== undefined
+        ? { source_file: opts.sourceFile }
+        : {}),
     })
     .select('id, content_text_hash')
     .single();
@@ -187,10 +196,7 @@ async function postAnalyseBatch(
   const fd = new FormData();
   fd.append('phase', 'analyse');
   for (const f of files) {
-    fd.append(
-      'files[]',
-      new File([f.body], f.name, { type: 'text/markdown' }),
-    );
+    fd.append('files[]', new File([f.body], f.name, { type: 'text/markdown' }));
   }
   const req = new NextRequest('http://localhost/api/ingest/markdown', {
     method: 'POST',

@@ -58,7 +58,9 @@ vi.mock('@/lib/ai/classify', () => ({
 vi.mock('@/lib/dedup', () => ({
   checkExactDuplicate: vi.fn().mockResolvedValue({ isDuplicate: false }),
   resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
-  normaliseTextForHash: vi.fn().mockImplementation((s: string) => s.toLowerCase()),
+  normaliseTextForHash: vi
+    .fn()
+    .mockImplementation((s: string) => s.toLowerCase()),
 }));
 
 vi.mock('@/lib/content/chunk-store', () => ({
@@ -93,7 +95,9 @@ vi.mock('@/lib/extraction/diff-markers', () => ({
 vi.mock('@/lib/pipeline/start-run', () => ({
   startPipelineRun: vi
     .fn()
-    .mockImplementation(async (params: { id?: string }) => params.id ?? 'run-1'),
+    .mockImplementation(
+      async (params: { id?: string }) => params.id ?? 'run-1',
+    ),
 }));
 
 vi.mock('@/lib/pipeline/update-progress', () => ({
@@ -350,10 +354,7 @@ describe('POST /api/ingest/markdown — draft/final → publication_status mappi
       body: '# Title\n',
     }));
 
-    const file = createMockFile(
-      '---\nstatus: final\n---\n# Title\n',
-      'foo.md',
-    );
+    const file = createMockFile('---\nstatus: final\n---\n# Title\n', 'foo.md');
     const req = buildBatchRequest({
       phase: 'import',
       files: [file],

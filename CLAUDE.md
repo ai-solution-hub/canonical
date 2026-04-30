@@ -227,11 +227,12 @@ hook isolation, cross-track hygiene rules.
   `supabase db push` may push to the WRONG project (looks like silent-fail on
   intended project). Always `cat supabase/.temp/project-ref` before any push;
   relink via `supabase link --project-ref <correct>` if drift detected.
-- **Supabase auto-grants anon EXECUTE on every new public.\* PL/pgSQL function:**
-  `pg_default_acl` defaults make `REVOKE ... FROM PUBLIC` a no-op against the
-  anon role. Every new `public.*()` helper needs an explicit
+- **Supabase auto-grants anon EXECUTE on every new public.\* PL/pgSQL
+  function:** `pg_default_acl` defaults make `REVOKE ... FROM PUBLIC` a no-op
+  against the anon role. Every new `public.*()` helper needs an explicit
   `REVOKE EXECUTE ON FUNCTION public.foo() FROM anon;` in its migration —
-  per-tenant if SECURITY DEFINER. Pattern: `feedback_supabase_pg_default_acl_anon_execute`.
+  per-tenant if SECURITY DEFINER. Pattern:
+  `feedback_supabase_pg_default_acl_anon_execute`.
 - **`mcp__supabase__apply_migration` auto-generates server-side timestamps**
   that diverge from local file naming. Re-pull
   `supabase_migrations.schema_migrations` post-apply, rename the local file to

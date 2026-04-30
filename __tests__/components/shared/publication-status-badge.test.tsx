@@ -184,9 +184,9 @@ describe('PublicationStatusBadge', () => {
       // bridges the discriminated `Mock<Procedure | Constructable>` to the
       // call signature). Matches use-library-data.ts:43 + use-browse-data.ts:281.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const builder = (supabase as any).from('content_items').select(
-        CONTENT_LIST_COLUMNS,
-      );
+      const builder = (supabase as any)
+        .from('content_items')
+        .select(CONTENT_LIST_COLUMNS);
       const { data, error } = (await builder) as {
         data: Array<{ publication_status: string }> | null;
         error: unknown;

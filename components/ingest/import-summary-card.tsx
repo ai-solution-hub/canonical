@@ -73,9 +73,7 @@ function CountTile({ label, count, tone, testId }: CountTileProps) {
       className={`rounded-md border px-3 py-2 ${toneClasses}`}
       data-testid={testId}
     >
-      <div className="text-xs font-medium uppercase tracking-wide">
-        {label}
-      </div>
+      <div className="text-xs font-medium uppercase tracking-wide">{label}</div>
       <div className="text-xl font-semibold">{count}</div>
     </div>
   );
@@ -118,10 +116,7 @@ export function ImportSummaryCard({
       data-testid="import-summary-card"
     >
       <div className="flex items-center gap-2">
-        <CheckCircle2
-          className="size-5 text-quality-good"
-          aria-hidden="true"
-        />
+        <CheckCircle2 className="size-5 text-quality-good" aria-hidden="true" />
         <h3 className="text-lg font-semibold text-foreground">
           Import complete
         </h3>
@@ -169,11 +164,10 @@ export function ImportSummaryCard({
 
       {/* Per-file results */}
       <div className="space-y-2 border-t border-border pt-3">
-        <h4 className="text-sm font-medium text-foreground">Per-file results</h4>
-        <ul
-          className="space-y-1.5 text-sm"
-          data-testid="summary-per-file-list"
-        >
+        <h4 className="text-sm font-medium text-foreground">
+          Per-file results
+        </h4>
+        <ul className="space-y-1.5 text-sm" data-testid="summary-per-file-list">
           {stored.map((row) => (
             <li
               key={`stored-${row.filename}`}

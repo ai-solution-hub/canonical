@@ -84,8 +84,7 @@ function createMockFile(args: {
   type?: string;
 }): File {
   const { name, type = 'text/markdown' } = args;
-  const bytes =
-    args.bytes ?? new TextEncoder().encode(args.content ?? '');
+  const bytes = args.bytes ?? new TextEncoder().encode(args.content ?? '');
   const blob = new Blob([bytes as unknown as BlobPart], { type });
   return Object.create(File.prototype, {
     name: { value: name, writable: false },
@@ -270,9 +269,7 @@ describe('POST /api/ingest/markdown — edge cases (size, count, encoding, mime)
     expect(res.status).toBe(413);
 
     const body = await res.json();
-    expect(body.error).toBe(
-      "File 'huge.md' exceeds the 1 MB per-file limit",
-    );
+    expect(body.error).toBe("File 'huge.md' exceeds the 1 MB per-file limit");
 
     expect(orchestratorMock.orchestrateMarkdownBatch).not.toHaveBeenCalled();
   });
@@ -316,9 +313,7 @@ describe('POST /api/ingest/markdown — edge cases (size, count, encoding, mime)
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe(
-      'Markdown batch mode requires all files to be .md',
-    );
+    expect(body.error).toBe('Markdown batch mode requires all files to be .md');
 
     expect(orchestratorMock.orchestrateMarkdownBatch).not.toHaveBeenCalled();
   });
@@ -346,9 +341,7 @@ describe('POST /api/ingest/markdown — edge cases (size, count, encoding, mime)
     expect(res.status).toBe(415);
 
     const body = await res.json();
-    expect(body.error).toBe(
-      'Markdown batch mode requires all files to be .md',
-    );
+    expect(body.error).toBe('Markdown batch mode requires all files to be .md');
 
     expect(orchestratorMock.orchestrateMarkdownBatch).not.toHaveBeenCalled();
   });

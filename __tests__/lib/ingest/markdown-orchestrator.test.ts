@@ -549,9 +549,7 @@ describe('orchestrateMarkdownBatch', () => {
   describe('phase: import — pipeline_runs records correct status enum', () => {
     it('writes status=failed when zero files succeed', async () => {
       const supabase = buildSupabaseWithSequentialInserts(['will-fail']);
-      mocks.classifyContent.mockRejectedValue(
-        new Error('Classifier offline'),
-      );
+      mocks.classifyContent.mockRejectedValue(new Error('Classifier offline'));
 
       const result = await orchestrateMarkdownBatch({
         phase: 'import',
@@ -628,9 +626,9 @@ describe('orchestrateMarkdownBatch', () => {
       );
       const payload = ciInsert![0] as Record<string, unknown>;
       expect(payload.dedup_status).toBe('suspected_duplicate');
-      expect((payload.metadata as Record<string, unknown>).suspected_duplicate_of).toBe(
-        'existing-id',
-      );
+      expect(
+        (payload.metadata as Record<string, unknown>).suspected_duplicate_of,
+      ).toBe('existing-id');
     });
   });
 

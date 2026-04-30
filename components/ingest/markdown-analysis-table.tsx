@@ -80,9 +80,7 @@ function formatBytes(n: number): string {
 }
 
 /** Provenance label — spec §6.3 column 2. */
-function provenanceLabel(
-  p: MarkdownIngestAnalysis['titleProvenance'],
-): string {
+function provenanceLabel(p: MarkdownIngestAnalysis['titleProvenance']): string {
   switch (p) {
     case 'front-matter':
       return 'front-matter';
@@ -195,9 +193,7 @@ function FrontMatterStatus({
   frontMatter: MarkdownIngestAnalysis['frontMatter'];
 }) {
   if (!frontMatter.present) {
-    return (
-      <span className="text-xs text-muted-foreground">absent</span>
-    );
+    return <span className="text-xs text-muted-foreground">absent</span>;
   }
   if (!frontMatter.parsedOk) {
     return (
@@ -232,10 +228,7 @@ export function MarkdownAnalysisTable({
     () => overrides ?? EMPTY_OVERRIDES,
     [overrides],
   );
-  const safeAnalyses = useMemo(
-    () => analyses ?? EMPTY_ANALYSES,
-    [analyses],
-  );
+  const safeAnalyses = useMemo(() => analyses ?? EMPTY_ANALYSES, [analyses]);
 
   const isAdmin = role === 'admin';
 
@@ -289,10 +282,7 @@ export function MarkdownAnalysisTable({
   }
 
   return (
-    <div
-      className="space-y-3"
-      data-testid="markdown-analysis-table"
-    >
+    <div className="space-y-3" data-testid="markdown-analysis-table">
       {/* Batch-wide controls (admin only) */}
       {isAdmin && (
         <div
@@ -312,10 +302,7 @@ export function MarkdownAnalysisTable({
           >
             Auto-supersede on filename match
           </label>
-          <span
-            className="text-xs text-muted-foreground"
-            aria-hidden="true"
-          >
+          <span className="text-xs text-muted-foreground" aria-hidden="true">
             (admin)
           </span>
         </div>
@@ -479,10 +466,7 @@ export function MarkdownAnalysisTable({
                       <span className="text-xs text-muted-foreground">0</span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-status-warning">
-                        <AlertTriangle
-                          className="size-3"
-                          aria-hidden="true"
-                        />
+                        <AlertTriangle className="size-3" aria-hidden="true" />
                         {conflictCount} conflict line
                         {conflictCount === 1 ? '' : 's'}
                       </span>

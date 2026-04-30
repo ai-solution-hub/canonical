@@ -148,12 +148,10 @@ export function UploadTabContent({
   );
 
   const [mdPhase, setMdPhase] = useState<MarkdownBatchPhase>('idle');
-  const [mdAnalyses, setMdAnalyses] = useState<MarkdownIngestAnalysis[]>(
-    EMPTY_ANALYSES,
-  );
-  const [mdOverrides, setMdOverrides] = useState<MarkdownPerFileOverride[]>(
-    EMPTY_OVERRIDES,
-  );
+  const [mdAnalyses, setMdAnalyses] =
+    useState<MarkdownIngestAnalysis[]>(EMPTY_ANALYSES);
+  const [mdOverrides, setMdOverrides] =
+    useState<MarkdownPerFileOverride[]>(EMPTY_OVERRIDES);
   const [mdAutoSupersede, setMdAutoSupersede] = useState<boolean>(false);
   const [mdResult, setMdResult] = useState<MarkdownBatchResult | null>(null);
 
@@ -208,8 +206,7 @@ export function UploadTabContent({
         batch?: { auto_supersede?: boolean };
         pipeline_run_id: string;
       };
-    }) =>
-      importMarkdownBatch({ files: args.rawFiles, options: args.options }),
+    }) => importMarkdownBatch({ files: args.rawFiles, options: args.options }),
     onMutate: () => {
       setMdPhase('importing');
     },
@@ -718,7 +715,9 @@ export function UploadTabContent({
 
   if (
     isMarkdownBatch &&
-    (mdPhase === 'analysing' || mdPhase === 'reviewing' || mdPhase === 'importing')
+    (mdPhase === 'analysing' ||
+      mdPhase === 'reviewing' ||
+      mdPhase === 'importing')
   ) {
     return (
       <div
@@ -869,8 +868,8 @@ export function UploadTabContent({
             aria-hidden="true"
           />
           <span>
-            Tip: drop only .md files together to use the markdown batch
-            review surface.
+            Tip: drop only .md files together to use the markdown batch review
+            surface.
           </span>
         </div>
       )}

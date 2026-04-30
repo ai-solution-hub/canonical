@@ -390,11 +390,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
       // but the route returns 415 with a content-type-mismatch error.
       configureSuccessFlow();
 
-      const file = createMockFile(
-        PK_ZIP_BYTES,
-        'fake.pdf',
-        'application/pdf',
-      );
+      const file = createMockFile(PK_ZIP_BYTES, 'fake.pdf', 'application/pdf');
       const req = buildUploadRequest({ file });
 
       const res = await POST(req);

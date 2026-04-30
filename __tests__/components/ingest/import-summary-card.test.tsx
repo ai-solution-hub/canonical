@@ -42,7 +42,11 @@ describe('ImportSummaryCard', () => {
     const summary = makeSummary({
       files_processed: 5,
       stored: [
-        { id: '00000000-0000-4000-8000-000000000001', title: 'A', filename: 'a.md' },
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          title: 'A',
+          filename: 'a.md',
+        },
       ],
       dedup_flagged: [
         {
@@ -70,9 +74,9 @@ describe('ImportSummaryCard', () => {
       />,
     );
 
-    expect(screen.getByTestId('summary-tile-files-processed')).toHaveTextContent(
-      '5',
-    );
+    expect(
+      screen.getByTestId('summary-tile-files-processed'),
+    ).toHaveTextContent('5');
     expect(screen.getByTestId('summary-tile-stored')).toHaveTextContent('1');
     expect(screen.getByTestId('summary-tile-dedup')).toHaveTextContent('1');
     expect(screen.getByTestId('summary-tile-superseded')).toHaveTextContent(
@@ -112,10 +116,7 @@ describe('ImportSummaryCard', () => {
     });
 
     render(
-      <ImportSummaryCard
-        pipelineRunId="run-id-xyz"
-        resultsSummary={summary}
-      />,
+      <ImportSummaryCard pipelineRunId="run-id-xyz" resultsSummary={summary} />,
     );
 
     // Stored row: Open item link
@@ -153,10 +154,7 @@ describe('ImportSummaryCard', () => {
     });
 
     const { rerender } = render(
-      <ImportSummaryCard
-        pipelineRunId="run-1"
-        resultsSummary={summary}
-      />,
+      <ImportSummaryCard pipelineRunId="run-1" resultsSummary={summary} />,
     );
 
     expect(screen.queryByRole('button', { name: /Retry bad\.md/i })).toBeNull();
@@ -210,9 +208,7 @@ describe('ImportSummaryCard', () => {
     expect(link).toHaveTextContent('run-abc-123');
     // S212 W2 (V_W1 MEDIUM): link surfaces the pipeline-health tab
     // fragment so the row resolves directly inside the existing UI.
-    expect(link.getAttribute('href')).toBe(
-      '/provenance?tab=pipeline-health',
-    );
+    expect(link.getAttribute('href')).toBe('/provenance?tab=pipeline-health');
   });
 
   it('renders empty-state message when nothing was processed', () => {

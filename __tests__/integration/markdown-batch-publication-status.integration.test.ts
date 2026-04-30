@@ -139,9 +139,8 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import handlers AFTER the mock is registered.
-const { POST: markdownIngestPost } = await import(
-  '@/app/api/ingest/markdown/route'
-);
+const { POST: markdownIngestPost } =
+  await import('@/app/api/ingest/markdown/route');
 const { PATCH: itemsPatch } = await import('@/app/api/items/[id]/route');
 
 import { NextRequest } from 'next/server';
@@ -157,9 +156,9 @@ let HYBRID_SEARCH_FILTERS_PUBLICATION_STATUS = false;
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -381,169 +380,165 @@ afterAll(async () => {
 describeIfEnv(
   'POST /api/ingest/markdown phase=import — D-A publication-status end-to-end (T7 / spec §10.4)',
   () => {
-    it(
-      'foo-final.md → publication_status=in_review → invisible in default hybrid_search → admin PATCH "published" → visible',
-      async () => {
-        // Honest guard for D3 — if §5.2 Phase 3 (RPC widening) has not
-        // shipped, skip the visibility assertions and only verify the
-        // INSERT-side D-A guard. This keeps the test self-activating
-        // once Phase 3 lands.
-        const phase3Active = HYBRID_SEARCH_FILTERS_PUBLICATION_STATUS;
+    it('foo-final.md → publication_status=in_review → invisible in default hybrid_search → admin PATCH "published" → visible', async () => {
+      // Honest guard for D3 — if §5.2 Phase 3 (RPC widening) has not
+      // shipped, skip the visibility assertions and only verify the
+      // INSERT-side D-A guard. This keeps the test self-activating
+      // once Phase 3 lands.
+      const phase3Active = HYBRID_SEARCH_FILTERS_PUBLICATION_STATUS;
 
-        // ─────────────────────────────────────────────────────────────────
-        // Setup: distinctive content with a unique marker so hybrid_search
-        // can locate the row deterministically (without conflating with
-        // the existing 600+ content_items rows in staging).
-        // ─────────────────────────────────────────────────────────────────
-        const marker = `MDPUBSTATUSMARKER${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-        const filename = `${TEST_PREFIX}-foo-final.md`;
-        const body =
-          `# ${TEST_PREFIX} D-A Final Item\n\n` +
-          `${marker} canonical body for the D-A end-to-end integration test. ` +
-          'This row tests the publication-status lifecycle from ingest to ' +
-          'admin approval. Length padded over fifty characters to clear the ' +
-          'dedup minimum.';
+      // ─────────────────────────────────────────────────────────────────
+      // Setup: distinctive content with a unique marker so hybrid_search
+      // can locate the row deterministically (without conflating with
+      // the existing 600+ content_items rows in staging).
+      // ─────────────────────────────────────────────────────────────────
+      const marker = `MDPUBSTATUSMARKER${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      const filename = `${TEST_PREFIX}-foo-final.md`;
+      const body =
+        `# ${TEST_PREFIX} D-A Final Item\n\n` +
+        `${marker} canonical body for the D-A end-to-end integration test. ` +
+        'This row tests the publication-status lifecycle from ingest to ' +
+        'admin approval. Length padded over fifty characters to clear the ' +
+        'dedup minimum.';
 
-        // ─────────────────────────────────────────────────────────────────
-        // Phase 1: import via POST /api/ingest/markdown.
-        // ─────────────────────────────────────────────────────────────────
-        const importRes = await postImportSingleFile({ filename, body });
-        const importBodyText = await importRes.clone().text();
-        expect(importRes.status, importBodyText).toBe(200);
-        const importJson = (await importRes.json()) as {
-          pipeline_run_id: string;
-          results_summary: {
-            files_processed: number;
-            stored: Array<{ id: string; title: string; filename: string }>;
-            errored: Array<{ filename: string; error: string }>;
-          };
+      // ─────────────────────────────────────────────────────────────────
+      // Phase 1: import via POST /api/ingest/markdown.
+      // ─────────────────────────────────────────────────────────────────
+      const importRes = await postImportSingleFile({ filename, body });
+      const importBodyText = await importRes.clone().text();
+      expect(importRes.status, importBodyText).toBe(200);
+      const importJson = (await importRes.json()) as {
+        pipeline_run_id: string;
+        results_summary: {
+          files_processed: number;
+          stored: Array<{ id: string; title: string; filename: string }>;
+          errored: Array<{ filename: string; error: string }>;
         };
-        expect(importJson.pipeline_run_id).toMatch(
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      };
+      expect(importJson.pipeline_run_id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+      expect(importJson.results_summary.errored).toEqual([]);
+      expect(importJson.results_summary.stored.length).toBe(1);
+      const importedId = importJson.results_summary.stored[0]!.id;
+      seededIds.push(importedId);
+
+      // ─────────────────────────────────────────────────────────────────
+      // Assert D-A INSERT guard: orchestrator wrote
+      //   publication_status='in_review' (because filename contains
+      //   'final' → heuristic 'final' → draftFinalToPublicationStatus
+      //   maps to 'in_review' — D-A invariant).
+      //   governance_review_status=NULL (orchestrator §7.3 + spec §9.2).
+      // ─────────────────────────────────────────────────────────────────
+      const postImportRow = await serviceClient
+        .from('content_items')
+        .select(
+          'id, publication_status, governance_review_status, archived_at, source_file',
+        )
+        .eq('id', importedId)
+        .single();
+      expect(postImportRow.error).toBeNull();
+      expect(postImportRow.data?.publication_status).toBe('in_review');
+      expect(postImportRow.data?.governance_review_status).toBeNull();
+      expect(postImportRow.data?.archived_at).toBeNull();
+      expect(postImportRow.data?.source_file).toBe(filename);
+
+      // ─────────────────────────────────────────────────────────────────
+      // Phase 2: invisibility leg — default hybrid_search MUST NOT return
+      // the in_review row.
+      //
+      // GUARDED on D3: skip-with-notice when Phase 3 RPC widening has
+      // not shipped. The probe is in beforeAll. T9 in W5 will fold the
+      // drift back into the spec.
+      // ─────────────────────────────────────────────────────────────────
+      if (phase3Active) {
+        // Use a stub embedding — the marker keyword + the ILIKE gate
+        // surface the row regardless of vector similarity. The test only
+        // cares about the visibility WHERE clause, not the ranking.
+        const stubEmbedding = JSON.stringify(new Array(1024).fill(0.001));
+        const beforeApprove = await serviceClient.rpc('hybrid_search', {
+          query_embedding: stubEmbedding,
+          query_text: marker,
+          similarity_threshold: 0.0,
+          limit_count: 100,
+        });
+        expect(beforeApprove.error).toBeNull();
+        const idsBefore = (beforeApprove.data as Array<{ id: string }>).map(
+          (r) => r.id,
         );
-        expect(importJson.results_summary.errored).toEqual([]);
-        expect(importJson.results_summary.stored.length).toBe(1);
-        const importedId = importJson.results_summary.stored[0]!.id;
-        seededIds.push(importedId);
+        expect(idsBefore).not.toContain(importedId);
+      } else {
+        // Phase 3 not shipped — record the skip in the test output so
+        // the parent session sees it, but proceed to verify the rest of
+        // the lifecycle (PATCH transition).
+        console.warn(
+          '[markdown-batch-publication-status] §5.2 Phase 3 (hybrid_search visibility filter) not shipped on target DB. Skipping invisibility + visibility hybrid_search legs. T9/W5 will fold the drift into the spec.',
+        );
+      }
 
-        // ─────────────────────────────────────────────────────────────────
-        // Assert D-A INSERT guard: orchestrator wrote
-        //   publication_status='in_review' (because filename contains
-        //   'final' → heuristic 'final' → draftFinalToPublicationStatus
-        //   maps to 'in_review' — D-A invariant).
-        //   governance_review_status=NULL (orchestrator §7.3 + spec §9.2).
-        // ─────────────────────────────────────────────────────────────────
-        const postImportRow = await serviceClient
-          .from('content_items')
-          .select(
-            'id, publication_status, governance_review_status, archived_at, source_file',
-          )
-          .eq('id', importedId)
-          .single();
-        expect(postImportRow.error).toBeNull();
-        expect(postImportRow.data?.publication_status).toBe('in_review');
-        expect(postImportRow.data?.governance_review_status).toBeNull();
-        expect(postImportRow.data?.archived_at).toBeNull();
-        expect(postImportRow.data?.source_file).toBe(filename);
+      // ─────────────────────────────────────────────────────────────────
+      // Phase 3: admin PATCHes publication_status='published'.
+      //
+      // This MUST succeed (admin can transition `in_review → published`
+      // per §5.2 spec §3.4 role-gate matrix).
+      // ─────────────────────────────────────────────────────────────────
+      const patchRes = await patchPublicationStatus(importedId, 'published');
+      const patchBodyText = await patchRes.clone().text();
+      expect(patchRes.status, patchBodyText).toBe(200);
+      const patchJson = (await patchRes.json()) as { success: boolean };
+      expect(patchJson.success).toBe(true);
 
-        // ─────────────────────────────────────────────────────────────────
-        // Phase 2: invisibility leg — default hybrid_search MUST NOT return
-        // the in_review row.
-        //
-        // GUARDED on D3: skip-with-notice when Phase 3 RPC widening has
-        // not shipped. The probe is in beforeAll. T9 in W5 will fold the
-        // drift back into the spec.
-        // ─────────────────────────────────────────────────────────────────
-        if (phase3Active) {
-          // Use a stub embedding — the marker keyword + the ILIKE gate
-          // surface the row regardless of vector similarity. The test only
-          // cares about the visibility WHERE clause, not the ranking.
-          const stubEmbedding = JSON.stringify(new Array(1024).fill(0.001));
-          const beforeApprove = await serviceClient.rpc('hybrid_search', {
-            query_embedding: stubEmbedding,
-            query_text: marker,
-            similarity_threshold: 0.0,
-            limit_count: 100,
-          });
-          expect(beforeApprove.error).toBeNull();
-          const idsBefore = (
-            beforeApprove.data as Array<{ id: string }>
-          ).map((r) => r.id);
-          expect(idsBefore).not.toContain(importedId);
-        } else {
-          // Phase 3 not shipped — record the skip in the test output so
-          // the parent session sees it, but proceed to verify the rest of
-          // the lifecycle (PATCH transition).
-          console.warn(
-            '[markdown-batch-publication-status] §5.2 Phase 3 (hybrid_search visibility filter) not shipped on target DB. Skipping invisibility + visibility hybrid_search legs. T9/W5 will fold the drift into the spec.',
-          );
-        }
+      // ─────────────────────────────────────────────────────────────────
+      // Verify DB-side transition + invariant maintenance.
+      // ─────────────────────────────────────────────────────────────────
+      const postPatchRow = await serviceClient
+        .from('content_items')
+        .select('publication_status, governance_review_status, archived_at')
+        .eq('id', importedId)
+        .single();
+      expect(postPatchRow.error).toBeNull();
+      expect(postPatchRow.data?.publication_status).toBe('published');
+      expect(postPatchRow.data?.governance_review_status).toBeNull();
+      expect(postPatchRow.data?.archived_at).toBeNull();
 
-        // ─────────────────────────────────────────────────────────────────
-        // Phase 3: admin PATCHes publication_status='published'.
-        //
-        // This MUST succeed (admin can transition `in_review → published`
-        // per §5.2 spec §3.4 role-gate matrix).
-        // ─────────────────────────────────────────────────────────────────
-        const patchRes = await patchPublicationStatus(importedId, 'published');
-        const patchBodyText = await patchRes.clone().text();
-        expect(patchRes.status, patchBodyText).toBe(200);
-        const patchJson = (await patchRes.json()) as { success: boolean };
-        expect(patchJson.success).toBe(true);
+      // ─────────────────────────────────────────────────────────────────
+      // Phase 4: visibility leg — default hybrid_search MUST now return
+      // the published row.
+      //
+      // Same D3 guard — if Phase 3 not shipped, skip-with-notice.
+      // ─────────────────────────────────────────────────────────────────
+      if (phase3Active) {
+        const stubEmbedding = JSON.stringify(new Array(1024).fill(0.001));
+        const afterApprove = await serviceClient.rpc('hybrid_search', {
+          query_embedding: stubEmbedding,
+          query_text: marker,
+          similarity_threshold: 0.0,
+          limit_count: 100,
+        });
+        expect(afterApprove.error).toBeNull();
+        const idsAfter = (afterApprove.data as Array<{ id: string }>).map(
+          (r) => r.id,
+        );
+        expect(idsAfter).toContain(importedId);
+      }
+      // No else — if Phase 3 not shipped, the upstream warn covers it.
 
-        // ─────────────────────────────────────────────────────────────────
-        // Verify DB-side transition + invariant maintenance.
-        // ─────────────────────────────────────────────────────────────────
-        const postPatchRow = await serviceClient
-          .from('content_items')
-          .select('publication_status, governance_review_status, archived_at')
-          .eq('id', importedId)
-          .single();
-        expect(postPatchRow.error).toBeNull();
-        expect(postPatchRow.data?.publication_status).toBe('published');
-        expect(postPatchRow.data?.governance_review_status).toBeNull();
-        expect(postPatchRow.data?.archived_at).toBeNull();
-
-        // ─────────────────────────────────────────────────────────────────
-        // Phase 4: visibility leg — default hybrid_search MUST now return
-        // the published row.
-        //
-        // Same D3 guard — if Phase 3 not shipped, skip-with-notice.
-        // ─────────────────────────────────────────────────────────────────
-        if (phase3Active) {
-          const stubEmbedding = JSON.stringify(new Array(1024).fill(0.001));
-          const afterApprove = await serviceClient.rpc('hybrid_search', {
-            query_embedding: stubEmbedding,
-            query_text: marker,
-            similarity_threshold: 0.0,
-            limit_count: 100,
-          });
-          expect(afterApprove.error).toBeNull();
-          const idsAfter = (
-            afterApprove.data as Array<{ id: string }>
-          ).map((r) => r.id);
-          expect(idsAfter).toContain(importedId);
-        }
-        // No else — if Phase 3 not shipped, the upstream warn covers it.
-
-        // ─────────────────────────────────────────────────────────────────
-        // Audit trail: at least one content_history row tagged
-        // change_type='publication_state' (PATCH transition; orchestrator's
-        // initial_ingest is change_type='initial_ingest', distinct).
-        // ─────────────────────────────────────────────────────────────────
-        const history = await serviceClient
-          .from('content_history')
-          .select('change_type, change_reason')
-          .eq('content_item_id', importedId)
-          .eq('change_type', 'publication_state');
-        expect(history.error).toBeNull();
-        expect(history.data?.length ?? 0).toBeGreaterThanOrEqual(1);
-        // Spec §3.2 + items-patch route: change_reason text "Transition from
-        // in_review to published".
-        const reasons = (history.data ?? []).map((r) => r.change_reason);
-        expect(reasons).toContain('Transition from in_review to published');
-      },
-      120_000,
-    );
+      // ─────────────────────────────────────────────────────────────────
+      // Audit trail: at least one content_history row tagged
+      // change_type='publication_state' (PATCH transition; orchestrator's
+      // initial_ingest is change_type='initial_ingest', distinct).
+      // ─────────────────────────────────────────────────────────────────
+      const history = await serviceClient
+        .from('content_history')
+        .select('change_type, change_reason')
+        .eq('content_item_id', importedId)
+        .eq('change_type', 'publication_state');
+      expect(history.error).toBeNull();
+      expect(history.data?.length ?? 0).toBeGreaterThanOrEqual(1);
+      // Spec §3.2 + items-patch route: change_reason text "Transition from
+      // in_review to published".
+      const reasons = (history.data ?? []).map((r) => r.change_reason);
+      expect(reasons).toContain('Transition from in_review to published');
+    }, 120_000);
   },
 );

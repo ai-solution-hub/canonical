@@ -570,7 +570,8 @@ async function importOneFile(
     const fm = fmResult.frontMatter;
     if (fm) {
       if (fm.draft === true || fm.draft === 'true') return 'draft';
-      const status = typeof fm.status === 'string' ? fm.status.toLowerCase() : '';
+      const status =
+        typeof fm.status === 'string' ? fm.status.toLowerCase() : '';
       if (status === 'draft') return 'draft';
       if (status === 'final' || status === 'published' || status === 'live') {
         return 'final';
@@ -774,7 +775,7 @@ async function finaliseRun(params: FinaliseRunParams): Promise<void> {
     files_total: filesTotal,
     detail:
       status === 'failed'
-        ? errorMessage ?? 'Batch import failed.'
+        ? (errorMessage ?? 'Batch import failed.')
         : status === 'completed_with_errors'
           ? `Completed with ${errorMessage ?? 'errors'}.`
           : 'All files processed successfully.',

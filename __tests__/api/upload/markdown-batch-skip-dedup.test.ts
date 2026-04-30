@@ -107,7 +107,9 @@ vi.mock('@/lib/extraction/diff-markers', () => ({
 vi.mock('@/lib/pipeline/start-run', () => ({
   startPipelineRun: vi
     .fn()
-    .mockImplementation(async (params: { id?: string }) => params.id ?? 'run-1'),
+    .mockImplementation(
+      async (params: { id?: string }) => params.id ?? 'run-1',
+    ),
 }));
 
 vi.mock('@/lib/pipeline/update-progress', () => ({
@@ -288,10 +290,7 @@ describe('POST /api/ingest/markdown — admin-override (skip_dedup) + per-file e
       existingTitle: 'Existing Title',
     });
     dedupMocks.resolveDedupStamp.mockImplementation(
-      (
-        existingId: string | undefined,
-        opts: { skipDedup?: boolean } = {},
-      ) => {
+      (existingId: string | undefined, opts: { skipDedup?: boolean } = {}) => {
         // Real-impl parity: skipDedup=true short-circuits to clean.
         if (opts.skipDedup) return { dedup_status: 'clean' };
         return existingId
@@ -352,10 +351,7 @@ describe('POST /api/ingest/markdown — admin-override (skip_dedup) + per-file e
       existingTitle: 'Existing Title',
     });
     dedupMocks.resolveDedupStamp.mockImplementation(
-      (
-        existingId: string | undefined,
-        opts: { skipDedup?: boolean } = {},
-      ) => {
+      (existingId: string | undefined, opts: { skipDedup?: boolean } = {}) => {
         if (opts.skipDedup) return { dedup_status: 'clean' };
         return existingId
           ? {

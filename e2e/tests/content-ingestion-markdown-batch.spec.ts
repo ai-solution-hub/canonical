@@ -109,10 +109,7 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
     const fileContent = fs.readFileSync(FIXTURES.draft, 'utf-8').trim();
 
     // Best-effort: clear any leftover seed from a previous failed run.
-    await svc
-      .from('content_items')
-      .delete()
-      .eq('title', DEDUP_SEED_TITLE);
+    await svc.from('content_items').delete().eq('title', DEDUP_SEED_TITLE);
 
     const { data, error } = await svc
       .from('content_items')
@@ -130,7 +127,9 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
       .select('id')
       .single();
     if (error || !data) {
-      throw new Error(`Dedup seed insert failed: ${error?.message ?? 'no row'}`);
+      throw new Error(
+        `Dedup seed insert failed: ${error?.message ?? 'no row'}`,
+      );
     }
     dedupSeedId = data.id;
   });
@@ -176,10 +175,7 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
           .delete()
           .eq('content_item_id', item.itemId);
         if (item.pipelineRunId) {
-          await svc
-            .from('pipeline_runs')
-            .delete()
-            .eq('id', item.pipelineRunId);
+          await svc.from('pipeline_runs').delete().eq('id', item.pipelineRunId);
         } else {
           await svc
             .from('pipeline_runs')
@@ -231,12 +227,12 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
     ]);
 
     // The idle markdown-batch banner appears with 3-files copy.
-    await expect(
-      page.getByTestId('markdown-batch-idle-banner'),
-    ).toBeVisible({ timeout: 10_000 });
-    await expect(
-      page.getByTestId('markdown-batch-idle-banner'),
-    ).toContainText('3 files');
+    await expect(page.getByTestId('markdown-batch-idle-banner')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId('markdown-batch-idle-banner')).toContainText(
+      '3 files',
+    );
 
     // ────────────────────────────────────────────────────────────────
     // 3. Trigger analyse — click the "Analyse files" button.
@@ -371,9 +367,9 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
     await page.getByTestId('markdown-batch-import').click();
 
     // While the import runs we expect the importing-phase card to show.
-    await expect(
-      page.getByTestId('markdown-batch-importing'),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('markdown-batch-importing')).toBeVisible({
+      timeout: 10_000,
+    });
 
     const importResp = await importPromise;
     expect(importResp.status()).toBe(200);
@@ -440,9 +436,7 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
         .eq('id', importBody.pipeline_run_id)
         .single();
       if (runErr) {
-        throw new Error(
-          `pipeline_runs read failed: ${runErr.message}`,
-        );
+        throw new Error(`pipeline_runs read failed: ${runErr.message}`);
       }
       runStatus = runRow?.status ?? null;
       if (runStatus === 'completed') break;
@@ -477,9 +471,9 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
     });
     await expect(page.getByTestId('import-summary-card')).toBeVisible();
 
-    await expect(page.getByTestId('summary-tile-files-processed')).toContainText(
-      '3',
-    );
+    await expect(
+      page.getByTestId('summary-tile-files-processed'),
+    ).toContainText('3');
     await expect(page.getByTestId('summary-tile-stored')).toContainText('3');
     await expect(page.getByTestId('summary-tile-dedup')).toContainText('1');
     await expect(page.getByTestId('summary-tile-errors')).toContainText('0');
@@ -558,9 +552,7 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
     // inserted as content (not auto-excluded).
     const { data: conflictRow, error: conflictErr } = await svc
       .from('content_items')
-      .select(
-        'id, content, publication_status, dedup_status, source_file',
-      )
+      .select('id, content, publication_status, dedup_status, source_file')
       .eq('id', conflictStored.id)
       .single();
     expect(conflictErr).toBeNull();

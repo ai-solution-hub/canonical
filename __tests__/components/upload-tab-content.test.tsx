@@ -64,11 +64,7 @@ vi.mock('@/components/qa/qa-preview-list', () => ({
 
 // Stub markdown-batch surface children — we test their rendering separately
 vi.mock('@/components/ingest/markdown-analysis-table', () => ({
-  MarkdownAnalysisTable: ({
-    analyses,
-  }: {
-    analyses: unknown[];
-  }) => (
+  MarkdownAnalysisTable: ({ analyses }: { analyses: unknown[] }) => (
     <div data-testid="markdown-analysis-table">
       AnalysisTable ({analyses.length} rows)
     </div>
@@ -76,11 +72,7 @@ vi.mock('@/components/ingest/markdown-analysis-table', () => ({
 }));
 
 vi.mock('@/components/ingest/import-summary-card', () => ({
-  ImportSummaryCard: ({
-    pipelineRunId,
-  }: {
-    pipelineRunId: string;
-  }) => (
+  ImportSummaryCard: ({ pipelineRunId }: { pipelineRunId: string }) => (
     <div data-testid="import-summary-card">SummaryCard ({pipelineRunId})</div>
   ),
 }));
@@ -90,9 +82,9 @@ const mockAnalyseMarkdownBatch = vi.fn();
 const mockImportMarkdownBatch = vi.fn();
 const mockFetchPipelineRun = vi.fn();
 vi.mock('@/lib/query/fetchers', async () => {
-  const actual = await vi.importActual<
-    typeof import('@/lib/query/fetchers')
-  >('@/lib/query/fetchers');
+  const actual = await vi.importActual<typeof import('@/lib/query/fetchers')>(
+    '@/lib/query/fetchers',
+  );
   return {
     ...actual,
     analyseMarkdownBatch: (...args: unknown[]) =>

@@ -91,10 +91,7 @@ export async function POST(req: NextRequest) {
   // ────────────────────────────────────────────────────────────────────
   // Auth: admin OR editor (spec §5.3 D-1).
   // ────────────────────────────────────────────────────────────────────
-  const auth: AuthorisedResult = await getAuthorisedClient([
-    'admin',
-    'editor',
-  ]);
+  const auth: AuthorisedResult = await getAuthorisedClient(['admin', 'editor']);
   if (!auth.success) return authFailureResponse(auth);
   const { supabase, user, role } = auth;
 
@@ -126,7 +123,11 @@ export async function POST(req: NextRequest) {
     const files: File[] = fileEntries.filter((entry): entry is File => {
       if (typeof entry === 'string') return false;
       if (entry === null) return false;
-      const candidate = entry as { name?: unknown; size?: unknown; arrayBuffer?: unknown };
+      const candidate = entry as {
+        name?: unknown;
+        size?: unknown;
+        arrayBuffer?: unknown;
+      };
       return (
         typeof candidate.name === 'string' &&
         typeof candidate.size === 'number' &&
@@ -135,7 +136,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (files.length === 0) {
-      return badRequest("'files[]' is required and must contain at least one file");
+      return badRequest(
+        "'files[]' is required and must contain at least one file",
+      );
     }
 
     if (files.length > MAX_FILES_PER_BATCH) {
@@ -173,9 +176,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (totalSize > MAX_BATCH_SIZE_BYTES) {
-      return payloadTooLarge(
-        'Total batch size exceeds the 5 MB limit',
-      );
+      return payloadTooLarge('Total batch size exceeds the 5 MB limit');
     }
 
     // Decode each file to UTF-8. Failures → 415 per spec §5.5.
@@ -183,9 +184,7 @@ export async function POST(req: NextRequest) {
     for (const file of files) {
       const content = await decodeUtf8(file);
       if (content === null) {
-        return unsupportedMediaType(
-          `File '${file.name}' is not valid UTF-8`,
-        );
+        return unsupportedMediaType(`File '${file.name}' is not valid UTF-8`);
       }
       decodedFiles.push({
         filename: file.name,

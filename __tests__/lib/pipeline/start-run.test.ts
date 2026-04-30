@@ -158,12 +158,12 @@ describe('startPipelineRun', () => {
         createdBy: 'user-uuid-1',
         progress: { step: 'starting', detail: 'go' },
       }),
-    ).rejects.toThrow(
-      /Failed to start pipeline_run for upload_markdown_batch/,
-    );
+    ).rejects.toThrow(/Failed to start pipeline_run for upload_markdown_batch/);
 
     expect(Sentry.captureMessage).toHaveBeenCalledWith(
-      expect.stringContaining('startPipelineRun failed for upload_markdown_batch'),
+      expect.stringContaining(
+        'startPipelineRun failed for upload_markdown_batch',
+      ),
       expect.objectContaining({ level: 'error' }),
     );
   });

@@ -45,10 +45,7 @@ export async function GET(
     // Mirror the list-endpoint shape (app/api/pipeline-runs/route.ts:39).
     // Non-admins are constrained to their own rows via `created_by` —
     // matching the list endpoint's filter behaviour at line 46 there.
-    let query = supabase
-      .from('pipeline_runs')
-      .select(SELECT_COLS)
-      .eq('id', id);
+    let query = supabase.from('pipeline_runs').select(SELECT_COLS).eq('id', id);
 
     if (role !== 'admin') {
       query = query.eq('created_by', user.id);

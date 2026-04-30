@@ -80,14 +80,16 @@ describe('MarkdownAnalysisTable', () => {
     expect(screen.getByText('Bar title')).toBeInTheDocument();
     expect(screen.getByText(/from front-matter/)).toBeInTheDocument();
     expect(screen.getByText(/from H1/)).toBeInTheDocument();
-    expect(screen.getByTestId('markdown-analysis-row-foo.md')).toBeInTheDocument();
-    expect(screen.getByTestId('markdown-analysis-row-bar.md')).toBeInTheDocument();
+    expect(
+      screen.getByTestId('markdown-analysis-row-foo.md'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('markdown-analysis-row-bar.md'),
+    ).toBeInTheDocument();
   });
 
   it('auto-excludes rows with encodingOk=false', () => {
-    const analyses = [
-      makeAnalysis({ filename: 'bad.md', encodingOk: false }),
-    ];
+    const analyses = [makeAnalysis({ filename: 'bad.md', encodingOk: false })];
 
     render(
       <MarkdownAnalysisTable
@@ -108,9 +110,7 @@ describe('MarkdownAnalysisTable', () => {
   });
 
   it('auto-excludes rows with empty=true', () => {
-    const analyses = [
-      makeAnalysis({ filename: 'empty.md', empty: true }),
-    ];
+    const analyses = [makeAnalysis({ filename: 'empty.md', empty: true })];
 
     render(
       <MarkdownAnalysisTable
@@ -252,7 +252,8 @@ describe('MarkdownAnalysisTable', () => {
     fireEvent.click(checkbox);
 
     expect(onChangeOverrides).toHaveBeenCalledTimes(1);
-    const call = onChangeOverrides.mock.calls[0][0] as MarkdownPerFileOverride[];
+    const call = onChangeOverrides.mock
+      .calls[0][0] as MarkdownPerFileOverride[];
     expect(call).toHaveLength(1);
     expect(call[0]).toMatchObject({ filename: 'doc.md', excluded: true });
   });
@@ -272,9 +273,7 @@ describe('MarkdownAnalysisTable', () => {
       />,
     );
 
-    const checkbox = screen.getByLabelText(
-      /Auto-supersede on filename match/,
-    );
+    const checkbox = screen.getByLabelText(/Auto-supersede on filename match/);
     fireEvent.click(checkbox);
 
     expect(onChangeAutoSupersede).toHaveBeenCalledWith(true);
@@ -315,9 +314,7 @@ describe('MarkdownAnalysisTable', () => {
     expect(screen.getByText(/Filename match item/)).toBeInTheDocument();
     expect(screen.getByLabelText(/No match/)).toBeInTheDocument();
 
-    const hashLink = screen
-      .getByText(/Existing duplicate/)
-      .closest('a');
+    const hashLink = screen.getByText(/Existing duplicate/).closest('a');
     expect(hashLink?.getAttribute('href')).toBe(
       '/item/11111111-1111-4111-8111-111111111111',
     );
