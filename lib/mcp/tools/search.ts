@@ -95,6 +95,18 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .describe(
             'Filter results to a specific workspace. Items matched via content_item_workspaces junction table.',
           ),
+        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+        // Spec: docs/specs/publication-lifecycle-state-machine-spec.md §5.3.
+        // 'default' (omitted) returns only published items. 'all' returns
+        // draft + in_review + published (excludes archived). 'admin' returns
+        // every state including archived. RPC-level filter; pass-through to
+        // hybrid_search.visibility_filter param.
+        visibility_filter: z
+          .enum(['default', 'all', 'admin'])
+          .optional()
+          .describe(
+            'Publication visibility filter. Omit (or "default") for published-only (live content). "all" returns draft + in_review + published (non-archived). "admin" returns every publication state. Default behaviour matches the prior pre-§5.2-Phase-3 search semantics.',
+          ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -114,6 +126,10 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           query_text: args.query.trim(),
           similarity_threshold: 0.3,
           limit_count: searchOffset + searchLimit + 1, // +1 to detect has_more
+          // §5.2 Phase 3 — pass-through. Omitted = 'default' (published-only)
+          // by RPC default. `?? undefined` keeps payload clean (matches
+          // existing convention used by search_content_chunks below).
+          visibility_filter: args.visibility_filter ?? undefined,
         });
 
         if (error) {
@@ -236,6 +252,13 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .number()
           .optional()
           .describe('Number of results to skip for pagination (default: 0)'),
+        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+        visibility_filter: z
+          .enum(['default', 'all', 'admin'])
+          .optional()
+          .describe(
+            'Publication visibility filter. Omit (or "default") for published-only (live content). "all" returns draft + in_review + published. "admin" returns every state.',
+          ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -254,6 +277,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           query_text: args.query.trim(),
           similarity_threshold: 0.3,
           limit_count: (searchOffset + searchLimit) * 3 + 1, // Over-fetch for type filtering + pagination
+          // §5.2 Phase 3 — pass-through.
+          visibility_filter: args.visibility_filter ?? undefined,
         });
 
         if (error) {
@@ -339,6 +364,13 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .number()
           .optional()
           .describe('Maximum results (default: 10, max: 25)'),
+        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+        visibility_filter: z
+          .enum(['default', 'all', 'admin'])
+          .optional()
+          .describe(
+            'Publication visibility filter. Omit (or "default") for published-only similarity matches. "all" includes draft + in_review + published. "admin" matches against every state — useful for dedup discovery against draft/archived siblings.',
+          ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -390,6 +422,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             query_text: '',
             similarity_threshold: threshold,
             limit_count: resultLimit + 1, // +1 to exclude self
+            // §5.2 Phase 3 — pass-through. Default = published-only.
+            visibility_filter: args.visibility_filter ?? undefined,
           },
         );
 
@@ -495,6 +529,17 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .describe(
             'Only return chunks from content items whose next_review_date is within this many days from today. Useful for finding items approaching their review date.',
           ),
+        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+        // Orthogonal to the §5.5 review-cadence filters above — both axes
+        // can be combined (e.g. visibility_filter='all' + overdue_review=true
+        // returns chunks from non-archived items overdue for review,
+        // including drafts).
+        visibility_filter: z
+          .enum(['default', 'all', 'admin'])
+          .optional()
+          .describe(
+            'Publication visibility filter. Omit (or "default") for published-only chunks. "all" returns chunks from draft + in_review + published items. "admin" returns every state including archived. Orthogonal to overdue_review and review_due_within_days.',
+          ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -521,6 +566,9 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             filter_overdue_review: args.overdue_review ?? undefined,
             filter_review_due_within_days:
               args.review_due_within_days ?? undefined,
+            // §5.2 Phase 3 — visibility filter pass-through. Omitted = 'default'
+            // (published-only) by RPC default.
+            visibility_filter: args.visibility_filter ?? undefined,
           },
         );
 
@@ -553,6 +601,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             // `content_item_id` convention.
             overdue_review_filter: args.overdue_review ?? null,
             review_due_within_days_filter: args.review_due_within_days ?? null,
+            // §5.2 Phase 3 — surface visibility filter for trace-ability.
+            visibility_filter: args.visibility_filter ?? 'default',
             results: chunkResults,
           }),
         };
