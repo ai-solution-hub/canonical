@@ -38,6 +38,25 @@ export async function GET(request: NextRequest) {
     if (!allowed) return rateLimitResponse();
 
     const { searchParams } = request.nextUrl;
+
+    // -----------------------------------------------------------------
+    // Publication-review branch (§5.2-P4B / review-page-tabs-refactor-spec
+    // §8 (f)). When `?publication_status=in_review` is present, the route
+    // pivots to a publication_status='in_review' filter and BYPASSES the
+    // verified_at + governance_review_status filters that drive the
+    // standard verified-content-review queue. Per spec §6.7 line 1196 the
+    // publication-review tab is orthogonal to governance state.
+    //
+    // The branch sits BEFORE the standard params validation because the
+    // standard `ReviewQueueParamsSchema` validates `status` (one of
+    // unverified|verified|flagged|draft|all) which doesn't apply here —
+    // the publication-review tab is a separate query shape.
+    // -----------------------------------------------------------------
+    const publicationStatusParam = searchParams.get('publication_status');
+    if (publicationStatusParam === 'in_review') {
+      return await handlePublicationReviewQuery(supabase, searchParams);
+    }
+
     const validated = parseSearchParams(ReviewQueueParamsSchema, searchParams);
     if (!validated.success) return validated.response;
 
@@ -433,6 +452,106 @@ async function handleFlaggedQuery(
     total: count ?? 0,
     verified_count: verifiedResult.count ?? 0,
     flagged_count: flaggedResult.count ?? 0,
+    has_more: items.length === limit && (count ?? 0) > offset + items.length,
+  };
+  if (warnings.length > 0) response.warnings = warnings;
+
+  return NextResponse.json(response);
+}
+
+/**
+ * Handle the publication_status='in_review' query (tab 6 of /review).
+ *
+ * Bypasses the verified_at + governance filters that gate the standard
+ * verified-content-review queue. Filters on
+ * `publication_status='in_review'` only, with optional domain/content_type/
+ * source_file/source_document_id orthogonal slicers and offset pagination
+ * (default 20, max 100). Returns the shared `ReviewQueueResponse` shape so
+ * the new `PublicationReviewQueue` component can render rows with the same
+ * `mapToReviewQueueItem` mapper as the rest of the queue.
+ *
+ * Spec: docs/specs/review-page-tabs-refactor-spec.md §8 (f), §6.7 line 1196.
+ */
+async function handlePublicationReviewQuery(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  searchParams: URLSearchParams,
+) {
+  // Local param parsing — we don't use ReviewQueueParamsSchema because its
+  // `status` field doesn't apply to this branch and would 400 on absent.
+  const limitRaw = searchParams.get('limit');
+  const offsetRaw = searchParams.get('offset');
+  const limit = limitRaw
+    ? Math.max(1, Math.min(100, Number(limitRaw) || 20))
+    : 20;
+  const offset = offsetRaw ? Math.max(0, Number(offsetRaw) || 0) : 0;
+
+  const domainParams = searchParams
+    .getAll('domain')
+    .flatMap((v) => v.split(','))
+    .filter(Boolean);
+  const contentTypeParams = searchParams
+    .getAll('content_type')
+    .flatMap((v) => v.split(','))
+    .filter(Boolean);
+  const sourceFileParam = searchParams.get('source_file');
+  const sourceDocumentIdParam = searchParams.get('source_document_id');
+
+  let query = supabase
+    .from('content_items')
+    .select(REVIEW_COLUMNS, { count: 'exact' })
+    .eq('publication_status', 'in_review');
+
+  if (domainParams.length > 0) {
+    query = query.in('primary_domain', domainParams);
+  }
+  if (contentTypeParams.length > 0) {
+    query = query.in('content_type', contentTypeParams);
+  }
+  if (sourceFileParam) {
+    query = query.eq('source_file', sourceFileParam);
+  }
+  if (sourceDocumentIdParam) {
+    query = query.eq('source_document_id', sourceDocumentIdParam);
+  }
+
+  // Most recent first — newest in_review items surface first so admins
+  // approve fresh ingest output before older queued items.
+  query = query.order('updated_at', { ascending: false, nullsFirst: false });
+  query = query.order('id', { ascending: true });
+  query = query.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await query;
+  if (error) {
+    logger.error({ err: error }, 'Publication-review queue query error');
+    return NextResponse.json(
+      { error: 'Failed to fetch publication-review queue' },
+      { status: 500 },
+    );
+  }
+
+  const items = (data ?? []) as ContentItemRow[];
+
+  // Match the shape of the standard queue response so the same UI layer
+  // can render. verified_count + flagged_count are not load-bearing for
+  // tab 6 (the tab is orthogonal to verification state) but we surface
+  // them as 0 to keep the response shape stable.
+  const mappedItems = items.map(mapToReviewQueueItem);
+  const itemIds = mappedItems.map((i) => i.id);
+  const { dates: reviewDates, warning: reviewDatesWarning } =
+    await fetchLastReviewedDates(supabase, itemIds);
+  for (const item of mappedItems) {
+    item.last_reviewed_at = reviewDates.get(item.id) ?? null;
+  }
+
+  const warnings: string[] = [];
+  if (reviewDatesWarning) warnings.push(reviewDatesWarning);
+
+  const response: ReviewQueueResponse & { warnings?: string[] } = {
+    items: mappedItems,
+    total: count ?? 0,
+    verified_count: 0,
+    flagged_count: 0,
     has_more: items.length === limit && (count ?? 0) > offset + items.length,
   };
   if (warnings.length > 0) response.warnings = warnings;

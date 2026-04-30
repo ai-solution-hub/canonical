@@ -314,6 +314,70 @@ export async function mutationFetchJson<T>(
 }
 
 // ---------------------------------------------------------------------------
+// Awaiting-publication queue (tab 6 of /review)
+// ---------------------------------------------------------------------------
+//
+// Spec: docs/specs/review-page-tabs-refactor-spec.md §8 (f).
+// Re-uses the GET /api/review/queue REST route widened with the
+// ?publication_status=in_review query param (NOT a new RPC). Returns the
+// shared ReviewQueueResponse shape so callers can re-use the existing
+// type. Only the in_review filter is bound here; tab-orthogonal filters
+// (domain, content_type, source_file) are accepted as opt-in extensions
+// via the `filters` arg so admin in-tab finer slicing keeps working.
+
+import type { ReviewQueueResponse } from '@/types/review';
+
+export interface PublicationReviewQueueFilters {
+  domain?: string[];
+  content_type?: string[];
+  source_file?: string;
+  source_document_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Fetch the awaiting-publication queue for tab 6 of /review.
+ *
+ * Wire shape:
+ *   GET /api/review/queue?publication_status=in_review[&domain=…][&content_type=…]…
+ *
+ * The route widening (`app/api/review/queue/route.ts` §publication-review
+ * branch) bypasses the standard verified_at + governance filters when
+ * `publication_status=in_review` is present, since the publication-review
+ * tab is orthogonal to governance state per spec §6.7 line 1196.
+ */
+export async function fetchPublicationReviewQueue(
+  filters: PublicationReviewQueueFilters = {},
+): Promise<ReviewQueueResponse> {
+  const params = new URLSearchParams();
+  params.set('publication_status', 'in_review');
+
+  if (filters.domain?.length) {
+    for (const d of filters.domain) params.append('domain', d);
+  }
+  if (filters.content_type?.length) {
+    for (const ct of filters.content_type) params.append('content_type', ct);
+  }
+  if (filters.source_file) {
+    params.set('source_file', filters.source_file);
+  }
+  if (filters.source_document_id) {
+    params.set('source_document_id', filters.source_document_id);
+  }
+  if (filters.limit !== undefined) {
+    params.set('limit', String(filters.limit));
+  }
+  if (filters.offset !== undefined) {
+    params.set('offset', String(filters.offset));
+  }
+
+  return fetchJson<ReviewQueueResponse>(
+    `/api/review/queue?${params.toString()}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Admin Cross-System Dedup Review (§1.7)
 // ---------------------------------------------------------------------------
 

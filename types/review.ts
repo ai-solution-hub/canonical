@@ -108,6 +108,18 @@ export interface ReviewStatsResponse {
    * Source: `get_review_breakdown_stats()` RPC, S204 WP-E T0 extension.
    */
   overdue: number;
+  /**
+   * Count of non-archived content_items where publication_status =
+   * 'in_review'. Drives the count badge on the "Awaiting publication" tab
+   * (tab 6) of `/review`. Computed by `app/api/review/stats/route.ts` via a
+   * direct count query alongside the `get_review_breakdown_stats()` RPC,
+   * since the RPC's existing fields are scoped to the verified-content-review
+   * surface (governance_review_status != 'draft' guard) and would silently
+   * exclude in_review rows that share that guard.
+   *
+   * Spec: docs/specs/review-page-tabs-refactor-spec.md §8 (b), §12 OQ4.
+   */
+  awaiting_publication: number;
   by_domain: Record<string, { total: number; verified: number }>;
   by_content_type: Record<string, { total: number; verified: number }>;
   by_source_file: Record<string, { total: number; verified: number }>;

@@ -24,6 +24,7 @@ const baseStats: ReviewStatsResponse = {
   unverified: 60,
   draft: 5,
   overdue: 0,
+  awaiting_publication: 0,
   by_domain: {
     Technical: { total: 50, verified: 20 },
     Commercial: { total: 50, verified: 10 },

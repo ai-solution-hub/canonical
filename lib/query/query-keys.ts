@@ -34,6 +34,15 @@ export const queryKeys = {
     stats: ['review', 'stats'] as const,
     history: (itemId: string) => ['review', 'history', itemId] as const,
     assignments: ['review', 'assignments'] as const,
+    /**
+     * Awaiting-publication queue (tab 6 of /review) — REST
+     * GET /api/review/queue?publication_status=in_review.
+     * Spec: docs/specs/review-page-tabs-refactor-spec.md §8 (g)/(h)
+     * (Approve & publish + Return to draft mutations both invalidate this
+     * key on success).
+     */
+    publicationReviewQueue: (filters?: Record<string, unknown>) =>
+      ['review', 'queue', 'publication-review', filters ?? {}] as const,
   },
 
   // Taxonomy
