@@ -55,8 +55,41 @@ function resetMocks() {
     error: null,
   });
 
+  // Reset chain methods to be chainable + ensure terminal awaits resolve to
+  // an empty count by default (the awaiting_publication head:true + count
+  // path resolves the chain via .then()).
+  const chainableMethods = [
+    'select',
+    'eq',
+    'is',
+    'not',
+    'in',
+    'order',
+    'range',
+    'limit',
+  ] as const;
+  for (const method of chainableMethods) {
+    mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
+  }
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: null, error: null, count: 0 }),
+  );
+
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+}
+
+/**
+ * Configure the awaiting_publication count query to resolve with a known
+ * value. The route fires this in parallel with the get_review_breakdown_stats
+ * RPC via Promise.all (route.ts:43-50). The chain's terminal `.then()` is
+ * what supabase-js awaits for the head:true + count: 'exact' shape.
+ */
+function configureAwaitingPublicationCount(count: number) {
+  mockSupabase._chain.then.mockImplementationOnce(
+    (resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null, count }),
+  );
 }
 
 /**
@@ -138,5 +171,57 @@ describe('GET /api/review/stats', () => {
 
     const body = await res.json();
     expect(body.overdue).toBe(0);
+  });
+
+  // V_W1 Finding 3 fix — awaiting_publication count must surface from the
+  // parallel head:true + count='exact' query at route.ts:43-50. The tab 6
+  // badge in ReviewTabs reads `stats?.awaiting_publication` end-to-end.
+  describe('awaiting_publication count (V_W1 Finding 3)', () => {
+    it('surfaces awaiting_publication=N from the parallel count query (spec §8 (b))', async () => {
+      configureRole(mockSupabase, 'admin');
+      configureRpcResponse({ overdue: 0 });
+      configureAwaitingPublicationCount(11);
+
+      const res = await GET();
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.awaiting_publication).toBe(11);
+
+      // The route MUST run this against content_items with both
+      // publication_status='in_review' AND archived_at IS NULL predicates
+      // (route.ts:47-50). The from() call goes through content_items.
+      expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
+
+      const eqCalls = mockSupabase._chain.eq.mock.calls as Array<
+        [string, unknown]
+      >;
+      const inReviewFilter = eqCalls.find(
+        ([col, val]) => col === 'publication_status' && val === 'in_review',
+      );
+      expect(inReviewFilter).toBeDefined();
+
+      // archived_at IS NULL gate ensures soft-deleted rows don't inflate the
+      // badge count.
+      const isCalls = mockSupabase._chain.is.mock.calls as Array<
+        [string, unknown]
+      >;
+      const archivedFilter = isCalls.find(
+        ([col, val]) => col === 'archived_at' && val === null,
+      );
+      expect(archivedFilter).toBeDefined();
+    });
+
+    it('passes awaiting_publication=0 unchanged when nothing in_review', async () => {
+      configureRole(mockSupabase, 'editor');
+      configureRpcResponse({ overdue: 0 });
+      configureAwaitingPublicationCount(0);
+
+      const res = await GET();
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.awaiting_publication).toBe(0);
+    });
   });
 });
