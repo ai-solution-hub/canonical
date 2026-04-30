@@ -7,7 +7,10 @@ import {
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
-import { ReviewQueueParamsSchema } from '@/lib/validation/schemas';
+import {
+  ReviewQueueParamsSchema,
+  PublicationReviewQueueParamsSchema,
+} from '@/lib/validation/schemas';
 import type { ReviewQueueResponse, ReviewQueueItem } from '@/types/review';
 import type { Database } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
@@ -477,14 +480,20 @@ async function handlePublicationReviewQuery(
   supabase: any,
   searchParams: URLSearchParams,
 ) {
-  // Local param parsing — we don't use ReviewQueueParamsSchema because its
-  // `status` field doesn't apply to this branch and would 400 on absent.
-  const limitRaw = searchParams.get('limit');
-  const offsetRaw = searchParams.get('offset');
-  const limit = limitRaw
-    ? Math.max(1, Math.min(100, Number(limitRaw) || 20))
-    : 20;
-  const offset = offsetRaw ? Math.max(0, Number(offsetRaw) || 0) : 0;
+  // V_W1 Finding 5 fix — schema-driven param validation via
+  // PublicationReviewQueueParamsSchema. The standard ReviewQueueParamsSchema
+  // doesn't apply (its `status` field defaults to 'unverified' and the
+  // publication-review branch is orthogonal to that axis per spec §6.7
+  // line 1196). Zod's default strip mode drops the orthogonal filter keys
+  // (domain, content_type, source_file, source_document_id) which are
+  // handled separately below to preserve the standard branch's
+  // repeated-key + comma-list parsing.
+  const validated = parseSearchParams(
+    PublicationReviewQueueParamsSchema,
+    searchParams,
+  );
+  if (!validated.success) return validated.response;
+  const { limit, offset } = validated.data;
 
   const domainParams = searchParams
     .getAll('domain')

@@ -153,6 +153,41 @@ export const ReviewQueueParamsSchema = z.object({
   include_overdue: z.string().optional(),
 });
 
+/**
+ * GET /api/review/queue — publication-review branch params (tab 6 of /review).
+ *
+ * Validates limit + offset for the `?publication_status=in_review` branch
+ * of the queue route. The publication-review tab is orthogonal to the
+ * standard `status` axis (verified/unverified/flagged/draft/all) per
+ * spec §6.7 line 1196 — it cannot reuse `ReviewQueueParamsSchema` directly
+ * because that schema's `status` field defaults to 'unverified' and would
+ * mislead the route.
+ *
+ * Domain / content_type / source_file / source_document_id are intentionally
+ * NOT validated here — they mirror the standard branch which parses arrays
+ * via `searchParams.getAll(...)` outside the schema for proper repeated-key
+ * handling. The route layer applies the same filter shape via Supabase
+ * query builder calls regardless of branch.
+ *
+ * V_W1 Finding 5 fix — replaces ad-hoc `Number(limitRaw) || 20` /
+ * `Math.max/min` clamping at route.ts:482-487. Memory
+ * `feedback_validation_sweep_safeparse_ban` requires schema-driven parsing
+ * via `parseSearchParams` for routes reading typed query params.
+ */
+export const PublicationReviewQueueParamsSchema = z.object({
+  publication_status: z.literal('in_review'),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(100, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
+});
+
 /** POST /api/summaries/generate */
 export const SummaryGenerateBodySchema = z.object({
   item_id: z.string().uuid('item_id must be a valid UUID'),
