@@ -95,8 +95,19 @@ vi.mock('@/lib/pipeline/update-progress', () => ({
   updatePipelineProgress: mocks.updatePipelineProgress,
 }));
 
+// S213 W4-fix: finaliseRun now creates its own service-role client internally
+// (see lib/ingest/markdown-orchestrator.ts:finaliseRun + V_W4 verdict). Mock
+// createServiceClient at file scope so the import-phase tests can wire it to
+// the same per-test client that holds the chain mocks for content_items
+// inserts + pipeline_runs UPDATE.
+vi.mock('@/lib/supabase/server', () => ({
+  createServiceClient: vi.fn(),
+  createClient: vi.fn(),
+}));
+
 // Import the orchestrator AFTER mocks are registered.
 import { orchestrateMarkdownBatch } from '@/lib/ingest/markdown-orchestrator';
+import { createServiceClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
@@ -187,6 +198,14 @@ function buildSupabaseWithSequentialInserts(
   // resolves through the awaitable chain (`.then`). Default-empty ok response.
   mock.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
+  );
+
+  // S213 W4-fix: route finaliseRun's internal createServiceClient() call to the
+  // same per-test client so the terminal pipeline_runs UPDATE resolves through
+  // the same chain mocks. Without this, finaliseRun throws when reading
+  // serverEnv.SUPABASE_SERVICE_ROLE_KEY in jsdom env.
+  vi.mocked(createServiceClient).mockReturnValue(
+    client as unknown as ReturnType<typeof createServiceClient>,
   );
 
   return client;
