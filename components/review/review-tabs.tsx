@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -153,6 +153,33 @@ export function ReviewTabs() {
   const initialTab = resolveTab(tabParam);
 
   const [activeTab, setActiveTab] = useState<TabValue>(initialTab);
+
+  // V_W1 Finding 4 fix — strip the redundant `?tab=verified-review` (the
+  // default) from the URL on initial mount. Without this, pasting
+  // `/review?tab=verified-review` leaves the param in the URL even though
+  // it's a no-op marker. We only strip the literal default value (not just
+  // any present `tab` param) and only on the first render — the
+  // `handleTabChange` callback already deletes the tab param on tab switches
+  // back to the default. The ref guard prevents re-firing on subsequent
+  // renders (which would otherwise infinite-loop because router.replace
+  // updates searchParams).
+  //
+  // Other deep-link filter params (`domain`, `content_type`, `source_file`,
+  // `source_document_id`) are preserved so the publication-review tab's
+  // deep-link contract from spec §5 third bullet still works.
+  const didStripDefaultRef = useRef(false);
+  useEffect(() => {
+    if (didStripDefaultRef.current) return;
+    didStripDefaultRef.current = true;
+    if (tabParam !== DEFAULT_TAB) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('tab');
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    // Empty deps — fire once on mount only; mutually-exclusive with
+    // handleTabChange (which fires on user-driven switches).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Stats are fetched at the tab level so each TabsTrigger badge is wired
   // independently of the per-tab queue. Re-uses the existing

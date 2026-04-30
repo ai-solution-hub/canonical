@@ -146,6 +146,30 @@ describe('ReviewTabs', () => {
       });
       expect(verifiedReviewTab).toHaveAttribute('aria-selected', 'true');
     });
+
+    // V_W1 Finding 4 fix — pasting `/review?tab=verified-review` (the
+    // default tab) leaves the param in the URL on initial mount. The fix
+    // adds a one-shot effect that calls `router.replace(pathname)` when
+    // `tabParam === DEFAULT_TAB`, stripping the redundant marker.
+    it('strips ?tab=verified-review from URL on initial mount when default tab (V_W1 Finding 4)', () => {
+      setSearchParam('tab', 'verified-review');
+      renderTabs();
+
+      // The mount effect MUST have called router.replace once with the
+      // path-only (no ?tab=) URL. Other tabs do NOT trigger this effect.
+      expect(mockReplace).toHaveBeenCalledTimes(1);
+      const [path, opts] = mockReplace.mock.calls[0];
+      expect(path).toBe('/review');
+      expect(opts).toEqual({ scroll: false });
+    });
+
+    it('does NOT strip non-default ?tab= on initial mount', () => {
+      setSearchParam('tab', 'publication-review');
+      renderTabs();
+
+      // The mount effect is a no-op for non-default tabs.
+      expect(mockReplace).not.toHaveBeenCalled();
+    });
   });
 
   describe('tab-change persistence (AC d)', () => {
