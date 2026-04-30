@@ -2021,6 +2021,80 @@ export const ArchiveBodySchema = z.object({
   reason: z.string().trim().min(1, 'Reason is required').max(1000),
 });
 
+// ──────────────────────────────────────────
+// §1.7 Admin Cross-System Dedup Review (S211B)
+// ──────────────────────────────────────────
+
+/** GET /api/admin/content-dedup/queue — list filters + cursor pagination */
+export const DedupQueueQuerySchema = z.object({
+  domain: z.string().optional(),
+  cursor: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  sort: z
+    .enum(['created_at_desc', 'similarity_desc'])
+    .optional()
+    .default('created_at_desc'),
+});
+
+/** POST /api/admin/content-dedup/[id]/{confirm-duplicate,confirm-unique} */
+export const DedupActionBodySchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+/** POST /api/admin/content-dedup/[id]/supersede */
+export const DedupSupersedeBodySchema = z.object({
+  canonicalId: z.string().uuid(),
+  direction: z
+    .enum(['canonical-supersedes-subject', 'subject-supersedes-canonical'])
+    .default('canonical-supersedes-subject'),
+  note: z.string().max(500).optional(),
+});
+
+// ──────────────────────────────────────────
+// §1.9 Near-Duplicate Merge Dashboard (S212B)
+// Spec: docs/specs/§1.9-near-dup-merge-dashboard-spec.md §5.2
+// ──────────────────────────────────────────
+
+/** GET /api/admin/content-dedup/near-duplicates — list filters */
+export const NearDupPairsQuerySchema = z.object({
+  threshold: z.coerce.number().min(0.85).max(0.99).optional().default(0.95),
+  domain: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+});
+
+/**
+ * POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique
+ *
+ * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2 audit
+ * context (similarity score the admin saw + filter threshold that
+ * surfaced the pair). Optional — the route forwards `null` when omitted.
+ */
+export const NearDupConfirmUniqueBodySchema = z.object({
+  note: z.string().max(500).optional(),
+  similarity_at_resolution: z.number().min(0).max(1).optional(),
+  threshold_at_resolution: z.number().min(0.85).max(0.99).optional(),
+});
+
+/**
+ * POST /api/admin/content-dedup/near-duplicates/[pairId]/merge
+ *
+ * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2 audit
+ * context, mirroring the confirm-unique payload so the merge audit row
+ * records the same context. Optional.
+ */
+export const NearDupMergeBodySchema = z
+  .object({
+    oldId: z.string().uuid(),
+    newId: z.string().uuid(),
+    note: z.string().max(500).optional(),
+    similarity_at_resolution: z.number().min(0).max(1).optional(),
+    threshold_at_resolution: z.number().min(0.85).max(0.99).optional(),
+  })
+  .refine((b) => b.oldId !== b.newId, {
+    message: 'oldId and newId must differ',
+    path: ['newId'],
+  });
+
 /** POST /api/items/[id]/vision */
 export const VisionBodySchema = z.object({
   prompt: z.string().max(5000).optional(),
