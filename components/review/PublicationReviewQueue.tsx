@@ -40,15 +40,15 @@ import type { ReviewQueueItem } from '@/types/review';
  */
 
 const EMPTY_ITEMS: ReviewQueueItem[] = [];
-const EMPTY_DOMAIN: string[] = [];
-const EMPTY_CONTENT_TYPE: string[] = [];
 
 export function PublicationReviewQueue() {
   const searchParams = useSearchParams();
 
   // Parse the URL filters. Both `domain` and `content_type` accept either
   // repeated keys (`?domain=a&domain=b`) or comma-separated (`?domain=a,b`),
-  // mirroring the standard /api/review/queue route helper.
+  // mirroring the standard /api/review/queue route helper. The result is
+  // memoised so both the query key (cache shard) and the fetcher receive a
+  // stable reference per searchParams change.
   const filters = useMemo<PublicationReviewQueueFilters>(() => {
     const domainValues = searchParams
       .getAll('domain')
@@ -69,21 +69,8 @@ export function PublicationReviewQueue() {
     return result;
   }, [searchParams]);
 
-  // Build a cache-key-friendly object so the query key is a stable JSON
-  // shape across renders — `useMemo` already gives us reference stability
-  // for `filters`, but we project to a plain object for the query key.
-  const queryKeyFilters = useMemo(
-    () => ({
-      domain: filters.domain ?? EMPTY_DOMAIN,
-      content_type: filters.content_type ?? EMPTY_CONTENT_TYPE,
-      source_file: filters.source_file ?? null,
-      source_document_id: filters.source_document_id ?? null,
-    }),
-    [filters],
-  );
-
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: queryKeys.review.publicationReviewQueue(queryKeyFilters),
+    queryKey: queryKeys.review.publicationReviewQueue(filters),
     queryFn: () => fetchPublicationReviewQueue(filters),
   });
 

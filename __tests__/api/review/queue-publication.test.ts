@@ -300,12 +300,9 @@ describe('GET /api/review/queue?publication_status=in_review (publication-review
   it('clamps limit to max 100 when caller requests 500', async () => {
     configureRole(mockSupabase, 'admin');
 
-    let thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        return resolve({ data: [], error: null, count: 0 });
-      },
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
     );
 
     const req = createMultiParamRequest('/api/review/queue', [
@@ -353,12 +350,9 @@ describe('GET /api/review/queue?publication_status=in_review (publication-review
   it('does NOT add a verified_at IS NULL filter (orthogonal to verification axis)', async () => {
     configureRole(mockSupabase, 'admin');
 
-    let thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        return resolve({ data: [], error: null, count: 0 });
-      },
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
     );
 
     const req = createMultiParamRequest('/api/review/queue', [
