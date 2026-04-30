@@ -1,5 +1,5 @@
 # Cloud Run Job manifest — prod / kpf tenant.
-# Clone of staging-kpf.yaml with project=kh-prod substituted everywhere.
+# Clone of staging-kpf.yaml with project=kh-prod-494815 substituted everywhere.
 # See staging-example-client.yaml for full annotations + spec/plan references.
 #
 # region: europe-west2 (D-RUN-20 deferred — re-evaluate at first-client-data-handling task)
@@ -15,7 +15,7 @@ spec:
     spec:
       template:
         spec:
-          serviceAccountName: kpf-pipeline-sa@kh-prod.iam.gserviceaccount.com
+          serviceAccountName: kpf-pipeline-sa@kh-prod-494815.iam.gserviceaccount.com
           containers:
             - name: kh-pipeline-slim
               image: europe-west2-docker.pkg.dev/kh-prod-494815/pipeline/kh-pipeline-slim:latest
