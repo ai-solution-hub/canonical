@@ -70,7 +70,14 @@ export function PublicationReviewQueue() {
   }, [searchParams]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: queryKeys.review.publicationReviewQueue(filters),
+    // Cast to Record<string, unknown> for the query-key factory which
+    // accepts the broader index-signature shape; PublicationReviewQueueFilters
+    // is an interface with optional named keys (no index signature). The
+    // cache shards on JSON-serialised filter object so any structurally
+    // equivalent shape is fine.
+    queryKey: queryKeys.review.publicationReviewQueue(
+      filters as Record<string, unknown>,
+    ),
     queryFn: () => fetchPublicationReviewQueue(filters),
   });
 
