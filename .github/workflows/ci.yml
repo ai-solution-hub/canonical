@@ -68,13 +68,21 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # WP1.2 (S19): lint / format-check / knip run with `if: !cancelled()` so
+      # each reports independently. Default step semantics skip on prior
+      # failure — that hid the +6 knip types breach S17 introduced behind the
+      # earlier-failing format step. Build keeps default `if: success()` so
+      # expensive work doesn't run when checks are already broken.
       - name: Lint (ESLint)
+        if: "!cancelled()"
         run: bun lint
 
       - name: Format check (Prettier)
+        if: "!cancelled()"
         run: bun run format:check
 
       - name: Knip baseline guard
+        if: "!cancelled()"
         run: bun run ci:knip-check
 
       - name: Build (Next.js)
@@ -360,6 +368,11 @@ jobs:
       - name: Build (Next.js)
         env:
           # Mirror the quality job's build env block — Staging-scoped secrets/vars.
+          # WP1.5 (S19): MCP eval matrix runs 3 parallel Build steps; observed
+          # OOM during post-compile TypeScript phase on default 2GB runner heap.
+          # 4GB headroom mirrors local dev. quality-precheck Build doesn't OOM
+          # because it runs solo. Re-evaluate if MCP eval Build cost changes.
+          NODE_OPTIONS: --max-old-space-size=4096
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -25,7 +25,7 @@
  *   import here MUST stay safe in the client bundle. `LogContext` is a
  *   type-only import to avoid pulling runtime from `./types`.
  * - **No Sentry forwarding.** Browser-side errors are captured by
- *   `Sentry.init` in `instrumentation-client.ts`; we do not need a second
+ *   `Sentry.init` in `sentry.client.config.ts`; we do not need a second
  *   path. Non-error console output is not interesting to Sentry anyway.
  * - **No request-context propagation.** AsyncLocalStorage is server-only.
  *   Browser logs do not need request correlation — each tab is its own
