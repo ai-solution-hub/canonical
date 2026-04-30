@@ -12,6 +12,7 @@ import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 60;
 
@@ -180,9 +181,9 @@ export async function POST(
               continue;
             }
           } catch (dedupErr) {
-            console.error(
-              `Bid-outcome dedup check failed for question ${integration.question_id}:`,
-              dedupErr,
+            logger.error(
+              { err: dedupErr },
+              `Bid-outcome dedup check failed for question ${integration.question_id}`,
             );
             // Non-fatal — proceed with insert as clean
           }
@@ -236,9 +237,9 @@ export async function POST(
           .single();
 
         if (insertError) {
-          console.error(
-            `Failed to create KB entry for question ${integration.question_id}:`,
-            insertError,
+          logger.error(
+            { err: insertError },
+            `Failed to create KB entry for question ${integration.question_id}`,
           );
           skipped++;
           items.push({
@@ -271,9 +272,9 @@ export async function POST(
           .eq('id', integration.target_content_id);
 
         if (updateError) {
-          console.error(
-            `Failed to update KB entry ${integration.target_content_id}:`,
-            updateError,
+          logger.error(
+            { err: updateError },
+            `Failed to update KB entry ${integration.target_content_id}`,
           );
           skipped++;
           items.push({
@@ -293,9 +294,9 @@ export async function POST(
             .update({ embedding: JSON.stringify(embedding) })
             .eq('id', integration.target_content_id);
         } catch (embedErr) {
-          console.error(
-            `Re-embedding failed for ${integration.target_content_id}:`,
-            embedErr,
+          logger.error(
+            { err: embedErr },
+            `Re-embedding failed for ${integration.target_content_id}`,
           );
           warnings.push(
             `Re-embedding failed for ${integration.target_content_id}: ${safeErrorMessage(embedErr, 'Unknown error')}`,

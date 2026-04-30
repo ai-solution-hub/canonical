@@ -9,6 +9,7 @@ import {
   type ExpiryStatus,
 } from '@/lib/certification-status';
 import { BRANDING } from '@/lib/client-config';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -166,9 +167,9 @@ export async function GET() {
         .select('id, title')
         .in('id', contentItemIds);
       if (itemsError) {
-        console.error(
-          'Failed to fetch content item titles for certifications:',
-          itemsError,
+        logger.error(
+          { err: itemsError },
+          'Failed to fetch content item titles for certifications',
         );
         warnings.push(
           'Some evidence links may be missing titles: ' +

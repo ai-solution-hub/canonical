@@ -12,11 +12,7 @@ import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
-import {
-  logger,
-  updateRequestContext,
-  withRequestContext,
-} from '@/lib/logger';
+import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
@@ -484,10 +480,7 @@ export const POST = withRequestContext(async (request: NextRequest) => {
       { status: 201 },
     );
   } catch (err) {
-    logger.error(
-      { err, op: 'items.create' },
-      'Failed to create content item',
-    );
+    logger.error({ err, op: 'items.create' }, 'Failed to create content item');
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to create content item') },
       { status: 500 },

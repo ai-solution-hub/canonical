@@ -8,6 +8,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { TemplateAnalyseBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -113,7 +114,7 @@ export async function POST(
         .update({ status: template.status })
         .eq('id', templateId);
 
-      console.error('Failed to queue analysis job:', jobError);
+      logger.error({ err: jobError }, 'Failed to queue analysis job');
       return NextResponse.json(
         { error: 'Failed to queue analysis job' },
         { status: 500 },

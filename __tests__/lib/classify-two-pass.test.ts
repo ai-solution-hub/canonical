@@ -22,6 +22,28 @@ const asClient = (m: MockSupabaseClient): SupabaseClient<Database> =>
 
 const mockCreate = vi.fn();
 
+// W4 Logging Phase 3: classify.ts routes Pass 1/2 telemetry + error paths
+// through @/lib/logger (logger.info / logger.error) instead of console.*.
+// Mock the logger surface so assertions target the structured shape.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 vi.mock('@/lib/anthropic', () => ({
   getAnthropicClient: () => ({
     messages: { create: mockCreate },
@@ -316,7 +338,7 @@ describe('validateEntities', () => {
   });
 
   it('logs token usage with Pass 2 prefix', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    loggerMocks.info.mockClear();
     const entities = [makeEntity('ISO 27001', 'certification')];
 
     mockCreate.mockResolvedValueOnce(
@@ -333,15 +355,24 @@ describe('validateEntities', () => {
 
     await validateEntities(entities, 'content', 'Title', 'article');
 
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerMocks.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: 'classify.pass2.validate',
+        confirmedCount: 1,
+        inputTokens: expect.any(Number),
+        outputTokens: expect.any(Number),
+        cost: expect.any(Number),
+      }),
       expect.stringContaining('[Pass 2 Validation]'),
     );
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerMocks.info).toHaveBeenCalledWith(
+      expect.objectContaining({ op: 'classify.pass2.validate' }),
       expect.stringContaining('1 confirmed'),
     );
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Tokens:'));
-
-    consoleSpy.mockRestore();
+    expect(loggerMocks.info).toHaveBeenCalledWith(
+      expect.objectContaining({ op: 'classify.pass2.validate' }),
+      expect.stringContaining('Tokens:'),
+    );
   });
 });
 
@@ -513,7 +544,7 @@ describe('classifyContent with two-pass validation', () => {
   });
 
   it('falls back to deterministic-filtered entities when Pass 2 fails', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     const entities = [
       makeEntity('ISO 27001', 'certification'),
       makeEntity('Acme Corp', 'organisation'),
@@ -538,13 +569,15 @@ describe('classifyContent with two-pass validation', () => {
     // Both entities stored since Pass 2 failed and we fell back
     expect(upsertedRows).toHaveLength(2);
 
-    // Error was logged
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Entity validation (Pass 2) failed:',
-      expect.any(Error),
+    // Error was logged with structured shape
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: 'classify.pass2.validate',
+        itemId: ITEM_ID,
+        err: expect.any(Error),
+      }),
+      'Entity validation (Pass 2) failed',
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('runs deterministic filters before Pass 2', async () => {

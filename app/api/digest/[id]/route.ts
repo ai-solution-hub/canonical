@@ -7,6 +7,7 @@ import {
   ThemeClusterSchema,
 } from '@/lib/validation/jsonb';
 import type { Digest } from '@/types/digest';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -39,7 +40,7 @@ export async function GET(
       .maybeSingle();
 
     if (error) {
-      console.error('Failed to fetch digest:', error);
+      logger.error({ err: error }, 'Failed to fetch digest');
       return NextResponse.json(
         { error: safeErrorMessage(error, 'Failed to fetch digest') },
         { status: 500 },

@@ -3,6 +3,7 @@ import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import { TenderExtractedMetadataSchema } from '@/lib/validation/schemas';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 import mammoth from 'mammoth';
+import { logger } from '@/lib/logger';
 
 /**
  * JSON Schema for tender question extraction from PDF documents.
@@ -345,7 +346,13 @@ function validateExtractedMetadata(
 ): TenderExtractedMetadata {
   const parsed = TenderExtractedMetadataSchema.safeParse(raw);
   if (!parsed.success) {
-    console.warn('Extracted metadata failed validation:', parsed.error.issues);
+    logger.warn(
+      {
+        issues: parsed.error.issues,
+        op: 'extract-questions.metadata.validate',
+      },
+      'Extracted metadata failed validation',
+    );
     return {
       buyer_name: null,
       deadline: null,

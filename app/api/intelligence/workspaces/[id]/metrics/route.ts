@@ -4,6 +4,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { z } from 'zod';
+import { logger } from '@/lib/logger';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -86,9 +87,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .limit(1)
       .maybeSingle();
     if (lastArticleError) {
-      console.error(
-        'Failed to fetch last poll time for workspace metrics:',
-        lastArticleError,
+      logger.error(
+        { err: lastArticleError },
+        'Failed to fetch last poll time for workspace metrics',
       );
     }
 
@@ -116,9 +117,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .order('created_at', { ascending: false })
       .limit(5);
     if (recentFlagsError) {
-      console.error(
-        'Failed to fetch recent flags for workspace metrics:',
-        recentFlagsError,
+      logger.error(
+        { err: recentFlagsError },
+        'Failed to fetch recent flags for workspace metrics',
       );
     }
 

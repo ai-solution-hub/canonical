@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { sb } from '@/lib/supabase/safe';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -68,7 +69,7 @@ export async function GET(
       .order('version', { ascending: false });
 
     if (historyError) {
-      console.error('Failed to fetch response history:', historyError);
+      logger.error({ err: historyError }, 'Failed to fetch response history');
       return NextResponse.json(
         { error: 'Failed to fetch response history' },
         { status: 500 },

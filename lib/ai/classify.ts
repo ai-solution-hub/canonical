@@ -23,6 +23,7 @@ import {
 } from '@/lib/client-config';
 import { sb } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { logger } from '@/lib/logger';
 
 // ──────────────────────────────────────────
 // Identifier exclusion patterns
@@ -1066,7 +1067,16 @@ export async function validateEntities(
     (v) => v.verdict === 'confirmed',
   ).length;
 
-  console.log(
+  logger.info(
+    {
+      op: 'classify.pass2.validate',
+      confirmedCount,
+      retypedCount,
+      removedCount,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      cost,
+    },
     `[Pass 2 Validation] ${confirmedCount} confirmed, ${retypedCount} retyped, ${removedCount} removed | ` +
       `Tokens: ${usage.input_tokens} in / ${usage.output_tokens} out | ` +
       `Cost: $${cost.toFixed(4)}`,
@@ -1352,7 +1362,15 @@ ${contentForClassification}`,
   // Track Pass 1 token usage and cost
   const pass1Usage = response.usage;
   const pass1Cost = estimateCost(model, pass1Usage);
-  console.log(
+  logger.info(
+    {
+      op: 'classify.pass1.classify',
+      itemId,
+      title: item.title?.slice(0, 60),
+      inputTokens: pass1Usage.input_tokens,
+      outputTokens: pass1Usage.output_tokens,
+      cost: pass1Cost,
+    },
     `[Pass 1 Classification] ${item.title?.slice(0, 60)} — ` +
       `${pass1Usage.input_tokens} in / ${pass1Usage.output_tokens} out — ` +
       `$${pass1Cost.toFixed(4)}`,
@@ -1470,9 +1488,9 @@ ${contentForClassification}`,
         ai_temporal_references: result.temporal_references as unknown as Json,
       };
     } catch (temporalErr) {
-      console.error(
-        'Failed to merge temporal references into metadata:',
-        temporalErr,
+      logger.error(
+        { err: temporalErr, op: 'classify.temporal.merge', itemId },
+        'Failed to merge temporal references into metadata',
       );
     }
   }
@@ -1483,7 +1501,10 @@ ${contentForClassification}`,
     .eq('id', itemId);
 
   if (updateError) {
-    console.error('Failed to update classification:', updateError);
+    logger.error(
+      { err: updateError, op: 'classify.update', itemId },
+      'Failed to update classification',
+    );
     throw new AIServiceError(
       'Classification succeeded but failed to store',
       500,
@@ -1559,7 +1580,10 @@ ${contentForClassification}`,
               canonical_name: v.canonical_name,
             }));
         } catch (validationErr) {
-          console.error('Entity validation (Pass 2) failed:', validationErr);
+          logger.error(
+            { err: validationErr, op: 'classify.pass2.validate', itemId },
+            'Entity validation (Pass 2) failed',
+          );
           // Graceful degradation: fall back to deterministically-filtered entities
           finalEntities = deterministicallyFiltered;
         }
@@ -1729,11 +1753,17 @@ ${contentForClassification}`,
           });
 
         if (entityError) {
-          console.error('Failed to store entity mentions:', entityError);
+          logger.error(
+            { err: entityError, op: 'classify.entity.upsert', itemId },
+            'Failed to store entity mentions',
+          );
         }
       }
     } catch (entityErr) {
-      console.error('Entity mention storage failed:', entityErr);
+      logger.error(
+        { err: entityErr, op: 'classify.entity.storage', itemId },
+        'Entity mention storage failed',
+      );
     }
   }
 
@@ -1761,10 +1791,16 @@ ${contentForClassification}`,
         });
 
       if (relError) {
-        console.error('Failed to store entity relationships:', relError);
+        logger.error(
+          { err: relError, op: 'classify.relationship.upsert', itemId },
+          'Failed to store entity relationships',
+        );
       }
     } catch (relErr) {
-      console.error('Entity relationship storage failed:', relErr);
+      logger.error(
+        { err: relErr, op: 'classify.relationship.storage', itemId },
+        'Entity relationship storage failed',
+      );
     }
   }
 
@@ -1772,7 +1808,10 @@ ${contentForClassification}`,
   try {
     await bridgeTemporalReferencesToEntities(supabase, itemId);
   } catch (bridgeErr) {
-    console.error('Temporal reference bridging failed:', bridgeErr);
+    logger.error(
+      { err: bridgeErr, op: 'classify.temporal.bridge', itemId },
+      'Temporal reference bridging failed',
+    );
   }
 
   return {

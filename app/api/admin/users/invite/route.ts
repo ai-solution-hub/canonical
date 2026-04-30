@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { UserInviteBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (inviteError) {
-      console.error('Failed to invite user:', inviteError);
+      logger.error({ err: inviteError }, 'Failed to invite user');
       // Check for duplicate user
       if (inviteError.message?.includes('already been registered')) {
         return NextResponse.json(
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     // `app/api/items/[id]/route.ts` for best-effort writes.
     const warnings: string[] = [];
     if (roleError) {
-      console.error('Failed to set user role:', roleError);
+      logger.error({ err: roleError }, 'Failed to set user role');
       warnings.push(
         `User invited but role assignment failed — user will default to 'viewer' on first sign-in. Update the role manually. (${roleError.message})`,
       );

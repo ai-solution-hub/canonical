@@ -4,6 +4,7 @@ import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { RollbackBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -102,9 +103,9 @@ export async function POST(
       });
 
     if (snapshotError) {
-      console.error(
-        'Failed to snapshot current state before rollback:',
-        snapshotError,
+      logger.error(
+        { err: snapshotError },
+        'Failed to snapshot current state before rollback',
       );
       return NextResponse.json(
         { error: 'Failed to save current version snapshot — rollback aborted' },
@@ -129,7 +130,7 @@ export async function POST(
       .single();
 
     if (updateError || !updateResult) {
-      console.error('Failed to rollback content item:', updateError);
+      logger.error({ err: updateError }, 'Failed to rollback content item');
       return NextResponse.json(
         { error: 'Failed to rollback item' },
         { status: 500 },

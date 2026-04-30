@@ -25,11 +25,7 @@ import {
   VALID_PUBLICATION_STATUSES,
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
-import {
-  logger,
-  updateRequestContext,
-  withRequestContext,
-} from '@/lib/logger';
+import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;
@@ -1012,10 +1008,7 @@ async function deleteHandler(
 
     return NextResponse.json({ deleted: true, id });
   } catch (err) {
-    logger.error(
-      { err, op: 'items.delete' },
-      'Failed to delete content item',
-    );
+    logger.error({ err, op: 'items.delete' }, 'Failed to delete content item');
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to delete content item') },
       { status: 500 },

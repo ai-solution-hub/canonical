@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { UserRoleUpdateBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -46,7 +47,7 @@ export async function PATCH(
       .upsert({ user_id: userId, role }, { onConflict: 'user_id' });
 
     if (error) {
-      console.error('Failed to update user role:', error);
+      logger.error({ err: error }, 'Failed to update user role');
       return NextResponse.json(
         { error: 'Failed to update user role' },
         { status: 500 },
@@ -97,7 +98,7 @@ export async function DELETE(
     );
 
     if (banError) {
-      console.error('Failed to deactivate user:', banError);
+      logger.error({ err: banError }, 'Failed to deactivate user');
       return NextResponse.json(
         { error: 'Failed to deactivate user' },
         { status: 500 },

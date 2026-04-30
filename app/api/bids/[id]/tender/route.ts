@@ -8,6 +8,7 @@ import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBidMetadata } from '@/lib/validation/schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -161,7 +162,7 @@ export async function POST(
       });
 
     if (uploadError) {
-      console.error('Failed to upload tender document:', uploadError);
+      logger.error({ err: uploadError }, 'Failed to upload tender document');
       return NextResponse.json(
         { error: 'Failed to upload tender document to storage.' },
         { status: 500 },
@@ -196,7 +197,7 @@ export async function POST(
       .eq('type', 'bid');
 
     if (updateError) {
-      console.error('Failed to update bid metadata:', updateError);
+      logger.error({ err: updateError }, 'Failed to update bid metadata');
       return NextResponse.json(
         { error: 'File uploaded but failed to update bid metadata.' },
         { status: 500 },

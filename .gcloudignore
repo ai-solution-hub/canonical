@@ -1,0 +1,27 @@
+# Cloud Build / Cloud Run buildpack upload exclusions.
+# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-run-cloud-run-provisioning-spec.md §4 (file changes table)
+# Plan: docs/audits/kh-production-readiness-phase-1/plans/wp-run-cloud-run-provisioning-plan.md T1b.3
+# Buildpack target needs only Python sources + requirements.txt; everything else is bloat.
+
+.git/
+.gitignore
+
+node_modules/
+.next/
+mcp-apps/dist/
+coverage/
+out/
+
+e2e/
+__tests__/
+
+docs/
+.planning/
+.claude/
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log

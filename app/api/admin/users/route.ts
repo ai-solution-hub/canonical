@@ -5,6 +5,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -38,9 +39,9 @@ async function fetchLastSignInMap(
     const { data: authData, error: authError } =
       await serviceClient.auth.admin.listUsers({ perPage: 1000 });
     if (authError) {
-      console.warn(
-        '[admin/users] auth.admin.listUsers degraded; last_sign_in_at will be NULL:',
-        authError.message,
+      logger.warn(
+        { err: authError.message },
+        '[admin/users] auth.admin.listUsers degraded; last_sign_in_at will be NULL',
       );
       return lastSignInById;
     }
@@ -50,9 +51,9 @@ async function fetchLastSignInMap(
   } catch (signInErr) {
     // Belt-and-braces: never let a GoTrue failure break the whole
     // route. The bulk read is the load-bearing path.
-    console.warn(
-      '[admin/users] auth.admin.listUsers threw; last_sign_in_at will be NULL:',
-      safeErrorMessage(signInErr, 'unknown error'),
+    logger.warn(
+      { err: safeErrorMessage(signInErr, 'unknown error') },
+      '[admin/users] auth.admin.listUsers threw; last_sign_in_at will be NULL',
     );
   }
   return lastSignInById;
@@ -95,7 +96,7 @@ export async function GET() {
       .neq('id', PIPELINE_SYSTEM_USER_ID);
 
     if (profilesError) {
-      console.error('Failed to fetch user_profiles:', profilesError);
+      logger.error({ err: profilesError }, 'Failed to fetch user_profiles');
       return NextResponse.json(
         { error: 'Failed to list users' },
         { status: 500 },
@@ -110,7 +111,7 @@ export async function GET() {
       .select('user_id, role');
 
     if (rolesError) {
-      console.error('Failed to fetch user_roles:', rolesError);
+      logger.error({ err: rolesError }, 'Failed to fetch user_roles');
       return NextResponse.json(
         { error: 'Failed to fetch user roles' },
         { status: 500 },

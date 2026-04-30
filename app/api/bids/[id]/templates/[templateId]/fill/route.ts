@@ -8,6 +8,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { TemplateFillBodySchema } from '@/lib/validation/template-schemas';
 import { parseBody } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -203,7 +204,7 @@ export async function POST(
         .update({ status: template.status })
         .eq('id', templateId);
 
-      console.error('Failed to queue fill job:', jobError);
+      logger.error({ err: jobError }, 'Failed to queue fill job');
       return NextResponse.json(
         { error: 'Failed to queue fill job' },
         { status: 500 },

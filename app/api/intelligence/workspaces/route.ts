@@ -4,6 +4,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { IntelligenceWorkspaceCreateSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 /** GET /api/intelligence/workspaces — list intelligence workspaces with profile info */
 export async function GET() {
@@ -49,9 +50,9 @@ export async function GET() {
         .in('id', profileIds);
 
       if (profilesError) {
-        console.error(
-          'Failed to fetch company profiles for workspace list:',
-          profilesError,
+        logger.error(
+          { err: profilesError },
+          'Failed to fetch company profiles for workspace list',
         );
         warnings.push(
           'Company profile names could not be loaded: ' +
@@ -72,9 +73,9 @@ export async function GET() {
       .eq('is_active', true);
 
     if (sourceCountsError) {
-      console.error(
-        'Failed to fetch feed source counts for workspace list:',
-        sourceCountsError,
+      logger.error(
+        { err: sourceCountsError },
+        'Failed to fetch feed source counts for workspace list',
       );
       warnings.push(
         'Source counts could not be loaded: ' +
@@ -95,9 +96,9 @@ export async function GET() {
       .in('workspace_id', workspaceIds);
 
     if (articleCountsError) {
-      console.error(
-        'Failed to fetch article counts for workspace list:',
-        articleCountsError,
+      logger.error(
+        { err: articleCountsError },
+        'Failed to fetch article counts for workspace list',
       );
       warnings.push(
         'Article counts could not be loaded: ' +

@@ -11,6 +11,7 @@ import { ResponseRegenerateBodySchema } from '@/lib/validation/schemas';
 import { runDraftingPipeline } from '@/lib/ai/draft';
 import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -84,9 +85,9 @@ export async function POST(
         .in('id', matchedIds);
 
       if (contentError) {
-        console.error(
-          'Failed to fetch matched content for regenerate:',
-          contentError,
+        logger.error(
+          { err: contentError },
+          'Failed to fetch matched content for regenerate',
         );
         return NextResponse.json(
           {
@@ -143,7 +144,7 @@ export async function POST(
       .single();
 
     if (updateError) {
-      console.error('Failed to save regenerated response:', updateError);
+      logger.error({ err: updateError }, 'Failed to save regenerated response');
       return NextResponse.json(
         { error: 'Failed to save regenerated response' },
         { status: 500 },

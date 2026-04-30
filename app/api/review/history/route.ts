@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { ReviewHistoryParamsSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -82,9 +83,9 @@ export async function GET(request: NextRequest) {
 
       if (nameRowsError) {
         // Cosmetic enrichment — log and fall through to raw UUIDs.
-        console.error(
-          'Failed to fetch display names for review history:',
-          nameRowsError,
+        logger.error(
+          { err: nameRowsError },
+          'Failed to fetch display names for review history',
         );
       }
 

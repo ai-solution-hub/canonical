@@ -9,6 +9,7 @@ import { parseBody } from '@/lib/validation';
 import { guideUpdateSchema } from '@/lib/validation/guide-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -45,7 +46,7 @@ export async function GET(
       if (guideError?.code === 'PGRST116') {
         return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
-      console.error('Failed to fetch guide:', guideError);
+      logger.error({ err: guideError }, 'Failed to fetch guide');
       return NextResponse.json(
         { error: 'Failed to fetch guide' },
         { status: 500 },
@@ -59,7 +60,7 @@ export async function GET(
     );
 
     if (rpcError) {
-      console.error('Failed to fetch guide content:', rpcError);
+      logger.error({ err: rpcError }, 'Failed to fetch guide content');
       return NextResponse.json(
         { error: 'Failed to fetch guide content' },
         { status: 500 },
@@ -177,7 +178,7 @@ export async function PATCH(
       if (error.code === 'PGRST116') {
         return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
-      console.error('Failed to update guide:', error);
+      logger.error({ err: error }, 'Failed to update guide');
       return NextResponse.json(
         { error: 'Failed to update guide' },
         { status: 500 },
@@ -218,7 +219,7 @@ export async function DELETE(
     const { error } = await supabase.from('guides').delete().eq('slug', slug);
 
     if (error) {
-      console.error('Failed to delete guide:', error);
+      logger.error({ err: error }, 'Failed to delete guide');
       return NextResponse.json(
         { error: 'Failed to delete guide' },
         { status: 500 },

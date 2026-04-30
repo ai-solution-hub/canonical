@@ -398,7 +398,9 @@ describe('search_content_chunks tool handler', () => {
       const result = (await handler({ query: 'q' }, extra)) as ToolResult;
 
       expect(result.structuredContent?.overdue_review_filter).toBeNull();
-      expect(result.structuredContent?.review_due_within_days_filter).toBeNull();
+      expect(
+        result.structuredContent?.review_due_within_days_filter,
+      ).toBeNull();
     });
   });
 });

@@ -14,6 +14,7 @@
  */
 
 import { diffLines } from 'diff';
+import { logger } from '@/lib/logger';
 
 export interface QAPair {
   question: string;
@@ -180,7 +181,12 @@ export function extractQAPairs(text: string): QAPair[] {
   }
 
   if (pairs.length > MAX_QA_PAIRS) {
-    console.warn(
+    logger.warn(
+      {
+        op: 'document-diff.extract-qa.truncated',
+        originalCount: pairs.length,
+        truncatedTo: MAX_QA_PAIRS,
+      },
       `extractQAPairs: truncated ${pairs.length} pairs to ${MAX_QA_PAIRS}`,
     );
     pairs = pairs.slice(0, MAX_QA_PAIRS);
@@ -421,7 +427,15 @@ export function computeFullTextDiff(
     const keepEnd = 500;
     const droppedCount = collapsed.length - keepStart - keepEnd;
 
-    console.warn(
+    logger.warn(
+      {
+        op: 'document-diff.full-text.entries-capped',
+        totalEntries: collapsed.length,
+        cap: MAX_DIFF_ENTRIES,
+        keepStart,
+        keepEnd,
+        droppedCount,
+      },
       `computeFullTextDiff: ${collapsed.length} entries exceed cap of ${MAX_DIFF_ENTRIES}. ` +
         `Keeping first ${keepStart} and last ${keepEnd}, collapsing ${droppedCount} middle entries.`,
     );

@@ -4,6 +4,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { EntityMetadataUpdateSchema } from '@/lib/validation/schemas';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -92,9 +93,9 @@ export async function PATCH(
           .eq('canonical_name', decodedName);
 
         if (entityInfoError) {
-          console.error(
-            'Reverse bridge: failed to look up entity_mentions:',
-            entityInfoError,
+          logger.error(
+            { err: entityInfoError },
+            'Reverse bridge: failed to look up entity_mentions',
           );
           warnings.push(
             'Entity metadata saved, but linked content items could not be looked up — expiry not propagated',
@@ -125,9 +126,9 @@ export async function PATCH(
                 .in('id', contentIds);
 
               if (propagateError) {
-                console.error(
-                  'Reverse bridge: failed to propagate expiry to content items:',
-                  propagateError,
+                logger.error(
+                  { err: propagateError },
+                  'Reverse bridge: failed to propagate expiry to content items',
                 );
                 warnings.push(
                   'Entity metadata saved, but expiry could not be propagated to linked content items',
@@ -137,7 +138,7 @@ export async function PATCH(
           }
         }
       } catch (bridgeErr) {
-        console.error('Reverse bridge propagation failed:', bridgeErr);
+        logger.error({ err: bridgeErr }, 'Reverse bridge propagation failed');
         warnings.push(
           'Entity metadata saved, but reverse bridge propagation failed',
         );

@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -159,7 +160,7 @@ export async function GET() {
     const { data, error } = await supabase.rpc('get_guide_coverage');
 
     if (error) {
-      console.error('get_guide_coverage RPC error:', error);
+      logger.error({ err: error }, 'get_guide_coverage RPC error');
       return NextResponse.json(
         { error: 'Failed to load guide coverage data' },
         { status: 500 },

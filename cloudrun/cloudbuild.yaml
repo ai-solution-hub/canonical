@@ -1,0 +1,67 @@
+# Cloud Build pipeline — produces both Cloud Run Job image variants.
+#
+# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-run-cloud-run-provisioning-spec.md §2.13 (image registry)
+# Plan: docs/audits/kh-production-readiness-phase-1/plans/wp-run-cloud-run-provisioning-plan.md T1b.3 step 2
+#
+# Two image variants per spec:
+#   * kh-pipeline-slim — routine ingest workloads (entrypoint: python3 scripts/ingest.py per F-11)
+#   * kh-pipeline-eval — eval suite (entrypoint: python3 scripts/eval-classification.py;
+#     bert-score uses full requirements.txt, not slim)
+#
+# Buildpack base: gcr.io/buildpacks/python (per D-RUN-2 primary path).
+# Dockerfile escape hatch is Phase 1c contingent (R-10) — TODO if buildpack fails on bert-score.
+# No Procfile per spec F-9 fix — entrypoints declared inline via GOOGLE_ENTRYPOINT env.
+#
+# Tag strategy: $COMMIT_SHA + latest. Push targets keyed by $PROJECT_ID
+# so the same cloudbuild.yaml ships both kh-prod-494815 and kh-staging-494815 from a
+# single GH Actions invocation.
+steps:
+  # kh-pipeline-slim — routine ingest jobs.
+  # Multi-tag publish: pack build accepts repeated --tag for additional tags;
+  # with --publish, pack pushes all tags to the registry in one step
+  # (avoids the broken pack --publish + docker tag pattern where the local
+  # daemon never sees the SHA-tagged image).
+  - id: build-slim
+    name: gcr.io/k8s-skaffold/pack
+    entrypoint: pack
+    args:
+      - build
+      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
+      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
+      - --builder=gcr.io/buildpacks/builder:google-22
+      - --env=GOOGLE_ENTRYPOINT=python3 scripts/ingest.py
+      - --env=GOOGLE_RUNTIME=python
+      - --publish
+
+  # kh-pipeline-eval — bert-score + full requirements.txt.
+  # Forward reference: scripts/eval-classification.py is authored in Phase 2
+  # (per spec §4 file changes table line 623). T1b.5 first-deploy smoke
+  # only executes the slim image, never the eval image — eval image is
+  # built here so that AC-2 (both variants present) verifies green; eval
+  # invocation is gated until Phase 2 lands the entrypoint.
+  - id: build-eval
+    name: gcr.io/k8s-skaffold/pack
+    entrypoint: pack
+    args:
+      - build
+      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
+      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
+      - --builder=gcr.io/buildpacks/builder:google-22
+      - --env=GOOGLE_ENTRYPOINT=python3 scripts/eval-classification.py
+      - --env=GOOGLE_RUNTIME=python
+      - --publish
+
+# Images recorded for provenance + AC-2 verifier (gcloud artifacts docker images list).
+images:
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  # Cloud Build worker machine size — bumped from default e2-standard-2 to
+  # cope with bert-score wheel install (R-3 / R-10 mitigation).
+  machineType: E2_HIGHCPU_8
+
+timeout: 1800s

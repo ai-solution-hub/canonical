@@ -1,6 +1,7 @@
 // app/api/cron/intelligence-cleanup/route.ts
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30; // Cleanup is fast — 30s is plenty
 
@@ -16,12 +17,12 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.rpc('cleanup_filtered_articles');
 
     if (error) {
-      console.error('[intelligence-cleanup] RPC error:', error.message);
+      logger.error({ err: error.message }, '[intelligence-cleanup] RPC error');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const deletedCount = data ?? 0;
-    console.log(
+    logger.info(
       `[intelligence-cleanup] Cleaned up ${deletedCount} filtered articles older than 90 days`,
     );
 
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[intelligence-cleanup] Error:', message);
+    logger.error({ err: message }, '[intelligence-cleanup] Error');
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

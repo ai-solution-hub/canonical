@@ -1,0 +1,218 @@
+# Cloud Run deploy — Python pipeline image build + Job manifest deploy.
+#
+# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-run-cloud-run-provisioning-spec.md §2.6, §2.11, §4
+# Plan: docs/audits/kh-production-readiness-phase-1/plans/wp-run-cloud-run-provisioning-plan.md T1b.4
+# Runbook: docs/runbooks/cloud-run-phase-1-handover.md
+#
+# Triggers:
+#   * push on production-readiness → deploy to kh-staging-494815 (Staging environment).
+#   * push on main → deploy to kh-prod-494815 (Production environment).
+#   * workflow_dispatch → manual deploy to either environment (for first deploy +
+#     fallback recovery).
+#
+# Auth: Workload Identity Federation per spec §2.11. WIF provider + deploy SA
+# email come from per-environment GitHub Environment secrets (set per
+# docs/runbooks/github-environments.md). No long-lived JSON keys.
+#
+# Per-tenant manifest deploy: NEXT_PUBLIC_CLIENT_ID is baked at deploy time
+# (D-RUN-12.1 / spec §2.6) — wrong slug → loadBranding() corrupts holder
+# metadata. Deploy step asserts via the regex precondition before each
+# `gcloud run jobs replace`.
+#
+# Dockerfile fallback (D-RUN-2 escape hatch): workflow_dispatch carries a
+# fallback-build-mode input. Today only `buildpack` is wired. If R-10
+# trips on bert-score, switch to `dockerfile` — Phase 1c authors the
+# Dockerfile (out of scope here).
+#
+# Untrusted-input safety: this workflow does NOT consume user-authored data
+# (issue / PR / comment / commit-message text). Inputs are either GitHub
+# control-plane values (`github.ref`, `github.event_name`) or `type: choice`
+# fixed allowlists (`inputs.environment`, `inputs.fallback-build-mode`).
+# All run-step interpolations are routed via env: indirection per
+# https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/.
+
+name: Cloud Run deploy
+
+on:
+  push:
+    branches: [main, production-readiness]
+    paths:
+      - "scripts/**"
+      - "requirements.txt"
+      - "cloudrun/**"
+      - ".gcloudignore"
+      - ".github/workflows/cloud-run-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target deploy environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      fallback-build-mode:
+        description:
+          Build mode (D-RUN-2 escape hatch — leave default unless R-10 trips)
+        required: false
+        default: buildpack
+        type: choice
+        options:
+          - buildpack
+          - dockerfile
+
+concurrency:
+  group:
+    cloud-run-deploy-${{ github.workflow }}-${{ github.event_name }}-${{
+    github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-environment:
+    # Map ref / dispatch input to canonical GitHub Environment name + GCP
+    # project. Capital-first env names per docs/runbooks/github-environments.md.
+    name: Resolve target environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      gh-env: ${{ steps.resolve.outputs.gh-env }}
+      gcp-project: ${{ steps.resolve.outputs.gcp-project }}
+    steps:
+      - name: Resolve env + project
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GIT_REF: ${{ github.ref }}
+          DISPATCH_ENV: ${{ inputs.environment }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            INPUT="$DISPATCH_ENV"
+          elif [[ "$GIT_REF" == "refs/heads/main" ]]; then
+            INPUT="production"
+          else
+            INPUT="staging"
+          fi
+
+          if [[ "$INPUT" == "production" ]]; then
+            echo "gh-env=Production" >> "$GITHUB_OUTPUT"
+            echo "gcp-project=kh-prod-494815" >> "$GITHUB_OUTPUT"
+          elif [[ "$INPUT" == "staging" ]]; then
+            echo "gh-env=Staging" >> "$GITHUB_OUTPUT"
+            echo "gcp-project=kh-staging-494815" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unknown deploy target: $INPUT" >&2
+            exit 1
+          fi
+
+  build-and-deploy:
+    name: Build + deploy
+    runs-on: ubuntu-latest
+    needs: resolve-environment
+    # Resolves secrets/vars from the Production OR Staging environment
+    # scope per resolve-environment output. Case-sensitive — must match
+    # the canonical capital-first env name.
+    environment: ${{ needs.resolve-environment.outputs.gh-env }}
+    timeout-minutes: 30
+    permissions:
+      # Required for google-github-actions/auth WIF flow.
+      id-token: write
+      contents: read
+
+    env:
+      GCP_PROJECT: ${{ needs.resolve-environment.outputs.gcp-project }}
+      GH_ENV: ${{ needs.resolve-environment.outputs.gh-env }}
+      BUILD_MODE: ${{ inputs.fallback-build-mode || 'buildpack' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          # GCP_WIF_PROVIDER + GCP_DEPLOY_SA_EMAIL are stored as Environment
+          # variables (vars.*), not secrets, because they are non-sensitive
+          # resource paths (the WIF provider name + SA email are public IDs).
+          # Using vars makes them visible in workflow logs which aids debug
+          # of WIF binding mismatches; per
+          # feedback_gha_secrets_vs_vars_silent_empty.md, mismatch between
+          # workflow access form and storage type returns empty string
+          # silently. See docs/runbooks/cloud-run-phase-1-handover.md §4.
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT }}
+
+      - name: Verify build mode
+        run: |
+          if [[ "$BUILD_MODE" == "dockerfile" ]]; then
+            # TODO Phase 1c if R-10 trips — author cloudrun/Dockerfile and
+            # wire `gcloud builds submit --tag` invocation here.
+            echo "Dockerfile fallback mode requested but not yet wired." >&2
+            echo "See spec D-RUN-2 + plan T1b.4 step 3." >&2
+            exit 1
+          fi
+          echo "Build mode: $BUILD_MODE"
+
+      - name: Build images via Cloud Build
+        run: |
+          gcloud builds submit \
+            --project="$GCP_PROJECT" \
+            --config=cloudrun/cloudbuild.yaml \
+            .
+
+      - name: Deploy tenant manifests
+        run: |
+          # Map gh-env -> manifest prefix.
+          if [[ "$GH_ENV" == "Production" ]]; then
+            ENV_PREFIX="prod"
+          else
+            ENV_PREFIX="staging"
+          fi
+
+          # Per-tenant deploy with NEXT_PUBLIC_CLIENT_ID precondition assertion
+          # (spec F-29 + D-RUN-12.1). Asserts each manifest's value matches
+          # the tenant slug pattern before replace lands.
+          for TENANT in example-client kpf; do
+            MANIFEST="cloudrun/jobs/${ENV_PREFIX}-${TENANT}.yaml"
+            echo "::group::Deploy $MANIFEST"
+
+            # Extract the baked NEXT_PUBLIC_CLIENT_ID and assert it matches
+            # the tenant slug pattern. Fail-fast guard mirrors the
+            # script-level guards in eval-holder-rule-ts.ts +
+            # reclassify-items.ts (R-9 mitigation).
+            BAKED_CLIENT_ID=$(awk '/- name: NEXT_PUBLIC_CLIENT_ID/{flag=1; next} flag && /value:/{print $2; exit}' "$MANIFEST")
+            if [[ ! "$BAKED_CLIENT_ID" =~ ^(example-client|kpf)$ ]]; then
+              echo "ERROR: NEXT_PUBLIC_CLIENT_ID '$BAKED_CLIENT_ID' in $MANIFEST does not match (example-client|kpf)." >&2
+              exit 1
+            fi
+            if [[ "$BAKED_CLIENT_ID" != "$TENANT" ]]; then
+              echo "ERROR: $MANIFEST has NEXT_PUBLIC_CLIENT_ID=$BAKED_CLIENT_ID but expected $TENANT." >&2
+              exit 1
+            fi
+
+            gcloud run jobs replace "$MANIFEST" \
+              --project="$GCP_PROJECT" \
+              --region=europe-west2
+            echo "::endgroup::"
+          done
+
+      - name: Smoke verify (jobs describe)
+        run: |
+          for TENANT in example-client kpf; do
+            JOB_NAME="kh-pipeline-${TENANT}"
+            DESCRIBED=$(gcloud run jobs describe "$JOB_NAME" \
+              --project="$GCP_PROJECT" \
+              --region=europe-west2 \
+              --format='value(metadata.name)')
+            if [[ "$DESCRIBED" != "$JOB_NAME" ]]; then
+              echo "ERROR: jobs describe returned '$DESCRIBED', expected '$JOB_NAME'" >&2
+              exit 1
+            fi
+            echo "OK: $JOB_NAME deployed"
+          done

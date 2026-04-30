@@ -10,6 +10,7 @@ import { parseSearchParams } from '@/lib/validation';
 import { ReviewQueueParamsSchema } from '@/lib/validation/schemas';
 import type { ReviewQueueResponse, ReviewQueueItem } from '@/types/review';
 import type { Database } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -76,7 +77,10 @@ export async function GET(request: NextRequest) {
         .eq('status', 'active');
 
       if (assignErr) {
-        console.error('Failed to fetch assignments for filter:', assignErr);
+        logger.error(
+          { err: assignErr },
+          'Failed to fetch assignments for filter',
+        );
         return NextResponse.json(
           { error: 'Failed to fetch assignment filters' },
           { status: 500 },
@@ -247,7 +251,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('Review queue query error:', error);
+      logger.error({ err: error }, 'Review queue query error');
       return NextResponse.json(
         { error: 'Failed to fetch review queue' },
         { status: 500 },
@@ -323,7 +327,7 @@ async function handleFlaggedQuery(
     .not('content_item_id', 'is', null);
 
   if (flagError) {
-    console.error('Failed to fetch flagged items:', flagError);
+    logger.error({ err: flagError }, 'Failed to fetch flagged items');
     return NextResponse.json(
       { error: 'Failed to fetch flagged items' },
       { status: 500 },
@@ -390,7 +394,7 @@ async function handleFlaggedQuery(
   const { data, error, count } = await query;
 
   if (error) {
-    console.error('Flagged items query error:', error);
+    logger.error({ err: error }, 'Flagged items query error');
     return NextResponse.json(
       { error: 'Failed to fetch flagged items' },
       { status: 500 },
@@ -455,7 +459,7 @@ async function fetchLastReviewedDates(
     .order('performed_at', { ascending: false });
 
   if (error) {
-    console.error('Failed to fetch verification_history dates:', error);
+    logger.error({ err: error }, 'Failed to fetch verification_history dates');
     return {
       dates: result,
       warning:

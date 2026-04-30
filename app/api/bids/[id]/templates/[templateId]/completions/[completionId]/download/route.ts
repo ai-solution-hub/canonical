@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -75,7 +76,7 @@ export async function GET(
       .createSignedUrl(completion.storage_path, 300);
 
     if (signError || !signedUrl?.signedUrl) {
-      console.error('Failed to create signed URL:', signError);
+      logger.error({ err: signError }, 'Failed to create signed URL');
       return NextResponse.json(
         { error: 'Failed to generate download link' },
         { status: 500 },

@@ -17,6 +17,7 @@ import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 import { canTransition, type BidState } from '@/lib/bid/bid-state-machine';
 import { sb } from '@/lib/supabase/safe';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -77,7 +78,10 @@ export async function POST(
       .download(document_path);
 
     if (downloadError || !fileData) {
-      console.error('Failed to download tender document:', downloadError);
+      logger.error(
+        { err: downloadError },
+        'Failed to download tender document',
+      );
       return NextResponse.json(
         { error: 'Failed to download tender document from storage' },
         { status: 404 },
@@ -138,9 +142,9 @@ export async function POST(
         .eq('project_id', id);
 
       if (existingError) {
-        console.error(
-          'Failed to fetch existing bid questions for dedup:',
-          existingError,
+        logger.error(
+          { err: existingError },
+          'Failed to fetch existing bid questions for dedup',
         );
         return NextResponse.json(
           {
@@ -199,7 +203,10 @@ export async function POST(
         });
 
       if (insertError) {
-        console.error('Failed to insert extracted questions:', insertError);
+        logger.error(
+          { err: insertError },
+          'Failed to insert extracted questions',
+        );
         return NextResponse.json(
           { error: 'Questions extracted but failed to save to database' },
           { status: 500 },
@@ -245,7 +252,10 @@ export async function POST(
         if (result) extracted_metadata = result;
       }
     } catch (metaErr) {
-      console.warn('Metadata extraction failed (non-critical):', metaErr);
+      logger.warn(
+        { err: metaErr },
+        'Metadata extraction failed (non-critical)',
+      );
     }
 
     // Fetch the saved questions to return with IDs

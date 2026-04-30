@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -20,7 +21,7 @@ export async function GET() {
     const { data, error } = await supabase.rpc('get_quality_issue_counts');
 
     if (error) {
-      console.error('Quality counts query error:', error);
+      logger.error({ err: error }, 'Quality counts query error');
       return NextResponse.json(
         { error: 'Failed to fetch quality issue counts' },
         { status: 500 },

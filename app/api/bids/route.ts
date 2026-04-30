@@ -13,6 +13,7 @@ import {
   BidListParamsSchema,
   parseBidMetadata,
 } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     const { data: workspaces, error, count } = await query;
 
     if (error) {
-      console.error('Failed to fetch bids:', error);
+      logger.error({ err: error }, 'Failed to fetch bids');
       return NextResponse.json(
         { error: 'Failed to fetch bids' },
         { status: 500 },
@@ -71,9 +72,9 @@ export async function GET(request: NextRequest) {
 
       if (batchError) {
         // Fallback to per-bid calls if batch RPC doesn't exist
-        console.warn(
-          'Batch stats RPC unavailable, falling back to per-bid calls:',
-          batchError.message,
+        logger.warn(
+          { err: batchError.message },
+          'Batch stats RPC unavailable, falling back to per-bid calls',
         );
         const fallbackResults = await Promise.all(
           bidIds.map(async (bidId) => {
@@ -84,10 +85,9 @@ export async function GET(request: NextRequest) {
               },
             );
             if (statsError) {
-              console.error(
+              logger.error(
+                { err: statsError, bidId },
                 'Per-bid stats RPC failed (fallback path) for bid',
-                bidId,
-                statsError,
               );
               return { bidId, stats: null, failed: true };
             }
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
           { status: 409 },
         );
       }
-      console.error('Failed to create bid:', error);
+      logger.error({ err: error }, 'Failed to create bid');
       return NextResponse.json(
         { error: 'Failed to create bid' },
         { status: 500 },

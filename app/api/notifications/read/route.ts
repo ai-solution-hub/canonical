@@ -3,6 +3,7 @@ import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { NotificationReadBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
       .is('read_at', null);
 
     if (error) {
-      console.error('Failed to mark notifications as read:', error);
+      logger.error({ err: error }, 'Failed to mark notifications as read');
       return NextResponse.json(
         { error: 'Failed to mark notifications as read' },
         { status: 500 },

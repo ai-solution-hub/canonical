@@ -11,6 +11,7 @@ import {
   DiffReviewUpdateBodySchema,
 } from '@/lib/validation/schemas';
 import { computeDocumentDiff } from '@/lib/source-documents/document-diff';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -77,7 +78,10 @@ export async function GET(
       .limit(1);
 
     if (diffAsOldError) {
-      console.error('Failed to look up diff pair (as old):', diffAsOldError);
+      logger.error(
+        { err: diffAsOldError },
+        'Failed to look up diff pair (as old)',
+      );
       return NextResponse.json(
         {
           error: safeErrorMessage(
@@ -98,7 +102,7 @@ export async function GET(
         .single();
 
       if (childError) {
-        console.error('Failed to fetch child document:', childError);
+        logger.error({ err: childError }, 'Failed to fetch child document');
         return NextResponse.json(
           {
             error: safeErrorMessage(
@@ -124,7 +128,10 @@ export async function GET(
         .limit(1);
 
       if (diffAsNewError) {
-        console.error('Failed to look up diff pair (as new):', diffAsNewError);
+        logger.error(
+          { err: diffAsNewError },
+          'Failed to look up diff pair (as new)',
+        );
         return NextResponse.json(
           {
             error: safeErrorMessage(
@@ -145,7 +152,7 @@ export async function GET(
           .single();
 
         if (parentError) {
-          console.error('Failed to fetch parent document:', parentError);
+          logger.error({ err: parentError }, 'Failed to fetch parent document');
           return NextResponse.json(
             {
               error: safeErrorMessage(
@@ -219,9 +226,9 @@ export async function GET(
         .in('id', affectedIds);
 
       if (itemsError) {
-        console.error(
-          'Failed to fetch affected content item titles:',
-          itemsError,
+        logger.error(
+          { err: itemsError },
+          'Failed to fetch affected content item titles',
         );
         return NextResponse.json(
           {
@@ -486,9 +493,9 @@ export async function PATCH(
         .in('id', entryIds);
 
     if (matchingEntriesError) {
-      console.error(
-        'Failed to verify diff entry membership:',
-        matchingEntriesError,
+      logger.error(
+        { err: matchingEntriesError },
+        'Failed to verify diff entry membership',
       );
       return NextResponse.json(
         {
@@ -602,9 +609,9 @@ export async function PATCH(
       .or(`old_document_id.eq.${documentId},new_document_id.eq.${documentId}`);
 
     if (allEntriesError) {
-      console.error(
-        'Failed to fetch diff summary counts after update:',
-        allEntriesError,
+      logger.error(
+        { err: allEntriesError },
+        'Failed to fetch diff summary counts after update',
       );
       return NextResponse.json(
         {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,7 +47,7 @@ export async function GET() {
     const { data, error } = await supabase.rpc('get_aggregate_win_rate_stats');
 
     if (error) {
-      console.error('get_aggregate_win_rate_stats RPC error:', error);
+      logger.error({ err: error }, 'get_aggregate_win_rate_stats RPC error');
       return NextResponse.json(
         { error: 'Failed to fetch aggregate win-rate data' },
         { status: 500 },
@@ -103,7 +104,7 @@ export async function GET() {
 
     return NextResponse.json(response);
   } catch (err) {
-    console.error('Win-rate analytics route error:', err);
+    logger.error({ err }, 'Win-rate analytics route error');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

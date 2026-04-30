@@ -8,6 +8,7 @@ import {
 } from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -89,7 +90,7 @@ export async function POST(
       .eq('type', 'bid');
 
     if (updateError) {
-      console.error('Failed to record bid outcome:', updateError);
+      logger.error({ err: updateError }, 'Failed to record bid outcome');
       return NextResponse.json(
         { error: 'Failed to record outcome' },
         { status: 500 },
@@ -113,9 +114,9 @@ export async function POST(
         .eq('project_id', id);
 
       if (questionsError) {
-        console.error(
-          'Failed to fetch questions for KB integration:',
-          questionsError,
+        logger.error(
+          { err: questionsError },
+          'Failed to fetch questions for KB integration',
         );
         return NextResponse.json(
           {
@@ -139,9 +140,9 @@ export async function POST(
           .in('review_status', ['approved', 'edited']);
 
         if (responsesError) {
-          console.error(
-            'Failed to fetch responses for KB integration:',
-            responsesError,
+          logger.error(
+            { err: responsesError },
+            'Failed to fetch responses for KB integration',
           );
           return NextResponse.json(
             {

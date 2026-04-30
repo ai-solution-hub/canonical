@@ -3,6 +3,7 @@ import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { WorkspaceItemsParamsSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -49,7 +50,7 @@ export async function GET(
       .limit(limit);
 
     if (error) {
-      console.error('Failed to fetch workspace items:', error);
+      logger.error({ err: error }, 'Failed to fetch workspace items');
       return NextResponse.json(
         { error: 'Failed to fetch workspace items' },
         { status: 500 },

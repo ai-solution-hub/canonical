@@ -11,6 +11,7 @@ import { countWords } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
 import { sb } from '@/lib/supabase/safe';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -263,7 +264,7 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('Failed to update response:', updateError);
+      logger.error({ err: updateError }, 'Failed to update response');
       return NextResponse.json(
         { error: 'Failed to update response' },
         { status: 500 },

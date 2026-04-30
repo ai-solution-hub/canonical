@@ -5,7 +5,8 @@ tools.
 
 ## Terraform
 
-The Google Cloud Terraform provider supports Cloud Run services, jobs, and worker pools.
+The Google Cloud Terraform provider supports Cloud Run services, jobs, and
+worker pools.
 
 ### Cloud Run service example
 

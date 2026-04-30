@@ -11,6 +11,29 @@ import {
 
 const mockCreate = vi.fn();
 
+// W4 Logging Phase 3: classify.ts now routes errors through the
+// structured logger (@/lib/logger) instead of console.error. Mock the
+// logger surface so we can assert error-path observability without
+// spinning up Pino + Sentry in tests.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 vi.mock('@/lib/anthropic', () => ({
   getAnthropicClient: () => ({
     messages: { create: mockCreate },
@@ -517,9 +540,7 @@ describe('classifyContent — entity extraction', () => {
         }),
       );
 
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      loggerMocks.error.mockClear();
 
       // Classification should still succeed
       const result = await classifyContent({
@@ -532,13 +553,16 @@ describe('classifyContent — entity extraction', () => {
       expect(result.primary_domain).toBe('SECURITY & COMPLIANCE');
       expect(result.entities).toHaveLength(3);
 
-      // Should have logged the error
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to store entity mentions:',
-        expect.anything(),
+      // Should have logged the error via the structured logger.
+      // W4 Phase 3: replaces former `console.error('Failed to store entity mentions:', ...)`.
+      expect(loggerMocks.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          op: 'classify.entity.upsert',
+          itemId: ITEM_ID,
+          err: expect.anything(),
+        }),
+        'Failed to store entity mentions',
       );
-
-      consoleSpy.mockRestore();
     });
 
     it('does not break classification when relationship storage throws', async () => {
@@ -570,9 +594,7 @@ describe('classifyContent — entity extraction', () => {
         }),
       );
 
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      loggerMocks.error.mockClear();
 
       // Classification should still succeed
       const result = await classifyContent({
@@ -585,12 +607,15 @@ describe('classifyContent — entity extraction', () => {
       expect(result.primary_domain).toBe('SECURITY & COMPLIANCE');
       expect(result.relationships).toHaveLength(2);
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Entity relationship storage failed:',
-        expect.any(Error),
+      // W4 Phase 3: replaces former `console.error('Entity relationship storage failed:', ...)`.
+      expect(loggerMocks.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          op: 'classify.relationship.storage',
+          itemId: ITEM_ID,
+          err: expect.any(Error),
+        }),
+        'Entity relationship storage failed',
       );
-
-      consoleSpy.mockRestore();
     });
 
     it('wipes stale entity_mentions even when new entities array is empty', async () => {

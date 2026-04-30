@@ -6,6 +6,7 @@ import { buildGuideSectionUpdateSchema } from '@/lib/validation/guide-schemas';
 import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -69,7 +70,7 @@ export async function PATCH(
       if (guideError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
-      console.error('Guide lookup failed:', guideError);
+      logger.error({ err: guideError }, 'Guide lookup failed');
       return NextResponse.json(
         { error: 'Failed to resolve guide', details: guideError.message },
         { status: 500 },
@@ -96,7 +97,7 @@ export async function PATCH(
           { status: 404 },
         );
       }
-      console.error('Failed to update guide section:', error);
+      logger.error({ err: error }, 'Failed to update guide section');
       return NextResponse.json(
         { error: 'Failed to update guide section' },
         { status: 500 },
@@ -151,7 +152,7 @@ export async function DELETE(
       if (guideError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
-      console.error('Guide lookup failed:', guideError);
+      logger.error({ err: guideError }, 'Guide lookup failed');
       return NextResponse.json(
         { error: 'Failed to resolve guide', details: guideError.message },
         { status: 500 },
@@ -168,7 +169,7 @@ export async function DELETE(
       .eq('guide_id', guide.id);
 
     if (error) {
-      console.error('Failed to delete guide section:', error);
+      logger.error({ err: error }, 'Failed to delete guide section');
       return NextResponse.json(
         { error: 'Failed to delete guide section' },
         { status: 500 },

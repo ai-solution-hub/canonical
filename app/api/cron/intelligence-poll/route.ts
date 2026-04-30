@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { runPipeline } from '@/lib/intelligence/pipeline';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120; // 2 minutes for Vercel Pro
 
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[intelligence-poll] Pipeline error:', message);
+    logger.error({ err: message }, '[intelligence-poll] Pipeline error');
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -9,6 +9,7 @@ import {
   ThemeClusterSchema,
 } from '@/lib/validation/jsonb';
 import type { Digest } from '@/types/digest';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      console.error('Failed to fetch digests:', error);
+      logger.error({ err: error }, 'Failed to fetch digests');
       return NextResponse.json(
         { error: 'Failed to fetch digests' },
         { status: 500 },

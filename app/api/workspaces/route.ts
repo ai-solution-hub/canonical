@@ -10,6 +10,7 @@ import {
   WorkspaceCreateBodySchema,
   WorkspaceListParamsSchema,
 } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Failed to fetch workspaces:', error);
+      logger.error({ err: error }, 'Failed to fetch workspaces');
       return NextResponse.json(
         { error: 'Failed to fetch workspaces' },
         { status: 500 },
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
           { status: 409 },
         );
       }
-      console.error('Failed to create workspace:', error);
+      logger.error({ err: error }, 'Failed to create workspace');
       return NextResponse.json(
         { error: 'Failed to create workspace' },
         { status: 500 },

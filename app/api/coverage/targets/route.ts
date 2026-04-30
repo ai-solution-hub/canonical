@@ -6,6 +6,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { CoverageTargetPutBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -25,7 +26,7 @@ export async function GET() {
       .order('domain_id');
 
     if (error) {
-      console.error('Coverage targets fetch error:', error);
+      logger.error({ err: error }, 'Coverage targets fetch error');
       return NextResponse.json(
         { error: 'Failed to load coverage targets' },
         { status: 500 },
@@ -87,7 +88,7 @@ export async function PUT(request: NextRequest) {
       );
 
       if (error) {
-        console.error('Coverage target upsert error:', error);
+        logger.error({ err: error }, 'Coverage target upsert error');
         return NextResponse.json(
           { error: 'Failed to save coverage target' },
           { status: 500 },

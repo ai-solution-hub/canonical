@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { getItemProvenance } from '@/lib/provenance/item-provenance';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 15;
 
@@ -34,7 +35,7 @@ export async function GET(
 
     return NextResponse.json(provenance);
   } catch (err) {
-    console.error('[provenance/item] Failed:', err);
+    logger.error({ err }, '[provenance/item] Failed');
     return NextResponse.json(
       { error: 'Failed to fetch provenance data' },
       { status: 500 },

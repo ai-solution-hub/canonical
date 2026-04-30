@@ -1,10 +1,39 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// W4 Logging Phase 3: document-diff.ts now routes the truncation warning
+// through @/lib/logger (logger.warn) instead of console.warn. Mock the
+// logger surface so we can assert the structured shape directly.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
 import {
   stringSimilarity,
   extractQAPairs,
   computeDocumentDiff,
   MAX_QA_PAIRS,
 } from '@/lib/source-documents/document-diff';
+
+beforeEach(() => {
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+  loggerMocks.info.mockClear();
+});
 
 // ---------------------------------------------------------------------------
 // stringSimilarity
@@ -204,7 +233,6 @@ describe('extractQAPairs', () => {
     }
     const text = lines.join('\n');
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const pairs = extractQAPairs(text);
 
     expect(pairs).toHaveLength(MAX_QA_PAIRS);
@@ -212,11 +240,14 @@ describe('extractQAPairs', () => {
     expect(pairs[MAX_QA_PAIRS - 1].question).toBe(
       `Question number ${MAX_QA_PAIRS - 1}?`,
     );
-    expect(warnSpy).toHaveBeenCalledWith(
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: 'document-diff.extract-qa.truncated',
+        originalCount: count,
+        truncatedTo: MAX_QA_PAIRS,
+      }),
       expect.stringContaining(`truncated ${count} pairs to ${MAX_QA_PAIRS}`),
     );
-
-    warnSpy.mockRestore();
   });
 });
 

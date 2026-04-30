@@ -24,6 +24,7 @@ import {
 } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 const DEGRADATION_THRESHOLD = 20; // percentage points
 
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
     const { data: coverageData, error: rpcError } = coverageResult;
 
     if (rpcError) {
-      console.error('get_coverage_summary RPC failed:', rpcError);
+      logger.error({ err: rpcError }, 'get_coverage_summary RPC failed');
       return NextResponse.json(
         { error: safeErrorMessage(rpcError, 'Coverage summary RPC failed') },
         { status: 500 },
@@ -130,9 +131,9 @@ export async function GET(request: NextRequest) {
       'cron.coverage_alerts.previous_run',
     );
     if (!isOk(previousRunResult)) {
-      console.warn(
+      logger.warn(
+        { err: previousRunResult.error },
         'cron.coverage_alerts.previous_run failed — treating as first run',
-        previousRunResult.error,
       );
     }
     const previousRun = isOk(previousRunResult) ? previousRunResult.data : null;
@@ -269,9 +270,9 @@ export async function GET(request: NextRequest) {
           'cron.coverage_alerts.existing_titles',
         );
         if (!isOk(existingTitlesResult)) {
-          console.warn(
+          logger.warn(
+            { err: existingTitlesResult.error },
             'cron.coverage_alerts.existing_titles failed — proceeding without dedupe',
-            existingTitlesResult.error,
           );
         }
         const existingDomainAlerts = isOk(existingTitlesResult)

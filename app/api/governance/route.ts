@@ -6,6 +6,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { GovernanceConfigBodySchema } from '@/lib/validation/schemas';
 import { PRESET_VALUES } from '@/lib/governance/presets';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -29,7 +30,7 @@ export async function GET() {
       .order('domain', { ascending: true });
 
     if (error) {
-      console.error('Failed to fetch governance config:', error);
+      logger.error({ err: error }, 'Failed to fetch governance config');
       return NextResponse.json(
         { error: 'Failed to fetch governance configuration' },
         { status: 500 },
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
         .eq('id', existing.id);
 
       if (error) {
-        console.error('Failed to update governance config:', error);
+        logger.error({ err: error }, 'Failed to update governance config');
         return NextResponse.json(
           { error: 'Failed to update governance configuration' },
           { status: 500 },
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (error) {
-        console.error('Failed to create governance config:', error);
+        logger.error({ err: error }, 'Failed to create governance config');
         return NextResponse.json(
           { error: 'Failed to create governance configuration' },
           { status: 500 },

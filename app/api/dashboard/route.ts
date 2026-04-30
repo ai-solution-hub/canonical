@@ -5,6 +5,7 @@ import {
   fetchUnifiedDashboardData,
   unifiedToDashboardData,
 } from '@/lib/dashboard';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -34,7 +35,10 @@ export async function GET() {
     // silently downgraded to the viewer dashboard.
     const roleWarnings: string[] = [];
     if (roleError && roleError.code !== 'PGRST116') {
-      console.error('Failed to look up user role for dashboard:', roleError);
+      logger.error(
+        { err: roleError },
+        'Failed to look up user role for dashboard',
+      );
       roleWarnings.push(
         'Could not verify your role; some sections may be hidden until you reload.',
       );
@@ -62,7 +66,10 @@ export async function GET() {
     // failing query (e.g. my_recent_work) does not silently render as an
     // empty section. The UI is expected to render `warnings[]` as a banner.
     if (dashboard.errors.length > 0) {
-      console.warn('Dashboard partial failure:', dashboard.errors.join('; '));
+      logger.warn(
+        { err: dashboard.errors.join('; ') },
+        'Dashboard partial failure',
+      );
     }
 
     return NextResponse.json(

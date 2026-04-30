@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { BulkOwnerAssignSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 60;
 
@@ -117,9 +118,9 @@ export async function POST(request: NextRequest) {
           message: null,
         });
       } catch (err) {
-        console.warn(
-          'Failed to create bulk owner assignment notification:',
-          err,
+        logger.warn(
+          { err },
+          'Failed to create bulk owner assignment notification',
         );
       }
     }

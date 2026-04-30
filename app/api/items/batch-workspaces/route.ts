@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -32,7 +33,10 @@ export async function POST(request: NextRequest) {
       .in('content_item_id', item_ids);
 
     if (error) {
-      console.error('Failed to fetch batch workspace assignments:', error);
+      logger.error(
+        { err: error },
+        'Failed to fetch batch workspace assignments',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch workspace assignments' },
         { status: 500 },

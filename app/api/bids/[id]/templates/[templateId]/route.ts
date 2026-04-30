@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -60,7 +61,7 @@ export async function GET(
       .order('sequence', { ascending: true });
 
     if (fieldsError) {
-      console.error('Failed to fetch template fields:', fieldsError);
+      logger.error({ err: fieldsError }, 'Failed to fetch template fields');
       return NextResponse.json(
         { error: 'Failed to fetch template fields' },
         { status: 500 },
@@ -92,9 +93,9 @@ export async function GET(
         .in('id', questionIds);
 
       if (questionsError) {
-        console.error(
-          'Failed to fetch matched bid questions for template:',
-          questionsError,
+        logger.error(
+          { err: questionsError },
+          'Failed to fetch matched bid questions for template',
         );
         warnings.push(
           'Matched questions could not be loaded: ' +
@@ -120,9 +121,9 @@ export async function GET(
           .order('version', { ascending: false });
 
         if (responsesError) {
-          console.error(
-            'Failed to fetch response previews for template:',
-            responsesError,
+          logger.error(
+            { err: responsesError },
+            'Failed to fetch response previews for template',
           );
           warnings.push(
             'Response previews could not be loaded: ' +
@@ -165,7 +166,10 @@ export async function GET(
     );
 
     if (summaryError) {
-      console.error('Failed to fetch template summary RPC:', summaryError);
+      logger.error(
+        { err: summaryError },
+        'Failed to fetch template summary RPC',
+      );
       warnings.push(
         'Field counts could not be loaded: ' +
           safeErrorMessage(summaryError, 'summary RPC failed'),
@@ -194,7 +198,10 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (completionsError) {
-      console.error('Failed to fetch template completions:', completionsError);
+      logger.error(
+        { err: completionsError },
+        'Failed to fetch template completions',
+      );
       warnings.push(
         'Completions history could not be loaded: ' +
           safeErrorMessage(completionsError, 'completions fetch failed'),
@@ -263,9 +270,9 @@ export async function DELETE(
 
     if (completionsListError) {
       // Non-fatal — log and continue. Worst case is orphaned storage files.
-      console.error(
-        'Template DELETE: failed to list completion storage paths (orphaned files possible)',
+      logger.error(
         { templateId, error: completionsListError },
+        'Template DELETE: failed to list completion storage paths (orphaned files possible)',
       );
     }
 
@@ -276,7 +283,7 @@ export async function DELETE(
       .eq('id', templateId);
 
     if (deleteError) {
-      console.error('Failed to delete template:', deleteError);
+      logger.error({ err: deleteError }, 'Failed to delete template');
       return NextResponse.json(
         { error: 'Failed to delete template' },
         { status: 500 },
@@ -299,9 +306,9 @@ export async function DELETE(
       .from('templates')
       .remove(pathsToRemove);
     if (removeError) {
-      console.error(
-        'Template DELETE: storage cleanup failed (orphaned files possible)',
+      logger.error(
         { templateId, error: removeError },
+        'Template DELETE: storage cleanup failed (orphaned files possible)',
       );
     }
 

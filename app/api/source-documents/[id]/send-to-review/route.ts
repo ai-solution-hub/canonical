@@ -5,6 +5,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { createNotification } from '@/lib/notifications';
 import { parseBody } from '@/lib/validation';
 import { SendToReviewBodySchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -142,9 +143,9 @@ export async function POST(
           .eq('role', 'admin');
 
         if (adminRolesError) {
-          console.error(
-            'Failed to look up admin roles for review fallback:',
-            adminRolesError,
+          logger.error(
+            { err: adminRolesError },
+            'Failed to look up admin roles for review fallback',
           );
           // Items were sent to review, but no notifications could be
           // created for owner-less items. Surface as warning + count.

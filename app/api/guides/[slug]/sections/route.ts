@@ -15,6 +15,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -48,7 +49,7 @@ async function resolveGuideId(
     if (error.code === 'PGRST116') {
       return { ok: false, status: 404 };
     }
-    console.error('resolveGuideId failed:', error);
+    logger.error({ err: error }, 'resolveGuideId failed');
     return { ok: false, status: 500, error: error.message };
   }
   if (!data) return { ok: false, status: 404 };
@@ -98,7 +99,7 @@ export async function GET(
       .order('display_order');
 
     if (error) {
-      console.error('Failed to fetch guide sections:', error);
+      logger.error({ err: error }, 'Failed to fetch guide sections');
       return NextResponse.json(
         { error: 'Failed to fetch guide sections' },
         { status: 500 },
@@ -167,7 +168,7 @@ export async function POST(
       .single();
 
     if (error) {
-      console.error('Failed to create guide section:', error);
+      logger.error({ err: error }, 'Failed to create guide section');
       return NextResponse.json(
         { error: 'Failed to create guide section' },
         { status: 500 },
@@ -227,7 +228,7 @@ export async function PUT(
     const results = await Promise.all(updates);
     const failed = results.find((r) => r.error);
     if (failed?.error) {
-      console.error('Failed to reorder guide sections:', failed.error);
+      logger.error({ err: failed.error }, 'Failed to reorder guide sections');
       return NextResponse.json(
         { error: 'Failed to reorder guide sections' },
         { status: 500 },

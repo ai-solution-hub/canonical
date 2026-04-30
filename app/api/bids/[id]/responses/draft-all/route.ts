@@ -15,6 +15,7 @@ import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -87,9 +88,9 @@ export async function POST(
       .order('question_sequence', { ascending: true });
 
     if (questionsError) {
-      console.error(
-        'Failed to fetch questions for batch drafting:',
-        questionsError,
+      logger.error(
+        { err: questionsError },
+        'Failed to fetch questions for batch drafting',
       );
       return NextResponse.json(
         { error: 'Failed to fetch questions' },
@@ -244,9 +245,9 @@ export async function POST(
           quality_score: draftResult.metadata.quality_data?.overall_score,
         });
       } catch (draftErr) {
-        console.error(
-          `Batch draft failed for question ${question.id}:`,
-          draftErr,
+        logger.error(
+          { err: draftErr },
+          `Batch draft failed for question ${question.id}`,
         );
         results.push({
           question_id: question.id,

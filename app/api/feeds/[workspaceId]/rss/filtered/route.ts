@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { parseSearchParams } from '@/lib/validation';
 import { generateRss, toRfc2822 } from '@/lib/intelligence/rss-generator';
 import { clientEnv } from '@/lib/env-client';
+import { logger } from '@/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -56,10 +57,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .limit(limit);
 
     if (articlesError) {
-      console.error(
+      logger.error(
+        { err: articlesError, workspaceId },
         'Filtered RSS feed: failed to fetch articles for workspace',
-        workspaceId,
-        articlesError,
       );
       return new NextResponse('Failed to load feed articles', { status: 500 });
     }
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
   } catch (err) {
-    console.error('Filtered RSS feed: unexpected error', err);
+    logger.error({ err }, 'Filtered RSS feed: unexpected error');
     return new NextResponse('Internal server error', { status: 500 });
   }
 }
