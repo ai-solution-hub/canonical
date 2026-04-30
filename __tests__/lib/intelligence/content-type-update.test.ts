@@ -19,11 +19,29 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  inferContentType,
-  processFeedSource,
-} from '@/lib/intelligence/pipeline';
-import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
+
+// WP2 (S19): lib/intelligence/pipeline.ts now routes pipeline telemetry
+// through @/lib/logger (logger.error/warn) instead of console.*. The
+// SI-L3 regression check below asserts via loggerMocks.error so the
+// regression guard moves with the sink.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
 
 // Mock all pipeline dependencies (mirrors __tests__/lib/intelligence/pipeline.test.ts)
 vi.mock('@/lib/intelligence/feed-poller', () => ({
@@ -49,6 +67,12 @@ vi.mock('@/lib/intelligence/article-summariser', () => ({
     .fn()
     .mockResolvedValue('A concise article summary.'),
 }));
+
+import {
+  inferContentType,
+  processFeedSource,
+} from '@/lib/intelligence/pipeline';
+import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
 
 /**
  * (domain, subtopic) -> expected inferred type. Each row exercises one branch
@@ -354,9 +378,7 @@ describe('SI-L3: pipeline content_type update logs errors on DB rejection', () =
       from: vi.fn((table: string) => makeChain(table)),
     };
 
-    const consoleErrorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    loggerMocks.error.mockClear();
 
     const source = {
       id: 'src-1',
@@ -392,8 +414,10 @@ describe('SI-L3: pipeline content_type update logs errors on DB rejection', () =
     expect(result.articlesPassed).toBe(1);
     expect(result.articlesFailed).toBe(0);
 
-    // Verify the error was logged with diagnostic detail
-    const errorMessages = consoleErrorSpy.mock.calls
+    // Verify the error was logged with diagnostic detail. Pipeline emits
+    // logger.error with a single interpolated message string (no context obj),
+    // so the assertion strings remain unchanged but pull from loggerMocks.error.
+    const errorMessages = loggerMocks.error.mock.calls
       .map((args) => args.map(String).join(' '))
       .join('\n');
 
@@ -416,8 +440,6 @@ describe('SI-L3: pipeline content_type update logs errors on DB rejection', () =
     expect(
       (contentTypeUpdate?.payload as Record<string, unknown>).content_type,
     ).toBe('research');
-
-    consoleErrorSpy.mockRestore();
   });
 });
 

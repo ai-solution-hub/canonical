@@ -1,6 +1,23 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// WP2 (S19): error boundaries now route via @/lib/logger/client (logger.error)
+// instead of console.error. Mock the client logger surface so we can assert
+// the structured `{ err }` shape directly.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger/client', () => ({
+  logger: loggerMocks,
+}));
+
 import BrowseError from '@/app/browse/error';
 import BrowseLoading from '@/app/browse/loading';
 
@@ -26,7 +43,7 @@ describe('Browse Error Boundary', () => {
   const error = new Error('Test error');
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    loggerMocks.error.mockClear();
     reset.mockClear();
   });
 
@@ -64,9 +81,12 @@ describe('Browse Error Boundary', () => {
     );
   });
 
-  it('calls console.error with the error via useEffect', () => {
+  it('calls logger.error with the error via useEffect', () => {
     render(<BrowseError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith('Browse error:', error);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: error }),
+      'Browse error',
+    );
   });
 });
 
