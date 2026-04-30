@@ -5,8 +5,8 @@
 # Runbook: docs/runbooks/cloud-run-phase-1-handover.md
 #
 # Triggers:
-#   * push on production-readiness → deploy to kh-staging (Staging environment).
-#   * push on main → deploy to kh-prod (Production environment).
+#   * push on production-readiness → deploy to kh-staging-494815 (Staging environment).
+#   * push on main → deploy to kh-prod-494815 (Production environment).
 #   * workflow_dispatch → manual deploy to either environment (for first deploy +
 #     fallback recovery).
 #
@@ -96,10 +96,10 @@ jobs:
 
           if [[ "$INPUT" == "production" ]]; then
             echo "gh-env=Production" >> "$GITHUB_OUTPUT"
-            echo "gcp-project=kh-prod" >> "$GITHUB_OUTPUT"
+            echo "gcp-project=kh-prod-494815" >> "$GITHUB_OUTPUT"
           elif [[ "$INPUT" == "staging" ]]; then
             echo "gh-env=Staging" >> "$GITHUB_OUTPUT"
-            echo "gcp-project=kh-staging" >> "$GITHUB_OUTPUT"
+            echo "gcp-project=kh-staging-494815" >> "$GITHUB_OUTPUT"
           else
             echo "Unknown deploy target: $INPUT" >&2
             exit 1
@@ -198,7 +198,7 @@ jobs:
 
             gcloud run jobs replace "$MANIFEST" \
               --project="$GCP_PROJECT" \
-              --region=europe-west4
+              --region=europe-west2
             echo "::endgroup::"
           done
 
@@ -208,7 +208,7 @@ jobs:
             JOB_NAME="kh-pipeline-${TENANT}"
             DESCRIBED=$(gcloud run jobs describe "$JOB_NAME" \
               --project="$GCP_PROJECT" \
-              --region=europe-west4 \
+              --region=europe-west2 \
               --format='value(metadata.name)')
             if [[ "$DESCRIBED" != "$JOB_NAME" ]]; then
               echo "ERROR: jobs describe returned '$DESCRIBED', expected '$JOB_NAME'" >&2

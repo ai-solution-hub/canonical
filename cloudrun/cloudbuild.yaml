@@ -13,7 +13,7 @@
 # No Procfile per spec F-9 fix — entrypoints declared inline via GOOGLE_ENTRYPOINT env.
 #
 # Tag strategy: $COMMIT_SHA + latest. Push targets keyed by $PROJECT_ID
-# so the same cloudbuild.yaml ships both kh-prod and kh-staging from a
+# so the same cloudbuild.yaml ships both kh-prod-494815 and kh-staging-494815 from a
 # single GH Actions invocation.
 steps:
   # kh-pipeline-slim — routine ingest jobs.
@@ -26,8 +26,8 @@ steps:
     entrypoint: pack
     args:
       - build
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
-      - --tag=europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
+      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
+      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/ingest.py
       - --env=GOOGLE_RUNTIME=python
@@ -44,8 +44,8 @@ steps:
     entrypoint: pack
     args:
       - build
-      - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
-      - --tag=europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
+      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
+      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/eval-classification.py
       - --env=GOOGLE_RUNTIME=python
@@ -53,10 +53,10 @@ steps:
 
 # Images recorded for provenance + AC-2 verifier (gcloud artifacts docker images list).
 images:
-  - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
-  - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
-  - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
-  - europe-west4-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:$COMMIT_SHA
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:$COMMIT_SHA
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
 
 options:
   logging: CLOUD_LOGGING_ONLY

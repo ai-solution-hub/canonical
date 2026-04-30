@@ -10,7 +10,7 @@
 # Resource bounds per spec §2.8:
 #   cpu=2, memory=2Gi, taskTimeout=14400s (4h), parallelism=1, taskCount=1, maxRetries=1.
 #
-# region: europe-west4 (D-RUN-20 deferred — re-evaluate at first-client-data-handling task)
+# region: europe-west2 (D-RUN-20 deferred — re-evaluate at first-client-data-handling task)
 #
 # Secret Manager mounts intentionally TODO — wired in T2.2 (Phase 2). Phase 1b
 # focuses on identity + structure; secrets land once T2.1 provisions the §2.5
@@ -30,7 +30,7 @@ spec:
           serviceAccountName: example-client-pipeline-sa@kh-staging.iam.gserviceaccount.com
           containers:
             - name: kh-pipeline-slim
-              image: europe-west4-docker.pkg.dev/kh-staging/pipeline/kh-pipeline-slim:latest
+              image: europe-west2-docker.pkg.dev/kh-staging-494815/pipeline/kh-pipeline-slim:latest
               env:
                 # NEXT_PUBLIC_CLIENT_ID baked at deploy time per D-RUN-12.1 +
                 # feedback_branding_client_id_env. Wrong slug → loadBranding()

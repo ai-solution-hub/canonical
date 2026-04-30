@@ -18,7 +18,7 @@ spec:
           serviceAccountName: example-client-pipeline-sa@kh-prod.iam.gserviceaccount.com
           containers:
             - name: kh-pipeline-slim
-              image: europe-west4-docker.pkg.dev/kh-prod/pipeline/kh-pipeline-slim:latest
+              image: europe-west2-docker.pkg.dev/kh-prod-494815/pipeline/kh-pipeline-slim:latest
               env:
                 - name: NEXT_PUBLIC_CLIENT_ID
                   value: example-client
