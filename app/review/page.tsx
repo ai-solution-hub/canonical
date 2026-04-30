@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { ReviewContent } from './review-content';
+import { ReviewTabs } from '@/components/review/review-tabs';
 
 export default async function ReviewPage() {
   const supabase = await createClient();
@@ -42,7 +42,11 @@ export default async function ReviewPage() {
         </div>
       }
     >
-      <ReviewContent />
+      {/* S215 W1: Suspense child swap — ReviewTabs hosts the Radix Tabs
+          surface and mounts ReviewContent for tabs 1-5 +
+          PublicationReviewQueue for tab 6. Spec:
+          docs/specs/review-page-tabs-refactor-spec.md §4. */}
+      <ReviewTabs />
     </Suspense>
   );
 }

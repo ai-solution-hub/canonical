@@ -178,7 +178,10 @@ describe('useReviewSession', () => {
   // =========================================================================
 
   describe('filter-to-URL sync', () => {
-    it('syncs status filter to URL', () => {
+    // S215 W1: status is no longer written to URL by this hook —
+    // the ReviewTabs parent owns the `?tab=` key, status is derived
+    // from the active tab. Spec: docs/specs/review-page-tabs-refactor-spec.md §5.
+    it('does NOT write status to URL (S215: tabs own status)', () => {
       const searchParams = makeSearchParams();
 
       const { result } = renderHook(() => useReviewSession(searchParams));
@@ -191,7 +194,7 @@ describe('useReviewSession', () => {
       const lastCall =
         mockReplaceState.mock.calls[mockReplaceState.mock.calls.length - 1];
       const urlArg = lastCall[2] as string;
-      expect(urlArg).toContain('status=flagged');
+      expect(urlArg).not.toContain('status=');
     });
 
     it('omits status from URL when it is the default (unverified)', () => {
@@ -289,7 +292,7 @@ describe('useReviewSession', () => {
       expect(urlArg).toContain('source_document_id=doc-456');
     });
 
-    it('handleFiltersChange also triggers URL sync', () => {
+    it('handleFiltersChange also triggers URL sync (status omitted post-S215)', () => {
       const searchParams = makeSearchParams();
 
       const { result } = renderHook(() => useReviewSession(searchParams));
@@ -305,7 +308,8 @@ describe('useReviewSession', () => {
       const lastCall =
         mockReplaceState.mock.calls[mockReplaceState.mock.calls.length - 1];
       const urlArg = lastCall[2] as string;
-      expect(urlArg).toContain('status=verified');
+      // status is NOT in the URL (tabs own it post-S215). Other filters do.
+      expect(urlArg).not.toContain('status=');
       expect(urlArg).toContain('domain=Technical');
     });
 
@@ -347,7 +351,7 @@ describe('useReviewSession', () => {
       expect(urlArg).not.toContain('assigned_to_me');
     });
 
-    it('round-trips assigned_to_me with other filters', () => {
+    it('round-trips assigned_to_me with other filters (status omitted post-S215)', () => {
       const searchParams = makeSearchParams();
 
       const { result } = renderHook(() => useReviewSession(searchParams));
@@ -364,7 +368,8 @@ describe('useReviewSession', () => {
       const lastCall =
         mockReplaceState.mock.calls[mockReplaceState.mock.calls.length - 1];
       const urlArg = lastCall[2] as string;
-      expect(urlArg).toContain('status=flagged');
+      // status is NOT in the URL (tabs own it post-S215).
+      expect(urlArg).not.toContain('status=');
       expect(urlArg).toContain('domain=Technical');
       expect(urlArg).toContain('assigned_to_me=true');
     });
