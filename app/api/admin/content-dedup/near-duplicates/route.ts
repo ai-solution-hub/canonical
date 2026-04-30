@@ -97,18 +97,26 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Remap RPC's flat ordinal columns (`id1`, `title1`, …) into the
+    // nested `{ left, right }` shape that the fetcher's `NearDupPair`
+    // type and the dashboard list view consume directly. This keeps the
+    // API↔fetcher↔component contract aligned (V_W1 F1).
     return NextResponse.json({
       pairs: livePairs.map((p) => ({
         pairId: buildPairId(p.id1, p.id2),
-        id1: p.id1,
-        title1: p.title1,
-        type1: p.type1,
-        domain1: p.domain1,
-        id2: p.id2,
-        title2: p.title2,
-        type2: p.type2,
-        domain2: p.domain2,
         similarity: Number(p.similarity),
+        left: {
+          id: p.id1,
+          title: p.title1 ?? null,
+          contentType: p.type1 ?? null,
+          primaryDomain: p.domain1 ?? null,
+        },
+        right: {
+          id: p.id2,
+          title: p.title2 ?? null,
+          contentType: p.type2 ?? null,
+          primaryDomain: p.domain2 ?? null,
+        },
       })),
       threshold,
       total: livePairs.length,

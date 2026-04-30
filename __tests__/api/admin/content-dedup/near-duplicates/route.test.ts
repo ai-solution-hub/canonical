@@ -223,14 +223,26 @@ describe('GET /api/admin/content-dedup/near-duplicates', () => {
       expect(body.threshold).toBe(0.92);
       expect(body.total).toBe(2);
       expect(body.pairs).toHaveLength(2);
+      // Nested shape — API remaps RPC's flat ordinal columns into
+      // `{ left, right }` so the fetcher type and component consumer
+      // line up (V_W1 F1).
       expect(body.pairs[0]).toMatchObject({
-        id1: ID_A,
-        id2: ID_B,
+        pairId: `${ID_A}__${ID_B}`,
         similarity: 0.943,
-        domain1: 'access-control',
+        left: {
+          id: ID_A,
+          title: 'How are elevated access rights reviewed?',
+          contentType: 'q_a_pair',
+          primaryDomain: 'access-control',
+        },
+        right: {
+          id: ID_B,
+          title:
+            'How are elevated access rights to systems reviewed? Please specify…',
+          contentType: 'q_a_pair',
+          primaryDomain: 'access-control',
+        },
       });
-      // pairId is built from sorted UUIDs (ID_A < ID_B lexically)
-      expect(body.pairs[0].pairId).toBe(`${ID_A}__${ID_B}`);
     });
 
     it('forwards domain filter to RPC (AC3)', async () => {
@@ -267,7 +279,7 @@ describe('GET /api/admin/content-dedup/near-duplicates', () => {
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.total).toBe(1);
-      expect(body.pairs[0].id1).toBe(ID_C);
+      expect(body.pairs[0].left.id).toBe(ID_C);
     });
 
     it('filters out pairs where either side is confirmed_duplicate', async () => {

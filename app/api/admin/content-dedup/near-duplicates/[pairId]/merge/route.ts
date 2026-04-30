@@ -64,7 +64,13 @@ export async function POST(
     }
     const body = parseBody(NearDupMergeBodySchema, raw ?? {});
     if (!body.success) return body.response;
-    const { oldId, newId, note } = body.data;
+    const {
+      oldId,
+      newId,
+      note,
+      similarity_at_resolution: similarityAtResolution,
+      threshold_at_resolution: thresholdAtResolution,
+    } = body.data;
 
     // Pair-membership guard: both oldId AND newId must be exactly the
     // two ids encoded in the URL pair-id. Catches the "merge across
@@ -135,20 +141,9 @@ export async function POST(
       );
     }
 
-    // Pull OQ2 audit context off the request body (Zod schema treats
-    // unknown keys as stripped, so we re-read the raw body for these
-    // optional metadata-only fields). Pre-validated to be numeric finite
-    // values within the dashboard's exposed range; if a malformed value
-    // arrives it lands in metadata as-is and surfaces in audit review.
-    const rawBody = raw as Record<string, unknown> | null;
-    const similarityAtResolution =
-      typeof rawBody?.similarity_at_resolution === 'number'
-        ? rawBody.similarity_at_resolution
-        : null;
-    const thresholdAtResolution =
-      typeof rawBody?.threshold_at_resolution === 'number'
-        ? rawBody.threshold_at_resolution
-        : null;
+    // OQ2 audit context (`similarity_at_resolution`, `threshold_at_resolution`)
+    // arrives via the parsed Zod body and is recorded in `content_history.metadata`.
+    // Falls back to `null` when omitted by the caller.
 
     // Explicit content_history snapshot — UPDATE-side trigger does not
     // exist (per §1.7 OQ1); routes write their own audit row. version
@@ -184,8 +179,8 @@ export async function POST(
       newId,
       peerId: newId,
       dedup_review_action: 'near_dup_merge',
-      similarity_at_resolution: similarityAtResolution,
-      threshold_at_resolution: thresholdAtResolution,
+      similarity_at_resolution: similarityAtResolution ?? null,
+      threshold_at_resolution: thresholdAtResolution ?? null,
       note: note ?? null,
     };
 

@@ -119,9 +119,12 @@ describe('NearDuplicatesPairListClient', () => {
       `near-dup-pair-resolve-${LEFT_ID}__${RIGHT_ID}`,
     );
     expect(resolveLink).toBeInTheDocument();
+    // Resolve link carries the active filter threshold as a query
+    // param so the detail view can record it as OQ2 audit context
+    // (`threshold_at_resolution`). Default threshold is 0.95.
     expect(resolveLink).toHaveAttribute(
       'href',
-      `/admin/content-dedup/near-duplicates/${LEFT_ID}__${RIGHT_ID}`,
+      `/admin/content-dedup/near-duplicates/${LEFT_ID}__${RIGHT_ID}?threshold=0.95`,
     );
   });
 

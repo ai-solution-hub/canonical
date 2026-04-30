@@ -89,6 +89,11 @@ export function NearDuplicatesPairListClient() {
       </header>
 
       <NearDuplicatesFilterBar
+        // `key={threshold}` forces a remount when the parent commits a
+        // new threshold so the filter-bar's `useState(threshold)`
+        // initialiser re-runs (CLAUDE.md "Reset local state via `key`
+        // prop, not `setState` in effect" gotcha).
+        key={threshold}
         threshold={threshold}
         domain={domain}
         totalCount={total}
@@ -163,7 +168,11 @@ export function NearDuplicatesPairListClient() {
               </thead>
               <tbody>
                 {stablePairs.map((pair) => (
-                  <PairRow key={pair.pairId} pair={pair} />
+                  <PairRow
+                    key={pair.pairId}
+                    pair={pair}
+                    threshold={threshold}
+                  />
                 ))}
               </tbody>
             </table>
@@ -183,6 +192,12 @@ export function NearDuplicatesPairListClient() {
 
 interface PairRowProps {
   pair: NearDupPair;
+  /**
+   * Active filter threshold. Forwarded to the detail route as a
+   * `?threshold=` query param so the resolution page records OQ2
+   * audit context (`threshold_at_resolution`) in the audit row.
+   */
+  threshold: number;
 }
 
 /**
@@ -193,7 +208,7 @@ interface PairRowProps {
  * `bg-status-success` (high) / `bg-status-warning` (mid) classes but the
  * numeric label always carries the same information.
  */
-function PairRow({ pair }: PairRowProps) {
+function PairRow({ pair, threshold }: PairRowProps) {
   const similarityPct = Math.round(pair.similarity * 100);
   const tier =
     pair.similarity >= 0.97
@@ -255,7 +270,9 @@ function PairRow({ pair }: PairRowProps) {
           size="sm"
           data-testid={`near-dup-pair-resolve-${pair.pairId}`}
         >
-          <Link href={`/admin/content-dedup/near-duplicates/${pair.pairId}`}>
+          <Link
+            href={`/admin/content-dedup/near-duplicates/${pair.pairId}?threshold=${threshold.toFixed(2)}`}
+          >
             Resolve
             <ChevronRight className="size-3.5" aria-hidden="true" />
           </Link>

@@ -86,6 +86,8 @@ export async function POST(
       // unknown to satisfy the typed wrapper while preserving runtime
       // safety — the RPC name is a literal string and the param object
       // matches the signature exactly.
+      // TODO: drop `as never` casts after next `bun run gen-types` pass
+      // (memory: feedback_no_midsession_type_regen).
       'resolve_near_dup_confirm_unique' as never,
       {
         p_left_id: parsedPair.leftId,
@@ -93,6 +95,8 @@ export async function POST(
         p_actor_user_id: user.id,
         p_pair_id: pairId,
         p_note: body.data.note ?? null,
+        p_similarity_at_resolution: body.data.similarity_at_resolution ?? null,
+        p_threshold_at_resolution: body.data.threshold_at_resolution ?? null,
       } as never,
     );
 

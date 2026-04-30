@@ -60,14 +60,13 @@ export function NearDuplicatesFilterBar({
   onDomainChange,
 }: NearDuplicatesFilterBarProps) {
   // Local pending value — what the slider thumb shows mid-drag. Distinct
-  // from `threshold` (the committed value driving the query). On parent
-  // prop change (e.g. URL navigation) we re-sync.
+  // from `threshold` (the committed value driving the query). The parent
+  // remounts this component (`key={threshold}`) on every commit so the
+  // initialiser below picks up the new prop without a setState-in-effect
+  // (CLAUDE.md "Reset local state via `key` prop, not `setState` in
+  // effect" gotcha).
   const [pending, setPending] = useState(threshold);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setPending(threshold);
-  }, [threshold]);
 
   useEffect(() => {
     return () => {

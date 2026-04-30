@@ -228,6 +228,8 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique'
           p_actor_user_id: 'admin-user-id',
           p_pair_id: PAIR_ID,
           p_note: 'intentionally distinct',
+          p_similarity_at_resolution: null,
+          p_threshold_at_resolution: null,
         },
       );
     });
@@ -248,6 +250,35 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique'
       expect(mockSupabase.rpc).toHaveBeenCalledWith(
         'resolve_near_dup_confirm_unique',
         expect.objectContaining({ p_note: null }),
+      );
+    });
+
+    it('forwards similarity_at_resolution + threshold_at_resolution (OQ2)', async () => {
+      configureRole(mockSupabase, 'admin');
+      configurePairExists();
+      configureRpcOk();
+
+      const request = createTestRequest(
+        `/api/admin/content-dedup/near-duplicates/${PAIR_ID}/confirm-unique`,
+        {
+          method: 'POST',
+          body: {
+            note: 'intentionally distinct',
+            similarity_at_resolution: 0.943,
+            threshold_at_resolution: 0.92,
+          },
+        },
+      );
+      await POST(request, {
+        params: createTestParams({ pairId: PAIR_ID }),
+      });
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith(
+        'resolve_near_dup_confirm_unique',
+        expect.objectContaining({
+          p_similarity_at_resolution: 0.943,
+          p_threshold_at_resolution: 0.92,
+        }),
       );
     });
 

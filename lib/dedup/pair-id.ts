@@ -21,8 +21,13 @@ export interface ParsedPairId {
   rightId: string;
 }
 
+// Strict lower-case hex per the file-level RFC-4122 doc note. Production
+// callers (the `find_duplicate_pairs` RPC + Zod-validated body fields)
+// always emit lower-case canonical UUIDs; rejecting upper-case hex keeps
+// the `parsePairId` lex-sort assumption (`a < b`) sound regardless of
+// future changes upstream.
 const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Parse a pair-id URL segment into its two UUID halves.

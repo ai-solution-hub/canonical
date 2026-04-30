@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -17,8 +18,26 @@ import { queryKeys } from '@/lib/query/query-keys';
 import { NearDuplicatesActionButtons } from './near-duplicates-action-buttons';
 import { NearDuplicatesPairRowCard } from './near-duplicates-pair-row-card';
 
+const DEFAULT_THRESHOLD = 0.95;
+
 interface NearDuplicatesPairDetailClientProps {
   pairId: string;
+}
+
+/**
+ * Read the OQ2 threshold-at-resolution context from the URL query
+ * string (`?threshold=`). The list view writes the active filter
+ * threshold into each Resolve link so the detail view can forward it.
+ * Falls back to the dashboard default (0.95) when the param is absent
+ * or out of range — defensive: a stale bookmarked URL should still
+ * record a sensible value rather than crash.
+ */
+function parseThresholdParam(value: string | null): number {
+  if (!value) return DEFAULT_THRESHOLD;
+  const n = Number.parseFloat(value);
+  if (!Number.isFinite(n)) return DEFAULT_THRESHOLD;
+  if (n < 0.85 || n > 0.99) return DEFAULT_THRESHOLD;
+  return n;
 }
 
 /**
@@ -34,6 +53,9 @@ interface NearDuplicatesPairDetailClientProps {
 export function NearDuplicatesPairDetailClient({
   pairId,
 }: NearDuplicatesPairDetailClientProps) {
+  const searchParams = useSearchParams();
+  const threshold = parseThresholdParam(searchParams.get('threshold'));
+
   const query = useQuery({
     queryKey: queryKeys.adminNearDup.pair(pairId),
     queryFn: () => fetchAdminNearDupPair(pairId),
@@ -109,6 +131,8 @@ export function NearDuplicatesPairDetailClient({
             pairId={pairId}
             left={query.data.left}
             right={query.data.right}
+            similarity={query.data.similarity}
+            threshold={threshold}
           />
         </>
       )}

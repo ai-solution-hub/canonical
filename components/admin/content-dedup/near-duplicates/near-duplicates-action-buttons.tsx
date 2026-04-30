@@ -19,6 +19,18 @@ interface NearDuplicatesActionButtonsProps {
   pairId: string;
   left: NearDupPairMember;
   right: NearDupPairMember;
+  /**
+   * Similarity score currently shown in the detail header (from the
+   * pair-detail query). Forwarded to the merge / confirm-unique routes
+   * as OQ2 audit context (`similarity_at_resolution`).
+   */
+  similarity: number;
+  /**
+   * Filter threshold the admin had active when they navigated into the
+   * detail view. Forwarded to the routes as OQ2 audit context
+   * (`threshold_at_resolution`).
+   */
+  threshold: number;
 }
 
 const NOTE_MAX_LENGTH = 500;
@@ -45,6 +57,8 @@ export function NearDuplicatesActionButtons({
   pairId,
   left,
   right,
+  similarity,
+  threshold,
 }: NearDuplicatesActionButtonsProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -74,6 +88,8 @@ export function NearDuplicatesActionButtons({
         oldId: params.oldId,
         newId: params.newId,
         ...(params.note ? { note: params.note } : {}),
+        similarity_at_resolution: similarity,
+        threshold_at_resolution: threshold,
       }),
     onSuccess: () => {
       toast.success('Merged — loser row marked superseded');
@@ -85,7 +101,11 @@ export function NearDuplicatesActionButtons({
 
   const confirmUnique = useMutation({
     mutationFn: (n: string | undefined) =>
-      postAdminNearDupConfirmUnique(pairId, n ? { note: n } : {}),
+      postAdminNearDupConfirmUnique(pairId, {
+        ...(n ? { note: n } : {}),
+        similarity_at_resolution: similarity,
+        threshold_at_resolution: threshold,
+      }),
     onSuccess: () => {
       toast.success('Pair confirmed unique — both rows kept live');
       invalidateAndRoute();

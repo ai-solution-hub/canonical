@@ -340,10 +340,21 @@ export async function fetchAdminNearDupPair(
  * of the pair identified by `pairId`. Server returns 409 on
  * SupersessionError preconditions; the UI handles 409 as a non-fatal
  * toast + redirect (matches §1.7 pattern).
+ *
+ * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2
+ * audit context (similarity score the admin saw + filter threshold
+ * that surfaced the pair). They are persisted to
+ * `content_history.metadata` on the merge audit row.
  */
 export async function postAdminNearDupMerge(
   pairId: string,
-  body: { oldId: string; newId: string; note?: string },
+  body: {
+    oldId: string;
+    newId: string;
+    note?: string;
+    similarity_at_resolution?: number;
+    threshold_at_resolution?: number;
+  },
 ): Promise<NearDupMergeResult> {
   return mutationFetchJson<NearDupMergeResult>(
     `/api/admin/content-dedup/near-duplicates/${pairId}/merge`,
@@ -351,10 +362,21 @@ export async function postAdminNearDupMerge(
   );
 }
 
-/** POST confirm-unique — flip both rows to `confirmed_unique`. */
+/**
+ * POST confirm-unique — flip both rows to `confirmed_unique`.
+ *
+ * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2
+ * audit context, mirroring the merge payload so the per-row history
+ * snapshots written by `resolve_near_dup_confirm_unique` carry the
+ * resolution context.
+ */
 export async function postAdminNearDupConfirmUnique(
   pairId: string,
-  body: { note?: string },
+  body: {
+    note?: string;
+    similarity_at_resolution?: number;
+    threshold_at_resolution?: number;
+  },
 ): Promise<NearDupConfirmUniqueResult> {
   return mutationFetchJson<NearDupConfirmUniqueResult>(
     `/api/admin/content-dedup/near-duplicates/${pairId}/confirm-unique`,

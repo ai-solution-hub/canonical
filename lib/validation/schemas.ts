@@ -2062,17 +2062,33 @@ export const NearDupPairsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional().default(50),
 });
 
-/** POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique */
+/**
+ * POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique
+ *
+ * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2 audit
+ * context (similarity score the admin saw + filter threshold that
+ * surfaced the pair). Optional — the route forwards `null` when omitted.
+ */
 export const NearDupConfirmUniqueBodySchema = z.object({
   note: z.string().max(500).optional(),
+  similarity_at_resolution: z.number().min(0).max(1).optional(),
+  threshold_at_resolution: z.number().min(0.85).max(0.99).optional(),
 });
 
-/** POST /api/admin/content-dedup/near-duplicates/[pairId]/merge */
+/**
+ * POST /api/admin/content-dedup/near-duplicates/[pairId]/merge
+ *
+ * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2 audit
+ * context, mirroring the confirm-unique payload so the merge audit row
+ * records the same context. Optional.
+ */
 export const NearDupMergeBodySchema = z
   .object({
     oldId: z.string().uuid(),
     newId: z.string().uuid(),
     note: z.string().max(500).optional(),
+    similarity_at_resolution: z.number().min(0).max(1).optional(),
+    threshold_at_resolution: z.number().min(0.85).max(0.99).optional(),
   })
   .refine((b) => b.oldId !== b.newId, {
     message: 'oldId and newId must differ',

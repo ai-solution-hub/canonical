@@ -83,13 +83,23 @@ function makeMember(
   };
 }
 
+const SIMILARITY = 0.943;
+const THRESHOLD = 0.92;
+
 function renderWithProviders(
   left: NearDupPairMember,
   right: NearDupPairMember,
+  options: { similarity?: number; threshold?: number } = {},
 ) {
   const { Wrapper } = createQueryWrapper();
   return render(
-    <NearDuplicatesActionButtons pairId={PAIR_ID} left={left} right={right} />,
+    <NearDuplicatesActionButtons
+      pairId={PAIR_ID}
+      left={left}
+      right={right}
+      similarity={options.similarity ?? SIMILARITY}
+      threshold={options.threshold ?? THRESHOLD}
+    />,
     { wrapper: Wrapper },
   );
 }
@@ -131,9 +141,13 @@ describe('NearDuplicatesActionButtons', () => {
     await waitFor(() => {
       expect(mockMerge).toHaveBeenCalledTimes(1);
     });
+    // OQ2 audit context (similarity + threshold) is forwarded so the
+    // merge audit row can record the resolution context.
     expect(mockMerge).toHaveBeenCalledWith(PAIR_ID, {
       oldId: RIGHT_ID,
       newId: LEFT_ID,
+      similarity_at_resolution: SIMILARITY,
+      threshold_at_resolution: THRESHOLD,
     });
     expect(mockRouterPush).toHaveBeenCalledWith(
       '/admin/content-dedup/near-duplicates',
@@ -158,7 +172,10 @@ describe('NearDuplicatesActionButtons', () => {
     await waitFor(() => {
       expect(mockConfirmUnique).toHaveBeenCalledTimes(1);
     });
-    expect(mockConfirmUnique).toHaveBeenCalledWith(PAIR_ID, {});
+    expect(mockConfirmUnique).toHaveBeenCalledWith(PAIR_ID, {
+      similarity_at_resolution: SIMILARITY,
+      threshold_at_resolution: THRESHOLD,
+    });
     expect(mockToast.success).toHaveBeenCalledWith(
       expect.stringMatching(/confirmed unique/i),
     );
@@ -186,6 +203,8 @@ describe('NearDuplicatesActionButtons', () => {
     await waitFor(() => {
       expect(mockConfirmUnique).toHaveBeenCalledWith(PAIR_ID, {
         note: 'distinct topics',
+        similarity_at_resolution: SIMILARITY,
+        threshold_at_resolution: THRESHOLD,
       });
     });
   });
