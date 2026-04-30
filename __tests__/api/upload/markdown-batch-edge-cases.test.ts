@@ -147,10 +147,14 @@ beforeEach(() => {
 describe('POST /api/ingest/markdown — edge cases (size, count, encoding, mime)', () => {
   // ─── Empty file (analyse phase) ─────────────────────────────────────
 
-  it('analyse: empty file (0 bytes) → analysis[0].empty=true', async () => {
-    // SPEC-DRIFT-T9 D4: orchestrator's analyseFile returns empty=true, but
-    // import-phase auto-exclusion only fires when override.excluded=true is
-    // passed. Test here covers the analyse-phase flag only.
+  it('analyse: route forwards orchestrator empty=true flag for 0-byte file', async () => {
+    // V_W1 F-1: orchestrator is wholesale-mocked at file scope — this test
+    // verifies the route forwards the orchestrator response. The orchestrator's
+    // own empty-detection logic (isEmpty || emptyAfterCleanup at
+    // markdown-orchestrator.ts:206-225) is covered separately by orchestrator
+    // unit tests. SPEC-DRIFT-T9 D4: import-phase auto-exclusion only fires
+    // when override.excluded=true is passed; orchestrator does NOT auto-exclude
+    // empty files. Test here covers the analyse-phase route-forward path only.
     configureRole(mockSupabase, 'editor');
     orchestratorMock.orchestrateMarkdownBatch.mockResolvedValueOnce({
       analysis: [
@@ -186,10 +190,11 @@ describe('POST /api/ingest/markdown — edge cases (size, count, encoding, mime)
     expect(body.analysis[0].empty).toBe(true);
   });
 
-  it('analyse: whitespace-only file → analysis[0].empty=true', async () => {
-    // SPEC-DRIFT-T9 D4: same flag (empty=true), but no auto-exclude on import
-    // unless the user explicitly excludes. Mirrors the orchestrator's
-    // `isEmpty || emptyAfterCleanup` calculation.
+  it('analyse: route forwards orchestrator empty=true flag for whitespace-only file', async () => {
+    // V_W1 F-1: route-forward path test (orchestrator mocked). SPEC-DRIFT-T9 D4:
+    // same flag (empty=true), but no auto-exclude on import unless the user
+    // explicitly excludes. Orchestrator's `isEmpty || emptyAfterCleanup`
+    // calculation is covered separately by orchestrator unit tests.
     configureRole(mockSupabase, 'editor');
     orchestratorMock.orchestrateMarkdownBatch.mockResolvedValueOnce({
       analysis: [

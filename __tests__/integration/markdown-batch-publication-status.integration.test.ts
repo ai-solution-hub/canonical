@@ -248,11 +248,18 @@ async function probeHybridSearchEmpirically(): Promise<boolean> {
   }
   seededIds.push(ins.data.id);
 
+  // limit_count is intentionally high (V_W1 F-2 hardening): the probe relies
+  // on the stub embedding's perfect self-match (cos_sim=1) plus the unique
+  // probeMarker ILIKE clause to surface the row. Both gates are robust today
+  // but if hybrid_search ranking weights drift OR staging item count grows
+  // past ~1000, a small limit_count could under-rank the probe row below the
+  // cutoff and false-positive Phase 3 as "shipped". 1000 is well above
+  // staging cardinality and headroom for ranking drift.
   const { data, error } = await serviceClient.rpc('hybrid_search', {
     query_embedding: stubEmbedding,
     query_text: probeMarker,
     similarity_threshold: 0.0,
-    limit_count: 50,
+    limit_count: 1000,
   });
   if (error || !data) return false;
   const ids = (data as Array<{ id: string }>).map((r) => r.id);
