@@ -64,6 +64,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/supabase/types/database.types';
 import { sb, SupabaseError } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { createServiceClient } from '@/lib/supabase/server';
 import { startPipelineRun } from '@/lib/pipeline/start-run';
 import { updatePipelineProgress } from '@/lib/pipeline/update-progress';
 import {
@@ -501,7 +502,6 @@ async function runImportPhase(
   // terminal write.
   // ────────────────────────────────────────────────────────────────────
   await finaliseRun({
-    supabase,
     pipelineRunId: effectivePipelineRunId,
     startedAt,
     status,
@@ -718,7 +718,6 @@ function computeRunStatus(params: {
 }
 
 interface FinaliseRunParams {
-  supabase: SupabaseClient<Database>;
   pipelineRunId: string;
   startedAt: string;
   status: 'completed' | 'completed_with_errors' | 'failed';
@@ -736,6 +735,15 @@ interface FinaliseRunParams {
  * the row out with status, completed_at, items_*, result, and the final
  * progress JSONB. Emits a Sentry signal for non-healthy runs.
  *
+ * RLS bypass: uses a service-role client (mirrors `startPipelineRun` and
+ * `updatePipelineProgress` — `pipeline_runs` has admin-only INSERT and
+ * SELECT policies but NO UPDATE/DELETE policies, so the route's
+ * auth-scoped client is silently denied. S213 W4 E2E surfaced this when
+ * the row stayed at `status='running'` after import returned. Pre-S212-W2
+ * the function was a terminal-INSERT (which the route's auth client could
+ * still do because of the admin INSERT policy); the at-start lifecycle
+ * conversion forgot to flip the client.
+ *
  * Audit-trail integrity: a failed terminal UPDATE is reported via
  * Sentry but does NOT throw — the import work has already happened, and
  * the caller still receives the rich `results_summary` envelope. The
@@ -747,7 +755,6 @@ interface FinaliseRunParams {
  */
 async function finaliseRun(params: FinaliseRunParams): Promise<void> {
   const {
-    supabase,
     pipelineRunId,
     startedAt,
     status,
@@ -758,6 +765,7 @@ async function finaliseRun(params: FinaliseRunParams): Promise<void> {
     filesCompleted,
     filesTotal,
   } = params;
+  const serviceClient = createServiceClient();
 
   // Final progress block — mirrors the EP3 'complete' / 'failed' shapes.
   const finalProgress: Json = {
@@ -774,7 +782,7 @@ async function finaliseRun(params: FinaliseRunParams): Promise<void> {
 
   try {
     await sb(
-      supabase
+      serviceClient
         .from('pipeline_runs')
         .update({
           status,

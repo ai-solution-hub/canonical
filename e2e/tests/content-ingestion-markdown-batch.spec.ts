@@ -328,11 +328,14 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
         .getByText(/Diff markers detected/i),
     ).toBeVisible();
 
-    // Dedup row surfaces the hash-match badge.
+    // Dedup row surfaces the hash-match badge. Use the link role rather than
+    // text — the badge's accessible link wraps both an aria-hidden visible
+    // span and a sr-only span, so getByText() trips strict-mode (matches both).
+    // The link role disambiguates to the single accessible element.
     await expect(
       page
         .getByTestId('markdown-analysis-row-bar-draft.md')
-        .getByText(/Hash match/i),
+        .getByRole('link', { name: /Hash match/i }),
     ).toBeVisible();
 
     // ────────────────────────────────────────────────────────────────
