@@ -14,8 +14,9 @@
  * Why all 11 modules? `registerAppTool` (ext-apps) is a thin convenience
  * wrapper that delegates to `server.registerTool`, so the single mock
  * `registerTool` capture catches the 4 app-tool registrations too — total
- * captured count should be 57 across all 16 modules (governance.ts adds
- * `update_publication_status` in S202 §5.2 T7).
+ * captured count should be 58 across all 16 modules (governance.ts adds
+ * `update_publication_status` in S202 §5.2 T7; search.ts adds
+ * `find_duplicate_candidates` in S217 W1B).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

@@ -9,8 +9,8 @@
  *   5. Zod schema parsing (string, number, optional, enum, boolean, uuid, min/max)
  *   6. Resource extraction (both patterns)
  *   7. Prompt extraction (with and without argsSchema)
- *   8. Full file extraction against actual search.ts (should find exactly 3 tools)
- *   9. Integration test: run against real source files, verify 41 tools, 12 resources, 5 prompts
+ *   8. Full file extraction against actual search.ts (should find exactly 5 tools)
+ *   9. Integration test: run against real source files, verify 58 tools, 12 resources, 7 prompts
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync, readdirSync } from 'fs';

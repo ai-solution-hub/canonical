@@ -354,31 +354,13 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   // §5.3.2 (S216 V_W3 audit deviation carried into S217).
   // -------------------------------------------------------------------------
 
-  // Shared input schema. The `visibility_filter` param remains overridable on
-  // both tools — the only thing that changes is the fallback applied when
-  // the caller omits it (handled inside `findSimilarItemsImpl`).
-  const similarItemsInputSchema = {
-    id: z
-      .string()
-      .uuid()
-      .describe('The UUID of the content item to find similar items for'),
-    threshold: z
-      .number()
-      .optional()
-      .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
-    limit: z
-      .number()
-      .optional()
-      .describe('Maximum results (default: 10, max: 25)'),
-    // §5.2 Phase 3 (S216 W3) — publication visibility filter.
-    visibility_filter: z
-      .enum(['default', 'all', 'admin'])
-      .optional()
-      .describe(
-        'Publication visibility filter. "default" → published-only similarity matches. "all" → draft + in_review + published. "admin" → every state including archived. Tool-default depends on which tool is invoked: find_similar_items defaults to "default" (LLM-discovery semantics); find_duplicate_candidates defaults to "admin" (dedup-against-every-state semantics).',
-      ),
-  };
-
+  // Both tools share the same input contract; the `visibility_filter` param
+  // remains overridable on both, with only the per-tool fallback differing
+  // (handled inside `findSimilarItemsImpl`). The schema is inlined at each
+  // `defineTool` call site rather than extracted to a shared const so
+  // `scripts/lib/mcp-parser.ts` (which extracts inventory params via
+  // `inputSchema: { ... }` literal-block matching) can resolve both tools'
+  // params for `docs/generated/mcp-inventory.{md,json}`.
   type SimilarItemsArgs = {
     id: string;
     threshold?: number;
@@ -522,7 +504,27 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       title: 'Find Similar Items',
       description:
         'Find published content items similar to a given item using vector cosine similarity. Use this for LLM semantic-discovery and related-content workflows where the caller wants live, citable knowledge-base material. Items above 95% similarity are flagged as likely duplicates. Uses the existing embedding index — no AI cost. For admin dedup workflows that need to match against draft, in_review, or archived siblings, use `find_duplicate_candidates` instead.',
-      inputSchema: similarItemsInputSchema,
+      inputSchema: {
+        id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to find similar items for'),
+        threshold: z
+          .number()
+          .optional()
+          .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Maximum results (default: 10, max: 25)'),
+        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+        visibility_filter: z
+          .enum(['default', 'all', 'admin'])
+          .optional()
+          .describe(
+            'Publication visibility filter. Default: "default" (published-only — matches the LLM-discovery semantics of this tool). Override with "all" for draft + in_review + published or "admin" for every state including archived.',
+          ),
+      },
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) =>
@@ -539,7 +541,27 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       title: 'Find Duplicate Candidates (Admin)',
       description:
         'Find content items similar to a given item across every publication state — draft, in_review, published, AND archived. Useful for admin dedup workflows where you need to detect duplicates of items that aren\'t (yet) published. Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use `find_similar_items`. Uses the existing embedding index — no AI cost.',
-      inputSchema: similarItemsInputSchema,
+      inputSchema: {
+        id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to find similar items for'),
+        threshold: z
+          .number()
+          .optional()
+          .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Maximum results (default: 10, max: 25)'),
+        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+        visibility_filter: z
+          .enum(['default', 'all', 'admin'])
+          .optional()
+          .describe(
+            'Publication visibility filter. Default: "admin" (every state including archived — matches dedup-against-every-state semantics). Override with "default" for published-only or "all" for draft + in_review + published (non-archived).',
+          ),
+      },
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) =>
