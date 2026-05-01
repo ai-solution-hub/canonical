@@ -46,6 +46,17 @@ import { sb } from '@/lib/supabase/safe';
 // Narrow projection of content_items that the helper touches. The
 // generated types now include superseded_by (WP-B.7 regen picked up the
 // WP-B.1 migration), so no intersection is needed any more.
+//
+// S216 Phase 5 (§6.5): the helper now also writes
+//   publication_status / archived_at / archived_by / archive_reason
+// on the OLD row, but the projected return type still surfaces the
+// classic four columns (id/title/superseded_by/dedup_status). Callers
+// that need the new fields read them via a follow-up SELECT (production
+// callers don't today). Keeping the return shape minimal preserves
+// backwards-compat for `app/api/items/[id]/route.ts:138` and
+// `app/api/admin/content-dedup/[id]/supersede/route.ts:130` and
+// `app/api/admin/content-dedup/near-duplicates/[pairId]/merge/route.ts:110`
+// — none of which read fields beyond the four returned today.
 type ContentItemSupersessionRow = Pick<
   Database['public']['Tables']['content_items']['Row'],
   'id' | 'title' | 'superseded_by' | 'dedup_status'
@@ -85,6 +96,15 @@ export interface SetSupersessionParams {
   oldId: string;
   newId: string;
   actorUserId: string;
+  /**
+   * Free-text reason for retiring the OLD row. Persisted to
+   * `content_items.archive_reason` on the OLD row (S216 Phase 5 §6.5).
+   *
+   * Optional — defaults to `Superseded by item ${newId}` when omitted, so
+   * existing callers (PATCH /api/items/:id, MCP supersede_content_item,
+   * admin dedup supersede + near-dup merge) require no source changes.
+   */
+  archiveReason?: string;
 }
 
 export interface SetSupersessionResult {
@@ -105,18 +125,38 @@ export interface SetSupersessionResult {
  *
  * On success, the OLD row is updated. NEW row is unchanged.
  *
+ * S216 §5.2 Phase 5 — §6.5 wiring:
+ *   The OLD row is now ALSO archived as part of supersession. The UPDATE
+ *   sets `publication_status='archived'`, `archived_at=NOW()`,
+ *   `archived_by=actorUserId`, `archive_reason=archiveReason ?? <default>`,
+ *   and `updated_by=actorUserId` in addition to the legacy
+ *   `superseded_by` + `dedup_status='superseded'` writes. The §6.6
+ *   BIDIRECTIONAL trigger (`enforce_archive_state_consistency`) is
+ *   idempotent for this payload — Direction 1 sees both `publication_status`
+ *   AND `archived_at` already populated and is a no-op.
+ *
+ *   Default `archive_reason` is `Superseded by item ${newId}` so any
+ *   caller omitting `params.archiveReason` produces a meaningful audit
+ *   trail. Per spec §6.5 lines 1019-1031, this unifies the "retired"
+ *   concept under `publication_status='archived'` while preserving
+ *   `superseded_by` as the metadata "by what?" pointer.
+ *
  * @param params.oldId — the row being retired (its `superseded_by` gets set)
  * @param params.newId — the row that replaces it (untouched)
- * @param params.actorUserId — UUID for audit context (not persisted to DB
- *   here; callers that need a `content_history` entry write their own
- *   snapshot per the archive/delete precedent in governance tools)
+ * @param params.actorUserId — UUID for audit context. Persisted to
+ *   `archived_by` and `updated_by` on the OLD row (S216 §6.5). Callers
+ *   that need a `content_history` entry still write their own snapshot
+ *   per the archive/delete precedent in governance tools.
+ * @param params.archiveReason — optional free-text reason for the archive
+ *   side-effect. Defaults to `Superseded by item ${newId}` when omitted —
+ *   existing callers see a meaningful default without code changes.
  * @param client — authorised Supabase client (RLS scoped or service role)
  */
 export async function setSupersession(
   params: SetSupersessionParams,
   client: SupabaseClient<Database>,
 ): Promise<SetSupersessionResult> {
-  const { oldId, newId, actorUserId } = params;
+  const { oldId, newId, actorUserId, archiveReason } = params;
 
   if (oldId === newId) {
     throw new SupersessionError(
@@ -177,12 +217,25 @@ export async function setSupersession(
     );
   }
 
+  // S216 §5.2 Phase 5 — §6.5 wiring. In addition to the legacy
+  // superseded_by/dedup_status writes, retire the OLD row by setting
+  // publication_status='archived' + archived_at/archived_by/archive_reason.
+  // The §6.6 trigger Direction 1 sees publication_status AND archived_at
+  // already populated and is a no-op — this payload upholds the
+  // bidirectional invariant on its own.
+  const archivedAt = new Date().toISOString();
+  const resolvedArchiveReason = archiveReason ?? `Superseded by item ${newId}`;
   const updated = await sb<ContentItemSupersessionRow>(
     client
       .from('content_items')
       .update({
         superseded_by: newId,
         dedup_status: 'superseded',
+        publication_status: 'archived',
+        archived_at: archivedAt,
+        archived_by: actorUserId,
+        archive_reason: resolvedArchiveReason,
+        updated_by: actorUserId,
       })
       .eq('id', oldId)
       .select('id, title, superseded_by, dedup_status')

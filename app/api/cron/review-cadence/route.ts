@@ -8,6 +8,7 @@
  *   - WHERE next_review_date < CURRENT_DATE
  *   - AND superseded_by IS NULL
  *   - AND archived_at IS NULL
+ *   - AND publication_status != 'archived' (S216 §5.2 Phase 5 / §6.4)
  *   - AND (governance_review_status IS NULL OR = 'approved')
  *
  * For each candidate:
@@ -20,7 +21,15 @@
  * filter; notification dedup uses getExistingNotificationIds keyed on the
  * candidate IDs + today's UTC midnight.
  *
+ * S216 §5.2 Phase 5 / §6.4 (lines 999-1011): the
+ * `publication_status != 'archived'` filter excludes archived items from
+ * cadence flagging. The §6.6 BIDIRECTIONAL trigger keeps `archived_at`
+ * and `publication_status` in lockstep, so the legacy `archived_at IS NULL`
+ * filter is logically equivalent — but defence-in-depth (per spec §6.4)
+ * pairs both filters in case of any future drift in the trigger.
+ *
  * Spec: docs/specs/p0-document-control-lifecycle-spec.md §6
+ *       docs/specs/publication-lifecycle-state-machine-spec.md §6.4
  * Plan: docs/plans/§5.5-phase-2-cron-plan.md T1
  */
 
@@ -81,6 +90,12 @@ export async function GET(request: NextRequest) {
         .lt('next_review_date', todayDateString)
         .is('superseded_by', null)
         .is('archived_at', null)
+        // S216 §5.2 Phase 5 / §6.4 — exclude archived items from cadence
+        // flagging. Belt-and-braces alongside `archived_at IS NULL`: the
+        // §6.6 BIDIRECTIONAL trigger normally keeps the two columns in
+        // lockstep, but pairing the filters defends against any future
+        // direct `publication_status` write that bypasses the trigger.
+        .neq('publication_status', 'archived')
         .or(
           'governance_review_status.is.null,governance_review_status.eq.approved',
         ),

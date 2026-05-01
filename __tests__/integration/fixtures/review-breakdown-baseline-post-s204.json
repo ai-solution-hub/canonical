@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "spec": "docs/specs/publication-lifecycle-state-machine-spec.md §5.3.1",
+    "ac": "AC2.8 — post-Phase-3 get_review_breakdown_stats() returns IDENTICAL numerical breakdowns to pre-migration (post-S204 baseline)",
+    "captured_from": "staging branch turayklvaunphgbgscat",
+    "captured_at": "2026-04-30",
+    "captured_by": "S216 W3 (§5.2 Phase 3 RPC visibility filter widening)",
+    "session": "S216 W3",
+    "rpc": "public.get_review_breakdown_stats()",
+    "note": "Staging is data-empty (1 row total per feedback_supabase_branch_data_empty). The AC2.8 contract is numerical PARITY pre/post the Phase 3 migration; the count values are determined by the snapshot at capture time, not by an absolute fixture target."
+  },
+  "baseline": {
+    "total": 1,
+    "verified": 0,
+    "flagged": 0,
+    "draft": 0,
+    "overdue": 0,
+    "by_domain": {
+      "Uncategorised": {
+        "total": 1,
+        "verified": 0
+      }
+    },
+    "by_content_type": {
+      "policy": {
+        "total": 1,
+        "verified": 0
+      }
+    },
+    "by_source_file": {},
+    "by_source_document": {}
+  }
+}
