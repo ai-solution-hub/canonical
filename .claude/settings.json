@@ -1,7 +1,5 @@
 {
   "enabledPlugins": {
-    "playground@claude-plugins-official": false,
-    "asana@claude-plugins-official": false,
     "firecrawl@claude-plugins-official": false,
     "knowledge-hub@local": false,
     "sentry@claude-plugins-official": false
