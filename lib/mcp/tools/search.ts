@@ -1,8 +1,9 @@
 /**
- * Search tool registrations (4 tools):
+ * Search tool registrations (5 tools):
  *   1. search_knowledge_base
  *  13. search_qa_library
- *  20. find_similar_items
+ *  20. find_similar_items          — LLM semantic-discovery (published-only default)
+ *  20b. find_duplicate_candidates  — admin dedup workflow (admin default: every state)
  *  21. search_content_chunks
  */
 import { z } from 'zod';
@@ -342,7 +343,177 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 20. find_similar_items
+  // 20 / 20b. find_similar_items + find_duplicate_candidates
+  //
+  // Both tools share an implementation body (`findSimilarItemsImpl`) and
+  // differ only by the visibility_filter default fed to `hybrid_search`.
+  // Splitting the surface follows MCP best practice — one tool, one job —
+  // so an LLM picks the right tool from name + description rather than a
+  // hidden mode flag. Spec authority: archived
+  // `.planning/.archive/.specs/publication-lifecycle-state-machine-spec.md`
+  // §5.3.2 (S216 V_W3 audit deviation carried into S217).
+  // -------------------------------------------------------------------------
+
+  // Shared input schema. The `visibility_filter` param remains overridable on
+  // both tools — the only thing that changes is the fallback applied when
+  // the caller omits it (handled inside `findSimilarItemsImpl`).
+  const similarItemsInputSchema = {
+    id: z
+      .string()
+      .uuid()
+      .describe('The UUID of the content item to find similar items for'),
+    threshold: z
+      .number()
+      .optional()
+      .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
+    limit: z
+      .number()
+      .optional()
+      .describe('Maximum results (default: 10, max: 25)'),
+    // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+    visibility_filter: z
+      .enum(['default', 'all', 'admin'])
+      .optional()
+      .describe(
+        'Publication visibility filter. "default" → published-only similarity matches. "all" → draft + in_review + published. "admin" → every state including archived. Tool-default depends on which tool is invoked: find_similar_items defaults to "default" (LLM-discovery semantics); find_duplicate_candidates defaults to "admin" (dedup-against-every-state semantics).',
+      ),
+  };
+
+  type SimilarItemsArgs = {
+    id: string;
+    threshold?: number;
+    limit?: number;
+    visibility_filter?: 'default' | 'all' | 'admin';
+  };
+
+  /**
+   * Shared implementation for `find_similar_items` and
+   * `find_duplicate_candidates`. The only difference between the two tools
+   * is `defaultVisibility`, applied when the caller omits
+   * `args.visibility_filter`.
+   */
+  async function findSimilarItemsImpl(
+    args: SimilarItemsArgs,
+    extra: ToolExtra,
+    defaultVisibility: 'default' | 'admin',
+  ) {
+    try {
+      const supabase = createMcpClient(extra.authInfo);
+      const threshold = Math.max(0.5, Math.min(1.0, args.threshold ?? 0.8));
+      const resultLimit = Math.min(args.limit ?? 10, 25);
+
+      // Fetch source item's embedding and title
+      const { data: sourceItem, error: sourceError } = await supabase
+        .from('content_items')
+        .select('id, title, suggested_title, embedding')
+        .eq('id', args.id)
+        .single();
+
+      if (sourceError || !sourceItem) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Content item not found: ${args.id}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      if (!sourceItem.embedding) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `No embedding found for item ${args.id}. The item may not have been embedded yet.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Use the embedding to search for similar items.
+      // §5.2 Phase 3 — pass-through. Caller-supplied filter wins; otherwise
+      // the per-tool default (published-only for find_similar_items, every
+      // state for find_duplicate_candidates) is sent to the RPC. We pass
+      // `undefined` only when defaultVisibility itself is 'default' AND no
+      // override is present — this preserves the existing JSON-RPC payload
+      // shape used by other tools (no `null` values on the wire).
+      const visibilityForRpc =
+        args.visibility_filter ??
+        (defaultVisibility === 'admin' ? 'admin' : undefined);
+
+      const { data: results, error: searchError } = await supabase.rpc(
+        'hybrid_search',
+        {
+          query_embedding:
+            typeof sourceItem.embedding === 'string'
+              ? sourceItem.embedding
+              : JSON.stringify(sourceItem.embedding),
+          query_text: '',
+          similarity_threshold: threshold,
+          limit_count: resultLimit + 1, // +1 to exclude self
+          visibility_filter: visibilityForRpc,
+        },
+      );
+
+      if (searchError) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Similarity search failed: ${searchError.message}.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Filter out the source item itself
+      const similar: SimilarItem[] = (
+        (results ?? []) as Record<string, unknown>[]
+      )
+        .filter((r) => r.id !== args.id)
+        .slice(0, resultLimit)
+        .map((r) => ({
+          id: r.id as string,
+          title: r.title as string | null,
+          suggested_title: r.suggested_title as string | null,
+          content_type: r.content_type as string | null,
+          primary_domain: r.primary_domain as string | null,
+          similarity: r.similarity as number,
+          likely_duplicate: (r.similarity as number) > 0.95,
+        }));
+
+      const sourceTitle =
+        sourceItem.suggested_title || sourceItem.title || 'Untitled';
+      const result: SimilarItemsResult = {
+        source_item: { id: args.id, title: sourceTitle },
+        similar_items: similar,
+      };
+
+      const markdown = truncateResponse(formatSimilarItems(result));
+      return {
+        content: [{ type: 'text' as const, text: markdown }],
+        structuredContent: toStructuredContent(result),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Similarity search failed: ${message}.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 20. find_similar_items — LLM semantic-discovery (published-only default)
   // -------------------------------------------------------------------------
   defineTool(
     server,
@@ -350,136 +521,29 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     {
       title: 'Find Similar Items',
       description:
-        'Find content items similar to a given item using vector cosine similarity. Useful for duplicate detection and related-content discovery. Items above 95% similarity are flagged as likely duplicates. Uses the existing embedding index — no AI cost.',
-      inputSchema: {
-        id: z
-          .string()
-          .uuid()
-          .describe('The UUID of the content item to find similar items for'),
-        threshold: z
-          .number()
-          .optional()
-          .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
-        limit: z
-          .number()
-          .optional()
-          .describe('Maximum results (default: 10, max: 25)'),
-        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
-        visibility_filter: z
-          .enum(['default', 'all', 'admin'])
-          .optional()
-          .describe(
-            'Publication visibility filter. Omit (or "default") for published-only similarity matches. "all" includes draft + in_review + published. "admin" matches against every state — useful for dedup discovery against draft/archived siblings.',
-          ),
-      },
+        'Find published content items similar to a given item using vector cosine similarity. Use this for LLM semantic-discovery and related-content workflows where the caller wants live, citable knowledge-base material. Items above 95% similarity are flagged as likely duplicates. Uses the existing embedding index — no AI cost. For admin dedup workflows that need to match against draft, in_review, or archived siblings, use `find_duplicate_candidates` instead.',
+      inputSchema: similarItemsInputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (args, extra: ToolExtra) => {
-      try {
-        const supabase = createMcpClient(extra.authInfo);
-        const threshold = Math.max(0.5, Math.min(1.0, args.threshold ?? 0.8));
-        const resultLimit = Math.min(args.limit ?? 10, 25);
+    async (args, extra: ToolExtra) =>
+      findSimilarItemsImpl(args as SimilarItemsArgs, extra, 'default'),
+  );
 
-        // Fetch source item's embedding and title
-        const { data: sourceItem, error: sourceError } = await supabase
-          .from('content_items')
-          .select('id, title, suggested_title, embedding')
-          .eq('id', args.id)
-          .single();
-
-        if (sourceError || !sourceItem) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Content item not found: ${args.id}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        if (!sourceItem.embedding) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `No embedding found for item ${args.id}. The item may not have been embedded yet.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        // Use the embedding to search for similar items
-        const { data: results, error: searchError } = await supabase.rpc(
-          'hybrid_search',
-          {
-            query_embedding:
-              typeof sourceItem.embedding === 'string'
-                ? sourceItem.embedding
-                : JSON.stringify(sourceItem.embedding),
-            query_text: '',
-            similarity_threshold: threshold,
-            limit_count: resultLimit + 1, // +1 to exclude self
-            // §5.2 Phase 3 — pass-through. Default = published-only.
-            visibility_filter: args.visibility_filter ?? undefined,
-          },
-        );
-
-        if (searchError) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Similarity search failed: ${searchError.message}.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        // Filter out the source item itself
-        const similar: SimilarItem[] = (
-          (results ?? []) as Record<string, unknown>[]
-        )
-          .filter((r) => r.id !== args.id)
-          .slice(0, resultLimit)
-          .map((r) => ({
-            id: r.id as string,
-            title: r.title as string | null,
-            suggested_title: r.suggested_title as string | null,
-            content_type: r.content_type as string | null,
-            primary_domain: r.primary_domain as string | null,
-            similarity: r.similarity as number,
-            likely_duplicate: (r.similarity as number) > 0.95,
-          }));
-
-        const sourceTitle =
-          sourceItem.suggested_title || sourceItem.title || 'Untitled';
-        const result: SimilarItemsResult = {
-          source_item: { id: args.id, title: sourceTitle },
-          similar_items: similar,
-        };
-
-        const markdown = truncateResponse(formatSimilarItems(result));
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(result),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Similarity search failed: ${message}.`,
-            },
-          ],
-          isError: true,
-        };
-      }
+  // -------------------------------------------------------------------------
+  // 20b. find_duplicate_candidates — admin dedup workflow (every state default)
+  // -------------------------------------------------------------------------
+  defineTool(
+    server,
+    'find_duplicate_candidates',
+    {
+      title: 'Find Duplicate Candidates (Admin)',
+      description:
+        'Find content items similar to a given item across every publication state — draft, in_review, published, AND archived. Useful for admin dedup workflows where you need to detect duplicates of items that aren\'t (yet) published. Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use `find_similar_items`. Uses the existing embedding index — no AI cost.',
+      inputSchema: similarItemsInputSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
+    async (args, extra: ToolExtra) =>
+      findSimilarItemsImpl(args as SimilarItemsArgs, extra, 'admin'),
   );
 
   // -------------------------------------------------------------------------

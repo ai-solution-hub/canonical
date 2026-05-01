@@ -1,8 +1,8 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 57 tools across 16 category files:
- *   - search.ts     (4): search_knowledge_base, search_qa_library, find_similar_items, search_content_chunks
+ * Registers 58 tools across 16 category files:
+ *   - search.ts     (5): search_knowledge_base, search_qa_library, find_similar_items, find_duplicate_candidates, search_content_chunks
  *   - content.ts    (9): get_content_item, create_content_item, update_content_item, get_content_items, get_workspace_items, assign_content_owner, bulk_assign_owner, get_document_versions, get_document_diff
  *   - bids.ts       (5): list_active_bids, get_bid_detail, get_bid_question, cite_content, get_content_effectiveness
  *   - dashboard.ts  (4): get_dashboard_summary, get_reorientation, get_freshness_report, get_expiring_content

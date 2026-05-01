@@ -469,17 +469,18 @@ describe('Full file extraction (search.ts)', () => {
   const searchFile = resolve(TOOLS_DIR, 'search.ts');
 
   it.skipIf(!existsSync(searchFile))(
-    'extracts exactly 4 tools from search.ts',
+    'extracts exactly 5 tools from search.ts',
     () => {
       const source = readFileSync(searchFile, 'utf-8');
       const tools = parseToolFile(source, 'search.ts');
 
-      expect(tools).toHaveLength(4);
+      expect(tools).toHaveLength(5);
 
       const names = tools.map((t) => t.name);
       expect(names).toContain('search_knowledge_base');
       expect(names).toContain('search_qa_library');
       expect(names).toContain('find_similar_items');
+      expect(names).toContain('find_duplicate_candidates');
       expect(names).toContain('search_content_chunks');
 
       // Verify search_knowledge_base has correct params
@@ -522,11 +523,12 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      // 57 = 43 pre-S180 + 2 governance additions + 3 review tools +
+      // 58 = 43 pre-S180 + 2 governance additions + 3 review tools +
       // 4 guides (added to CATEGORY_ORDER in WP6 — was a pre-S180 oversight)
       // + 1 change-report + 1 supersession (S186) + 1 bulk_assign_owner (S194)
-      // + 1 list_user_workspaces (S194) + 1 update_publication_status (S202 §5.2 T7).
-      expect(allTools.length).toBe(57);
+      // + 1 list_user_workspaces (S194) + 1 update_publication_status (S202 §5.2 T7)
+      // + 1 find_duplicate_candidates (S217 W1B — split LLM-discovery vs admin-dedup).
+      expect(allTools.length).toBe(58);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

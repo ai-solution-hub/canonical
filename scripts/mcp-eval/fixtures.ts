@@ -75,10 +75,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 54 tools (S186 WP-B.4 adds supersede_content_item)
+// Canonical lists — updated to 58 tools (S217 W1B adds find_duplicate_candidates)
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 55 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 58 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -142,15 +142,19 @@ export const CANONICAL_TOOL_NAMES = [
   'list_user_workspaces', // 56
   // S202 §5.2 Phase 2 / T7 — publication-lifecycle MCP surface (56 → 57).
   'update_publication_status', // 57
+  // S217 W1B — split LLM-discovery surface from admin dedup surface (57 → 58).
+  // Authority: archived `.specs/publication-lifecycle-state-machine-spec.md` §5.3.2.
+  'find_duplicate_candidates', // 58
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 57
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 58
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
   'search_knowledge_base',
   'search_qa_library',
   'find_similar_items',
+  'find_duplicate_candidates',
   'search_content_chunks',
   'get_dashboard_summary',
   'get_reorientation',
@@ -508,6 +512,8 @@ export function getMinimalArgs(
     case 'audit_content':
       return {};
     case 'find_similar_items':
+      return { id: knownUUIDs.contentItemId };
+    case 'find_duplicate_candidates':
       return { id: knownUUIDs.contentItemId };
     case 'get_content_items':
       return { ids: [knownUUIDs.contentItemId] };
