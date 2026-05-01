@@ -68,13 +68,17 @@
  *   - AC1.10 (Direction 1 control case — proves trigger as a whole is firing).
  *   - AC1.11 (Direction 3 — load-bearing for Phase 3 simplification).
  *
- * Out of scope (deferred to S217 OPS-NN):
- *   `lib/supersession/set.ts` — does NOT write `archived_at` today
- *   (verified by reading the helper). Phase 5 (next session, WP3) will
- *   extend the helper to write `publication_status='archived'` +
- *   `archived_at` and at that point this pre-flight test must be
- *   extended with a third writer block. See report at handoff for the
- *   recommended OPS-NN backlog entry text.
+ * S217 W1A drift backfill — writer 4 (supersession) now covered:
+ *   `lib/supersession/set.ts:226-244` writes `publication_status='archived'`,
+ *   `archived_at`, `archived_by`, `archive_reason` on the OLD row (Phase 5
+ *   §6.5, shipped S216 W6). The §6.6 trigger Directions 1 + 3 are BOTH
+ *   no-op pass-throughs on this writer because the UPDATE payload supplies
+ *   `publication_status='archived'` AND `archived_at` simultaneously —
+ *   the writer upholds the invariant on its own. Coverage is in the
+ *   "writer 4" describe block at the end of this file; assertions target
+ *   the post-write invariant per spec §10.3 / AC1.11, not trigger
+ *   fire-mechanism. Spec §10.3 enumeration of the three writers is now
+ *   stale by one entry — backlog item queued for the W1A handoff.
  *
  * Spec sections: §6.6 (trigger), §10.3 (pre-flight check), AC1.10/1.11.
  *
@@ -159,6 +163,7 @@ const { POST: confirmDuplicatePost } = await import(
   '@/app/api/admin/content-dedup/[id]/confirm-duplicate/route'
 );
 const { registerGovernanceTools } = await import('@/lib/mcp/tools/governance');
+const { setSupersession } = await import('@/lib/supersession/set');
 
 import { NextRequest } from 'next/server';
 
@@ -249,7 +254,7 @@ async function readRow(itemId: string) {
   const { data, error } = await serviceClient
     .from('content_items')
     .select(
-      'publication_status, archived_at, archived_by, archive_reason, dedup_status',
+      'publication_status, archived_at, archived_by, archive_reason, dedup_status, superseded_by',
     )
     .eq('id', itemId)
     .single();
@@ -858,3 +863,114 @@ describeIfEnv(
   },
 );
 
+describeIfEnv(
+  'Archive trigger coverage — lib/supersession/set.ts (writer 4)',
+  () => {
+    // Writer 4 — supersession. Trigger §6.6 Directions 1 + 3 are both
+    // NO-OP pass-throughs on this writer because the UPDATE payload
+    // supplies BOTH `publication_status='archived'` AND `archived_at`
+    // simultaneously; the writer upholds the invariant on its own.
+    // Test asserts post-write invariant per spec §10.3 / AC1.11, not
+    // trigger fire-mechanism. See `lib/supersession/set.ts:132-136` +
+    // `:222-225` for the helper-side commentary.
+    it(
+      'Case A — happy path: setSupersession archives OLD row + writes archive_reason override',
+      async () => {
+        const oldId = await seedItem(
+          'published',
+          'supersession-A-old',
+          TEST_USER_ADMIN_ID,
+        );
+        const newId = await seedItem(
+          'published',
+          'supersession-A-new',
+          TEST_USER_ADMIN_ID,
+        );
+
+        // Sanity baseline: OLD row published + archived_at NULL +
+        // dedup_status 'clean' + superseded_by NULL.
+        const pre = await readRow(oldId);
+        expect(pre.publication_status).toBe('published');
+        expect(pre.archived_at).toBeNull();
+        expect(pre.superseded_by).toBeNull();
+
+        const reason = 'Pre-flight A1: supersession happy-path';
+        const beforeMs = Date.now();
+        await setSupersession(
+          {
+            oldId,
+            newId,
+            actorUserId: TEST_USER_ADMIN_ID,
+            archiveReason: reason,
+          },
+          serviceClient,
+        );
+
+        const post = await readRow(oldId);
+        // CORE PRE-FLIGHT INVARIANT (spec §10.3 + AC1.11) — writer
+        // upholds publication_status='archived' ↔ archived_at IS NOT NULL
+        // without requiring trigger Direction 1 or 3 to fire.
+        expect(post.publication_status).toBe('archived');
+        expect(post.archived_at).not.toBeNull();
+        const archivedTs = new Date(post.archived_at as string).getTime();
+        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+        expect(post.archive_reason).toBe(reason);
+        expect(post.superseded_by).toBe(newId);
+        // Per `lib/supersession/set.ts:233`, dedup_status is also flipped
+        // to 'superseded' on the OLD row.
+        expect(post.dedup_status).toBe('superseded');
+      },
+      60_000,
+    );
+
+    it(
+      'Case B — default archiveReason fallback: omitted param yields canonical "Superseded by item ${newId}"',
+      async () => {
+        // Per `lib/supersession/set.ts:227`, archiveReason defaults to
+        // `Superseded by item ${newId}` when the caller omits it.
+        // Existing callers (PATCH /api/items/:id, MCP supersede_content_
+        // item, admin dedup supersede + near-dup merge) all rely on this
+        // default — assert it directly.
+        const oldId = await seedItem(
+          'published',
+          'supersession-B-old',
+          TEST_USER_ADMIN_ID,
+        );
+        const newId = await seedItem(
+          'published',
+          'supersession-B-new',
+          TEST_USER_ADMIN_ID,
+        );
+
+        const pre = await readRow(oldId);
+        expect(pre.publication_status).toBe('published');
+        expect(pre.archived_at).toBeNull();
+
+        const beforeMs = Date.now();
+        await setSupersession(
+          {
+            oldId,
+            newId,
+            actorUserId: TEST_USER_ADMIN_ID,
+            // archiveReason intentionally omitted.
+          },
+          serviceClient,
+        );
+
+        const post = await readRow(oldId);
+        expect(post.publication_status).toBe('archived');
+        expect(post.archived_at).not.toBeNull();
+        const archivedTs = new Date(post.archived_at as string).getTime();
+        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+        expect(post.archive_reason).toBe(`Superseded by item ${newId}`);
+        expect(post.superseded_by).toBe(newId);
+        expect(post.dedup_status).toBe('superseded');
+      },
+      60_000,
+    );
+  },
+);
