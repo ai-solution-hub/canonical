@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseSearchParams } from '@/lib/validation';
 import { DedupQueueQuerySchema } from '@/lib/validation/schemas';
 
@@ -62,7 +63,10 @@ export async function GET(request: NextRequest) {
     const { data: items, error } = await query;
 
     if (error) {
-      console.error('Failed to load dedup queue:', error);
+      logger.error(
+        { err: error, op: 'admin.content-dedup.queue.load' },
+        'Failed to load dedup queue',
+      );
       return NextResponse.json(
         { error: 'Failed to load dedup queue' },
         { status: 500 },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseBody } from '@/lib/validation';
 import { DedupSupersedeBodySchema } from '@/lib/validation/schemas';
 import { setSupersession, SupersessionError } from '@/lib/supersession/set';
@@ -98,7 +99,13 @@ export async function POST(
       .single();
 
     if (subjectErr && subjectErr.code !== 'PGRST116') {
-      console.error('Failed to load dedup subject:', subjectErr);
+      logger.error(
+        {
+          err: subjectErr,
+          op: 'admin.content-dedup.supersede.load_subject',
+        },
+        'Failed to load dedup subject',
+      );
       return NextResponse.json(
         { error: 'Failed to load dedup subject' },
         { status: 500 },

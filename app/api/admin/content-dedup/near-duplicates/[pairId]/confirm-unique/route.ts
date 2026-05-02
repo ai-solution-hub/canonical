@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseBody } from '@/lib/validation';
 import { NearDupConfirmUniqueBodySchema } from '@/lib/validation/schemas';
 import { parsePairId } from '@/lib/dedup/pair-id';
@@ -66,9 +67,12 @@ export async function POST(
       .select('id')
       .in('id', [parsedPair.leftId, parsedPair.rightId]);
     if (existingErr) {
-      console.error(
-        '[near-duplicates confirm-unique] pre-check error:',
-        existingErr,
+      logger.error(
+        {
+          err: existingErr,
+          op: 'admin.content-dedup.near-duplicates.confirm-unique.precheck',
+        },
+        '[near-duplicates confirm-unique] pre-check error',
       );
       return NextResponse.json(
         { error: existingErr.message ?? 'Failed to verify pair' },
@@ -95,7 +99,13 @@ export async function POST(
     );
 
     if (rpcErr) {
-      console.error('[near-duplicates confirm-unique] RPC error:', rpcErr);
+      logger.error(
+        {
+          err: rpcErr,
+          op: 'admin.content-dedup.near-duplicates.confirm-unique.rpc',
+        },
+        '[near-duplicates confirm-unique] RPC error',
+      );
       return NextResponse.json(
         { error: rpcErr.message ?? 'Failed to confirm pair as unique' },
         { status: 500 },

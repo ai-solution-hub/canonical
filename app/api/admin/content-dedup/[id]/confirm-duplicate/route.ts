@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseBody } from '@/lib/validation';
 import { DedupActionBodySchema } from '@/lib/validation/schemas';
 
@@ -63,7 +64,13 @@ export async function POST(
       .single();
 
     if (subjectErr && subjectErr.code !== 'PGRST116') {
-      console.error('Failed to load dedup subject:', subjectErr);
+      logger.error(
+        {
+          err: subjectErr,
+          op: 'admin.content-dedup.confirm-duplicate.load_subject',
+        },
+        'Failed to load dedup subject',
+      );
       return NextResponse.json(
         { error: 'Failed to load dedup subject' },
         { status: 500 },
@@ -98,7 +105,13 @@ export async function POST(
       .single();
 
     if (updateErr || !updated) {
-      console.error('Failed to confirm duplicate:', updateErr);
+      logger.error(
+        {
+          err: updateErr,
+          op: 'admin.content-dedup.confirm-duplicate.update',
+        },
+        'Failed to confirm duplicate',
+      );
       return NextResponse.json(
         { error: 'Failed to confirm duplicate' },
         { status: 500 },
@@ -115,9 +128,12 @@ export async function POST(
       .limit(1);
 
     if (latestHistoryErr) {
-      console.error(
-        'Failed to read latest content_history version:',
-        latestHistoryErr,
+      logger.error(
+        {
+          err: latestHistoryErr,
+          op: 'admin.content-dedup.confirm-duplicate.history_version_lookup',
+        },
+        'Failed to read latest content_history version',
       );
     }
 
@@ -146,7 +162,13 @@ export async function POST(
       });
 
     if (historyErr) {
-      console.error('Failed to insert dedup audit history:', historyErr);
+      logger.error(
+        {
+          err: historyErr,
+          op: 'admin.content-dedup.confirm-duplicate.history_insert',
+        },
+        'Failed to insert dedup audit history',
+      );
       // Do not surface 500: the user-visible mutation succeeded. Audit
       // breadcrumb is best-effort but still must not silently swallow.
       // (Sentry capture happens via safeErrorMessage path on actual throws;

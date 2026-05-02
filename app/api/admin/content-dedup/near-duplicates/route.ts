@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseSearchParams } from '@/lib/validation';
 import { NearDupPairsQuerySchema } from '@/lib/validation/schemas';
 import { buildPairId } from '@/lib/dedup/pair-id';
@@ -49,7 +50,10 @@ export async function GET(request: NextRequest) {
     );
 
     if (rpcErr) {
-      console.error('[near-duplicates list] RPC error:', rpcErr);
+      logger.error(
+        { err: rpcErr, op: 'admin.content-dedup.near-duplicates.list.rpc' },
+        '[near-duplicates list] RPC error',
+      );
       return NextResponse.json(
         { error: rpcErr.message ?? 'Failed to load duplicate pairs' },
         { status: 500 },
@@ -78,7 +82,13 @@ export async function GET(request: NextRequest) {
         .in('id', ids);
 
       if (statusErr) {
-        console.error('[near-duplicates list] status lookup error:', statusErr);
+        logger.error(
+          {
+            err: statusErr,
+            op: 'admin.content-dedup.near-duplicates.list.status_lookup',
+          },
+          '[near-duplicates list] status lookup error',
+        );
         return NextResponse.json(
           {
             error: statusErr.message ?? 'Failed to load pair dedup statuses',
