@@ -614,3 +614,151 @@ describe('GET /api/coverage/gaps', () => {
     expect(body.gaps.length).toBeLessThanOrEqual(100);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: S22 CI smoke surfaced React duplicate-key warning on Priority
+// Gaps tab. The render site keys children on `gap.gap_key`. Duplicate keys
+// can arise structurally from any of the three sources:
+//   1. listAvailableTemplates returns multiple template_version entries for
+//      the same template_name (each calling fetchTemplateRequirements with
+//      only `template_name`, returning the SAME requirements N times).
+//   2. get_coverage_matrix RPC returns duplicate (domain, subtopic) tuples.
+//   3. get_guide_coverage RPC returns duplicate (guide_id, section_id) rows.
+//
+// The API response MUST de-duplicate by gap_key before returning, otherwise
+// the React reconciler emits "Encountered two children with the same key".
+//
+// Spec context: docs/continuation-prompts/session-23.md (S23 W1 IMPL-D);
+// offending UUID 21c0a9e8-e573-4e60-9a03-983c28102f67 (since-purged on
+// staging-refresh; bug is structural so reproduced via mocked dup inputs).
+// ---------------------------------------------------------------------------
+
+describe('GET /api/coverage/gaps — duplicate-key regression', () => {
+  it('de-duplicates template gaps when listAvailableTemplates returns the same template_name twice', async () => {
+    // Simulate the structural dup mode: two template versions, both is_current,
+    // both yielding the same set of requirements when fetched by template_name.
+    mockListAvailableTemplates.mockReset();
+    mockListAvailableTemplates.mockResolvedValue([
+      {
+        template_name: 'Standard SQ',
+        template_version: '1.0',
+        template_type: 'SQ',
+        requirement_count: 3,
+        is_current: true,
+      },
+      {
+        template_name: 'Standard SQ',
+        template_version: '1.1',
+        template_type: 'SQ',
+        requirement_count: 3,
+        is_current: true,
+      },
+    ]);
+    // fetchTemplateRequirements is keyed on template_name only, so both calls
+    // return the same requirement set — emulates real prod behaviour.
+    mockFetchTemplateRequirements.mockResolvedValue(TEMPLATE_REQUIREMENTS);
+    // computeTemplateCoverage is called once per template entry; both produce
+    // identical gap rows (same template_name, same section_ref, same req id).
+    mockComputeTemplateCoverage.mockReturnValue(TEMPLATE_COVERAGE_RESULT);
+
+    const req = createTestRequest('/api/coverage/gaps', {
+      searchParams: { limit: '100' },
+    });
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    const keys = body.gaps.map((g: { gap_key: string }) => g.gap_key);
+    const uniqueKeys = new Set(keys);
+
+    // CRITICAL ASSERTION: every key in the response must be unique. Without
+    // a de-dup pass, the duplicate template version produces two gap entries
+    // per requirement → React warning at the render site.
+    expect(uniqueKeys.size).toBe(keys.length);
+  });
+
+  it('de-duplicates taxonomy gaps when matrix RPC returns duplicate (domain, subtopic) rows', async () => {
+    // Simulate matrix RPC returning the same empty-subtopic row twice (e.g. via
+    // a JOIN cardinality bug in a future RPC change).
+    mockSupabase.rpc.mockReset();
+    mockSupabase.rpc
+      .mockResolvedValueOnce({
+        data: [
+          { domain_name: 'Engineering', subtopic_name: 'Testing', item_count: 0 },
+          { domain_name: 'Engineering', subtopic_name: 'Testing', item_count: 0 },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: [], error: null }); // empty guide
+
+    mockListAvailableTemplates.mockReset();
+    mockListAvailableTemplates.mockResolvedValue([]);
+
+    const req = createTestRequest('/api/coverage/gaps', {
+      searchParams: { limit: '100' },
+    });
+    const res = await GET(req);
+    const body = await res.json();
+
+    const keys = body.gaps.map((g: { gap_key: string }) => g.gap_key);
+    const uniqueKeys = new Set(keys);
+    expect(uniqueKeys.size).toBe(keys.length);
+  });
+
+  it('de-duplicates guide gaps when guide RPC returns duplicate (guide_id, section_id) rows', async () => {
+    // Simulate guide RPC duplicating a section row (e.g. via a future GROUP BY
+    // regression). Only sections with content_count=0 are emitted as gaps, so
+    // the dup must be on a section that qualifies.
+    mockSupabase.rpc.mockReset();
+    mockSupabase.rpc
+      .mockResolvedValueOnce({ data: [], error: null }) // empty matrix
+      .mockResolvedValueOnce({
+        data: [
+          {
+            guide_id: 'g1',
+            guide_name: 'ISO Guide',
+            guide_slug: 'iso-guide',
+            guide_type: 'standard',
+            domain_filter: 'all',
+            section_id: 's1',
+            section_name: 'Introduction',
+            section_order: 1,
+            expected_layer: null,
+            is_required: true,
+            content_count: 0,
+            fresh_count: 0,
+            stale_count: 0,
+          },
+          {
+            guide_id: 'g1',
+            guide_name: 'ISO Guide',
+            guide_slug: 'iso-guide',
+            guide_type: 'standard',
+            domain_filter: 'all',
+            section_id: 's1',
+            section_name: 'Introduction',
+            section_order: 1,
+            expected_layer: null,
+            is_required: true,
+            content_count: 0,
+            fresh_count: 0,
+            stale_count: 0,
+          },
+        ],
+        error: null,
+      });
+
+    mockListAvailableTemplates.mockReset();
+    mockListAvailableTemplates.mockResolvedValue([]);
+
+    const req = createTestRequest('/api/coverage/gaps', {
+      searchParams: { limit: '100' },
+    });
+    const res = await GET(req);
+    const body = await res.json();
+
+    const keys = body.gaps.map((g: { gap_key: string }) => g.gap_key);
+    const uniqueKeys = new Set(keys);
+    expect(uniqueKeys.size).toBe(keys.length);
+  });
+});
