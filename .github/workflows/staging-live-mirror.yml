@@ -11,16 +11,33 @@
 # Pattern source: .github/workflows/migration-replay.yml (S10 ship; same
 # env-scope + secret-handling style + `if: always()` discipline).
 #
-# Required secrets (Staging-scoped, per docs/runbooks/github-environments.md):
-#   - STAGING_SUPABASE_DB_URL              (NEW — Liam to provision)
-#   - PROD_SUPABASE_DB_URL                 (NEW — Liam to provision)
-#   - STAGING_SUPABASE_SERVICE_ROLE_KEY    (existing — used by E2E suite)
-#   - STAGING_SHARED_PASSWORD_BCRYPT       (NEW — Liam to provision)
-#   - SUPABASE_ACCESS_TOKEN                (NEW — Staging-slot duplicate of
-#                                           the canonical Production-slot PAT;
-#                                           required for cli protection-toggle)
-#   - OBSERVABILITY_SENTRY_AUTH_TOKEN      (existing — used by ci.yml +
-#                                           migration-replay)
+# Required Staging-env entries (per docs/runbooks/github-environments.md).
+# Provisioned 03/05/2026 (kh-prod-readiness-S23 spec v3->v4 amend):
+#
+# Secrets (provisioned in GH env Staging):
+#   - STAGING_SUPABASE_DB_URL          postgres conn string for staging branch
+#   - PROD_SUPABASE_DB_URL             postgres conn string for prod project
+#   - STAGING_SHARED_PASSWORD_BCRYPT   bcrypt hash injected into auth.users
+#                                      via psql --set=staging_bcrypt
+#   - SUPABASE_ACCESS_TOKEN            PAT for "supabase branches update"
+#                                      (Staging-slot duplicate of canonical
+#                                      Production-slot PAT; only consumed when
+#                                      protection-mode=cli)
+#   - SUPABASE_SERVICE_ROLE_KEY        already present; aliased in env block
+#                                      to orchestrator-canonical
+#                                      STAGING_SUPABASE_SERVICE_ROLE_KEY
+#
+# Variables (provisioned in GH env Staging):
+#   - NEXT_PUBLIC_SUPABASE_URL         already present; aliased in env block
+#                                      to orchestrator-canonical
+#                                      STAGING_SUPABASE_URL
+#
+# Removed from env block (orchestrator never reads it):
+#   - OBSERVABILITY_SENTRY_AUTH_TOKEN  the OBSERVABILITY_ prefix was never
+#                                      deployed; canonical name is
+#                                      SENTRY_AUTH_TOKEN per
+#                                      research/09 §2.5; was cargo-culted
+#                                      from migration-replay.yml.
 
 name: Staging Live Mirror
 
@@ -67,10 +84,14 @@ jobs:
     env:
       STAGING_SUPABASE_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
       PROD_SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
-      STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+      # STAGING_SUPABASE_SERVICE_ROLE_KEY + STAGING_SUPABASE_URL are
+      # orchestrator-canonical names matching scripts/db-row-count-diff.ts
+      # cross-env naming convention (lines 17-27). Aliased here from the
+      # already-present Staging-env values rather than duplicating Liam-side.
+      STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      STAGING_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       STAGING_SHARED_PASSWORD_BCRYPT: ${{ secrets.STAGING_SHARED_PASSWORD_BCRYPT }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      OBSERVABILITY_SENTRY_AUTH_TOKEN: ${{ secrets.OBSERVABILITY_SENTRY_AUTH_TOKEN }}
       PROTECTION_MODE: ${{ github.event.inputs.protection-mode || 'cli' }}
       SKIP_SEED: ${{ github.event.inputs.skip-seed || 'false' }}
       RUN_ID: ${{ github.run_id }}
