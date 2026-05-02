@@ -1,0 +1,126 @@
+# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res2-staging-live-mirror-spec.md
+#
+# Staging live-mirror refresh (WP-CI.RES.2). Fortnightly (alternate-Monday)
+# pg_dump | psql snapshot of prod into the persistent staging branch
+# (turayklvaunphgbgscat), followed by a minimal-PII scrub limited to the
+# auth schema (per spec v2 §1.4 minimal-scrub matrix). The workflow toggles
+# branch protection off pre-restore and re-enables it post-scrub via a
+# failsafe step, so staging is never left unprotected on workflow exit
+# (per spec §2.7 step 7.7 + §2.9 exit-code matrix).
+#
+# Pattern source: .github/workflows/migration-replay.yml (S10 ship; same
+# env-scope + secret-handling style + `if: always()` discipline).
+#
+# Required secrets (Staging-scoped, per docs/runbooks/github-environments.md):
+#   - STAGING_SUPABASE_DB_URL              (NEW — Liam to provision)
+#   - PROD_SUPABASE_DB_URL                 (NEW — Liam to provision)
+#   - STAGING_SUPABASE_SERVICE_ROLE_KEY    (existing — used by E2E suite)
+#   - STAGING_SHARED_PASSWORD_BCRYPT       (NEW — Liam to provision)
+#   - SUPABASE_ACCESS_TOKEN                (NEW — Staging-slot duplicate of
+#                                           the canonical Production-slot PAT;
+#                                           required for cli protection-toggle)
+#   - OBSERVABILITY_SENTRY_AUTH_TOKEN      (existing — used by ci.yml +
+#                                           migration-replay)
+
+name: Staging Live Mirror
+
+on:
+  schedule:
+    # Mondays in week 2 OR week 4 of each month at 03:00 UTC = exactly two
+    # dispatches/month (true fortnightly cadence). POSIX-cron NOTE: this
+    # restricts only day-of-month with day-of-week kept at Monday, avoiding
+    # the cron OR-explosion (`0 3 1-14 * 1` would fire ~21x/month).
+    - cron: '0 3 8-14,22-28 * 1'
+  workflow_dispatch:
+    inputs:
+      protection-mode:
+        description: 'how to toggle staging branch protection'
+        required: true
+        default: 'cli'
+        type: choice
+        options: ['cli', 'manual']
+      skip-seed:
+        description: 'skip TEST_USER_1/2/3 seed step (debug only)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+
+concurrency:
+  group: staging-live-mirror
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Staging live-mirror refresh
+    runs-on: ubuntu-latest
+    # Resolves `${{ secrets.X }}` from the Staging environment scope per
+    # docs/runbooks/github-environments.md §4.1. Case-sensitive.
+    environment: Staging
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    # Workflow-injection mitigation (spec §2.6): all `${{ github.* }}` and
+    # `${{ secrets.* }}` references arrive via env, never inline `${{ }}` in
+    # the run: blocks. Orchestrator + failsafe step both read from this map.
+    env:
+      STAGING_SUPABASE_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
+      PROD_SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
+      STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+      STAGING_SHARED_PASSWORD_BCRYPT: ${{ secrets.STAGING_SHARED_PASSWORD_BCRYPT }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      OBSERVABILITY_SENTRY_AUTH_TOKEN: ${{ secrets.OBSERVABILITY_SENTRY_AUTH_TOKEN }}
+      PROTECTION_MODE: ${{ github.event.inputs.protection-mode || 'cli' }}
+      SKIP_SEED: ${{ github.event.inputs.skip-seed || 'false' }}
+      RUN_ID: ${{ github.run_id }}
+      EVENT_NAME: ${{ github.event_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install postgresql-17 client
+        # CLAUDE.md gotcha: pg_dump version must match server PG major version
+        # (Supabase PG 17.6). Without postgresql-client-17, pg_dump aborts at
+        # pre-flight (orchestrator §7.1 (a) check).
+        run: |
+          set -euo pipefail
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run staging live-mirror orchestrator
+        # Orchestrator handles steps 7.1-7.8 per spec §2.7. Reads all secrets
+        # via process.env (populated from job-level env: above). Never
+        # interpolates user-supplied data into shell commands.
+        run: bun run scripts/staging-mirror-and-scrub.ts
+
+      - name: Re-enable staging branch protection (failsafe)
+        # Belt-and-braces vs the orchestrator's own try/finally (spec §2.7
+        # step 7.7 runs inside the script's `finally` block too). This step
+        # fires even if the orchestrator process is killed mid-execution
+        # (workflow cancellation, runner OOM, signal kill). Per spec AC-19:
+        # the staging branch protection flag MUST end the workflow set to
+        # `true` regardless of orchestrator exit path.
+        if: always()
+        run: |
+          set +e
+          supabase branches update turayklvaunphgbgscat --is-protected true
