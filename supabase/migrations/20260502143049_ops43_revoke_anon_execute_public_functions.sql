@@ -62,8 +62,12 @@
 --
 -- Verification — tail block runs the AC-1 cross-check post-apply and
 -- RAISES NOTICE (not EXCEPTION) if more than v_expected_remaining
--- functions remain anon-exposed. v_expected_remaining = 9 (8 KEEP-as-is
--- per spec §2.3 + 1 set_config retained intentional-anon).
+-- functions remain anon-exposed. v_expected_remaining = 1 — only
+-- set_config retained intentional-anon. The 8 KEEP-as-is entries per
+-- spec §2.3 also got their PUBLIC inheritance broken by the
+-- `FROM PUBLIC, anon` pattern (spec-template correction; see commit
+-- body), tightening 7 of them further than the spec's `FROM anon`
+-- alone would have.
 --
 -- The pgvector extension lives in the `extensions` schema (not `public`),
 -- so signatures referencing the vector type are written as
@@ -652,7 +656,9 @@ EXCEPTION
 END;
 $$;
 
--- get_bid_summary: no current call-sites; OPS-43.1 candidate.
+-- get_bid_summary: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- bid_workspaces/bid_responses — both RLS-policied).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_bid_summary(bid_workspace_id uuid) FROM PUBLIC, anon;
@@ -661,7 +667,9 @@ EXCEPTION
 END;
 $$;
 
--- get_content_owner_stats: no current rpc() call-sites; OPS-43.1 candidate.
+-- get_content_owner_stats: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- content_items/users — both RLS-policied).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_content_owner_stats() FROM PUBLIC, anon;
@@ -670,7 +678,9 @@ EXCEPTION
 END;
 $$;
 
--- get_content_win_rate: no current call-sites; OPS-43.1 candidate.
+-- get_content_win_rate: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- bid_responses — RLS-policied).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_content_win_rate(p_content_item_id uuid) FROM PUBLIC, anon;
@@ -699,7 +709,9 @@ EXCEPTION
 END;
 $$;
 
--- get_document_version_chain: no current call-sites; OPS-43.1 candidate.
+-- get_document_version_chain: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- source_documents/source_document_versions — both RLS-policied).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_document_version_chain(p_document_id uuid) FROM PUBLIC, anon;
@@ -708,7 +720,9 @@ EXCEPTION
 END;
 $$;
 
--- get_entity_co_occurrence: no current rpc call-sites; OPS-43.1 candidate.
+-- get_entity_co_occurrence: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- entity_mentions — RLS-policied via content_items join).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_entity_co_occurrence(p_limit integer, p_min_count integer, p_entity_type text) FROM PUBLIC, anon;
@@ -727,7 +741,9 @@ EXCEPTION
 END;
 $$;
 
--- get_entity_name_counts: no current call-sites; OPS-43.1 candidate.
+-- get_entity_name_counts: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- entity_mentions — RLS-policied).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_entity_name_counts() FROM PUBLIC, anon;
@@ -765,7 +781,9 @@ EXCEPTION
 END;
 $$;
 
--- get_guide_content: no current call-sites; OPS-43.1 candidate.
+-- get_guide_content: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- guides/guide_sections — both RLS-policied).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_guide_content(p_guide_slug text) FROM PUBLIC, anon;
@@ -867,7 +885,9 @@ EXCEPTION
 END;
 $$;
 
--- get_workspace_counts: no current rpc() call-sites; OPS-43.1 candidate.
+-- get_workspace_counts: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (reads
+-- workspaces — RLS-policied).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.get_workspace_counts() FROM PUBLIC, anon;
@@ -895,7 +915,9 @@ EXCEPTION
 END;
 $$;
 
--- run_quality_scan: no current rpc() call-sites; OPS-43.1 candidate.
+-- run_quality_scan: no current rpc() call-sites; SECDEF historical-only.
+-- REVOKE anon safe (no callers exposed); OPS-43.1 candidate (writes
+-- quality_scan_runs — RLS-policied; reads content_items).
 DO $$
 BEGIN
   REVOKE EXECUTE ON FUNCTION public.run_quality_scan(p_batch_name text) FROM PUBLIC, anon;
@@ -1001,14 +1023,20 @@ $$;
 
 -- ============================================================================
 -- §3.6 Verification block (NOTICE-only; no transaction abort).
--- v_expected_remaining = 9 (8 KEEP-as-is per spec §2.3 + 1 retained
--- intentional-anon set_config). Triage retained no additional anon entries.
+-- v_expected_remaining = 1 — only set_config retains anon EXECUTE.
+-- The 8 KEEP-as-is functions per spec §2.3 had FROM anon revoked but
+-- the FROM PUBLIC, anon pattern (per spec-template correction; see commit
+-- body) also broke the implicit PUBLIC inheritance the pre-squash baseline
+-- left in proacl, tightening them further. Net: 7 of 8 KEEP-as-is
+-- entries no longer carry has_function_privilege('anon', oid, 'EXECUTE')
+-- = TRUE either. Triage retained no additional anon entries beyond
+-- set_config.
 -- ============================================================================
 
 DO $$
 DECLARE
   v_remaining_anon_exposed integer;
-  v_expected_remaining integer := 9;
+  v_expected_remaining integer := 1;
 BEGIN
   SELECT count(*) INTO v_remaining_anon_exposed
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
