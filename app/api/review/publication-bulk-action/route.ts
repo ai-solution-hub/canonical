@@ -3,7 +3,7 @@
  * for items currently in publication_status='in_review' (§5.3 publication
  * approval gate, Wave 1 server surface).
  *
- * Spec: docs/specs/publication-approval-gate-spec.md §4 + §5 + §6 + §7.
+ * Spec: .planning/.archive/.specs/publication-approval-gate-spec.md §4 + §5 + §6 + §7 (archived S220 W4).
  *
  * Mirrors per-row PATCH semantics at `app/api/items/[id]/route.ts:199-365`
  * for `field='publication_status'`, but iterates over `body.ids` sequentially
@@ -35,7 +35,7 @@
  * - D-8 rate limit = 20 req/min per user (NOT authored 10). Aligns with
  *   `POST /api/items/` mutation baseline.
  *
- * @see docs/specs/publication-approval-gate-spec.md §4.3 for verbatim
+ * @see .planning/.archive/.specs/publication-approval-gate-spec.md §4.3 for verbatim
  *      iteration pseudocode and §4.4 for response-shape contract.
  */
 import { NextRequest, NextResponse } from 'next/server';

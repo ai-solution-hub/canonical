@@ -625,7 +625,7 @@ export async function postAdminNearDupConfirmUnique(
 // Publication bulk-action (§5.3 publication approval gate, Wave 1)
 // ---------------------------------------------------------------------------
 //
-// Spec: docs/specs/publication-approval-gate-spec.md §4.4 (response shape).
+// Spec: .planning/.archive/.specs/publication-approval-gate-spec.md §4.4 (response shape — archived S220 W4 close-out).
 // The wire shape mirrors the schema-defined request body verbatim.
 // `mutationFetchJson` defaults to `method: 'POST'` (set explicitly here
 // per the brief — never inherit a default) and applies `Content-Type:

@@ -2236,7 +2236,7 @@ export const NotificationPreferencesPutBodySchema = z
  * POST body for `/api/review/publication-bulk-action`.
  *
  * Bulk-approve / bulk-return-to-draft for items currently in publication
- * status `'in_review'`. Spec: docs/specs/publication-approval-gate-spec.md
+ * status `'in_review'`. Spec: .planning/.archive/.specs/publication-approval-gate-spec.md (archived S220 W4)
  * §4.2. Cap of 50 items per request ratified S217 close-out (D-3) — halves
  * the 30s Vercel function-timeout exposure under DB-load spikes vs the
  * authored 100-default.
