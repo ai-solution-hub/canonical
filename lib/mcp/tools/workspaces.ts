@@ -96,7 +96,7 @@ export async function registerWorkspaceTools(server: McpServer): Promise<void> {
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(result),
+          structuredContent: toStructuredContent({ workspaces: result }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
