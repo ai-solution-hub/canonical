@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1669,6 +1669,7 @@ export type Database = {
           created_by: string | null
           error_message: string | null
           id: string
+          idempotency_key: string | null
           job_type: string
           max_attempts: number
           payload: Json
@@ -1685,6 +1686,7 @@ export type Database = {
           created_by?: string | null
           error_message?: string | null
           id?: string
+          idempotency_key?: string | null
           job_type: string
           max_attempts?: number
           payload?: Json
@@ -1701,6 +1703,7 @@ export type Database = {
           created_by?: string | null
           error_message?: string | null
           id?: string
+          idempotency_key?: string | null
           job_type?: string
           max_attempts?: number
           payload?: Json
@@ -2706,6 +2709,7 @@ export type Database = {
           created_by: string | null
           error_message: string | null
           id: string
+          idempotency_key: string | null
           job_type: string
           max_attempts: number
           payload: Json
@@ -3380,6 +3384,7 @@ export type Database = {
           query_embedding: string
           query_text?: string
           similarity_threshold?: number
+          visibility_filter?: string
         }
         Returns: {
           ai_keywords: string[]
@@ -3516,6 +3521,7 @@ export type Database = {
           limit_count?: number
           query_embedding: string
           similarity_threshold?: number
+          visibility_filter?: string
         }
         Returns: {
           char_count: number
@@ -3541,6 +3547,7 @@ export type Database = {
           limit_count?: number
           query_embedding: string
           query_text?: string
+          visibility_filter?: string
         }
         Returns: {
           ai_keywords: string[]
