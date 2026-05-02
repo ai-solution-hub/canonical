@@ -192,16 +192,18 @@ export const READY_BRANCH_STATUSES = [
  *
  * `CREATING_PROJECT` was added kh-prod-readiness-S22 (02/05/2026) after
  * two consecutive migration-replay smoke runs (25260265369 + 25260575282)
- * failed on attempt 1 with the API returning `CREATING_PROJECT` — a state
- * not previously in the accepted-intermediate set. `MIGRATIONS_FAILED` is
- * intentionally separated out (handled as an immediate-throw inside the
- * polling loop) because it indicates the branch's clone of parent
- * migrations failed and additional waiting will not recover.
+ * failed on attempt 1 with the API returning `CREATING_PROJECT`.
+ * `RUNNING_MIGRATIONS` was added kh-prod-readiness-S23 (03/05/2026) after
+ * run 25264335446 failed on attempt 34 with `RUNNING_MIGRATIONS` — the
+ * in-progress sibling of `MIGRATIONS_PASSED`/`MIGRATIONS_FAILED` that the
+ * Supabase Management API surfaces while the migration replay is mid-flight
+ * on a fresh preview branch.
  */
 export const INTERMEDIATE_BRANCH_STATUSES = [
   'CREATING_PROJECT',
   'CREATING',
   'COMING_UP',
+  'RUNNING_MIGRATIONS',
   'MIGRATIONS_PASSED',
   'MIGRATIONS_FAILED',
 ] as const;

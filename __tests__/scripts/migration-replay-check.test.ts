@@ -85,6 +85,15 @@ describe('branch-status classification (S22 WP-G4.5 polling fix)', () => {
     expect(INTERMEDIATE_BRANCH_STATUSES).toContain('CREATING_PROJECT');
   });
 
+  it('treats RUNNING_MIGRATIONS as intermediate (regression guard)', () => {
+    // Migration replay smoke run 25264335446 failed on attempt 34 with
+    // status='RUNNING_MIGRATIONS'. The polling loop must accept it as
+    // transient — it is the in-progress sibling of MIGRATIONS_PASSED /
+    // MIGRATIONS_FAILED.
+    expect(isIntermediateBranchStatus('RUNNING_MIGRATIONS')).toBe(true);
+    expect(INTERMEDIATE_BRANCH_STATUSES).toContain('RUNNING_MIGRATIONS');
+  });
+
   it('treats other documented Supabase Management API statuses as intermediate', () => {
     expect(isIntermediateBranchStatus('CREATING')).toBe(true);
     expect(isIntermediateBranchStatus('COMING_UP')).toBe(true);
