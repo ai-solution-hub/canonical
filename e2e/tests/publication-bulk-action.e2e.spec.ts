@@ -548,8 +548,9 @@ test.describe('§5.3 publication-bulk-action — cap exceeded (>50)', () => {
   // SKIPPED: seeding 51 in_review rows in a beforeAll inflates the suite
   // budget meaningfully (each insert is a network round-trip to staging
   // Supabase) and the cap-exceeded UX has comprehensive component-level
-  // coverage at __tests__/components/review/PublicationReviewQueue-bulk.test.tsx
-  // per AC-bulk-4.4 (master checkbox indeterminate/checked states).
+  // coverage at __tests__/components/review/publication-bulk-action-bar.test.tsx
+  // per AC-bulk-4.4 (cap message + aria-disabled action buttons when
+  // selectedIds.size > 50).
   //
   // E2E confirmation of cap-disabled buttons is a low-marginal-value
   // duplicate of the component test. Skipping per
@@ -560,7 +561,7 @@ test.describe('§5.3 publication-bulk-action — cap exceeded (>50)', () => {
   test.skip(
     true,
     '>50 selection cap-exceeded UX is covered by the component test ' +
-      '`PublicationReviewQueue-bulk.test.tsx` (AC-bulk-4.4). Seeding 51 rows ' +
+      '`publication-bulk-action-bar.test.tsx` (AC-bulk-4.4). Seeding 51 rows ' +
       'in beforeAll is excluded from the E2E budget; revisit if a server-' +
       'rendered cap message lands.',
   );

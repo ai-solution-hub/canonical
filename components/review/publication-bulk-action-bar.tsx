@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Undo2 } from 'lucide-react';
+import { AlertCircle, Send, Undo2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -53,10 +53,9 @@ import { cn } from '@/lib/utils';
 
 const BULK_ACTION_CAP = 50;
 
-interface PublicationBulkActionBarProps {
+export interface PublicationBulkActionBarProps {
   selectedIds: Set<string>;
   pageItemCount: number;
-  pageItemIds: string[];
   onSelectAllOnPage: () => void;
   onClearSelection: () => void;
   onApprove: () => void;
@@ -68,7 +67,6 @@ interface PublicationBulkActionBarProps {
 export function PublicationBulkActionBar({
   selectedIds,
   pageItemCount,
-  pageItemIds: _pageItemIds,
   onSelectAllOnPage,
   onClearSelection,
   onApprove,
@@ -192,9 +190,10 @@ export function PublicationBulkActionBar({
         {capExceeded ? (
           <p
             role="status"
-            className="basis-full text-sm text-destructive"
+            className="flex basis-full items-center gap-2 text-sm text-destructive"
           >
-            At most 50 items per request. Deselect some to continue.
+            <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+            <span>At most 50 items per request. Deselect some to continue.</span>
           </p>
         ) : null}
       </div>
@@ -231,9 +230,8 @@ export function PublicationBulkActionBar({
               Return {selectedCount}{' '}
               {selectedCount === 1 ? 'item' : 'items'} to draft?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Returns selected items to draft. They will leave the publication
-              queue until resubmitted.
+            <AlertDialogDescription className="sr-only">
+              Confirm bulk return-to-draft action.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

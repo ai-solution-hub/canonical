@@ -34,7 +34,6 @@ const ID_4 = uuid(4);
 interface RenderOptions {
   selectedIds?: Set<string>;
   pageItemCount?: number;
-  pageItemIds?: string[];
   isPending?: boolean;
 }
 
@@ -49,7 +48,6 @@ function renderBar(opts: RenderOptions = {}) {
     <PublicationBulkActionBar
       selectedIds={opts.selectedIds ?? new Set([ID_1])}
       pageItemCount={opts.pageItemCount ?? 4}
-      pageItemIds={opts.pageItemIds ?? [ID_1, ID_2, ID_3, ID_4]}
       onSelectAllOnPage={onSelectAllOnPage}
       onClearSelection={onClearSelection}
       onApprove={onApprove}
@@ -280,7 +278,6 @@ describe('PublicationBulkActionBar', () => {
     const { user, onApprove, onReturnToDraft } = renderBar({
       selectedIds: big,
       pageItemCount: 51,
-      pageItemIds: Array.from(big),
     });
 
     expect(

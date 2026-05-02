@@ -245,15 +245,10 @@ describe('PublicationBulkResultDialog', () => {
       />,
     );
     const dialog = screen.getByRole('dialog');
-    // The Radix DialogContent renders an sr-only "Close" X button in the
-    // top-right corner; our DialogFooter also renders a "Close" button. Both
-    // are valid affordances; either should fire onOpenChange(false). We pick
-    // the footer button by querying all "Close" buttons and clicking the
-    // last (visually visible) one.
-    const closeBtns = within(dialog).getAllByRole('button', {
-      name: /^close$/i,
+    const closeBtn = within(dialog).getByRole('button', {
+      name: /close bulk action result dialog/i,
     });
-    await user.click(closeBtns[closeBtns.length - 1]);
+    await user.click(closeBtn);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

@@ -38,7 +38,7 @@ import type {
  * arrives.
  */
 
-interface PublicationBulkResultDialogProps {
+export interface PublicationBulkResultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   response: PublicationBulkActionResponse | null;
@@ -109,7 +109,11 @@ export function PublicationBulkResultDialog({
         ) : null}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close bulk action result dialog"
+          >
             Close
           </Button>
         </DialogFooter>

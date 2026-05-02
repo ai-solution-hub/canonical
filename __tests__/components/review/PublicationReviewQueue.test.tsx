@@ -388,13 +388,11 @@ describe('PublicationReviewQueue', () => {
       expect(bar).toHaveAttribute('data-selected-count', '1');
       expect(bar).toHaveAttribute('data-page-count', '3');
 
-      // Prop wiring: pageItemIds matches the rendered items.
+      // Prop wiring asserts pageItemCount + selectedIds reach the bar
+      // verbatim. Selection set is the source of truth; the bar derives
+      // the page-id list internally via onSelectAllOnPage callback when
+      // master checkbox is toggled.
       expect(lastBarProps).not.toBeNull();
-      expect(lastBarProps?.pageItemIds).toEqual([
-        ITEM_A.id,
-        ITEM_B.id,
-        ITEM_C.id,
-      ]);
       expect(lastBarProps?.pageItemCount).toBe(3);
       expect(Array.from(lastBarProps?.selectedIds ?? [])).toEqual([ITEM_A.id]);
     });

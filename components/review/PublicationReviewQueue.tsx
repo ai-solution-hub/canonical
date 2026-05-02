@@ -325,7 +325,6 @@ export function PublicationReviewQueue() {
         <PublicationBulkActionBar
           selectedIds={selectedIds}
           pageItemCount={items.length}
-          pageItemIds={pageItemIds}
           onSelectAllOnPage={handleSelectAllOnPage}
           onClearSelection={clear}
           onApprove={handleApprove}
