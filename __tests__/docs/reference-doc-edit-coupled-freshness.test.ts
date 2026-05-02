@@ -46,7 +46,7 @@ describe('Reference doc edit-coupled freshness', () => {
       const patch = git(['show', '--format=', sha, '--', doc]);
       const headerAdded = patch
         .split('\n')
-        .some((line) => line.startsWith('+<!-- Last verified:'));
+        .some((line) => /^\+{1,2}<!-- Last verified:/.test(line));
       expect(
         headerAdded,
         `Tracked doc ${doc} was last modified by ${sha}, but that commit ` +
