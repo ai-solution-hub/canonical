@@ -4,7 +4,7 @@
  * §1.9 Near-Duplicate Merge Dashboard list endpoint.
  * Spec: docs/specs/§1.9-near-dup-merge-dashboard-spec.md §5.3, §9 AC1/AC2/AC3/AC9/AC10/AC11
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -13,6 +13,15 @@ import {
 import { createTestRequest } from '../../../../helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
+
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
@@ -26,7 +35,21 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
+afterEach(() => {
+  loggerMocks.info.mockClear();
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+});
 
 import { GET } from '@/app/api/admin/content-dedup/near-duplicates/route';
 

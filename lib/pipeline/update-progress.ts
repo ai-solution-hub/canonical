@@ -39,6 +39,7 @@
 //   here so the EP3 callers can swap their inline copy for this import
 //   without behaviour drift.
 
+import { logger } from '@/lib/logger';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Json } from '@/supabase/types/database.types';
 
@@ -84,13 +85,13 @@ export async function updatePipelineProgress(
       })
       .eq('id', pipelineRunId);
   } catch (err) {
-    // Silent-catch is INTENTIONAL — see file header. We log to console
-    // because this code path runs in BOTH client (impossible — server
-    // helper) and server bundles; using `lib/logger` here would pull
-    // pino + node:async_hooks into the dependency graph for any client
-    // that transitively imports this. Routes that want structured
-    // logging should wrap their own catch arms (see `safeErrorMessage`
-    // for the chokepoint pattern).
-    console.error('Failed to update pipeline progress:', err);
+    // Silent-catch is INTENTIONAL — see file header. The helper is
+    // server-only (transitively imports `next/headers` via
+    // `createServiceClient`), so structured logging via `@/lib/logger`
+    // is safe here: no client bundle pulls this in.
+    logger.error(
+      { err, op: 'pipeline.update_progress' },
+      'Failed to update pipeline progress',
+    );
   }
 }

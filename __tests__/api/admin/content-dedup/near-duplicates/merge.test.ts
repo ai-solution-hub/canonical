@@ -4,7 +4,7 @@
  * §1.9 Near-Duplicate Merge Dashboard merge action.
  * Spec: docs/specs/§1.9-near-dup-merge-dashboard-spec.md §5.5, §9 AC5/AC7/AC9
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -19,6 +19,15 @@ const mockSupabase = createMockSupabaseClient();
 
 const { mockSetSupersession } = vi.hoisted(() => ({
   mockSetSupersession: vi.fn(),
+}));
+
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -43,7 +52,21 @@ vi.mock('@/lib/supersession/set', async () => {
   };
 });
 
-vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
+afterEach(() => {
+  loggerMocks.info.mockClear();
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+});
 
 import { POST } from '@/app/api/admin/content-dedup/near-duplicates/[pairId]/merge/route';
 import { SupersessionError } from '@/lib/supersession/set';

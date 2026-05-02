@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -56,7 +57,10 @@ export async function GET(
       .single();
 
     if (subjectErr && subjectErr.code !== 'PGRST116') {
-      console.error('Failed to load dedup subject:', subjectErr);
+      logger.error(
+        { err: subjectErr, op: 'admin.content-dedup.item.load_subject' },
+        'Failed to load dedup subject',
+      );
       return NextResponse.json(
         { error: 'Failed to load dedup subject' },
         { status: 500 },
@@ -95,7 +99,10 @@ export async function GET(
         },
       );
       if (rpcErr) {
-        console.error('Dedup RPC fallback failed:', rpcErr);
+        logger.error(
+          { err: rpcErr, op: 'admin.content-dedup.item.rpc_fallback' },
+          'Dedup RPC fallback failed',
+        );
       } else if (matches && matches.length > 0) {
         canonicalId = matches[0].id;
       }
@@ -112,7 +119,13 @@ export async function GET(
         .maybeSingle();
 
       if (canonicalErr) {
-        console.error('Failed to load canonical row:', canonicalErr);
+        logger.error(
+          {
+            err: canonicalErr,
+            op: 'admin.content-dedup.item.load_canonical',
+          },
+          'Failed to load canonical row',
+        );
       }
       canonical = canonicalRow ?? null;
     }

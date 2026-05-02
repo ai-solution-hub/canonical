@@ -4,7 +4,7 @@
  * §1.7 Admin Cross-System Dedup Review (S211B).
  * Spec: docs/specs/§1.7-admin-dedup-review-spec.md §5.1, §4.2, §4.3
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -23,6 +23,15 @@ const mockSupabase = createMockSupabaseClient();
 
 const { mockSetSupersession } = vi.hoisted(() => ({
   mockSetSupersession: vi.fn(),
+}));
+
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -47,7 +56,21 @@ vi.mock('@/lib/supersession/set', async () => {
   };
 });
 
-vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
+afterEach(() => {
+  loggerMocks.info.mockClear();
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+});
 
 import { POST } from '@/app/api/admin/content-dedup/[id]/supersede/route';
 import { SupersessionError } from '@/lib/supersession/set';

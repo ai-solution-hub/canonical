@@ -4,7 +4,7 @@
  * §1.7 Admin Cross-System Dedup Review (S211B).
  * Spec: docs/specs/§1.7-admin-dedup-review-spec.md §5.1
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -18,6 +18,15 @@ import { createTestRequest } from '../../../helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
 
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
   createServiceClient: vi.fn(() => mockSupabase),
@@ -30,7 +39,21 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
+
+afterEach(() => {
+  loggerMocks.info.mockClear();
+  loggerMocks.warn.mockClear();
+  loggerMocks.error.mockClear();
+});
 
 // ---------------------------------------------------------------------------
 // Import route AFTER mocks

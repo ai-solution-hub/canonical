@@ -1,16 +1,16 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
-  "capturedAt": "2026-04-30",
-  "capturedFromCommit": "kh-prod-readiness-S19 WP1.2 — re-baseline after Prettier+Knip step independence applied to ci.yml. Types 282→288 absorbs the post-baseline-capture main-track delta (S213/S214 near-dup + pipeline + dedup type exports whose consumers either inline-resolve or are ratification-pending). Triage carry to S20: identify the 6 specific new types and decide delete-or-wire individually. The bump itself unblocks CI now that Knip is independent of Prettier — the breach was hidden behind format-check fail-fast all of S17/S18.",
+  "capturedAt": "2026-05-02",
+  "capturedFromCommit": "kh-prod-readiness-S21 WP3 OPS-50 partial-triage (option 2): delete `lib/env.ts` orphan + remove `madge` devDep — drops `files` 1→0 and `devDependencies` 1→0. Cross-track absorb (`55f2c567` S217 main merge) introduced +1 unused type bringing baseline 288→289; absorbed into baseline rather than chase the specific entry. Broad 289-types triage deferred to S22 OPS-50.full per change-log entry. The `dependencies: 1` carries `@tailwindcss/typography` (used via `@plugin` directive in `app/globals.css`; knip's `ignoreDependencies` entry doesn't currently suppress it — needs investigation in S22).",
   "counts": {
     "dependencies": 1,
-    "devDependencies": 1,
+    "devDependencies": 0,
     "exports": 58,
-    "types": 288,
+    "types": 289,
     "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,
-    "files": 1,
+    "files": 0,
     "enumMembers": 0,
     "unresolved": 0
   }

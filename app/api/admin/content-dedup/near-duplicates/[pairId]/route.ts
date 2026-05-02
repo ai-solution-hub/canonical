@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parsePairId } from '@/lib/dedup/pair-id';
 
 export const maxDuration = 30;
@@ -45,7 +46,13 @@ export async function GET(
       .in('id', [leftId, rightId]);
 
     if (rowsErr) {
-      console.error('[near-duplicates detail] rows lookup error:', rowsErr);
+      logger.error(
+        {
+          err: rowsErr,
+          op: 'admin.content-dedup.near-duplicates.detail.rows_lookup',
+        },
+        '[near-duplicates detail] rows lookup error',
+      );
       return NextResponse.json(
         { error: rowsErr.message ?? 'Failed to load pair' },
         { status: 500 },
@@ -67,7 +74,13 @@ export async function GET(
       },
     );
     if (pairsErr) {
-      console.error('[near-duplicates detail] RPC error:', pairsErr);
+      logger.error(
+        {
+          err: pairsErr,
+          op: 'admin.content-dedup.near-duplicates.detail.rpc',
+        },
+        '[near-duplicates detail] RPC error',
+      );
       return NextResponse.json(
         { error: pairsErr.message ?? 'Failed to compute similarity' },
         { status: 500 },
