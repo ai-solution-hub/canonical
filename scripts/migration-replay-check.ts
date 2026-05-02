@@ -177,6 +177,43 @@ interface BranchSummary {
   persistent?: boolean;
 }
 
+/**
+ * Branch lifecycle statuses that indicate the branch is fully provisioned
+ * and accepting connections — terminal "ready" states.
+ */
+export const READY_BRANCH_STATUSES = [
+  'ACTIVE_HEALTHY',
+  'FUNCTIONS_DEPLOYED',
+] as const;
+
+/**
+ * Branch lifecycle statuses that are transient during creation/migration —
+ * the polling loop should keep waiting rather than failing.
+ *
+ * `CREATING_PROJECT` was added kh-prod-readiness-S22 (02/05/2026) after
+ * two consecutive migration-replay smoke runs (25260265369 + 25260575282)
+ * failed on attempt 1 with the API returning `CREATING_PROJECT` — a state
+ * not previously in the accepted-intermediate set. `MIGRATIONS_FAILED` is
+ * intentionally separated out (handled as an immediate-throw inside the
+ * polling loop) because it indicates the branch's clone of parent
+ * migrations failed and additional waiting will not recover.
+ */
+export const INTERMEDIATE_BRANCH_STATUSES = [
+  'CREATING_PROJECT',
+  'CREATING',
+  'COMING_UP',
+  'MIGRATIONS_PASSED',
+  'MIGRATIONS_FAILED',
+] as const;
+
+export function isReadyBranchStatus(status: string): boolean {
+  return (READY_BRANCH_STATUSES as readonly string[]).includes(status);
+}
+
+export function isIntermediateBranchStatus(status: string): boolean {
+  return (INTERMEDIATE_BRANCH_STATUSES as readonly string[]).includes(status);
+}
+
 interface BranchDetails extends BranchSummary {
   db_pass?: string;
   db_host?: string;
@@ -318,24 +355,13 @@ async function waitForBranchReady(
       await sleep(POLL_INTERVAL_MS);
       continue;
     }
-    if (
-      target.status === 'ACTIVE_HEALTHY' ||
-      target.status === 'FUNCTIONS_DEPLOYED'
-    ) {
+    if (isReadyBranchStatus(target.status)) {
       console.log(
         `  Branch ready after ${attempt} attempt(s) (status=${target.status})`,
       );
       return target;
     }
-    if (
-      target.status === 'CREATING' ||
-      target.status === 'COMING_UP' ||
-      target.status === 'MIGRATIONS_PASSED' ||
-      target.status === 'MIGRATIONS_FAILED'
-    ) {
-      // Still progressing; CREATING/COMING_UP/MIGRATIONS_PASSED are
-      // intermediate. MIGRATIONS_FAILED here means the branch's *clone* of
-      // parent migrations failed during creation — surface immediately.
+    if (isIntermediateBranchStatus(target.status)) {
       if (target.status === 'MIGRATIONS_FAILED') {
         throw new Error(
           `Branch ${branchRef} reported MIGRATIONS_FAILED during creation. ` +
