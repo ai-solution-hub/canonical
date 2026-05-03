@@ -47,6 +47,15 @@ const INFLIGHT_GUARD_INTERVAL = "30 minutes";
 // has_table_privilege query; auth.schema_migrations is the ONLY auth.*
 // table where postgres lacks INSERT. If a future Supabase auth-package
 // upgrade introduces another internally-owned table, add it here.
+//
+// v7 (S24 W1) defensive auth.* sweep against prod project
+// rovrymhhffssilaftdwd via has_table_privilege('postgres', 'auth.<t>',
+// 'INSERT') confirmed auth.schema_migrations is the ONLY auth.* table
+// without INSERT. All OAuth state tables (custom_oauth_providers,
+// oauth_authorizations, oauth_client_states, oauth_clients,
+// oauth_consents) have INSERT and replay cleanly. Public.* sweep
+// returned zero rows (postgres has INSERT on every public.* table).
+// No additions needed in v7. List remains 8 entries.
 const PG_DUMP_EXCLUSIONS = [
   'auth.audit_log_entries',
   'auth.refresh_tokens',
@@ -425,11 +434,70 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
   // clearStagingTables empty state. Re-running the orchestrator from
   // scratch is idempotent (TRUNCATE on empty is a no-op).
   //
+  // v7 (S24 W1) `--disable-triggers` added to BOTH pg_dump and
+  // pg_restore. Third-dispatch of v6 (run 25280068155, 03/05/2026
+  // 13:09 UTC) failed with `pg_restore: error: COPY failed for table
+  // "content_items": ERROR:  Invalid layer key: bid_detail. Must exist
+  // in layer_vocabulary.` raised by `validate_layer_key()` PL/pgSQL
+  // function (trigger trg_validate_layer_key on public.content_items).
+  // pg_restore restores tables in FK-dependency order only — it has no
+  // awareness of application-validation triggers that read OTHER tables.
+  // `content_items` was restored before `layer_vocabulary` so the
+  // INSERT trigger fired against an empty lookup table.
+  //
+  // pg_dump --disable-triggers (requires --data-only — already set)
+  // emits `SET session_replication_role = replica;` at the start of the
+  // dump's COPY phase. pg_restore --disable-triggers does the same on
+  // restore. In replica mode, ONLY triggers explicitly marked as
+  // `ENABLE ALWAYS` or `ENABLE REPLICA` fire; user triggers (the
+  // default ENABLE state) are silenced.
+  //
+  // Permission probe (S24 W1, 03/05/2026): postgres role on staging
+  // session pooler can SET session_replication_role (verified via
+  // has_function_privilege on pg_catalog.set_config — postgres is
+  // owner). Supabase shared session pooler does not block the SET.
+  //
+  // Trade-off: this trusts prod source-of-truth. Application-validation
+  // triggers fire on prod INSERTs, so any data already in prod has
+  // satisfied them. Replaying that data into staging is safe because
+  // we are NOT introducing new rows that bypass the constraints — we
+  // are mirroring already-validated rows. Triggers re-enable
+  // automatically when session_replication_role resets to 'origin'
+  // post-restore (pg_restore SETs replica then RESETs at end).
+  //
+  // Trigger inventory in scope (silenced during restore by replica mode):
+  //   - auth.users.on_auth_user_created → handle_new_user (creates
+  //     public.user_profiles + public.user_roles rows; the prod dump
+  //     already carries those rows so the trigger silencing is
+  //     load-bearing — without it, restore order would create
+  //     duplicate-key collisions on user_profiles)
+  //   - auth.users.on_auth_user_updated → handle_user_update
+  //   - public.bid_responses.bid_response_history_snapshot,
+  //     bid_response_set_version
+  //   - public.content_citations.trg_citation_count_{insert,delete}
+  //   - public.content_history.set_content_history_version
+  //   - public.content_items.trg_content_items_ensure_v1_history,
+  //     trg_enforce_archive_state_consistency,
+  //     trg_validate_layer_key (THIS WP's failure trigger)
+  //   - public.workspaces.sync_bid_status
+  //   - 15 set_X_updated_at innocuous triggers
+  //
+  // Alternative shape (b): two-pass pg_restore — pre-load
+  // layer_vocabulary + other reference tables first, then full data.
+  // Heavier orchestrator code; deferred unless replica-mode trust
+  // erodes (e.g. trigger-derived audit columns we wish to recompute
+  // for staging-specific values).
+  //
+  // Alternative shape (c): drop validate_layer_key trigger pre-restore,
+  // recreate post-restore. Brittle — every new validation trigger needs
+  // the same handling and the orchestrator gains DDL responsibility.
+  //
   // Both pipe ends MUST exit 0; enforced via `set -o pipefail`.
   const dumpArgs = [
     '"$PROD_DB_URL"',
     '-Fc',
     '--data-only',
+    '--disable-triggers',
     '--no-owner',
     '--no-privileges',
     '--schema=public',
@@ -440,6 +508,7 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
     '-d "$STAGING_DB_URL"',
     '--single-transaction',
     '--data-only',
+    '--disable-triggers',
     '--no-owner',
     '--no-privileges',
   ].join(' ');
