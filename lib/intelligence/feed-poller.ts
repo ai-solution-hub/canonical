@@ -529,15 +529,15 @@ export async function pollWebSource(
   }
 }
 
-// TODO(s222 telemetry sink): `pipeline_runs.result.firecrawl_credits_consumed`
-// per spec §3.3.3 / AC-12 requires the cron handler at
+// TODO(roadmap §3.7.3): `pipeline_runs.result.firecrawl_credits_consumed`
+// per spec §2.3.4 §3.3.3 / AC-12 + D-5 requires the cron handler at
 // `app/api/cron/intelligence-poll/route.ts` to call `recordPipelineRun`
 // from `@/lib/pipeline/record-run` with the aggregated counter as the
 // `result` payload. Today the cron handler does NOT call recordPipelineRun
 // at all (`runPipeline` returns the pipeline summary; the route returns it
-// in the response body, no `pipeline_runs` insert). Wiring that up is a
-// separate change — once landed, runPipeline should sum `firecrawlCalled`
-// across all `WebPollResult`s and pass `{ firecrawl_credits_consumed: n }`
-// as `result` to `recordPipelineRun`. Until then, AC-12 is verified via
-// the Sentry breadcrumb stream + the `firecrawlCalled` flag returned
-// from this function.
+// in the response body, no `pipeline_runs` insert). Bundled into roadmap
+// §3.7.3 (Cost telemetry hybrid) per S222 V_W3 M1 finding — that work
+// already needs to bootstrap pipeline_runs writes for classification +
+// embedding token aggregation; firecrawl-credit wiring rides along. Until
+// then, AC-12 is verified via the Sentry breadcrumb stream + the
+// `firecrawlCalled` flag returned from this function.
