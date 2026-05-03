@@ -57,6 +57,11 @@ const VALID_PUBLICATION_STATUSES = [
   'archived',
 ] as const;
 
+// WP-CI.RES.7 §2.3: cohort-count assertions are production-specific
+// steady-state checks. On staging with fixtures, only structural
+// invariants run. Set PROD_HEALTH_CHECK=1 to enable cohort-count checks.
+const IS_PROD_HEALTH_CHECK = process.env.PROD_HEALTH_CHECK === '1';
+
 describe('publication_status migration (T1 + T2) — live DB', () => {
   it('AC1.1 — column exists with TEXT type and is currently nullable', async () => {
     const { data, error } = await serviceClient
@@ -200,40 +205,44 @@ describe('publication_status migration (T1 + T2) — live DB', () => {
     expect(count).toBe(0);
   });
 
-  it('cohort counts match 27/04/2026 pre-flight projection', async () => {
-    // Lock the post-backfill counts against the pre-flight numbers
-    // captured in the T2 migration commit message. Drift here means
-    // either (a) the migration miscounted, or (b) writes have happened
-    // since that should have produced an audit-trail signature elsewhere
-    // (e.g. content_history rows, governance review queue activity).
-    const [draftRes, archivedRes, publishedRes, totalRes] = await Promise.all([
-      serviceClient
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('publication_status', 'draft'),
-      serviceClient
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('publication_status', 'archived'),
-      serviceClient
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('publication_status', 'published'),
-      serviceClient
-        .from('content_items')
-        .select('id', { count: 'exact', head: true }),
-    ]);
+  // WP-CI.RES.7 §2.3: Cohort-count assertions are production-specific
+  // steady-state checks, gated behind PROD_HEALTH_CHECK=1. On staging
+  // with deterministic fixtures, these counts differ from production
+  // and would produce false failures.
+  it.skipIf(!IS_PROD_HEALTH_CHECK)(
+    'cohort counts match 27/04/2026 pre-flight projection (prod-health-check only)',
+    async () => {
+      const [draftRes, archivedRes, publishedRes, totalRes] = await Promise.all(
+        [
+          serviceClient
+            .from('content_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('publication_status', 'draft'),
+          serviceClient
+            .from('content_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('publication_status', 'archived'),
+          serviceClient
+            .from('content_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('publication_status', 'published'),
+          serviceClient
+            .from('content_items')
+            .select('id', { count: 'exact', head: true }),
+        ],
+      );
 
-    expect(draftRes.error).toBeNull();
-    expect(archivedRes.error).toBeNull();
-    expect(publishedRes.error).toBeNull();
-    expect(totalRes.error).toBeNull();
+      expect(draftRes.error).toBeNull();
+      expect(archivedRes.error).toBeNull();
+      expect(publishedRes.error).toBeNull();
+      expect(totalRes.error).toBeNull();
 
-    expect(draftRes.count).toBe(EXPECTED_DRAFT_ROWS);
-    expect(archivedRes.count).toBe(EXPECTED_ARCHIVED_ROWS);
-    expect(publishedRes.count).toBeGreaterThanOrEqual(PUBLISHED_BASELINE);
-    expect(totalRes.count).toBeGreaterThanOrEqual(TOTAL_BASELINE);
-  });
+      expect(draftRes.count).toBe(EXPECTED_DRAFT_ROWS);
+      expect(archivedRes.count).toBe(EXPECTED_ARCHIVED_ROWS);
+      expect(publishedRes.count).toBeGreaterThanOrEqual(PUBLISHED_BASELINE);
+      expect(totalRes.count).toBeGreaterThanOrEqual(TOTAL_BASELINE);
+    },
+  );
 
   it('every non-NULL publication_status is a member of the spec enum', async () => {
     // Defensive invariant — guards against drift between the SQL CHECK

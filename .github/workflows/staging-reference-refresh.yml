@@ -1,0 +1,65 @@
+# WP-CI.RES.7 — Staging reference-table refresh (Path (ii)).
+#
+# Replaces staging-live-mirror.yml (WP-CI.RES.2, ESCALATING at v7).
+# Refreshes 13 reference/lookup tables from prod into the persistent
+# staging branch (turayklvaunphgbgscat) via pg_dump -Fc | pg_restore.
+# Zero PII surface — no scrub step, no auth.* table handling.
+#
+# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res7-staging-data-strategy-spec.md
+#
+# Required Staging-env entries (per docs/runbooks/github-environments.md):
+#
+# Secrets (provisioned in GH env Staging):
+#   - STAGING_SUPABASE_DB_URL    postgres conn string for staging branch
+#   - PROD_SUPABASE_DB_URL       postgres conn string for prod project
+#
+# The orchestrator reads only these two secrets. No service-role key,
+# no bcrypt hash, no Supabase URL needed (pure postgres-protocol
+# pg_dump | pg_restore).
+
+name: Staging Reference Refresh
+
+on:
+  schedule:
+    # Fortnightly: Mondays in week 2 OR week 4 of each month at 03:00 UTC.
+    # Same cadence as the now-deprecated staging-live-mirror.yml.
+    - cron: "0 3 8-14,22-28 * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: staging-reference-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Reference-table refresh
+    runs-on: ubuntu-latest
+    environment: Staging
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    # Workflow-injection mitigation: all secrets arrive via env, never
+    # inline ${{ }} in run: blocks.
+    env:
+      STAGING_SUPABASE_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
+      PROD_SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install postgresql-17 client
+        # CLAUDE.md gotcha: pg_dump version must match server PG major
+        # version (Supabase PG 17.6). GHA ubuntu-latest ships
+        # postgresql-client-16; we install v17 and prepend its bin dir.
+        run: |
+          set -euo pipefail
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Run reference-table refresh
+        run: bash scripts/staging-reference-refresh.sh
