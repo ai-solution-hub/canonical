@@ -434,8 +434,8 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
   // clearStagingTables empty state. Re-running the orchestrator from
   // scratch is idempotent (TRUNCATE on empty is a no-op).
   //
-  // v7 (S24 W1) `--disable-triggers` added to BOTH pg_dump and
-  // pg_restore. Third-dispatch of v6 (run 25280068155, 03/05/2026
+  // v7 (S24 W1) silences application-validation triggers during
+  // restore. Third-dispatch of v6 (run 25280068155, 03/05/2026
   // 13:09 UTC) failed with `pg_restore: error: COPY failed for table
   // "content_items": ERROR:  Invalid layer key: bid_detail. Must exist
   // in layer_vocabulary.` raised by `validate_layer_key()` PL/pgSQL
@@ -445,25 +445,40 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
   // `content_items` was restored before `layer_vocabulary` so the
   // INSERT trigger fired against an empty lookup table.
   //
-  // pg_dump --disable-triggers (requires --data-only — already set)
-  // emits `SET session_replication_role = replica;` at the start of the
-  // dump's COPY phase. pg_restore --disable-triggers does the same on
-  // restore. In replica mode, ONLY triggers explicitly marked as
-  // `ENABLE ALWAYS` or `ENABLE REPLICA` fire; user triggers (the
-  // default ENABLE state) are silenced.
+  // First v7 attempt used `--disable-triggers` flag on pg_dump +
+  // pg_restore (run 25281572935, 03/05/2026 14:18 UTC). That flag
+  // emits per-table `ALTER TABLE x DISABLE TRIGGER ALL;` blocks,
+  // which require TABLE OWNERSHIP at restore time. Postgres role on
+  // Supabase does NOT own auth.* tables (Supabase auth-package owns
+  // them), so pg_restore failed: `must be owner of table
+  // custom_oauth_providers / Command was: ALTER TABLE
+  // auth.custom_oauth_providers DISABLE TRIGGER ALL;`.
   //
-  // Permission probe (S24 W1, 03/05/2026): postgres role on staging
-  // session pooler can SET session_replication_role (verified via
-  // has_function_privilege on pg_catalog.set_config — postgres is
-  // owner). Supabase shared session pooler does not block the SET.
+  // v7.1 fix: use `PGOPTIONS='-c session_replication_role=replica'`
+  // env var on the pg_restore connection. libpq applies the option
+  // at connection-establishment time as a session GUC. Replica mode
+  // silences ALL user triggers without requiring table ownership
+  // (the SET applies to the SESSION, not to per-table DDL). Probe
+  // confirmed (mcp__supabase__execute_sql against staging branch
+  // 03/05/2026): postgres role can SET session_replication_role at
+  // runtime. Pre-existing precedent: Supabase agent-skill examples
+  // use the same PGOPTIONS pattern for branch-data-restore flows.
+  //
+  // pg_dump no longer needs --disable-triggers because we are no
+  // longer relying on dump-emitted ALTER TABLE blocks; the
+  // PGOPTIONS-set GUC on the pg_restore connection silences user
+  // triggers regardless of the dump content. Removing the flag also
+  // eliminates pg_dump emitting the same ownership-requiring ALTER
+  // statements into the dump archive.
   //
   // Trade-off: this trusts prod source-of-truth. Application-validation
   // triggers fire on prod INSERTs, so any data already in prod has
   // satisfied them. Replaying that data into staging is safe because
   // we are NOT introducing new rows that bypass the constraints — we
-  // are mirroring already-validated rows. Triggers re-enable
-  // automatically when session_replication_role resets to 'origin'
-  // post-restore (pg_restore SETs replica then RESETs at end).
+  // are mirroring already-validated rows. session_replication_role
+  // is session-scoped — it resets to 'origin' when the pg_restore
+  // connection closes, so triggers re-enable automatically for normal
+  // staging operation post-restore.
   //
   // Trigger inventory in scope (silenced during restore by replica mode):
   //   - auth.users.on_auth_user_created → handle_new_user (creates
@@ -497,7 +512,6 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
     '"$PROD_DB_URL"',
     '-Fc',
     '--data-only',
-    '--disable-triggers',
     '--no-owner',
     '--no-privileges',
     '--schema=public',
@@ -508,11 +522,13 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
     '-d "$STAGING_DB_URL"',
     '--single-transaction',
     '--data-only',
-    '--disable-triggers',
     '--no-owner',
     '--no-privileges',
   ].join(' ');
-  const cmd = `set -o pipefail; pg_dump ${dumpArgs} | pg_restore ${restoreArgs}`;
+  // PGOPTIONS sets session_replication_role=replica on the pg_restore
+  // libpq connection (session-scoped GUC; resets when connection
+  // closes). Silences user triggers without requiring table ownership.
+  const cmd = `set -o pipefail; pg_dump ${dumpArgs} | PGOPTIONS='-c session_replication_role=replica' pg_restore ${restoreArgs}`;
 
   if (config.flags.dryRun) {
     console.log(`[dry-run] would run: ${cmd}`);
