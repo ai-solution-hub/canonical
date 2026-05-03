@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
+import { parseBodyAsync } from '@/lib/validation';
 import { FeedSourceCreateSchema } from '@/lib/validation/schemas';
 import { validateFeedUrl } from '@/lib/intelligence/feed-poller';
 
@@ -47,7 +47,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { supabase, user } = auth;
 
     const raw = await request.json();
-    const parsed = parseBody(FeedSourceCreateSchema, raw);
+    // S222 W3-A §2.3.4 D-4: schema is now async (web source-type triggers
+    // `validateWebUrl` HEAD pre-flight). Use `parseBodyAsync` rather than
+    // the synchronous `parseBody` helper.
+    const parsed = await parseBodyAsync(FeedSourceCreateSchema, raw);
     if (!parsed.success) return parsed.response;
 
     // Verify workspace exists and is intelligence type

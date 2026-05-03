@@ -42,10 +42,42 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    const result =
-      sourceType === 'web'
-        ? await pollWebSource(source)
-        : await pollFeed(source);
+    if (sourceType === 'web') {
+      // S222 W3-A §2.3.4: pass `dryRun: true` so any future side-effect
+      // bookkeeping inside pollWebSource is suppressed (admin-initiated
+      // test must not affect `consecutive_failures` per AC-10). The route
+      // itself does NOT call updateSourceAfterPoll for the test path —
+      // that responsibility lives in pipeline.ts processFeedSource.
+      const result = await pollWebSource(source, { dryRun: true });
+
+      // AC-12: HEAD-304 short-circuits at zero credit; otherwise the
+      // Firecrawl call is attempted (1 credit). The response field is a
+      // *prediction* — a real poll cycle would burn this many credits
+      // for this source under current state.
+      const firecrawlCreditsExpected: 0 | 1 = result.firecrawlCalled ? 1 : 0;
+
+      if (result.status === 'error' || result.status === 'timeout') {
+        return NextResponse.json({
+          success: false,
+          itemCount: 0,
+          sampleTitles: [],
+          headPreflightStatus: result.headPreflightStatus,
+          firecrawlCreditsExpected,
+          error: result.error ?? `Feed poll returned status: ${result.status}`,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        itemCount: result.items.length,
+        sampleTitles: result.items.slice(0, 5).map((item) => item.title),
+        headPreflightStatus: result.headPreflightStatus,
+        firecrawlCreditsExpected,
+      });
+    }
+
+    // RSS path (sourceType === 'rss')
+    const result = await pollFeed(source);
 
     if (result.status === 'error' || result.status === 'timeout') {
       return NextResponse.json({

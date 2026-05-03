@@ -730,6 +730,8 @@ describe('processFeedSource', () => {
       items: [],
       etag: null,
       lastModified: null,
+      headPreflightStatus: 200,
+      firecrawlCalled: true,
     });
 
     const mockSupabase = {
@@ -808,6 +810,8 @@ describe('processFeedSource', () => {
       ],
       etag: null,
       lastModified: null,
+      headPreflightStatus: 200,
+      firecrawlCalled: true,
     });
 
     // Import turndown to simulate extractContent Tier 1: single HTML->markdown

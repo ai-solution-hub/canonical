@@ -1,11 +1,16 @@
 // lib/intelligence/feed-poller.ts
 import Parser from 'rss-parser';
+import * as Sentry from '@sentry/nextjs';
 import type { ParsedFeedItem, PollResult } from './types';
 import { FEED_FETCH_TIMEOUT_MS } from './types';
 import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
+import { validateWebUrl, USER_AGENT } from './url-validation';
 
-const USER_AGENT =
-  'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
+// Re-export validateWebUrl for backwards compatibility — original
+// implementation now lives in lib/intelligence/url-validation.ts (leaf
+// module, importable by lib/validation/schemas.ts without circular deps).
+// S222 W3-A §2.3.4 D-4.
+export { validateWebUrl };
 
 /**
  * Normalise a feed title by collapsing whitespace (newlines, tabs, multiple
@@ -258,112 +263,212 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
   }
 }
 
-// ── Web source polling (P0-WEB) ──
-
-/** Accepted HTML content types for web source validation */
-const HTML_CONTENT_TYPES = ['text/html', 'application/xhtml+xml'];
-
-/**
- * Validate that a URL returns an HTML page suitable for web source scraping.
- * Prefers HEAD for cheapness; falls back to ranged GET when the server rejects HEAD.
- * Throws a descriptive error on any failure (non-200, non-HTML, empty body).
- */
-export async function validateWebUrl(url: string): Promise<void> {
-  let response: Response;
-
-  try {
-    response = await fetch(url, {
-      method: 'HEAD',
-      headers: { 'User-Agent': USER_AGENT },
-      signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
-      redirect: 'follow',
-    });
-
-    // Some servers reject HEAD with 405, 501 (Not Implemented), or 403
-    // (Forbidden for HEAD but serve GET correctly) — fall back to ranged GET
-    if ([405, 501, 403].includes(response.status)) {
-      response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'User-Agent': USER_AGENT,
-          Range: 'bytes=0-1023',
-        },
-        signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
-        redirect: 'follow',
-      });
-    }
-  } catch (err) {
-    throw new Error(
-      `Web URL validation failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  // Accept 200 and 206 (partial content from Range header)
-  if (!response.ok && response.status !== 206) {
-    throw new Error(
-      `Web URL validation failed for ${url}: HTTP ${response.status}`,
-    );
-  }
-
-  const contentType = (
-    response.headers.get('content-type') ?? ''
-  ).toLowerCase();
-  const isHtml = HTML_CONTENT_TYPES.some((ct) => contentType.startsWith(ct));
-  if (!isHtml) {
-    throw new Error(
-      `Web URL validation failed for ${url}: expected HTML content-type but got '${contentType}'`,
-    );
-  }
-
-  // M-3: Defence-in-depth — reject explicitly empty responses.
-  // Only check when Content-Length header is present (streaming responses
-  // omit it, so absence is NOT a rejection signal).
-  const contentLength = response.headers.get('content-length');
-  if (contentLength !== null && contentLength === '0') {
-    throw new Error(
-      `Web URL validation failed for ${url}: Content-Length is 0 (empty body)`,
-    );
-  }
-}
+// ── Web source polling (P0-WEB / §2.3.4) ──
 
 /**
  * Web source reference — subset of FeedSource from pipeline.ts.
  * Kept minimal to avoid importing the full pipeline module.
+ *
+ * S222 W3-A §2.3.4: `etag`/`last_modified` added so HEAD pre-flight can
+ * issue conditional-GET headers (parity with `pollFeed` lines 170-175).
  */
 interface WebSourceRef {
   id: string;
   url: string;
   name?: string;
+  etag?: string | null;
+  last_modified?: string | null;
+}
+
+/**
+ * Web-source poll options. `dryRun` is set by the test endpoint to suppress
+ * any side-effect bookkeeping (none today, but the contract is explicit
+ * for AC-10 — admin-initiated test must not affect `consecutive_failures`).
+ *
+ * Note: `pollWebSource` itself never writes to `feed_sources`; that is the
+ * caller's responsibility (`processFeedSource` in pipeline.ts). The
+ * `dryRun` flag is a forward-compatibility hint — today it's a no-op
+ * inside this function, but downstream telemetry sinks (cron handler vs
+ * test endpoint) read it to decide whether to count the credit toward
+ * the operator-visible quota.
+ */
+export interface PollWebSourceOptions {
+  dryRun?: boolean;
+}
+
+/**
+ * Result envelope for `pollWebSource` — includes the standard `PollResult`
+ * plus telemetry fields needed for the test endpoint (AC-10) and future
+ * `pipeline_runs.result.firecrawl_credits_consumed` aggregation (AC-12).
+ */
+export interface WebPollResult extends PollResult {
+  /** HTTP status of the HEAD pre-flight; null if HEAD was not issued
+   *  (e.g. because validateWebUrl already failed). */
+  headPreflightStatus: number | null;
+  /** Whether `firecrawl.scrape()` was actually invoked. False on HEAD-304
+   *  short-circuit, false on validateWebUrl failure, true otherwise. */
+  firecrawlCalled: boolean;
 }
 
 /**
  * Poll a single web source by scraping with Firecrawl (HTML mode + Turndown).
- * Returns a PollResult in the same shape as pollFeed() so downstream
- * processing (dedup, classify, store) is identical.
+ * Returns a `WebPollResult` (extends `PollResult`) so downstream processing
+ * (dedup, classify, store) is identical to RSS while also surfacing the
+ * HEAD pre-flight status + Firecrawl-call flag for telemetry.
  *
  * Unlike RSS polling, web sources produce exactly one item per poll
  * (the page itself). The item's guid is set to the source URL so
  * dedup treats each URL as a unique entity.
+ *
+ * S222 W3-A §2.3.4 changes (vs P0-WEB MVP):
+ *   - Per-domain rate-limit gate (parity with `pollFeed()` lines 178-180).
+ *   - HEAD pre-flight with `If-None-Match` / `If-Modified-Since` per
+ *     spec §3.3.2 Option A (D-3 ratified). On HTTP 304, short-circuit
+ *     to `status='not_modified'` without spending a Firecrawl credit.
+ *   - Firecrawl-credit telemetry via `Sentry.addBreadcrumb` per spec
+ *     §3.3.3 (D-5 ratified). Breadcrumb only — `pipeline_runs.result`
+ *     aggregation is a TODO until the cron handler is wired to
+ *     `recordPipelineRun` (see footer comment).
  */
-export async function pollWebSource(source: WebSourceRef): Promise<PollResult> {
-  try {
-    // 1. Validate the URL is reachable and returns HTML
-    await validateWebUrl(source.url);
+export async function pollWebSource(
+  source: WebSourceRef,
+  options: PollWebSourceOptions = {},
+): Promise<WebPollResult> {
+  const { dryRun = false } = options;
 
-    // 2. Scrape with Firecrawl using HTML format (F-1 fix: avoids double-escape)
+  // 1. Validate the URL is reachable and returns HTML.
+  // We keep this BEFORE the rate-limit + HEAD pre-flight to preserve the
+  // existing contract (validation runs first in the MVP) — failing fast
+  // on a 404 / non-HTML response is cheaper than waiting on the rate
+  // limiter for a doomed call.
+  try {
+    await validateWebUrl(source.url);
+  } catch (err) {
+    return {
+      feedSourceId: source.id,
+      status: 'error',
+      error: err instanceof Error ? err.message : String(err),
+      items: [],
+      etag: null,
+      lastModified: null,
+      headPreflightStatus: null,
+      firecrawlCalled: false,
+    };
+  }
+
+  // 2. Per-domain rate-limit gate (parity with pollFeed). MIN_DOMAIN_DELAY_MS
+  //    = 1500ms applies identically to RSS and web (rate-limiter.ts:4).
+  const rateLimiter = getGlobalRateLimiter();
+  await rateLimiter.waitForDomain(source.url);
+
+  // 3. HEAD pre-flight per spec §3.3.2 Option A (D-3 ratified). Issues
+  //    `If-None-Match` + `If-Modified-Since` when stored; on HTTP 304,
+  //    return `status='not_modified'` immediately, skipping Firecrawl.
+  const preflightHeaders: Record<string, string> = { 'User-Agent': USER_AGENT };
+  if (source.etag) preflightHeaders['If-None-Match'] = source.etag;
+  if (source.last_modified)
+    preflightHeaders['If-Modified-Since'] = source.last_modified;
+
+  let preflight: Response;
+  let headPreflightStatus: number | null;
+  try {
+    preflight = await fetch(source.url, {
+      method: 'HEAD',
+      headers: preflightHeaders,
+      signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+      redirect: 'follow',
+    });
+    headPreflightStatus = preflight.status;
+  } catch {
+    // HEAD-rejecting servers / transient errors: fall through to Firecrawl
+    // (today's behaviour) rather than re-issuing a ranged GET — the
+    // ranged-GET fallback is already in `validateWebUrl` (lines 280-294
+    // of url-validation.ts). Treat HEAD failure as "proceed to Firecrawl".
+    preflight = new Response(null, { status: 200 });
+    headPreflightStatus = null;
+  }
+
+  if (preflight.status === 304) {
+    Sentry.addBreadcrumb({
+      category: 'intelligence.web-source.firecrawl-call',
+      message: 'HEAD-304 short-circuit — Firecrawl skipped',
+      level: 'info',
+      data: {
+        sourceId: source.id,
+        url: source.url,
+        success: true,
+        status: 'unchanged',
+        firecrawlCalled: false,
+        dryRun,
+      },
+      timestamp: Date.now() / 1000,
+    });
+    return {
+      feedSourceId: source.id,
+      status: 'not_modified',
+      items: [],
+      etag: source.etag ?? null,
+      lastModified: source.last_modified ?? null,
+      headPreflightStatus,
+      firecrawlCalled: false,
+    };
+  }
+
+  // 4. Capture new ETag/Last-Modified from pre-flight response so the
+  //    next poll cycle can issue a fresh conditional-GET. Headers may
+  //    legitimately be absent (origin server omits ETag) — that maps
+  //    to the canonical "wasted credit" telemetry case in spec §3.3.3.
+  const newEtag = preflight.headers.get('ETag') ?? null;
+  const newLastModified = preflight.headers.get('Last-Modified') ?? null;
+
+  // 5. Scrape with Firecrawl using HTML format (F-1 fix: avoids double-escape).
+  let firecrawlCalled = false;
+  try {
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
     const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
+    firecrawlCalled = true; // count the call attempt (matches Firecrawl billing)
     const doc = await firecrawl.scrape(source.url, {
       formats: ['html'] as const,
     });
 
     if (!doc.html) {
+      Sentry.addBreadcrumb({
+        category: 'intelligence.web-source.firecrawl-call',
+        message: 'Firecrawl returned no HTML body',
+        level: 'warning',
+        data: {
+          sourceId: source.id,
+          url: source.url,
+          success: false,
+          status: 'error',
+          firecrawlCalled: true,
+          dryRun,
+        },
+        timestamp: Date.now() / 1000,
+      });
       throw new Error('Firecrawl returned no HTML body');
     }
 
+    rateLimiter.recordSuccess(source.url);
+
+    Sentry.addBreadcrumb({
+      category: 'intelligence.web-source.firecrawl-call',
+      message: 'Firecrawl scrape completed',
+      level: 'info',
+      data: {
+        sourceId: source.id,
+        url: source.url,
+        success: true,
+        status: 'modified',
+        firecrawlCalled: true,
+        dryRun,
+      },
+      timestamp: Date.now() / 1000,
+    });
+
     const metadata = (doc.metadata ?? {}) as Record<string, string | undefined>;
 
-    // 3. Synthesise a single ParsedFeedItem with RAW HTML in contentEncoded.
+    // 6. Synthesise a single ParsedFeedItem with RAW HTML in contentEncoded.
     // Option C (F-1 fix): pollers always produce HTML in contentEncoded,
     // and extractContent does the single Turndown conversion — consistent
     // with the RSS path. Avoids the double-Turndown regression where
@@ -382,10 +487,35 @@ export async function pollWebSource(source: WebSourceRef): Promise<PollResult> {
       feedSourceId: source.id,
       status: 'success',
       items: [item],
-      etag: null,
-      lastModified: null,
+      etag: newEtag,
+      lastModified: newLastModified,
+      headPreflightStatus,
+      firecrawlCalled,
     };
   } catch (err) {
+    // Sentry breadcrumb already emitted on the no-HTML branch; emit one
+    // here for SDK-thrown errors (4xx/5xx wrapped by @mendable/firecrawl-js,
+    // network errors, etc.). Per spec §3.3.3 (D-5) + §6 AC-12, an errored
+    // Firecrawl call STILL counts as a credit attempt — the SDK has
+    // already hit the network even if the response was non-2xx. The
+    // `firecrawlCalled` flag tracks attempts, not successes.
+    if (firecrawlCalled) {
+      Sentry.addBreadcrumb({
+        category: 'intelligence.web-source.firecrawl-call',
+        message: 'Firecrawl scrape failed',
+        level: 'error',
+        data: {
+          sourceId: source.id,
+          url: source.url,
+          success: false,
+          status: 'error',
+          firecrawlCalled: true,
+          dryRun,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        timestamp: Date.now() / 1000,
+      });
+    }
     return {
       feedSourceId: source.id,
       status: 'error',
@@ -393,6 +523,21 @@ export async function pollWebSource(source: WebSourceRef): Promise<PollResult> {
       items: [],
       etag: null,
       lastModified: null,
+      headPreflightStatus,
+      firecrawlCalled,
     };
   }
 }
+
+// TODO(s222 telemetry sink): `pipeline_runs.result.firecrawl_credits_consumed`
+// per spec §3.3.3 / AC-12 requires the cron handler at
+// `app/api/cron/intelligence-poll/route.ts` to call `recordPipelineRun`
+// from `@/lib/pipeline/record-run` with the aggregated counter as the
+// `result` payload. Today the cron handler does NOT call recordPipelineRun
+// at all (`runPipeline` returns the pipeline summary; the route returns it
+// in the response body, no `pipeline_runs` insert). Wiring that up is a
+// separate change — once landed, runPipeline should sum `firecrawlCalled`
+// across all `WebPollResult`s and pass `{ firecrawl_credits_consumed: n }`
+// as `result` to `recordPipelineRun`. Until then, AC-12 is verified via
+// the Sentry breadcrumb stream + the `firecrawlCalled` flag returned
+// from this function.

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import pluralize from 'pluralize';
 import { getValidTypeValues } from '@/lib/workspace-types';
 import { logger } from '@/lib/logger/client';
+import { validateWebUrl } from '@/lib/intelligence/url-validation';
 
 // ──────────────────────────────────────────
 // Tag morphology — domain uncountable registration
@@ -1059,14 +1060,39 @@ export const OrganisationProfileUpsertSchema = z.object({
   key_topics: z.array(z.string()).default([]),
 });
 
-/** POST /api/intelligence/workspaces/:id/sources */
-export const FeedSourceCreateSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(200),
-  url: z.string().url('Must be a valid URL'),
-  source_type: z.enum(['rss', 'web', 'api']).default('rss'),
-  polling_interval_minutes: z.number().int().min(5).max(1440).default(30),
-  is_active: z.boolean().default(true),
-});
+/** POST /api/intelligence/workspaces/:id/sources
+ *
+ * S222 W3-A §2.3.4 D-4: pre-insert `validateWebUrl` refinement on
+ * `source_type='web'` rows. Async refinement — consumers MUST use
+ * `parseBodyAsync` from `@/lib/validation` rather than the synchronous
+ * `parseBody` helper. Zod throws `Encountered Promise during synchronous
+ * parse` on `.parse()` for async schemas, so misuse is loud.
+ */
+export const FeedSourceCreateSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required').max(200),
+    url: z.string().url('Must be a valid URL'),
+    source_type: z.enum(['rss', 'web', 'api']).default('rss'),
+    polling_interval_minutes: z.number().int().min(5).max(1440).default(30),
+    is_active: z.boolean().default(true),
+  })
+  .superRefine(async (data, ctx) => {
+    // Web sources only — RSS uses `validateFeedUrl` at the route level;
+    // API sources are non-goal for §2.3.4.
+    if (data.source_type !== 'web') return;
+    try {
+      await validateWebUrl(data.url);
+    } catch (err) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['url'],
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Web URL validation failed (HEAD pre-flight rejected)',
+      });
+    }
+  });
 
 /** PATCH /api/intelligence/workspaces/:id/sources/:sourceId
  *

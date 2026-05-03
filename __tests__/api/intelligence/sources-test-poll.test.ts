@@ -115,13 +115,17 @@ describe('Test-poll route branching (WP3C)', () => {
     expect(body.itemCount).toBe(1);
     expect(body.sampleTitles).toContain('Web Page Title');
 
-    // Verify correct function was called
+    // Verify correct function was called.
+    // S222 W3-A §2.3.4 AC-10: test endpoint passes `{ dryRun: true }` so
+    // future side-effect bookkeeping is suppressed for admin-initiated
+    // tests.
     expect(mockPollWebSource).toHaveBeenCalledWith(
       expect.objectContaining({
         id: SOURCE_UUID,
         url: 'https://example.com/page',
         source_type: 'web',
       }),
+      expect.objectContaining({ dryRun: true }),
     );
     expect(mockPollFeed).not.toHaveBeenCalled();
   });

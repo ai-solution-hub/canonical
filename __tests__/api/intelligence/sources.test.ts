@@ -40,6 +40,16 @@ vi.mock('@/lib/intelligence/feed-poller', () => ({
     .mockResolvedValue({ valid: true, title: 'Test Feed', articleCount: 10 }),
 }));
 
+// S222 W3-A §2.3.4 D-4: FeedSourceCreateSchema now `.superRefine`s on
+// `source_type='web'` rows by calling `validateWebUrl` (HEAD pre-flight).
+// Stub it to a no-op resolve so the schema's async refinement passes
+// without making a real network call in jsdom.
+vi.mock('@/lib/intelligence/url-validation', () => ({
+  validateWebUrl: vi.fn().mockResolvedValue(undefined),
+  USER_AGENT: 'KnowledgeHub/1.0',
+  HTML_CONTENT_TYPES: ['text/html', 'application/xhtml+xml'],
+}));
+
 // ---------------------------------------------------------------------------
 // Import route handlers AFTER mocks
 // ---------------------------------------------------------------------------

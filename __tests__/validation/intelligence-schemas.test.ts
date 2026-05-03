@@ -11,7 +11,17 @@
  *   IntelligenceWorkspaceCreateSchema
  *   IntelligenceWorkspaceUpdateSchema
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// S222 W3-A §2.3.4 D-4: FeedSourceCreateSchema's `.superRefine` calls
+// validateWebUrl on `source_type='web'` rows. Stub it so the schema
+// tests don't make real network calls in jsdom.
+vi.mock('@/lib/intelligence/url-validation', () => ({
+  validateWebUrl: vi.fn().mockResolvedValue(undefined),
+  USER_AGENT: 'KnowledgeHub/1.0',
+  HTML_CONTENT_TYPES: ['text/html', 'application/xhtml+xml'],
+}));
+
 import {
   CompanyProfileCreateSchema,
   CompanyProfileUpdateSchema,
@@ -233,8 +243,15 @@ describe('FeedSourceCreateSchema', () => {
     url: 'https://www.gov.uk/feed',
   };
 
-  it('accepts valid minimal input', () => {
-    const result = FeedSourceCreateSchema.safeParse(VALID_SOURCE);
+  // S222 W3-A §2.3.4 D-4: schema gained an async `.superRefine` for
+  // `source_type='web'` rows (HEAD pre-flight via validateWebUrl). That
+  // converts the entire schema to async — `.safeParse()` throws
+  // "Encountered Promise during synchronous parse". All tests now use
+  // `safeParseAsync`. RSS rows skip the network call but still go via
+  // the async pipeline, so the awaits are universal.
+
+  it('accepts valid minimal input', async () => {
+    const result = await FeedSourceCreateSchema.safeParseAsync(VALID_SOURCE);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.source_type).toBe('rss');
@@ -243,8 +260,13 @@ describe('FeedSourceCreateSchema', () => {
     }
   });
 
-  it('accepts valid full input', () => {
-    const result = FeedSourceCreateSchema.safeParse({
+  it('accepts valid full input', async () => {
+    // For source_type='web', the superRefine calls validateWebUrl which
+    // hits the network — vi.mock at the file level stubs it to a no-op
+    // resolve. (Other test files that import this schema mock it
+    // similarly; here we don't because only this happy-path web case
+    // exercises the network call, and we accept the in-test no-op.)
+    const result = await FeedSourceCreateSchema.safeParseAsync({
       ...VALID_SOURCE,
       source_type: 'web',
       polling_interval_minutes: 60,
@@ -253,39 +275,39 @@ describe('FeedSourceCreateSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects missing name', () => {
-    const result = FeedSourceCreateSchema.safeParse({
+  it('rejects missing name', async () => {
+    const result = await FeedSourceCreateSchema.safeParseAsync({
       url: 'https://example.com/feed',
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid URL', () => {
-    const result = FeedSourceCreateSchema.safeParse({
+  it('rejects invalid URL', async () => {
+    const result = await FeedSourceCreateSchema.safeParseAsync({
       ...VALID_SOURCE,
       url: 'not-a-url',
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects polling interval below minimum', () => {
-    const result = FeedSourceCreateSchema.safeParse({
+  it('rejects polling interval below minimum', async () => {
+    const result = await FeedSourceCreateSchema.safeParseAsync({
       ...VALID_SOURCE,
       polling_interval_minutes: 2,
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects polling interval above maximum', () => {
-    const result = FeedSourceCreateSchema.safeParse({
+  it('rejects polling interval above maximum', async () => {
+    const result = await FeedSourceCreateSchema.safeParseAsync({
       ...VALID_SOURCE,
       polling_interval_minutes: 2000,
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid source_type', () => {
-    const result = FeedSourceCreateSchema.safeParse({
+  it('rejects invalid source_type', async () => {
+    const result = await FeedSourceCreateSchema.safeParseAsync({
       ...VALID_SOURCE,
       source_type: 'ftp',
     });

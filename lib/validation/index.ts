@@ -42,6 +42,53 @@ export function parseBody<T extends z.ZodType>(
 }
 
 /**
+ * Async variant of `parseBody` for schemas with async refinements
+ * (e.g. `FeedSourceCreateSchema` whose `.superRefine` makes a network
+ * call to validate web URLs). Wraps `schema.parseAsync()` so route files
+ * never have to call `.safeParseAsync(` directly — the validation-sweep
+ * guard rail (`__tests__/validation/validation-sweep.test.ts`) bans
+ * inline `.safeParse(` and would otherwise reject async usage too.
+ *
+ * S222 W3-A §2.3.4 D-4 introduces the first async refinement — pre-insert
+ * `validateWebUrl` for `source_type='web'` rows.
+ */
+export async function parseBodyAsync<T extends z.ZodType>(
+  schema: T,
+  body: unknown,
+): Promise<
+  | { success: true; data: z.infer<T> }
+  | { success: false; response: NextResponse }
+> {
+  try {
+    const data = await schema.parseAsync(body);
+    return { success: true, data };
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return {
+        success: false,
+        response: NextResponse.json(
+          {
+            error: 'Validation failed',
+            details: err.issues.map((e) => ({
+              field: e.path.join('.'),
+              message: e.message,
+            })),
+          },
+          { status: 400 },
+        ),
+      };
+    }
+    return {
+      success: false,
+      response: NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 },
+      ),
+    };
+  }
+}
+
+/**
  * Parse URL search params into an object and validate against a Zod schema.
  * Handles comma-separated arrays and numeric coercion.
  */
