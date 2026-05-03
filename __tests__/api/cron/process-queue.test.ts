@@ -168,9 +168,8 @@ function configureClaimSequence(claimedJobs: JobFixture[]): void {
   });
 
   // The terminal update on processing_queue (write completed/failed/etc).
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: null, error: null }),
   );
 }
 
@@ -204,8 +203,7 @@ describe('GET /api/cron/process-queue', () => {
     }
     mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     mockSupabase.from.mockReturnValue(mockSupabase._chain);
   });

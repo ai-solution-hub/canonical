@@ -145,7 +145,10 @@ describe('AC-10 test endpoint for source_type=web surfaces HEAD result + Firecra
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}/test`,
       { method: 'POST' },
     );
-    const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+    const params = createTestParams({
+      id: WORKSPACE_UUID,
+      sourceId: SOURCE_UUID,
+    });
     const response = await testPollPost(request, { params });
     const body = await response.json();
 
@@ -200,7 +203,10 @@ describe('AC-10 test endpoint for source_type=web surfaces HEAD result + Firecra
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}/test`,
       { method: 'POST' },
     );
-    const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+    const params = createTestParams({
+      id: WORKSPACE_UUID,
+      sourceId: SOURCE_UUID,
+    });
     const response = await testPollPost(request, { params });
     const body = await response.json();
 
@@ -230,7 +236,8 @@ describe('AC-10 test endpoint for source_type=web surfaces HEAD result + Firecra
     mockPollWebSource.mockResolvedValueOnce({
       feedSourceId: SOURCE_UUID,
       status: 'error',
-      error: 'Web URL validation failed for https://broken.example.com/missing: HTTP 404',
+      error:
+        'Web URL validation failed for https://broken.example.com/missing: HTTP 404',
       items: [],
       etag: null,
       lastModified: null,
@@ -242,7 +249,10 @@ describe('AC-10 test endpoint for source_type=web surfaces HEAD result + Firecra
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}/test`,
       { method: 'POST' },
     );
-    const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+    const params = createTestParams({
+      id: WORKSPACE_UUID,
+      sourceId: SOURCE_UUID,
+    });
     const response = await testPollPost(request, { params });
     const body = await response.json();
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # WP-CI.RES.7 — Staging reference-table refresh orchestrator (Path (ii)).
 #
-# Refreshes 13 reference/lookup tables from production into the persistent
+# Refreshes 11 reference/lookup tables from production into the persistent
 # staging Supabase branch (turayklvaunphgbgscat) via pg_dump -Fc | pg_restore.
 # Zero PII surface — no scrub step required.
 #
@@ -15,9 +15,15 @@ set -euo pipefail
 PROD_DB_URL="${PROD_SUPABASE_DB_URL:?Missing PROD_SUPABASE_DB_URL}"
 STAGING_DB_URL="${STAGING_SUPABASE_DB_URL:?Missing STAGING_SUPABASE_DB_URL}"
 
-# Explicit list per spec §3.2 + §3.4 (13 tables, ~357 rows).
+# Explicit list per spec §3.2 + §3.4 (11 tables, ~300 rows).
 # Maintenance: adding/removing a table is a one-line change here + one-line
 # in the spec §3.2 table.
+#
+# EXCLUDED (by design):
+#   - public.user_roles    — FK → auth.users; production UUIDs don't exist
+#                            on staging. Managed by seed-e2e-users.ts + seed.sql.
+#   - public.feed_prompts  — feed_prompts.created_by FK → auth.users;
+#                            production user UUIDs cause FK violations.
 REFERENCE_TABLES=(
   public.taxonomy_domains
   public.taxonomy_subtopics
@@ -28,10 +34,8 @@ REFERENCE_TABLES=(
   public.entity_aliases
   public.company_profiles
   public.template_requirements
-  public.feed_prompts
   public.feed_flags
   public.tag_morphology_drift_flags
-  public.user_roles
 )
 
 # FK-aware DELETE ordering (spec §5.2 + continuation prompt critical rule 4):
@@ -46,10 +50,8 @@ DELETE_ORDER=(
   public.entity_aliases
   public.company_profiles
   public.template_requirements
-  public.feed_prompts
   public.feed_flags
   public.tag_morphology_drift_flags
-  public.user_roles
   public.guides
   public.taxonomy_domains
 )
@@ -89,16 +91,31 @@ done
 
 echo "[refresh] pg_dump prod | pg_restore staging (${#REFERENCE_TABLES[@]} tables)..."
 # shellcheck disable=SC2086
+# --disable-triggers: prevents circular FK issues (guide_sections self-FK)
+# during restore. Requires superuser or rds_superuser on the target DB.
+# --single-transaction: defers constraint checks to commit time.
 pg_dump "$PROD_DB_URL" -Fc --data-only $TABLE_ARGS \
-  | pg_restore --data-only --single-transaction -d "$STAGING_DB_URL"
+  | pg_restore --data-only --single-transaction --disable-triggers -d "$STAGING_DB_URL"
 
 # ── Post-flight verification ────────────────────────────────────────────────
 
 echo "[verify] Spot-checking row counts on staging..."
-for t in public.taxonomy_domains public.taxonomy_subtopics public.guides public.user_roles; do
+for t in public.taxonomy_domains public.taxonomy_subtopics public.guides public.guide_sections; do
   COUNT=$(psql "$STAGING_DB_URL" -c "SELECT count(*) FROM $t;" -t -A)
   echo "  $t: $COUNT rows"
   [ "$COUNT" -gt 0 ] || { echo "FATAL: $t is empty after refresh"; exit 1; }
 done
+
+# ── Post-refresh: verify pipeline service account role intact ────────────────
+# The reference refresh does NOT touch user_roles (excluded from table set),
+# but verify the pipeline admin role survived as a sanity check.
+echo "[post-refresh] Verifying pipeline service account role..."
+PIPELINE_ROLE=$(psql "$STAGING_DB_URL" -c \
+  "SELECT role FROM public.user_roles WHERE user_id = 'a0000000-0000-4000-8000-000000000001';" -t -A)
+if [ "$PIPELINE_ROLE" != "admin" ]; then
+  echo "WARNING: pipeline service account admin role missing — re-inserting..."
+  psql "$STAGING_DB_URL" -c \
+    "INSERT INTO public.user_roles (user_id, role) VALUES ('a0000000-0000-4000-8000-000000000001', 'admin') ON CONFLICT (user_id) DO NOTHING;"
+fi
 
 echo "[done] Reference tables refreshed. ${#REFERENCE_TABLES[@]} tables, prod migration count=$PROD_COUNT."

@@ -508,14 +508,12 @@ jobs:
     # AI-pipeline classification + embedding, migration triggers, cookie-store
     # auth-helper resolution.
     #
-    # `continue-on-error: true` is the Phase 1 graceful-skip lever (per
-    # `feedback_eval_scripts_assume_populated_db.md`) — ~3 files hard-assert
-    # prod-shaped cohort counts (publication-status-migration,
-    # golden-path-real-db, intelligence-golden-path) which fail honestly on
-    # data-empty staging. Phase 2 close-out (lock-step with roadmap §9.16.10
-    # staging mirror cutover) drops the flag here AND on `e2e-smoke` AND
-    # removes the MCP eval graceful-skip in `scripts/mcp-eval/fixtures.ts:328`
-    # atomically.
+    # Phase 2 state: `continue-on-error` removed (line 529 comment). The
+    # `set -o pipefail` in the run step ensures `| tee` does not mask the
+    # test runner's exit code. Remaining soft-fail flags to drop atomically
+    # once staging is fully populated (roadmap §9.16.10):
+    #   - e2e-smoke `continue-on-error: true` (line 235)
+    #   - MCP eval graceful-skip in `scripts/mcp-eval/fixtures.ts`
     #
     # Independent of the `quality` / `e2e-smoke` / `mcp-eval` jobs (no
     # `needs:` chain) so total CI wall-clock = max(quality, e2e-smoke,
@@ -600,7 +598,11 @@ jobs:
           # D-CI.RES.3-7).
         # `tee` so the log appears live in the GH Actions step UI as it
         # streams, not just post-failure (spec §2.8).
-        run: bun run test:integration 2>&1 | tee /tmp/integration.log
+        # `set -o pipefail` ensures the pipeline returns the test runner's
+        # exit code, not tee's (which always exits 0).
+        run: |
+          set -o pipefail
+          bun run test:integration 2>&1 | tee /tmp/integration.log
 
       - name: Upload integration log on failure
         if: failure()

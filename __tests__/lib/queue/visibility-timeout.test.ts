@@ -33,7 +33,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // 2026-05-03T12:00:00Z — fixed so cutoff arithmetic is deterministic.
 const FIXED_NOW_MS = Date.UTC(2026, 4, 3, 12, 0, 0);
 // 5 minutes earlier (default visibility timeout per spec §5.3).
-const EXPECTED_CUTOFF_ISO = new Date(FIXED_NOW_MS - 5 * 60 * 1000).toISOString();
+const EXPECTED_CUTOFF_ISO = new Date(
+  FIXED_NOW_MS - 5 * 60 * 1000,
+).toISOString();
 
 const STUCK_JOB_ID = 'd1e2f3a4-b5c6-4789-d0e1-f2a3b4c5d6e7';
 
@@ -54,19 +56,18 @@ describe('reapStuckJobs', () => {
   it('AC-5: issues an UPDATE filtered on status=processing AND started_at < (now - 5 min)', async () => {
     // Configure the chain: update().eq('status', 'processing').lt('started_at', cutoff)
     // resolves to a list of reaped rows.
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: STUCK_JOB_ID,
-              job_type: 'embed',
-              attempts: 1,
-              started_at: new Date(FIXED_NOW_MS - 10 * 60 * 1000).toISOString(),
-            },
-          ],
-          error: null,
-        }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: STUCK_JOB_ID,
+            job_type: 'embed',
+            attempts: 1,
+            started_at: new Date(FIXED_NOW_MS - 10 * 60 * 1000).toISOString(),
+          },
+        ],
+        error: null,
+      }),
     );
 
     await reapStuckJobs(supabase);
@@ -89,15 +90,14 @@ describe('reapStuckJobs', () => {
   });
 
   it('AC-5: returns the count of reaped jobs (or array — whichever the impl chooses)', async () => {
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            { id: STUCK_JOB_ID, job_type: 'embed' },
-            { id: 'd1e2f3a4-b5c6-4789-d0e1-f2a3b4c5d6e8', job_type: 'classify' },
-          ],
-          error: null,
-        }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          { id: STUCK_JOB_ID, job_type: 'embed' },
+          { id: 'd1e2f3a4-b5c6-4789-d0e1-f2a3b4c5d6e8', job_type: 'classify' },
+        ],
+        error: null,
+      }),
     );
 
     const result = await reapStuckJobs(supabase);
@@ -119,9 +119,8 @@ describe('reapStuckJobs', () => {
   });
 
   it('AC-5: zero stuck rows is a no-op (no error thrown, count is 0)', async () => {
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
     );
 
     const result = await reapStuckJobs(supabase);
@@ -137,9 +136,8 @@ describe('reapStuckJobs', () => {
   });
 
   it('AC-5: cutoff is computed from Date.now() at call time (5-min default)', async () => {
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
     );
 
     await reapStuckJobs(supabase);

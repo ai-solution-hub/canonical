@@ -93,8 +93,7 @@ export async function PATCH(
     if (existing.status === 'processing') {
       return NextResponse.json(
         {
-          error:
-            'This job is already running and cannot be cancelled.',
+          error: 'This job is already running and cannot be cancelled.',
           status: existing.status,
         },
         { status: 409 },
@@ -130,10 +129,7 @@ export async function PATCH(
       );
     }
 
-    return NextResponse.json(
-      { jobId, status: 'cancelled' },
-      { status: 200 },
-    );
+    return NextResponse.json({ jobId, status: 'cancelled' }, { status: 200 });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to cancel job') },

@@ -61,7 +61,8 @@ export async function reValidateAuthContext(
     .select('role')
     .eq('user_id', userId)
     .maybeSingle();
-  if (error) return { ok: false, reason: `role_lookup_failed: ${error.message}` };
+  if (error)
+    return { ok: false, reason: `role_lookup_failed: ${error.message}` };
   if (!data) return { ok: false, reason: 'enqueueing user has no role record' };
   const currentRole = data.role as 'admin' | 'editor' | 'viewer';
   if (rolesAreLowerThan(currentRole, requiredRole)) {

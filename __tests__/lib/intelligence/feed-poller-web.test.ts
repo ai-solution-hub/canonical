@@ -122,12 +122,8 @@ describe('AC-1 first-ever poll: HEAD 200 + new ETag → Firecrawl runs → count
     expect(result.firecrawlCalled).toBe(true);
 
     // Rate-limit gate must have run (AC-8 parity).
-    expect(mockWaitForDomain).toHaveBeenCalledWith(
-      'https://example.com/page',
-    );
-    expect(mockRecordSuccess).toHaveBeenCalledWith(
-      'https://example.com/page',
-    );
+    expect(mockWaitForDomain).toHaveBeenCalledWith('https://example.com/page');
+    expect(mockRecordSuccess).toHaveBeenCalledWith('https://example.com/page');
 
     // Telemetry breadcrumb fired with status='modified' (D-5).
     const credBreadcrumb = mockAddBreadcrumb.mock.calls.find(
@@ -391,7 +387,9 @@ describe('AC-7 different URL same content → poll layer succeeds for each (dedu
     expect(resultB.status).toBe('success');
     // Both produced the same payload — the soft-block at content_items
     // is a pipeline.ts concern (checkExactDuplicate) not poll-layer.
-    expect(resultA.items[0].contentEncoded).toBe(resultB.items[0].contentEncoded);
+    expect(resultA.items[0].contentEncoded).toBe(
+      resultB.items[0].contentEncoded,
+    );
   });
 });
 

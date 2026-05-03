@@ -34,21 +34,84 @@
 --    config. See `supabase/config.toml` `[remotes.staging.db.seed]` for the
 --    explicit declaration that the staging persistent branch loads this file.
 
--- ----------------------------------------------------------------------
--- TODO (W5 handover wave) — populate as canonical pattern matures:
---
---   * Default `taxonomy_domains` + `taxonomy_subtopics` baseline (currently
---     populated by `bun run sync:taxonomy` against prod; for branch
---     parity, capture as seed).
---
---   * Default seed: schema-baseline rows that EVERY client deployment needs
---     to be functional from cold (e.g. system-default templates, default
---     content_types if these are config-row-driven).
---
--- For example-client-specific data (Product Guides, Sector Guides, client-specific
--- taxonomy adjustments, MAT Auditing Intelligence Guide overrides), use
--- the per-client seed pattern documented in the staging-refresh runbook.
--- ----------------------------------------------------------------------
+-- ======================================================================
+-- §1  Pipeline service account (belt-and-suspenders)
+-- ======================================================================
+-- Migration 20260416122127_seed_pipeline_service_account.sql already
+-- INSERTs this row, but branches that are reset after a schema-only
+-- restore may miss it. ON CONFLICT DO NOTHING makes this idempotent.
 
--- Currently empty. See TODO above. The file's existence + contract
--- sets the canonical pattern for future expansion.
+SET search_path = public, extensions, auth;
+
+-- 1a. auth.users row
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at,
+  raw_app_meta_data, raw_user_meta_data,
+  is_super_admin, is_sso_user, is_anonymous,
+  confirmation_token, recovery_token,
+  email_change_token_new, email_change_token_current,
+  email_change, phone_change, phone_change_token, reauthentication_token
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  'a0000000-0000-4000-8000-000000000001',
+  'authenticated', 'authenticated',
+  'pipeline@system.knowledge-hub.internal',
+  '!pipeline-service-account-no-login!',
+  NOW(), NOW(), NOW(),
+  '{"provider":"system","providers":["system"]}'::jsonb,
+  '{"name":"Pipeline Service Account","system":true}'::jsonb,
+  false, false, false,
+  '', '', '', '', '', '', '', ''
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 1b. auth.identities row
+INSERT INTO auth.identities (
+  id, user_id, identity_data, provider, provider_id,
+  last_sign_in_at, created_at, updated_at
+)
+VALUES (
+  'a0000000-0000-4000-8000-000000000001',
+  'a0000000-0000-4000-8000-000000000001',
+  jsonb_build_object(
+    'sub', 'a0000000-0000-4000-8000-000000000001',
+    'email', 'pipeline@system.knowledge-hub.internal',
+    'email_verified', true,
+    'phone_verified', false
+  ),
+  'email',
+  'a0000000-0000-4000-8000-000000000001',
+  NOW(), NOW(), NOW()
+)
+ON CONFLICT (provider, provider_id) DO NOTHING;
+
+-- 1c. Admin role for pipeline service account
+INSERT INTO public.user_roles (user_id, role)
+VALUES ('a0000000-0000-4000-8000-000000000001', 'admin')
+ON CONFLICT (user_id) DO NOTHING;
+
+-- ======================================================================
+-- §2  Reference data
+-- ======================================================================
+-- Reference tables (taxonomy_domains, taxonomy_subtopics, guides,
+-- guide_sections, layer_vocabulary, etc.) are populated by the
+-- staging-reference-refresh workflow after branch reset:
+--
+--   .github/workflows/staging-reference-refresh.yml
+--   scripts/staging-reference-refresh.sh
+--
+-- The workflow pulls the 11 reference tables from production via
+-- pg_dump/pg_restore. This is preferred over static INSERTs here
+-- because reference data changes occasionally and the refresh
+-- workflow ensures parity with production.
+--
+-- POST-RESET SEQUENCE:
+--   1. Branch reset (runs migrations + this seed.sql)
+--   2. bun run seed:e2e-users  (creates 3 test auth accounts + roles)
+--   3. Dispatch staging-reference-refresh workflow (populates 11 tables)
+--
+-- FUTURE: once reference data cadence stabilises, consider capturing
+-- a static snapshot here so branches are self-contained on reset.
+-- See docs/runbooks/staging-refresh.md for full procedure.
