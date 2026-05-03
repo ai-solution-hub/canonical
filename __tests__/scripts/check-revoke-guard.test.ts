@@ -433,8 +433,7 @@ describe('matchRevokeForCreate (matcher, §2.3)', () => {
     const create: CreateFunctionRecord = {
       name: 'resolve_near_dup_confirm_unique',
       isQuoted: false,
-      args:
-        'p_left_id uuid, p_right_id uuid, p_actor_user_id uuid, p_pair_id text, p_note text DEFAULT NULL, p_similarity_at_resolution numeric DEFAULT NULL, p_threshold_at_resolution numeric DEFAULT NULL',
+      args: 'p_left_id uuid, p_right_id uuid, p_actor_user_id uuid, p_pair_id text, p_note text DEFAULT NULL, p_similarity_at_resolution numeric DEFAULT NULL, p_threshold_at_resolution numeric DEFAULT NULL',
       line: 1,
     };
     const revokes: RevokeRecord[] = [
@@ -488,9 +487,9 @@ describe('extractTypesOnly', () => {
   });
 
   it('strips DEFAULT clauses', () => {
-    expect(extractTypesOnly('p_x integer DEFAULT 0, p_y text DEFAULT NULL')).toBe(
-      'integer, text',
-    );
+    expect(
+      extractTypesOnly('p_x integer DEFAULT 0, p_y text DEFAULT NULL'),
+    ).toBe('integer, text');
   });
 
   it('strips IN/OUT/INOUT/VARIADIC mode keywords', () => {

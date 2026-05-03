@@ -156,12 +156,10 @@ vi.mock('next/headers', () => ({
 }));
 
 // Imports AFTER the mock is registered.
-const { POST: archivePost } = await import(
-  '@/app/api/items/[id]/archive/route'
-);
-const { POST: confirmDuplicatePost } = await import(
-  '@/app/api/admin/content-dedup/[id]/confirm-duplicate/route'
-);
+const { POST: archivePost } =
+  await import('@/app/api/items/[id]/archive/route');
+const { POST: confirmDuplicatePost } =
+  await import('@/app/api/admin/content-dedup/[id]/confirm-duplicate/route');
 const { registerGovernanceTools } = await import('@/lib/mcp/tools/governance');
 const { setSupersession } = await import('@/lib/supersession/set');
 
@@ -184,10 +182,10 @@ let mcpEditorToken = '';
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD &&
-    process.env.TEST_USER_2_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD &&
+  process.env.TEST_USER_2_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -275,14 +273,11 @@ async function postArchive(
   itemId: string,
   body: { reason: string },
 ): Promise<Response> {
-  const req = new NextRequest(
-    `http://localhost/api/items/${itemId}/archive`,
-    {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'content-type': 'application/json' },
-    },
-  );
+  const req = new NextRequest(`http://localhost/api/items/${itemId}/archive`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'content-type': 'application/json' },
+  });
   return archivePost(req, { params: Promise.resolve({ id: itemId }) });
 }
 
@@ -488,378 +483,344 @@ afterAll(async () => {
 describeIfEnv(
   'Archive trigger coverage — POST /api/items/[id]/archive (writer 1)',
   () => {
-    it(
-      'Case A — happy path: published row → POST archive → trigger Direction 3 fires',
-      async () => {
-        // Spec §10.3 pre-flight requirement: round-trip the writer and
-        // assert post-write row has publication_status='archived'.
-        const itemId = await seedItem(
-          'published',
-          'route-A-happy-path',
-          TEST_USER_ADMIN_ID,
-        );
+    it('Case A — happy path: published row → POST archive → trigger Direction 3 fires', async () => {
+      // Spec §10.3 pre-flight requirement: round-trip the writer and
+      // assert post-write row has publication_status='archived'.
+      const itemId = await seedItem(
+        'published',
+        'route-A-happy-path',
+        TEST_USER_ADMIN_ID,
+      );
 
-        // Sanity baseline: archived_at IS NULL, publication_status='published'.
-        const pre = await readRow(itemId);
-        expect(pre.publication_status).toBe('published');
-        expect(pre.archived_at).toBeNull();
+      // Sanity baseline: archived_at IS NULL, publication_status='published'.
+      const pre = await readRow(itemId);
+      expect(pre.publication_status).toBe('published');
+      expect(pre.archived_at).toBeNull();
 
-        const reason = 'Pre-flight A1: route happy-path';
-        const beforeMs = Date.now();
-        const res = await postArchive(itemId, { reason });
+      const reason = 'Pre-flight A1: route happy-path';
+      const beforeMs = Date.now();
+      const res = await postArchive(itemId, { reason });
 
-        expect(
-          res.status,
-          `archive POST failed: ${await res.clone().text()}`,
-        ).toBe(200);
+      expect(
+        res.status,
+        `archive POST failed: ${await res.clone().text()}`,
+      ).toBe(200);
 
-        const post = await readRow(itemId);
-        // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11).
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        const archivedTs = new Date(post.archived_at as string).getTime();
-        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-        expect(post.archive_reason).toBe(reason);
-      },
-      60_000,
-    );
+      const post = await readRow(itemId);
+      // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11).
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      const archivedTs = new Date(post.archived_at as string).getTime();
+      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+      expect(post.archive_reason).toBe(reason);
+    }, 60_000);
 
-    it(
-      'Case B — already-archived idempotency: route allows re-archive (overwrites archived_at)',
-      async () => {
-        // Behaviour-check per W1 brief: route SHOULD allow re-archive
-        // and overwrite archived_at to a fresh timestamp; trigger
-        // Direction 3 still fires (predicate matches because
-        // OLD.archived_at IS DISTINCT FROM NEW.archived_at), keeping
-        // publication_status='archived'.
-        const itemId = await seedItem(
-          'archived',
-          'route-B-idempotent',
-          TEST_USER_ADMIN_ID,
-        );
+    it('Case B — already-archived idempotency: route allows re-archive (overwrites archived_at)', async () => {
+      // Behaviour-check per W1 brief: route SHOULD allow re-archive
+      // and overwrite archived_at to a fresh timestamp; trigger
+      // Direction 3 still fires (predicate matches because
+      // OLD.archived_at IS DISTINCT FROM NEW.archived_at), keeping
+      // publication_status='archived'.
+      const itemId = await seedItem(
+        'archived',
+        'route-B-idempotent',
+        TEST_USER_ADMIN_ID,
+      );
 
-        const pre = await readRow(itemId);
-        const preTs = pre.archived_at as string;
-        expect(pre.publication_status).toBe('archived');
-        expect(preTs).not.toBeNull();
+      const pre = await readRow(itemId);
+      const preTs = pre.archived_at as string;
+      expect(pre.publication_status).toBe('archived');
+      expect(preTs).not.toBeNull();
 
-        // Wait a small interval so the new timestamp is strictly later.
-        await new Promise((r) => setTimeout(r, 50));
+      // Wait a small interval so the new timestamp is strictly later.
+      await new Promise((r) => setTimeout(r, 50));
 
-        const reason = 'Pre-flight A1: route idempotency check';
-        const res = await postArchive(itemId, { reason });
-        expect(res.status, await res.clone().text()).toBe(200);
+      const reason = 'Pre-flight A1: route idempotency check';
+      const res = await postArchive(itemId, { reason });
+      expect(res.status, await res.clone().text()).toBe(200);
 
-        const post = await readRow(itemId);
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        // Route writes a fresh timestamp; assert it is strictly later
-        // than the seed-time stamp (no row state corruption).
-        expect(
-          new Date(post.archived_at as string).getTime(),
-        ).toBeGreaterThan(new Date(preTs).getTime());
-        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-        expect(post.archive_reason).toBe(reason);
-      },
-      60_000,
-    );
+      const post = await readRow(itemId);
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      // Route writes a fresh timestamp; assert it is strictly later
+      // than the seed-time stamp (no row state corruption).
+      expect(new Date(post.archived_at as string).getTime()).toBeGreaterThan(
+        new Date(preTs).getTime(),
+      );
+      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+      expect(post.archive_reason).toBe(reason);
+    }, 60_000);
   },
 );
 
 describeIfEnv(
   'Archive trigger coverage — MCP delete_content_item archive mode (writer 2)',
   () => {
-    it(
-      'Case A — happy path: editor archives published row → trigger Direction 3 fires',
-      async () => {
-        const itemId = await seedItem(
-          'published',
-          'mcp-A-happy-path',
-          TEST_USER_EDITOR_ID,
-        );
+    it('Case A — happy path: editor archives published row → trigger Direction 3 fires', async () => {
+      const itemId = await seedItem(
+        'published',
+        'mcp-A-happy-path',
+        TEST_USER_EDITOR_ID,
+      );
 
-        const pre = await readRow(itemId);
-        expect(pre.publication_status).toBe('published');
-        expect(pre.archived_at).toBeNull();
+      const pre = await readRow(itemId);
+      expect(pre.publication_status).toBe('published');
+      expect(pre.archived_at).toBeNull();
 
-        const { deleteContentItem } = await registerAndCapture();
-        const authInfo = buildAuthInfo(
-          mcpEditorToken,
-          TEST_USER_EDITOR_ID,
-          'editor',
-        );
+      const { deleteContentItem } = await registerAndCapture();
+      const authInfo = buildAuthInfo(
+        mcpEditorToken,
+        TEST_USER_EDITOR_ID,
+        'editor',
+      );
 
-        const reason = 'Pre-flight A1: MCP happy-path';
-        const beforeMs = Date.now();
-        const result = await callDeleteContentItemArchive(
-          deleteContentItem,
-          itemId,
-          reason,
-          authInfo,
-        );
+      const reason = 'Pre-flight A1: MCP happy-path';
+      const beforeMs = Date.now();
+      const result = await callDeleteContentItemArchive(
+        deleteContentItem,
+        itemId,
+        reason,
+        authInfo,
+      );
 
-        expect(
-          result.isError,
-          `MCP archive returned isError=true: ${JSON.stringify(result)}`,
-        ).not.toBe(true);
+      expect(
+        result.isError,
+        `MCP archive returned isError=true: ${JSON.stringify(result)}`,
+      ).not.toBe(true);
 
-        const post = await readRow(itemId);
-        // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11).
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        const archivedTs = new Date(post.archived_at as string).getTime();
-        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-        expect(post.archived_by).toBe(TEST_USER_EDITOR_ID);
-        expect(post.archive_reason).toBe(reason);
-      },
-      60_000,
-    );
+      const post = await readRow(itemId);
+      // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11).
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      const archivedTs = new Date(post.archived_at as string).getTime();
+      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+      expect(post.archived_by).toBe(TEST_USER_EDITOR_ID);
+      expect(post.archive_reason).toBe(reason);
+    }, 60_000);
 
-    it(
-      'Case B — already-archived: MCP returns "already archived" message and does NOT write to DB',
-      async () => {
-        // Per `lib/mcp/tools/governance.ts:142-152`, the MCP archive
-        // branch short-circuits with a non-error message when the row
-        // is already archived. Assert: archived_at timestamp unchanged
-        // from seed (no DB write occurred).
-        const itemId = await seedItem(
-          'archived',
-          'mcp-B-already-archived',
-          TEST_USER_ADMIN_ID,
-        );
+    it('Case B — already-archived: MCP returns "already archived" message and does NOT write to DB', async () => {
+      // Per `lib/mcp/tools/governance.ts:142-152`, the MCP archive
+      // branch short-circuits with a non-error message when the row
+      // is already archived. Assert: archived_at timestamp unchanged
+      // from seed (no DB write occurred).
+      const itemId = await seedItem(
+        'archived',
+        'mcp-B-already-archived',
+        TEST_USER_ADMIN_ID,
+      );
 
-        const pre = await readRow(itemId);
-        const preTs = pre.archived_at as string;
-        expect(pre.publication_status).toBe('archived');
+      const pre = await readRow(itemId);
+      const preTs = pre.archived_at as string;
+      expect(pre.publication_status).toBe('archived');
 
-        const { deleteContentItem } = await registerAndCapture();
-        const authInfo = buildAuthInfo(
-          mcpAdminToken,
-          TEST_USER_ADMIN_ID,
-          'admin',
-        );
+      const { deleteContentItem } = await registerAndCapture();
+      const authInfo = buildAuthInfo(
+        mcpAdminToken,
+        TEST_USER_ADMIN_ID,
+        'admin',
+      );
 
-        const result = await callDeleteContentItemArchive(
-          deleteContentItem,
-          itemId,
-          'Pre-flight A1: MCP already-archived check',
-          authInfo,
-        );
+      const result = await callDeleteContentItemArchive(
+        deleteContentItem,
+        itemId,
+        'Pre-flight A1: MCP already-archived check',
+        authInfo,
+      );
 
-        // The handler returns a normal-shaped response (no isError) with
-        // the "already archived" guidance text. Assert text contains the
-        // canonical phrase and DB state is unchanged.
-        expect(result.isError).not.toBe(true);
-        const firstChunk = result.content?.[0]?.text ?? '';
-        expect(firstChunk).toContain('is already archived');
+      // The handler returns a normal-shaped response (no isError) with
+      // the "already archived" guidance text. Assert text contains the
+      // canonical phrase and DB state is unchanged.
+      expect(result.isError).not.toBe(true);
+      const firstChunk = result.content?.[0]?.text ?? '';
+      expect(firstChunk).toContain('is already archived');
 
-        const post = await readRow(itemId);
-        expect(post.publication_status).toBe('archived');
-        // archived_at MUST equal pre-seed value (no DB UPDATE occurred).
-        expect(post.archived_at).toBe(preTs);
-      },
-      60_000,
-    );
+      const post = await readRow(itemId);
+      expect(post.publication_status).toBe('archived');
+      // archived_at MUST equal pre-seed value (no DB UPDATE occurred).
+      expect(post.archived_at).toBe(preTs);
+    }, 60_000);
   },
 );
 
 describeIfEnv(
   'Archive trigger coverage — POST /api/admin/content-dedup/[id]/confirm-duplicate (writer 3)',
   () => {
-    it(
-      'Case A — happy path: suspected_duplicate row → POST confirm-duplicate → trigger Direction 3 fires',
-      async () => {
-        // Writer 3 — shipped via S211B (admin dedup review surface)
-        // after the §5.2 Phase 3 spec was authored. Phase 3's
-        // simplified WHERE clause (`archived_at IS NULL` →
-        // `publication_status='published'`) only holds if Direction 3
-        // fires on this writer too. Spec drift queued: §6.1 / §10.3
-        // cross-reference for backlog.
-        //
-        // Route: app/api/admin/content-dedup/[id]/confirm-duplicate/
-        //   route.ts:88-98 — UPDATE writes `archived_at`, `archived_by`,
-        //   `archive_reason='dedup_admin_confirmed_duplicate'`,
-        //   `dedup_status='confirmed_duplicate'` — NO publication_status
-        //   in the SET clause. Direction 3 must flip it to 'archived'.
-        const itemId = await seedItem(
-          'published',
-          'dedup-A-happy-path',
-          TEST_USER_ADMIN_ID,
-        );
-        await setDedupStatus(itemId, 'suspected_duplicate');
+    it('Case A — happy path: suspected_duplicate row → POST confirm-duplicate → trigger Direction 3 fires', async () => {
+      // Writer 3 — shipped via S211B (admin dedup review surface)
+      // after the §5.2 Phase 3 spec was authored. Phase 3's
+      // simplified WHERE clause (`archived_at IS NULL` →
+      // `publication_status='published'`) only holds if Direction 3
+      // fires on this writer too. Spec drift queued: §6.1 / §10.3
+      // cross-reference for backlog.
+      //
+      // Route: app/api/admin/content-dedup/[id]/confirm-duplicate/
+      //   route.ts:88-98 — UPDATE writes `archived_at`, `archived_by`,
+      //   `archive_reason='dedup_admin_confirmed_duplicate'`,
+      //   `dedup_status='confirmed_duplicate'` — NO publication_status
+      //   in the SET clause. Direction 3 must flip it to 'archived'.
+      const itemId = await seedItem(
+        'published',
+        'dedup-A-happy-path',
+        TEST_USER_ADMIN_ID,
+      );
+      await setDedupStatus(itemId, 'suspected_duplicate');
 
-        const pre = await readRow(itemId);
-        expect(pre.publication_status).toBe('published');
-        expect(pre.archived_at).toBeNull();
-        expect(pre.dedup_status).toBe('suspected_duplicate');
+      const pre = await readRow(itemId);
+      expect(pre.publication_status).toBe('published');
+      expect(pre.archived_at).toBeNull();
+      expect(pre.dedup_status).toBe('suspected_duplicate');
 
-        // Admin session restored in beforeEach; route enforces ['admin']
-        // and authFailureResponse() routes other roles to 403/401.
-        const beforeMs = Date.now();
-        const res = await postConfirmDuplicate(itemId, {
-          note: 'V_W1 fix coverage',
-        });
+      // Admin session restored in beforeEach; route enforces ['admin']
+      // and authFailureResponse() routes other roles to 403/401.
+      const beforeMs = Date.now();
+      const res = await postConfirmDuplicate(itemId, {
+        note: 'V_W1 fix coverage',
+      });
 
-        expect(
-          res.status,
-          `confirm-duplicate POST failed: ${await res.clone().text()}`,
-        ).toBe(200);
+      expect(
+        res.status,
+        `confirm-duplicate POST failed: ${await res.clone().text()}`,
+      ).toBe(200);
 
-        const post = await readRow(itemId);
-        // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11) — Direction 3
-        // fires on the dedup writer.
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        const archivedTs = new Date(post.archived_at as string).getTime();
-        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-        expect(post.archive_reason).toBe('dedup_admin_confirmed_duplicate');
-        expect(post.dedup_status).toBe('confirmed_duplicate');
+      const post = await readRow(itemId);
+      // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11) — Direction 3
+      // fires on the dedup writer.
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      const archivedTs = new Date(post.archived_at as string).getTime();
+      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+      expect(post.archive_reason).toBe('dedup_admin_confirmed_duplicate');
+      expect(post.dedup_status).toBe('confirmed_duplicate');
 
-        // content_history audit row — route inserts with
-        // change_type='archive' + change_reason='dedup_admin_review_
-        // confirmed_duplicate'. Mirror W1's existing history-style
-        // assertion: assert at least one row of that exact shape exists.
-        const { data: historyRows, error: historyErr } = await serviceClient
-          .from('content_history')
-          .select('change_type, change_reason')
-          .eq('content_item_id', itemId)
-          .eq('change_type', 'archive')
-          .eq('change_reason', 'dedup_admin_review_confirmed_duplicate');
-        expect(historyErr).toBeNull();
-        expect(historyRows).not.toBeNull();
-        expect((historyRows ?? []).length).toBeGreaterThanOrEqual(1);
-      },
-      60_000,
-    );
+      // content_history audit row — route inserts with
+      // change_type='archive' + change_reason='dedup_admin_review_
+      // confirmed_duplicate'. Mirror W1's existing history-style
+      // assertion: assert at least one row of that exact shape exists.
+      const { data: historyRows, error: historyErr } = await serviceClient
+        .from('content_history')
+        .select('change_type, change_reason')
+        .eq('content_item_id', itemId)
+        .eq('change_type', 'archive')
+        .eq('change_reason', 'dedup_admin_review_confirmed_duplicate');
+      expect(historyErr).toBeNull();
+      expect(historyRows).not.toBeNull();
+      expect((historyRows ?? []).length).toBeGreaterThanOrEqual(1);
+    }, 60_000);
 
-    it(
-      'Case B — idempotency 409: already-resolved row is rejected and DB state unchanged',
-      async () => {
-        // Per route.ts:76-84, the handler rejects with HTTP 409 when
-        // dedup_status is no longer 'suspected_duplicate'. Pre-flight
-        // contract: the rejected request MUST NOT mutate
-        // publication_status or archived_at (Direction 3 contract relies
-        // on the writer being the ONLY mutator of archived_at on this
-        // path; an idempotency leak would corrupt §5.2 Phase 3 reasoning).
-        const itemId = await seedItem(
-          'published',
-          'dedup-B-idempotent',
-          TEST_USER_ADMIN_ID,
-        );
-        await setDedupStatus(itemId, 'confirmed_duplicate');
+    it('Case B — idempotency 409: already-resolved row is rejected and DB state unchanged', async () => {
+      // Per route.ts:76-84, the handler rejects with HTTP 409 when
+      // dedup_status is no longer 'suspected_duplicate'. Pre-flight
+      // contract: the rejected request MUST NOT mutate
+      // publication_status or archived_at (Direction 3 contract relies
+      // on the writer being the ONLY mutator of archived_at on this
+      // path; an idempotency leak would corrupt §5.2 Phase 3 reasoning).
+      const itemId = await seedItem(
+        'published',
+        'dedup-B-idempotent',
+        TEST_USER_ADMIN_ID,
+      );
+      await setDedupStatus(itemId, 'confirmed_duplicate');
 
-        // Stamp a fixed prior archived_at via service-role UPDATE so we
-        // can assert epoch-equal preservation post-409. We deliberately
-        // set both archived_at and publication_status='archived' here
-        // so the §6.6 trigger Direction 3 predicate is satisfied on
-        // this seed UPDATE (NEW.publication_status IS already archived
-        // → no-op), leaving a coherent post-seed state to compare
-        // against. NOTE: PostgreSQL serialises timestamps with offset
-        // notation (`+00:00`) rather than the input `Z` suffix, so all
-        // archived_at comparisons normalise via Date.parse() / .getTime()
-        // for instant equality rather than byte equality.
-        const priorTimestampInput = '2026-01-15T10:30:00.000Z';
-        const priorEpochMs = Date.parse(priorTimestampInput);
-        const { error: stampErr } = await serviceClient
-          .from('content_items')
-          .update({
-            archived_at: priorTimestampInput,
-            publication_status: 'archived',
-            archived_by: TEST_USER_ADMIN_ID,
-            archive_reason: 'prior-archive-for-idempotency-fixture',
-          })
-          .eq('id', itemId);
-        expect(stampErr).toBeNull();
+      // Stamp a fixed prior archived_at via service-role UPDATE so we
+      // can assert epoch-equal preservation post-409. We deliberately
+      // set both archived_at and publication_status='archived' here
+      // so the §6.6 trigger Direction 3 predicate is satisfied on
+      // this seed UPDATE (NEW.publication_status IS already archived
+      // → no-op), leaving a coherent post-seed state to compare
+      // against. NOTE: PostgreSQL serialises timestamps with offset
+      // notation (`+00:00`) rather than the input `Z` suffix, so all
+      // archived_at comparisons normalise via Date.parse() / .getTime()
+      // for instant equality rather than byte equality.
+      const priorTimestampInput = '2026-01-15T10:30:00.000Z';
+      const priorEpochMs = Date.parse(priorTimestampInput);
+      const { error: stampErr } = await serviceClient
+        .from('content_items')
+        .update({
+          archived_at: priorTimestampInput,
+          publication_status: 'archived',
+          archived_by: TEST_USER_ADMIN_ID,
+          archive_reason: 'prior-archive-for-idempotency-fixture',
+        })
+        .eq('id', itemId);
+      expect(stampErr).toBeNull();
 
-        const pre = await readRow(itemId);
-        expect(pre.publication_status).toBe('archived');
-        expect(pre.archived_at).not.toBeNull();
-        expect(new Date(pre.archived_at as string).getTime()).toBe(
-          priorEpochMs,
-        );
-        expect(pre.dedup_status).toBe('confirmed_duplicate');
+      const pre = await readRow(itemId);
+      expect(pre.publication_status).toBe('archived');
+      expect(pre.archived_at).not.toBeNull();
+      expect(new Date(pre.archived_at as string).getTime()).toBe(priorEpochMs);
+      expect(pre.dedup_status).toBe('confirmed_duplicate');
 
-        const res = await postConfirmDuplicate(itemId, {
-          note: 'V_W1 fix coverage — idempotency check',
-        });
+      const res = await postConfirmDuplicate(itemId, {
+        note: 'V_W1 fix coverage — idempotency check',
+      });
 
-        expect(res.status).toBe(409);
-        const body = (await res.json()) as {
-          error: string;
-          current_status?: string;
-        };
-        expect(body.error).toBe('row already resolved');
-        expect(body.current_status).toBe('confirmed_duplicate');
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as {
+        error: string;
+        current_status?: string;
+      };
+      expect(body.error).toBe('row already resolved');
+      expect(body.current_status).toBe('confirmed_duplicate');
 
-        // DB state UNCHANGED — the 409 short-circuit must not write.
-        // archived_at must round-trip to the same instant we stamped.
-        const post = await readRow(itemId);
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        expect(new Date(post.archived_at as string).getTime()).toBe(
-          priorEpochMs,
-        );
-        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-        expect(post.archive_reason).toBe(
-          'prior-archive-for-idempotency-fixture',
-        );
-        expect(post.dedup_status).toBe('confirmed_duplicate');
-      },
-      60_000,
-    );
+      // DB state UNCHANGED — the 409 short-circuit must not write.
+      // archived_at must round-trip to the same instant we stamped.
+      const post = await readRow(itemId);
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      expect(new Date(post.archived_at as string).getTime()).toBe(priorEpochMs);
+      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+      expect(post.archive_reason).toBe('prior-archive-for-idempotency-fixture');
+      expect(post.dedup_status).toBe('confirmed_duplicate');
+    }, 60_000);
   },
 );
 
 describeIfEnv(
   'Archive trigger coverage — Direction 1 control case (no regression)',
   () => {
-    it(
-      'service-role UPDATE setting publication_status=archived (without archived_at) fires Direction 1',
-      async () => {
-        // Inverse direction proves the trigger as a whole is firing,
-        // not just Direction 3. Per spec §6.6 lines 84-86:
-        //
-        //   IF NEW.publication_status = 'archived' AND NEW.archived_at IS NULL THEN
-        //     NEW.archived_at := NOW();
-        //   END IF;
-        //
-        // This is AC1.10: covered by the existing
-        // `publication-status-trigger.integration.test.ts` but re-asserted
-        // here as the control case for the W1 pre-flight contract — if
-        // Direction 1 stops firing, the same migration regression would
-        // also disable Direction 3 (both directions live in the same
-        // function), so this test is the canary.
-        const itemId = await seedItem(
-          'published',
-          'direction-1-control',
-          TEST_USER_ADMIN_ID,
-        );
+    it('service-role UPDATE setting publication_status=archived (without archived_at) fires Direction 1', async () => {
+      // Inverse direction proves the trigger as a whole is firing,
+      // not just Direction 3. Per spec §6.6 lines 84-86:
+      //
+      //   IF NEW.publication_status = 'archived' AND NEW.archived_at IS NULL THEN
+      //     NEW.archived_at := NOW();
+      //   END IF;
+      //
+      // This is AC1.10: covered by the existing
+      // `publication-status-trigger.integration.test.ts` but re-asserted
+      // here as the control case for the W1 pre-flight contract — if
+      // Direction 1 stops firing, the same migration regression would
+      // also disable Direction 3 (both directions live in the same
+      // function), so this test is the canary.
+      const itemId = await seedItem(
+        'published',
+        'direction-1-control',
+        TEST_USER_ADMIN_ID,
+      );
 
-        const pre = await readRow(itemId);
-        expect(pre.publication_status).toBe('published');
-        expect(pre.archived_at).toBeNull();
+      const pre = await readRow(itemId);
+      expect(pre.publication_status).toBe('published');
+      expect(pre.archived_at).toBeNull();
 
-        const beforeMs = Date.now();
-        const { error } = await serviceClient
-          .from('content_items')
-          .update({ publication_status: 'archived' })
-          .eq('id', itemId);
-        expect(error).toBeNull();
+      const beforeMs = Date.now();
+      const { error } = await serviceClient
+        .from('content_items')
+        .update({ publication_status: 'archived' })
+        .eq('id', itemId);
+      expect(error).toBeNull();
 
-        const post = await readRow(itemId);
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        const archivedTs = new Date(post.archived_at as string).getTime();
-        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-      },
-      60_000,
-    );
+      const post = await readRow(itemId);
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      const archivedTs = new Date(post.archived_at as string).getTime();
+      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+    }, 60_000);
   },
 );
 
@@ -873,104 +834,96 @@ describeIfEnv(
     // Test asserts post-write invariant per spec §10.3 / AC1.11, not
     // trigger fire-mechanism. See `lib/supersession/set.ts:132-136` +
     // `:222-225` for the helper-side commentary.
-    it(
-      'Case A — happy path: setSupersession archives OLD row + writes archive_reason override',
-      async () => {
-        const oldId = await seedItem(
-          'published',
-          'supersession-A-old',
-          TEST_USER_ADMIN_ID,
-        );
-        const newId = await seedItem(
-          'published',
-          'supersession-A-new',
-          TEST_USER_ADMIN_ID,
-        );
+    it('Case A — happy path: setSupersession archives OLD row + writes archive_reason override', async () => {
+      const oldId = await seedItem(
+        'published',
+        'supersession-A-old',
+        TEST_USER_ADMIN_ID,
+      );
+      const newId = await seedItem(
+        'published',
+        'supersession-A-new',
+        TEST_USER_ADMIN_ID,
+      );
 
-        // Sanity baseline: OLD row published + archived_at NULL +
-        // dedup_status 'clean' + superseded_by NULL.
-        const pre = await readRow(oldId);
-        expect(pre.publication_status).toBe('published');
-        expect(pre.archived_at).toBeNull();
-        expect(pre.superseded_by).toBeNull();
+      // Sanity baseline: OLD row published + archived_at NULL +
+      // dedup_status 'clean' + superseded_by NULL.
+      const pre = await readRow(oldId);
+      expect(pre.publication_status).toBe('published');
+      expect(pre.archived_at).toBeNull();
+      expect(pre.superseded_by).toBeNull();
 
-        const reason = 'Pre-flight A1: supersession happy-path';
-        const beforeMs = Date.now();
-        await setSupersession(
-          {
-            oldId,
-            newId,
-            actorUserId: TEST_USER_ADMIN_ID,
-            archiveReason: reason,
-          },
-          serviceClient,
-        );
+      const reason = 'Pre-flight A1: supersession happy-path';
+      const beforeMs = Date.now();
+      await setSupersession(
+        {
+          oldId,
+          newId,
+          actorUserId: TEST_USER_ADMIN_ID,
+          archiveReason: reason,
+        },
+        serviceClient,
+      );
 
-        const post = await readRow(oldId);
-        // CORE PRE-FLIGHT INVARIANT (spec §10.3 + AC1.11) — writer
-        // upholds publication_status='archived' ↔ archived_at IS NOT NULL
-        // without requiring trigger Direction 1 or 3 to fire.
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        const archivedTs = new Date(post.archived_at as string).getTime();
-        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-        expect(post.archive_reason).toBe(reason);
-        expect(post.superseded_by).toBe(newId);
-        // Per `lib/supersession/set.ts:233`, dedup_status is also flipped
-        // to 'superseded' on the OLD row.
-        expect(post.dedup_status).toBe('superseded');
-      },
-      60_000,
-    );
+      const post = await readRow(oldId);
+      // CORE PRE-FLIGHT INVARIANT (spec §10.3 + AC1.11) — writer
+      // upholds publication_status='archived' ↔ archived_at IS NOT NULL
+      // without requiring trigger Direction 1 or 3 to fire.
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      const archivedTs = new Date(post.archived_at as string).getTime();
+      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+      expect(post.archive_reason).toBe(reason);
+      expect(post.superseded_by).toBe(newId);
+      // Per `lib/supersession/set.ts:233`, dedup_status is also flipped
+      // to 'superseded' on the OLD row.
+      expect(post.dedup_status).toBe('superseded');
+    }, 60_000);
 
-    it(
-      'Case B — default archiveReason fallback: omitted param yields canonical "Superseded by item ${newId}"',
-      async () => {
-        // Per `lib/supersession/set.ts:227`, archiveReason defaults to
-        // `Superseded by item ${newId}` when the caller omits it.
-        // Existing callers (PATCH /api/items/:id, MCP supersede_content_
-        // item, admin dedup supersede + near-dup merge) all rely on this
-        // default — assert it directly.
-        const oldId = await seedItem(
-          'published',
-          'supersession-B-old',
-          TEST_USER_ADMIN_ID,
-        );
-        const newId = await seedItem(
-          'published',
-          'supersession-B-new',
-          TEST_USER_ADMIN_ID,
-        );
+    it('Case B — default archiveReason fallback: omitted param yields canonical "Superseded by item ${newId}"', async () => {
+      // Per `lib/supersession/set.ts:227`, archiveReason defaults to
+      // `Superseded by item ${newId}` when the caller omits it.
+      // Existing callers (PATCH /api/items/:id, MCP supersede_content_
+      // item, admin dedup supersede + near-dup merge) all rely on this
+      // default — assert it directly.
+      const oldId = await seedItem(
+        'published',
+        'supersession-B-old',
+        TEST_USER_ADMIN_ID,
+      );
+      const newId = await seedItem(
+        'published',
+        'supersession-B-new',
+        TEST_USER_ADMIN_ID,
+      );
 
-        const pre = await readRow(oldId);
-        expect(pre.publication_status).toBe('published');
-        expect(pre.archived_at).toBeNull();
+      const pre = await readRow(oldId);
+      expect(pre.publication_status).toBe('published');
+      expect(pre.archived_at).toBeNull();
 
-        const beforeMs = Date.now();
-        await setSupersession(
-          {
-            oldId,
-            newId,
-            actorUserId: TEST_USER_ADMIN_ID,
-            // archiveReason intentionally omitted.
-          },
-          serviceClient,
-        );
+      const beforeMs = Date.now();
+      await setSupersession(
+        {
+          oldId,
+          newId,
+          actorUserId: TEST_USER_ADMIN_ID,
+          // archiveReason intentionally omitted.
+        },
+        serviceClient,
+      );
 
-        const post = await readRow(oldId);
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        const archivedTs = new Date(post.archived_at as string).getTime();
-        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-        expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-        expect(post.archive_reason).toBe(`Superseded by item ${newId}`);
-        expect(post.superseded_by).toBe(newId);
-        expect(post.dedup_status).toBe('superseded');
-      },
-      60_000,
-    );
+      const post = await readRow(oldId);
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      const archivedTs = new Date(post.archived_at as string).getTime();
+      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
+      expect(post.archive_reason).toBe(`Superseded by item ${newId}`);
+      expect(post.superseded_by).toBe(newId);
+      expect(post.dedup_status).toBe('superseded');
+    }, 60_000);
   },
 );

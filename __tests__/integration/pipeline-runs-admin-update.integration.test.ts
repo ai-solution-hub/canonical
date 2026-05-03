@@ -81,10 +81,10 @@ const seededIds: string[] = [];
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD &&
-    process.env.TEST_USER_2_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD &&
+  process.env.TEST_USER_2_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 

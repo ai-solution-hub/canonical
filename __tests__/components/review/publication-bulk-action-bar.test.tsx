@@ -156,9 +156,7 @@ describe('PublicationBulkActionBar', () => {
     const { user, onClearSelection } = renderBar({
       selectedIds: new Set([ID_1, ID_2]),
     });
-    await user.click(
-      screen.getByRole('button', { name: /clear selection/i }),
-    );
+    await user.click(screen.getByRole('button', { name: /clear selection/i }));
     expect(onClearSelection).toHaveBeenCalledTimes(1);
   });
 
@@ -170,9 +168,7 @@ describe('PublicationBulkActionBar', () => {
       screen.getByRole('button', { name: /approve selected items/i }),
     );
     const dialog = await screen.findByRole('alertdialog');
-    expect(
-      within(dialog).getByText(/approve 3 items\?/i),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/approve 3 items\?/i)).toBeInTheDocument();
     expect(
       within(dialog).getByText(
         /this publishes them to the knowledge base immediately/i,

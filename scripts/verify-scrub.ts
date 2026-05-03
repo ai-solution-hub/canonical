@@ -238,7 +238,7 @@ export function buildProbeSet(prodAuthUsersCount: number): ProbeDef[] {
       name: 'auth-users-pii',
       label: 'auth.users email PII residue',
       sql:
-        "SELECT count(*) FROM auth.users " +
+        'SELECT count(*) FROM auth.users ' +
         "WHERE email NOT LIKE 'staging-%@kb-staging.test' " +
         "AND email NOT LIKE '%@test-kb-aish.co.uk'",
       expectation: { kind: 'eq-zero' },
@@ -247,7 +247,7 @@ export function buildProbeSet(prodAuthUsersCount: number): ProbeDef[] {
       name: 'user-profiles-pii',
       label: 'public.user_profiles email PII residue',
       sql:
-        "SELECT count(*) FROM public.user_profiles " +
+        'SELECT count(*) FROM public.user_profiles ' +
         "WHERE email NOT LIKE 'staging-%@kb-staging.test' " +
         "AND email NOT LIKE '%@test-kb-aish.co.uk'",
       expectation: { kind: 'eq-zero' },
@@ -268,7 +268,7 @@ export function buildProbeSet(prodAuthUsersCount: number): ProbeDef[] {
       name: 'auth-users-tokens',
       label: 'auth.users token columns residue',
       sql:
-        "SELECT count(*) FROM auth.users " +
+        'SELECT count(*) FROM auth.users ' +
         "WHERE recovery_token != '' " +
         "OR confirmation_token != '' " +
         "OR reauthentication_token != ''",
@@ -278,7 +278,7 @@ export function buildProbeSet(prodAuthUsersCount: number): ProbeDef[] {
       name: 'auth-identities-jsonb',
       label: 'auth.identities.identity_data JSONB residue (Pass 2 scrub)',
       sql:
-        "SELECT count(*) FROM auth.identities " +
+        'SELECT count(*) FROM auth.identities ' +
         "WHERE identity_data::text ILIKE '%client.example%'",
       expectation: { kind: 'eq-zero' },
     },
@@ -378,10 +378,7 @@ export function runProbe(dbUrl: string, probe: ProbeDef): ProbeResult {
   }
 }
 
-export function runProbeSet(
-  dbUrl: string,
-  probes: ProbeDef[],
-): ProbeResult[] {
+export function runProbeSet(dbUrl: string, probes: ProbeDef[]): ProbeResult[] {
   const results: ProbeResult[] = [];
   for (const probe of probes) {
     const result = runProbe(dbUrl, probe);
@@ -480,9 +477,7 @@ export async function main(argv?: string[]): Promise<number> {
     prodAuthUsersCount = loadProdBaselineCounts(config);
     console.log(`Prod baseline: auth.users count = ${prodAuthUsersCount}`);
   } catch (err) {
-    console.error(
-      `::error::Baseline fetch failed: ${(err as Error).message}`,
-    );
+    console.error(`::error::Baseline fetch failed: ${(err as Error).message}`);
     return EXIT_INFRA_ERROR;
   }
 

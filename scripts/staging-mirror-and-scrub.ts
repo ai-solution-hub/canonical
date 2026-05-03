@@ -29,7 +29,7 @@ const EXIT_INFRA_FAILURE = 2;
 const EXIT_PREFLIGHT_FAILURE = 3;
 
 /** Pre-flight in-flight guard window per spec §2.7 step 7.1(c). */
-const INFLIGHT_GUARD_INTERVAL = "30 minutes";
+const INFLIGHT_GUARD_INTERVAL = '30 minutes';
 
 // pg_dump exclusion args verbatim per spec §2.7 step 7.3 (auth tables that
 // must never replay into staging — sessions/tokens/MFA state).
@@ -71,7 +71,9 @@ const PG_DUMP_EXCLUSIONS = [
 // pg_restore. Mirrors PG_DUMP_EXCLUSIONS (session-state tables we
 // preserve through refresh) plus auth.schema_migrations (Supabase's
 // own auth-package migration tracker; not refreshed from prod).
-const PRE_RESTORE_TRUNCATE_EXCLUSIONS: ReadonlyArray<readonly [string, string]> = [
+const PRE_RESTORE_TRUNCATE_EXCLUSIONS: ReadonlyArray<
+  readonly [string, string]
+> = [
   ['auth', 'audit_log_entries'],
   ['auth', 'refresh_tokens'],
   ['auth', 'sessions'],
@@ -324,8 +326,7 @@ async function preflight(config: OrchestratorConfig): Promise<void> {
 }
 
 function countMigrations(dbUrl: string): number {
-  const sql =
-    'SELECT count(*) FROM supabase_migrations.schema_migrations';
+  const sql = 'SELECT count(*) FROM supabase_migrations.schema_migrations';
   const out = spawnSync('psql', [dbUrl, '-tAc', sql], { encoding: 'utf8' });
   if (out.status !== 0) {
     throw new PreflightError(
@@ -562,7 +563,9 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
         `Re-run after addressing transient infra issue.`,
     );
   }
-  console.log('stream-restore: pg_dump -Fc | pg_restore completed (both ends OK)');
+  console.log(
+    'stream-restore: pg_dump -Fc | pg_restore completed (both ends OK)',
+  );
 }
 
 // ── Scrub ──────────────────────────────────────────────────────────────────
@@ -612,7 +615,11 @@ async function verifyScrub(config: OrchestratorConfig): Promise<void> {
   const result = spawnSync(
     'bun',
     ['run', 'scripts/verify-scrub.ts', '--env=staging'],
-    { encoding: 'utf8', stdio: ['ignore', 'inherit', 'inherit'], env: process.env },
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'inherit', 'inherit'],
+      env: process.env,
+    },
   );
   if (result.status !== 0) {
     throw new ScrubProbeError(
@@ -638,11 +645,11 @@ async function seedTestUsers(config: OrchestratorConfig): Promise<void> {
   // seed-e2e-users.ts always targets staging post-WP-S5.2 (.env.local
   // points at staging). No --env flag is exposed; the script reads the
   // workspace .env.local SUPABASE_URL.
-  const result = spawnSync(
-    'bun',
-    ['run', 'scripts/seed-e2e-users.ts'],
-    { encoding: 'utf8', stdio: ['ignore', 'inherit', 'inherit'], env: process.env },
-  );
+  const result = spawnSync('bun', ['run', 'scripts/seed-e2e-users.ts'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'inherit', 'inherit'],
+    env: process.env,
+  });
   if (result.status !== 0) {
     throw new InfraError(
       `seed-e2e-users.ts failed (exit ${result.status}). ` +
@@ -680,11 +687,9 @@ async function captureTableCounts(
   const counts: Record<string, number> = {};
   for (const table of tables) {
     const sql = `SELECT count(*) FROM ${table}`;
-    const out = spawnSync(
-      'psql',
-      [config.stagingDbUrl, '-tAc', sql],
-      { encoding: 'utf8' },
-    );
+    const out = spawnSync('psql', [config.stagingDbUrl, '-tAc', sql], {
+      encoding: 'utf8',
+    });
     if (out.status !== 0) {
       console.warn(
         `::warning::Table-count snapshot failed for ${table}: ${out.stderr ?? ''}`,

@@ -130,9 +130,8 @@ export function PublicationReviewQueue() {
     [items],
   );
 
-  const [dialogState, setDialogState] = useState<BulkResultDialogState>(
-    INITIAL_DIALOG_STATE,
-  );
+  const [dialogState, setDialogState] =
+    useState<BulkResultDialogState>(INITIAL_DIALOG_STATE);
 
   const handleDialogOpenChange = useCallback((open: boolean) => {
     setDialogState((prev) => ({ ...prev, open }));
@@ -285,7 +284,9 @@ export function PublicationReviewQueue() {
         className="mx-auto w-full max-w-[800px] px-4 py-6 sm:px-6"
       >
         <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
-          <p className="font-medium">Failed to load awaiting-publication queue.</p>
+          <p className="font-medium">
+            Failed to load awaiting-publication queue.
+          </p>
           <p className="mt-1 text-xs">
             {error instanceof Error ? error.message : 'Unknown error'}
           </p>
@@ -343,7 +344,10 @@ export function PublicationReviewQueue() {
                 aria-label={`Select ${item.title} for bulk action`}
               />
               <div className="flex-1">
-                <PublicationReviewCard item={item} className="border-0 shadow-none" />
+                <PublicationReviewCard
+                  item={item}
+                  className="border-0 shadow-none"
+                />
                 <PublicationReviewActionBar itemId={item.id} />
               </div>
             </div>

@@ -258,9 +258,24 @@ describe('runProbeSet', () => {
       .mockReturnValueOnce({ status: 0, stdout: '5\n', stderr: '' })
       .mockReturnValueOnce({ status: 0, stdout: '0\n', stderr: '' });
     const probes: ProbeDef[] = [
-      { name: 'a', label: 'A', sql: 'SELECT 1', expectation: { kind: 'eq-zero' } },
-      { name: 'b', label: 'B', sql: 'SELECT 1', expectation: { kind: 'eq-zero' } },
-      { name: 'c', label: 'C', sql: 'SELECT 1', expectation: { kind: 'eq-zero' } },
+      {
+        name: 'a',
+        label: 'A',
+        sql: 'SELECT 1',
+        expectation: { kind: 'eq-zero' },
+      },
+      {
+        name: 'b',
+        label: 'B',
+        sql: 'SELECT 1',
+        expectation: { kind: 'eq-zero' },
+      },
+      {
+        name: 'c',
+        label: 'C',
+        sql: 'SELECT 1',
+        expectation: { kind: 'eq-zero' },
+      },
     ];
     const results = runProbeSet('postgresql://x', probes);
     expect(results).toHaveLength(3);

@@ -180,7 +180,8 @@ export const INTENTIONAL_ANON_ALLOW_LIST: ReadonlyArray<AllowListEntry> = [
     signature: 'public.set_config(setting text, value text, is_local boolean)',
     rationale:
       'PostgREST session-config wrapper. Exposed to anon by design — used by RLS to set request.jwt.* GUCs during anonymous read paths. Verified S22 (OPS-43 spec §AC-5). Replacement migrations MUST re-GRANT EXECUTE TO anon explicitly per Finding 9.3.',
-    added_session: 'kh-prod-readiness-S22 (carried forward; intent predates audit)',
+    added_session:
+      'kh-prod-readiness-S22 (carried forward; intent predates audit)',
   },
 ];
 
@@ -560,8 +561,7 @@ export function matchRevokeForCreate(
     // Comparing types-only on both sides is the universal lower-bound match
     // since PG itself uses pg_get_function_identity_arguments() (types only).
     const argsMatch =
-      revokeNamed === createNamed ||
-      revokeTypesOnly === createTypesOnly;
+      revokeNamed === createNamed || revokeTypesOnly === createTypesOnly;
     if (!argsMatch) continue;
     if (!r.grantees.some((g) => g.toLowerCase() === 'anon')) continue;
     return true;
@@ -579,9 +579,7 @@ export function matchRevokeForCreate(
  *
  * Throws on violation (caller exits 2 = infra failure).
  */
-export function validateAllowList(
-  list: ReadonlyArray<AllowListEntry>,
-): void {
+export function validateAllowList(list: ReadonlyArray<AllowListEntry>): void {
   for (const entry of list) {
     if (!entry.added_session || entry.added_session.trim().length === 0) {
       throw new Error(
@@ -615,9 +613,10 @@ export function isAllowListed(create: CreateFunctionRecord): boolean {
   for (const entry of INTENTIONAL_ANON_ALLOW_LIST) {
     // Parse the allow-list signature into name + args for tolerant comparison.
     // Format: `public.<name>(<args>)`.
-    const m = /^public\.([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")\s*\(([\s\S]*)\)\s*$/.exec(
-      entry.signature,
-    );
+    const m =
+      /^public\.([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")\s*\(([\s\S]*)\)\s*$/.exec(
+        entry.signature,
+      );
     if (!m) continue;
     const rawName = m[1];
     const isQuoted = rawName.startsWith('"') && rawName.endsWith('"');
@@ -678,7 +677,9 @@ function listFilesByGlob(glob: string): string[] {
     .split('\n')
     .map((s) => s.trim())
     .filter((s) => s.length > 0 && s.endsWith('.sql'));
-  return matches.length > 0 ? matches : [glob].filter((s) => s.endsWith('.sql'));
+  return matches.length > 0
+    ? matches
+    : [glob].filter((s) => s.endsWith('.sql'));
 }
 
 function lintFile(filePath: string): LintFinding[] {
@@ -747,7 +748,9 @@ async function runLint(flags: CliFlags): Promise<number> {
   );
 
   if (files.length === 0) {
-    console.log(`No migration files changed in diff. Nothing to lint. Exit OK.`);
+    console.log(
+      `No migration files changed in diff. Nothing to lint. Exit OK.`,
+    );
     return EXIT_OK;
   }
 
@@ -906,8 +909,7 @@ async function captureDriftToSentry(rows: CronAuditRow[]): Promise<void> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Sentry-Auth':
-            `Sentry sentry_version=7,sentry_key=${publicKey},sentry_client=kh-revoke-guard/1.0`,
+          'X-Sentry-Auth': `Sentry sentry_version=7,sentry_key=${publicKey},sentry_client=kh-revoke-guard/1.0`,
         },
         body: JSON.stringify(event),
       });

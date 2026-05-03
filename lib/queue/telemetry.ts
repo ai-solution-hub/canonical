@@ -79,10 +79,7 @@ interface AuthContextRef {
  *   - `visibility_timeout` — visibility-timeout reaper rescued an orphaned
  *     `status='processing'` row.
  */
-export type QueueSentryStage =
-  | 'invocation'
-  | 'handler'
-  | 'visibility_timeout';
+export type QueueSentryStage = 'invocation' | 'handler' | 'visibility_timeout';
 
 /**
  * Arguments for `emitQueueSentry`.

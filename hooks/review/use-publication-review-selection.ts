@@ -41,9 +41,7 @@ export interface UsePublicationReviewSelectionResult {
 }
 
 export function usePublicationReviewSelection(): UsePublicationReviewSelectionResult {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const isSelected = useCallback(
     (id: string) => selectedIds.has(id),

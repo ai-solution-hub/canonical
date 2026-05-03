@@ -224,9 +224,7 @@ describe('AC-bulk-1.x — happy paths + role gates', () => {
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateSuccess(ID_A, 'published');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -248,9 +246,7 @@ describe('AC-bulk-1.x — happy paths + role gates', () => {
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateSuccess(ID_A, 'published');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -281,7 +277,9 @@ describe('AC-bulk-1.x — happy paths + role gates', () => {
       ID_B,
       ID_C,
     ]);
-    expect(body.results.every((r: { status: string }) => r.status === 'success')).toBe(true);
+    expect(
+      body.results.every((r: { status: string }) => r.status === 'success'),
+    ).toBe(true);
   });
 
   it('AC-bulk-1.4: 51 ids → 400 (Zod cap=50 enforcement, D-3 RATIFIED S217)', async () => {
@@ -354,9 +352,9 @@ describe('AC-bulk-1.x — happy paths + role gates', () => {
     const body = await res.json();
     expect(body.action).toBe('return_to_draft');
     expect(body.successCount).toBe(3);
-    expect(body.results.every(
-      (r: { newStatus: string }) => r.newStatus === 'draft',
-    )).toBe(true);
+    expect(
+      body.results.every((r: { newStatus: string }) => r.newStatus === 'draft'),
+    ).toBe(true);
   });
 
   it('AC-bulk-1.6: empty ids array → 400 (Zod min(1) enforcement)', async () => {
@@ -377,9 +375,7 @@ describe('AC-bulk-1.x — happy paths + role gates', () => {
   it('AC-bulk-1.7: viewer POST → 403 (role gate at route boundary, BEFORE per-item iteration)', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(403);
     const body = await res.json();
@@ -394,9 +390,7 @@ describe('AC-bulk-1.x — happy paths + role gates', () => {
   it('AC-bulk-1.8: unauthenticated POST → 401', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(401);
     const body = await res.json();
@@ -474,9 +468,7 @@ describe('AC-bulk-2.x — partial-failure paths', () => {
     configureRole(mockSupabase, 'editor');
     queueFetch(null); // RLS hides the row identically to "missing"
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -493,9 +485,7 @@ describe('AC-bulk-2.x — partial-failure paths', () => {
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateRaceLoss(); // Concurrent writer changed status mid-iteration
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -551,18 +541,16 @@ describe('AC-bulk-2.x — partial-failure paths', () => {
     const body = await res.json();
     expect(body.successCount).toBe(0);
     expect(body.failureCount).toBe(3);
-    expect(body.results.every(
-      (r: { status: string }) => r.status === 'conflict',
-    )).toBe(true);
+    expect(
+      body.results.every((r: { status: string }) => r.status === 'conflict'),
+    ).toBe(true);
   });
 
   it('AC-bulk-2.7: PG error during fetch → status=error with message', async () => {
     configureRole(mockSupabase, 'admin');
     queueFetchError('Connection refused');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -580,9 +568,7 @@ describe('AC-bulk-2.x — partial-failure paths', () => {
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateError('23502', 'null value in column violates not-null');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -615,9 +601,7 @@ describe('AC-bulk-2.x — partial-failure paths', () => {
   it('AC-bulk-2.9: invalid action enum → 400', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'foo' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'foo' }));
 
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -650,9 +634,7 @@ describe('AC-bulk-2.x — partial-failure paths', () => {
     configureRole(mockSupabase, 'admin');
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'archived' }));
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -696,9 +678,7 @@ describe('AC-bulk-5.x — optimistic concurrency', () => {
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateSuccess(ID_A, 'published');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     // Inspect .eq() calls on the chain — we expect both ('id', ID_A)
@@ -726,9 +706,7 @@ describe('AC-bulk-5.x — optimistic concurrency', () => {
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateRaceLoss();
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -787,11 +765,13 @@ describe('AC-bulk-5.x — optimistic concurrency', () => {
     const body = await res.json();
     expect(body.successCount).toBe(0);
     expect(body.failureCount).toBe(5);
-    expect(body.results.every(
-      (r: { status: string; reason: string }) =>
-        r.status === 'conflict' &&
-        r.reason === 'Concurrent state change detected.',
-    )).toBe(true);
+    expect(
+      body.results.every(
+        (r: { status: string; reason: string }) =>
+          r.status === 'conflict' &&
+          r.reason === 'Concurrent state change detected.',
+      ),
+    ).toBe(true);
   });
 });
 
@@ -805,9 +785,7 @@ describe('content_history insert contract — bulk literals (§6)', () => {
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateSuccess(ID_A, 'published');
 
-    const res = await POST(
-      makePostRequest({ ids: [ID_A], action: 'approve' }),
-    );
+    const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
     // Find the content_history insert — identifiable by

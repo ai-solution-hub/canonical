@@ -52,7 +52,7 @@ describe('Staging live-mirror — AC-20 CLI-only orchestrator', () => {
         'grep',
         [
           '-inE',
-          "(mcp__supabase|from ['\"]@modelcontextprotocol|require\\(['\"]@modelcontextprotocol)",
+          '(mcp__supabase|from [\'"]@modelcontextprotocol|require\\([\'"]@modelcontextprotocol)',
           ...presentFiles,
         ],
         { cwd: REPO_ROOT, encoding: 'utf-8' },
@@ -123,7 +123,8 @@ describe('Staging live-mirror — workflow-injection mitigation', () => {
       if (runMatch) {
         const tail = runMatch[1] ?? '';
         if (tail !== '|' && tail !== '>' && tail.length > 0) {
-          if (/\$\{\{\s*github\./.test(tail)) violations.push(`L${i + 1}: ${line}`);
+          if (/\$\{\{\s*github\./.test(tail))
+            violations.push(`L${i + 1}: ${line}`);
         } else {
           inRunBlock = true;
           runIndent = indent;

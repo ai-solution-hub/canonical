@@ -62,9 +62,7 @@ export function PublicationBulkResultDialog({
     return null;
   }
 
-  const failures = response.results.filter(
-    (r) => r.status !== 'success',
-  );
+  const failures = response.results.filter((r) => r.status !== 'success');
   const isAllSuccess = response.failureCount === 0;
 
   return (
@@ -84,8 +82,8 @@ export function PublicationBulkResultDialog({
           ) : (
             <>
               <DialogTitle>
-                {response.failureCount} of {response.totalRequested} items
-                could not be published
+                {response.failureCount} of {response.totalRequested} items could
+                not be published
               </DialogTitle>
               <DialogDescription>
                 {response.successCount > 0
@@ -129,14 +127,11 @@ interface FailureRowProps {
 
 function FailureRow({ result, title }: FailureRowProps) {
   const reasonText =
-    result.reason ??
-    result.error ??
-    statusFallbackReason(result.status);
+    result.reason ?? result.error ?? statusFallbackReason(result.status);
 
   // Per spec §7.7: title from lookup, or "<UUID> (item no longer in queue)"
   // if not present.
-  const displayLabel =
-    title ?? `${result.id} (item no longer in queue)`;
+  const displayLabel = title ?? `${result.id} (item no longer in queue)`;
 
   return (
     <li className="flex flex-col gap-1 rounded-md border border-border bg-card/50 p-3">

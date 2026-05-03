@@ -282,7 +282,12 @@ describe('ReviewFilters', () => {
   describe('hideStatusPills (S215 W1 tabs refactor)', () => {
     it('does NOT render the status pill section when prop is true', async () => {
       // Default: status section is present.
-      const { user } = renderFilters({ status: 'unverified' }, vi.fn(), baseStats, false);
+      const { user } = renderFilters(
+        { status: 'unverified' },
+        vi.fn(),
+        baseStats,
+        false,
+      );
       const filterButton = screen.getByRole('button', { name: /filters/i });
       await user.click(filterButton);
       expect(screen.getByText(/^Status$/)).toBeInTheDocument();

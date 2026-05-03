@@ -27,7 +27,9 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: migration-revoke-guard-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group:
+    migration-revoke-guard-${{ github.event_name }}-${{
+    github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -58,11 +60,15 @@ jobs:
         # migration-replay.yml discipline).
         env:
           BASELINE_REF: ${{ github.event.pull_request.base.sha }}
-        run: bun run scripts/check-revoke-guard.ts --mode=lint --baseline="$BASELINE_REF"
+        run:
+          bun run scripts/check-revoke-guard.ts --mode=lint
+          --baseline="$BASELINE_REF"
 
   cron-audit:
     name: REVOKE-guard weekly cron audit
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if:
+      github.event_name == 'schedule' || github.event_name ==
+      'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: Production
     timeout-minutes: 5

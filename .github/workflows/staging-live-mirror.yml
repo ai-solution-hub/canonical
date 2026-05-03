@@ -39,15 +39,15 @@ on:
     # dispatches/month (true fortnightly cadence). POSIX-cron NOTE: this
     # restricts only day-of-month with day-of-week kept at Monday, avoiding
     # the cron OR-explosion (`0 3 1-14 * 1` would fire ~21x/month).
-    - cron: '0 3 8-14,22-28 * 1'
+    - cron: "0 3 8-14,22-28 * 1"
   workflow_dispatch:
     inputs:
       skip-seed:
-        description: 'skip TEST_USER_1/2/3 seed step (debug only)'
+        description: "skip TEST_USER_1/2/3 seed step (debug only)"
         required: false
-        default: 'false'
+        default: "false"
         type: choice
-        options: ['true', 'false']
+        options: ["true", "false"]
 
 concurrency:
   group: staging-live-mirror
@@ -74,9 +74,11 @@ jobs:
       # orchestrator-canonical names matching scripts/db-row-count-diff.ts
       # cross-env naming convention (lines 17-27). Aliased here from the
       # already-present Staging-env values rather than duplicating Liam-side.
-      STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      STAGING_SUPABASE_SERVICE_ROLE_KEY:
+        ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       STAGING_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-      STAGING_SHARED_PASSWORD_BCRYPT: ${{ secrets.STAGING_SHARED_PASSWORD_BCRYPT }}
+      STAGING_SHARED_PASSWORD_BCRYPT:
+        ${{ secrets.STAGING_SHARED_PASSWORD_BCRYPT }}
       SKIP_SEED: ${{ github.event.inputs.skip-seed || 'false' }}
       RUN_ID: ${{ github.run_id }}
       EVENT_NAME: ${{ github.event_name }}
@@ -91,7 +93,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.node-version'
+          node-version-file: ".node-version"
 
       - name: Install postgresql-17 client
         # CLAUDE.md gotcha: pg_dump version must match server PG major version
