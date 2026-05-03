@@ -18,9 +18,9 @@ import { safeErrorMessage } from '@/lib/error';
  *   - Already-terminal jobs (completed / failed / cancelled / dead_lettered)
  *     also return 409 with the current status — the user-facing UX should
  *     surface "this job has already finished".
- *   - The UPDATE is race-safe via the `.eq('status', 'pending')` filter:
- *     if the worker claims the row between our SELECT and our UPDATE, the
- *     UPDATE will affect zero rows.
+ *   - The UPDATE is race-safe via the `.in('status', ['pending'])` filter
+ *     per spec §5.6 verbatim: if the worker claims the row between our
+ *     SELECT and our UPDATE, the UPDATE will affect zero rows.
  *
  * Auth:
  *   Admin or editor (a viewer cannot cancel jobs even their own — RLS on
@@ -110,8 +110,9 @@ export async function PATCH(
       );
     }
 
-    // Race-safe UPDATE — the `.eq('status', 'pending')` guard ensures
-    // we don't overwrite a row the worker has just claimed.
+    // Race-safe UPDATE — the `.in('status', ['pending'])` guard per spec
+    // §5.6 verbatim ensures we don't overwrite a row the worker has just
+    // claimed.
     const { error: updateErr } = await supabase
       .from('processing_queue')
       .update({
@@ -120,7 +121,7 @@ export async function PATCH(
         error_message: 'cancelled by user',
       })
       .eq('id', jobId)
-      .eq('status', 'pending');
+      .in('status', ['pending']);
 
     if (updateErr) {
       return NextResponse.json(

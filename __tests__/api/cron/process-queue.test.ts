@@ -301,10 +301,7 @@ describe('GET /api/cron/process-queue', () => {
     // Assertion: the worker invoked supabase.rpc('claim_next_job', ...).
     // FOR UPDATE SKIP LOCKED concurrency is DB-side per spec §3.6 — the
     // contract level test is "the worker uses the RPC".
-    expect(mockSupabase.rpc).toHaveBeenCalledWith(
-      'claim_next_job',
-      expect.anything(),
-    );
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('claim_next_job');
     // Sanity: no DB-side SELECT FOR UPDATE / SKIP LOCKED escapes the
     // worker (raw SELECTs go through `from('processing_queue').select(...)`
     // — the worker never .from('processing_queue').select() to claim).

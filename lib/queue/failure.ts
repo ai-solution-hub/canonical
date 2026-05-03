@@ -95,14 +95,28 @@ function computeBackoffSeconds(attempts: number): number {
  * @param err - The thrown error from the job-type handler.
  * @returns The outcome — `'retried' | 'failed' | 'dead_lettered'`.
  */
+function extractReason(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'message' in err &&
+    typeof (err as { message: unknown }).message === 'string'
+  ) {
+    return (err as { message: string }).message;
+  }
+  return String(err);
+}
+
 export async function handleJobFailure(
   supabase: SupabaseClient<Database>,
   job: ClaimedJobForFailure,
   err: unknown,
 ): Promise<FailureOutcome> {
-  const reason = err instanceof Error ? err.message : String(err);
+  const reason = extractReason(err);
   const permanent = isPermanentError(err);
   const newAttempts = job.attempts + 1;
+  const nowIso = new Date(Date.now()).toISOString();
 
   // Permanent failure (spec §5.1) — no retry.
   if (permanent) {
@@ -111,7 +125,7 @@ export async function handleJobFailure(
       .update({
         status: 'failed',
         error_message: reason,
-        completed_at: new Date().toISOString(),
+        completed_at: nowIso,
         attempts: newAttempts,
       })
       .eq('id', job.id);
@@ -148,7 +162,7 @@ export async function handleJobFailure(
     .update({
       status: 'dead_lettered',
       error_message: reason,
-      completed_at: new Date().toISOString(),
+      completed_at: nowIso,
       attempts: newAttempts,
     })
     .eq('id', job.id);
