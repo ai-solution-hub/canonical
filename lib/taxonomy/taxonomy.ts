@@ -16,8 +16,6 @@ import { VALID_CONTENT_TYPES, VALID_PLATFORMS } from '@/lib/validation/schemas';
 
 /** All valid content types (matches DB CHECK constraint) */
 export const CONTENT_TYPES = VALID_CONTENT_TYPES;
-export type ContentType = (typeof CONTENT_TYPES)[number];
 
 /** All valid platforms (matches DB CHECK constraint) */
 export const PLATFORMS = VALID_PLATFORMS;
-export type Platform = (typeof PLATFORMS)[number];

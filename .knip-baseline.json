@@ -1,12 +1,12 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
-  "capturedAt": "2026-05-02",
-  "capturedFromCommit": "kh-prod-readiness-S21 WP3 OPS-50 partial-triage (option 2): delete `lib/env.ts` orphan + remove `madge` devDep — drops `files` 1→0 and `devDependencies` 1→0. Cross-track absorb (`55f2c567` S217 main merge) introduced +1 unused type bringing baseline 288→289; absorbed into baseline rather than chase the specific entry. Broad 289-types triage deferred to S22 OPS-50.full per change-log entry. The `dependencies: 1` carries `@tailwindcss/typography` (used via `@plugin` directive in `app/globals.css`; knip's `ignoreDependencies` entry doesn't currently suppress it — needs investigation in S22).",
+  "capturedAt": "2026-05-03",
+  "capturedFromCommit": "kh-prod-readiness-S24 W6.1 Wave A — Knip baseline cleanup: closes the +6 unused-types CI breach (295→285) introduced over S21–S23 cross-track absorbs. Deletes 10 GENUINELY-DEAD type aliases (lib/taxonomy/taxonomy.ts ContentType+Platform; types/digest.ts DigestConfig+DigestGenerateRequest; types/review.ts ReviewActionType+ReviewAction+ReviewSession; types/bid.ts BidQuestionRow+BidResponseRow+WorkspaceRow) and 1 dead export (lib/governance/presets.ts GOVERNANCE_PRESETS const — governance UI reads from DB, S20). Tailwind v4 CSS-first plugin activation gap closed: knip.config.ts now provides syncCompilers.css regex extracting @plugin/@import directives from app/globals.css (Jimmy Guzman pattern), so @tailwindcss/typography is correctly detected via virtual JS imports rather than false-positive on the unused-dependency list (drops dependencies 1→0). Same change consolidated dormant knip.json into knip.config.ts (knip.json took precedence and shadowed knip.config.ts; deleted knip.json). Wave B (PUBLIC-API marking + RECENT-IMPL-ORPHAN wiring) deferred per docs/audits/kh-production-readiness-phase-1/research/19-knip-baseline-triage.md §9.",
   "counts": {
-    "dependencies": 1,
+    "dependencies": 0,
     "devDependencies": 0,
-    "exports": 58,
-    "types": 289,
+    "exports": 57,
+    "types": 285,
     "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,

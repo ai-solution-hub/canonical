@@ -2,13 +2,6 @@ import type { ContentListItem } from './content';
 
 // -- Action types --
 
-export type ReviewActionType =
-  | 'verify'
-  | 'flag'
-  | 'skip'
-  | 'unverify'
-  | 'unflag';
-
 export type ReviewStatus =
   | 'unverified'
   | 'verified'
@@ -39,14 +32,6 @@ export interface ReviewFilters {
   include_overdue?: boolean;
 }
 
-// -- Action payload --
-
-export interface ReviewAction {
-  item_id: string;
-  action: ReviewActionType;
-  flag_details?: string;
-}
-
 // -- Progress tracking --
 
 export interface ReviewProgress {
@@ -55,15 +40,6 @@ export interface ReviewProgress {
   skipped: number;
   total: number;
   sessionReviewed: number;
-}
-
-// -- Session state --
-
-export interface ReviewSession {
-  filters: ReviewFilters;
-  startedAt: string;
-  progress: ReviewProgress;
-  currentIndex: number;
 }
 
 // -- Queue item (extended for review display) --
