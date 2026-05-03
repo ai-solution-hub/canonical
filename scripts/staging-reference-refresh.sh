@@ -73,7 +73,11 @@ echo "[pre-flight] Checking migration parity..."
 PROD_COUNT=$(psql "$PROD_DB_URL" -c "SELECT count(*) FROM supabase_migrations.schema_migrations;" -t -A)
 STAGING_COUNT=$(psql "$STAGING_DB_URL" -c "SELECT count(*) FROM supabase_migrations.schema_migrations;" -t -A)
 echo "  prod=$PROD_COUNT staging=$STAGING_COUNT"
-[ "$PROD_COUNT" = "$STAGING_COUNT" ] || { echo "FATAL: migration count mismatch (prod=$PROD_COUNT, staging=$STAGING_COUNT)"; exit 3; }
+# Staging must have >= production migrations (staging-first deployment flow).
+# Staging can be ahead when new migrations have been pushed to staging but
+# not yet merged to main (which triggers production deployment via GitHub
+# integration). Staging BEHIND production would indicate a problem.
+[ "$STAGING_COUNT" -ge "$PROD_COUNT" ] || { echo "FATAL: staging ($STAGING_COUNT) is behind production ($PROD_COUNT) — push migrations to staging first"; exit 3; }
 
 # ── Build pg_dump table args ────────────────────────────────────────────────
 
