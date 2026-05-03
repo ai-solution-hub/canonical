@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # WP-CI.RES.7 — Staging reference-table refresh orchestrator (Path (ii)).
 #
-# Refreshes 12 reference/lookup tables from production into the persistent
+# Refreshes 6 FK-safe reference/lookup tables from production into the persistent
 # staging Supabase branch (turayklvaunphgbgscat) via pg_dump -Fc | pg_restore.
 # Zero PII surface — no scrub step required.
 #
@@ -15,29 +15,32 @@ set -euo pipefail
 PROD_DB_URL="${PROD_SUPABASE_DB_URL:?Missing PROD_SUPABASE_DB_URL}"
 STAGING_DB_URL="${STAGING_SUPABASE_DB_URL:?Missing STAGING_SUPABASE_DB_URL}"
 
-# Reference/lookup tables (12 tables).
+# FK-safe reference/lookup tables (6 tables).
 # Maintenance: adding/removing a table is a one-line change here.
 #
-# Post migration 20260503225703: most created_by/decided_by FKs now
-# reference public.user_profiles instead of auth.users, so these tables
-# can be safely pg_restored without auth schema trigger issues.
+# RULE: only tables with NO user-referencing data (created_by etc.) AND
+# no FK to content tables (workspaces, feed_articles) belong here.
+# Even with migration 20260503225703 moving FKs to user_profiles, the
+# production DATA still contains UUIDs of production users that don't
+# have user_profiles rows on staging — pg_restore will fail on FK check.
 #
-# EXCLUDED:
-#   - public.user_roles    — user_id FK → auth.users (core auth, kept)
-#   - public.feed_flags    — feed_article_id FK → feed_articles (content table)
+# Tables with user-referencing data can be added in future via a
+# FK-drop-restore-nullify-readd approach or deterministic fixtures.
+#
+# EXCLUDED (user-referencing data or content FKs):
+#   - guides, guide_sections    — guides.created_by references prod users
+#   - company_profiles          — created_by references prod users
+#   - feed_prompts, feed_sources — created_by + workspace_id FK → workspaces
+#   - feed_flags               — feed_article_id FK → feed_articles
+#   - tag_morphology_drift_flags — decided_by references prod users
+#   - user_roles               — user_id FK → auth.users (core auth)
 REFERENCE_TABLES=(
   public.taxonomy_domains
   public.taxonomy_subtopics
   public.taxonomy_sync_state
   public.layer_vocabulary
-  public.guides
-  public.guide_sections
   public.entity_aliases
-  public.company_profiles
   public.template_requirements
-  public.feed_prompts
-  public.tag_morphology_drift_flags
-  public.feed_sources
 )
 
 # FK-aware DELETE ordering (spec §5.2 + continuation prompt critical rule 4):
@@ -45,17 +48,11 @@ REFERENCE_TABLES=(
 # taxonomy_subtopics FK → taxonomy_domains. All others have no
 # inter-reference-table FK dependencies.
 DELETE_ORDER=(
-  public.guide_sections
   public.taxonomy_subtopics
   public.taxonomy_sync_state
   public.layer_vocabulary
   public.entity_aliases
-  public.company_profiles
   public.template_requirements
-  public.feed_prompts
-  public.tag_morphology_drift_flags
-  public.feed_sources
-  public.guides
   public.taxonomy_domains
 )
 
@@ -109,7 +106,7 @@ pg_dump "$PROD_DB_URL" -Fc --data-only $TABLE_ARGS \
 # ── Post-flight verification ────────────────────────────────────────────────
 
 echo "[verify] Spot-checking row counts on staging..."
-for t in public.taxonomy_domains public.taxonomy_subtopics public.guides public.guide_sections; do
+for t in public.taxonomy_domains public.taxonomy_subtopics public.layer_vocabulary public.entity_aliases; do
   COUNT=$(psql "$STAGING_DB_URL" -c "SELECT count(*) FROM $t;" -t -A)
   echo "  $t: $COUNT rows"
   [ "$COUNT" -gt 0 ] || { echo "FATAL: $t is empty after refresh"; exit 1; }
