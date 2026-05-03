@@ -454,15 +454,26 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
   // custom_oauth_providers / Command was: ALTER TABLE
   // auth.custom_oauth_providers DISABLE TRIGGER ALL;`.
   //
-  // v7.1 fix: use `PGOPTIONS='-c session_replication_role=replica'`
-  // env var on the pg_restore connection. libpq applies the option
-  // at connection-establishment time as a session GUC. Replica mode
-  // silences ALL user triggers without requiring table ownership
-  // (the SET applies to the SESSION, not to per-table DDL). Probe
-  // confirmed (mcp__supabase__execute_sql against staging branch
-  // 03/05/2026): postgres role can SET session_replication_role at
-  // runtime. Pre-existing precedent: Supabase agent-skill examples
-  // use the same PGOPTIONS pattern for branch-data-restore flows.
+  // v7.1 attempted `PGOPTIONS='-c session_replication_role=replica'`
+  // env var on the pg_restore connection. STATUS: ESCALATED — the
+  // attempt also failed (run 25281741181, 03/05/2026 14:25 UTC) with
+  // the original validate_layer_key() trigger error reproduced.
+  // Root cause via `pg_settings`: the GUC has `context: superuser`
+  // (SUSET) — only true PG superusers can change it at runtime.
+  // Supabase's `postgres` role on the shared session pooler is
+  // privileged but NOT a true superuser (`rolsuper = false`). libpq
+  // silently ignores PGOPTIONS for SUSET parameters when the
+  // connecting role isn't a superuser; no error is raised, the GUC
+  // stays at default 'origin', so user triggers (in 'origin' enabled-
+  // state) continue to fire. Earlier MCP probe SHOW/SET returned
+  // 'replica' was misleading because MCP service path runs queries
+  // with elevated privileges (likely `pgsodium_keyiculator` /
+  // `pgbouncer` admin role context).
+  //
+  // The PGOPTIONS line below is RETAINED to preserve the attempt
+  // shape in the orchestrator for the spec-§9.9 audit trail; it is
+  // a no-op at runtime against Supabase. Remove only when shape
+  // (b/c/d) decision lands per spec §9.9 F-v7-5 ESCALATION block.
   //
   // pg_dump no longer needs --disable-triggers because we are no
   // longer relying on dump-emitted ALTER TABLE blocks; the
