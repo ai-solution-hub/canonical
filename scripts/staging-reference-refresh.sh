@@ -91,11 +91,13 @@ done
 
 echo "[refresh] pg_dump prod | pg_restore staging (${#REFERENCE_TABLES[@]} tables)..."
 # shellcheck disable=SC2086
-# --disable-triggers: prevents circular FK issues (guide_sections self-FK)
-# during restore. Requires superuser or rds_superuser on the target DB.
-# --single-transaction: defers constraint checks to commit time.
+# --single-transaction: wraps restore in a single transaction.
+# NOTE: --disable-triggers intentionally NOT used — Supabase's postgres
+# role is rds_superuser, not full superuser, and cannot disable system
+# constraint triggers. The FK-violating tables (user_roles, feed_prompts)
+# are excluded from the table set, so no trigger disabling is needed.
 pg_dump "$PROD_DB_URL" -Fc --data-only $TABLE_ARGS \
-  | pg_restore --data-only --single-transaction --disable-triggers -d "$STAGING_DB_URL"
+  | pg_restore --data-only --single-transaction -d "$STAGING_DB_URL"
 
 # ── Post-flight verification ────────────────────────────────────────────────
 
