@@ -2227,3 +2227,35 @@ export const NotificationPreferencesPutBodySchema = z
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one preference field is required',
   });
+
+// ──────────────────────────────────────────
+// Publication bulk-action (§5.3 publication approval gate)
+// ──────────────────────────────────────────
+
+/**
+ * POST body for `/api/review/publication-bulk-action`.
+ *
+ * Bulk-approve / bulk-return-to-draft for items currently in publication
+ * status `'in_review'`. Spec: .planning/.archive/.specs/publication-approval-gate-spec.md (archived S220 W4)
+ * §4.2. Cap of 50 items per request ratified S217 close-out (D-3) — halves
+ * the 30s Vercel function-timeout exposure under DB-load spikes vs the
+ * authored 100-default.
+ *
+ * `action` literals map to per-item target states inside the route handler:
+ * - `'approve'` → `'published'`
+ * - `'return_to_draft'` → `'draft'`
+ *
+ * These are the only two transitions valid out of `'in_review'` per
+ * `lib/governance/publication-transitions.ts:75-80` (RBAC matrix).
+ */
+export const PublicationBulkActionBodySchema = z.object({
+  ids: z
+    .array(z.string().uuid('ids must be UUIDs'))
+    .min(1, 'At least one id is required')
+    .max(50, 'At most 50 items per request'),
+  action: z.enum(['approve', 'return_to_draft']),
+});
+
+export type PublicationBulkActionBody = z.infer<
+  typeof PublicationBulkActionBodySchema
+>;

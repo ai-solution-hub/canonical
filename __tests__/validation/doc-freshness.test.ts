@@ -156,6 +156,10 @@ describe('Doc Freshness: data-entry-points.md', () => {
         'app/api/cron/quality-score/route.ts', // quality score updates
         'app/api/content-owners/bulk-assign/route.ts', // bulk owner assignment
         'app/api/review/action/route.ts', // review action
+        // §5.3 publication approval gate Wave 1 — UPDATE content_items
+        // (publication_status flip) + INSERT content_history; never inserts
+        // into content_items itself.
+        'app/api/review/publication-bulk-action/route.ts',
         'app/api/cron/freshness-transitions/route.ts', // freshness cron
         'app/api/items/[id]/rollback/route.ts', // rollback
         'app/api/cron/classification-quality/route.ts', // classification quality cron

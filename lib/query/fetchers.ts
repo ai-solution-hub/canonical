@@ -620,3 +620,65 @@ export async function postAdminNearDupConfirmUnique(
     body,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Publication bulk-action (§5.3 publication approval gate, Wave 1)
+// ---------------------------------------------------------------------------
+//
+// Spec: .planning/.archive/.specs/publication-approval-gate-spec.md §4.4 (response shape — archived S220 W4 close-out).
+// The wire shape mirrors the schema-defined request body verbatim.
+// `mutationFetchJson` defaults to `method: 'POST'` (set explicitly here
+// per the brief — never inherit a default) and applies `Content-Type:
+// application/json`.
+
+import type { PublicationBulkActionBody } from '@/lib/validation/schemas';
+
+/** Per-item result statuses emitted by the bulk-action endpoint. */
+export type PublicationBulkActionResultStatus =
+  | 'success'
+  | 'conflict'
+  | 'forbidden'
+  | 'not_found'
+  | 'error';
+
+/** Per-item result envelope returned in `results[]`. */
+export interface PublicationBulkActionResult {
+  id: string;
+  status: PublicationBulkActionResultStatus;
+  previousStatus?: 'draft' | 'in_review' | 'published' | 'archived';
+  newStatus?: 'draft' | 'in_review' | 'published' | 'archived';
+  reason?: string;
+  error?: string;
+}
+
+/** Top-level response envelope returned by POST /api/review/publication-bulk-action. */
+export interface PublicationBulkActionResponse {
+  action: 'approve' | 'return_to_draft';
+  totalRequested: number;
+  successCount: number;
+  failureCount: number;
+  results: PublicationBulkActionResult[];
+}
+
+/**
+ * POST `/api/review/publication-bulk-action` — bulk-approve /
+ * bulk-return-to-draft for items currently in `publication_status='in_review'`.
+ *
+ * Always resolves to a 200 envelope (even when `successCount === 0`) per
+ * spec §7.2. Throws `ApiError` only on route-level failures (auth,
+ * rate-limit, validation, route-handler crash). Per-item failures are
+ * surfaced inside `results[]` with structured statuses, NOT thrown.
+ *
+ * The hook layer (Wave 2) calls this fetcher, then invalidates the
+ * relevant `queryKeys.review.*` keys on success. Cap of 50 items per
+ * request enforced by the Zod schema (D-3 RATIFIED S217 close-out).
+ */
+export async function mutationBulkPublicationAction(
+  body: PublicationBulkActionBody,
+): Promise<PublicationBulkActionResponse> {
+  return mutationFetchJson<PublicationBulkActionResponse>(
+    '/api/review/publication-bulk-action',
+    body,
+    { method: 'POST' },
+  );
+}

@@ -1,16 +1,24 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
+import { toast } from 'sonner';
 import { queryKeys } from '@/lib/query/query-keys';
 import {
   fetchPublicationReviewQueue,
+  mutationBulkPublicationAction,
+  type PublicationBulkActionResponse,
   type PublicationReviewQueueFilters,
+  ApiError,
 } from '@/lib/query/fetchers';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PublicationReviewCard } from '@/components/review/publication-review-card';
 import { PublicationReviewActionBar } from '@/components/review/publication-review-action-bar';
+import { PublicationBulkActionBar } from '@/components/review/publication-bulk-action-bar';
+import { PublicationBulkResultDialog } from '@/components/review/publication-bulk-result-dialog';
+import { usePublicationReviewSelection } from '@/hooks/review/use-publication-review-selection';
 import type { ReviewQueueItem } from '@/types/review';
 
 /**
@@ -36,13 +44,37 @@ import type { ReviewQueueItem } from '@/types/review';
  * them BOTH into the fetcher and the query key so the cache shards per
  * filter combination (matching the fetcher signature widening).
  *
- * Spec: docs/specs/review-page-tabs-refactor-spec.md §5, §7, §8 (f).
+ * S220 W1a (publication-approval-gate spec §3, §8 AC-bulk-4.x): the queue
+ * also owns page-scoped multi-select state for bulk approve / bulk
+ * return-to-draft. Selection lives in
+ * `usePublicationReviewSelection()` (page-scoped, ephemeral — tab-switch
+ * unmounts the queue and clears state per spec §3.1). On any selection
+ * size >= 1 the bulk action bar mounts above the `<ul>`. The bulk
+ * mutation calls `POST /api/review/publication-bulk-action` via
+ * `mutationBulkPublicationAction()` (NOT a per-row PATCH loop), then
+ * invalidates the queue + stats + per-item detail cache, clears the
+ * selection set, and surfaces a `sonner` toast keyed on the
+ * partial-failure shape (all-success / mixed / all-failed per spec §3.4).
+ *
+ * Spec: docs/specs/review-page-tabs-refactor-spec.md §5, §7, §8 (f);
+ *       docs/specs/publication-approval-gate-spec.md v1 §3 + §8 AC-bulk-4.x.
  */
 
 const EMPTY_ITEMS: ReviewQueueItem[] = [];
 
+interface BulkResultDialogState {
+  open: boolean;
+  response: PublicationBulkActionResponse | null;
+}
+
+const INITIAL_DIALOG_STATE: BulkResultDialogState = {
+  open: false,
+  response: null,
+};
+
 export function PublicationReviewQueue() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
   // Parse the URL filters. Both `domain` and `content_type` accept either
   // repeated keys (`?domain=a&domain=b`) or comma-separated (`?domain=a,b`),
@@ -85,6 +117,138 @@ export function PublicationReviewQueue() {
     () => data?.items ?? EMPTY_ITEMS,
     [data?.items],
   );
+
+  // Selection state — page-scoped, ephemeral. Spec §3.1.
+  const { selectedIds, isSelected, toggle, selectAll, clear } =
+    usePublicationReviewSelection();
+
+  // Map of selected id -> title for the result-dialog (so per-item failures
+  // can be rendered with human-readable titles, not raw UUIDs). Recomputed
+  // from `items` (current page) — stable identity per render cycle.
+  const itemTitleLookup = useMemo(
+    () => new Map(items.map((i) => [i.id, i.title])),
+    [items],
+  );
+
+  const [dialogState, setDialogState] = useState<BulkResultDialogState>(
+    INITIAL_DIALOG_STATE,
+  );
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    setDialogState((prev) => ({ ...prev, open }));
+  }, []);
+
+  // Bulk mutation. Spec §3.4 step 1-5:
+  //   1. Invalidate publicationReviewQueue() so the queue refetches and
+  //      successful rows drop out.
+  //   2. Invalidate stats so the tab badge count updates.
+  //   3. Invalidate contentItems.detail(itemId) for each successfully-
+  //      transitioned id (mirrors per-row action bar pattern at
+  //      `publication-review-action-bar.tsx:71-77`).
+  //   4. Clear the selection set.
+  //   5. Surface a sonner toast keyed on the partial-failure shape.
+  const bulkMutation = useMutation<
+    PublicationBulkActionResponse,
+    ApiError,
+    'approve' | 'return_to_draft'
+  >({
+    mutationFn: (action) =>
+      mutationBulkPublicationAction({
+        ids: Array.from(selectedIds),
+        action,
+      }),
+    onSuccess: (response) => {
+      // Step 1 + 2 — queue + stats invalidations always happen, even on
+      // all-failed responses, so the UI re-syncs against server state.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.review.publicationReviewQueue(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.review.stats,
+      });
+
+      // Step 3 — invalidate per-item detail caches only for
+      // successfully-transitioned rows (mirrors per-row pattern).
+      for (const result of response.results) {
+        if (result.status === 'success') {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.contentItems.detail(result.id),
+          });
+        }
+      }
+
+      // Step 4 — clear selection.
+      clear();
+
+      // Step 5 — toast variants per spec §3.4. Open the result dialog when
+      // there's at least one failure so users can see per-item outcomes.
+      const { successCount, failureCount, totalRequested, action } = response;
+      const verbed = action === 'approve' ? 'published' : 'returned to draft';
+
+      if (failureCount === 0) {
+        const noun = successCount === 1 ? 'item' : 'items';
+        toast.success(`${successCount} ${noun} ${verbed}.`);
+        return;
+      }
+
+      if (successCount === 0) {
+        toast.error(
+          `Could not process any of the ${totalRequested} selected items.`,
+        );
+        setDialogState({ open: true, response });
+        return;
+      }
+
+      // Mixed — both successes and failures. Spec §3.4 prescribes a "View
+      // details" affordance that opens the result dialog. Sonner accepts
+      // an `action` slot that surfaces a button on the toast — clicking it
+      // opens the per-item-failure dialog.
+      toast.warning(
+        `${successCount} of ${totalRequested} items ${verbed}. ${failureCount} could not be processed — see details.`,
+        {
+          action: {
+            label: 'View details',
+            onClick: () => setDialogState({ open: true, response }),
+          },
+        },
+      );
+    },
+    onError: (err) => {
+      // Route-level failure (auth, rate-limit, validation, 5xx). Per-item
+      // failures resolve into the success branch with structured
+      // `results[]` — they never reach onError.
+      if (err.status === 403) {
+        toast.error(
+          'Bulk action is admin-only. Ask an admin to publish these items.',
+        );
+      } else if (err.status === 429) {
+        toast.error(
+          'Too many bulk actions in a short window. Wait a moment and try again.',
+        );
+      } else {
+        toast.error(err.message || 'Bulk action failed. Please try again.');
+      }
+    },
+  });
+
+  const { mutate: bulkMutate } = bulkMutation;
+
+  const handleApprove = useCallback(() => {
+    bulkMutate('approve');
+  }, [bulkMutate]);
+
+  const handleReturnToDraft = useCallback(() => {
+    bulkMutate('return_to_draft');
+  }, [bulkMutate]);
+
+  // Page-id list for the master "Select all on page" checkbox. Stable
+  // reference per `items` change so the bar's onSelectAllOnPage callback
+  // doesn't churn.
+  const pageItemIds = useMemo(() => items.map((i) => i.id), [items]);
+
+  const handleSelectAllOnPage = useCallback(() => {
+    selectAll(pageItemIds);
+  }, [selectAll, pageItemIds]);
 
   // Loading skeleton — mirrors the standard review-queue skeleton shape so
   // tab switches don't visually jolt.
@@ -157,14 +321,42 @@ export function PublicationReviewQueue() {
       aria-label={`Awaiting publication — ${items.length} ${items.length === 1 ? 'item' : 'items'}`}
       className="mx-auto w-full max-w-[800px] px-4 py-6 sm:px-6"
     >
+      {selectedIds.size >= 1 && (
+        <PublicationBulkActionBar
+          selectedIds={selectedIds}
+          pageItemCount={items.length}
+          onSelectAllOnPage={handleSelectAllOnPage}
+          onClearSelection={clear}
+          onApprove={handleApprove}
+          onReturnToDraft={handleReturnToDraft}
+          isPending={bulkMutation.isPending}
+        />
+      )}
+
       <ul className="flex flex-col gap-4" role="list">
         {items.map((item) => (
           <li key={item.id} className="rounded-xl border border-border bg-card">
-            <PublicationReviewCard item={item} className="border-0 shadow-none" />
-            <PublicationReviewActionBar itemId={item.id} />
+            <div className="flex items-start gap-3 p-3">
+              <Checkbox
+                checked={isSelected(item.id)}
+                onCheckedChange={() => toggle(item.id)}
+                aria-label={`Select ${item.title} for bulk action`}
+              />
+              <div className="flex-1">
+                <PublicationReviewCard item={item} className="border-0 shadow-none" />
+                <PublicationReviewActionBar itemId={item.id} />
+              </div>
+            </div>
           </li>
         ))}
       </ul>
+
+      <PublicationBulkResultDialog
+        open={dialogState.open}
+        onOpenChange={handleDialogOpenChange}
+        response={dialogState.response}
+        itemTitleLookup={itemTitleLookup}
+      />
     </section>
   );
 }
