@@ -93,25 +93,101 @@ VALUES ('a0000000-0000-4000-8000-000000000001', 'admin')
 ON CONFLICT (user_id) DO NOTHING;
 
 -- ======================================================================
--- §2  Reference data
+-- §2  Deterministic CI fixtures
 -- ======================================================================
--- Reference tables (taxonomy_domains, taxonomy_subtopics, guides,
--- guide_sections, layer_vocabulary, etc.) are populated by the
--- staging-reference-refresh workflow after branch reset:
+-- Tables with user-referencing data (created_by etc.) can't be restored
+-- from production via pg_dump because production user UUIDs don't exist
+-- on staging. Instead, we seed deterministic fixtures that reference the
+-- pipeline service account (a0...01) which always exists.
 --
---   .github/workflows/staging-reference-refresh.yml
---   scripts/staging-reference-refresh.sh
---
--- The workflow pulls the 11 reference tables from production via
--- pg_dump/pg_restore. This is preferred over static INSERTs here
--- because reference data changes occasionally and the refresh
--- workflow ensures parity with production.
+-- UUID namespace convention (deterministic, easy to identify + clean up):
+--   a0...01 = pipeline service account (§1 above)
+--   b0...01 = CI test workspace
+--   c0...01 = CI test guide
+--   c0...02 = CI test guide section
+--   d0...01 = CI test feed prompt
+--   d0...02 = CI test feed source
+--   e0...01 = CI test company profile
+
+-- 2a. Test workspace (required by feed_prompts, feed_sources, and E2E tests)
+INSERT INTO public.workspaces (id, name, description, type, created_by)
+VALUES (
+  'b0000000-0000-4000-8000-000000000001',
+  'CI Test Workspace',
+  'Deterministic workspace for CI integration and E2E tests. Seeded by seed.sql.',
+  'bid',
+  'a0000000-0000-4000-8000-000000000001'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 2b. Test guide (used by guide-related features and E2E tests)
+INSERT INTO public.guides (id, slug, name, description, guide_type, created_by)
+VALUES (
+  'c0000000-0000-4000-8000-000000000001',
+  'ci-test-guide',
+  'CI Test Guide',
+  'Deterministic guide for CI tests. Seeded by seed.sql.',
+  'sector',
+  'a0000000-0000-4000-8000-000000000001'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 2c. Test guide section
+INSERT INTO public.guide_sections (id, guide_id, section_name, description, display_order)
+VALUES (
+  'c0000000-0000-4000-8000-000000000002',
+  'c0000000-0000-4000-8000-000000000001',
+  'Overview',
+  'Deterministic guide section for CI tests.',
+  0
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 2d. Test feed prompt (requires workspace + created_by)
+INSERT INTO public.feed_prompts (id, workspace_id, prompt_text, version, is_active, created_by)
+VALUES (
+  'd0000000-0000-4000-8000-000000000001',
+  'b0000000-0000-4000-8000-000000000001',
+  'CI test feed prompt for integration tests.',
+  1,
+  true,
+  'a0000000-0000-4000-8000-000000000001'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 2e. Test feed source (requires workspace + created_by)
+INSERT INTO public.feed_sources (id, workspace_id, name, url, source_type, created_by)
+VALUES (
+  'd0000000-0000-4000-8000-000000000002',
+  'b0000000-0000-4000-8000-000000000001',
+  'CI Test Feed',
+  'https://example.com/ci-test-feed.xml',
+  'rss',
+  'a0000000-0000-4000-8000-000000000001'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 2f. Test company profile
+INSERT INTO public.company_profiles (id, name, slug, created_by)
+VALUES (
+  'e0000000-0000-4000-8000-000000000001',
+  'CI Test Company',
+  'ci-test-company',
+  'a0000000-0000-4000-8000-000000000001'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- ======================================================================
+-- §3  Reference data (via staging-reference-refresh workflow)
+-- ======================================================================
+-- Pure lookup tables (taxonomy_domains, taxonomy_subtopics, layer_vocabulary,
+-- entity_aliases, template_requirements, taxonomy_sync_state) are populated
+-- by the staging-reference-refresh workflow after branch reset.
+-- Tables with user-referencing data use deterministic fixtures above instead.
 --
 -- POST-RESET SEQUENCE:
 --   1. Branch reset (runs migrations + this seed.sql)
 --   2. bun run seed:e2e-users  (creates 3 test auth accounts + roles)
---   3. Dispatch staging-reference-refresh workflow (populates 11 tables)
+--   3. Dispatch staging-reference-refresh workflow (populates 6 lookup tables)
 --
--- FUTURE: once reference data cadence stabilises, consider capturing
--- a static snapshot here so branches are self-contained on reset.
 -- See docs/runbooks/staging-refresh.md for full procedure.
