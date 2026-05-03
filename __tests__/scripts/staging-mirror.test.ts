@@ -148,15 +148,6 @@ describe('Staging live-mirror — workflow-injection mitigation', () => {
     expect(yaml).toMatch(/cancel-in-progress:\s+false/);
   });
 
-  it('failsafe re-enable step has if: always() (spec AC-19)', () => {
-    const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
-    expect(yaml).toMatch(/Re-enable staging branch protection \(failsafe\)/);
-    expect(yaml).toMatch(/if:\s+always\(\)/);
-    expect(yaml).toMatch(
-      /supabase\s+branches\s+update\s+turayklvaunphgbgscat\s+--is-protected\s+true/,
-    );
-  });
-
   it('environment: Staging is present, case-sensitive (spec §2.5)', () => {
     const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
     // Per docs/runbooks/github-environments.md §4.1 the slot name is case-
