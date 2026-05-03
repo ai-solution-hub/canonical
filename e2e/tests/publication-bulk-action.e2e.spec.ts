@@ -297,7 +297,8 @@ test.describe('§5.3 publication-bulk-action — admin happy path', () => {
     // request via `waitForResponse`.
     const responsePromise = page.waitForResponse(
       (resp) =>
-        resp.url().includes(BULK_ENDPOINT_PATH) && resp.request().method() === 'POST',
+        resp.url().includes(BULK_ENDPOINT_PATH) &&
+        resp.request().method() === 'POST',
       { timeout: 30_000 },
     );
 
@@ -320,7 +321,9 @@ test.describe('§5.3 publication-bulk-action — admin happy path', () => {
     // Assert success toast — sonner renders `[data-sonner-toast]` with
     // text per spec §3.4 line 375: `toast.success("N items published.")`.
     await expect(
-      page.locator('[data-sonner-toast]').filter({ hasText: /3 items published/ }),
+      page
+        .locator('[data-sonner-toast]')
+        .filter({ hasText: /3 items published/ }),
     ).toBeVisible({ timeout: 10_000 });
 
     // Selection clears + bulk bar unmounts (AC-bulk-4.7).
@@ -378,7 +381,8 @@ test.describe('§5.3 publication-bulk-action — editor happy path (PR-1 RBAC)',
 
     const responsePromise = page.waitForResponse(
       (resp) =>
-        resp.url().includes(BULK_ENDPOINT_PATH) && resp.request().method() === 'POST',
+        resp.url().includes(BULK_ENDPOINT_PATH) &&
+        resp.request().method() === 'POST',
       { timeout: 30_000 },
     );
 
@@ -394,7 +398,9 @@ test.describe('§5.3 publication-bulk-action — editor happy path (PR-1 RBAC)',
 
     // Editor success path: same toast surface as admin.
     await expect(
-      page.locator('[data-sonner-toast]').filter({ hasText: /3 items published/ }),
+      page
+        .locator('[data-sonner-toast]')
+        .filter({ hasText: /3 items published/ }),
     ).toBeVisible({ timeout: 10_000 });
   });
 });
@@ -440,7 +446,8 @@ test.describe('§5.3 publication-bulk-action — return to draft', () => {
 
     const responsePromise = page.waitForResponse(
       (resp) =>
-        resp.url().includes(BULK_ENDPOINT_PATH) && resp.request().method() === 'POST',
+        resp.url().includes(BULK_ENDPOINT_PATH) &&
+        resp.request().method() === 'POST',
       { timeout: 30_000 },
     );
 

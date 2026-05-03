@@ -1,12 +1,3 @@
-export interface DigestConfig {
-  period_days: number;
-  digest_type: 'weekly' | 'daily' | 'custom';
-  domain?: string;
-  keywords?: string[];
-  date_from?: string;
-  date_to?: string;
-}
-
 export interface DigestFilters {
   domain?: string;
   keywords?: string[];
@@ -62,15 +53,6 @@ export interface ThemeCluster {
   theme: string;
   item_count: number;
   description: string;
-}
-
-export interface DigestGenerateRequest {
-  period_days?: number;
-  digest_type?: 'weekly' | 'daily' | 'custom';
-  domain?: string;
-  keywords?: string[];
-  date_from?: string;
-  date_to?: string;
 }
 
 export interface DigestGenerateResponse {

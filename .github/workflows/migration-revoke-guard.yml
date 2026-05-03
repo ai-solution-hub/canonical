@@ -1,0 +1,94 @@
+# WP-OPS-43.3 — REVOKE-guard CI lint + cron audit.
+#
+# Two modes (single workflow, two jobs):
+#   1. Pull-request lint: every PR touching supabase/migrations/** runs
+#      `bun run scripts/check-revoke-guard.ts --mode=lint --baseline=...`
+#      against the PR diff. Missing REVOKEs block merge.
+#   2. Weekly cron audit: Mondays 06:00 UTC, runs
+#      `--mode=cron` against prod. Drift detection of last resort.
+#
+# Required secrets (Production-scoped):
+#   - SUPABASE_ACCESS_TOKEN  (existing; provisioned for WP-G4.5)
+#   - SENTRY_AUTH_TOKEN      (existing; provisioned for WP-G4.6 era)
+#
+# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ops43.3-revoke-guard-spec.md
+
+name: Migration REVOKE Guard
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/migration-revoke-guard.yml"
+      - "scripts/check-revoke-guard.ts"
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group:
+    migration-revoke-guard-${{ github.event_name }}-${{
+    github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: REVOKE-guard PR lint
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history needed for diff baseline
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Run REVOKE-guard lint
+        # Workflow-injection mitigation: github context arrives via env,
+        # never inline ${{ }} in run: (matches supabase-advisors.yml +
+        # migration-replay.yml discipline).
+        env:
+          BASELINE_REF: ${{ github.event.pull_request.base.sha }}
+        run:
+          bun run scripts/check-revoke-guard.ts --mode=lint
+          --baseline="$BASELINE_REF"
+
+  cron-audit:
+    name: REVOKE-guard weekly cron audit
+    if:
+      github.event_name == 'schedule' || github.event_name ==
+      'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Run cron audit
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: rovrymhhffssilaftdwd
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+        run: bun run scripts/check-revoke-guard.ts --mode=cron

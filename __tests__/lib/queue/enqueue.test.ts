@@ -31,11 +31,12 @@ import type { Database } from '@/supabase/types/database.types';
 const ADMIN_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 const EDITOR_USER_ID = 'b0000000-0000-4000-8000-000000000002';
 
-const baseAuthContext: QueueJobPayload<Record<string, unknown>>['auth_context'] =
-  {
-    user_id: ADMIN_USER_ID,
-    role: 'admin',
-  };
+const baseAuthContext: QueueJobPayload<
+  Record<string, unknown>
+>['auth_context'] = {
+  user_id: ADMIN_USER_ID,
+  role: 'admin',
+};
 
 /**
  * Configure the mock Supabase client to:
@@ -51,14 +52,18 @@ const baseAuthContext: QueueJobPayload<Record<string, unknown>>['auth_context'] 
  */
 function configureChain(
   client: MockSupabaseClient,
-  dedupResult: { data: { id: string; status: string } | null; error: null } | {
-    data: null;
-    error: { message: string; code: string; details: string; hint: string };
-  },
-  insertResult: { data: { id: string } | null; error: null } | {
-    data: null;
-    error: { message: string; code: string; details: string; hint: string };
-  },
+  dedupResult:
+    | { data: { id: string; status: string } | null; error: null }
+    | {
+        data: null;
+        error: { message: string; code: string; details: string; hint: string };
+      },
+  insertResult:
+    | { data: { id: string } | null; error: null }
+    | {
+        data: null;
+        error: { message: string; code: string; details: string; hint: string };
+      },
 ): void {
   client._chain.maybeSingle.mockResolvedValueOnce(dedupResult);
   client._chain.single.mockResolvedValueOnce(insertResult);
@@ -315,9 +320,7 @@ describe('enqueueQueueJob', () => {
     const insertCall = mockClient._chain.insert.mock.calls[0]?.[0] as
       | Record<string, unknown>
       | undefined;
-    expect(insertCall?.idempotency_key).toBe(
-      'embed:item-idem:2026-05-02:hash',
-    );
+    expect(insertCall?.idempotency_key).toBe('embed:item-idem:2026-05-02:hash');
   });
 
   // -------------------------------------------------------------------------

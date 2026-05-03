@@ -53,9 +53,8 @@ import { randomUUID } from 'crypto';
 // Import the cron handler dynamically AFTER env is loaded by service-client.
 // service-client eagerly loads dotenv, so this is the safe pattern (same
 // as review-cadence-lifecycle.integration.test.ts:94).
-const { GET: cronReviewCadenceGET } = await import(
-  '@/app/api/cron/review-cadence/route'
-);
+const { GET: cronReviewCadenceGET } =
+  await import('@/app/api/cron/review-cadence/route');
 import { NextRequest } from 'next/server';
 
 // ---------------------------------------------------------------------------
@@ -72,9 +71,9 @@ const REVIEW_CADENCE_DAYS = 180;
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.CRON_SECRET &&
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -94,8 +93,10 @@ let itemB = ''; // archived, overdue → MUST NOT be flagged
 async function resolveAdminUserId(): Promise<string> {
   const adminEmail =
     process.env.TEST_USER_1_EMAIL ?? 'test.user1@test-kb-aish.co.uk';
-  const { data: userList, error } =
-    await serviceClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data: userList, error } = await serviceClient.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
   if (error) {
     throw new Error(`Could not list users: ${error.message}`);
   }
@@ -183,7 +184,9 @@ async function readGovernanceStatus(itemId: string): Promise<string | null> {
     .eq('id', itemId)
     .single();
   if (error || !data) {
-    throw new Error(`readGovernanceStatus failed: ${error?.message ?? 'no data'}`);
+    throw new Error(
+      `readGovernanceStatus failed: ${error?.message ?? 'no data'}`,
+    );
   }
   return data.governance_review_status;
 }
@@ -235,62 +238,55 @@ afterAll(async () => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describeIfEnv(
-  'AC5.5 — review-cadence cron excludes archived items',
-  () => {
-    it(
-      'cron flags A (published, overdue) AND skips B (archived, overdue)',
-      async () => {
-        // Pre-conditions: both items are 'approved' before the cron runs.
-        expect(await readGovernanceStatus(itemA)).toBe('approved');
-        expect(await readGovernanceStatus(itemB)).toBe('approved');
+describeIfEnv('AC5.5 — review-cadence cron excludes archived items', () => {
+  it('cron flags A (published, overdue) AND skips B (archived, overdue)', async () => {
+    // Pre-conditions: both items are 'approved' before the cron runs.
+    expect(await readGovernanceStatus(itemA)).toBe('approved');
+    expect(await readGovernanceStatus(itemB)).toBe('approved');
 
-        const res = await cronReviewCadenceGET(buildCronRequest());
-        const bodyText = await res.text();
-        expect(res.status, `cron failed: ${bodyText}`).toBe(200);
+    const res = await cronReviewCadenceGET(buildCronRequest());
+    const bodyText = await res.text();
+    expect(res.status, `cron failed: ${bodyText}`).toBe(200);
 
-        const body = JSON.parse(bodyText) as {
-          success: boolean;
-          items_flagged: number;
-          notifications_created: number;
-        };
-        expect(body.success).toBe(true);
-        // Global cron — other test data may inflate counts; assert >= 1
-        // (mirrors review-cadence-lifecycle.integration.test.ts T3 gotcha).
-        expect(body.items_flagged).toBeGreaterThanOrEqual(1);
+    const body = JSON.parse(bodyText) as {
+      success: boolean;
+      items_flagged: number;
+      notifications_created: number;
+    };
+    expect(body.success).toBe(true);
+    // Global cron — other test data may inflate counts; assert >= 1
+    // (mirrors review-cadence-lifecycle.integration.test.ts T3 gotcha).
+    expect(body.items_flagged).toBeGreaterThanOrEqual(1);
 
-        // Item A — control: a published-overdue row is flagged.
-        const postA = await readGovernanceStatus(itemA);
-        expect(
-          postA,
-          'Item A (published, overdue) MUST be flagged "review_overdue" by the cron',
-        ).toBe('review_overdue');
+    // Item A — control: a published-overdue row is flagged.
+    const postA = await readGovernanceStatus(itemA);
+    expect(
+      postA,
+      'Item A (published, overdue) MUST be flagged "review_overdue" by the cron',
+    ).toBe('review_overdue');
 
-        // Item B — load-bearing: archived-overdue row is NOT flagged.
-        // Without the §6.4 `publication_status != 'archived'` filter (or
-        // without the §6.6 trigger keeping archived_at in lockstep with
-        // publication_status), B would also flip to 'review_overdue'.
-        const postB = await readGovernanceStatus(itemB);
-        expect(
-          postB,
-          'Item B (archived, overdue) MUST NOT be flagged — exclusion required by §6.4',
-        ).toBe('approved');
+    // Item B — load-bearing: archived-overdue row is NOT flagged.
+    // Without the §6.4 `publication_status != 'archived'` filter (or
+    // without the §6.6 trigger keeping archived_at in lockstep with
+    // publication_status), B would also flip to 'review_overdue'.
+    const postB = await readGovernanceStatus(itemB);
+    expect(
+      postB,
+      'Item B (archived, overdue) MUST NOT be flagged — exclusion required by §6.4',
+    ).toBe('approved');
 
-        // Defence-in-depth: assert no notification was emitted for B.
-        // Item A may or may not have a notification depending on owner
-        // resolution; the load-bearing assertion is "B has zero".
-        const { data: notificationsB, error: notifBErr } = await serviceClient
-          .from('notifications')
-          .select('id')
-          .eq('entity_id', itemB)
-          .eq('type', 'review_overdue');
-        expect(notifBErr).toBeNull();
-        expect(
-          notificationsB ?? [],
-          'No "review_overdue" notification should be emitted for an archived item',
-        ).toHaveLength(0);
-      },
-      90_000,
-    );
-  },
-);
+    // Defence-in-depth: assert no notification was emitted for B.
+    // Item A may or may not have a notification depending on owner
+    // resolution; the load-bearing assertion is "B has zero".
+    const { data: notificationsB, error: notifBErr } = await serviceClient
+      .from('notifications')
+      .select('id')
+      .eq('entity_id', itemB)
+      .eq('type', 'review_overdue');
+    expect(notifBErr).toBeNull();
+    expect(
+      notificationsB ?? [],
+      'No "review_overdue" notification should be emitted for an archived item',
+    ).toHaveLength(0);
+  }, 90_000);
+});

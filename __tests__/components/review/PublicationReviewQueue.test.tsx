@@ -20,12 +20,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 import type { ReviewQueueItem, ReviewQueueResponse } from '@/types/review';
-import type {
-  PublicationBulkActionBarProps,
-} from '@/components/review/publication-bulk-action-bar';
-import type {
-  PublicationBulkResultDialogProps,
-} from '@/components/review/publication-bulk-result-dialog';
+import type { PublicationBulkActionBarProps } from '@/components/review/publication-bulk-action-bar';
+import type { PublicationBulkResultDialogProps } from '@/components/review/publication-bulk-result-dialog';
 
 vi.mock('sonner', () => ({
   toast: {
@@ -476,87 +472,82 @@ describe('PublicationReviewQueue', () => {
       });
 
       await waitFor(() => {
-        expect(
-          screen.queryByTestId('bulk-action-bar'),
-        ).not.toBeInTheDocument();
+        expect(screen.queryByTestId('bulk-action-bar')).not.toBeInTheDocument();
       });
     });
 
-    it(
-      'AC-bulk-4.6 (parent slice) — onApprove fires mutationFetchJson with method:"POST"',
-      async () => {
-        mockQueueResponse([ITEM_A, ITEM_B]);
-        // Bulk-action POST response.
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            action: 'approve',
-            totalRequested: 2,
-            successCount: 2,
-            failureCount: 0,
-            results: [
-              {
-                id: ITEM_A.id,
-                status: 'success',
-                previousStatus: 'in_review',
-                newStatus: 'published',
-              },
-              {
-                id: ITEM_B.id,
-                status: 'success',
-                previousStatus: 'in_review',
-                newStatus: 'published',
-              },
-            ],
-          }),
-        });
-        // Post-success refetch (queue invalidation).
-        mockQueueResponse([]);
+    it('AC-bulk-4.6 (parent slice) — onApprove fires mutationFetchJson with method:"POST"', async () => {
+      mockQueueResponse([ITEM_A, ITEM_B]);
+      // Bulk-action POST response.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          action: 'approve',
+          totalRequested: 2,
+          successCount: 2,
+          failureCount: 0,
+          results: [
+            {
+              id: ITEM_A.id,
+              status: 'success',
+              previousStatus: 'in_review',
+              newStatus: 'published',
+            },
+            {
+              id: ITEM_B.id,
+              status: 'success',
+              previousStatus: 'in_review',
+              newStatus: 'published',
+            },
+          ],
+        }),
+      });
+      // Post-success refetch (queue invalidation).
+      mockQueueResponse([]);
 
-        const { user } = renderQueue();
-        await screen.findByText('Awaiting item A');
+      const { user } = renderQueue();
+      await screen.findByText('Awaiting item A');
 
-        await user.click(
-          screen.getByRole('checkbox', {
-            name: /Select Awaiting item A for bulk action/i,
-          }),
-        );
-        await user.click(
-          screen.getByRole('checkbox', {
-            name: /Select Awaiting item B for bulk action/i,
-          }),
-        );
-        await screen.findByTestId('bulk-action-bar');
+      await user.click(
+        screen.getByRole('checkbox', {
+          name: /Select Awaiting item A for bulk action/i,
+        }),
+      );
+      await user.click(
+        screen.getByRole('checkbox', {
+          name: /Select Awaiting item B for bulk action/i,
+        }),
+      );
+      await screen.findByTestId('bulk-action-bar');
 
-        // The bar's Approve button is owned by IMPL-A1 with a confirmation
-        // dialog. Here we invoke the callback directly — the parent must
-        // pass through `Set<string> -> POST /api/review/publication-bulk-action
-        // body { ids: [...], action: 'approve' }, method: 'POST'`.
-        // Confirmation flow is A1's territory and asserted in A1's tests.
-        expect(lastBarProps).not.toBeNull();
-        lastBarProps!.onApprove();
+      // The bar's Approve button is owned by IMPL-A1 with a confirmation
+      // dialog. Here we invoke the callback directly — the parent must
+      // pass through `Set<string> -> POST /api/review/publication-bulk-action
+      // body { ids: [...], action: 'approve' }, method: 'POST'`.
+      // Confirmation flow is A1's territory and asserted in A1's tests.
+      expect(lastBarProps).not.toBeNull();
+      lastBarProps!.onApprove();
 
-        await waitFor(() => {
-          expect(toast.success).toHaveBeenCalledWith('2 items published.');
-        });
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('2 items published.');
+      });
 
-        const postCall = mockFetch.mock.calls.find(
-          (c) => (c[1] as RequestInit | undefined)?.method === 'POST',
-        );
-        expect(postCall).toBeDefined();
-        if (!postCall) return;
-        const [postUrl, postInit] = postCall;
-        expect(postUrl).toBe('/api/review/publication-bulk-action');
-        // Spec §8 AC-bulk-4.6 — assert method literally contains 'POST'.
-        expect(postInit?.method).toBe('POST');
-        const body = JSON.parse(postInit!.body as string);
-        expect(body.action).toBe('approve');
-        expect(body.ids).toHaveLength(2);
-        expect(new Set<string>(body.ids)).toEqual(
-          new Set([ITEM_A.id, ITEM_B.id]),
-        );
-      },
-    );
+      const postCall = mockFetch.mock.calls.find(
+        (c) => (c[1] as RequestInit | undefined)?.method === 'POST',
+      );
+      expect(postCall).toBeDefined();
+      if (!postCall) return;
+      const [postUrl, postInit] = postCall;
+      expect(postUrl).toBe('/api/review/publication-bulk-action');
+      // Spec §8 AC-bulk-4.6 — assert method literally contains 'POST'.
+      expect(postInit?.method).toBe('POST');
+      const body = JSON.parse(postInit!.body as string);
+      expect(body.action).toBe('approve');
+      expect(body.ids).toHaveLength(2);
+      expect(new Set<string>(body.ids)).toEqual(
+        new Set([ITEM_A.id, ITEM_B.id]),
+      );
+    });
 
     it('AC-bulk-4.7 — post-success: queue refetches, selection cleared, bar unmounts', async () => {
       mockQueueResponse([ITEM_A, ITEM_B]);
@@ -607,9 +598,7 @@ describe('PublicationReviewQueue', () => {
 
       // Selection cleared → bar unmounts on next render.
       await waitFor(() => {
-        expect(
-          screen.queryByTestId('bulk-action-bar'),
-        ).not.toBeInTheDocument();
+        expect(screen.queryByTestId('bulk-action-bar')).not.toBeInTheDocument();
       });
 
       // Refetch fired (queue invalidation). Three calls: initial GET +

@@ -187,7 +187,9 @@ If Liam edits, he creates a new commit (not amend).
 
 ## Step 8 — Update memory files (optional)
 
-If the session warrants it, use auto memory after the prompt commits. The sessions usually end here, and if there's anything relevant to note, this may be the last opportunity to do so.
+If the session warrants it, use auto memory after the prompt commits. The
+sessions usually end here, and if there's anything relevant to note, this may be
+the last opportunity to do so.
 
 ---
 

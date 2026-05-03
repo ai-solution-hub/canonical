@@ -110,9 +110,8 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import the route handler AFTER the mock is registered.
-const { POST: bulkActionPost } = await import(
-  '@/app/api/review/publication-bulk-action/route'
-);
+const { POST: bulkActionPost } =
+  await import('@/app/api/review/publication-bulk-action/route');
 
 import { NextRequest } from 'next/server';
 import type {
@@ -133,10 +132,10 @@ let TEST_USER_2_ID = '';
 // elsewhere in the integration suite.
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD &&
-    process.env.TEST_USER_2_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD &&
+  process.env.TEST_USER_2_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -252,9 +251,7 @@ async function postBulkAction(body: {
  * trigger writes a v1 row with `change_type='create'` for each newly-seeded
  * item (S186 WP-E backstop) — those are unrelated to the bulk-action audit.
  */
-async function fetchPublicationHistoryFor(
-  contentItemIds: string[],
-): Promise<
+async function fetchPublicationHistoryFor(contentItemIds: string[]): Promise<
   Array<{
     content_item_id: string;
     version: number;
@@ -281,8 +278,9 @@ async function fetchPublicationHistoryFor(
   // Database type but is always populated for production-written rows.
   // Filter null defensively to satisfy the non-nullable return type.
   return (data ?? [])
-    .filter((row): row is typeof row & { content_item_id: string } =>
-      row.content_item_id !== null,
+    .filter(
+      (row): row is typeof row & { content_item_id: string } =>
+        row.content_item_id !== null,
     )
     .map((row) => ({
       content_item_id: row.content_item_id,

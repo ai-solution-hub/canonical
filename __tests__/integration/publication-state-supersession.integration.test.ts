@@ -95,9 +95,9 @@ const UNIQUE_KEYWORD = `PUBSTATESUPSEDE${Date.now().toString(36)}`;
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.OPENAI_API_KEY &&
-    process.env.TEST_USER_1_PASSWORD,
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.OPENAI_API_KEY &&
+  process.env.TEST_USER_1_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -118,8 +118,10 @@ let queryEmbedding: number[] | null = null;
 async function resolveAdminUserId(): Promise<string> {
   const adminEmail =
     process.env.TEST_USER_1_EMAIL ?? 'test.user1@test-kb-aish.co.uk';
-  const { data: userList, error } =
-    await serviceClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data: userList, error } = await serviceClient.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
   if (error) {
     throw new Error(`Could not list users: ${error.message}`);
   }
@@ -138,10 +140,7 @@ interface SeedItemParams {
   embedding: number[];
 }
 
-async function seedItem({
-  label,
-  embedding,
-}: SeedItemParams): Promise<string> {
+async function seedItem({ label, embedding }: SeedItemParams): Promise<string> {
   // GENERATED ALWAYS column `content_text_hash` MUST be omitted (CLAUDE.md
   // gotcha `feedback_content_text_hash_generated_always`).
   const content =
@@ -203,7 +202,9 @@ async function readRow(itemId: string): Promise<RowSnapshot> {
     .eq('id', itemId)
     .single();
   if (error || !data) {
-    throw new Error(`readRow(${itemId}) failed: ${error?.message ?? 'no data'}`);
+    throw new Error(
+      `readRow(${itemId}) failed: ${error?.message ?? 'no data'}`,
+    );
   }
   return data as unknown as RowSnapshot;
 }
@@ -220,7 +221,10 @@ beforeAll(async () => {
   queryEmbedding = await generateEmbedding(
     `${UNIQUE_KEYWORD} certification audit report fixture for integration tests`,
   );
-  itemA = await seedItem({ label: 'A (will be superseded)', embedding: queryEmbedding });
+  itemA = await seedItem({
+    label: 'A (will be superseded)',
+    embedding: queryEmbedding,
+  });
   itemB = await seedItem({ label: 'B (successor)', embedding: queryEmbedding });
 }, 60_000);
 
@@ -242,142 +246,122 @@ afterAll(async () => {
 describeIfEnv(
   'AC5.3 — supersession archives OLD row + search-visibility cascade',
   () => {
-    it(
-      'baseline: both A and B appear in default hybrid_search before supersession',
-      async () => {
-        expect(itemA).toBeTruthy();
-        expect(itemB).toBeTruthy();
-        expect(queryEmbedding).toBeTruthy();
+    it('baseline: both A and B appear in default hybrid_search before supersession', async () => {
+      expect(itemA).toBeTruthy();
+      expect(itemB).toBeTruthy();
+      expect(queryEmbedding).toBeTruthy();
 
-        const { data, error } = await serviceClient.rpc('hybrid_search', {
-          query_embedding: JSON.stringify(queryEmbedding!),
-          query_text: UNIQUE_KEYWORD,
-          similarity_threshold: 0.0,
-          limit_count: 100,
-        });
+      const { data, error } = await serviceClient.rpc('hybrid_search', {
+        query_embedding: JSON.stringify(queryEmbedding!),
+        query_text: UNIQUE_KEYWORD,
+        similarity_threshold: 0.0,
+        limit_count: 100,
+      });
 
-        expect(error).toBeNull();
-        const ids = (data as Array<{ id: string }>).map((r) => r.id);
-        expect(ids).toContain(itemA);
-        expect(ids).toContain(itemB);
-      },
-      60_000,
-    );
+      expect(error).toBeNull();
+      const ids = (data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).toContain(itemA);
+      expect(ids).toContain(itemB);
+    }, 60_000);
 
-    it(
-      'setSupersession(A → B) sets archive metadata on A in addition to legacy fields',
-      async () => {
-        // Pre-conditions: archived_at IS NULL, publication_status='published'.
-        const pre = await readRow(itemA);
-        expect(pre.publication_status).toBe('published');
-        expect(pre.archived_at).toBeNull();
-        expect(pre.superseded_by).toBeNull();
+    it('setSupersession(A → B) sets archive metadata on A in addition to legacy fields', async () => {
+      // Pre-conditions: archived_at IS NULL, publication_status='published'.
+      const pre = await readRow(itemA);
+      expect(pre.publication_status).toBe('published');
+      expect(pre.archived_at).toBeNull();
+      expect(pre.superseded_by).toBeNull();
 
-        const beforeMs = Date.now();
-        const result = await setSupersession(
-          { oldId: itemA, newId: itemB, actorUserId },
-          serviceClient,
-        );
+      const beforeMs = Date.now();
+      const result = await setSupersession(
+        { oldId: itemA, newId: itemB, actorUserId },
+        serviceClient,
+      );
 
-        // Helper return contract — minimal four-field projection.
-        expect(result.oldItem.id).toBe(itemA);
-        expect(result.oldItem.superseded_by).toBe(itemB);
-        expect(result.oldItem.dedup_status).toBe('superseded');
-        expect(result.newItem.id).toBe(itemB);
-        expect(result.newItem.superseded_by).toBeNull();
+      // Helper return contract — minimal four-field projection.
+      expect(result.oldItem.id).toBe(itemA);
+      expect(result.oldItem.superseded_by).toBe(itemB);
+      expect(result.oldItem.dedup_status).toBe('superseded');
+      expect(result.newItem.id).toBe(itemB);
+      expect(result.newItem.superseded_by).toBeNull();
 
-        // §6.5 archive side-effects on the OLD row (read fresh from DB to
-        // catch fields not surfaced via the helper return projection).
-        const post = await readRow(itemA);
-        expect(post.publication_status).toBe('archived');
-        expect(post.archived_at).not.toBeNull();
-        const archivedTs = new Date(post.archived_at as string).getTime();
-        expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-        expect(post.archived_by).toBe(actorUserId);
-        expect(post.archive_reason).toBe(`Superseded by item ${itemB}`);
-        expect(post.superseded_by).toBe(itemB);
-        expect(post.dedup_status).toBe('superseded');
-        expect(post.updated_by).toBe(actorUserId);
+      // §6.5 archive side-effects on the OLD row (read fresh from DB to
+      // catch fields not surfaced via the helper return projection).
+      const post = await readRow(itemA);
+      expect(post.publication_status).toBe('archived');
+      expect(post.archived_at).not.toBeNull();
+      const archivedTs = new Date(post.archived_at as string).getTime();
+      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
+      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+      expect(post.archived_by).toBe(actorUserId);
+      expect(post.archive_reason).toBe(`Superseded by item ${itemB}`);
+      expect(post.superseded_by).toBe(itemB);
+      expect(post.dedup_status).toBe('superseded');
+      expect(post.updated_by).toBe(actorUserId);
 
-        // Item B must remain unchanged — no incidental archive write.
-        const newRowState = await readRow(itemB);
-        expect(newRowState.publication_status).toBe('published');
-        expect(newRowState.archived_at).toBeNull();
-        expect(newRowState.superseded_by).toBeNull();
-        expect(newRowState.dedup_status).not.toBe('superseded');
-      },
-      60_000,
-    );
+      // Item B must remain unchanged — no incidental archive write.
+      const newRowState = await readRow(itemB);
+      expect(newRowState.publication_status).toBe('published');
+      expect(newRowState.archived_at).toBeNull();
+      expect(newRowState.superseded_by).toBeNull();
+      expect(newRowState.dedup_status).not.toBe('superseded');
+    }, 60_000);
 
-    it(
-      'AC5.3 — A disappears from default hybrid_search post-supersession',
-      async () => {
-        // Default = include_superseded=false + visibility_filter='default'.
-        // Both filters now exclude A: the supersession filter (legacy) AND
-        // the publication-status filter (Phase 3) — either alone is enough.
-        const { data, error } = await serviceClient.rpc('hybrid_search', {
-          query_embedding: JSON.stringify(queryEmbedding!),
-          query_text: UNIQUE_KEYWORD,
-          similarity_threshold: 0.0,
-          limit_count: 100,
-        });
+    it('AC5.3 — A disappears from default hybrid_search post-supersession', async () => {
+      // Default = include_superseded=false + visibility_filter='default'.
+      // Both filters now exclude A: the supersession filter (legacy) AND
+      // the publication-status filter (Phase 3) — either alone is enough.
+      const { data, error } = await serviceClient.rpc('hybrid_search', {
+        query_embedding: JSON.stringify(queryEmbedding!),
+        query_text: UNIQUE_KEYWORD,
+        similarity_threshold: 0.0,
+        limit_count: 100,
+      });
 
-        expect(error).toBeNull();
-        const ids = (data as Array<{ id: string }>).map((r) => r.id);
-        expect(ids).not.toContain(itemA);
-        expect(ids).toContain(itemB);
-      },
-      60_000,
-    );
+      expect(error).toBeNull();
+      const ids = (data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).not.toContain(itemA);
+      expect(ids).toContain(itemB);
+    }, 60_000);
 
-    it(
-      'AC5.3 — A still excluded with include_superseded=true (admin visibility filter NOT passed)',
-      async () => {
-        // The load-bearing assertion: opening the supersession filter
-        // alone is NOT sufficient post-§6.5 wiring. The Phase 3 default
-        // visibility_filter='default' (= published-only) keeps A invisible
-        // because A is now publication_status='archived'. This is the
-        // unification described in spec §6.5 lines 1019-1031.
-        const { data, error } = await serviceClient.rpc('hybrid_search', {
-          query_embedding: JSON.stringify(queryEmbedding!),
-          query_text: UNIQUE_KEYWORD,
-          similarity_threshold: 0.0,
-          limit_count: 100,
-          include_superseded: true,
-          // visibility_filter omitted → defaults to 'default' (published-only)
-        });
+    it('AC5.3 — A still excluded with include_superseded=true (admin visibility filter NOT passed)', async () => {
+      // The load-bearing assertion: opening the supersession filter
+      // alone is NOT sufficient post-§6.5 wiring. The Phase 3 default
+      // visibility_filter='default' (= published-only) keeps A invisible
+      // because A is now publication_status='archived'. This is the
+      // unification described in spec §6.5 lines 1019-1031.
+      const { data, error } = await serviceClient.rpc('hybrid_search', {
+        query_embedding: JSON.stringify(queryEmbedding!),
+        query_text: UNIQUE_KEYWORD,
+        similarity_threshold: 0.0,
+        limit_count: 100,
+        include_superseded: true,
+        // visibility_filter omitted → defaults to 'default' (published-only)
+      });
 
-        expect(error).toBeNull();
-        const ids = (data as Array<{ id: string }>).map((r) => r.id);
-        expect(ids).not.toContain(itemA);
-        expect(ids).toContain(itemB);
-      },
-      60_000,
-    );
+      expect(error).toBeNull();
+      const ids = (data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).not.toContain(itemA);
+      expect(ids).toContain(itemB);
+    }, 60_000);
 
-    it(
-      'AC5.3 sanity — A reappears with include_superseded=true + visibility_filter=admin_all',
-      async () => {
-        // Defends against a tautological pass: if A was simply deleted,
-        // the prior assertions would also pass. This case proves A is
-        // still in the DB and the admin filter widens visibility as
-        // expected (Phase 3 RPC widening shipped W3).
-        const { data, error } = await serviceClient.rpc('hybrid_search', {
-          query_embedding: JSON.stringify(queryEmbedding!),
-          query_text: UNIQUE_KEYWORD,
-          similarity_threshold: 0.0,
-          limit_count: 100,
-          include_superseded: true,
-          visibility_filter: 'admin',
-        });
+    it('AC5.3 sanity — A reappears with include_superseded=true + visibility_filter=admin_all', async () => {
+      // Defends against a tautological pass: if A was simply deleted,
+      // the prior assertions would also pass. This case proves A is
+      // still in the DB and the admin filter widens visibility as
+      // expected (Phase 3 RPC widening shipped W3).
+      const { data, error } = await serviceClient.rpc('hybrid_search', {
+        query_embedding: JSON.stringify(queryEmbedding!),
+        query_text: UNIQUE_KEYWORD,
+        similarity_threshold: 0.0,
+        limit_count: 100,
+        include_superseded: true,
+        visibility_filter: 'admin',
+      });
 
-        expect(error).toBeNull();
-        const ids = (data as Array<{ id: string }>).map((r) => r.id);
-        expect(ids).toContain(itemA);
-        expect(ids).toContain(itemB);
-      },
-      60_000,
-    );
+      expect(error).toBeNull();
+      const ids = (data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).toContain(itemA);
+      expect(ids).toContain(itemB);
+    }, 60_000);
   },
 );

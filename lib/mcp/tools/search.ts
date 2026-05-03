@@ -540,7 +540,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     {
       title: 'Find Duplicate Candidates (Admin)',
       description:
-        'Find content items similar to a given item across every publication state — draft, in_review, published, AND archived. Useful for admin dedup workflows where you need to detect duplicates of items that aren\'t (yet) published. Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use `find_similar_items`. Uses the existing embedding index — no AI cost.',
+        "Find content items similar to a given item across every publication state — draft, in_review, published, AND archived. Useful for admin dedup workflows where you need to detect duplicates of items that aren't (yet) published. Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use `find_similar_items`. Uses the existing embedding index — no AI cost.",
       inputSchema: {
         id: z
           .string()

@@ -104,7 +104,10 @@ describe('branch-status classification (S22 WP-G4.5 polling fix)', () => {
   it('treats ACTIVE_HEALTHY and FUNCTIONS_DEPLOYED as ready', () => {
     expect(isReadyBranchStatus('ACTIVE_HEALTHY')).toBe(true);
     expect(isReadyBranchStatus('FUNCTIONS_DEPLOYED')).toBe(true);
-    expect(READY_BRANCH_STATUSES).toEqual(['ACTIVE_HEALTHY', 'FUNCTIONS_DEPLOYED']);
+    expect(READY_BRANCH_STATUSES).toEqual([
+      'ACTIVE_HEALTHY',
+      'FUNCTIONS_DEPLOYED',
+    ]);
   });
 
   it('does not classify unknown statuses as ready or intermediate', () => {

@@ -137,7 +137,9 @@ export function PublicationReviewCard({
               className="size-3.5 text-muted-foreground"
               aria-hidden="true"
             />
-            <dt className="font-medium text-muted-foreground">Ingest source:</dt>
+            <dt className="font-medium text-muted-foreground">
+              Ingest source:
+            </dt>
             <dd className="text-foreground">{ingestSource}</dd>
           </div>
         )}
@@ -155,7 +157,9 @@ export function PublicationReviewCard({
         )}
         {updatedAtLabel && (
           <div className="flex items-center gap-1.5">
-            <dt className="font-medium text-muted-foreground">Last activity:</dt>
+            <dt className="font-medium text-muted-foreground">
+              Last activity:
+            </dt>
             <dd className="text-foreground">{updatedAtLabel}</dd>
           </div>
         )}

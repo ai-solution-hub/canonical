@@ -684,8 +684,16 @@ describe('GET /api/coverage/gaps — duplicate-key regression', () => {
     mockSupabase.rpc
       .mockResolvedValueOnce({
         data: [
-          { domain_name: 'Engineering', subtopic_name: 'Testing', item_count: 0 },
-          { domain_name: 'Engineering', subtopic_name: 'Testing', item_count: 0 },
+          {
+            domain_name: 'Engineering',
+            subtopic_name: 'Testing',
+            item_count: 0,
+          },
+          {
+            domain_name: 'Engineering',
+            subtopic_name: 'Testing',
+            item_count: 0,
+          },
         ],
         error: null,
       })

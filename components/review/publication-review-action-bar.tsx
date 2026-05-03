@@ -55,16 +55,16 @@ export function PublicationReviewActionBar({
 }: PublicationReviewActionBarProps) {
   const queryClient = useQueryClient();
 
-  const mutation = useMutation<
-    PatchResponse,
-    ApiError,
-    'published' | 'draft'
-  >({
+  const mutation = useMutation<PatchResponse, ApiError, 'published' | 'draft'>({
     mutationFn: async (target) =>
-      mutationFetchJson<PatchResponse>(`/api/items/${itemId}`, {
-        field: 'publication_status',
-        value: target,
-      }, { method: 'PATCH' }),
+      mutationFetchJson<PatchResponse>(
+        `/api/items/${itemId}`,
+        {
+          field: 'publication_status',
+          value: target,
+        },
+        { method: 'PATCH' },
+      ),
     onSuccess: (_data, target) => {
       // Invalidate the publication-review queue + the broader review
       // namespace so progress badges + queue listings update everywhere.
@@ -149,7 +149,10 @@ export function PublicationReviewActionBar({
       >
         {/* Next.js Link (NOT router.push) so middle-click / cmd-click
             opens in a new tab. Spec §7 + AC (i). */}
-        <Link href={`/item/${itemId}`} aria-label="Open this item in the editor">
+        <Link
+          href={`/item/${itemId}`}
+          aria-label="Open this item in the editor"
+        >
           <Pencil className="size-4" aria-hidden="true" />
           Open in editor
         </Link>

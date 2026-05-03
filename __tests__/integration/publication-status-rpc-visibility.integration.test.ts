@@ -64,8 +64,8 @@ const chunkIds: string[] = [];
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.OPENAI_API_KEY,
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.OPENAI_API_KEY,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -174,9 +174,8 @@ const seededId = (state: SeededItem['publication_status']): string => {
   return item.id;
 };
 
-const seededIds = (
-  ids: Array<{ id: string }>,
-): Set<string> => new Set(ids.map((r) => r.id));
+const seededIds = (ids: Array<{ id: string }>): Set<string> =>
+  new Set(ids.map((r) => r.id));
 
 describeIfEnv('§5.2 Phase 3 — hybrid_search visibility_filter', () => {
   it('AC2.1 — default (no param) returns ONLY publication_status=published', async () => {
@@ -272,9 +271,7 @@ describeIfEnv('§5.2 Phase 3 — hybrid_search visibility_filter', () => {
         visibility_filter: 'default',
       });
       expect(hiddenCall.error).toBeNull();
-      const hiddenIds = seededIds(
-        hiddenCall.data as Array<{ id: string }>,
-      );
+      const hiddenIds = seededIds(hiddenCall.data as Array<{ id: string }>);
       expect(hiddenIds.has(publishedId)).toBe(false);
 
       // include_superseded=true + visibility_filter=default: published-but-
@@ -289,9 +286,7 @@ describeIfEnv('§5.2 Phase 3 — hybrid_search visibility_filter', () => {
         visibility_filter: 'default',
       });
       expect(visibleCall.error).toBeNull();
-      const visibleIds = seededIds(
-        visibleCall.data as Array<{ id: string }>,
-      );
+      const visibleIds = seededIds(visibleCall.data as Array<{ id: string }>);
       expect(visibleIds.has(publishedId)).toBe(true);
     } finally {
       // Restore the supersession state for downstream tests (the order of
@@ -327,31 +322,25 @@ describeIfEnv(
   },
 );
 
-describeIfEnv(
-  '§5.2 Phase 3 — search_content_chunks visibility_filter',
-  () => {
-    it('AC2.5 — default (no param) returns chunks ONLY from publication_status=published items', async () => {
-      const { data, error } = await serviceClient.rpc(
-        'search_content_chunks',
-        {
-          query_embedding: JSON.stringify(embedding),
-          similarity_threshold: 0.0,
-          limit_count: 100,
-        },
-      );
-      expect(error).toBeNull();
-      const itemIds = new Set(
-        (data as Array<{ content_item_id: string }>).map(
-          (r) => r.content_item_id,
-        ),
-      );
-      expect(itemIds.has(seededId('published'))).toBe(true);
-      expect(itemIds.has(seededId('draft'))).toBe(false);
-      expect(itemIds.has(seededId('in_review'))).toBe(false);
-      expect(itemIds.has(seededId('archived'))).toBe(false);
-    }, 30_000);
-  },
-);
+describeIfEnv('§5.2 Phase 3 — search_content_chunks visibility_filter', () => {
+  it('AC2.5 — default (no param) returns chunks ONLY from publication_status=published items', async () => {
+    const { data, error } = await serviceClient.rpc('search_content_chunks', {
+      query_embedding: JSON.stringify(embedding),
+      similarity_threshold: 0.0,
+      limit_count: 100,
+    });
+    expect(error).toBeNull();
+    const itemIds = new Set(
+      (data as Array<{ content_item_id: string }>).map(
+        (r) => r.content_item_id,
+      ),
+    );
+    expect(itemIds.has(seededId('published'))).toBe(true);
+    expect(itemIds.has(seededId('draft'))).toBe(false);
+    expect(itemIds.has(seededId('in_review'))).toBe(false);
+    expect(itemIds.has(seededId('archived'))).toBe(false);
+  }, 30_000);
+});
 
 describeIfEnv(
   '§5.2 Phase 3 — get_review_breakdown_stats numerical parity (AC2.8)',
@@ -362,9 +351,9 @@ describeIfEnv(
         'fixtures',
         'review-breakdown-baseline-post-s204.json',
       );
-      const baselineFile = JSON.parse(
-        readFileSync(baselinePath, 'utf-8'),
-      ) as { baseline: Record<string, unknown> };
+      const baselineFile = JSON.parse(readFileSync(baselinePath, 'utf-8')) as {
+        baseline: Record<string, unknown>;
+      };
       const baseline = baselineFile.baseline;
 
       // Compute the EXPECTED post-migration stats by simulating the new
@@ -431,11 +420,12 @@ describeIfEnv(
       // should appear and the existing 'policy' row should be unchanged.
       const articleTotal = live.by_content_type.article?.total ?? 0;
       expect(articleTotal).toBeGreaterThanOrEqual(1);
-      const baselinePolicyBucket =
-        (baseline.by_content_type as Record<
+      const baselinePolicyBucket = (
+        baseline.by_content_type as Record<
           string,
           { total: number; verified: number }
-        >).policy;
+        >
+      ).policy;
       if (baselinePolicyBucket) {
         const livePolicy = live.by_content_type.policy;
         expect(livePolicy).toBeDefined();

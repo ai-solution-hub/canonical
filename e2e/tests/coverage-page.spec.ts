@@ -51,7 +51,9 @@ test.describe('Coverage page', { tag: '@smoke' }, () => {
       name: /domain coverage/i,
     });
     await expect(taxonomyPanel.getByText('Total Items')).toBeVisible();
-    await expect(taxonomyPanel.getByText('Fresh', { exact: true })).toBeVisible();
+    await expect(
+      taxonomyPanel.getByText('Fresh', { exact: true }),
+    ).toBeVisible();
     await expect(taxonomyPanel.getByText('Content Gaps')).toBeVisible();
     await expect(taxonomyPanel.getByText('Expired Items')).toBeVisible();
 
@@ -86,7 +88,10 @@ test.describe('Coverage page', { tag: '@smoke' }, () => {
 
     // The section header is a button with aria-expanded — first section
     // starts expanded by default (defaultExpanded={index === 0}).
-    const firstSectionButton = domainRegions.first().getByRole('button').first();
+    const firstSectionButton = domainRegions
+      .first()
+      .getByRole('button')
+      .first();
     await expect(firstSectionButton).toHaveAttribute('aria-expanded', 'true');
 
     // Header text includes "<n> item" / "<n> items" — proves the count
@@ -154,8 +159,9 @@ test.describe('Coverage page', { tag: '@smoke' }, () => {
     await expect(
       page.getByRole('tab', { name: /^templates$/i }),
     ).toHaveAttribute('aria-selected', 'false');
-    await expect(
-      page.getByRole('tab', { name: /^guides$/i }),
-    ).toHaveAttribute('aria-selected', 'false');
+    await expect(page.getByRole('tab', { name: /^guides$/i })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
   });
 });

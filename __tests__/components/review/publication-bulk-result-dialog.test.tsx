@@ -145,9 +145,7 @@ describe('PublicationBulkResultDialog', () => {
     );
     const dialog = screen.getByRole('dialog');
     expect(
-      within(dialog).getByText(
-        /2 of 5 items could not be published/i,
-      ),
+      within(dialog).getByText(/2 of 5 items could not be published/i),
     ).toBeInTheDocument();
   });
 
@@ -263,11 +261,11 @@ describe('PublicationBulkResultDialog', () => {
       />,
     );
     const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/4 items published/i)).toBeInTheDocument();
     expect(
-      within(dialog).getByText(/4 items published/i),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText(/all requested items transitioned successfully/i),
+      within(dialog).getByText(
+        /all requested items transitioned successfully/i,
+      ),
     ).toBeInTheDocument();
     // No failure-list items.
     expect(within(dialog).queryByRole('listitem')).not.toBeInTheDocument();

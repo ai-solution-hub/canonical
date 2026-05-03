@@ -142,10 +142,7 @@ export function PublicationBulkActionBar({
           </span>
         </div>
 
-        <div
-          aria-live="polite"
-          className="text-sm text-muted-foreground"
-        >
+        <div aria-live="polite" className="text-sm text-muted-foreground">
           {selectedCount} of {pageItemCount} selected
         </div>
 
@@ -193,21 +190,19 @@ export function PublicationBulkActionBar({
             className="flex basis-full items-center gap-2 text-sm text-destructive"
           >
             <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-            <span>At most 50 items per request. Deselect some to continue.</span>
+            <span>
+              At most 50 items per request. Deselect some to continue.
+            </span>
           </p>
         ) : null}
       </div>
 
       {/* Approve confirmation (D-4 RATIFIED) */}
-      <AlertDialog
-        open={approveDialogOpen}
-        onOpenChange={setApproveDialogOpen}
-      >
+      <AlertDialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Approve {selectedCount}{' '}
-              {selectedCount === 1 ? 'item' : 'items'}?
+              Approve {selectedCount} {selectedCount === 1 ? 'item' : 'items'}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               This publishes them to the knowledge base immediately.
@@ -227,8 +222,8 @@ export function PublicationBulkActionBar({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Return {selectedCount}{' '}
-              {selectedCount === 1 ? 'item' : 'items'} to draft?
+              Return {selectedCount} {selectedCount === 1 ? 'item' : 'items'} to
+              draft?
             </AlertDialogTitle>
             <AlertDialogDescription className="sr-only">
               Confirm bulk return-to-draft action.

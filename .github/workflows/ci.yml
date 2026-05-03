@@ -526,9 +526,9 @@ jobs:
     # exist on Staging env scope (per docs/runbooks/github-environments.md
     # §3.1). Case-sensitive — must exactly match `Staging`.
     environment: Staging
-    # Phase 1 only — removed Phase 2 lock-step with roadmap §9.16.10
-    # close-out. See spec §2.4 + AC3.14/AC3.15.
-    continue-on-error: true
+    # WP-CI.RES.7 Phase 2 cutover: continue-on-error dropped. Staging now
+    # has reference data + deterministic fixtures via Path (ii). Phase 1
+    # soft-fail lever no longer needed.
     # Point estimate 5-7 min wall-clock under default gating + single shard
     # (spec §2.5). 25 min ceiling absorbs cold-cache + AI-API tail-latency
     # variance (~3.5x point estimate). Re-evaluate after 5 green runs.

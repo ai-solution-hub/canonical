@@ -18,10 +18,7 @@ import { PublicationReviewQueue } from '@/components/review/PublicationReviewQue
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
 import { cn } from '@/lib/utils';
-import type {
-  ReviewStatsResponse,
-  ReviewStatus,
-} from '@/types/review';
+import type { ReviewStatsResponse, ReviewStatus } from '@/types/review';
 
 /**
  * Six-tab Radix container for /review.
@@ -228,49 +225,57 @@ export function ReviewTabs() {
     <Tabs value={activeTab} onValueChange={handleTabChange}>
       <div className="mx-auto w-full max-w-[1100px] px-4 pt-6 sm:px-6">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 p-1">
-          {tabSpecsWithCounts.map(({ value, label, icon: Icon, countValue }) => (
-            <TabsTrigger
-              key={value}
-              value={value}
-              className="gap-1.5"
-              aria-label={
-                countValue !== null
-                  ? `${label} — ${countValue} ${countValue === 1 ? 'item' : 'items'}`
-                  : label
-              }
-            >
-              <Icon className="size-3.5" aria-hidden="true" />
-              <span>{label}</span>
-              {countValue !== null && (
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    'ml-0.5 h-5 min-w-5 px-1.5 text-[10px] tabular-nums',
-                  )}
-                  aria-hidden="true"
-                >
-                  {countValue}
-                </Badge>
-              )}
-            </TabsTrigger>
-          ))}
+          {tabSpecsWithCounts.map(
+            ({ value, label, icon: Icon, countValue }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="gap-1.5"
+                aria-label={
+                  countValue !== null
+                    ? `${label} — ${countValue} ${countValue === 1 ? 'item' : 'items'}`
+                    : label
+                }
+              >
+                <Icon className="size-3.5" aria-hidden="true" />
+                <span>{label}</span>
+                {countValue !== null && (
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      'ml-0.5 h-5 min-w-5 px-1.5 text-[10px] tabular-nums',
+                    )}
+                    aria-hidden="true"
+                  >
+                    {countValue}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            ),
+          )}
         </TabsList>
       </div>
 
       {/* Tabs 1-5: ReviewContent body driven by initialStatus + key prop. */}
-      {(['drafts', 'pending', 'verified-review', 'verified-audit', 'all'] as const).map(
-        (tab) => (
-          <TabsContent key={tab} value={tab} className="mt-2">
-            {activeTab === tab && (
-              <ReviewContent
-                key={tab}
-                initialStatus={TAB_TO_STATUS[tab]}
-                hideStatusPills
-              />
-            )}
-          </TabsContent>
-        ),
-      )}
+      {(
+        [
+          'drafts',
+          'pending',
+          'verified-review',
+          'verified-audit',
+          'all',
+        ] as const
+      ).map((tab) => (
+        <TabsContent key={tab} value={tab} className="mt-2">
+          {activeTab === tab && (
+            <ReviewContent
+              key={tab}
+              initialStatus={TAB_TO_STATUS[tab]}
+              hideStatusPills
+            />
+          )}
+        </TabsContent>
+      ))}
 
       {/* Tab 6: NEW PublicationReviewQueue. */}
       <TabsContent value="publication-review" className="mt-2">

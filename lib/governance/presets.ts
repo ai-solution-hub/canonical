@@ -30,11 +30,6 @@ export interface GovernancePresetLabel {
 // Constants
 // ---------------------------------------------------------------------------
 
-export const GOVERNANCE_PRESETS: readonly GovernancePreset[] = [
-  'light_touch',
-  'strict',
-] as const;
-
 /**
  * Concrete column values for each preset. These are written to
  * `governance_config` when a preset is selected.

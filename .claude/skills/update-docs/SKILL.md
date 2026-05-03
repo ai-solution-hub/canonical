@@ -20,15 +20,15 @@ user reviews the continuation prompt at the end.
 The planning documents have distinct, non-overlapping roles. Future agents must
 respect this distinction or the docs will drift back into chaos:
 
-| Document                              | File                                                               | Role                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **State of the product**              | `docs/reference/state-of-the-product.md`                           | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to the per-§ change-log file matching the touched SoTP §N (`state-of-the-product-change-log-section-{5,8,9}.md`) atomically. The pointer-doc `state-of-the-product-change-log.md` is the discovery index — never an append target. |
-| **Roadmap**                           | `docs/reference/post-mvp-roadmap.md`                               | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Resolved items.                                                                                                                                                                                                                                                                                      |
-| **Product backlog**                   | `docs/reference/product-backlog.md`                                | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap.                                                                                                                                  |
-| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings) | **Discovery index (pointer-doc) + per-section append targets.** Post-S219 split per `docs/specs/sotp-change-log-split-spec.md` v1: `state-of-the-product-change-log.md` is now a thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom. Mirrors `STATUS-change-log.md` shape (commit `a1b3b0e3` on production-readiness). For canonical present-tense capability ledger, see `state-of-the-product.md`. For pre-S186 history, see `state-of-the-product-history.md`. |
-| **State of the product — history**    | `docs/reference/state-of-the-product-history.md`                   | **Frozen historical archive — the cold tier (S53→S185).** Per-session "what shipped in session N" narrative blocks split out of the canonical doc in S152B WP10 (commit `3e3eccc5`). Append nothing here directly — the change-log file is the warm append surface; cold-archive sweeps move blocks from change-log → history when the change-log crosses ~5000 lines.                                                              |
-| **Backlog completed archive**         | `docs/reference/product-backlog-completed.md`                      | Frozen historical record of completed backlog items.                                                                                                                                                                                                                                                                                                                                                                                |
-| **Wave status ledgers**               | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`) | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                                                                                                                                                |
+| Document                              | File                                                                   | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **State of the product**              | `docs/reference/state-of-the-product.md`                               | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to the per-§ change-log file matching the touched SoTP §N (`state-of-the-product-change-log-section-{5,8,9}.md`) atomically. The pointer-doc `state-of-the-product-change-log.md` is the discovery index — never an append target. |
+| **Roadmap**                           | `docs/reference/post-mvp-roadmap.md`                                   | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Resolved items.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Product backlog**                   | `docs/reference/product-backlog.md`                                    | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap.                                                                                                                                                                                                                                                                                                                 |
+| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings) | **Discovery index (pointer-doc) + per-section append targets.** Post-S219 split per `docs/specs/sotp-change-log-split-spec.md` v1: `state-of-the-product-change-log.md` is now a thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom. Mirrors `STATUS-change-log.md` shape (commit `a1b3b0e3` on production-readiness). For canonical present-tense capability ledger, see `state-of-the-product.md`. For pre-S186 history, see `state-of-the-product-history.md`.   |
+| **State of the product — history**    | `docs/reference/state-of-the-product-history.md`                       | **Frozen historical archive — the cold tier (S53→S185).** Per-session "what shipped in session N" narrative blocks split out of the canonical doc in S152B WP10 (commit `3e3eccc5`). Append nothing here directly — the change-log file is the warm append surface; cold-archive sweeps move blocks from change-log → history when the change-log crosses ~5000 lines.                                                                                                                                                                                                                                             |
+| **Backlog completed archive**         | `docs/reference/product-backlog-completed.md`                          | Frozen historical record of completed backlog items.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Wave status ledgers**               | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`)     | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -120,8 +120,8 @@ When a roadmap or backlog item ships during the session:
    - Append a row to the per-§ change-log file
      (`state-of-the-product-change-log-section-{5,8,9}.md`) matching the
      affected SoTP §N — describing the session-level delta. The pointer-doc
-     `state-of-the-product-change-log.md` is the discovery index, not an
-     append target.
+     `state-of-the-product-change-log.md` is the discovery index, not an append
+     target.
    - Both edits ship atomically with the roadmap/backlog removal — no follow-up
      "fix change-log" commits.
 3. **The git commit ref + session number is the audit trail.** The roadmap and
@@ -195,10 +195,9 @@ git diff --cached --quiet || git commit -m "chore: archive completed specs"
 - `docs/reference/state-of-the-product.md` — canonical present-tense capability
   ledger
 - `docs/reference/state-of-the-product-change-log-section-{5,8,9}.md` —
-  append-only per-section narrative (warm tier, S186 onwards). One file per
-  SoTP §N (post-S219 split per
-  `docs/specs/sotp-change-log-split-spec.md` v1). Multi-section sessions
-  write one row per affected §N file in the same commit.
+  append-only per-section narrative (warm tier, S186 onwards). One file per SoTP
+  §N (post-S219 split per `docs/specs/sotp-change-log-split-spec.md` v1).
+  Multi-section sessions write one row per affected §N file in the same commit.
 - `docs/reference/state-of-the-product-change-log.md` — discovery index /
   pointer-doc. Carries the per-section files table; never an append target.
 
@@ -241,19 +240,22 @@ COMMIT** so a future reader can diff both surfaces together.
 **3. Append a change-log row** to the per-§ change-log file matching the
 affected SoTP §N:
 
-- §5 Feature State → `docs/reference/state-of-the-product-change-log-section-5.md`
-- §8 AI Integration Points → `docs/reference/state-of-the-product-change-log-section-8.md`
-  (find the right `### sub-section` heading if applicable — Test Infrastructure
-  / Observability & Build Chain)
-- §9 Format Canonicalisation → `docs/reference/state-of-the-product-change-log-section-9.md`
+- §5 Feature State →
+  `docs/reference/state-of-the-product-change-log-section-5.md`
+- §8 AI Integration Points →
+  `docs/reference/state-of-the-product-change-log-section-8.md` (find the right
+  `### sub-section` heading if applicable — Test Infrastructure / Observability
+  & Build Chain)
+- §9 Format Canonicalisation →
+  `docs/reference/state-of-the-product-change-log-section-9.md`
 
 The pointer-doc `state-of-the-product-change-log.md` is the discovery index;
 never append rows there. Multi-section sessions write one row per affected §N
 file in the same commit. Append a row at the bottom of the file's table:
 
-  ```
-  | DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
-  ```
+```
+| DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
+```
 
 - **Newest at bottom** — never reorder.
 - **Append-only** — never edit prior rows except for typo / factual error fixes.
