@@ -39,6 +39,14 @@ const INFLIGHT_GUARD_INTERVAL = "30 minutes";
 // mfa_amr_claims in BOTH the dump-exclusion list AND scrub Pass 3 keeps
 // the two lists symmetric ("session-state tables we never refresh from
 // prod, always TRUNCATE post-restore as part of scrub").
+//
+// v6.1 added auth.schema_migrations after second-dispatch surfaced
+// `pg_restore: error: permission denied for table schema_migrations`.
+// Supabase locks its auth-package migration tracker — postgres role has
+// SELECT but not INSERT. Verified via pg_table_is_visible /
+// has_table_privilege query; auth.schema_migrations is the ONLY auth.*
+// table where postgres lacks INSERT. If a future Supabase auth-package
+// upgrade introduces another internally-owned table, add it here.
 const PG_DUMP_EXCLUSIONS = [
   'auth.audit_log_entries',
   'auth.refresh_tokens',
@@ -47,6 +55,7 @@ const PG_DUMP_EXCLUSIONS = [
   'auth.mfa_factors',
   'auth.mfa_challenges',
   'auth.mfa_amr_claims',
+  'auth.schema_migrations',
 ];
 
 // Pre-restore TRUNCATE exclusion list — tables NOT cleared before
