@@ -314,9 +314,12 @@ export function buildProbeSet(prodAuthUsersCount: number): ProbeDef[] {
     {
       name: 'mirror-parity-exact',
       label: 'public.user_profiles ↔ auth.users mirror parity (exact)',
+      // v6: wrapped in `SELECT … AS diff` so postgres parses as a valid
+      // top-level statement. The pre-v6 form `(subq) - (subq)` is not a
+      // valid top-level command and raised "syntax error at or near \"-\"".
       sql:
-        '(SELECT count(*) FROM public.user_profiles) - ' +
-        '(SELECT count(*) FROM auth.users)',
+        'SELECT (SELECT count(*) FROM public.user_profiles) - ' +
+        '(SELECT count(*) FROM auth.users) AS diff',
       expectation: { kind: 'eq-zero' },
     },
     {

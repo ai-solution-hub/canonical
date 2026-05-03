@@ -33,6 +33,12 @@ const INFLIGHT_GUARD_INTERVAL = "30 minutes";
 
 // pg_dump exclusion args verbatim per spec §2.7 step 7.3 (auth tables that
 // must never replay into staging — sessions/tokens/MFA state).
+//
+// v6 added auth.mfa_amr_claims after first-dispatch surfaced TRUNCATE
+// auth.sessions failing on its FK (claims references sessions). Including
+// mfa_amr_claims in BOTH the dump-exclusion list AND scrub Pass 3 keeps
+// the two lists symmetric ("session-state tables we never refresh from
+// prod, always TRUNCATE post-restore as part of scrub").
 const PG_DUMP_EXCLUSIONS = [
   'auth.audit_log_entries',
   'auth.refresh_tokens',
@@ -40,6 +46,22 @@ const PG_DUMP_EXCLUSIONS = [
   'auth.flow_state',
   'auth.mfa_factors',
   'auth.mfa_challenges',
+  'auth.mfa_amr_claims',
+];
+
+// Pre-restore TRUNCATE exclusion list — tables NOT cleared before
+// pg_restore. Mirrors PG_DUMP_EXCLUSIONS (session-state tables we
+// preserve through refresh) plus auth.schema_migrations (Supabase's
+// own auth-package migration tracker; not refreshed from prod).
+const PRE_RESTORE_TRUNCATE_EXCLUSIONS: ReadonlyArray<readonly [string, string]> = [
+  ['auth', 'audit_log_entries'],
+  ['auth', 'refresh_tokens'],
+  ['auth', 'sessions'],
+  ['auth', 'flow_state'],
+  ['auth', 'mfa_factors'],
+  ['auth', 'mfa_challenges'],
+  ['auth', 'mfa_amr_claims'],
+  ['auth', 'schema_migrations'],
 ];
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -295,14 +317,109 @@ function countMigrations(dbUrl: string): number {
   return Number.parseInt((out.stdout ?? '0').trim(), 10);
 }
 
-// ── Stream restore (pg_dump | psql) ────────────────────────────────────────
+// ── Pre-restore TRUNCATE (clear staging data tables) ──────────────────────
+
+/**
+ * v6 step 7.2: clear staging data tables before pg_restore.
+ *
+ * The persistent staging branch retains rows across refreshes (TEST_USERs
+ * from prior `seed-e2e-users.ts`, content_items from prior mirror, etc).
+ * `pg_dump --data-only | pg_restore --data-only` emits raw COPY blocks
+ * with no DELETE/TRUNCATE preamble, so the first row to hit a unique
+ * constraint (typically `auth.users.email` against `test.user1@…`)
+ * aborts the entire restore transaction.
+ *
+ * Self-maintaining via `pg_tables` enumeration: any new table added by
+ * a future migration is auto-included once the pre-flight migration-
+ * parity check has confirmed prod = staging schema. The 8-table
+ * exclusion list mirrors `PG_DUMP_EXCLUSIONS` (session-state tables we
+ * never refresh) plus `auth.schema_migrations` (Supabase auth-package
+ * internal tracker — not in either pg_dump or scrub Pass 3 scope).
+ *
+ * TRUNCATE … CASCADE handles cross-table FK chains (e.g. truncating
+ * `auth.users` cascades to `public.user_profiles`,
+ * `public.content_items.created_by`, etc). Wrapped in
+ * `--single-transaction` for atomicity — partial-truncate failure
+ * rolls back, staging is left in its pre-step state.
+ */
+async function clearStagingTables(config: OrchestratorConfig): Promise<void> {
+  if (config.flags.dryRun) {
+    console.log(
+      '[dry-run] would TRUNCATE staging public+auth tables (excluding ' +
+        'session-state + auth.schema_migrations) via pg_tables enumeration',
+    );
+    return;
+  }
+
+  const exclusionTuples = PRE_RESTORE_TRUNCATE_EXCLUSIONS.map(
+    ([s, t]) => `('${s}','${t}')`,
+  ).join(', ');
+
+  const truncateSql = `
+DO $$
+DECLARE truncate_list text;
+BEGIN
+  SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
+  INTO truncate_list
+  FROM pg_tables
+  WHERE schemaname IN ('public', 'auth')
+    AND (schemaname, tablename) NOT IN (${exclusionTuples});
+  IF truncate_list IS NULL THEN
+    RAISE NOTICE 'pre-restore TRUNCATE: no eligible tables found';
+    RETURN;
+  END IF;
+  EXECUTE format('TRUNCATE TABLE %s CASCADE', truncate_list);
+END $$;
+`;
+
+  const result = spawnSync(
+    'psql',
+    [
+      config.stagingDbUrl,
+      '--single-transaction',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      truncateSql,
+    ],
+    { encoding: 'utf8', stdio: ['ignore', 'inherit', 'inherit'] },
+  );
+  if (result.status !== 0) {
+    throw new InfraError(
+      `pre-restore TRUNCATE failed (exit ${result.status}). ` +
+        `Re-run after addressing transient infra issue.`,
+    );
+  }
+  console.log('clear-staging: pre-restore TRUNCATE completed');
+}
+
+// ── Stream restore (pg_dump -Fc | pg_restore) ─────────────────────────────
 
 async function streamRestore(config: OrchestratorConfig): Promise<void> {
-  // Single shell pipe per spec §4.2 (no /tmp intermediate file). Args
-  // verbatim from spec §2.7 step 7.3. Both pipe ends MUST exit 0; we
-  // enforce via `set -o pipefail`.
+  // v6: switched from `pg_dump -Fp | psql --single-transaction` to
+  // `pg_dump -Fc | pg_restore --single-transaction --data-only` for
+  // robustness against PG 17.6+ Supavisor session-pooler interaction.
+  //
+  // The plain-text pipe emitted `\restrict <token>` meta-commands at the
+  // top of the dump (PG 17.6+ default per CVE-2025-8714 mitigation). Once
+  // psql entered `\restrict` mode AND a transaction aborted mid-stream
+  // (first-dispatch tripped this on a unique-constraint violation now
+  // pre-empted by `clearStagingTables`), every subsequent COPY block lost
+  // its stdin-mode context and data-row lines were parsed as raw SQL —
+  // surfacing as "syntax error at or near '<UUID>'" cascades.
+  //
+  // Custom-format binary archive (-Fc) emits zero psql meta-commands.
+  // pg_restore handles COPY via libpq protocol-level COPY-end signals
+  // rather than the `\.` plain-text terminator. `--single-transaction`
+  // on pg_restore provides equivalent atomicity to psql --single-
+  // transaction: any restore failure rolls back to the post-
+  // clearStagingTables empty state. Re-running the orchestrator from
+  // scratch is idempotent (TRUNCATE on empty is a no-op).
+  //
+  // Both pipe ends MUST exit 0; enforced via `set -o pipefail`.
   const dumpArgs = [
     '"$PROD_DB_URL"',
+    '-Fc',
     '--data-only',
     '--no-owner',
     '--no-privileges',
@@ -310,7 +427,14 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
     '--schema=auth',
     ...PG_DUMP_EXCLUSIONS.map((t) => `--exclude-table-data=${t}`),
   ].join(' ');
-  const cmd = `set -o pipefail; pg_dump ${dumpArgs} | psql "$STAGING_DB_URL" --single-transaction`;
+  const restoreArgs = [
+    '-d "$STAGING_DB_URL"',
+    '--single-transaction',
+    '--data-only',
+    '--no-owner',
+    '--no-privileges',
+  ].join(' ');
+  const cmd = `set -o pipefail; pg_dump ${dumpArgs} | pg_restore ${restoreArgs}`;
 
   if (config.flags.dryRun) {
     console.log(`[dry-run] would run: ${cmd}`);
@@ -329,11 +453,11 @@ async function streamRestore(config: OrchestratorConfig): Promise<void> {
   });
   if (result.status !== 0) {
     throw new InfraError(
-      `pg_dump | psql stream-restore failed (exit ${result.status}). ` +
+      `pg_dump -Fc | pg_restore stream-restore failed (exit ${result.status}). ` +
         `Re-run after addressing transient infra issue.`,
     );
   }
-  console.log('stream-restore: pg_dump | psql completed (both ends OK)');
+  console.log('stream-restore: pg_dump -Fc | pg_restore completed (both ends OK)');
 }
 
 // ── Scrub ──────────────────────────────────────────────────────────────────
@@ -534,6 +658,7 @@ async function main(): Promise<number> {
 
   try {
     await timed('preflight', steps, () => preflight(config));
+    await timed('clearStagingTables', steps, () => clearStagingTables(config));
     await timed('streamRestore', steps, () => streamRestore(config));
     await timed('runScrub', steps, () => runScrub(config));
     await timed('verifyScrub', steps, () => verifyScrub(config));

@@ -146,12 +146,19 @@ UPDATE auth.identities i
 -- step 7.3 of §2.7). RESTART IDENTITY resets any sequence on these
 -- tables. Inside BEGIN/COMMIT - TRUNCATE is transactional in PostgreSQL
 -- (per F-v2-4 confirmation - safe inside --single-transaction).
+--
+-- v6 added auth.mfa_amr_claims after first-dispatch surfaced TRUNCATE
+-- auth.sessions failing with "cannot truncate a table referenced in a
+-- foreign key constraint - mfa_amr_claims references sessions". The
+-- claims table FKs to sessions; truncating sessions without it raises.
+-- Listing them together truncates both atomically.
 TRUNCATE
   auth.refresh_tokens,
   auth.sessions,
   auth.flow_state,
   auth.mfa_factors,
-  auth.mfa_challenges
+  auth.mfa_challenges,
+  auth.mfa_amr_claims
 RESTART IDENTITY;
 
 COMMIT;
