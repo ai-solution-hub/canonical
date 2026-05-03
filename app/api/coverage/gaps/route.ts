@@ -247,18 +247,34 @@ function buildSummary(
   limit = 25,
   offset = 0,
 ): UnifiedGapSummary {
+  // De-duplicate by gap_key. Three sources contribute to allGaps and any of
+  // them can structurally produce duplicate keys (e.g. listAvailableTemplates
+  // returning two `is_current` versions of the same template_name; or an RPC
+  // GROUP BY regression). Without this pass the React render site emits an
+  // "Encountered two children with the same key" warning. First-write-wins
+  // preserves the earliest scored gap, which is fine because identical keys
+  // necessarily carry identical scoring inputs.
+  // Regression: kh-prod-readiness-S23 W1 / S22 CI smoke (UUID 21c0a9e8-...).
+  const dedupedMap = new Map<string, UnifiedGap>();
+  for (const gap of allGaps) {
+    if (!dedupedMap.has(gap.gap_key)) {
+      dedupedMap.set(gap.gap_key, gap);
+    }
+  }
+  const deduped = Array.from(dedupedMap.values());
+
   // Count totals BEFORE filtering (for summary stats)
-  const totalTaxonomy = allGaps.filter((g) => g.source === 'taxonomy').length;
-  const totalTemplate = allGaps.filter((g) => g.source === 'template').length;
-  const totalGuide = allGaps.filter((g) => g.source === 'guide').length;
+  const totalTaxonomy = deduped.filter((g) => g.source === 'taxonomy').length;
+  const totalTemplate = deduped.filter((g) => g.source === 'template').length;
+  const totalGuide = deduped.filter((g) => g.source === 'guide').length;
 
   const tierCounts = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const gap of allGaps) {
+  for (const gap of deduped) {
     tierCounts[gap.priority_tier]++;
   }
 
   // Apply filters
-  let filtered = allGaps;
+  let filtered = deduped;
 
   if (source) {
     filtered = filtered.filter((g) => g.source === source);
@@ -281,7 +297,7 @@ function buildSummary(
   const paginated = filtered.slice(offset, offset + limit);
 
   return {
-    total_gaps: allGaps.length,
+    total_gaps: deduped.length,
     taxonomy_gaps: totalTaxonomy,
     template_gaps: totalTemplate,
     guide_gaps: totalGuide,

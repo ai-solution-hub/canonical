@@ -164,7 +164,7 @@ describe('list_user_workspaces MCP tool', () => {
     };
 
     expect(result.content[0].text).toContain('No workspaces found');
-    expect(result.structuredContent).toEqual([]);
+    expect(result.structuredContent).toEqual({ workspaces: [] });
   });
 
   it('returns single workspace with correct shape', async () => {
@@ -181,11 +181,11 @@ describe('list_user_workspaces MCP tool', () => {
 
     expect(result.content[0].text).toContain('Workspaces (1)');
     expect(result.content[0].text).toContain('UK Education Sector');
-    const structured = result.structuredContent as Array<{
-      id: string;
-      name: string;
-      type: string;
-    }>;
+    const structured = (
+      result.structuredContent as {
+        workspaces: Array<{ id: string; name: string; type: string }>;
+      }
+    ).workspaces;
     expect(structured).toHaveLength(1);
     expect(structured[0]).toEqual({
       id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
@@ -212,11 +212,11 @@ describe('list_user_workspaces MCP tool', () => {
     };
 
     expect(result.content[0].text).toContain('Workspaces (3)');
-    const structured = result.structuredContent as Array<{
-      id: string;
-      name: string;
-      type: string;
-    }>;
+    const structured = (
+      result.structuredContent as {
+        workspaces: Array<{ id: string; name: string; type: string }>;
+      }
+    ).workspaces;
     expect(structured).toHaveLength(3);
     // Verify all workspace IDs are present
     const ids = structured.map((ws) => ws.id);

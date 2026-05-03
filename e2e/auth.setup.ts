@@ -69,8 +69,11 @@ async function loginAndSave(
 
   await page.context().addCookies(cookies);
 
-  // Navigate and verify auth works
-  await page.goto('/');
+  // Navigate and verify auth works.
+  // Default `navigationTimeout` is 15s (playwright.config.ts). Bumped to 30s
+  // here to absorb Turbopack cold-start variance during the auth setup
+  // project — the dev server may not be warm on first run.
+  await page.goto('/', { timeout: 30000 });
   await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
 
   // Save the authenticated browser state

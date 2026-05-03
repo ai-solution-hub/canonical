@@ -68,6 +68,15 @@ project_id = "turayklvaunphgbgscat"
 [remotes.staging.db.seed]
 sql_paths = ["./seed.sql"]
 
+# example-client domain restriction hook — staging branch
+# Function defined in supabase/migrations/20260424202806_capture_signup_domain_hook.sql
+# Replays on every branch creation; this block wires it into the staging
+# auth pipeline. Per research/15 §4.3 Option C (dashboard-immediate +
+# config-as-code for replay durability).
+[remotes.staging.auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_restrict_signup_to_example-client_domain"
+
 [db.network_restrictions]
 # Enable management of network restrictions.
 enabled = false

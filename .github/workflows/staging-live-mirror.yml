@@ -41,17 +41,13 @@
 
 name: Staging Live Mirror
 
-# This main-branch copy of the workflow exists ONLY to register the workflow
-# name with the Actions API so "gh workflow run staging-live-mirror.yml --ref
-# production-readiness" can find it (HTTP 404 otherwise; workflow_dispatch
-# requires default-branch registration). The schedule trigger from the
-# production-readiness copy is intentionally OMITTED here because cron always
-# fires against the default-branch checkout, and the orchestrator scripts
-# (scripts/staging-mirror-and-scrub.ts, scripts/scrub-staging-pii.sql,
-# scripts/verify-scrub.ts) do NOT yet exist on main. Cron-on-main would fail.
-# Cron starts firing once the full WP-CI.RES.2 IMPL set merges from
-# production-readiness to main. Until then: dispatch via --ref production-readiness.
 on:
+  schedule:
+    # Mondays in week 2 OR week 4 of each month at 03:00 UTC = exactly two
+    # dispatches/month (true fortnightly cadence). POSIX-cron NOTE: this
+    # restricts only day-of-month with day-of-week kept at Monday, avoiding
+    # the cron OR-explosion (`0 3 1-14 * 1` would fire ~21x/month).
+    - cron: '0 3 8-14,22-28 * 1'
   workflow_dispatch:
     inputs:
       protection-mode:
