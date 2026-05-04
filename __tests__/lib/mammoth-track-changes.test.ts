@@ -7,11 +7,17 @@ import { execFileSync } from 'child_process';
 /** Probe for pandoc availability — returns true if pandoc is found on PATH or at the Homebrew path. */
 function hasPandoc(): boolean {
   try {
-    execFileSync('pandoc', ['--version'], { encoding: 'utf-8', timeout: 5_000 });
+    execFileSync('pandoc', ['--version'], {
+      encoding: 'utf-8',
+      timeout: 5_000,
+    });
     return true;
   } catch {
     try {
-      execFileSync('/opt/homebrew/bin/pandoc', ['--version'], { encoding: 'utf-8', timeout: 5_000 });
+      execFileSync('/opt/homebrew/bin/pandoc', ['--version'], {
+        encoding: 'utf-8',
+        timeout: 5_000,
+      });
       return true;
     } catch {
       return false;
@@ -47,33 +53,36 @@ describe('mammoth Track Changes handling', () => {
     expect(html).toContain('28 August 2026');
   });
 
-  it.skipIf(!pandocAvailable)('matches pandoc ground truth for Track Changes resolution', async () => {
-    // Generate ground truth with pandoc (skipped in CI where pandoc is not installed)
-    const pandocPath = fs.existsSync('/opt/homebrew/bin/pandoc')
-      ? '/opt/homebrew/bin/pandoc'
-      : 'pandoc';
-    const pandocHtml = execFileSync(
-      pandocPath,
-      ['--track-changes=accept', '-t', 'html', FIXTURE_PATH],
-      { encoding: 'utf-8', timeout: 30_000 },
-    );
+  it.skipIf(!pandocAvailable)(
+    'matches pandoc ground truth for Track Changes resolution',
+    async () => {
+      // Generate ground truth with pandoc (skipped in CI where pandoc is not installed)
+      const pandocPath = fs.existsSync('/opt/homebrew/bin/pandoc')
+        ? '/opt/homebrew/bin/pandoc'
+        : 'pandoc';
+      const pandocHtml = execFileSync(
+        pandocPath,
+        ['--track-changes=accept', '-t', 'html', FIXTURE_PATH],
+        { encoding: 'utf-8', timeout: 30_000 },
+      );
 
-    // Generate mammoth output
-    const buffer = fs.readFileSync(FIXTURE_PATH);
-    const { value: mammothHtml } = await mammoth.convertToHtml({ buffer });
+      // Generate mammoth output
+      const buffer = fs.readFileSync(FIXTURE_PATH);
+      const { value: mammothHtml } = await mammoth.convertToHtml({ buffer });
 
-    // Both should exclude the deleted date
-    expect(pandocHtml).not.toContain('28 August 2025');
-    expect(mammothHtml).not.toContain('28 August 2025');
+      // Both should exclude the deleted date
+      expect(pandocHtml).not.toContain('28 August 2025');
+      expect(mammothHtml).not.toContain('28 August 2025');
 
-    // Both should include the corrected date
-    expect(pandocHtml).toContain('28 August 2026');
-    expect(mammothHtml).toContain('28 August 2026');
+      // Both should include the corrected date
+      expect(pandocHtml).toContain('28 August 2026');
+      expect(mammothHtml).toContain('28 August 2026');
 
-    // Both should contain the ICO registration reference (stable text)
-    expect(pandocHtml).toContain('ZA123456');
-    expect(mammothHtml).toContain('ZA123456');
-  });
+      // Both should contain the ICO registration reference (stable text)
+      expect(pandocHtml).toContain('ZA123456');
+      expect(mammothHtml).toContain('ZA123456');
+    },
+  );
 
   it('produces non-empty HTML with table structure', async () => {
     const buffer = fs.readFileSync(FIXTURE_PATH);
