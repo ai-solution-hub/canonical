@@ -2,6 +2,10 @@
 -- Migrate application-level FK references from auth.users → public.user_profiles
 -- ============================================================
 --
+-- Schema doc: SCHEMA-QUICK-REFERENCE.md §34 auth.users ON DELETE Behaviour table
+-- documents the FK retargeting outcome (which columns now reference
+-- user_profiles vs auth.users directly).
+--
 -- When user_profiles was introduced (20260428122626), 35 FK constraints
 -- across 24 tables were missed and still reference auth.users(id) directly.
 -- This causes two problems:

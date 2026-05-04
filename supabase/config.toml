@@ -66,6 +66,7 @@ sql_paths = ["./seed.sql"]
 project_id = "turayklvaunphgbgscat"
 
 [remotes.staging.db.seed]
+enabled = true
 sql_paths = ["./seed.sql"]
 
 # example-client domain restriction hook — staging branch
