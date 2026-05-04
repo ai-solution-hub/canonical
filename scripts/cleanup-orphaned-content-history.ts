@@ -1,0 +1,68 @@
+#!/usr/bin/env bun
+/**
+ * Cleanup orphaned content_history rows in staging.
+ *
+ * Integration/E2E/MCP eval jobs can create content_items that fire
+ * trg_content_items_ensure_v1_history. If a test later deletes the
+ * content_item without deleting its content_history rows first, the FK's
+ * ON DELETE SET NULL leaves orphaned rows that accumulate in staging.
+ *
+ * This script is intentionally staging-only by default:
+ *   - Requires ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP=1
+ *   - Refuses to run against the production project ref
+ *   - Requires a service-role key
+ */
+
+import { createClient } from '@supabase/supabase-js';
+
+const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+const allowCleanup = process.env.ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP === '1';
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!allowCleanup) {
+  console.error(
+    'Refusing cleanup: set ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP=1 to confirm staging-only cleanup intent.',
+  );
+  process.exit(2);
+}
+
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error(
+    'Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.',
+  );
+  process.exit(2);
+}
+
+if (supabaseUrl.includes(PROD_PROJECT_REF)) {
+  console.error('Refusing cleanup: SUPABASE_URL points at production.');
+  process.exit(2);
+}
+
+if (!supabaseUrl.includes(STAGING_PROJECT_REF)) {
+  console.warn(
+    `Warning: SUPABASE_URL does not contain expected staging ref ${STAGING_PROJECT_REF}. ` +
+      'Continuing because explicit cleanup flag is set; verify CI environment scoping if this is unexpected.',
+  );
+}
+
+const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+const { count, error } = await supabase
+  .from('content_history')
+  .delete({ count: 'exact' })
+  .is('content_item_id', null);
+
+if (error) {
+  console.error(`content_history orphan cleanup failed: ${error.message}`);
+  process.exit(1);
+}
+
+console.log(
+  `content_history orphan cleanup complete (${count ?? 0} row(s) deleted).`,
+);

@@ -10,8 +10,8 @@
 --      cannot disable system FK constraint triggers on auth.* tables.
 --
 -- Since user_profiles.id is a 1:1 mirror of auth.users.id (same UUIDs,
--- ON DELETE CASCADE), this migration changes only the FK target — no data
--- changes are needed. Cascade behavior is preserved:
+-- ON DELETE CASCADE), the FK target switch does not rewrite application-table
+-- IDs. Cascade behavior is preserved:
 --   auth.users DELETE → cascades to user_profiles → cascades to referencing tables.
 --
 -- 5 FK constraints intentionally KEPT on auth.users:
@@ -21,9 +21,20 @@
 --   - notifications.user_id (per-user identity link)
 --   - read_marks.user_id (per-user identity link)
 --
--- Pre-condition: zero live users (confirmed 2026-05-03). No data migration
--- needed — only FK constraint targets change.
+-- Defensive precondition repair: user_profiles must contain every auth.users
+-- row referenced by the application tables below. The original staging run
+-- succeeded, but production later had a live auth.users row that was missing
+-- from user_profiles. Re-run the idempotent mirror backfill here so a
+-- production retry of this same migration can pass before any later corrective
+-- migrations run.
 -- ============================================================
+
+INSERT INTO public.user_profiles (id, email, full_name)
+SELECT id,
+       email,
+       raw_user_meta_data ->> 'full_name'
+  FROM auth.users
+ ON CONFLICT (id) DO NOTHING;
 
 -- ── bid_questions ───────────────────────────────────────────────────────────
 

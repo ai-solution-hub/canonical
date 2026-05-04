@@ -50,7 +50,7 @@ test.describe('Viewer role restrictions', { tag: '@smoke' }, () => {
 
     // Viewer should see personal sections
     await expect(settingsNav.getByText('Profile')).toBeVisible();
-    await expect(settingsNav.getByText('Integrations')).toBeVisible();
+    await expect(settingsNav.getByText('Connections')).toBeVisible();
 
     // Viewer should NOT see admin-only sections
     await expect(settingsNav.getByText('Team')).not.toBeVisible();
@@ -109,13 +109,12 @@ test.describe('Admin role full access', { tag: '@smoke' }, () => {
 
     const settingsNav = await getSettingsNav(page);
 
-    // Admin sees everything
+    // Admin sees everything — personal, content management, and system groups
     await expect(settingsNav.getByText('Profile')).toBeVisible();
-    await expect(settingsNav.getByText('Integrations')).toBeVisible();
-    await expect(settingsNav.getByText('Domain Coverage')).toBeVisible();
-    await expect(settingsNav.getByText('Tags')).toBeVisible();
+    await expect(settingsNav.getByText('Connections')).toBeVisible();
+    await expect(settingsNav.getByText('Content Organisation')).toBeVisible();
+    await expect(settingsNav.getByText('Tag Morphology')).toBeVisible();
     await expect(settingsNav.getByText('Team')).toBeVisible();
     await expect(settingsNav.getByText('Quality Review')).toBeVisible();
-    await expect(settingsNav.getByText('Activity')).toBeVisible();
   });
 });

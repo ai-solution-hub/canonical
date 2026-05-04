@@ -87,6 +87,11 @@ jobs:
 
       - name: Build (Next.js)
         env:
+          # WP1.5 parallel: quality-precheck runs solo but observed OOM on
+          # ubuntu-latest (2 GB default) during post-compile TS phase when
+          # the monorepo size increased past ~60 migration files. 4 GB
+          # headroom mirrors the MCP eval matrix and local dev.
+          NODE_OPTIONS: --max-old-space-size=4096
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -294,6 +299,14 @@ jobs:
           TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
         run: bunx playwright test --project=smoke
 
+      - name: Cleanup orphaned content_history rows (staging)
+        if: always()
+        env:
+          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run cleanup:orphaned-content-history
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -480,6 +493,13 @@ jobs:
             l4) bun run test:mcp-eval:fc $SKIP_FLAGS ;;
             *)  echo "Unknown layer: $LAYER" >&2; exit 1 ;;
           esac
+      - name: Cleanup orphaned content_history rows (staging)
+        if: always()
+        env:
+          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run cleanup:orphaned-content-history
 
       - name: Stop MCP server
         if: always()
@@ -603,6 +623,13 @@ jobs:
         run: |
           set -o pipefail
           bun run test:integration 2>&1 | tee /tmp/integration.log
+      - name: Cleanup orphaned content_history rows (staging)
+        if: always()
+        env:
+          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run cleanup:orphaned-content-history
 
       - name: Upload integration log on failure
         if: failure()

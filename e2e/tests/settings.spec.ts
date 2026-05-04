@@ -36,16 +36,15 @@ test.describe('Settings page', { tag: '@smoke' }, () => {
 
     // Personal group
     await expect(settingsNav.getByText('Profile')).toBeVisible();
-    await expect(settingsNav.getByText('Integrations')).toBeVisible();
+    await expect(settingsNav.getByText('Connections')).toBeVisible();
 
     // Content Management group (admin only)
-    await expect(settingsNav.getByText('Domain Coverage')).toBeVisible();
-    await expect(settingsNav.getByText('Tags')).toBeVisible();
+    await expect(settingsNav.getByText('Content Organisation')).toBeVisible();
+    await expect(settingsNav.getByText('Tag Morphology')).toBeVisible();
 
     // System group (admin only)
     await expect(settingsNav.getByText('Team')).toBeVisible();
     await expect(settingsNav.getByText('Quality Review')).toBeVisible();
-    await expect(settingsNav.getByText('Activity')).toBeVisible();
   });
 
   test('profile section is the default view', async ({
@@ -56,43 +55,45 @@ test.describe('Settings page', { tag: '@smoke' }, () => {
     await expect(profileButton).toHaveAttribute('aria-current', 'page');
   });
 
-  test('can navigate to Integrations section', async ({
+  test('can navigate to Connections section', async ({
     authenticatedPage: page,
   }) => {
-    await navigateToSettingsSection(page, 'Integrations');
+    await navigateToSettingsSection(page, 'Connections');
 
     // URL should update
-    await expect(page).toHaveURL(/section=integrations/);
+    await expect(page).toHaveURL(/section=connections/);
 
     // Verify by re-opening nav and checking active state
     const settingsNav = await getSettingsNav(page);
-    await expect(settingsNav.getByText('Integrations')).toHaveAttribute(
+    await expect(settingsNav.getByText('Connections')).toHaveAttribute(
       'aria-current',
       'page',
     );
   });
 
-  test('can navigate to Domain Coverage section', async ({
+  test('can navigate to Content Organisation section', async ({
     authenticatedPage: page,
   }) => {
-    await navigateToSettingsSection(page, 'Domain Coverage');
+    await navigateToSettingsSection(page, 'Content Organisation');
 
-    await expect(page).toHaveURL(/section=taxonomy/);
+    await expect(page).toHaveURL(/section=content-organisation/);
 
     const settingsNav = await getSettingsNav(page);
-    await expect(settingsNav.getByText('Domain Coverage')).toHaveAttribute(
+    await expect(settingsNav.getByText('Content Organisation')).toHaveAttribute(
       'aria-current',
       'page',
     );
   });
 
-  test('can navigate to Tags section', async ({ authenticatedPage: page }) => {
-    await navigateToSettingsSection(page, 'Tags');
+  test('can navigate to Tag Morphology section', async ({
+    authenticatedPage: page,
+  }) => {
+    await navigateToSettingsSection(page, 'Tag Morphology');
 
-    await expect(page).toHaveURL(/section=tags/);
+    await expect(page).toHaveURL(/section=tag-morphology/);
 
     const settingsNav = await getSettingsNav(page);
-    await expect(settingsNav.getByText('Tags')).toHaveAttribute(
+    await expect(settingsNav.getByText('Tag Morphology')).toHaveAttribute(
       'aria-current',
       'page',
     );
@@ -174,13 +175,13 @@ test.describe('Settings — section content', { tag: '@smoke' }, () => {
     });
   });
 
-  test('integrations section loads', async ({ authenticatedPage: page }) => {
-    await page.goto('/settings?section=integrations');
+  test('connections section loads', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings?section=connections');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
       timeout: 10000,
     });
 
-    // Integrations section should show MCP connection details
+    // Connections section should show MCP connection details
     // Scope to the main content area to avoid matching sidebar text
     const main = page.locator('main');
     await expect(main.getByText(/MCP/i).first()).toBeVisible({

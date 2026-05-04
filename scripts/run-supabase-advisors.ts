@@ -76,6 +76,15 @@ const EXIT_OK = 0;
 const EXIT_NEW_FINDINGS = 1;
 const EXIT_INFRA_ERROR = 2;
 
+/**
+ * Advisor findings intentionally excluded from CI gating.
+ *
+ * `unused_index` is disabled in the Supabase dashboard for this project and is
+ * too noisy for the CI signal. It is filtered before both diff and baseline
+ * capture so future baselines do not carry these entries.
+ */
+const IGNORED_ADVISOR_NAMES = new Set(['unused_index']);
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 // If Supabase ships new advisor categories beyond security + performance
@@ -310,6 +319,10 @@ function collectAllRecords(
   return records;
 }
 
+function filterIgnoredFindings(lints: AdvisorLint[]): AdvisorLint[] {
+  return lints.filter((lint) => !IGNORED_ADVISOR_NAMES.has(lint.name));
+}
+
 // ── Diff ───────────────────────────────────────────────────────────────────
 
 interface DiffResult {
@@ -443,6 +456,10 @@ async function main(): Promise<number> {
     return EXIT_INFRA_ERROR;
   }
 
+  const rawFindingCount = security.length + performance.length;
+  security = filterIgnoredFindings(security);
+  performance = filterIgnoredFindings(performance);
+
   const snapshotIso = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   const liveRecords = collectAllRecords(security, performance, snapshotIso);
 
@@ -453,7 +470,8 @@ async function main(): Promise<number> {
 
   console.log(
     `Fetched: security=${security.length} performance=${performance.length} ` +
-      `total=${liveRecords.length}`,
+      `total=${liveRecords.length} ` +
+      `(ignored=${rawFindingCount - liveRecords.length})`,
   );
 
   if (flags.captureBaseline) {

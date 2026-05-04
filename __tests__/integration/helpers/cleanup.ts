@@ -66,8 +66,8 @@ export function resetMockClient(client: MockSupabaseClient): void {
 
 /**
  * Tracked IDs for cleanup in live DB tests.
- * Items must be deleted in reverse order of creation to respect FK constraints:
- * content_items -> guide_sections -> guides
+ * Items must be deleted in FK-safe order: content_history first, then
+ * content_items, guide_sections, and guides.
  */
 export interface TrackedTestData {
   contentItemIds: string[];
@@ -85,7 +85,8 @@ export function createTracker(): TrackedTestData {
 
 /**
  * Delete all tracked test data from the live database.
- * Deletes in FK-safe order: content_items first, then guide_sections, then guides.
+ * Deletes in FK-safe order: content_history first, then content_items,
+ * guide_sections, then guides.
  *
  * Uses try/finally to ensure all cleanup attempts run even if earlier ones fail.
  */
@@ -101,7 +102,22 @@ export async function cleanupTrackedData(
 ): Promise<void> {
   const errors: unknown[] = [];
 
-  // Delete content items first (no FK dependencies on guides/sections)
+  // Delete content_history before content_items. The FK uses ON DELETE SET
+  // NULL, so deleting content_items first leaves orphaned history rows in
+  // staging that accumulate across CI runs.
+  if (tracker.contentItemIds.length > 0) {
+    try {
+      const { error } = await supabase
+        .from('content_history')
+        .delete()
+        .in('content_item_id', tracker.contentItemIds);
+      if (error) errors.push(error);
+    } catch (e) {
+      errors.push(e);
+    }
+  }
+
+  // Delete content items after their generated history rows.
   if (tracker.contentItemIds.length > 0) {
     try {
       const { error } = await supabase
