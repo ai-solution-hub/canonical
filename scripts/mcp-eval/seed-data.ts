@@ -2,6 +2,8 @@ export const MCP_EVAL_SEED_TITLE_PREFIX = '[MCP-SEED]';
 export const MCP_EVAL_SEED_VERSION = 1;
 export const MCP_EVAL_SEED_METADATA_FLAG = 'mcp_eval_seed';
 export const MCP_EVAL_SEED_ROLE_SIMILARITY_SOURCE = 'similarity_source';
+export const MCP_EVAL_SEED_GUIDE_ID = '2f1d83c0-8b43-4b9a-94d9-f0f8a7e00201';
+export const MCP_EVAL_SEED_GUIDE_SLUG = 'mcp-eval-guide';
 
 export interface McpEvalSeedItem {
   id: string;
@@ -19,12 +21,51 @@ export interface McpEvalSeedItem {
   summary: string;
 }
 
+export interface McpEvalSeedGuideSection {
+  id: string;
+  sectionName: string;
+  description: string;
+  expectedLayer: string;
+  subtopicFilter: string;
+  displayOrder: number;
+}
+
 export const MCP_EVAL_SEED_METADATA = {
   [MCP_EVAL_SEED_METADATA_FLAG]: true,
   mcp_eval_seed_suite: 'mcp-eval',
   mcp_eval_seed_version: MCP_EVAL_SEED_VERSION,
   source: 'synthetic',
 } as const;
+
+export const MCP_EVAL_SEED_GUIDE_SECTIONS: McpEvalSeedGuideSection[] = [
+  {
+    id: '2f1d83c0-8b43-4b9a-94d9-f0f8a7e00202',
+    sectionName: 'Security and Compliance',
+    description:
+      'Deterministic MCP eval guide section covering security and compliance responses.',
+    expectedLayer: 'bid_detail',
+    subtopicFilter: 'iso-27001',
+    displayOrder: 1,
+  },
+  {
+    id: '2f1d83c0-8b43-4b9a-94d9-f0f8a7e00203',
+    sectionName: 'Data Protection',
+    description:
+      'Deterministic MCP eval guide section covering GDPR and data protection responses.',
+    expectedLayer: 'bid_detail',
+    subtopicFilter: 'data-protection',
+    displayOrder: 2,
+  },
+  {
+    id: '2f1d83c0-8b43-4b9a-94d9-f0f8a7e00204',
+    sectionName: 'Service Levels',
+    description:
+      'Deterministic MCP eval guide section covering support SLA responses.',
+    expectedLayer: 'bid_detail',
+    subtopicFilter: 'sla',
+    displayOrder: 3,
+  },
+];
 
 export const MCP_EVAL_SEED_ITEMS: McpEvalSeedItem[] = [
   {

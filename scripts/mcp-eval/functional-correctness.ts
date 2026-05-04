@@ -240,7 +240,7 @@ function countResultItems(text: string): number {
   const lines = text.split('\n');
   const numbered = lines.filter((l) => /^\d+\.\s/.test(l.trim()));
   const boldBullets = lines.filter((l) => /^[-*]\s\*\*/.test(l.trim()));
-  const headers = lines.filter((l) => /^###\s/.test(l.trim()));
+  const headers = lines.filter((l) => /^#{2,3}\s+\d+\./.test(l.trim()));
   return Math.max(numbered.length, boldBullets.length, headers.length);
 }
 

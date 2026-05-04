@@ -16,6 +16,9 @@ import {
 } from '../../lib/ai/embed';
 import { loadEnv } from './fixtures.js';
 import {
+  MCP_EVAL_SEED_GUIDE_ID,
+  MCP_EVAL_SEED_GUIDE_SECTIONS,
+  MCP_EVAL_SEED_GUIDE_SLUG,
   MCP_EVAL_SEED_ITEMS,
   MCP_EVAL_SEED_METADATA,
   MCP_EVAL_SEED_METADATA_FLAG,
@@ -79,6 +82,53 @@ function needsEmbedding(existing: ExistingSeedRow | null): boolean {
   return existing.metadata?.mcp_eval_seed_version !== MCP_EVAL_SEED_VERSION;
 }
 
+async function seedGuideFixture(
+  supabase: ReturnType<typeof createClient>,
+): Promise<void> {
+  const { error: guideError } = await supabase.from('guides').upsert(
+    {
+      id: MCP_EVAL_SEED_GUIDE_ID,
+      slug: MCP_EVAL_SEED_GUIDE_SLUG,
+      name: 'MCP Eval Guide',
+      description:
+        'Deterministic guide fixture for MCP response-quality evaluation.',
+      guide_type: 'custom',
+      domain_filter: 'security',
+      icon: 'shield',
+      color: 'blue',
+      display_order: 9000,
+      is_published: true,
+    },
+    { onConflict: 'id' },
+  );
+
+  if (guideError) {
+    throw new Error(`Failed to upsert seed guide: ${guideError.message}`);
+  }
+
+  const sectionRows = MCP_EVAL_SEED_GUIDE_SECTIONS.map((section) => ({
+    id: section.id,
+    guide_id: MCP_EVAL_SEED_GUIDE_ID,
+    section_name: section.sectionName,
+    description: section.description,
+    expected_layer: section.expectedLayer,
+    subtopic_filter: section.subtopicFilter,
+    content_type_filter: 'q_a_pair',
+    display_order: section.displayOrder,
+    is_required: true,
+  }));
+
+  const { error: sectionError } = await supabase
+    .from('guide_sections')
+    .upsert(sectionRows, { onConflict: 'id' });
+
+  if (sectionError) {
+    throw new Error(
+      `Failed to upsert seed guide sections: ${sectionError.message}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   loadEnv();
 
@@ -103,6 +153,9 @@ async function main(): Promise<void> {
   console.log(
     `Seeding ${MCP_EVAL_SEED_ITEMS.length} MCP eval Q&A fixture(s) using ${embeddingModel}...`,
   );
+
+  await seedGuideFixture(supabase);
+  console.log(`  ✓ guide:${MCP_EVAL_SEED_GUIDE_SLUG}`);
 
   for (const item of MCP_EVAL_SEED_ITEMS) {
     const { data: existing, error: existingError } = await supabase
