@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh --yes
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get update
           sudo apt-get install --yes postgresql-client-17
 
