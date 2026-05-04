@@ -4,6 +4,23 @@ import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 
+/** Probe for pandoc availability — returns true if pandoc is found on PATH or at the Homebrew path. */
+function hasPandoc(): boolean {
+  try {
+    execFileSync('pandoc', ['--version'], { encoding: 'utf-8', timeout: 5_000 });
+    return true;
+  } catch {
+    try {
+      execFileSync('/opt/homebrew/bin/pandoc', ['--version'], { encoding: 'utf-8', timeout: 5_000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+const pandocAvailable = hasPandoc();
+
 const FIXTURE_PATH = path.resolve(
   __dirname,
   '../../docs/client-documentation/docx/DRAFT 2026 Tender and Bid Library Template for example-client - Security and Compliance  - Copy.docx',
@@ -30,10 +47,13 @@ describe('mammoth Track Changes handling', () => {
     expect(html).toContain('28 August 2026');
   });
 
-  it('matches pandoc ground truth for Track Changes resolution', async () => {
-    // Generate ground truth with pandoc
+  it.skipIf(!pandocAvailable)('matches pandoc ground truth for Track Changes resolution', async () => {
+    // Generate ground truth with pandoc (skipped in CI where pandoc is not installed)
+    const pandocPath = fs.existsSync('/opt/homebrew/bin/pandoc')
+      ? '/opt/homebrew/bin/pandoc'
+      : 'pandoc';
     const pandocHtml = execFileSync(
-      '/opt/homebrew/bin/pandoc',
+      pandocPath,
       ['--track-changes=accept', '-t', 'html', FIXTURE_PATH],
       { encoding: 'utf-8', timeout: 30_000 },
     );

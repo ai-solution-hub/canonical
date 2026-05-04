@@ -105,6 +105,9 @@ vi.mock('@/lib/mcp/auth', () => ({
 // Mock lazy-loaded modules that entity tools may import
 vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: vi.fn().mockResolvedValue(new Array(1024).fill(0)),
+  MAX_EMBEDDING_CHARS: 24_000,
+  getEmbeddingModel: vi.fn().mockReturnValue('text-embedding-3-large'),
+  getEmbeddingDimensions: vi.fn().mockReturnValue(1024),
 }));
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),

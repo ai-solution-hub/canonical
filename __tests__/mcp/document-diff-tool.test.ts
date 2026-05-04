@@ -57,7 +57,7 @@ vi.mock('@/lib/mcp/auth', () => ({
   checkMcpRole: mocks.checkMcpRole,
 }));
 
-vi.mock('@/lib/ai/embed', () => ({ generateEmbedding: vi.fn() }));
+vi.mock('@/lib/ai/embed', () => ({ generateEmbedding: vi.fn(), MAX_EMBEDDING_CHARS: 24_000, getEmbeddingModel: vi.fn().mockReturnValue('text-embedding-3-large'), getEmbeddingDimensions: vi.fn().mockReturnValue(1024) }));
 vi.mock('@/lib/ai/classify', () => ({ classifyContent: vi.fn() }));
 vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 

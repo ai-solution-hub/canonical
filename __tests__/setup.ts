@@ -31,7 +31,6 @@ const TEST_ENV_DEFAULTS: Record<string, string> = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_anon_key',
   NEXT_PUBLIC_APP_URL: 'https://test.vercel.app',
-  NEXT_PUBLIC_CLIENT_ID: 'default',
   SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test_service_key',
   POSTGRES_PASSWORD: 'test-db-password',
   ANTHROPIC_API_KEY: 'sk-ant-test',
@@ -43,6 +42,15 @@ for (const [k, v] of Object.entries(TEST_ENV_DEFAULTS)) {
     process.env[k] = v;
   }
 }
+
+// NEXT_PUBLIC_CLIENT_ID is FORCE-SET (not guarded by `if (!process.env[k])`)
+// because CI's Production GH environment injects the live client ID (e.g.
+// 'example-client'), which would make branding-dependent unit tests non-deterministic.
+// Unit tests must always resolve to the 'default' branding config so
+// assertions on product name, alt text, and ARIA labels are stable.
+// Integration / E2E tests that need the real client ID use their own env
+// scope (Staging) and do not share this setup file.
+process.env.NEXT_PUBLIC_CLIENT_ID = 'default';
 
 import '@testing-library/jest-dom/vitest';
 

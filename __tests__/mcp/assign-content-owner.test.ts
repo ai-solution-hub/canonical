@@ -39,6 +39,9 @@ vi.mock('@/lib/mcp/formatters', () => ({
 
 vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: vi.fn(),
+  MAX_EMBEDDING_CHARS: 24_000,
+  getEmbeddingModel: vi.fn().mockReturnValue('text-embedding-3-large'),
+  getEmbeddingDimensions: vi.fn().mockReturnValue(1024),
 }));
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),

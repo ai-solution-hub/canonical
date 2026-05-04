@@ -72,6 +72,9 @@ vi.mock('@/lib/supabase/safe', () => ({
 
 vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: mocks.generateEmbedding,
+  MAX_EMBEDDING_CHARS: 24_000,
+  getEmbeddingModel: vi.fn().mockReturnValue('text-embedding-3-large'),
+  getEmbeddingDimensions: vi.fn().mockReturnValue(1024),
 }));
 
 // Stub the lazy-import shims used by the publish branch (classify, chunk,
