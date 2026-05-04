@@ -37,7 +37,8 @@ on:
   push:
     branches: [main, production-readiness]
     paths:
-      - "scripts/**"
+      - "scripts/**/*.py"
+      - "!scripts/tests/**"
       - "requirements.txt"
       - "cloudrun/**"
       - ".gcloudignore"

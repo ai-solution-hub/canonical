@@ -34,6 +34,17 @@ SELECT id,
        raw_user_meta_data ->> 'full_name'
   FROM auth.users
  ON CONFLICT (id) DO NOTHING;
+-- If historical production data contains orphaned feed prompt authors that no
+-- longer exist in auth.users, preserve the feed prompt and clear the nullable
+-- audit reference before recreating the FK.
+UPDATE public.feed_prompts AS fp
+   SET created_by = NULL
+ WHERE fp.created_by IS NOT NULL
+   AND NOT EXISTS (
+         SELECT 1
+           FROM public.user_profiles AS up
+          WHERE up.id = fp.created_by
+       );
 
 -- Step 2: Re-apply the constraint that failed on production.
 -- The DROP IF EXISTS handles both cases:

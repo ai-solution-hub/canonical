@@ -1,9 +1,9 @@
 # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.5-migration-replay-spec.md
 #
-# Migration replay smoke (WP-G4.5). On PRs (and pushes to main /
-# production-readiness) that touch supabase/{migrations,seed.sql,config.toml},
-# create an ephemeral Supabase preview branch of prod, replay every migration
-# from scratch via `supabase db push --linked`, then delete the branch.
+# Migration replay smoke (WP-G4.5). On PRs that touch
+# supabase/{migrations,seed.sql,config.toml}, or on manual dispatch, create an
+# ephemeral Supabase preview branch of prod, replay every migration from scratch
+# via `supabase db push --linked`, then delete the branch.
 #
 # Catches squash-divergence at PR time — the failure mode that hit S4 + S8
 # (extensions placed in public schema, patched out-of-band, never captured
@@ -18,8 +18,7 @@ name: Migration Replay
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
-  push:
-    branches: [main, production-readiness]
+  workflow_dispatch:
 
 concurrency:
   group: migration-replay-${{ github.event.pull_request.number || github.ref }}
@@ -52,32 +51,44 @@ jobs:
               - 'supabase/config.toml'
 
       - name: Skip notice (no migration-relevant changes)
-        if: steps.changes.outputs.migrations != 'true'
+        if:
+          github.event_name != 'workflow_dispatch' &&
+          steps.changes.outputs.migrations != 'true'
         run: |
           echo "No changes under supabase/{migrations,seed.sql,config.toml}; skipping replay."
 
       - name: Setup Bun
-        if: steps.changes.outputs.migrations == 'true'
+        if:
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.migrations == 'true'
         uses: oven-sh/setup-bun@v2
 
       - name: Setup Node.js
-        if: steps.changes.outputs.migrations == 'true'
+        if:
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.migrations == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: ".node-version"
 
       - name: Setup Supabase CLI
-        if: steps.changes.outputs.migrations == 'true'
+        if:
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.migrations == 'true'
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
       - name: Install dependencies
-        if: steps.changes.outputs.migrations == 'true'
+        if:
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.migrations == 'true'
         run: bun install --frozen-lockfile
 
       - name: Run migration replay
-        if: steps.changes.outputs.migrations == 'true'
+        if:
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.migrations == 'true'
         # Workflow-injection mitigation (spec §4.5): all github context
         # values arrive via env, never inline ${{ }} in the run: block.
         env:
@@ -92,7 +103,9 @@ jobs:
         run: bun run scripts/migration-replay-check.ts
 
       - name: Cleanup leaked branches (always)
-        if: always() && steps.changes.outputs.migrations == 'true'
+        if:
+          always() && (github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.migrations == 'true')
         # Belt + braces vs the script's own try/finally — runs even on
         # workflow cancellation (PR closed mid-run, concurrency
         # superseding). Cleanup failures are warnings, not errors

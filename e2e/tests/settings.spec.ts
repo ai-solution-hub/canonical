@@ -213,13 +213,13 @@ test.describe(
       authenticatedPage: page,
     }) => {
       await page.goto('/');
+      const header = page.locator('header');
       await expect(
-        page.getByRole('link', { name: 'Knowledge Hub' }),
+        header.getByRole('navigation', { name: 'Main navigation' }),
       ).toBeVisible({ timeout: 10000 });
 
       // Click the Settings icon button in the site header (not the ThemeSettings
       // "Appearance settings" button). Scope to <header> and use exact: true.
-      const header = page.locator('header');
       await header
         .getByRole('button', { name: 'Settings', exact: true })
         .click();

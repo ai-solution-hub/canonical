@@ -1,0 +1,96 @@
+# One-shot prod/staging schema parity check.
+#
+# Manual-only by design: run after production and staging migrations are known
+# to have applied. Uses Staging-scoped DB URL secrets for both sides:
+#   - PROD_SUPABASE_DB_URL
+#   - STAGING_SUPABASE_DB_URL
+#
+# The workflow never prints either URL; it only uploads schema-only dumps and a
+# diff artefact if the schemas diverge.
+
+name: Schema parity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Compare prod and staging schemas
+    runs-on: ubuntu-latest
+    environment: Staging
+    timeout-minutes: 15
+    env:
+      PROD_SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
+      STAGING_SUPABASE_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
+
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Dump production and staging schemas
+        run: |
+          set -euo pipefail
+          if [ -z "${PROD_SUPABASE_DB_URL:-}" ] || [ -z "${STAGING_SUPABASE_DB_URL:-}" ]; then
+            echo "Missing PROD_SUPABASE_DB_URL or STAGING_SUPABASE_DB_URL in the Staging GitHub environment." >&2
+            exit 2
+          fi
+
+          mkdir -p schema-dumps
+
+          pg_dump \
+            --dbname="$PROD_SUPABASE_DB_URL" \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            --no-comments \
+            --schema=public \
+            --schema=extensions \
+            --schema=auth \
+            --schema=storage \
+            --file=schema-dumps/prod-schema.sql
+
+          pg_dump \
+            --dbname="$STAGING_SUPABASE_DB_URL" \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            --no-comments \
+            --schema=public \
+            --schema=extensions \
+            --schema=auth \
+            --schema=storage \
+            --file=schema-dumps/staging-schema.sql
+
+      - name: Compare schema dumps
+        run: |
+          set -euo pipefail
+          diff -u schema-dumps/prod-schema.sql schema-dumps/staging-schema.sql > schema-parity.diff || true
+          if [ -s schema-parity.diff ]; then
+            echo "::error::Production and staging schema dumps differ. Showing first 400 lines:"
+            sed -n '1,400p' schema-parity.diff
+            exit 1
+          fi
+          echo "Production and staging schemas match for public, extensions, auth, and storage."
+
+      - name: Upload schema dumps
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-parity-dumps
+          path: schema-dumps/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload schema diff on mismatch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-parity-diff
+          path: schema-parity.diff
+          retention-days: 7
+          if-no-files-found: ignore

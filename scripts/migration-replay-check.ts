@@ -63,6 +63,8 @@ const MANAGEMENT_API_BASE = 'https://api.supabase.com/v1';
 const BRANCH_REGION = 'eu-west-2';
 const POLL_INTERVAL_MS = 5_000;
 const POLL_MAX_ATTEMPTS = 60; // 5-minute cap
+const BRANCH_CREATE_RETRY_INTERVAL_MS = 30_000;
+const BRANCH_CREATE_MAX_ATTEMPTS = 10; // 5-minute cap
 const DELETE_TIMEOUT_MS = 30_000;
 const FAILING_MIGRATION_PATTERN =
   /Applying migration (\d{14}_[A-Za-z0-9_]+\.sql)/;
@@ -266,63 +268,98 @@ async function managementApi<T>(
   return (await res.json()) as T;
 }
 
+function formatBranchList(branches: BranchSummary[]): string {
+  return (
+    branches
+      .map(
+        (b) =>
+          `    ${b.name} (status=${b.status}, persistent=${b.persistent ?? '?'})`,
+      )
+      .join('\n') || '    (none)'
+  );
+}
+
 async function createBranch(config: ReplayConfig): Promise<BranchSummary> {
   const branchName = buildBranchName(config);
   const gitBranch = buildGitBranch(config);
-  console.log(
-    `Creating ephemeral branch '${branchName}' (git_branch=${gitBranch}, region=${BRANCH_REGION})...`,
-  );
-  try {
-    const branch = await managementApi<BranchSummary>(
-      config,
-      `/projects/${config.projectRef}/branches`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          branch_name: branchName,
-          git_branch: gitBranch,
-          persistent: false,
-          region: BRANCH_REGION,
-        }),
-      },
+  for (let attempt = 1; attempt <= BRANCH_CREATE_MAX_ATTEMPTS; attempt++) {
+    console.log(
+      `Creating ephemeral branch '${branchName}' (git_branch=${gitBranch}, region=${BRANCH_REGION}, attempt=${attempt}/${BRANCH_CREATE_MAX_ATTEMPTS})...`,
     );
-    if (!config.dryRun) {
-      console.log(
-        `  Created branch id=${branch.id} project_ref=${branch.project_ref} status=${branch.status}`,
+    try {
+      const branch = await managementApi<BranchSummary>(
+        config,
+        `/projects/${config.projectRef}/branches`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            branch_name: branchName,
+            git_branch: gitBranch,
+            persistent: false,
+            region: BRANCH_REGION,
+          }),
+        },
       );
-    }
-    return branch;
-  } catch (err) {
-    // 409 on POST /branches typically means name collision OR per-project
-    // branch quota hit. Pre-flight orphan sweep should have absorbed
-    // collisions; if we still see 409, dump the live branch list to make
-    // debugging one-step (S19 WP1.4).
-    const msg = (err as Error).message ?? String(err);
-    if (msg.includes('HTTP 409')) {
-      try {
-        const live = await listBranches(config);
-        const summary = live
-          .map(
-            (b) =>
-              `    ${b.name} (status=${b.status}, persistent=${b.persistent ?? '?'})`,
-          )
-          .join('\n');
-        console.error(
-          `::error::Branch CREATE returned 409. Live branches at fail-time ` +
-            `(${live.length} total):\n${summary || '    (none)'}\n` +
-            `Run pre-flight orphan sweep manually if any 'ci-replay-*' ` +
-            `entries are listed; otherwise this is a per-project quota hit ` +
-            `(raise via Supabase dashboard) or a transient API flake (re-run).`,
-        );
-      } catch (listErr) {
-        console.error(
-          `::error::Branch CREATE returned 409 and follow-up list_branches ` +
-            `failed: ${(listErr as Error).message}`,
+      if (!config.dryRun) {
+        console.log(
+          `  Created branch id=${branch.id} project_ref=${branch.project_ref} status=${branch.status}`,
         );
       }
+      return branch;
+    } catch (err) {
+      // 409 on POST /branches typically means name collision OR per-project
+      // branch quota hit. Pre-flight orphan sweep should have absorbed
+      // ci-replay collisions; with Supabase Automatic Branching enabled this
+      // can also mean an automatic PR preview branch is occupying the remaining
+      // branch slot. Retry transient creation collisions, then fail with a
+      // targeted diagnostic that distinguishes leaked replay branches from
+      // automatic-preview/quota pressure.
+      const msg = (err as Error).message ?? String(err);
+      if (!msg.includes('HTTP 409')) {
+        throw err;
+      }
+
+      let live: BranchSummary[] = [];
+      try {
+        live = await listBranches(config);
+      } catch (listErr) {
+        console.error(
+          `::warning::Branch CREATE returned 409 and follow-up list_branches failed: ${(listErr as Error).message}`,
+        );
+      }
+
+      const ciReplayBranches = live.filter((b) =>
+        b.name.startsWith('ci-replay-'),
+      );
+      const automaticPreviewBranches = live.filter(
+        (b) => !b.persistent && !b.name.startsWith('ci-replay-'),
+      );
+      const branchSummary = formatBranchList(live);
+
+      if (attempt < BRANCH_CREATE_MAX_ATTEMPTS) {
+        console.warn(
+          `::warning::Branch CREATE returned 409. Live branches (${live.length} total):\n${branchSummary}\n` +
+            `Retrying in ${BRANCH_CREATE_RETRY_INTERVAL_MS / 1000}s. ` +
+            `If non-ci preview branches remain present, Supabase Automatic Branching may be occupying the branch quota.`,
+        );
+        await sleep(BRANCH_CREATE_RETRY_INTERVAL_MS);
+        continue;
+      }
+
+      const replayHint =
+        ciReplayBranches.length > 0
+          ? `Found ${ciReplayBranches.length} leaked ci-replay branch(es); run cleanup or delete them in Supabase.`
+          : automaticPreviewBranches.length > 0
+            ? `Found ${automaticPreviewBranches.length} automatic/non-ci preview branch(es). With a low branch quota, Supabase Automatic Branching and custom replay cannot coexist; raise the branch quota, run this workflow manually after the automatic branch is deleted, or disable one of the two replay paths for that PR.`
+            : `No ci-replay branches were listed; this is likely a per-project branch quota limit or a transient Supabase API conflict.`;
+
+      throw new Error(
+        `Branch CREATE returned 409 after ${BRANCH_CREATE_MAX_ATTEMPTS} attempts. Live branches (${live.length} total):\n${branchSummary}\n${replayHint}`,
+      );
     }
-    throw err;
   }
+
+  throw new Error('unreachable branch create loop exit');
 }
 
 async function listBranches(config: ReplayConfig): Promise<BranchSummary[]> {

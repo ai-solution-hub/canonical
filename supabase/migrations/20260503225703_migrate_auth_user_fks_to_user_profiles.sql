@@ -35,6 +35,121 @@ SELECT id,
        raw_user_meta_data ->> 'full_name'
   FROM auth.users
  ON CONFLICT (id) DO NOTHING;
+-- Production retry guard: if an application table contains a historical user
+-- reference that no longer exists in auth.users, the backfill above cannot
+-- create a user_profiles row because user_profiles.id itself references
+-- auth.users(id). For nullable audit columns, preserve the row and clear the
+-- orphaned user reference before adding the new FK. For NOT NULL columns, fail
+-- with a targeted diagnostic rather than surfacing a generic FK error later.
+DO $$
+DECLARE
+  ref record;
+  missing_count bigint;
+  nullable text;
+BEGIN
+  FOR ref IN
+    SELECT *
+      FROM (VALUES
+        ('bid_questions', 'assigned_to'),
+        ('bid_questions', 'created_by'),
+        ('bid_response_history', 'edited_by'),
+        ('bid_responses', 'approved_by'),
+        ('bid_responses', 'drafted_by'),
+        ('bid_responses', 'last_edited_by'),
+        ('classification_disputes', 'disputed_by'),
+        ('classification_disputes', 'resolved_by'),
+        ('company_profiles', 'created_by'),
+        ('content_citations', 'created_by'),
+        ('content_history', 'created_by'),
+        ('content_items', 'created_by'),
+        ('content_items', 'updated_by'),
+        ('content_templates', 'created_by'),
+        ('coverage_targets', 'created_by'),
+        ('coverage_targets', 'updated_by'),
+        ('feed_flags', 'flagged_by'),
+        ('feed_flags', 'resolved_by'),
+        ('feed_prompts', 'created_by'),
+        ('feed_sources', 'created_by'),
+        ('governance_config', 'created_by'),
+        ('governance_config', 'reviewer_id'),
+        ('governance_config', 'updated_by'),
+        ('guides', 'created_by'),
+        ('pipeline_runs', 'created_by'),
+        ('review_assignments', 'assigned_by'),
+        ('review_assignments', 'reviewer_id'),
+        ('source_document_diffs', 'created_by'),
+        ('source_document_diffs', 'reviewed_by'),
+        ('source_documents', 'archived_by'),
+        ('source_documents', 'uploaded_by'),
+        ('tag_morphology_drift_flags', 'decided_by'),
+        ('template_completions', 'created_by'),
+        ('templates', 'created_by'),
+        ('user_roles', 'granted_by'),
+        ('verification_history', 'performed_by')
+      ) AS refs(rel_name, col_name)
+  LOOP
+    SELECT is_nullable
+      INTO nullable
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = ref.rel_name
+       AND column_name = ref.col_name;
+
+    IF nullable IS NULL THEN
+      RAISE NOTICE 'Skipping %.% orphan check because the column does not exist',
+        ref.rel_name,
+        ref.col_name;
+      CONTINUE;
+    END IF;
+
+    EXECUTE format(
+      'SELECT count(*)
+         FROM public.%I AS t
+        WHERE t.%I IS NOT NULL
+          AND NOT EXISTS (
+                SELECT 1
+                  FROM public.user_profiles AS up
+                 WHERE up.id = t.%I
+              )',
+      ref.rel_name,
+      ref.col_name,
+      ref.col_name
+    )
+    INTO missing_count;
+
+    IF missing_count = 0 THEN
+      CONTINUE;
+    END IF;
+
+    IF nullable = 'YES' THEN
+      RAISE NOTICE 'Clearing % orphaned %.% user reference(s) before FK retarget',
+        missing_count,
+        ref.rel_name,
+        ref.col_name;
+
+      EXECUTE format(
+        'UPDATE public.%I AS t
+            SET %I = NULL
+          WHERE t.%I IS NOT NULL
+            AND NOT EXISTS (
+                  SELECT 1
+                    FROM public.user_profiles AS up
+                   WHERE up.id = t.%I
+                )',
+        ref.rel_name,
+        ref.col_name,
+        ref.col_name,
+        ref.col_name
+      );
+    ELSE
+      RAISE EXCEPTION
+        'Cannot retarget %.% to user_profiles: % non-null row(s) reference user ids missing from auth.users/user_profiles',
+        ref.rel_name,
+        ref.col_name,
+        missing_count;
+    END IF;
+  END LOOP;
+END $$;
 
 -- ── bid_questions ───────────────────────────────────────────────────────────
 
