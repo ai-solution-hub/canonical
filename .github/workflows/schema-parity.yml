@@ -25,6 +25,7 @@ jobs:
     env:
       PROD_SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
       STAGING_SUPABASE_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
+      PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
 
     steps:
       - name: Install PostgreSQL client
@@ -45,7 +46,9 @@ jobs:
 
           mkdir -p schema-dumps
 
-          pg_dump \
+          "$PG_DUMP" --version
+
+          "$PG_DUMP" \
             --dbname="$PROD_SUPABASE_DB_URL" \
             --schema-only \
             --no-owner \
@@ -56,8 +59,7 @@ jobs:
             --schema=auth \
             --schema=storage \
             --file=schema-dumps/prod-schema.sql
-
-          pg_dump \
+          "$PG_DUMP" \
             --dbname="$STAGING_SUPABASE_DB_URL" \
             --schema-only \
             --no-owner \
