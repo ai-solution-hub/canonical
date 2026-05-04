@@ -71,6 +71,8 @@ jobs:
             --schema=storage \
             --file=schema-dumps/staging-schema.sql
 
+          sed -i -E '/^\\(un)?restrict /d' schema-dumps/prod-schema.sql schema-dumps/staging-schema.sql
+
       - name: Compare schema dumps
         run: |
           set -euo pipefail
