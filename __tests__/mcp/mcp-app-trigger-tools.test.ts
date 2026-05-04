@@ -7,7 +7,7 @@
  * via registerTool(), then call the handlers directly with mock auth and
  * Supabase clients.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type {
   CoverageMatrixData,
@@ -189,6 +189,47 @@ const baseDashboardData = {
   errors: [],
 };
 
+function makeBidMetadata(
+  overrides: Partial<{
+    buyer: string;
+    status:
+      | 'draft'
+      | 'questions_extracted'
+      | 'matching'
+      | 'drafting'
+      | 'in_review'
+      | 'ready_for_export'
+      | 'submitted'
+      | 'won'
+      | 'lost'
+      | 'withdrawn';
+    deadline: string | null;
+    reference_number: string | null;
+    estimated_value: string | null;
+    tender_source: 'upload' | 'manual' | null;
+    tender_document_ids: string[];
+    submission_date: string | null;
+    outcome: 'won' | 'lost' | 'withdrawn' | null;
+    outcome_notes: string | null;
+    notes: string | null;
+  }> = {},
+) {
+  return {
+    buyer: 'Placeholder Buyer',
+    status: 'draft' as const,
+    deadline: null,
+    reference_number: null,
+    estimated_value: null,
+    tender_source: null,
+    tender_document_ids: [],
+    submission_date: null,
+    outcome: null,
+    outcome_notes: null,
+    notes: null,
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
@@ -196,7 +237,12 @@ const baseDashboardData = {
 describe('MCP App trigger tools #22-23', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   let supabase: typeof mocks.mockSupabaseClient;
+  let registerAppTools: typeof import('@/lib/mcp/tools/apps').registerAppTools;
+  let registerBidTools: typeof import('@/lib/mcp/tools/bids').registerBidTools;
   const extra = makeAuthExtra();
+  beforeAll(async () => {
+    ({ registerAppTools } = await import('@/lib/mcp/tools/apps'));
+  });
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -221,11 +267,6 @@ describe('MCP App trigger tools #22-23', () => {
 
     // Default dashboard data
     mocks.fetchUnifiedDashboardData.mockResolvedValue({ ...baseDashboardData });
-
-    const { registerAppTools } = await import('@/lib/mcp/tools/apps');
-    const { registerBidTools } = await import('@/lib/mcp/tools/bids');
-    await registerAppTools(mockServer as never);
-    await registerBidTools(mockServer as never);
   });
 
   // ─────────────────────────────────────────
@@ -233,6 +274,9 @@ describe('MCP App trigger tools #22-23', () => {
   // ─────────────────────────────────────────
 
   describe('show_coverage_matrix', () => {
+    beforeEach(async () => {
+      await registerAppTools(mockServer as never);
+    });
     it('returns structured CoverageMatrixData with correct shape', async () => {
       const handler = mockServer.getHandler('show_coverage_matrix')!;
       expect(handler).toBeDefined();
@@ -753,6 +797,10 @@ describe('MCP App trigger tools #22-23', () => {
       },
     ];
 
+    beforeEach(async () => {
+      await registerAppTools(mockServer as never);
+    });
+
     it('returns structured BidDashboardData with correct shape', async () => {
       const handler = mockServer.getHandler('show_bid_dashboard')!;
       expect(handler).toBeDefined();
@@ -850,19 +898,12 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'NHS Digital Transformation',
             description: 'A digital transformation bid for NHS England.',
-            domain_metadata: {
+            domain_metadata: makeBidMetadata({
               buyer: 'NHS England',
               status: 'drafting',
               deadline: '2026-04-15T00:00:00+00:00',
               reference_number: 'NHS-DT-2026',
-              estimated_value: null,
-              tender_source: null,
-              tender_document_ids: [],
-              submission_date: null,
-              outcome: null,
-              outcome_notes: null,
-              notes: null,
-            },
+            }),
           },
           error: null,
         }),
@@ -1038,19 +1079,12 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'NHS Digital Transformation',
             description: 'A digital transformation bid.',
-            domain_metadata: {
+            domain_metadata: makeBidMetadata({
               buyer: 'NHS England',
               status: 'drafting',
               deadline: '2026-04-15T00:00:00+00:00',
               reference_number: 'NHS-DT-2026',
-              estimated_value: null,
-              tender_source: null,
-              tender_document_ids: [],
-              submission_date: null,
-              outcome: null,
-              outcome_notes: null,
-              notes: null,
-            },
+            }),
           },
           error: null,
         }),
@@ -1109,19 +1143,7 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'Test Bid',
             description: null,
-            domain_metadata: {
-              buyer: 'Placeholder',
-              status: 'draft',
-              deadline: null,
-              reference_number: null,
-              estimated_value: null,
-              tender_source: null,
-              tender_document_ids: [],
-              submission_date: null,
-              outcome: null,
-              outcome_notes: null,
-              notes: null,
-            },
+            domain_metadata: makeBidMetadata(),
           },
           error: null,
         }),
@@ -1211,19 +1233,7 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'Test Bid',
             description: null,
-            domain_metadata: {
-              buyer: 'Placeholder',
-              status: 'draft',
-              deadline: null,
-              reference_number: null,
-              estimated_value: null,
-              tender_source: null,
-              tender_document_ids: [],
-              submission_date: null,
-              outcome: null,
-              outcome_notes: null,
-              notes: null,
-            },
+            domain_metadata: makeBidMetadata(),
           },
           error: null,
         }),
@@ -1312,12 +1322,7 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'Empty Bid',
             description: null,
-            domain_metadata: {
-              buyer: null,
-              status: 'draft',
-              deadline: null,
-              reference_number: null,
-            },
+            domain_metadata: makeBidMetadata(),
           },
           error: null,
         }),
@@ -1360,6 +1365,12 @@ describe('MCP App trigger tools #22-23', () => {
   // ─────────────────────────────────────────
 
   describe('get_bid_detail', () => {
+    beforeAll(async () => {
+      ({ registerBidTools } = await import('@/lib/mcp/tools/bids'));
+    });
+    beforeEach(async () => {
+      await registerBidTools(mockServer as never);
+    });
     it('should return sections grouped by section_name', async () => {
       const handler = mockServer.getHandler('get_bid_detail')!;
       expect(handler).toBeDefined();
@@ -1376,12 +1387,10 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: {
+              domain_metadata: makeBidMetadata({
                 buyer: 'Test Corp',
-                status: 'active',
-                deadline: null,
-                reference_number: null,
-              },
+                status: 'drafting',
+              }),
               is_archived: false,
             },
             error: null,
@@ -1495,12 +1504,7 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: {
-                buyer: null,
-                status: 'draft',
-                deadline: null,
-                reference_number: null,
-              },
+              domain_metadata: makeBidMetadata(),
               is_archived: false,
             },
             error: null,
@@ -1603,12 +1607,7 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: {
-                buyer: null,
-                status: 'draft',
-                deadline: null,
-                reference_number: null,
-              },
+              domain_metadata: makeBidMetadata(),
               is_archived: false,
             },
             error: null,
@@ -1681,12 +1680,7 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Empty Bid',
               description: null,
-              domain_metadata: {
-                buyer: null,
-                status: 'draft',
-                deadline: null,
-                reference_number: null,
-              },
+              domain_metadata: makeBidMetadata(),
               is_archived: false,
             },
             error: null,
@@ -1742,19 +1736,7 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: {
-                buyer: 'Placeholder',
-                status: 'draft',
-                deadline: null,
-                reference_number: null,
-                estimated_value: null,
-                tender_source: null,
-                tender_document_ids: [],
-                submission_date: null,
-                outcome: null,
-                outcome_notes: null,
-                notes: null,
-              },
+              domain_metadata: makeBidMetadata(),
               is_archived: false,
             },
             error: null,
