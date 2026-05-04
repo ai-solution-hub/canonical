@@ -73,6 +73,39 @@ jobs:
 
           sed -i -E '/^\\(un)?restrict /d' schema-dumps/prod-schema.sql schema-dumps/staging-schema.sql
 
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          dump_paths = [
+              Path("schema-dumps/prod-schema.sql"),
+              Path("schema-dumps/staging-schema.sql"),
+          ]
+          managed_function_prefix = "CREATE FUNCTION extensions.grant_pg_graphql_access() "
+
+          for dump_path in dump_paths:
+              lines = dump_path.read_text().splitlines(keepends=True)
+              output = []
+              skip_managed_function = False
+
+              for line in lines:
+                  if line.startswith(managed_function_prefix):
+                      skip_managed_function = True
+                      continue
+
+                  if skip_managed_function:
+                      if line.strip() == "$_$;":
+                          skip_managed_function = False
+                      continue
+
+                  if re.match(r"^\s*--", line):
+                      continue
+
+                  output.append(line)
+
+              dump_path.write_text("".join(output))
+          PY
+
       - name: Compare schema dumps
         run: |
           set -euo pipefail
