@@ -425,6 +425,7 @@ export async function getKnownUUIDs(
 const EVAL_TITLE = '[MCP-EVAL] Protocol compliance test item';
 const EVAL_CONTENT =
   'This is a temporary item created by the MCP evaluation harness. It tests write tool functionality and will be deleted at the end of the test run.';
+const DEFAULT_STALE_EVAL_ITEM_MIN_AGE_MINUTES = 60;
 
 export interface EvalItem {
   id: string;
@@ -486,15 +487,28 @@ export async function deleteEvalItem(
 export async function cleanupStaleEvalItems(
   supabase: SupabaseClient,
 ): Promise<number> {
+  const minAgeMinutes = Number.parseInt(
+    process.env.MCP_EVAL_STALE_ITEM_MIN_AGE_MINUTES ??
+      String(DEFAULT_STALE_EVAL_ITEM_MIN_AGE_MINUTES),
+    10,
+  );
+  const safeMinAgeMinutes =
+    Number.isFinite(minAgeMinutes) && minAgeMinutes >= 0
+      ? minAgeMinutes
+      : DEFAULT_STALE_EVAL_ITEM_MIN_AGE_MINUTES;
+  const cutoffIso = new Date(
+    Date.now() - safeMinAgeMinutes * 60_000,
+  ).toISOString();
   const { data } = await supabase
     .from('content_items')
-    .select('id, metadata')
-    .like('title', '[MCP-EVAL]%');
+    .select('id, metadata, created_at')
+    .like('title', '[MCP-EVAL]%')
+    .lt('created_at', cutoffIso);
 
   if (!data || data.length === 0) return 0;
-  const staleItems = (data as Array<{ id: string; metadata: unknown }>).filter(
-    (item) => !isMcpEvalSeedMetadata(item.metadata),
-  );
+  const staleItems = (
+    data as Array<{ id: string; metadata: unknown; created_at: string | null }>
+  ).filter((item) => !isMcpEvalSeedMetadata(item.metadata));
 
   for (const item of staleItems) {
     await deleteEvalItem(supabase, item.id);
