@@ -189,6 +189,8 @@ const baseDashboardData = {
   errors: [],
 };
 
+const MCP_TOOL_IMPORT_TIMEOUT_MS = 30_000;
+
 function makeBidMetadata(
   overrides: Partial<{
     buyer: string;
@@ -242,7 +244,7 @@ describe('MCP App trigger tools #22-23', () => {
   const extra = makeAuthExtra();
   beforeAll(async () => {
     ({ registerAppTools } = await import('@/lib/mcp/tools/apps'));
-  });
+  }, MCP_TOOL_IMPORT_TIMEOUT_MS);
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -1367,7 +1369,7 @@ describe('MCP App trigger tools #22-23', () => {
   describe('get_bid_detail', () => {
     beforeAll(async () => {
       ({ registerBidTools } = await import('@/lib/mcp/tools/bids'));
-    });
+    }, MCP_TOOL_IMPORT_TIMEOUT_MS);
     beforeEach(async () => {
       await registerBidTools(mockServer as never);
     });
