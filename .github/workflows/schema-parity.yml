@@ -30,7 +30,10 @@ jobs:
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
-          sudo apt-get install --yes postgresql-client
+          sudo apt-get install --yes postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh --yes
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-17
 
       - name: Dump production and staging schemas
         run: |
@@ -78,7 +81,7 @@ jobs:
           echo "Production and staging schemas match for public, extensions, auth, and storage."
 
       - name: Upload schema dumps
-        if: always()
+        if: always() && hashFiles('schema-dumps/*') != ''
         uses: actions/upload-artifact@v4
         with:
           name: schema-parity-dumps
