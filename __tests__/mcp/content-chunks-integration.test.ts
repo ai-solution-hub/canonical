@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — supabase client, lazy-loaded AI + chunk-store modules
@@ -70,6 +70,12 @@ vi.mock('@/lib/content/chunk-store', () => ({
 vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: mocks.createServiceClientMock,
 }));
+vi.mock('@/lib/supabase/telemetry', () => ({
+  logBestEffortWarn: vi.fn(),
+}));
+
+// Import after mocks
+import { registerContentTools } from '@/lib/mcp/tools/content';
 
 // ---------------------------------------------------------------------------
 // Mock McpServer
@@ -112,22 +118,57 @@ const extra = { authInfo: { token: 'test' } };
 
 async function setupServer() {
   mockServer = createMockMcpServer();
-  const { registerContentTools } = await import('@/lib/mcp/tools/content');
   await registerContentTools(
     mockServer as unknown as Parameters<typeof registerContentTools>[0],
   );
 }
+
+function resetSupabaseMocks() {
+  mocks.createMcpClient.mockReset().mockReturnValue(mocks.mockSupabaseClient);
+  mocks.getMcpUserId
+    .mockReset()
+    .mockReturnValue('00000000-0000-4000-8000-000000000001');
+  mocks.createServiceClientMock
+    .mockReset()
+    .mockReturnValue(mocks.mockSupabaseClient);
+  mocks.rpcMock.mockReset().mockResolvedValue({ data: [], error: null });
+  mocks.mockSupabaseClient.from.mockReset().mockReturnValue(mocks.chainMethods);
+  mocks.regenerateChunksMock.mockReset().mockResolvedValue({ errors: [] });
+
+  for (const key of [
+    'select',
+    'order',
+    'limit',
+    'eq',
+    'is',
+    'single',
+    'update',
+    'delete',
+    'insert',
+  ] as const) {
+    mocks.chainMethods[key].mockReset().mockReturnValue(mocks.chainMethods);
+  }
+  mocks.chainMethods.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+}
+
+beforeAll(async () => {
+  await setupServer();
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetSupabaseMocks();
+});
 
 // ---------------------------------------------------------------------------
 // get_content_item: chunks fetch
 // ---------------------------------------------------------------------------
 
 describe('get_content_item chunks fetch', () => {
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    await setupServer();
-  });
-
   it('returns Document Sections markdown and chunks array when chunks are present', async () => {
     const handler = mockServer.getHandler('get_content_item')!;
 
@@ -269,12 +310,6 @@ describe('get_content_item chunks fetch', () => {
 // ---------------------------------------------------------------------------
 
 describe('create_content_item chunking', () => {
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    mocks.regenerateChunksMock.mockResolvedValue({ errors: [] });
-    await setupServer();
-  });
-
   it('calls regenerateChunks for non-draft items with the new id and content', async () => {
     const handler = mockServer.getHandler('create_content_item')!;
 
