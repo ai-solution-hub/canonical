@@ -66,6 +66,10 @@ const PINNED_NOW_ISO = '2026-04-27T12:00:00.000Z';
 
 function makeCurrentItem(publicationStatus: string) {
   return {
+    MAX_EMBEDDING_CHARS: 24_000,
+    getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+    getEmbeddingDimensions: vi.fn(() => 1024),
+
     id: ITEM_ID,
     publication_status: publicationStatus,
     archived_at: publicationStatus === 'archived' ? PINNED_NOW_ISO : null,

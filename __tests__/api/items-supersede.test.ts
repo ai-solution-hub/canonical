@@ -46,6 +46,10 @@ vi.mock('@/lib/supersession/set', async () => {
 // Keep the embedding helper mocked so the route doesn't try to hit OpenAI
 // on code paths that never actually fire during the supersession branch.
 vi.mock('@/lib/ai/embed', () => ({
+  MAX_EMBEDDING_CHARS: 24_000,
+  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+  getEmbeddingDimensions: vi.fn(() => 1024),
+
   generateEmbedding: vi.fn(),
 }));
 

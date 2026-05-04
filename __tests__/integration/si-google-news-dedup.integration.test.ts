@@ -89,6 +89,9 @@ vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),
 }));
 vi.mock('@/lib/ai/embed', () => ({
+  MAX_EMBEDDING_CHARS: 24_000,
+  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+  getEmbeddingDimensions: vi.fn(() => 1024),
   generateEmbedding: vi.fn(),
 }));
 
@@ -223,6 +226,10 @@ function stubGlobalFetchForGoogleNewsRedirect() {
       // real fetch implementation.
       if (url.startsWith('https://news.google.com/')) {
         return {
+          MAX_EMBEDDING_CHARS: 24_000,
+          getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+          getEmbeddingDimensions: vi.fn(() => 1024),
+
           url: CANONICAL_ARTICLE_URL,
           ok: true,
           status: 200,

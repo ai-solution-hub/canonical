@@ -9,6 +9,10 @@ import type { CompanyContext } from '@/lib/intelligence/types';
 
 // Mock AI modules
 vi.mock('@/lib/ai/embed', () => ({
+  MAX_EMBEDDING_CHARS: 24_000,
+  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+  getEmbeddingDimensions: vi.fn(() => 1024),
+
   generateEmbedding: vi.fn(),
 }));
 

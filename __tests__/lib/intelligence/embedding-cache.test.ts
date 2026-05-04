@@ -54,6 +54,10 @@ describe('Company embedding caching', () => {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'si_processing_queue') {
           return {
+            MAX_EMBEDDING_CHARS: 24_000,
+            getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+            getEmbeddingDimensions: vi.fn(() => 1024),
+
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ data: [], error: null }),
             }),

@@ -29,6 +29,10 @@ const mockGenerateEmbedding = vi
   .mockResolvedValue(new Array(1024).fill(0));
 
 vi.mock('@/lib/ai/embed', () => ({
+  MAX_EMBEDDING_CHARS: 24_000,
+  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+  getEmbeddingDimensions: vi.fn(() => 1024),
+
   generateEmbedding: (...args: unknown[]) => mockGenerateEmbedding(...args),
 }));
 

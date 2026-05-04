@@ -83,6 +83,10 @@ const PINNED_NOW = new Date(PINNED_NOW_ISO);
 // them (NOT NULL).
 function makeCurrentItem(overrides: Record<string, unknown> = {}) {
   return {
+    MAX_EMBEDDING_CHARS: 24_000,
+    getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
+    getEmbeddingDimensions: vi.fn(() => 1024),
+
     id: ITEM_ID,
     publication_status: 'draft',
     archived_at: null,

@@ -13,6 +13,10 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
   return {
     ...actual,
+    MAX_EMBEDDING_CHARS: actual.MAX_EMBEDDING_CHARS,
+    getEmbeddingModel: actual.getEmbeddingModel,
+    getEmbeddingDimensions: actual.getEmbeddingDimensions,
+
     generateEmbedding: (...args: unknown[]) => mockGenerateEmbedding(...args),
   };
 });
