@@ -6,7 +6,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
   push:
-    branches: [main]
+    branches: [main, staging]
 
 concurrency:
   group:
@@ -416,7 +416,7 @@ jobs:
     # single Staging build artefact produced by `mcp-build`.
     #
     # Skip-flag policy (per spec §3.2):
-    #   - push to main  → full mode (no skip flags)
+    #   - push to main/staging → full mode (no skip flags)
     #   - PR touching MCP paths (paths-filter) → full mode
     #   - other PRs → --skip-ai (L1, L4) / --skip-search (L3) for cost-zero runs
     #
@@ -541,7 +541,7 @@ jobs:
           LAYER: ${{ matrix.layer }}
         run: |
           # Skip-flag policy (per spec §3.2):
-          #   push to main  → full
+          #   push to main/staging → full
           #   MCP-touch PR  → full
           #   other PRs     → skip flags active (cost-zero runs)
           if [ "$GITHUB_EVENT_NAME" = "push" ] || [ "$MCP_PATHS_CHANGED" = "true" ]; then
