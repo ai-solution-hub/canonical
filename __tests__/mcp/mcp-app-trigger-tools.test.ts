@@ -104,6 +104,23 @@ type ToolHandler = (
   extra: Record<string, unknown>,
 ) => Promise<unknown>;
 
+vi.mock('@modelcontextprotocol/ext-apps/server', () => ({
+  registerAppTool: vi.fn(
+    (
+      server: {
+        registerTool: (
+          name: string,
+          config: Record<string, unknown>,
+          handler: ToolHandler,
+        ) => unknown;
+      },
+      name: string,
+      config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) => server.registerTool(name, config, handler),
+  ),
+}));
+
 interface RegisteredTool {
   name: string;
   config: Record<string, unknown>;
@@ -205,9 +222,10 @@ describe('MCP App trigger tools #22-23', () => {
     // Default dashboard data
     mocks.fetchUnifiedDashboardData.mockResolvedValue({ ...baseDashboardData });
 
-    // Import and register tools
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(mockServer as never);
+    const { registerAppTools } = await import('@/lib/mcp/tools/apps');
+    const { registerBidTools } = await import('@/lib/mcp/tools/bids');
+    await registerAppTools(mockServer as never);
+    await registerBidTools(mockServer as never);
   });
 
   // ─────────────────────────────────────────

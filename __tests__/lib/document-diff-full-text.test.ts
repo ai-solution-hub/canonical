@@ -236,7 +236,7 @@ describe('computeFullTextDiff — unchanged collapsing', () => {
 // ---------------------------------------------------------------------------
 
 describe('computeFullTextDiff — max-entries cap', () => {
-  it('enforces MAX_DIFF_ENTRIES cap on very large diffs', () => {
+  it('caps very large diffs while preserving edge context', () => {
     // Alternating same/different lines produce many entries that survive merge.
     // Each pair of (unchanged, modified) = 2 entries per cycle.
     // We need > 2000 entries, so > 1000 cycles = 2000 lines.
@@ -271,28 +271,6 @@ describe('computeFullTextDiff — max-entries cap', () => {
       }),
       expect.stringContaining('exceed cap'),
     );
-  });
-
-  it('preserves start and end context when capping', () => {
-    const lineCount = 3000;
-    const oldLines: string[] = [];
-    const newLines: string[] = [];
-    for (let i = 0; i < lineCount; i++) {
-      if (i % 2 === 0) {
-        oldLines.push(`Same line ${i}`);
-        newLines.push(`Same line ${i}`);
-      } else {
-        oldLines.push(`Old unique ${i}`);
-        newLines.push(`New unique ${i}`);
-      }
-    }
-
-    const result = computeFullTextDiff(
-      OLD_ID,
-      NEW_ID,
-      oldLines.join('\n'),
-      newLines.join('\n'),
-    );
 
     // First entry should contain text from the start of the document
     const firstEntry = result.entries[0];
@@ -311,28 +289,6 @@ describe('computeFullTextDiff — max-entries cap', () => {
         (lastEntry.old_content ?? '').includes(`${lastLineIdx - 1}`) ||
         (lastEntry.new_content ?? '').includes(`${lastLineIdx - 1}`),
     ).toBe(true);
-  });
-
-  it('includes a synthetic collapsed indicator when capping', () => {
-    const lineCount = 3000;
-    const oldLines: string[] = [];
-    const newLines: string[] = [];
-    for (let i = 0; i < lineCount; i++) {
-      if (i % 2 === 0) {
-        oldLines.push(`Same line ${i}`);
-        newLines.push(`Same line ${i}`);
-      } else {
-        oldLines.push(`Old unique ${i}`);
-        newLines.push(`New unique ${i}`);
-      }
-    }
-
-    const result = computeFullTextDiff(
-      OLD_ID,
-      NEW_ID,
-      oldLines.join('\n'),
-      newLines.join('\n'),
-    );
 
     // Should contain a synthetic entry with the collapse indicator
     const syntheticEntry = result.entries.find((e) =>

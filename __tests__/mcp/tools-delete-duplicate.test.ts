@@ -101,10 +101,14 @@ describe('delete_content_item and find_all_duplicates', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockServer = createMockMcpServer();
-    // Resolve registerTools correctly despite lazy loading
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(
-      mockServer as unknown as Parameters<typeof registerTools>[0],
+    const { registerGovernanceTools } =
+      await import('@/lib/mcp/tools/governance');
+    const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
+    await registerGovernanceTools(
+      mockServer as unknown as Parameters<typeof registerGovernanceTools>[0],
+    );
+    await registerQualityTools(
+      mockServer as unknown as Parameters<typeof registerQualityTools>[0],
     );
   });
 

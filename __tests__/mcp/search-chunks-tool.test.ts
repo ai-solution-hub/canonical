@@ -121,9 +121,9 @@ describe('search_content_chunks tool handler', () => {
     vi.clearAllMocks();
     mocks.generateEmbeddingMock.mockResolvedValue([0.1, 0.2, 0.3]);
     mockServer = createMockMcpServer();
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(
-      mockServer as unknown as Parameters<typeof registerTools>[0],
+    const { registerSearchTools } = await import('@/lib/mcp/tools/search');
+    await registerSearchTools(
+      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 

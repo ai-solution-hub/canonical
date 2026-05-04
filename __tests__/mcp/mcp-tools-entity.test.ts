@@ -138,10 +138,12 @@ describe('MCP tools #14-16', () => {
     vi.clearAllMocks();
     mockServer = createMockMcpServer();
     supabase = mocks.mockSupabaseClient;
-
-    // Import and register tools
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(mockServer as never);
+    // Register only the categories under test: entity relationships plus
+    // citation/effectiveness bid tools.
+    const { registerEntityTools } = await import('@/lib/mcp/tools/entities');
+    const { registerBidTools } = await import('@/lib/mcp/tools/bids');
+    await registerEntityTools(mockServer as never);
+    await registerBidTools(mockServer as never);
   });
 
   // ─────────────────────────────────────────

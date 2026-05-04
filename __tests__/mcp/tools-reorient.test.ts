@@ -49,6 +49,23 @@ type ToolHandler = (
   extra: Record<string, unknown>,
 ) => Promise<unknown>;
 
+vi.mock('@modelcontextprotocol/ext-apps/server', () => ({
+  registerAppTool: vi.fn(
+    (
+      server: {
+        registerTool: (
+          name: string,
+          config: Record<string, unknown>,
+          handler: ToolHandler,
+        ) => unknown;
+      },
+      name: string,
+      config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) => server.registerTool(name, config, handler),
+  ),
+}));
+
 interface ToolResult {
   content: Array<{ type: string; text: string }>;
   structuredContent?: Record<string, unknown>;
@@ -108,9 +125,8 @@ describe('show_reorient_me trigger tool', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockServer = createMockMcpServer();
-
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(mockServer as never);
+    const { registerAppTools } = await import('@/lib/mcp/tools/apps');
+    await registerAppTools(mockServer as never);
   });
 
   it('returns valid structuredContent', async () => {

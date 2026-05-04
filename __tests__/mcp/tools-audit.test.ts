@@ -82,9 +82,9 @@ describe('audit_content brief_content logic', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockServer = createMockMcpServer();
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(
-      mockServer as unknown as Parameters<typeof registerTools>[0],
+    const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
+    await registerQualityTools(
+      mockServer as unknown as Parameters<typeof registerQualityTools>[0],
     );
   });
 

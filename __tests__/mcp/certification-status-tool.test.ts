@@ -508,9 +508,8 @@ describe('get_certification_status — holder coverage (OPS-24)', () => {
     mocks.resetFromIndex();
     mockServer = createMockMcpServer();
 
-    // Import and register all tools
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(mockServer as never);
+    const { registerEntityTools } = await import('@/lib/mcp/tools/entities');
+    await registerEntityTools(mockServer as never);
   });
 
   /**

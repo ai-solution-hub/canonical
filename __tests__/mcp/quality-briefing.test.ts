@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { formatQualityBriefing } from '@/lib/mcp/formatters/briefing';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -124,9 +125,6 @@ function createMockMcpServer() {
 
 describe('formatQualityBriefing', () => {
   it('formats a complete briefing with all 6 sections', async () => {
-    const { formatQualityBriefing } =
-      await import('@/lib/mcp/formatters/briefing');
-
     const data = {
       below_threshold: [
         {
@@ -231,9 +229,6 @@ describe('formatQualityBriefing', () => {
   });
 
   it('formats empty briefing with sensible defaults', async () => {
-    const { formatQualityBriefing } =
-      await import('@/lib/mcp/formatters/briefing');
-
     const emptyData = {
       below_threshold: [],
       score_drops: [],
@@ -256,9 +251,6 @@ describe('formatQualityBriefing', () => {
   });
 
   it('uses suggested_title when title is null', async () => {
-    const { formatQualityBriefing } =
-      await import('@/lib/mcp/formatters/briefing');
-
     const data = {
       below_threshold: [
         {

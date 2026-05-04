@@ -148,9 +148,9 @@ describe('find_similar_items + find_duplicate_candidates registration', () => {
     mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = createMockMcpServer();
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(
-      mockServer as unknown as Parameters<typeof registerTools>[0],
+    const { registerSearchTools } = await import('@/lib/mcp/tools/search');
+    await registerSearchTools(
+      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 
@@ -209,9 +209,9 @@ describe('find_similar_items handler', () => {
     mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = createMockMcpServer();
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(
-      mockServer as unknown as Parameters<typeof registerTools>[0],
+    const { registerSearchTools } = await import('@/lib/mcp/tools/search');
+    await registerSearchTools(
+      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 
@@ -294,9 +294,9 @@ describe('find_duplicate_candidates handler', () => {
     mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = createMockMcpServer();
-    const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(
-      mockServer as unknown as Parameters<typeof registerTools>[0],
+    const { registerSearchTools } = await import('@/lib/mcp/tools/search');
+    await registerSearchTools(
+      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 

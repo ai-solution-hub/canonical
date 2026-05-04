@@ -112,9 +112,9 @@ const extra = { authInfo: { token: 'test' } };
 
 async function setupServer() {
   mockServer = createMockMcpServer();
-  const { registerTools } = await import('@/lib/mcp/tools');
-  await registerTools(
-    mockServer as unknown as Parameters<typeof registerTools>[0],
+  const { registerContentTools } = await import('@/lib/mcp/tools/content');
+  await registerContentTools(
+    mockServer as unknown as Parameters<typeof registerContentTools>[0],
   );
 }
 
