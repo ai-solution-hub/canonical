@@ -277,6 +277,13 @@ jobs:
         # `--with-deps` installs the Linux system libraries the GH-hosted
         # runner doesn't carry by default.
         run: bunx playwright install --with-deps chromium
+      - name: Cleanup stale test artifacts (staging preflight)
+        env:
+          ALLOW_STALE_TEST_ARTIFACT_CLEANUP: "1"
+          TEST_ARTIFACT_CLEANUP_MIN_AGE_MINUTES: "120"
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run cleanup:stale-test-artifacts
 
       - name: Run Playwright smoke
         env:

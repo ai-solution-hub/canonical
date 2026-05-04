@@ -1511,6 +1511,74 @@ describe('fetchReorientData', () => {
       // 4 content + 2 bid response = 6 total, should be capped at 5
       expect(result.my_recent_work).toHaveLength(5);
     });
+
+    it('deduplicates recent work by entity, keeping the newest row', async () => {
+      const mock = setupDefaultMock({
+        recentWorkData: [
+          {
+            id: 'h-new',
+            content_item_id: 'i-dup',
+            change_type: 'edit',
+            change_summary: '',
+            created_at: '2026-03-08T09:50:00Z',
+            content_items: { title: 'Repeated Item' },
+          },
+          {
+            id: 'h-old',
+            content_item_id: 'i-dup',
+            change_type: 'create',
+            change_summary: '',
+            created_at: '2026-03-08T08:50:00Z',
+            content_items: { title: 'Repeated Item' },
+          },
+        ],
+        bidResponseRecentWorkData: [
+          {
+            id: 'brh-new',
+            response_id: 'r-dup',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:45:00Z',
+            bid_responses: {
+              question_id: 'q-1',
+              bid_questions: {
+                project_id: 'b-1',
+                question_text: 'Latest response',
+                workspaces: { id: 'b-1', name: 'Bid' },
+              },
+            },
+          },
+          {
+            id: 'brh-old',
+            response_id: 'r-dup',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T08:45:00Z',
+            bid_responses: {
+              question_id: 'q-1',
+              bid_questions: {
+                project_id: 'b-1',
+                question_text: 'Older response',
+                workspaces: { id: 'b-1', name: 'Bid' },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      expect(result.my_recent_work).toHaveLength(2);
+      expect(result.my_recent_work.map((item) => item.entity_id)).toEqual([
+        'i-dup',
+        'r-dup',
+      ]);
+      expect(result.my_recent_work[0].action).toBe('updated');
+      expect(result.my_recent_work[1].entity_title).toBe('Latest response');
+    });
   });
 
   // =========================================================================

@@ -433,6 +433,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .throwOnError();
 
       const intelItemIds = (intelItems ?? []).map((i: { id: string }) => i.id);
+      const allContentItemIds = [...itemIds, ...intelItemIds];
 
       // Link content items to intelligence workspace
       if (intelItemIds.length > 0) {
@@ -547,7 +548,16 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       }
 
       // 6. Content items and workspaces (by prefix)
-      await supabase.from('content_items').delete().like('title', `${prefix}%`);
+      if (allContentItemIds.length > 0) {
+        await supabase
+          .from('content_history')
+          .delete()
+          .in('content_item_id', allContentItemIds);
+        await supabase
+          .from('content_items')
+          .delete()
+          .in('id', allContentItemIds);
+      }
       await supabase.from('workspaces').delete().like('name', `${prefix}%`);
     },
     { scope: 'worker' },

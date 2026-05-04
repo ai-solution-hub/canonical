@@ -34,6 +34,11 @@ export const test = testDataTest.extend<CombinedFixtures>({
     await expect(
       page.getByRole('navigation', { name: 'Main navigation' }).first(),
     ).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
+      // Best-effort only: tests should not fail if a non-critical dashboard
+      // request stays in flight, but waiting here avoids aborting cold API
+      // route requests when an individual spec immediately navigates away.
+    });
     await use(page);
   },
 
@@ -47,6 +52,9 @@ export const test = testDataTest.extend<CombinedFixtures>({
     await expect(
       page.getByRole('navigation', { name: 'Main navigation' }).first(),
     ).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
+      // Best-effort only; see authenticatedPage above.
+    });
     await use(page);
     await ctx.close();
   },
@@ -61,6 +69,9 @@ export const test = testDataTest.extend<CombinedFixtures>({
     await expect(
       page.getByRole('navigation', { name: 'Main navigation' }).first(),
     ).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
+      // Best-effort only; see authenticatedPage above.
+    });
     await use(page);
     await ctx.close();
   },

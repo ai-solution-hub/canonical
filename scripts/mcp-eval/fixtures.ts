@@ -402,8 +402,10 @@ export interface EvalItem {
 export async function createEvalItem(
   supabase: SupabaseClient,
 ): Promise<EvalItem> {
-  // Clean up any leftover eval items from previous runs
-  await supabase.from('content_items').delete().like('title', '[MCP-EVAL]%');
+  // Clean up any leftover eval items from previous runs. Use the shared
+  // lifecycle helper so content_history is deleted before content_items; a raw
+  // parent delete leaves ON DELETE SET NULL history orphans in staging.
+  await cleanupStaleEvalItems(supabase);
 
   const { data, error } = await supabase
     .from('content_items')

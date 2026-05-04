@@ -189,6 +189,18 @@ function mapChangeTypeToAction(
   }
 }
 
+function dedupeRecentWorkByEntity(items: RecentWorkItem[]): RecentWorkItem[] {
+  const seen = new Set<string>();
+  const deduped: RecentWorkItem[] = [];
+  for (const item of items) {
+    const key = `${item.entity_type}:${item.entity_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+  return deduped;
+}
+
 // ---------------------------------------------------------------------------
 // Unified fetch — all dashboard + reorient queries in a single pass.
 // Each query runs exactly ONCE.
@@ -560,12 +572,16 @@ export async function fetchUnifiedDashboardData(
     errors.push('bid_response my_recent_work query failed');
   }
 
-  // Sort combined recent work by date and limit to 5
+  // Sort combined recent work by date, collapse repeated audit rows for the
+  // same entity, and limit to 5. Multiple content_history rows per item are
+  // legitimate (publication-state transitions, edits, imports), but the
+  // dashboard "pick up where you left off" surface should show the latest
+  // entity once rather than render duplicate React keys for the same UUID.
   my_recent_work.sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
-  my_recent_work.splice(5);
+  const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
   // --- Build active bids (from shared helper — single query) ---
   const { workspaces: bidWorkspaces, statsMap } = activeBidsResult;
@@ -699,7 +715,7 @@ export async function fetchUnifiedDashboardData(
       last_active_relative: formatRelativeDate(lastActiveAt),
       last_active_at: lastActiveAt,
       team_changes,
-      my_recent_work,
+      my_recent_work: latestRecentWork,
       bid_summary,
     },
     recent_activity,

@@ -597,6 +597,75 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.reorient.my_recent_work[0].href).toBe('/item/item-2');
   });
 
+  it('deduplicates my_recent_work by entity, keeping the latest activity', async () => {
+    const mock = setupDefaultMock({
+      recentWorkData: [
+        {
+          id: 'ch-new',
+          content_item_id: 'item-dup',
+          change_type: 'edit',
+          change_summary: 'Published article',
+          created_at: '2026-03-08T09:00:00Z',
+          content_items: { title: 'Published Article' },
+        },
+        {
+          id: 'ch-old',
+          content_item_id: 'item-dup',
+          change_type: 'create',
+          change_summary: 'Created article',
+          created_at: '2026-03-08T08:00:00Z',
+          content_items: { title: 'Published Article' },
+        },
+      ],
+      bidResponseRecentWorkData: [
+        {
+          id: 'brh-new',
+          response_id: 'response-dup',
+          edited_by: TEST_USER_ID,
+          created_at: '2026-03-08T09:30:00Z',
+          bid_responses: {
+            question_id: 'q-1',
+            bid_questions: {
+              project_id: 'bid-1',
+              question_text: 'Latest answer',
+              workspaces: { id: 'bid-1', name: 'Bid' },
+            },
+          },
+        },
+        {
+          id: 'brh-old',
+          response_id: 'response-dup',
+          edited_by: TEST_USER_ID,
+          created_at: '2026-03-08T07:00:00Z',
+          bid_responses: {
+            question_id: 'q-1',
+            bid_questions: {
+              project_id: 'bid-1',
+              question_text: 'Older answer',
+              workspaces: { id: 'bid-1', name: 'Bid' },
+            },
+          },
+        },
+      ],
+    });
+
+    const result = await fetchUnifiedDashboardData(
+      mock as never,
+      TEST_USER_ID,
+      true,
+      'admin',
+    );
+
+    expect(result.reorient.my_recent_work).toHaveLength(2);
+    expect(
+      result.reorient.my_recent_work.map((item) => item.entity_id),
+    ).toEqual(['response-dup', 'item-dup']);
+    expect(result.reorient.my_recent_work[0].entity_title).toBe(
+      'Latest answer',
+    );
+    expect(result.reorient.my_recent_work[1].action).toBe('updated');
+  });
+
   it('error array tracks RPC failure', async () => {
     const mock = setupDefaultMock();
 

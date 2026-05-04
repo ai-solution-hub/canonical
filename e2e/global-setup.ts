@@ -11,6 +11,57 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServiceClient } from './fixtures/supabase';
 import { TEST_USERS } from './fixtures/test-data';
+const APP_ROUTE_PREFLIGHT_PATHS = [
+  '/api/analytics/win-rate',
+  '/api/certifications',
+  '/api/admin/pipeline-runs/recent',
+  '/api/coverage/guides',
+] as const;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Warm and verify App Router API routes before the browser suite starts.
+ *
+ * CI smoke uses a dev server. The failing staging run returned Next's HTML
+ * 404 page for existing route handlers after cold client-side fetches were
+ * aborted during early navigation. A direct unauthenticated request should
+ * return 401/403/200/500 from the route handler, but never the framework-level
+ * 404. Retrying here both warms the route and turns route-registration failures
+ * into a clear setup error instead of a later UI timeout.
+ */
+async function verifyAppRouteRegistered(pathname: string): Promise<void> {
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
+  const url = new URL(pathname, baseUrl);
+  let lastStatus: number | null = null;
+  let lastContentType: string | null = null;
+  let lastError: string | null = null;
+
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: { accept: 'application/json' },
+      });
+      lastStatus = response.status;
+      lastContentType = response.headers.get('content-type');
+
+      if (response.status !== 404) return;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+
+    await delay(250 * attempt);
+  }
+
+  throw new Error(
+    `E2E setup: route preflight failed for ${pathname}. ` +
+      `Last status=${lastStatus ?? 'none'}, content-type=${lastContentType ?? 'none'}, ` +
+      `error=${lastError ?? 'none'}. Expected an App Router handler response, not Next's 404 page.`,
+  );
+}
 
 async function globalSetup(): Promise<void> {
   // --- Step 1: Environment variables ---
@@ -40,6 +91,14 @@ async function globalSetup(): Promise<void> {
 
   console.log('E2E setup: environment validated.');
 
+  await Promise.all(
+    APP_ROUTE_PREFLIGHT_PATHS.map((pathname) =>
+      verifyAppRouteRegistered(pathname),
+    ),
+  );
+  console.log(
+    `E2E setup: verified ${APP_ROUTE_PREFLIGHT_PATHS.length} App Router API routes are registered.`,
+  );
   // --- Step 2: Verify test users exist with correct roles ---
   const supabase = createServiceClient();
 

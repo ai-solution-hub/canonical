@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { useSyncExternalStore } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,18 @@ import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
 import { useUserRole } from '@/hooks/use-user-role';
 import type { PipelineRunsRecentResponse } from '@/app/api/admin/pipeline-runs/recent/route';
+function subscribeToClientMount(onStoreChange: () => void) {
+  onStoreChange();
+  return () => {};
+}
+
+function getClientMountedSnapshot() {
+  return true;
+}
+
+function getServerMountedSnapshot() {
+  return false;
+}
 
 /**
  * Admin dashboard tile showing the last 24h of background cron health.
@@ -28,6 +41,11 @@ import type { PipelineRunsRecentResponse } from '@/app/api/admin/pipeline-runs/r
  * ```
  */
 export function PipelineRunsPanel() {
+  const mounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot,
+  );
   // Defence-in-depth: even if a caller forgets to gate this panel to admins,
   // render nothing for non-admin users. The backing `/api/admin/pipeline-runs/recent`
   // endpoint is also admin-only.
@@ -36,7 +54,7 @@ export function PipelineRunsPanel() {
     queryKey: queryKeys.admin.pipelineRunsRecent,
     queryFn: () =>
       fetchJson<PipelineRunsRecentResponse>('/api/admin/pipeline-runs/recent'),
-    enabled: canAdmin,
+    enabled: mounted && canAdmin,
     // Poll every 5 minutes — background cron runs are slow-moving
     // enough that a 5-minute refresh is plenty.
     refetchInterval: 5 * 60 * 1000,
@@ -44,6 +62,8 @@ export function PipelineRunsPanel() {
     // stale indicators when he switches tabs.
     refetchOnWindowFocus: true,
   });
+
+  if (!mounted) return null;
 
   if (roleLoading) return null;
   if (!canAdmin) return null;
