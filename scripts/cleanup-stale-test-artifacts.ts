@@ -18,6 +18,7 @@ import { resolve } from 'node:path';
 
 import { createClient } from '@supabase/supabase-js';
 import { config as loadDotenv } from 'dotenv';
+import { MCP_EVAL_SEED_METADATA_FLAG } from './mcp-eval/seed-data';
 
 for (const envFile of ['.env.local', '.env']) {
   const path = resolve(process.cwd(), envFile);
@@ -85,9 +86,46 @@ const cutoffIso = new Date(Date.now() - minAgeMinutes * 60_000).toISOString();
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+function isPersistentMcpEvalSeed(metadata: unknown): boolean {
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    (metadata as Record<string, unknown>)[MCP_EVAL_SEED_METADATA_FLAG] === true
+  );
+}
+
+async function selectContentItemIdsByPrefix(
+  prefixes: readonly string[],
+): Promise<string[]> {
+  const ids = new Set<string>();
+  for (const prefix of prefixes) {
+    const { data, error } = await supabase
+      .from('content_items')
+      .select('id, metadata')
+      .like('title', `${prefix}%`)
+      .lt('created_at', cutoffIso)
+      .limit(1000);
+
+    if (error) {
+      throw new Error(
+        `Failed to query stale content_items for prefix ${prefix}: ${error.message}`,
+      );
+    }
+
+    for (const row of data ?? []) {
+      if (
+        typeof row.id === 'string' &&
+        !isPersistentMcpEvalSeed(row.metadata)
+      ) {
+        ids.add(row.id);
+      }
+    }
+  }
+  return Array.from(ids);
+}
 
 async function selectIdsByPrefix(
-  table: 'content_items' | 'workspaces',
+  table: 'workspaces',
   column: 'title' | 'name',
   prefixes: readonly string[],
 ): Promise<string[]> {
@@ -133,9 +171,7 @@ async function deleteByIds(
   return count ?? 0;
 }
 
-const contentItemIds = await selectIdsByPrefix(
-  'content_items',
-  'title',
+const contentItemIds = await selectContentItemIdsByPrefix(
   CONTENT_TITLE_PREFIXES,
 );
 const workspaceIds = await selectIdsByPrefix(

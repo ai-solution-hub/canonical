@@ -10,6 +10,11 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+  MCP_EVAL_SEED_ITEMS,
+  MCP_EVAL_SEED_METADATA_FLAG,
+  MCP_EVAL_SEED_ROLE_SIMILARITY_SOURCE,
+} from './seed-data.js';
 
 // ---------------------------------------------------------------------------
 // Env loading (reuses project pattern)
@@ -315,31 +320,62 @@ export interface KnownUUIDs {
   questionId: string | null;
   bidResponseId: string | null;
 }
+interface SeedContentItemRow {
+  id: string;
+  metadata: Record<string, unknown> | null;
+}
+
+function isMcpEvalSeedMetadata(metadata: unknown): boolean {
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    (metadata as Record<string, unknown>)[MCP_EVAL_SEED_METADATA_FLAG] === true
+  );
+}
+
+function getMcpEvalSeedRole(metadata: unknown): string | null {
+  if (!isMcpEvalSeedMetadata(metadata)) return null;
+  const role = (metadata as Record<string, unknown>).mcp_eval_seed_role;
+  return typeof role === 'string' ? role : null;
+}
 
 export async function getKnownUUIDs(
   supabase: SupabaseClient,
 ): Promise<KnownUUIDs> {
-  // Get a known content item (preferably a Q&A pair with embedding)
-  const { data: contentItem } = await supabase
+  // Get a deterministic seeded Q&A item with an embedding. The MCP eval seed
+  // job runs once before L1/L3/L4 fan-out; missing rows are a real setup error,
+  // not a graceful skip, because otherwise eval jobs appear green while testing
+  // no search/Q&A behaviour.
+  const { data: seedItems, error: seedError } = await supabase
     .from('content_items')
-    .select('id')
+    .select('id, metadata')
     .eq('content_type', 'q_a_pair')
+    .eq('publication_status', 'published')
+    .contains('metadata', { [MCP_EVAL_SEED_METADATA_FLAG]: true })
     .not('embedding', 'is', null)
     .is('archived_at', null)
-    .limit(1)
-    .single();
+    .order('title', { ascending: true });
+
+  if (seedError) {
+    throw new Error(
+      `Failed to query MCP eval seed Q&A items: ${seedError.message}`,
+    );
+  }
+
+  const seededRows = (seedItems ?? []) as SeedContentItemRow[];
+  const contentItem =
+    seededRows.find(
+      (row) =>
+        getMcpEvalSeedRole(row.metadata) ===
+        MCP_EVAL_SEED_ROLE_SIMILARITY_SOURCE,
+    ) ?? seededRows[0];
 
   if (!contentItem) {
-    // Graceful exit-0 on data-empty Supabase branches (e.g. fresh staging
-    // persistent branch before fixture seeding). CI surfaces the skip in
-    // logs without failing the workflow. Roadmap §9.16.9 tracks fixture
-    // seeding so MCP eval can run end-to-end on staging.
-    console.warn(
-      '\n[MCP eval skipped] no Q&A content_items with embeddings in database.\n' +
-        '  Cause: data-empty Supabase branch (typical for fresh staging branches).\n' +
-        '  Action: seed minimum eval fixtures (roadmap §9.16.10 — staging eval seed).\n',
+    throw new Error(
+      '\n[MCP eval setup failed] no seeded Q&A content_items with embeddings found.\n' +
+        `  Expected: ${MCP_EVAL_SEED_ITEMS.length} published q_a_pair rows with metadata.${MCP_EVAL_SEED_METADATA_FLAG}=true.\n` +
+        '  Action: run `bun run seed:mcp-eval` against the target Supabase environment before MCP eval L1/L3/L4.\n',
     );
-    process.exit(0);
   }
 
   // Get a known bid workspace
@@ -452,16 +488,18 @@ export async function cleanupStaleEvalItems(
 ): Promise<number> {
   const { data } = await supabase
     .from('content_items')
-    .select('id')
+    .select('id, metadata')
     .like('title', '[MCP-EVAL]%');
 
   if (!data || data.length === 0) return 0;
+  const staleItems = (data as Array<{ id: string; metadata: unknown }>).filter(
+    (item) => !isMcpEvalSeedMetadata(item.metadata),
+  );
 
-  for (const item of data) {
+  for (const item of staleItems) {
     await deleteEvalItem(supabase, item.id);
   }
-
-  return data.length;
+  return staleItems.length;
 }
 
 // ---------------------------------------------------------------------------
