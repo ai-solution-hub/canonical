@@ -213,6 +213,22 @@ async function seedNearDupPair(
   const lexLeft = idA < idB ? idA : idB;
   const lexRight = idA < idB ? idB : idA;
 
+  // Pin merge default direction to "left supersedes right" by making
+  // lexLeft's created_at strictly newer than lexRight's. Otherwise the
+  // batch insert lands sub-millisecond apart and the dialog's
+  // defaultMergeDirection() heuristic (newer-wins) hits the `>=` boundary
+  // non-deterministically — fine for the radio-state-adaptive AC5 test
+  // body, but the deterministic seed makes future variants safer.
+  const { error: updateErr } = await supabase
+    .from('content_items')
+    .update({ created_at: new Date(Date.now() - 1000).toISOString() })
+    .eq('id', lexRight);
+  if (updateErr) {
+    throw new Error(
+      `seedNearDupPair: created_at pin failed — ${updateErr.message}`,
+    );
+  }
+
   return {
     runId,
     leftId: lexLeft,
