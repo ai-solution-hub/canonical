@@ -265,9 +265,9 @@ test.describe('Change Reports page', () => {
     // If no previous reports, the section simply does not render -- that is acceptable
   });
 
-  // Spec-compliant: this test uses test.skip() when the empty state is not
-  // shown (a digest is already loaded). The skip is acceptable because the
-  // empty state is data-dependent and cannot be guaranteed in all environments.
+  // Asserts the empty-state hero with generate controls. Staging must seed
+  // /digest with no pre-generated change report so the hero renders; if a
+  // digest is already loaded the hard expect fails honestly.
   test('empty state shows hero with generate controls', async ({
     authenticatedPage: page,
   }) => {
@@ -289,32 +289,27 @@ test.describe('Change Reports page', () => {
       timeout: 10000,
     });
 
-    // Check if the hero empty state is shown (appears when no digest generated yet)
+    // Hard-expect the hero empty state is shown (appears when no digest
+    // generated yet). Staging fixtures must leave /digest empty for this test.
     const heroHeading = page.getByRole('heading', {
       name: 'Change Reports',
       level: 1,
     });
+    await expect(heroHeading).toBeVisible({ timeout: 3000 });
 
-    if (await heroHeading.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Description text is visible
-      await expect(
-        page.getByText('See what changed in your knowledge base'),
-      ).toBeVisible();
+    // Description text is visible
+    await expect(
+      page.getByText('See what changed in your knowledge base'),
+    ).toBeVisible();
 
-      // Mode selector is present
-      const tablist = page.locator(
-        '[role="tablist"][aria-label="Report mode"]',
-      );
-      await expect(tablist).toBeVisible();
+    // Mode selector is present
+    const tablist = page.locator('[role="tablist"][aria-label="Report mode"]');
+    await expect(tablist).toBeVisible();
 
-      // Generate button is present
-      await expect(
-        page.getByRole('button', { name: /Generate Report/i }),
-      ).toBeVisible();
-    } else {
-      // A digest is already loaded (hero state not visible) -- skip
-      test.skip();
-    }
+    // Generate button is present
+    await expect(
+      page.getByRole('button', { name: /Generate Report/i }),
+    ).toBeVisible();
   });
 });
 
