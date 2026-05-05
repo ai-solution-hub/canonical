@@ -498,6 +498,22 @@ async function main(): Promise<void> {
     parseArgs();
   const dryRun = !execute;
 
+  // §5.4.2 W1-IMPL deprecation banner per spec §7.7. The CLI continues to
+  // work for emergency use during the migration window. Per Liam D-4
+  // ratified May 5 2026 (CLI-only with future UI), the admin UI page is
+  // dropped from the candidate scope but the queued endpoint
+  // (POST /api/admin/batch-reclassify) ships now — the banner advertises
+  // future UI rather than current state.
+  console.warn(
+    '\n*** DEPRECATION NOTICE ***\n' +
+      'scripts/batch-reclassify.ts is being phased out in favour of the\n' +
+      'admin UI at /admin/reclassify. The CLI will continue to work for\n' +
+      'emergency use during the migration window. New invocations should\n' +
+      'use the UI which provides progress polling, idempotency, and\n' +
+      'cancellation. See docs/specs/§5.4.2-batch-reclassify-spec.md.\n' +
+      '*****************************\n',
+  );
+
   // Validate env
   const supabaseUrl =
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
