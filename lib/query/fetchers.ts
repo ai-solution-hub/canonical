@@ -58,6 +58,7 @@ export async function fetchItemProvenance(id: string) {
 }
 
 /** Response shape for GET /api/admin/taxonomy-sync/status */
+/** @public */
 export interface TaxonomySyncStatus {
   in_sync: boolean;
   last_sync_at: string | null;
@@ -141,6 +142,7 @@ export interface MarkdownPerFileOverrideWire {
 }
 
 /** Batch-wide options on the wire (mirror of MarkdownBatchOptions.batch). */
+/** @public */
 export interface MarkdownBatchWireOptions {
   per_file_overrides?: MarkdownPerFileOverrideWire[];
   batch?: {
@@ -186,6 +188,7 @@ async function throwApiError(res: Response): Promise<never> {
 // server's INSERT hasn't landed yet (~sub-100ms after mutation send).
 
 /** Row shape returned by GET /api/pipeline-runs/[id]. */
+/** @public */
 export interface PipelineRunRow {
   id: string;
   pipeline_name: string;
@@ -402,6 +405,7 @@ export interface SuspectedDuplicateRow {
   metadata: Record<string, unknown> | null;
 }
 
+/** @public */
 export interface DedupQueueResponse {
   items: SuspectedDuplicateRow[];
   hasMore: boolean;
@@ -431,6 +435,7 @@ export async function fetchAdminDedupQueue(
   );
 }
 
+/** @public */
 export interface DedupItemResponse {
   subject: SuspectedDuplicateRow;
   canonical: SuspectedDuplicateRow | null;
@@ -457,6 +462,7 @@ export async function fetchAdminDedupItem(
  *
  * Spec: docs/specs/§1.7-admin-dedup-supersede-fix-spec.md §2.9
  */
+/** @public */
 export interface DedupSupersedeResponse {
   pathId: string;
   retiredId: string;
@@ -493,6 +499,7 @@ export interface NearDupPair {
   };
 }
 
+/** @public */
 export interface NearDupPairsResponse {
   pairs: NearDupPair[];
   threshold: number;
@@ -519,6 +526,7 @@ export interface NearDupPairMember {
   publication_status: string;
 }
 
+/** @public */
 export interface NearDupPairDetail {
   left: NearDupPairMember;
   right: NearDupPairMember;
@@ -526,6 +534,7 @@ export interface NearDupPairDetail {
 }
 
 /** Response shape for the merge POST endpoint. */
+/** @public */
 export interface NearDupMergeResult {
   pairId: string;
   oldId: string;
@@ -534,6 +543,7 @@ export interface NearDupMergeResult {
 }
 
 /** Response shape for the confirm-unique POST endpoint. */
+/** @public */
 export interface NearDupConfirmUniqueResult {
   pairId: string;
   leftDedupStatus: 'confirmed_unique';
@@ -541,6 +551,7 @@ export interface NearDupConfirmUniqueResult {
 }
 
 /** Filters accepted by the list-view fetcher. */
+/** @public */
 export interface NearDupPairsFilters {
   threshold?: number;
   domain?: string;
