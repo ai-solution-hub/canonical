@@ -25,6 +25,7 @@ applications.
 | `bun run dev:clean`                                                                                                                    | Clear `.next` cache + start dev server (use when OOM)                                                |
 | `bun build`                                                                                                                            | Production build                                                                                     |
 | `bun run test`                                                                                                                         | Run Vitest tests (NOT `bun test` — see Gotchas)                                                      |
+| `bun run test:integration`                                                                                                             | Integration suite — `__tests__/integration/**.integration.test.ts`, real Anthropic + Supabase        |
 | `bun lint`                                                                                                                             | ESLint                                                                                               |
 | `pip install -r requirements.txt`                                                                                                      | Install Python pipeline dependencies                                                                 |
 | `python3 scripts/ingest.py <url>`                                                                                                      | Ingest a single URL (extract, dedup, classify, embed, store)                                         |
@@ -116,13 +117,33 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 
 ## Deployment
 
-- **Platform:** Vercel
-- **URL:** https://knowledge-hub-seven-kappa.vercel.app
+- **Platform:** Vercel (Next.js app) + Cloud Run (Python pipeline jobs)
+- **Production URL:** https://www.kh.client.example
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
+- **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`
+  (production-readiness branch). Auth via WIF — no JSON keys. Deploy:
+  `.github/workflows/cloud-run-deploy.yml`. Runbook:
+  `docs/runbooks/cloud-run-phase-1-handover.md`.
 - **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
 - **Region:** eu-west-2 (London)
 - **GitHub Environments:** `Production` + `Staging` (case-sensitive). Setup:
   `docs/runbooks/github-environments.md`.
+
+## CI/CD
+
+PR-blocking CI (`ci.yml`) runs 7 jobs in parallel: `quality-precheck`,
+`quality-test` (4-shard Vitest matrix), `e2e-smoke`, `mcp-build`,
+`mcp-eval-seed`, `mcp-eval` (L1/L3/L4 matrix), `integration`. Triggers: PR (any
+base) + push on `main`/`staging`. Draft PRs skip CI. Full topology +
+per-step failure-mode table: `docs/runbooks/ci.md`.
+
+Side workflows: `cloud-run-deploy.yml` (Python pipeline),
+`migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml`
+(prod ↔ staging diff), `staging-reference-refresh.yml`,
+`supabase-advisors.yml`, `taxonomy-sync.yml`.
+
+`staging` branch is deploy-only (no long-lived worktree) — used for
+staging-mirror sync per `docs/runbooks/staging-refresh.md`.
 
 ## Key Product Design Principles
 
@@ -152,6 +173,7 @@ Consult when adding or modifying UI elements.
 | Roadmap                | `docs/reference/post-mvp-roadmap.md`                                       |
 | Product backlog        | `docs/reference/product-backlog.md`                                        |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                 |
+| CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
 | Session handoffs       | `docs/continuation-prompts/`                                               |
 | Codebase mapping       | `.planning/codebase/`                                                      |
 | Runbooks               | `docs/runbooks/` — local-development, staging-refresh, github-environments |
@@ -231,8 +253,7 @@ hook isolation, cross-track hygiene rules.
   function:** `pg_default_acl` defaults make `REVOKE ... FROM PUBLIC` a no-op
   against the anon role. Every new `public.*()` helper needs an explicit
   `REVOKE EXECUTE ON FUNCTION public.foo() FROM anon;` in its migration —
-  per-tenant if SECURITY DEFINER. Pattern:
-  `feedback_supabase_pg_default_acl_anon_execute`.
+  per-tenant if SECURITY DEFINER.
 - **`mcp__supabase__apply_migration` auto-generates server-side timestamps**
   that diverge from local file naming. Re-pull
   `supabase_migrations.schema_migrations` post-apply, rename the local file to
