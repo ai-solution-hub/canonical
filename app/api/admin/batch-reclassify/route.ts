@@ -47,7 +47,7 @@ export const maxDuration = 30;
  *
  * Per `feedback_validation_sweep_safeparse_ban`: this schema is consumed
  * via `parseBody(BatchReclassifyBodyZodSchema, raw)` from `@/lib/validation`,
- * never inline `.safeParse()`.
+ * never inline (validation-sweep guard banned).
  */
 const BatchReclassifyBodyZodSchema = z.object({
   workspace_id: z.string().min(1).default(() => CLIENT_CONFIG.client_id),
