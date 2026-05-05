@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
@@ -882,7 +882,7 @@ describe('Session Page Mobile Layout', () => {
   // ========================================================================
 
   describe('Cmd+S / Ctrl+S save shortcut', () => {
-    it('calls handleAction with "save" on Ctrl+S when response exists and has content', () => {
+    it('calls handleAction with "save" on Ctrl+S when response exists and has content', async () => {
       const handleAction = vi.fn();
       setupDefaults({
         response: {
@@ -896,11 +896,17 @@ describe('Session Page Mobile Layout', () => {
       });
       render(<BidSessionPage params={mockParams} />);
 
-      fireEvent.keyDown(document, { key: 's', ctrlKey: true });
+      // Wrap fireEvent.keyDown in act() so any setState fired by the
+      // page-level keydown handler lands inside an act boundary
+      // ("wrapped into act(...)" warning otherwise).
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 's', ctrlKey: true });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
       expect(handleAction).toHaveBeenCalledWith('save');
     });
 
-    it('calls handleAction with "save" on Cmd+S (metaKey)', () => {
+    it('calls handleAction with "save" on Cmd+S (metaKey)', async () => {
       const handleAction = vi.fn();
       setupDefaults({
         response: {
@@ -914,7 +920,13 @@ describe('Session Page Mobile Layout', () => {
       });
       render(<BidSessionPage params={mockParams} />);
 
-      fireEvent.keyDown(document, { key: 's', metaKey: true });
+      // Wrap fireEvent.keyDown in act() so any setState fired by the
+      // page-level keydown handler lands inside an act boundary
+      // ("wrapped into act(...)" warning otherwise).
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 's', metaKey: true });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
       expect(handleAction).toHaveBeenCalledWith('save');
     });
 

@@ -267,6 +267,15 @@ vi.mock('@/components/ui/concept-help', () => ({
   ),
 }));
 
+// ReviewCadenceCard fetches /api/review/cadence in useEffect on mount; mock
+// it out so its async state updates don't fall outside React.act() boundaries
+// and emit "wrapped into act(...)" warnings on every render-only assertion.
+vi.mock('@/components/review/review-cadence-card', () => ({
+  ReviewCadenceCard: () => (
+    <div data-testid="review-cadence-card">ReviewCadenceCard</div>
+  ),
+}));
+
 // Import AFTER mocks
 import { ReviewContent } from '@/app/review/review-content';
 

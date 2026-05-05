@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
@@ -244,7 +244,13 @@ describe('EntityList', () => {
     setupFetchResponses();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderEntityList();
-    vi.advanceTimersByTime(350);
+    // Wrap timer advances in act() so the debounced effect's setState
+    // lands inside an act boundary ("wrapped into act(...)" warning
+    // otherwise — fireEvent + fake timers don't auto-wrap).
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+      await Promise.resolve();
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Acme Corporation')).toBeInTheDocument();
@@ -256,13 +262,22 @@ describe('EntityList', () => {
     await user.clear(searchInput);
     await user.type(searchInput, 'iso');
 
-    // Advance past the debounce
-    vi.advanceTimersByTime(350);
+    // Advance past the debounce — wrapped in act for the same reason.
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+      await Promise.resolve();
+    });
 
     await waitFor(() => {
       const calls = mockFetch.mock.calls;
       const lastCall = calls[calls.length - 1];
       expect(String(lastCall[0])).toContain('search=iso');
+    });
+
+    // Drain the response-driven setState so it lands inside an act
+    // boundary, not after teardown ("wrapped into act(...)" warning).
+    await waitFor(() => {
+      expect(screen.getByText('ISO 27001')).toBeInTheDocument();
     });
   });
 

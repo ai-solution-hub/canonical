@@ -653,15 +653,24 @@ describe('useReviewActions', () => {
         wrapper: createWrapper(queryClient),
       });
 
-      // Start verify without awaiting
-      const verifyPromise = result.current.handleVerify();
+      // Start verify without awaiting — wrap the call itself in act() so
+      // the mutation's onMutate setState lands inside an act boundary
+      // ("wrapped into act(...)" warning otherwise).
+      let verifyPromise!: Promise<unknown>;
+      await act(async () => {
+        verifyPromise = result.current.handleVerify();
+        // Yield once so onMutate fires inside this act block.
+        await Promise.resolve();
+      });
 
       // Wait for the mutation to be in-flight
       await vi.waitFor(() => {
         expect(mockMutationFetchJson).toHaveBeenCalled();
       });
 
-      expect(result.current.isActioning).toBe(true);
+      await vi.waitFor(() => {
+        expect(result.current.isActioning).toBe(true);
+      });
 
       // Resolve and verify it returns to false
       resolveMutation();

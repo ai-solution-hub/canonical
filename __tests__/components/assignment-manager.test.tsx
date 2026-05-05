@@ -82,7 +82,11 @@ describe('AssignmentManager', () => {
   it('renders the create assignment form', async () => {
     render(<AssignmentManager />);
 
-    expect(screen.getByText('Create Review Assignment')).toBeInTheDocument();
+    // findByText awaits the initial useEffect settle so subsequent state
+    // updates don't emit "wrapped into act(...)" warnings on teardown.
+    expect(
+      await screen.findByText('Create Review Assignment'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Reviewer')).toBeInTheDocument();
     expect(screen.getByText('Domains')).toBeInTheDocument();
     expect(screen.getByText('Content Types')).toBeInTheDocument();
@@ -92,6 +96,11 @@ describe('AssignmentManager', () => {
     expect(
       screen.getByRole('button', { name: /create assignment/i }),
     ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/loading team members/i),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('loads and displays team members', async () => {
@@ -111,28 +120,42 @@ describe('AssignmentManager', () => {
   it('renders domain checkboxes from taxonomy', async () => {
     render(<AssignmentManager />);
 
-    // Domain names from the mocked taxonomy
-    expect(screen.getByLabelText('Filter by H&S')).toBeInTheDocument();
+    // Domain names from the mocked taxonomy. findByLabelText awaits the
+    // initial useEffect settle so subsequent state updates don't emit
+    // "wrapped into act(...)" warnings on teardown.
+    expect(await screen.findByLabelText('Filter by H&S')).toBeInTheDocument();
     expect(
       screen.getByLabelText('Filter by Environmental'),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by Quality')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/loading team members/i),
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it('renders freshness checkboxes', () => {
+  it('renders freshness checkboxes', async () => {
     render(<AssignmentManager />);
 
-    expect(screen.getByLabelText('Filter by fresh')).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText('Filter by fresh'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by aging')).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by stale')).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by expired')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/loading team members/i),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('toggles domain selection on checkbox click', async () => {
     const user = userEvent.setup();
     render(<AssignmentManager />);
 
-    const hsCheckbox = screen.getByLabelText('Filter by H&S');
+    const hsCheckbox = await screen.findByLabelText('Filter by H&S');
     expect(hsCheckbox).not.toBeChecked();
 
     await user.click(hsCheckbox);
@@ -140,14 +163,27 @@ describe('AssignmentManager', () => {
 
     await user.click(hsCheckbox);
     expect(hsCheckbox).not.toBeChecked();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/loading team members/i),
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it('shows notes input with max length', () => {
+  it('shows notes input with max length', async () => {
     render(<AssignmentManager />);
 
-    const notesInput = screen.getByPlaceholderText(/focus on items imported/i);
+    const notesInput = await screen.findByPlaceholderText(
+      /focus on items imported/i,
+    );
     expect(notesInput).toBeInTheDocument();
     expect(notesInput).toHaveAttribute('maxlength', '500');
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/loading team members/i),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('shows estimated item count', async () => {

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ContentListItem } from '@/types/content';
@@ -191,7 +191,7 @@ describe('ContentRow with QuickReviewActions', () => {
     expect(screen.queryByLabelText('Flag for review')).not.toBeInTheDocument();
   });
 
-  it('actions do not navigate (stopPropagation)', () => {
+  it('actions do not navigate (stopPropagation)', async () => {
     renderWithQuery(<ContentRow item={makeContentItem()} canEdit={true} />);
 
     const verifyBtn = screen.getByLabelText('Verify');
@@ -202,7 +202,13 @@ describe('ContentRow with QuickReviewActions', () => {
     const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
     const stopPropagationSpy = vi.spyOn(clickEvent, 'stopPropagation');
 
-    verifyBtn.dispatchEvent(clickEvent);
+    // Wrap dispatchEvent in act() so the mutation's onMutate setState lands
+    // inside an act boundary. (userEvent.click() auto-wraps; raw
+    // dispatchEvent does not.) Then yield so the POST + onSuccess drains.
+    await act(async () => {
+      verifyBtn.dispatchEvent(clickEvent);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     expect(preventDefaultSpy).toHaveBeenCalled();
     expect(stopPropagationSpy).toHaveBeenCalled();

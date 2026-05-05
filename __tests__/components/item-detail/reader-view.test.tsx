@@ -158,6 +158,17 @@ vi.mock('@/components/shared/freshness-badge', () => ({
   ),
 }));
 
+// ContentEffectivenessPanel triggers a fetch in useEffect on mount; mock it
+// out so its async state updates don't fall outside React.act() boundaries
+// and emit "wrapped into act(...)" warnings on every render-only assertion.
+vi.mock('@/components/item-detail/content-effectiveness-panel', () => ({
+  ContentEffectivenessPanel: () => (
+    <div data-testid="content-effectiveness-panel">
+      ContentEffectivenessPanel
+    </div>
+  ),
+}));
+
 import { ReaderView } from '@/components/item-detail/reader-view';
 import type { ItemDetailData } from '@/hooks/use-item-detail-data';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
