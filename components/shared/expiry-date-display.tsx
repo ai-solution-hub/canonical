@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -17,12 +18,25 @@ interface ExpiryDateDisplayProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function subscribeToClientMount(onStoreChange: () => void) {
+  onStoreChange();
+  return () => {};
+}
+
+function getClientMountedSnapshot() {
+  return true;
+}
+
+function getServerMountedSnapshot() {
+  return false;
+}
+
 /**
  * Calculate the number of days remaining until an expiry date.
  * Returns a negative number for dates that have already passed.
  */
 function daysRemaining(expiryDate: string): number {
-  const now = new Date();
+  const now = new Date(Date.now());
   now.setHours(0, 0, 0, 0);
   const expiry = new Date(expiryDate);
   expiry.setHours(0, 0, 0, 0);
@@ -93,6 +107,36 @@ export function ExpiryDateDisplay({
   expiryDate,
   lifecycleType,
 }: ExpiryDateDisplayProps) {
+  const mounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot,
+  );
+
+  // Inert structural placeholder during SSR/pre-mount to preserve the
+  // surrounding <dl> layout (parent metadata sidebar). The urgency
+  // calculation depends on "today" so we cannot render the live value
+  // until the client has mounted — this prevents a hydration text
+  // mismatch between server-rendered and client-rendered urgency labels.
+  if (!mounted) {
+    return (
+      <>
+        <div>
+          <dt className="text-xs text-muted-foreground">Expiry Date</dt>
+          <dd className="flex flex-wrap items-center gap-2">
+            <span className="tabular-nums text-muted-foreground">—</span>
+          </dd>
+        </div>
+        {lifecycleType === 'date_bound' && (
+          <div>
+            <dt className="text-xs text-muted-foreground">Lifecycle</dt>
+            <dd className="text-foreground">Date-bound</dd>
+          </div>
+        )}
+      </>
+    );
+  }
+
   const days = daysRemaining(expiryDate);
   const urgency = getExpiryUrgency(days);
 
