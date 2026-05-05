@@ -9,18 +9,23 @@ import { z } from 'zod';
  *
  * Liam OQ-3 RATIFIED S221 W3: NO speculative widen of `JobType`. Each
  * §5.4.x candidate (5.4.1 / 5.4.2 / 5.4.4) adds its own `JobType` value
- * when its candidate spec dispatches. Do NOT add `'bid_draft_all'`,
- * `'batch_reclassify'`, or `'markdown_batch'` here — verifier will FAIL.
+ * when its candidate spec dispatches. Do NOT add `'markdown_batch'` here —
+ * verifier will FAIL. (`'bid_draft_all'` added by §5.4.1 W4-IMPL S224;
+ * `'batch_reclassify'` added by §5.4.2 W1-IMPL S225 — see migrations
+ * `20260505164817_s224_widen_job_type_check_bid_draft_all.sql` and
+ * `20260505211806_s225_widen_job_type_check_batch_reclassify.sql`.)
  */
 
 /**
  * Job-type values currently accepted by `processing_queue_job_type_check`.
  *
- * The 9 values below are the current CHECK-constraint allowlist (the four
+ * The 10 values below are the current CHECK-constraint allowlist (the
  * historic types `embed | classify | extract_qa | summarise | validate |
  * reprocess` plus the two pre-existing template types `template_fill` and
  * `template_analyse`, plus `bid_draft_all` added by §5.4.1 — see
- * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`).
+ * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`,
+ * plus `batch_reclassify` added by §5.4.2 W1-IMPL — see
+ * `supabase/migrations/20260505211806_s225_widen_job_type_check_batch_reclassify.sql`).
  * Each future §5.4.x migration candidate adds its own value through its own
  * CHECK-widening migration paired with a TS-union widening commit (per
  * `feedback_db_check_ts_union_paired_widening`).
@@ -34,7 +39,8 @@ export type JobType =
   | 'reprocess'
   | 'template_fill'
   | 'template_analyse'
-  | 'bid_draft_all';
+  | 'bid_draft_all'
+  | 'batch_reclassify';
 
 /**
  * Lifecycle states for `processing_queue.status`.
