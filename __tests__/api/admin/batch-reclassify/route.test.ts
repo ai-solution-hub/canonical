@@ -88,7 +88,6 @@ const getAuthorisedClientMock = vi.mocked(getAuthorisedClient);
 const TEST_USER_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 const NEW_JOB_ID = 'b1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
-const EXISTING_JOB_ID = 'c1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 let mockSupabase: MockSupabaseClient;
 let mockServiceClient: MockSupabaseClient;
@@ -144,13 +143,8 @@ function configureEnqueueFresh(jobId: string = NEW_JOB_ID) {
   });
 }
 
-/** Configure enqueueQueueJob to return an existing job_id with deduplicated:true. */
-function configureEnqueueDedup(jobId: string = EXISTING_JOB_ID) {
-  mockEnqueueQueueJob.mockResolvedValue({
-    jobId,
-    deduplicated: true,
-  });
-}
+// configureEnqueueDedup is inlined per-test via mockResolvedValueOnce in the
+// AC-3 same-day-dedup case (see below); no module-scope helper needed.
 
 // ---------------------------------------------------------------------------
 // Setup.
