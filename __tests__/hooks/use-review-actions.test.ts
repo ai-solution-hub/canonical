@@ -663,23 +663,26 @@ describe('useReviewActions', () => {
         await Promise.resolve();
       });
 
-      // Wait for the mutation to be in-flight
-      await vi.waitFor(() => {
-        expect(mockMutationFetchJson).toHaveBeenCalled();
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.isActioning).toBe(true);
+      // Wait for the mutation to be in-flight. Both waitFors wrapped in
+      // act() because the polling itself triggers re-renders which would
+      // otherwise emit "wrapped into act(...)" warnings between the prior
+      // and trailing act blocks.
+      await act(async () => {
+        await vi.waitFor(() => {
+          expect(mockMutationFetchJson).toHaveBeenCalled();
+        });
+        await vi.waitFor(() => {
+          expect(result.current.isActioning).toBe(true);
+        });
       });
 
       // Resolve and verify it returns to false
       resolveMutation();
       await act(async () => {
         await verifyPromise;
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.isActioning).toBe(false);
+        await vi.waitFor(() => {
+          expect(result.current.isActioning).toBe(false);
+        });
       });
     });
   });
