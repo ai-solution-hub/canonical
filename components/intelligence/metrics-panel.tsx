@@ -1,6 +1,5 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
   FileText,
@@ -11,23 +10,11 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useHydrated } from '@/hooks/use-hydrated';
 import type { MetricsSummary } from '@/hooks/intelligence/use-intelligence-metrics';
 
 interface MetricsPanelProps {
   metrics: MetricsSummary;
-}
-
-function subscribeToClientMount(onStoreChange: () => void) {
-  onStoreChange();
-  return () => {};
-}
-
-function getClientMountedSnapshot() {
-  return true;
-}
-
-function getServerMountedSnapshot() {
-  return false;
 }
 
 function formatRelativeTime(dateString: string | null): string {
@@ -51,11 +38,7 @@ function formatRelativeTime(dateString: string | null): string {
 }
 
 export function MetricsPanel({ metrics }: MetricsPanelProps) {
-  const mounted = useSyncExternalStore(
-    subscribeToClientMount,
-    getClientMountedSnapshot,
-    getServerMountedSnapshot,
-  );
+  const mounted = useHydrated();
 
   if (!mounted) return null;
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
 import { cn } from '@/lib/utils';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,19 +17,6 @@ interface ExpiryDateDisplayProps {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function subscribeToClientMount(onStoreChange: () => void) {
-  onStoreChange();
-  return () => {};
-}
-
-function getClientMountedSnapshot() {
-  return true;
-}
-
-function getServerMountedSnapshot() {
-  return false;
-}
 
 /**
  * Calculate the number of days remaining until an expiry date.
@@ -107,11 +94,7 @@ export function ExpiryDateDisplay({
   expiryDate,
   lifecycleType,
 }: ExpiryDateDisplayProps) {
-  const mounted = useSyncExternalStore(
-    subscribeToClientMount,
-    getClientMountedSnapshot,
-    getServerMountedSnapshot,
-  );
+  const mounted = useHydrated();
 
   // Inert structural placeholder during SSR/pre-mount to preserve the
   // surrounding <dl> layout (parent metadata sidebar). The urgency

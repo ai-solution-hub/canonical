@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { BRANDING } from '@/lib/client-config';
 import { X, Clock, Users, History, Compass, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { cn } from '@/lib/utils';
 import type {
@@ -21,19 +22,6 @@ import type {
 
 const DISMISS_KEY = 'reorient-dismissed';
 const NAME_NUDGE_DISMISS_KEY = 'display-name-nudge-dismissed';
-
-function subscribeToClientMount(onStoreChange: () => void) {
-  onStoreChange();
-  return () => {};
-}
-
-function getClientMountedSnapshot() {
-  return true;
-}
-
-function getServerMountedSnapshot() {
-  return false;
-}
 
 function getGreeting(): string {
   const hour = new Date(Date.now()).getHours();
@@ -245,11 +233,7 @@ export function ReorientSection({
   data,
   hideFirstLoginMessage,
 }: ReorientSectionProps) {
-  const mounted = useSyncExternalStore(
-    subscribeToClientMount,
-    getClientMountedSnapshot,
-    getServerMountedSnapshot,
-  );
+  const mounted = useHydrated();
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return false;
     return !!sessionStorage.getItem(DISMISS_KEY);
