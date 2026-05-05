@@ -11,14 +11,6 @@ import {
 } from '@/lib/taxonomy/taxonomy-format';
 import type { TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 
-// Re-export shared types so existing `import { TaxonomyDomain } from '@/contexts/taxonomy-context'`
-// continues to work (even though no external file currently does this).
-export type {
-  TaxonomyProvenance,
-  TaxonomyDomain,
-  TaxonomySubtopic,
-} from '@/types/taxonomy';
-
 interface TaxonomyContextValue {
   /** All active taxonomy domains, ordered by display_order */
   domains: TaxonomyDomain[];

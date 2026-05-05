@@ -95,22 +95,11 @@ import type {
   MarkdownOrchestratorParams,
 } from '@/types/ingest';
 
-// Re-export the public type surface so existing consumers that reach in via
-// `@/lib/ingest/markdown-orchestrator` continue to compile. The canonical
-// home for these types is now `@/types/ingest`.
-export type {
-  MarkdownIngestFile,
-  MarkdownPerFileOverride,
-  MarkdownBatchOptions,
-  MarkdownIngestAnalysis,
-  MarkdownImportError,
-  MarkdownBatchResultsSummary,
-  MarkdownAnalysePhaseResult,
-  MarkdownImportPhaseResult,
-  MarkdownAnalysePhaseParams,
-  MarkdownImportPhaseParams,
-  MarkdownOrchestratorParams,
-} from '@/types/ingest';
+// Re-export the public type surface consumed via this module path.
+// Canonical home: `@/types/ingest`. The other ingest types are intentionally
+// not re-exported here — consumers should import them directly from
+// `@/types/ingest`.
+export type { MarkdownIngestFile } from '@/types/ingest';
 
 // W1 wave note: the four `lib/extraction/markdown-*` modules above are owned
 // by sibling W1-T1 agent. While that agent ships in parallel, this orchestrator

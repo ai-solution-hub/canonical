@@ -10,10 +10,4 @@
 export { useContentSelection } from './use-content-selection';
 export { useContentBulkRunner } from './use-content-bulk-runner';
 export { useUrlFilters } from './use-url-filters';
-export type {
-  SelectionState,
-  BulkProgress,
-  BulkRunnerReturn,
-  UrlFilterConfig,
-  UrlFilterReturn,
-} from './types';
+export type { BulkProgress, UrlFilterConfig } from './types';
