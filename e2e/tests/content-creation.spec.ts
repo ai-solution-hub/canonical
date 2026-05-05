@@ -308,12 +308,13 @@ test.describe('Content creation -- form submission', () => {
       await expect(listbox).toBeVisible({ timeout: 5000 });
       await listbox.getByText('Note').click();
 
-      // Wait for the TipTap editor to load
-      // The loading skeleton has aria-label="Loading editor"
+      // Wait for the TipTap editor to load. The loading skeleton has
+      // aria-label="Loading editor" and is hard-expected to render briefly
+      // before being replaced by the editor; missing skeleton renders
+      // surface honestly instead of silently passing.
       const editorLoading = page.locator('[aria-label="Loading editor"]');
-      if (await editorLoading.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await expect(editorLoading).not.toBeVisible({ timeout: 15000 });
-      }
+      await expect(editorLoading).toBeVisible({ timeout: 2000 });
+      await expect(editorLoading).not.toBeVisible({ timeout: 15000 });
 
       // Type content into the TipTap editor (ProseMirror container)
       // Note: ProseMirror is a contenteditable div, so we must use type() not fill()
