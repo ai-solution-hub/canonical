@@ -380,7 +380,22 @@ export function useBidActions({ id }: UseBidActionsParams) {
     },
   });
 
-  // Draft all mutation
+  // ---------------------------------------------------------------------
+  // Draft all mutation — post-S224 §5.4.1 D-4 ratification.
+  //
+  // The route now enqueues a `bid_draft_all` job and returns HTTP 202 with
+  // `{ job_id, pipeline_run_id, status: 'queued', deduplicated }`. We poll
+  // `/api/jobs/:job_id/status` every 3s (matches existing template-fill
+  // polling pattern at `components/bid/template-fill-progress.tsx:16`) and
+  // surface the terminal state via toast.
+  //
+  // `activeJobId` drives the polled `useQuery` below — set in `onSuccess`
+  // and cleared when the job reaches a terminal status. While polling is
+  // active OR the mutation is pending, `draftingAll` is `true` and the UI
+  // disables the button.
+  // ---------------------------------------------------------------------
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+
   const draftAllMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(`/api/bids/${id}/responses/draft-all`, {
@@ -394,16 +409,81 @@ export function useBidActions({ id }: UseBidActionsParams) {
         throw new Error(data.error || 'Failed to draft responses');
       }
 
-      return response.json();
+      return response.json() as Promise<{
+        job_id: string;
+        pipeline_run_id: string;
+        status: 'queued';
+        deduplicated: boolean;
+      }>;
     },
-    onSuccess: (result: {
-      drafted: number;
-      skipped: number;
-      failed: number;
-      total_cost: number;
-    }) => {
-      const { drafted, skipped, failed } = result;
+    onSuccess: (result) => {
+      setActiveJobId(result.job_id);
+      if (result.deduplicated) {
+        toast.info("Already drafting — using existing job…");
+      } else {
+        toast.success(
+          "Drafting all responses queued — we'll let you know when it's done.",
+        );
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to draft responses');
+    },
+  });
 
+  // Polled job-status query — refetches every 3s while `activeJobId` is
+  // non-null. Settles when `data.status` is terminal (`completed |
+  // completed_with_errors | failed | cancelled | dead_lettered`).
+  const draftAllJobStatus = useQuery({
+    queryKey: queryKeys.jobs.status(activeJobId ?? ''),
+    queryFn: async () => {
+      const res = await fetch(`/api/jobs/${activeJobId}/status`);
+      if (!res.ok) throw new Error('Failed to fetch job status');
+      return res.json() as Promise<{
+        id: string;
+        job_type: string;
+        status:
+          | 'pending'
+          | 'processing'
+          | 'completed'
+          | 'failed'
+          | 'cancelled'
+          | 'dead_lettered';
+        result: {
+          drafted?: number;
+          skipped?: number;
+          failed?: number;
+          total_cost?: number;
+        } | null;
+        error_message: string | null;
+      }>;
+    },
+    enabled: activeJobId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (
+        status === 'completed' ||
+        status === 'failed' ||
+        status === 'cancelled' ||
+        status === 'dead_lettered'
+      ) {
+        return false;
+      }
+      return 3000;
+    },
+  });
+
+  // React to terminal status — show toast, invalidate queries, clear
+  // `activeJobId` so the polling stops cleanly.
+  const draftAllJobStatusData = draftAllJobStatus.data;
+  useEffect(() => {
+    if (!activeJobId || !draftAllJobStatusData) return;
+    const { status, result, error_message } = draftAllJobStatusData;
+    if (status === 'completed') {
+      const drafted = result?.drafted ?? 0;
+      const skipped = result?.skipped ?? 0;
+      const failed = result?.failed ?? 0;
+      const totalCost = result?.total_cost ?? 0;
       if (failed > 0) {
         toast.warning(
           `Drafted ${drafted} responses, ${failed} failed, ${skipped} skipped`,
@@ -411,18 +491,22 @@ export function useBidActions({ id }: UseBidActionsParams) {
       } else {
         toast.success(`Drafted ${drafted} responses (${skipped} skipped)`);
       }
-
-      if (result.total_cost > 0) {
-        toast.info(`Total cost: $${result.total_cost.toFixed(4)}`);
+      if (totalCost > 0) {
+        toast.info(`Total cost: $${totalCost.toFixed(4)}`);
       }
-
       queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.questions(id) });
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Failed to draft responses');
-    },
-  });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.questions(id),
+      });
+      setActiveJobId(null);
+    } else if (status === 'failed' || status === 'dead_lettered') {
+      toast.error(error_message ?? 'Drafting failed');
+      setActiveJobId(null);
+    } else if (status === 'cancelled') {
+      toast.info('Drafting cancelled');
+      setActiveJobId(null);
+    }
+  }, [activeJobId, draftAllJobStatusData, id, queryClient]);
 
   // Handlers that coordinate across concerns
 
@@ -519,7 +603,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
     // UI dialog state
     showCostEstimate,
     setShowCostEstimate,
-    draftingAll: draftAllMutation.isPending,
+    draftingAll: draftAllMutation.isPending || activeJobId !== null,
     showOutcomeDialog,
     setShowOutcomeDialog,
     showKBReview,

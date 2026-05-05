@@ -287,6 +287,12 @@ export const queryKeys = {
       ['bids', 'response-by-question', bidId, questionId] as const,
   },
 
+  // Background queue jobs — `processing_queue` polling (S224 §5.4.1).
+  jobs: {
+    all: ['jobs'] as const,
+    status: (jobId: string) => ['jobs', 'status', jobId] as const,
+  },
+
   // Topic layers
   topicLayers: {
     all: ['topic-layers'] as const,
