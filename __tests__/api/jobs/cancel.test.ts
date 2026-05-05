@@ -182,4 +182,94 @@ describe('PATCH /api/jobs/[id]/cancel', () => {
     // the route should short-circuit before issuing the UPDATE).
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
+
+  // -------------------------------------------------------------------------
+  // §5.4.2 D-9 — cooperative-cancel widening (S225 W1-IMPL).
+  //
+  // For job_types in `COOPERATIVELY_CANCELLABLE_JOB_TYPES`
+  // (`lib/queue/cooperative-cancel.ts`), a `'processing'` job IS cancellable
+  // and the route returns 200 with `status='cancelled'` (instead of the
+  // §5.4.1 hard-409). The race-safe UPDATE filter widens to
+  // `.in('status', ['pending', 'processing'])` so that a worker claim
+  // between SELECT and UPDATE doesn't double-transition.
+  //
+  // Symmetric assertion: non-opt-in job_types still get hard-409 on
+  // `'processing'` (preserves §5.4.1 semantics for everyone else).
+  //
+  // Note: we use the REAL `canCooperativelyCancel` helper (not a mock) per
+  // `feedback_centralised_constant_mock_adoption_sweep` — mocking the
+  // exported constant would silently bypass the contract being tested.
+  // The integration test at `__tests__/integration/queue/batch-reclassify.
+  // integration.test.ts` (AC-9 processing → 200 cooperative) covers the
+  // end-to-end path against the real DB; this unit case locks the cancel
+  // route's branch logic at the unit level.
+  // -------------------------------------------------------------------------
+  it('returns 200 when cancelling a status="processing" job whose job_type is in the cooperative-cancel allow-list', async () => {
+    configureAuth('editor');
+
+    // SELECT returns a processing batch_reclassify job — opt-in per
+    // COOPERATIVELY_CANCELLABLE_JOB_TYPES = ['batch_reclassify'].
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: JOB_ID,
+        status: 'processing',
+        job_type: 'batch_reclassify',
+      },
+      error: null,
+    });
+    // The widened UPDATE chain resolves successfully.
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: JOB_ID }], error: null }),
+    );
+
+    const req = makePatchRequest();
+    const params = createTestParams({ id: JOB_ID });
+    const res = await PATCH(req as never, { params });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ jobId: JOB_ID, status: 'cancelled' });
+
+    // Race-safe filter MUST widen to include 'processing' so the UPDATE
+    // catches an in-flight row. This is the contract that distinguishes
+    // cooperative-cancel job_types from §5.4.1 hard-409 ones.
+    expect(mockSupabase._chain.in).toHaveBeenCalledWith('status', [
+      'pending',
+      'processing',
+    ]);
+    // The UPDATE payload still matches §5.6 reference shape.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({
+      status: 'cancelled',
+      error_message: 'cancelled by user',
+    });
+    expect(updateArg.completed_at).toEqual(expect.any(String));
+  });
+
+  it('returns 409 when cancelling a status="processing" job whose job_type is NOT in the cooperative-cancel allow-list', async () => {
+    configureAuth('editor');
+
+    // SELECT returns a processing 'classify' job — NOT in
+    // COOPERATIVELY_CANCELLABLE_JOB_TYPES, so §5.4.1 hard-409 applies.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: JOB_ID,
+        status: 'processing',
+        job_type: 'classify',
+      },
+      error: null,
+    });
+
+    const req = makePatchRequest();
+    const params = createTestParams({ id: JOB_ID });
+    const res = await PATCH(req as never, { params });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(typeof body.error).toBe('string');
+    // No UPDATE for non-opt-in processing jobs — the route short-circuits
+    // before issuing the UPDATE (preserves §5.4.1 semantics).
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+  });
 });
