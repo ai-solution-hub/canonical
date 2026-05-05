@@ -152,13 +152,10 @@ test.describe('Bid draft-all queued flow (S224 §5.4.1 AC-10)', () => {
     // The hook polls every 3s while activeJobId is set; we expect at
     // least 2 polls within a 10-second window (t=0 immediate, t=3s, t=6s).
     await expect
-      .poll(
-        () => statusRequests.length,
-        {
-          timeout: 10_000,
-          message: '/api/jobs/:id/status must be polled at least twice',
-        },
-      )
+      .poll(() => statusRequests.length, {
+        timeout: 10_000,
+        message: '/api/jobs/:id/status must be polled at least twice',
+      })
       .toBeGreaterThanOrEqual(2);
   });
 });

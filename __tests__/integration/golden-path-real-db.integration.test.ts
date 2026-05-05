@@ -296,8 +296,12 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     if (existingGuides && existingGuides.length > 0) {
       guideSlug = existingGuides[0].slug;
     } else {
-      // Create a test guide matching the classified domain
-      const slug = `${TEST_PREFIX.toLowerCase()}-test-guide`;
+      // Create a test guide matching the classified domain.
+      // Sanitise TEST_PREFIX — it includes literal brackets ("[GOLDEN-PATH-...]")
+      // which would leak into the slug and break the E2E smoke `guide-pages`
+      // spec (slug regex `/guide/[a-z0-9-]+/` rejects `[`/`]`; bracketed slugs
+      // also sort first alphabetically and get picked by `.first()`).
+      const slug = `${TEST_PREFIX.toLowerCase().replace(/[^a-z0-9-]+/g, '')}-test-guide`;
       const { data: guide, error: guideErr } = await serviceClient
         .from('guides')
         .insert({

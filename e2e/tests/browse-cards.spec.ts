@@ -207,9 +207,7 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     // is visible so missing persona seeds fail honestly, then click the
     // first one that resolves.
     const candidateCards = [
-      page
-        .getByRole('button', { name: /^Win themes and proposals:/i })
-        .first(),
+      page.getByRole('button', { name: /^Win themes and proposals:/i }).first(),
       page.getByRole('button', { name: /^Past bid responses:/i }).first(),
       page.getByRole('button', { name: /^Account context:/i }).first(),
       page.getByRole('button', { name: /^Sector narratives:/i }).first(),

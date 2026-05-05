@@ -335,7 +335,9 @@ test.describe('Admin Near-Duplicate Dashboard — §1.9 read-only', () => {
     await expect(page.getByText(/Similarity:\s*0\.9[67]\d/i)).toBeVisible();
 
     // Both side label badges visible.
-    await expect(page.getByTestId('near-dup-row-card-label-left')).toBeVisible();
+    await expect(
+      page.getByTestId('near-dup-row-card-label-left'),
+    ).toBeVisible();
     await expect(
       page.getByTestId('near-dup-row-card-label-right'),
     ).toBeVisible();

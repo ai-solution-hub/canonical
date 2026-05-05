@@ -64,10 +64,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-  createClient,
-  type SupabaseClient,
-} from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { serviceClient } from '../helpers/service-client';
 
@@ -90,7 +87,8 @@ let clientB: SupabaseClient<Database>;
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const stagingReachable = Boolean(SUPABASE_URL) && Boolean(SUPABASE_SERVICE_ROLE_KEY);
+const stagingReachable =
+  Boolean(SUPABASE_URL) && Boolean(SUPABASE_SERVICE_ROLE_KEY);
 
 /**
  * Insert a single pending job using the shared `serviceClient` (RLS
@@ -127,14 +125,8 @@ beforeAll(() => {
   // invocations in Promise.all run on independent HTTP connections,
   // which on the database side become independent transactions. This is
   // what AC-11 requires ("two separate transactions").
-  clientA = createClient<Database>(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
-  );
-  clientB = createClient<Database>(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
-  );
+  clientA = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  clientB = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 });
 
 afterAll(async () => {

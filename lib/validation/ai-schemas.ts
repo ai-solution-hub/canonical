@@ -62,4 +62,3 @@ export const DigestResponseSchema = z.object({
 });
 
 export type DigestResponse = z.infer<typeof DigestResponseSchema>;
-

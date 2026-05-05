@@ -107,10 +107,10 @@ import type { Json } from '@/supabase/types/database.types';
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.CRON_SECRET &&
-    process.env.TEST_USER_1_PASSWORD &&
-    process.env.TEST_USER_2_PASSWORD,
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.CRON_SECRET &&
+  process.env.TEST_USER_1_PASSWORD &&
+  process.env.TEST_USER_2_PASSWORD,
 );
 
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
@@ -216,9 +216,7 @@ async function readRow(jobId: string) {
     .eq('id', jobId)
     .single();
   if (error || !data) {
-    throw new Error(
-      `readRow(${jobId}) failed: ${error?.message ?? 'no row'}`,
-    );
+    throw new Error(`readRow(${jobId}) failed: ${error?.message ?? 'no row'}`);
   }
   return data;
 }
@@ -420,9 +418,9 @@ describeIfEnv(
       // the tick-start timestamp. This is the contract W3-A's
       // claim_next_job gates on.
       expect(afterFirstTick.updated_at).not.toBeNull();
-      expect(
-        new Date(afterFirstTick.updated_at).getTime(),
-      ).toBeGreaterThan(new Date(tickStartIso).getTime());
+      expect(new Date(afterFirstTick.updated_at).getTime()).toBeGreaterThan(
+        new Date(tickStartIso).getTime(),
+      );
 
       // Immediate second tick INSIDE the backoff window. Per spec §5.2
       // + W3-A claim_next_job rewrite, the row MUST NOT be re-claimed
@@ -543,9 +541,7 @@ describeIfEnv(
         .select('id')
         .single();
       if (error || !data) {
-        throw new Error(
-          `AC-4 seed failed: ${error?.message ?? 'no row'}`,
-        );
+        throw new Error(`AC-4 seed failed: ${error?.message ?? 'no row'}`);
       }
       seededJobIds.add(data.id);
       const jobId = data.id;
@@ -1049,9 +1045,7 @@ describeIfEnv(
         .select('id')
         .single();
       if (error || !data) {
-        throw new Error(
-          `AC-10 seed failed: ${error?.message ?? 'no row'}`,
-        );
+        throw new Error(`AC-10 seed failed: ${error?.message ?? 'no row'}`);
       }
       seededJobIds.add(data.id);
       const jobId = data.id;

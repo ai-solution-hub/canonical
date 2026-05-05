@@ -671,12 +671,14 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   //   2. workspaces.select.eq.eq.single() — bid existence
   //   3. pipeline_runs.insert(...) — awaited via .then (default empty impl)
   //   4. user_roles.select.eq.maybeSingle() — envelope role lookup
-  function configureRouteToEnqueuePoint(opts: {
-    role?: 'admin' | 'editor' | 'viewer';
-    bid?: { status: string } | null;
-    bidError?: { code: string; message: string } | null;
-    envelopeRole?: 'admin' | 'editor' | 'viewer';
-  } = {}) {
+  function configureRouteToEnqueuePoint(
+    opts: {
+      role?: 'admin' | 'editor' | 'viewer';
+      bid?: { status: string } | null;
+      bidError?: { code: string; message: string } | null;
+      envelopeRole?: 'admin' | 'editor' | 'viewer';
+    } = {},
+  ) {
     const role = opts.role ?? 'editor';
     configureRole(mockSupabase, role);
     if (opts.bid !== null) {
@@ -795,7 +797,10 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   // Spec §8 AC-1 lines 868-874.
 
   it('AC-1: returns 202 + {job_id, pipeline_run_id, status:"queued", deduplicated:false} on first POST (editor)', async () => {
-    configureRouteToEnqueuePoint({ role: 'editor', bid: { status: 'drafting' } });
+    configureRouteToEnqueuePoint({
+      role: 'editor',
+      bid: { status: 'drafting' },
+    });
 
     const req = createTestRequest(
       `/api/bids/${VALID_UUID}/responses/draft-all`,
@@ -832,14 +837,19 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
     // Idempotency key formula per spec §3.2:
     // bid_draft_all:<bidId>:<YYYY-MM-DD>:<requestHash>
     expect(call.idempotencyKey).toMatch(
-      new RegExp(`^bid_draft_all:${VALID_UUID}:\\d{4}-\\d{2}-\\d{2}:[0-9a-f]{16}$`),
+      new RegExp(
+        `^bid_draft_all:${VALID_UUID}:\\d{4}-\\d{2}-\\d{2}:[0-9a-f]{16}$`,
+      ),
     );
     expect(call.pipelineRunId).toBe(body.pipeline_run_id);
     expect(call.maxAttempts).toBe(3);
   });
 
   it('AC-1: returns 202 with admin auth (editor-required role gate satisfied via ROLE_RANK)', async () => {
-    configureRouteToEnqueuePoint({ role: 'admin', bid: { status: 'drafting' } });
+    configureRouteToEnqueuePoint({
+      role: 'admin',
+      bid: { status: 'drafting' },
+    });
 
     const req = createTestRequest(
       `/api/bids/${VALID_UUID}/responses/draft-all`,
@@ -867,7 +877,10 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   // Spec §8 AC-3 lines 887-894.
 
   it('AC-3: same-day second POST → 202 + same job_id + deduplicated:true', async () => {
-    configureRouteToEnqueuePoint({ role: 'editor', bid: { status: 'drafting' } });
+    configureRouteToEnqueuePoint({
+      role: 'editor',
+      bid: { status: 'drafting' },
+    });
 
     // Override the default mock to return deduplicated:true.
     mockEnqueueQueueJob.mockResolvedValueOnce({
@@ -895,7 +908,10 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   // ───── 500 fallback when enqueue throws ─────
 
   it('returns 500 when enqueueQueueJob throws (e.g. RLS violation)', async () => {
-    configureRouteToEnqueuePoint({ role: 'editor', bid: { status: 'drafting' } });
+    configureRouteToEnqueuePoint({
+      role: 'editor',
+      bid: { status: 'drafting' },
+    });
 
     mockEnqueueQueueJob.mockRejectedValueOnce(
       new Error('permission denied for table processing_queue'),

@@ -10,6 +10,7 @@ import { parseBody } from '@/lib/validation';
 import { ResponseDraftAllBodySchema } from '@/lib/validation/schemas';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 import { sb } from '@/lib/supabase/safe';
+import { createServiceClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { enqueueQueueJob } from '@/lib/queue/enqueue';
 import { buildIdempotencyKey } from '@/lib/queue/envelope';
@@ -121,10 +122,15 @@ export async function POST(
     // pipeline_runs Pattern 2: caller-allocated UUID + INSERT
     // `status='running'` at-enqueue. The worker UPDATEs the SAME row
     // at-terminal (see `lib/queue/dispatch.ts` `case 'bid_draft_all':`).
+    //
+    // Service-role client: `pipeline_runs_insert` RLS is admin-only;
+    // editor producers would be silently denied. Same pattern as
+    // `lib/mcp/tools/content.ts:374`.
     // ----------------------------------------------------------------
     const pipelineRunId = crypto.randomUUID();
+    const serviceClient = createServiceClient();
     await sb(
-      supabase.from('pipeline_runs').insert({
+      serviceClient.from('pipeline_runs').insert({
         id: pipelineRunId,
         pipeline_name: 'bid_draft_all',
         status: 'running',
@@ -151,10 +157,7 @@ export async function POST(
         'bids.response.draftAll: user_roles lookup failed, defaulting role to editor',
       );
     }
-    const role = (roleRow?.role ?? 'editor') as
-      | 'admin'
-      | 'editor'
-      | 'viewer';
+    const role = (roleRow?.role ?? 'editor') as 'admin' | 'editor' | 'viewer';
 
     // ----------------------------------------------------------------
     // Enqueue. The chokepoint helper handles dedup pre-INSERT against

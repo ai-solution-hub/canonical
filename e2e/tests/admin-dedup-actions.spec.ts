@@ -81,9 +81,7 @@ function newRunId(): string {
  * writes `auth.session.user.id`, which is TEST_USER_1's id, so audit
  * assertions must compare against THAT, not "first admin in user_roles".
  */
-async function resolveAdminActorId(
-  supabase: SupabaseClient,
-): Promise<string> {
+async function resolveAdminActorId(supabase: SupabaseClient): Promise<string> {
   const adminEmail = process.env.TEST_USER_1_EMAIL;
   if (!adminEmail) {
     throw new Error(

@@ -419,7 +419,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
     onSuccess: (result) => {
       setActiveJobId(result.job_id);
       if (result.deduplicated) {
-        toast.info("Already drafting — using existing job…");
+        toast.info('Already drafting — using existing job…');
       } else {
         toast.success(
           "Drafting all responses queued — we'll let you know when it's done.",

@@ -212,8 +212,10 @@ function mockFetchSuccess(overrides?: {
     }
     // Job status polling — terminal completed by default (per polling
     // tests override with their own polling sequences).
-    if (url === `/api/jobs/${STUB_JOB_ID}/status` &&
-        (!init?.method || init.method === 'GET')) {
+    if (
+      url === `/api/jobs/${STUB_JOB_ID}/status` &&
+      (!init?.method || init.method === 'GET')
+    ) {
       return Promise.resolve({
         ok: true,
         json: async () => ({

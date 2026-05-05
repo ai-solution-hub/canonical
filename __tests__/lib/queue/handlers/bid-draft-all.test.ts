@@ -57,7 +57,8 @@ vi.mock('@/lib/ai/draft', () => ({
 
 // Import the handler AFTER vi.mock declaration so the mocked draft module
 // is in place when the handler module's import resolves.
-const { runBidDraftAllJob } = await import('@/lib/queue/handlers/bid-draft-all');
+const { runBidDraftAllJob } =
+  await import('@/lib/queue/handlers/bid-draft-all');
 const { PIPELINE_SYSTEM_USER_ID } = await import('@/lib/intelligence/types');
 
 // ---------------------------------------------------------------------------
@@ -115,8 +116,9 @@ function makeQuestion(
     word_limit: 200,
     section_name: 'Section 1',
     confidence_posture: overrides.confidence_posture ?? 'strong',
-    matched_content_ids:
-      overrides.matched_content_ids ?? ['c1c1c1c1-1111-4111-8111-111111111111'],
+    matched_content_ids: overrides.matched_content_ids ?? [
+      'c1c1c1c1-1111-4111-8111-111111111111',
+    ],
   };
 }
 
@@ -180,7 +182,13 @@ interface SupabaseScenario {
   existing: { question_id: string }[];
   /** Per-content-items batch result. Returned for every question's
    *  matched_content_ids lookup. */
-  contentItems: { id: string; suggested_title: string; content: string; content_type: string; summary: string | null }[];
+  contentItems: {
+    id: string;
+    suggested_title: string;
+    content: string;
+    content_type: string;
+    summary: string | null;
+  }[];
   /** Sequence of upsert results (one per draft attempt). */
   upsertedIds: string[];
   /** When set, `count` returned by the post-loop "any undrafted left?"
@@ -202,12 +210,11 @@ function configureSupabase(
   if (scenario.bid.error || !scenario.bid.data) return;
 
   // 2. bid_questions.select(...).order().order() — resolves via .then()
-  client._chain.then.mockImplementationOnce(
-    (resolve: (v: unknown) => void) =>
-      resolve({
-        data: scenario.questions.data,
-        error: scenario.questions.error,
-      }),
+  client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+    resolve({
+      data: scenario.questions.data,
+      error: scenario.questions.error,
+    }),
   );
 
   if (scenario.questions.error || !scenario.questions.data) return;
@@ -217,9 +224,8 @@ function configureSupabase(
   //    queue it; tests that pass skip_existing=false simply won't trigger
   //    the consumption (no harm done — the mock chain is ordered and
   //    unconsumed implementations stay queued).
-  client._chain.then.mockImplementationOnce(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: scenario.existing, error: null }),
+  client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+    resolve({ data: scenario.existing, error: null }),
   );
 
   // 4. Per-question fan-out. For each question with matched_content_ids
@@ -244,9 +250,8 @@ function configureSupabase(
       // never reached
     }
     // a. content_items lookup
-    client._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: scenario.contentItems, error: null }),
+    client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: scenario.contentItems, error: null }),
     );
     // b. bid_responses.upsert.select.single
     const id = scenario.upsertedIds[upsertIdx];
@@ -266,9 +271,8 @@ function configureSupabase(
     // .single() is called — so we queue another .then implementation
     // returning { count }. The chain.is() returns chain, chain.not()
     // returns chain, etc., so the call lands on `then`.
-    client._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, count: scenario.undraftedCount, error: null }),
+    client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, count: scenario.undraftedCount, error: null }),
     );
   }
 }
@@ -500,7 +504,10 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
     });
 
     it('bid_transitioned=false when failed > 0 even if drafting state would otherwise allow', async () => {
-      const questions = [makeQuestion(QUESTION_IDS[0]), makeQuestion(QUESTION_IDS[1])];
+      const questions = [
+        makeQuestion(QUESTION_IDS[0]),
+        makeQuestion(QUESTION_IDS[1]),
+      ];
       mockRunDraftingPipeline.mockImplementationOnce(async () => {
         throw new Error('transient');
       });
@@ -756,7 +763,7 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
   // -------------------------------------------------------------------------
 
   describe("confidence_posture='no_content' skip", () => {
-    it("no_content question pushed as status=skipped, reason=no_content; runDraftingPipeline NOT invoked", async () => {
+    it('no_content question pushed as status=skipped, reason=no_content; runDraftingPipeline NOT invoked', async () => {
       const questions = [
         makeQuestion(QUESTION_IDS[0], { confidence_posture: 'no_content' }),
         makeQuestion(QUESTION_IDS[1], { confidence_posture: 'strong' }),
