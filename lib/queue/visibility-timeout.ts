@@ -1,41 +1,34 @@
 /**
  * `reapStuckJobs` — visibility-timeout reaper for orphaned `processing_queue`
- * rows. Session 222 Wave 2-B.
+ * rows. Session 223 W3 wiring (was Session 222 W2-B with the supabase-js
+ * UPDATE fallback; now flipped to the `reap_stuck_jobs` RPC shipped in
+ * migration `20260505153750_s223_w3_claim_next_job_backoff_window.sql`).
  *
  * Spec source: `docs/specs/background-queue-infra-spec.md` §5.3
  *   (lines 750-769) — orphaned-job recovery via the visibility-timeout
  *   pattern, D-8 ratified at 5-minute default.
- * Plan source: `docs/plans/background-queue-infra-plan.md` §1 W2, §2 Wave 2.
+ * Plan source: `docs/plans/background-queue-infra-plan.md` §1 W2 + W3.
  *
  * Worker contract:
- *   The cron worker (`app/api/cron/process-queue/route.ts`, W2-A) calls
+ *   The cron worker (`app/api/cron/process-queue/route.ts`) calls
  *   `await reapStuckJobs(supabase)` at the top of every tick BEFORE
  *   claiming new work (spec §4.3 + §5.3). A worker that crashes mid-job
  *   (Vercel Lambda OOM, network partition, deploy restart) leaves the
  *   row at `status='processing'` forever unless rescued; this helper is
  *   the rescue path.
  *
- * Spec §5.3 SQL reference:
+ * Spec §5.3 SQL — now ships verbatim via `reap_stuck_jobs(p_timeout_seconds)`:
  *
  *   UPDATE processing_queue
  *   SET status = 'pending', attempts = attempts + 1
  *   WHERE status = 'processing'
- *     AND started_at < NOW() - INTERVAL '<visibility_timeout> seconds';
+ *     AND started_at < NOW() - make_interval(secs => p_timeout_seconds)
+ *   RETURNING ... -- count returned to the caller
  *
- * Implementation deviation from the spec SQL — `attempts = attempts + 1`:
- *   `supabase-js` does not support raw SQL expressions in the column-update
- *   payload. The two implementation options are (a) an RPC for this
- *   single UPDATE (out of W2 scope — no DDL in this wave), or (b) fetch +
- *   client-side increment + bulk update (round-trip cost on every cron
- *   tick). We ship the simpler `status: 'pending'` UPDATE without the
- *   attempt increment for W2; the increment is a refinement that lands
- *   alongside the W3 `claim_next_job` rewrite (RPC migration is the
- *   correct home for it). This is acceptable for W2 because the worker
- *   on the next claim will see the row as fresh `'pending'` and
- *   re-process it once — the spec's increment is a defence against
- *   infinite-reap loops on a permanently-broken job, which only matters
- *   after `max_attempts` retries; the dead-letter path in
- *   `lib/queue/failure.ts` already enforces that bound.
+ * The W2 fallback (supabase-js `.update()` chain without `attempts++` —
+ * supabase-js cannot express raw column expressions) is replaced by the
+ * RPC, which performs the increment atomically. AC-5 of spec §8 now
+ * passes the `attempts === 1` post-reap assertion.
  *
  * Returns the number of rows reaped, for the worker summary + Sentry
  * `Reaped stuck queue job` warning emit (spec §6.1.3).
@@ -69,15 +62,18 @@ export async function reapStuckJobs(
 ): Promise<number> {
   const timeoutSeconds =
     opts.visibilityTimeoutSeconds ?? DEFAULT_VISIBILITY_TIMEOUT_SECONDS;
-  const cutoff = new Date(Date.now() - timeoutSeconds * 1_000).toISOString();
 
-  const { data, error } = await supabase
-    .from('processing_queue')
-    .update({ status: 'pending' })
-    .eq('status', 'processing')
-    .lt('started_at', cutoff)
-    .select('id');
+  // Cast: types/database.types.ts hasn't been regenerated since the
+  // migration adding reap_stuck_jobs landed; types regen happens in the
+  // /update-docs phase post-prod-push. Function name + arg shape verified
+  // against migration 20260505153750_s223_w3_claim_next_job_backoff_window.sql.
+  const { data, error } = await (
+    supabase.rpc as unknown as (
+      fn: 'reap_stuck_jobs',
+      args: { p_timeout_seconds: number },
+    ) => Promise<{ data: number | null; error: { message: string } | null }>
+  )('reap_stuck_jobs', { p_timeout_seconds: timeoutSeconds });
 
   if (error) throw error;
-  return data?.length ?? 0;
+  return data ?? 0;
 }
