@@ -153,6 +153,22 @@ jobs:
 
       - name: Test (pytest)
         if: steps.changes.outputs.python == 'true'
+        env:
+          # `kb_pipeline.config` calls `load_dotenv(.env.local)` at import; in
+          # CI the file is absent so vars must come from process env. Without
+          # this block, every test importing the pipeline raises
+          # "SUPABASE_URL not set in .env.local". Step is gated by the
+          # `python` paths-filter, so only fires when scripts/ changes.
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
         run: python3 -m pytest scripts/tests/
 
   quality-test:
