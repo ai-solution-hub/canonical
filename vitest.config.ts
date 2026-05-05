@@ -27,6 +27,10 @@ export default defineConfig({
     setupFiles: ['__tests__/setup.ts'],
     pool: 'forks',
     maxWorkers: 4,
+    // GitHub-hosted shard workers occasionally spend more than Vitest's
+    // default 10s hook budget transforming large dynamic MCP tool imports.
+    // Keep this below the workflow-level timeout so real hangs still fail CI.
+    hookTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: [
