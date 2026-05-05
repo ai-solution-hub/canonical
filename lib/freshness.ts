@@ -9,7 +9,9 @@
  * - null/default: use evergreen rules
  */
 
+/** @public */
 export type FreshnessState = 'fresh' | 'aging' | 'stale' | 'expired';
+/** @public */
 export type LifecycleType =
   | 'evergreen'
   | 'date_bound'

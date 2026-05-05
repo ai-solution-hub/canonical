@@ -40,6 +40,7 @@ export interface DedupResult {
 export const DEDUP_MIN_CONTENT_LENGTH = 50;
 
 /** Outcome of the shared dedup gate used by every TS entry point. */
+/** @public */
 export interface ExactDuplicateCheck {
   isDuplicate: boolean;
   existingId?: string;

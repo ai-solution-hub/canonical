@@ -16,6 +16,7 @@ import { sb } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { chunkByHeadings, type ContentChunk } from './chunking';
 
+/** @public */
 export type ChunkWithEmbedding = ContentChunk & {
   embedding: number[] | null;
 };

@@ -27,6 +27,7 @@ interface BidSummary {
   acceptedCount: number;
 }
 
+/** @public */
 export interface QuestionSummary {
   id: string;
   questionNumber: number;

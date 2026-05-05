@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface VerificationHistoryEntry {
   id: string;
   content_item_id: string;

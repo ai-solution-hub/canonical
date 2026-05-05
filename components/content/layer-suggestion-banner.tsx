@@ -23,6 +23,7 @@ export interface LayerSuggestionData {
   confidence: string;
 }
 
+/** @public */
 export interface TopicSuggestionData {
   topicId: string;
   reason: string;

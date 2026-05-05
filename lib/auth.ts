@@ -15,6 +15,7 @@ interface AuthorisedClient extends AuthenticatedClient {
 }
 
 /** Discriminated result from getAuthenticatedClient — success or typed failure */
+/** @public */
 export type AuthenticatedResult =
   | ({ success: true } & AuthenticatedClient)
   | {

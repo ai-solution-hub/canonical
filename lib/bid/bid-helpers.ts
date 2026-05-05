@@ -5,6 +5,7 @@
  * across the bid listing cards and the bid detail header.
  */
 
+/** @public */
 export interface DeadlineProximity {
   /** Human-readable label, e.g. "3 days left" or "Overdue" */
   label: string;

@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger/client';
  * Configuration for a workspace type. Each registered type provides the
  * information needed to render it in the UI without any hardcoded checks.
  */
+/** @public */
 export interface WorkspaceTypeConfig {
   /** Database type value (matches workspaces.type CHECK constraint) */
   readonly type: string;

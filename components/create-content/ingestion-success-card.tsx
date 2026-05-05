@@ -23,6 +23,7 @@ import {
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { toast } from 'sonner';
 
+/** @public */
 export interface LayerSuggestionInfo {
   suggestedLayer: string;
   reason: string;

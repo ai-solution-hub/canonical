@@ -9,6 +9,7 @@
  * rate limiting.
  */
 
+/** @public */
 export interface RateLimitResult {
   /** Whether the request is allowed */
   allowed: boolean;

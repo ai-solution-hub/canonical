@@ -553,6 +553,7 @@ export async function fetchContentForMatching(
 // ---------------------------------------------------------------------------
 
 /** A single gap item in the summary. */
+/** @public */
 export interface GapDetail {
   template_name: string;
   section_ref: string;
@@ -562,6 +563,7 @@ export interface GapDetail {
 }
 
 /** Aggregated gap summary across all templates. */
+/** @public */
 export interface GapSummary {
   total_gaps: number;
   total_partial: number;

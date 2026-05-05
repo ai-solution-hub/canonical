@@ -25,6 +25,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** Dedup check status for a single Q&A pair. */
+/** @public */
 export type DedupStatus =
   | 'pending'
   | 'checking'

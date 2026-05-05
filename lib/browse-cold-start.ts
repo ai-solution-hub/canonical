@@ -7,6 +7,7 @@
  * to make the visibility contract unit-testable per spec §6.2.
  */
 
+/** @public */
 export interface BrowseColdStartInputs {
   searchQuery: string;
   activeFilterCount: number;

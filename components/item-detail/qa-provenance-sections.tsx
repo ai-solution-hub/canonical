@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 
+/** @public */
 export interface Workspace {
   id: string;
   name: string;
 }
 
+/** @public */
 export interface RelatedQAItem {
   id: string;
   title: string | null;

@@ -53,6 +53,7 @@ export interface ContentSuggestion {
   };
 }
 
+/** @public */
 export interface SuggestionParams {
   supabase: SupabaseClient<Database>;
   maxSuggestions?: number;
