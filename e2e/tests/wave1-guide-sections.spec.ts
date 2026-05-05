@@ -90,34 +90,34 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
       timeout: 30000,
     });
 
-    // If the guide section banner appeared, verify its structure
-    if (await guideBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Banner should have a heading about guide sections
-      await expect(guideBanner.getByText(/guide sections/i)).toBeVisible();
+    // Verify the guide section banner structure
+    await expect(guideBanner).toBeVisible({ timeout: 2000 });
 
-      // Dismiss button should be present
-      await expect(
-        guideBanner.getByRole('button', {
-          name: /Dismiss guide section suggestions/,
-        }),
-      ).toBeVisible();
+    // Banner should have a heading about guide sections
+    await expect(guideBanner.getByText(/guide sections/i)).toBeVisible();
 
-      // Section links should point to /guide/ paths
-      const sectionLinks = guideBanner.locator('a[href*="/guide/"]');
-      const linkCount = await sectionLinks.count();
-      if (linkCount > 0) {
-        const firstHref = await sectionLinks.first().getAttribute('href');
-        // Verify href format: /guide/{slug}#{sectionId}
-        expect(firstHref).toMatch(/^\/guide\/[a-z0-9-]+#/);
-      }
+    // Dismiss button should be present
+    await expect(
+      guideBanner.getByRole('button', {
+        name: /Dismiss guide section suggestions/,
+      }),
+    ).toBeVisible();
 
-      // Match strength badges should be present (one of: Exact match, Partial match, Domain match)
-      const badgeTexts = ['Exact match', 'Partial match', 'Domain match'];
-      const badgeRegex = new RegExp(badgeTexts.join('|'));
-      await expect(
-        guideBanner.locator('span').filter({ hasText: badgeRegex }).first(),
-      ).toBeVisible();
+    // Section links should point to /guide/ paths
+    const sectionLinks = guideBanner.locator('a[href*="/guide/"]');
+    const linkCount = await sectionLinks.count();
+    if (linkCount > 0) {
+      const firstHref = await sectionLinks.first().getAttribute('href');
+      // Verify href format: /guide/{slug}#{sectionId}
+      expect(firstHref).toMatch(/^\/guide\/[a-z0-9-]+#/);
     }
+
+    // Match strength badges should be present (one of: Exact match, Partial match, Domain match)
+    const badgeTexts = ['Exact match', 'Partial match', 'Domain match'];
+    const badgeRegex = new RegExp(badgeTexts.join('|'));
+    await expect(
+      guideBanner.locator('span').filter({ hasText: badgeRegex }).first(),
+    ).toBeVisible();
   });
 
   test('guide section banner dismiss hides the banner', async ({
@@ -164,16 +164,16 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
       timeout: 30000,
     });
 
-    if (await guideBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Click dismiss button
-      const dismissButton = guideBanner.getByRole('button', {
-        name: /Dismiss guide section suggestions/,
-      });
-      await dismissButton.click();
+    await expect(guideBanner).toBeVisible({ timeout: 2000 });
 
-      // Banner should disappear
-      await expect(guideBanner).not.toBeVisible({ timeout: 5000 });
-    }
+    // Click dismiss button
+    const dismissButton = guideBanner.getByRole('button', {
+      name: /Dismiss guide section suggestions/,
+    });
+    await dismissButton.click();
+
+    // Banner should disappear
+    await expect(guideBanner).not.toBeVisible({ timeout: 5000 });
   });
 
   test('guide section banner shows grouped sections by guide name', async ({
@@ -220,21 +220,21 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
       timeout: 30000,
     });
 
-    if (await guideBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Sections are displayed as links within <ul> lists
-      const sectionLists = guideBanner.locator('ul');
-      const listCount = await sectionLists.count();
-      // At least one group of sections should be present
-      expect(listCount).toBeGreaterThanOrEqual(1);
+    await expect(guideBanner).toBeVisible({ timeout: 2000 });
 
-      // Each section link should have an accessible name describing the guide context
-      const sectionLinks = guideBanner.locator('a[href*="/guide/"]');
-      const firstLinkCount = await sectionLinks.count();
-      if (firstLinkCount > 0) {
-        const ariaLabel = await sectionLinks.first().getAttribute('aria-label');
-        // Format: "View {sectionName} in {guideName}"
-        expect(ariaLabel).toMatch(/^View .+ in .+$/);
-      }
+    // Sections are displayed as links within <ul> lists
+    const sectionLists = guideBanner.locator('ul');
+    const listCount = await sectionLists.count();
+    // At least one group of sections should be present
+    expect(listCount).toBeGreaterThanOrEqual(1);
+
+    // Each section link should have an accessible name describing the guide context
+    const sectionLinks = guideBanner.locator('a[href*="/guide/"]');
+    const firstLinkCount = await sectionLinks.count();
+    if (firstLinkCount > 0) {
+      const ariaLabel = await sectionLinks.first().getAttribute('aria-label');
+      // Format: "View {sectionName} in {guideName}"
+      expect(ariaLabel).toMatch(/^View .+ in .+$/);
     }
   });
 });
