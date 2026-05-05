@@ -2,6 +2,8 @@
  * Global setup runs once before all test files.
  *
  * Responsibilities:
+ * 0. Sweep stale admin-dedup fixture rows (>2h old) left over from
+ *    crashed-worker leaks (safety net per design §5.4).
  * 1. Verify required environment variables are present.
  * 2. Verify test users exist with correct roles (Phase 4).
  *
@@ -9,6 +11,7 @@
  * in e2e/fixtures/test-data-fixture.ts.
  */
 import { createClient } from '@supabase/supabase-js';
+import { sweepOrphanFixtures } from './fixtures/admin-dedup-fixture-helpers';
 import { createServiceClient } from './fixtures/supabase';
 import { TEST_USERS } from './fixtures/test-data';
 const APP_ROUTE_PREFLIGHT_PATHS = [
@@ -64,6 +67,21 @@ async function verifyAppRouteRegistered(pathname: string): Promise<void> {
 }
 
 async function globalSetup(): Promise<void> {
+  // Hoisted service-role client — reused by Step 0 orphan sweep and Step 2
+  // test-user verification. createServiceClient() validates SUPABASE_URL +
+  // SERVICE_ROLE_KEY itself, so missing env throws here with a clear message.
+  const supabase = createServiceClient();
+
+  // --- Step 0: Admin-dedup fixture orphan sweep (>2h old) ---
+  // Catches crashed-worker leaks left tagged with metadata->>e2e_dedup_fixture_run_id.
+  // Time-window guard (created_at < now-2h) preserves the current run's rows,
+  // which are seeded by the per-worker fixture AFTER globalSetup completes.
+  // See docs/audits/s213b-admin-dedup-fixtures-design.md §5.4.
+  const sweep = await sweepOrphanFixtures(supabase, 2);
+  console.log(
+    `E2E setup: orphan sweep deleted ${sweep.deletedContentItems} stale admin-dedup fixture rows (>2h old).`,
+  );
+
   // --- Step 1: Environment variables ---
   const required = [
     'NEXT_PUBLIC_SUPABASE_URL',
@@ -100,7 +118,7 @@ async function globalSetup(): Promise<void> {
     `E2E setup: verified ${APP_ROUTE_PREFLIGHT_PATHS.length} App Router API routes are registered.`,
   );
   // --- Step 2: Verify test users exist with correct roles ---
-  const supabase = createServiceClient();
+  // (reuses the hoisted `supabase` service-role client from Step 0)
 
   // Query user_roles to get all roles, then cross-reference with auth.users
   // via the admin API to verify emails match expected roles.
