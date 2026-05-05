@@ -3,24 +3,34 @@ import { z } from 'zod';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { parseBody } from '@/lib/validation';
 import { safeErrorMessage } from '@/lib/error';
+import { canCooperativelyCancel } from '@/lib/queue/cooperative-cancel';
+import type { JobType } from '@/lib/queue/envelope';
 
 /**
  * PATCH /api/jobs/:id/cancel — user-initiated cancellation of a queued job.
- * Session 222 Wave 2-B.
+ * Session 222 Wave 2-B; cooperative-cancel widening Session 225 W1-IMPL.
  *
- * Spec source: `docs/specs/background-queue-infra-spec.md` §5.6 (lines 859-878).
+ * Spec source: `docs/specs/background-queue-infra-spec.md` §5.6 (lines 859-878)
+ * + `docs/specs/§5.4.2-batch-reclassify-spec.md` §10 D-9 (cooperative
+ * cancellation between items).
  * Plan source: `docs/plans/background-queue-infra-plan.md` §1 W2, §2 Wave 2.
  *
  * Behaviour:
- *   - Only `'pending'` jobs can be cancelled. Already-processing jobs
- *     return 409 with the message "this job is already running and cannot
- *     be cancelled" (spec §5.6 line 874-876).
+ *   - `'pending'` jobs can always be cancelled (race-safe via the
+ *     `.in('status', ['pending', 'processing'])` filter — see below).
+ *   - `'processing'` jobs can be cancelled ONLY if their `job_type` opts in
+ *     to cooperative cancellation via `canCooperativelyCancel(job_type)`.
+ *     For non-opt-in job types, processing jobs return 409 ("this job is
+ *     already running and cannot be cancelled") preserving §5.4.1
+ *     hard-409 semantics.
  *   - Already-terminal jobs (completed / failed / cancelled / dead_lettered)
- *     also return 409 with the current status — the user-facing UX should
+ *     return 409 with the current status — the user-facing UX should
  *     surface "this job has already finished".
- *   - The UPDATE is race-safe via the `.in('status', ['pending'])` filter
- *     per spec §5.6 verbatim: if the worker claims the row between our
- *     SELECT and our UPDATE, the UPDATE will affect zero rows.
+ *   - The UPDATE is race-safe via the `.in('status', [...])` filter:
+ *     if the worker transitions the row between our SELECT and our UPDATE,
+ *     the UPDATE will affect zero rows. Cooperatively-cancelable handlers
+ *     poll `processing_queue.status` between items and stop when they see
+ *     `'cancelled'` (per `lib/queue/handlers/batch-reclassify.ts`).
  *
  * Auth:
  *   Admin or editor (a viewer cannot cancel jobs even their own — RLS on
@@ -73,10 +83,12 @@ export async function PATCH(
     const parsed = parseBody(CancelBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    // Read current status first to disambiguate 404 vs 409 vs 200.
+    // Read current status + job_type to disambiguate 404 vs 409 vs 200,
+    // and to check whether `'processing'` jobs of this type opt in to
+    // cooperative cancellation per §5.4.2 D-9.
     const { data: existing, error: readErr } = await supabase
       .from('processing_queue')
-      .select('id, status')
+      .select('id, status, job_type')
       .eq('id', jobId)
       .maybeSingle();
 
@@ -90,7 +102,18 @@ export async function PATCH(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    if (existing.status === 'processing') {
+    // Decide which statuses are cancellable for this job_type:
+    //   - 'pending' is always cancellable.
+    //   - 'processing' is cancellable ONLY if the job_type opts in via
+    //     `canCooperativelyCancel(job_type)`. Otherwise: hard-409
+    //     preserving §5.4.1 semantics.
+    const jobType = existing.job_type as JobType;
+    const cancellableStatuses: Array<'pending' | 'processing'> = ['pending'];
+    if (canCooperativelyCancel(jobType)) {
+      cancellableStatuses.push('processing');
+    }
+
+    if (existing.status === 'processing' && !cancellableStatuses.includes('processing')) {
       return NextResponse.json(
         {
           error: 'This job is already running and cannot be cancelled.',
@@ -99,7 +122,10 @@ export async function PATCH(
         { status: 409 },
       );
     }
-    if (existing.status !== 'pending') {
+    if (
+      existing.status !== 'pending' &&
+      existing.status !== 'processing'
+    ) {
       return NextResponse.json(
         {
           error: `Job is in terminal state '${existing.status}' and cannot be cancelled.`,
@@ -109,9 +135,14 @@ export async function PATCH(
       );
     }
 
-    // Race-safe UPDATE — the `.in('status', ['pending'])` guard per spec
-    // §5.6 verbatim ensures we don't overwrite a row the worker has just
-    // claimed.
+    // Race-safe UPDATE — the `.in('status', cancellableStatuses)` guard
+    // per spec §5.6 + §5.4.2 D-9 ensures we don't overwrite a row the
+    // worker has just transitioned. For non-cooperative job types the
+    // statuses list is `['pending']` (verbatim §5.4.1 behaviour); for
+    // cooperative job types it's `['pending', 'processing']` so the
+    // UPDATE flips a `'processing'` row to `'cancelled'` and the
+    // handler's inter-item poll observes the new status on the next
+    // tick.
     const { error: updateErr } = await supabase
       .from('processing_queue')
       .update({
@@ -120,7 +151,7 @@ export async function PATCH(
         error_message: 'cancelled by user',
       })
       .eq('id', jobId)
-      .in('status', ['pending']);
+      .in('status', cancellableStatuses);
 
     if (updateErr) {
       return NextResponse.json(
