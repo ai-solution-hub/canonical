@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
   FileText,
@@ -16,10 +17,23 @@ interface MetricsPanelProps {
   metrics: MetricsSummary;
 }
 
+function subscribeToClientMount(onStoreChange: () => void) {
+  onStoreChange();
+  return () => {};
+}
+
+function getClientMountedSnapshot() {
+  return true;
+}
+
+function getServerMountedSnapshot() {
+  return false;
+}
+
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return 'Never';
   const date = new Date(dateString);
-  const now = new Date();
+  const now = new Date(Date.now());
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
@@ -37,6 +51,14 @@ function formatRelativeTime(dateString: string | null): string {
 }
 
 export function MetricsPanel({ metrics }: MetricsPanelProps) {
+  const mounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot,
+  );
+
+  if (!mounted) return null;
+
   return (
     <div className="space-y-4">
       {/* Stats grid */}
