@@ -11,6 +11,7 @@ import type { Digest, DigestGenerateResponse } from '@/types/digest';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface PastDigestEntry {
   id: string;
   digest_type: string;

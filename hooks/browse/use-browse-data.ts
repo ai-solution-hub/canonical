@@ -51,6 +51,7 @@ type PageParam =
   | { type: 'cursor'; value: string }
   | { type: 'offset'; value: number };
 
+/** @public */
 export interface FreshnessCounts {
   fresh: number;
   aging: number;

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export type QuickReviewAction = 'verify' | 'unverify' | 'flag' | 'unflag';
 
 export type OnOptimisticUpdate = (

@@ -38,6 +38,7 @@ export interface FeedSourceInput {
  * feed title and article count alongside the inserted row. Non-RSS sources
  * (web, api) skip validation and only return the row fields.
  */
+/** @public */
 export interface CreateFeedSourceResponse extends FeedSource {
   feed_title?: string;
   initial_article_count?: number;

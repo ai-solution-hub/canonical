@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+/** @public */
 export type ExportFormat = 'docx' | 'xlsx';
 
 interface UseBidExportOptions {
