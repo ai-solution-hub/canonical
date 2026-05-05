@@ -82,6 +82,12 @@ jobs:
               Path("schema-dumps/staging-schema.sql"),
           ]
           managed_function_prefix = "CREATE FUNCTION extensions.grant_pg_graphql_access() "
+          managed_auth_user_index_prefixes = (
+              "CREATE INDEX idx_users_created_at_desc ON auth.users ",
+              "CREATE INDEX idx_users_email ON auth.users ",
+              "CREATE INDEX idx_users_last_sign_in_at_desc ON auth.users ",
+              "CREATE INDEX idx_users_name ON auth.users ",
+          )
 
           for dump_path in dump_paths:
               lines = dump_path.read_text().splitlines(keepends=True)
@@ -101,6 +107,8 @@ jobs:
                   if re.match(r"^\s*--", line):
                       continue
                   if not line.strip():
+                      continue
+                  if line.startswith(managed_auth_user_index_prefixes):
                       continue
 
                   output.append(line)
