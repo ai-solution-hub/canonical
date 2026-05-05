@@ -129,23 +129,22 @@ async function createTestContentItem(opts: {
   domain?: string | null;
 }): Promise<{ itemId: string }> {
   const classified = opts.classified ?? false;
-  // Use a hash that the GENERATED ALWAYS column will compute itself.
-  const insertPayload: Record<string, unknown> = {
-    title: `${TEST_PREFIX} test item`,
-    suggested_title: `${TEST_PREFIX} test item`,
-    content: `${TEST_PREFIX} sample content text about security and encryption.`,
-    content_type: 'q_a_pair',
-    platform: 'extraction',
-    primary_domain: classified ? (opts.domain ?? 'security') : null,
-    primary_subtopic: classified ? 'cyber-security' : null,
-    classified_at: classified ? new Date(Date.now()).toISOString() : null,
-    classification_confidence: classified ? 0.95 : null,
-    ai_keywords: classified ? ['encryption', 'gdpr'] : null,
-  };
-
+  // Use a hash that the GENERATED ALWAYS column will compute itself
+  // (per CLAUDE.md gotcha — content_text_hash is GENERATED ALWAYS).
   const { data: item, error: itemErr } = await serviceClient
     .from('content_items')
-    .insert(insertPayload)
+    .insert({
+      title: `${TEST_PREFIX} test item`,
+      suggested_title: `${TEST_PREFIX} test item`,
+      content: `${TEST_PREFIX} sample content text about security and encryption.`,
+      content_type: 'q_a_pair',
+      platform: 'extraction',
+      primary_domain: classified ? (opts.domain ?? 'security') : null,
+      primary_subtopic: classified ? 'cyber-security' : null,
+      classified_at: classified ? new Date(Date.now()).toISOString() : null,
+      classification_confidence: classified ? 0.95 : null,
+      ai_keywords: classified ? ['encryption', 'gdpr'] : null,
+    })
     .select('id')
     .single();
   if (itemErr || !item) {
