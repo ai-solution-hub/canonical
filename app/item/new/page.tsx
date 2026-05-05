@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { NewItemTabs } from './new-item-tabs';
 
 const VALID_TABS = ['write', 'url', 'upload', 'batch'] as const;
@@ -20,14 +22,25 @@ export default async function NewItemPage({ searchParams }: Props) {
     redirect('/login');
   }
 
-  // Check user role
-  const { data: roleData } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single();
-
-  const role = roleData?.role ?? 'viewer';
+  // Check user role. Use tryQuery so a Supabase failure surfaces a
+  // structured warning instead of silently treating the user as a viewer
+  // (the safe-default fall-through still applies for "no row" / failure).
+  const roleResult = await tryQuery(
+    supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
+    'item.new.user_role',
+  );
+  if (!roleResult.ok) {
+    logBestEffortWarn(
+      'item.new.user_role',
+      'user_roles lookup failed; falling back to viewer',
+      {
+        userId: user.id,
+        err: roleResult.error.message,
+        code: roleResult.error.code,
+      },
+    );
+  }
+  const role = roleResult.ok ? (roleResult.data?.role ?? 'viewer') : 'viewer';
 
   if (role === 'viewer') {
     redirect('/browse');

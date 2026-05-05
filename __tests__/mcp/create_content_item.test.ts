@@ -755,3 +755,79 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
     });
   });
 });
+
+// ───────────────────────────────────────────────────────────────────
+// MCP-EMBED-1: embedding-input truncation respects MAX_EMBEDDING_CHARS
+//
+// The MCP `content` schema accepts up to 500_000 chars. Prior to this
+// fix, `lib/mcp/tools/content.ts` truncated content to 5,000 chars
+// before calling generateEmbedding, which silently degraded recall on
+// long-form items (e.g. 30k-char policy documents). The fix adopts
+// MAX_EMBEDDING_CHARS (24_000 today) from @/lib/ai/embed and slices
+// the combined `title + ' ' + content` string at that bound, mirroring
+// the truncation pattern in lib/ai/classify.ts.
+// ───────────────────────────────────────────────────────────────────
+
+describe('MCP create_content_item — MCP-EMBED-1 embedding truncation', () => {
+  let createTool: RegisteredTool['handler'];
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    mocks.mockSupabaseClient.from.mockReturnValue(mocks.chain);
+    mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: [], error: null });
+    mocks.chain.select.mockReturnValue(mocks.chain);
+    mocks.chain.insert.mockReturnValue(mocks.chain);
+    mocks.chain.update.mockReturnValue(mocks.chain);
+    mocks.chain.eq.mockReturnValue(mocks.chain);
+
+    const { server, tools } = createTestServer();
+    await registerContentTools(server);
+    const tool = tools.get('create_content_item');
+    if (!tool) throw new Error('create_content_item not registered');
+    createTool = tool.handler;
+
+    mocks.checkMcpRole.mockResolvedValue('editor');
+    mocks.chain.single.mockResolvedValue({
+      data: {
+        id: NEW_ITEM_ID,
+        title: 'New Item',
+        content_type: 'capability',
+      },
+      error: null,
+    });
+    mocks.recordPipelineRun.mockResolvedValue(undefined);
+  });
+
+  it('truncates embedding input to MAX_EMBEDDING_CHARS for long-content payloads', async () => {
+    // Import the canonical constant — assertion must hold against the
+    // current value, not a hardcoded 24_000 (would silently drift).
+    const { MAX_EMBEDDING_CHARS } = await import('@/lib/ai/embed');
+
+    // ~30k-char content payload — exceeds MAX_EMBEDDING_CHARS so the
+    // slice branch must fire. Plus a short title; combined length is
+    // ~30k chars, well above the 24k cap.
+    const longContent = 'x'.repeat(30_000);
+
+    await createTool(
+      {
+        title: 'Long-Content Item',
+        content: longContent,
+        content_type: 'capability',
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    // generateEmbedding must have been called exactly once (publish branch).
+    expect(mocks.generateEmbedding).toHaveBeenCalledTimes(1);
+    const embeddingInput = mocks.generateEmbedding.mock.calls[0][0] as string;
+    expect(typeof embeddingInput).toBe('string');
+    // The captured argument MUST be ≤ MAX_EMBEDDING_CHARS — proves the
+    // hardcoded 5000-char cap is gone and the canonical bound is honoured.
+    expect(embeddingInput.length).toBeLessThanOrEqual(MAX_EMBEDDING_CHARS);
+    // And specifically equal to MAX_EMBEDDING_CHARS for this oversize
+    // payload — confirms the slice branch (not just the no-op pass-through)
+    // is what produced the value.
+    expect(embeddingInput.length).toBe(MAX_EMBEDDING_CHARS);
+  });
+});

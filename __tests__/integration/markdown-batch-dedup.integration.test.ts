@@ -308,10 +308,12 @@ describeIfEnv(
       // The analyse phase is read-only by code-level invariant: the
       // orchestrator's `runAnalysePhase` (`lib/ingest/markdown-orchestrator.ts:182-195`)
       // does NOT call `startPipelineRun`. Asserting this end-to-end via
-      // pipeline_runs count delta is brittle when sibling integration files
-      // run concurrently (vitest 4 `poolOptions.forks.singleFork` is
-      // deprecated — config update out of scope for this WP). The unit
-      // tests on `runAnalysePhase` cover the no-write contract directly.
+      // pipeline_runs count delta would still be brittle if sibling files
+      // ran in parallel; `vitest.integration.config.ts` pins
+      // `fileParallelism: false` (Vitest 4 canonical replacement for the
+      // deprecated `poolOptions.forks.singleFork`) so all integration files
+      // run sequentially in one worker. The unit tests on `runAnalysePhase`
+      // cover the no-write contract directly.
 
       // ─────────────────────────────────────────────────────────────────
       // POST: 3 files —

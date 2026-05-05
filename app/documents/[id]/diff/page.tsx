@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
+import { tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { notFound } from 'next/navigation';
 import {
   SourceDocumentDiffReview,
@@ -18,11 +20,26 @@ export async function generateMetadata({
   const { id: documentId } = await params;
   const supabase = await createClient();
 
-  const { data: doc } = await supabase
-    .from('source_documents')
-    .select('id, filename, version, parent_id')
-    .eq('id', documentId)
-    .single();
+  const docResult = await tryQuery(
+    supabase
+      .from('source_documents')
+      .select('id, filename, version, parent_id')
+      .eq('id', documentId)
+      .single(),
+    'documents.diff.metadata.source_document',
+  );
+  if (!docResult.ok) {
+    logBestEffortWarn(
+      'documents.diff.metadata.source_document',
+      'source_documents lookup failed; using fallback title',
+      {
+        documentId,
+        err: docResult.error.message,
+        code: docResult.error.code,
+      },
+    );
+  }
+  const doc = docResult.ok ? docResult.data : null;
 
   if (!doc) {
     return { title: 'Diff Review' };
@@ -34,18 +51,40 @@ export async function generateMetadata({
   const filename = doc.filename;
 
   // Check if this document is the old side of a diff
-  const { data: diffAsOld } = await supabase
-    .from('source_document_diffs')
-    .select('new_document_id')
-    .eq('old_document_id', documentId)
-    .limit(1);
+  const diffAsOldResult = await tryQuery(
+    supabase
+      .from('source_document_diffs')
+      .select('new_document_id')
+      .eq('old_document_id', documentId)
+      .limit(1),
+    'documents.diff.metadata.diff_as_old',
+  );
+  if (!diffAsOldResult.ok) {
+    logBestEffortWarn(
+      'documents.diff.metadata.diff_as_old',
+      'source_document_diffs lookup (as old) failed',
+      { documentId, err: diffAsOldResult.error.message },
+    );
+  }
+  const diffAsOld = diffAsOldResult.ok ? diffAsOldResult.data : null;
 
   if (diffAsOld && diffAsOld.length > 0) {
-    const { data: child } = await supabase
-      .from('source_documents')
-      .select('version')
-      .eq('id', diffAsOld[0].new_document_id)
-      .single();
+    const childResult = await tryQuery(
+      supabase
+        .from('source_documents')
+        .select('version')
+        .eq('id', diffAsOld[0].new_document_id)
+        .single(),
+      'documents.diff.metadata.child',
+    );
+    if (!childResult.ok) {
+      logBestEffortWarn(
+        'documents.diff.metadata.child',
+        'child source_document lookup failed',
+        { err: childResult.error.message },
+      );
+    }
+    const child = childResult.ok ? childResult.data : null;
 
     if (child) {
       oldVersion = doc.version;
@@ -53,18 +92,40 @@ export async function generateMetadata({
     }
   } else {
     // Check if this document is the new side of a diff
-    const { data: diffAsNew } = await supabase
-      .from('source_document_diffs')
-      .select('old_document_id')
-      .eq('new_document_id', documentId)
-      .limit(1);
+    const diffAsNewResult = await tryQuery(
+      supabase
+        .from('source_document_diffs')
+        .select('old_document_id')
+        .eq('new_document_id', documentId)
+        .limit(1),
+      'documents.diff.metadata.diff_as_new',
+    );
+    if (!diffAsNewResult.ok) {
+      logBestEffortWarn(
+        'documents.diff.metadata.diff_as_new',
+        'source_document_diffs lookup (as new) failed',
+        { documentId, err: diffAsNewResult.error.message },
+      );
+    }
+    const diffAsNew = diffAsNewResult.ok ? diffAsNewResult.data : null;
 
     if (diffAsNew && diffAsNew.length > 0) {
-      const { data: parent } = await supabase
-        .from('source_documents')
-        .select('version')
-        .eq('id', diffAsNew[0].old_document_id)
-        .single();
+      const parentResult = await tryQuery(
+        supabase
+          .from('source_documents')
+          .select('version')
+          .eq('id', diffAsNew[0].old_document_id)
+          .single(),
+        'documents.diff.metadata.parent',
+      );
+      if (!parentResult.ok) {
+        logBestEffortWarn(
+          'documents.diff.metadata.parent',
+          'parent source_document lookup failed',
+          { err: parentResult.error.message },
+        );
+      }
+      const parent = parentResult.ok ? parentResult.data : null;
 
       if (parent) {
         oldVersion = parent.version;
@@ -107,18 +168,40 @@ export default async function DocumentDiffPage({
   let newDoc: typeof oldDoc | null = null;
 
   // Try as old_document_id first
-  const { data: diffAsOld } = await supabase
-    .from('source_document_diffs')
-    .select('new_document_id')
-    .eq('old_document_id', documentId)
-    .limit(1);
+  const diffAsOldResult = await tryQuery(
+    supabase
+      .from('source_document_diffs')
+      .select('new_document_id')
+      .eq('old_document_id', documentId)
+      .limit(1),
+    'documents.diff.page.diff_as_old',
+  );
+  if (!diffAsOldResult.ok) {
+    logBestEffortWarn(
+      'documents.diff.page.diff_as_old',
+      'source_document_diffs lookup (as old) failed',
+      { documentId, err: diffAsOldResult.error.message },
+    );
+  }
+  const diffAsOld = diffAsOldResult.ok ? diffAsOldResult.data : null;
 
   if (diffAsOld && diffAsOld.length > 0) {
-    const { data: child } = await supabase
-      .from('source_documents')
-      .select('id, filename, version, created_at')
-      .eq('id', diffAsOld[0].new_document_id)
-      .single();
+    const childResult = await tryQuery(
+      supabase
+        .from('source_documents')
+        .select('id, filename, version, created_at')
+        .eq('id', diffAsOld[0].new_document_id)
+        .single(),
+      'documents.diff.page.child',
+    );
+    if (!childResult.ok) {
+      logBestEffortWarn(
+        'documents.diff.page.child',
+        'child source_document lookup failed',
+        { err: childResult.error.message },
+      );
+    }
+    const child = childResult.ok ? childResult.data : null;
 
     if (child) {
       newDoc = child;
@@ -127,18 +210,40 @@ export default async function DocumentDiffPage({
 
   // If not found as old, try as new_document_id
   if (!newDoc) {
-    const { data: diffAsNew } = await supabase
-      .from('source_document_diffs')
-      .select('old_document_id')
-      .eq('new_document_id', documentId)
-      .limit(1);
+    const diffAsNewResult = await tryQuery(
+      supabase
+        .from('source_document_diffs')
+        .select('old_document_id')
+        .eq('new_document_id', documentId)
+        .limit(1),
+      'documents.diff.page.diff_as_new',
+    );
+    if (!diffAsNewResult.ok) {
+      logBestEffortWarn(
+        'documents.diff.page.diff_as_new',
+        'source_document_diffs lookup (as new) failed',
+        { documentId, err: diffAsNewResult.error.message },
+      );
+    }
+    const diffAsNew = diffAsNewResult.ok ? diffAsNewResult.data : null;
 
     if (diffAsNew && diffAsNew.length > 0) {
-      const { data: parent } = await supabase
-        .from('source_documents')
-        .select('id, filename, version, created_at')
-        .eq('id', diffAsNew[0].old_document_id)
-        .single();
+      const parentResult = await tryQuery(
+        supabase
+          .from('source_documents')
+          .select('id, filename, version, created_at')
+          .eq('id', diffAsNew[0].old_document_id)
+          .single(),
+        'documents.diff.page.parent',
+      );
+      if (!parentResult.ok) {
+        logBestEffortWarn(
+          'documents.diff.page.parent',
+          'parent source_document lookup failed',
+          { err: parentResult.error.message },
+        );
+      }
+      const parent = parentResult.ok ? parentResult.data : null;
 
       if (parent) {
         newDoc = {
@@ -188,10 +293,18 @@ export default async function DocumentDiffPage({
 
   let affectedTitles: Record<string, string> = {};
   if (affectedIds.length > 0) {
-    const { data: items } = await supabase
-      .from('content_items')
-      .select('id, title')
-      .in('id', affectedIds);
+    const itemsResult = await tryQuery(
+      supabase.from('content_items').select('id, title').in('id', affectedIds),
+      'documents.diff.page.affected_titles',
+    );
+    if (!itemsResult.ok) {
+      logBestEffortWarn(
+        'documents.diff.page.affected_titles',
+        'content_items affected-titles bulk fetch failed',
+        { count: affectedIds.length, err: itemsResult.error.message },
+      );
+    }
+    const items = itemsResult.ok ? itemsResult.data : null;
 
     if (items) {
       affectedTitles = Object.fromEntries(

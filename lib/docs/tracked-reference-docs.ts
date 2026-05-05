@@ -8,6 +8,7 @@
 
 export const TRACKED_REFERENCE_DOCS = [
   'docs/reference/SCHEMA-QUICK-REFERENCE.md',
+  'docs/reference/auth-hooks.md',
   'docs/reference/ai-integration-layers.md',
   'docs/reference/ai-integration-strategy.md',
   'docs/reference/classification-architecture.md',

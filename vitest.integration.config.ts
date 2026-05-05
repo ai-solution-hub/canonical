@@ -5,7 +5,7 @@
  * - Longer timeout (120s) for tests that hit real DB + AI APIs
  * - Scoped include pattern for __tests__/integration/ only
  * - Same setup file as regular tests
- * - forks pool with singleFork for sequential execution (real DB tests share state)
+ * - forks pool with fileParallelism: false for sequential execution (real DB tests share state)
  */
 import { defineConfig } from 'vitest/config';
 import path from 'path';
@@ -34,7 +34,7 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 30_000,
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: ['lib/**/*.ts', 'lib/**/*.tsx', 'app/api/**/*.ts'],
