@@ -1,7 +1,9 @@
 """Tests for embed.py — embedding text construction, generation, and cost estimation."""
 
+import re
 import sys
 import os
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -62,8 +64,24 @@ class TestBuildEmbeddingText:
         assert parts[2] == body
 
     def test_max_embedding_chars_matches_ts_constant(self):
-        """Python MAX_EMBEDDING_CHARS must remain aligned with lib/ai/embed.ts."""
-        assert MAX_EMBEDDING_CHARS == 24_000
+        """
+        Parse the TS-side MAX_EMBEDDING_CHARS constant from lib/ai/embed.ts at
+        test time. Hardcoding the value here would silently bypass the parity
+        check on a TS-side change — both halves could drift to the same new
+        value with the test still passing. Reading the TS source directly
+        ensures cross-file divergence is what's actually asserted (EVAL-1).
+        """
+        ts_path = Path(__file__).resolve().parents[2] / "lib" / "ai" / "embed.ts"
+        ts_source = ts_path.read_text(encoding="utf-8")
+        match = re.search(r"MAX_EMBEDDING_CHARS\s*=\s*(\d[\d_]*)", ts_source)
+        assert match is not None, (
+            f"Could not locate MAX_EMBEDDING_CHARS in {ts_path}"
+        )
+        ts_value = int(match.group(1).replace("_", ""))
+        assert MAX_EMBEDDING_CHARS == ts_value, (
+            f"Python MAX_EMBEDDING_CHARS={MAX_EMBEDDING_CHARS} "
+            f"diverged from TS lib/ai/embed.ts MAX_EMBEDDING_CHARS={ts_value}"
+        )
 
     def test_transcript_uses_chapter_titles(self):
         """Transcript type ('other') uses chapter titles instead of content."""

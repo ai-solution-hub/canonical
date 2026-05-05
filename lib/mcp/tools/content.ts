@@ -444,9 +444,21 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (!isDraft) {
           try {
             const generateEmbedding = await getGenerateEmbedding();
-            embedding = await generateEmbedding(
-              args.title + ' ' + args.content.slice(0, 5000),
-            );
+            // Truncate to MAX_EMBEDDING_CHARS so long-content payloads (the
+            // MCP `content` schema accepts up to 500_000 chars) stay within
+            // the text-embedding-3-large 8,192-token cap. Mirrors the
+            // truncation pattern in `lib/ai/classify.ts` — slice the
+            // combined `title + ' ' + content` string at MAX_EMBEDDING_CHARS
+            // rather than capping content separately. Previous hardcoded
+            // 5000-char cap silently degraded recall for live Claude
+            // Desktop MCP-created items at 5k+ chars (MCP-EMBED-1).
+            const { MAX_EMBEDDING_CHARS } = await import('@/lib/ai/embed');
+            const rawEmbeddingText = args.title + ' ' + args.content;
+            const embeddingText =
+              rawEmbeddingText.length > MAX_EMBEDDING_CHARS
+                ? rawEmbeddingText.slice(0, MAX_EMBEDDING_CHARS)
+                : rawEmbeddingText;
+            embedding = await generateEmbedding(embeddingText);
           } catch (error) {
             // Embedding failure is non-fatal — item is still created but invisible to search
             logger.error({ err: error }, 'Failed to generate embeddings');
