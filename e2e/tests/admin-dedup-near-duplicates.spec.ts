@@ -341,6 +341,8 @@ test.describe('Admin Near-Duplicate Dashboard — §1.9 read-only', () => {
     ).toBeVisible();
 
     // Card aria-labels — Card sets aria-label="Left" / "Right".
+    // .first() per Next.js dev double-render note above (server-component
+    // hydration briefly mounts a duplicate Card during transition).
     const leftCard = page.getByLabel(/^Left$/).first();
     const rightCard = page.getByLabel(/^Right$/).first();
     await expect(leftCard).toBeVisible();
