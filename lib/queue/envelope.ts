@@ -14,14 +14,16 @@ import { z } from 'zod';
  */
 
 /**
- * Job-type values currently accepted by `processing_queue_task_type_check`.
+ * Job-type values currently accepted by `processing_queue_job_type_check`.
  *
- * The 8 values below are the existing CHECK-constraint allowlist (the four
+ * The 9 values below are the current CHECK-constraint allowlist (the four
  * historic types `embed | classify | extract_qa | summarise | validate |
  * reprocess` plus the two pre-existing template types `template_fill` and
- * `template_analyse`). Each future §5.4.x migration candidate adds its own
- * value through its own CHECK-widening migration paired with a TS-union
- * widening commit (per `feedback_db_check_ts_union_paired_widening`).
+ * `template_analyse`, plus `bid_draft_all` added by §5.4.1 — see
+ * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`).
+ * Each future §5.4.x migration candidate adds its own value through its own
+ * CHECK-widening migration paired with a TS-union widening commit (per
+ * `feedback_db_check_ts_union_paired_widening`).
  */
 export type JobType =
   | 'embed'
@@ -31,7 +33,8 @@ export type JobType =
   | 'validate'
   | 'reprocess'
   | 'template_fill'
-  | 'template_analyse';
+  | 'template_analyse'
+  | 'bid_draft_all';
 
 /**
  * Lifecycle states for `processing_queue.status`.
