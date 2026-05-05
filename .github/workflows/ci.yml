@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # fetch-depth: 0 lets `vitest run --changed origin/<base>` diff
           # the PR head against the merge base on PR runs (consumed in the
@@ -226,7 +226,7 @@ jobs:
 
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # fetch-depth: 0 required for `vitest run --changed origin/<base>`
           # PR-diff path retained below.
@@ -295,7 +295,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -392,7 +392,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - name: Setup Bun
@@ -474,7 +474,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -538,7 +538,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -726,7 +726,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
