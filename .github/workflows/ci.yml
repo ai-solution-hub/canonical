@@ -98,6 +98,14 @@ jobs:
         run: bun run ci:knip-check
 
       - name: Build (Next.js)
+        # Dependabot PRs run with empty `secrets.*` (GitHub blocks repo +
+        # environment secrets from Dependabot-triggered workflows; only
+        # `vars.*` resolves). The Next.js build's env-client Zod schema
+        # requires NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY and fails closed
+        # otherwise. Skip on Dependabot — lint / format / knip above still
+        # run and gate the PR. See docs/runbooks/ci.md §"Dependabot CI signal"
+        # + memory feedback_gha_secrets_vs_vars_silent_empty.
+        if: github.actor != 'dependabot[bot]'
         env:
           # WP1.5 parallel: quality-precheck runs solo but observed OOM on
           # ubuntu-latest (2 GB default) during post-compile TS phase when
@@ -135,24 +143,36 @@ jobs:
         # paint. See `__tests__/build/env-substitution.test.ts` + memory
         # `feedback_env_client_literal_substitution.md`. Reuses the build
         # artefacts from the previous step — no extra build cost.
+        # Dependabot-skip: depends on `.next/` artefacts produced by the
+        # previous step (skipped on Dependabot per env-secret blackout).
+        if: github.actor != 'dependabot[bot]'
         env:
           RUN_BUILD_TESTS: "1"
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
         run: bun run test:build
 
       - name: Setup Python
-        if: steps.changes.outputs.python == 'true'
+        # Dependabot-skip: pytest needs `secrets.*` (Supabase / Anthropic /
+        # OpenAI) which resolve empty for Dependabot PRs. Setup + install
+        # also skipped to avoid wasted runner time when test step won't run.
+        if:
+          steps.changes.outputs.python == 'true' && github.actor !=
+          'dependabot[bot]'
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: "pip"
 
       - name: Install Python dependencies
-        if: steps.changes.outputs.python == 'true'
+        if:
+          steps.changes.outputs.python == 'true' && github.actor !=
+          'dependabot[bot]'
         run: pip install -r requirements.txt
 
       - name: Test (pytest)
-        if: steps.changes.outputs.python == 'true'
+        if:
+          steps.changes.outputs.python == 'true' && github.actor !=
+          'dependabot[bot]'
         env:
           # `kb_pipeline.config` calls `load_dotenv(.env.local)` at import; in
           # CI the file is absent so vars must come from process env. Without
@@ -181,7 +201,11 @@ jobs:
     # is alphabetical-by-resolved-path; Vitest is pinned at `^4.0.18` in
     # package.json — re-balance only on minor-version bump.
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res1-vitest-perf-spec.md
+    # Dependabot-skip: vitest setup imports validated env modules and the
+    # whole shard fails closed on empty `secrets.*`. See
+    # docs/runbooks/ci.md §"Dependabot CI signal".
     name: Quality test (shard ${{ matrix.shard }}/4)
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: Production
     needs: quality-precheck
@@ -255,7 +279,10 @@ jobs:
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.3-e2e-smoke-spec.md
     # Runs in parallel with `quality-precheck`/`quality-test` (no `needs:`) so total CI wall-clock stays
     # close to max(quality, e2e-smoke).
+    # Dependabot-skip: requires staging Supabase URL + service-role key +
+    # TEST_USER_*_PASSWORD which resolve empty for Dependabot PRs.
     name: E2E smoke
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Staging env scope per docs/runbooks/github-environments.md §2 —
     # carries staging Supabase URL/keys + TEST_USER_1/2/3 credentials.
@@ -352,7 +379,10 @@ jobs:
     # WP-G4.4 — build once for the MCP eval layer matrix.
     # The Staging-scoped build remains separate from Production quality-precheck
     # because env scopes differ, but L1/L3/L4 now share this single artefact.
+    # Dependabot-skip: Next.js build's env-client Zod schema requires
+    # NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY which resolves empty for Dependabot.
     name: MCP staging build
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: Staging
     timeout-minutes: 15
@@ -430,7 +460,10 @@ jobs:
     # matrix fans out. Rows are persistent staging fixtures identified by
     # metadata.mcp_eval_seed=true; per-layer cleanup only removes temporary
     # [MCP-EVAL] mutation fixtures.
+    # Dependabot-skip: needs SUPABASE_SERVICE_ROLE_KEY + Anthropic / OpenAI
+    # keys to seed and verify rows.
     name: MCP eval seed
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: Staging
     needs: mcp-build
@@ -483,6 +516,10 @@ jobs:
     # `mcp-build` + `mcp-eval-seed` so eval results appear regardless of
     # quality-job state.
     name: MCP eval (${{ matrix.layer }})
+    # Dependabot-skip: matrix expansion is gated upstream by mcp-build +
+    # mcp-eval-seed (both also skipped on Dependabot). Adding the explicit
+    # if: here keeps the policy obvious + matches the other 5 jobs.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Staging-scoped: TEST_USER_1_* secrets only exist on Staging env scope
     # (per docs/runbooks/github-environments.md §3.1). Eval scripts authenticate
@@ -667,7 +704,10 @@ jobs:
     # Independent of the `quality` / `e2e-smoke` / `mcp-eval` jobs (no
     # `needs:` chain) so total CI wall-clock = max(quality, e2e-smoke,
     # mcp-eval, integration).
+    # Dependabot-skip: hits real Supabase + Anthropic + OpenAI; all of these
+    # come from `secrets.*` which are blocked for Dependabot PRs.
     name: Integration tests
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Staging-scoped: TEST_USER_{1,2,3}_* + staging Supabase secrets only
     # exist on Staging env scope (per docs/runbooks/github-environments.md
