@@ -78,24 +78,42 @@ function newRunId(): string {
   return `s214b-wp3-${ts}-${rand}`;
 }
 
+/**
+ * Resolve the Playwright admin actor UUID — the user the test runs AS.
+ *
+ * `auth.admin.listUsers()` is filtered by TEST_USER_1's email rather than
+ * a generic `user_roles` lookup because staging has multiple admin rows
+ * (TEST_USER_1 + the pipeline service account). The route under test
+ * writes `auth.session.user.id`, which is TEST_USER_1's id, so audit
+ * assertions must compare against THAT, not "first admin in user_roles".
+ */
 async function resolveAdminActorId(
   supabase: SupabaseClient,
 ): Promise<string> {
-  const { data, error } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .eq('role', 'admin')
-    .limit(1)
-    .single();
-
-  if (error || !data?.user_id) {
+  const adminEmail = process.env.TEST_USER_1_EMAIL;
+  if (!adminEmail) {
     throw new Error(
-      'admin-dedup-near-dup-actions: no admin user found in user_roles. ' +
-        `Run \`bun run seed:e2e-users\` to provision test users. ` +
-        `Underlying error: ${error?.message ?? 'no rows returned'}`,
+      'admin-dedup-near-dup-actions: TEST_USER_1_EMAIL not set. ' +
+        'Required to disambiguate the Playwright admin from other admin rows.',
     );
   }
-  return data.user_id as string;
+
+  const { data, error } = await supabase.auth.admin.listUsers();
+  if (error) {
+    throw new Error(
+      `admin-dedup-near-dup-actions: auth.admin.listUsers failed — ${error.message}`,
+    );
+  }
+
+  const adminUser = data.users.find((u) => u.email === adminEmail);
+  if (!adminUser) {
+    throw new Error(
+      `admin-dedup-near-dup-actions: admin user with email ${adminEmail} not found. ` +
+        `Run \`bun run seed:e2e-users\` to provision test users.`,
+    );
+  }
+
+  return adminUser.id;
 }
 
 /**
