@@ -191,6 +191,41 @@ If the session warrants it, use auto memory after the prompt commits. The
 sessions usually end here, and if there's anything relevant to note, this may be
 the last opportunity to do so.
 
+**Graduation check (mandatory before adding new memory):**
+
+Before writing any new `feedback_*.md` / `project_*.md` / `reference_*.md`
+file, scan whether the lesson is already captured in CLAUDE.md (root + any
+subdirectory `lib/mcp/CLAUDE.md` etc.). Use Grep with the lesson's distinctive
+keyword. If CLAUDE.md already has it as a Gotcha line or in another section,
+do NOT create a duplicate memory — and if a related memory file already
+exists, DELETE it as part of this step (the lesson has graduated; the memory
+is now redundant). One-line CLAUDE.md graduation supersedes a full memory
+file.
+
+**Consolidation check (mandatory):**
+
+Before adding a memory in a domain that already has 3+ memories (worktrees,
+Supabase CLI, specs/verification, doc-freshness, self-silencing-failure
+class), check whether the lesson is a sub-case of an existing master memory.
+If so, append as a sub-section to the master rather than create a new file.
+Master memories live at:
+
+- `feedback_worktree_master.md`
+- `feedback_supabase_cli_silent_apply_failure.md`
+- `feedback_self_verify_own_specs.md`
+- `feedback_doc_freshness_guard_per_commit.md`
+- `feedback_self_silencing_failure_class.md`
+- `feedback_supabase_cli_field_existence_groundtruth.md`
+- `feedback_gcp_cloud_run_deploy.md`
+- `feedback_pg17_pgdump_psql_pooler_restrict.md`
+
+**Index hygiene:**
+
+Index entries in `MEMORY.md` must stay under 200 chars (system warning
+threshold ~150 chars per line is safer). One sentence per entry. Move detail
+into the topic file. Don't pile multiple lessons into a single entry's
+description.
+
 ---
 
 ## Quality checklist (before presenting)
