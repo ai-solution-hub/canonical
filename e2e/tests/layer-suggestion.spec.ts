@@ -88,29 +88,31 @@ test.describe('Layer suggestion banner on create page', () => {
     // Wait for either the banner or navigation to the detail page
     await expect(layerBanner.or(detailPage)).toBeVisible({ timeout: 30000 });
 
-    // If the banner appeared, verify its structure
-    if (await layerBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Banner should contain "Suggested layer:" text
-      await expect(layerBanner.getByText('Suggested layer:')).toBeVisible();
+    // Hard-expect the banner appears — staging classifier should return a
+    // layer suggestion for this content (IT service desk procedures). If the
+    // banner is not shown, missing classification fixtures fail honestly.
+    await expect(layerBanner).toBeVisible({ timeout: 2000 });
 
-      // Accept button should be present
-      await expect(
-        layerBanner.getByRole('button', { name: /Accept suggested layer/ }),
-      ).toBeVisible();
+    // Banner should contain "Suggested layer:" text
+    await expect(layerBanner.getByText('Suggested layer:')).toBeVisible();
 
-      // Change button should be present
-      await expect(
-        layerBanner.getByRole('button', { name: 'Change suggested layer' }),
-      ).toBeVisible();
+    // Accept button should be present
+    await expect(
+      layerBanner.getByRole('button', { name: /Accept suggested layer/ }),
+    ).toBeVisible();
 
-      // Dismiss button should be present
-      await expect(
-        layerBanner.getByRole('button', { name: /Dismiss/ }).first(),
-      ).toBeVisible();
+    // Change button should be present
+    await expect(
+      layerBanner.getByRole('button', { name: 'Change suggested layer' }),
+    ).toBeVisible();
 
-      // Confidence label should be shown (High/Medium/Low)
-      await expect(layerBanner.getByText(/confidence/i)).toBeVisible();
-    }
+    // Dismiss button should be present
+    await expect(
+      layerBanner.getByRole('button', { name: /Dismiss/ }).first(),
+    ).toBeVisible();
+
+    // Confidence label should be shown (High/Medium/Low)
+    await expect(layerBanner.getByText(/confidence/i)).toBeVisible();
   });
 
   test('layer suggestion banner dismiss hides the banner', async ({
@@ -152,16 +154,18 @@ test.describe('Layer suggestion banner on create page', () => {
 
     await expect(layerBanner.or(detailPage)).toBeVisible({ timeout: 30000 });
 
-    if (await layerBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Click dismiss (the X button with aria-label or the text Dismiss button)
-      const dismissButton = layerBanner
-        .getByRole('button', { name: /Dismiss/ })
-        .first();
-      await dismissButton.click();
+    // Hard-expect the banner appears — staging classifier should return a
+    // layer suggestion for this content (cloud migration methodology).
+    await expect(layerBanner).toBeVisible({ timeout: 2000 });
 
-      // Banner should disappear
-      await expect(layerBanner).not.toBeVisible({ timeout: 5000 });
-    }
+    // Click dismiss (the X button with aria-label or the text Dismiss button)
+    const dismissButton = layerBanner
+      .getByRole('button', { name: /Dismiss/ })
+      .first();
+    await dismissButton.click();
+
+    // Banner should disappear
+    await expect(layerBanner).not.toBeVisible({ timeout: 5000 });
   });
 
   test('layer suggestion banner change mode shows layer dropdown', async ({
@@ -203,35 +207,37 @@ test.describe('Layer suggestion banner on create page', () => {
 
     await expect(layerBanner.or(detailPage)).toBeVisible({ timeout: 30000 });
 
-    if (await layerBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // Click Change to switch to change mode
-      const changeButton = layerBanner.getByRole('button', {
-        name: 'Change suggested layer',
-      });
-      await changeButton.click();
+    // Hard-expect the banner appears — staging classifier should return a
+    // layer suggestion for this content (security incident response).
+    await expect(layerBanner).toBeVisible({ timeout: 2000 });
 
-      // The layer select dropdown should appear
-      const layerSelect = layerBanner.getByRole('combobox', {
-        name: 'Select a layer',
-      });
-      await expect(layerSelect).toBeVisible({ timeout: 5000 });
+    // Click Change to switch to change mode
+    const changeButton = layerBanner.getByRole('button', {
+      name: 'Change suggested layer',
+    });
+    await changeButton.click();
 
-      // Apply and Cancel buttons should be visible
-      await expect(
-        layerBanner.getByRole('button', { name: /Apply layer/ }),
-      ).toBeVisible();
-      await expect(
-        layerBanner.getByRole('button', { name: 'Cancel' }),
-      ).toBeVisible();
+    // The layer select dropdown should appear
+    const layerSelect = layerBanner.getByRole('combobox', {
+      name: 'Select a layer',
+    });
+    await expect(layerSelect).toBeVisible({ timeout: 5000 });
 
-      // Cancel should return to suggest mode
-      await layerBanner.getByRole('button', { name: 'Cancel' }).click();
+    // Apply and Cancel buttons should be visible
+    await expect(
+      layerBanner.getByRole('button', { name: /Apply layer/ }),
+    ).toBeVisible();
+    await expect(
+      layerBanner.getByRole('button', { name: 'Cancel' }),
+    ).toBeVisible();
 
-      // Accept button should be visible again (back to suggest mode)
-      await expect(
-        layerBanner.getByRole('button', { name: /Accept suggested layer/ }),
-      ).toBeVisible({ timeout: 5000 });
-    }
+    // Cancel should return to suggest mode
+    await layerBanner.getByRole('button', { name: 'Cancel' }).click();
+
+    // Accept button should be visible again (back to suggest mode)
+    await expect(
+      layerBanner.getByRole('button', { name: /Accept suggested layer/ }),
+    ).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -332,12 +338,12 @@ test.describe('Layer badge on content cards', () => {
       .filter({ hasText: layerRegex })
       .first();
 
-    // This is a soft assertion — not all items may have layers assigned.
-    // We verify the badge renders correctly if any items have layers.
-    if (await layerBadge.isVisible({ timeout: 5000 }).catch(() => false)) {
-      // Verify the badge text is one of the known layer labels
-      const text = await layerBadge.textContent();
-      expect(layerLabels.some((label) => text?.includes(label))).toBe(true);
-    }
+    // Hard-expect at least one layer badge renders. Staging fixtures must
+    // include items with assigned layers; missing fixtures fail honestly.
+    await expect(layerBadge).toBeVisible({ timeout: 5000 });
+
+    // Verify the badge text is one of the known layer labels
+    const text = await layerBadge.textContent();
+    expect(layerLabels.some((label) => text?.includes(label))).toBe(true);
   });
 });
