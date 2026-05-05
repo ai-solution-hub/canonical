@@ -44,21 +44,21 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
   }) => {
     const section = page.locator('section[aria-label="Compliance status"]');
 
-    if (await section.isVisible({ timeout: 10000 }).catch(() => false)) {
-      // The section contains CertificationSummaryCard and/or FrameworkSummaryCard
-      // CertificationSummaryCard has aria-label="Certifications we hold"
-      const certSection = section.locator(
-        'section[aria-label="Certifications we hold"]',
-      );
-      const frameworkSection = section.locator(
-        'section[aria-label="Framework memberships"]',
-      );
+    await expect(section).toBeVisible({ timeout: 10000 });
 
-      // At least one of these should be present
-      await expect(certSection.or(frameworkSection)).toBeVisible({
-        timeout: 5000,
-      });
-    }
+    // The section contains CertificationSummaryCard and/or FrameworkSummaryCard
+    // CertificationSummaryCard has aria-label="Certifications we hold"
+    const certSection = section.locator(
+      'section[aria-label="Certifications we hold"]',
+    );
+    const frameworkSection = section.locator(
+      'section[aria-label="Framework memberships"]',
+    );
+
+    // At least one of these should be present
+    await expect(certSection.or(frameworkSection)).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test('certification cards show expiry status badges', async ({
@@ -66,20 +66,18 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
   }) => {
     const section = page.locator('section[aria-label="Compliance status"]');
 
-    if (await section.isVisible({ timeout: 10000 }).catch(() => false)) {
-      // Expiry badges have aria-label="Expiry status: {label}"
-      const expiryBadges = section.locator(
-        'span[aria-label^="Expiry status:"]',
-      );
-      const badgeCount = await expiryBadges.count();
+    await expect(section).toBeVisible({ timeout: 10000 });
 
-      if (badgeCount > 0) {
-        // Verify the badge label is one of the valid statuses
-        const ariaLabel = await expiryBadges.first().getAttribute('aria-label');
-        expect(ariaLabel).toMatch(
-          /Expiry status: (Valid|Expiring Soon|Expired|Unknown)/,
-        );
-      }
+    // Expiry badges have aria-label="Expiry status: {label}"
+    const expiryBadges = section.locator('span[aria-label^="Expiry status:"]');
+    const badgeCount = await expiryBadges.count();
+
+    if (badgeCount > 0) {
+      // Verify the badge label is one of the valid statuses
+      const ariaLabel = await expiryBadges.first().getAttribute('aria-label');
+      expect(ariaLabel).toMatch(
+        /Expiry status: (Valid|Expiring Soon|Expired|Unknown)/,
+      );
     }
   });
 
@@ -88,20 +86,20 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
   }) => {
     const section = page.locator('section[aria-label="Compliance status"]');
 
-    if (await section.isVisible({ timeout: 10000 }).catch(() => false)) {
-      // The Renew button appears for items with expiring_soon or expired status.
-      // It is an <a> element with aria-label="Upload renewed {name} document"
-      const renewLinks = section.locator('a[aria-label*="Upload renewed"]');
-      const renewCount = await renewLinks.count();
+    await expect(section).toBeVisible({ timeout: 10000 });
 
-      if (renewCount > 0) {
-        // Verify the Renew link points to an item detail page with renewal_entity param
-        const href = await renewLinks.first().getAttribute('href');
-        expect(href).toMatch(/\/item\/[a-f0-9-]+\?renewal_entity=/);
+    // The Renew button appears for items with expiring_soon or expired status.
+    // It is an <a> element with aria-label="Upload renewed {name} document"
+    const renewLinks = section.locator('a[aria-label*="Upload renewed"]');
+    const renewCount = await renewLinks.count();
 
-        // The link should contain "Renew" text
-        await expect(renewLinks.first().getByText('Renew')).toBeVisible();
-      }
+    if (renewCount > 0) {
+      // Verify the Renew link points to an item detail page with renewal_entity param
+      const href = await renewLinks.first().getAttribute('href');
+      expect(href).toMatch(/\/item\/[a-f0-9-]+\?renewal_entity=/);
+
+      // The link should contain "Renew" text
+      await expect(renewLinks.first().getByText('Renew')).toBeVisible();
     }
   });
 
@@ -110,16 +108,13 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
   }) => {
     const section = page.locator('section[aria-label="Compliance status"]');
 
-    if (await section.isVisible({ timeout: 10000 }).catch(() => false)) {
-      // When certifications are expiring, a count badge appears in the heading
-      const expiringBadge = section.locator(
-        'span[aria-label*="expiring soon"]',
-      );
+    await expect(section).toBeVisible({ timeout: 10000 });
 
-      if (await expiringBadge.isVisible({ timeout: 3000 }).catch(() => false)) {
-        const ariaLabel = await expiringBadge.getAttribute('aria-label');
-        expect(ariaLabel).toMatch(/^\d+ expiring soon$/);
-      }
-    }
+    // When certifications are expiring, a count badge appears in the heading
+    const expiringBadge = section.locator('span[aria-label*="expiring soon"]');
+
+    await expect(expiringBadge).toBeVisible({ timeout: 3000 });
+    const ariaLabel = await expiringBadge.getAttribute('aria-label');
+    expect(ariaLabel).toMatch(/^\d+ expiring soon$/);
   });
 });
