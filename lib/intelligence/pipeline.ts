@@ -8,6 +8,8 @@ import {
   extractContent,
   normaliseUrl,
   checkFirecrawlApiKey,
+  isGoogleNewsUrl,
+  resolveGoogleNewsUrl,
 } from './content-extractor';
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
 import { generateArticleSummary } from './article-summariser';
@@ -351,11 +353,20 @@ export async function processFeedSource(
   for (const item of pollResult.items) {
     if (!item.url) continue;
 
-    // Normalise the raw RSS URL for dedup and feed_articles storage.
-    // Google News redirect URLs are kept as-is in feed_articles (provenance).
-    // The real publisher URL is resolved later by Firecrawl (extraction tier 3)
-    // and used only for content_items.source_url.
-    const normalisedUrl = normaliseUrl(item.url);
+    // OPS-57: Resolve Google News redirect URLs to the canonical publisher URL
+    // BEFORE dedup and feed_articles storage. Different Google News search
+    // queries can wrap the same underlying article in different opaque
+    // wrapper URLs (e.g. /articles/CBMi…1 vs /articles/CBMi…2 → both resolve
+    // to https://www.bbc.co.uk/news/...). Without this resolution, dedup
+    // misses cross-feed duplicates and feed_articles.external_url stores an
+    // unstable wrapper URL. For non-Google-News URLs this is a cheap no-op
+    // (resolveGoogleNewsUrl returns input unchanged when isGoogleNewsUrl is
+    // false). On resolution failure, falls back to the raw URL — preserves
+    // pre-OPS-57 behaviour rather than dropping the item.
+    const resolvedItemUrl = isGoogleNewsUrl(item.url)
+      ? await resolveGoogleNewsUrl(item.url)
+      : item.url;
+    const normalisedUrl = normaliseUrl(resolvedItemUrl);
 
     // 2a. Dedup check
     const duplicate = await isDuplicate(

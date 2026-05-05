@@ -10,6 +10,8 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
   checkFirecrawlApiKey: vi.fn(),
+  isGoogleNewsUrl: vi.fn(() => false),
+  resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),

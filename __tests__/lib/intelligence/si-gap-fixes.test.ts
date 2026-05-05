@@ -14,6 +14,7 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
   isGoogleNewsUrl: vi.fn(() => false),
+  resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
   checkFirecrawlApiKey: vi.fn(),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({

@@ -47,6 +47,12 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
   checkFirecrawlApiKey: vi.fn(),
+  // OPS-57: pipeline now branches on isGoogleNewsUrl + resolveGoogleNewsUrl
+  // before normalising for feed_articles.external_url. Tests in this file
+  // exercise non-Google-News URLs, so these mocks pass-through and short-
+  // circuit the branch.
+  isGoogleNewsUrl: vi.fn(() => false),
+  resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
