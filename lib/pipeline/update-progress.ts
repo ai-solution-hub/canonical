@@ -43,6 +43,7 @@ import { logger } from '@/lib/logger';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Json } from '@/supabase/types/database.types';
 
+/** @public */
 export interface PipelineProgressUpdate {
   /** Current step name — free-form, conventional values in §7.2. */
   step: string;

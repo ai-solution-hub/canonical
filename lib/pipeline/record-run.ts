@@ -40,6 +40,7 @@ export type PipelineRunStatus =
   | 'completed_with_errors'
   | 'failed';
 
+/** @public */
 export interface RecordPipelineRunParams {
   /** The Supabase client the caller already has (usually from `getAuthorisedClient`). */
   supabase: SupabaseClient<Database>;

@@ -20,6 +20,7 @@ import { isOk } from './safe';
  *
  *   return warningsEnvelope({ success: true, item }, warnings);
  */
+/** @public */
 export interface WarningsCollector {
   add(message: string): void;
   addFromResult<T>(result: Result<T>, message: string): T | null;
@@ -74,6 +75,7 @@ export function createWarningsCollector(): WarningsCollector {
  * `if (warnings.length > 0)` guard). Consumers should treat the field as
  * optional: `const warnings = Array.isArray(data.warnings) ? data.warnings : [];`.
  */
+/** @public */
 export type WarningsEnvelope<T> = T & { warnings: readonly string[] };
 
 /**

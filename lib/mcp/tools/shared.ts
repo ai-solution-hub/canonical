@@ -49,6 +49,7 @@ export type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
  * A `ToolAnnotations` variant where every advisory field is explicit.
  * `defineTool` enforces this at compile time so no tool can silently omit
  * a field.
+ * @public
  */
 export type RequiredToolAnnotations = Required<
   Pick<
@@ -122,6 +123,7 @@ export const NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS: RequiredToolAnnotation
  * Tool config shape for `defineTool`. Mirrors the `config` parameter of
  * `McpServer.registerTool` but tightens `annotations` to the
  * `RequiredToolAnnotations` variant.
+ * @public
  */
 export interface DefineToolConfig<
   InputArgs extends undefined | ZodRawShapeCompat | AnySchema = undefined,
@@ -341,6 +343,7 @@ export async function fetchBidSections(
 // get_quality_briefing tool.
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface QualityBriefingOptions {
   domain?: string;
   threshold?: number;

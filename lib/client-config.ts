@@ -28,6 +28,7 @@ export interface FeatureToggle {
 // Layer vocabulary type
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface LayerDefinition {
   /** Internal identifier (used in DB, URLs, API) */
   key: string;
@@ -43,6 +44,7 @@ export interface LayerDefinition {
 // Client config shape
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface ClientConfig {
   /** Unique client identifier */
   client_id: string;
@@ -187,6 +189,7 @@ export const CLIENT_CONFIG = {
 // ---------------------------------------------------------------------------
 
 export type FeatureName = keyof typeof CLIENT_CONFIG.features;
+/** @public */
 export type LayerKey = (typeof CLIENT_CONFIG.layer_vocabulary)[number]['key'];
 
 /**
@@ -482,6 +485,7 @@ const DARK_BG = 'oklch(0.18 0.014 48)';
 const WCAG_NON_TEXT_MIN = 3.0;
 const WCAG_TEXT_MIN = 4.5;
 
+/** @public */
 export interface ContrastValidationReport {
   warnings: readonly string[];
   errors: readonly string[];

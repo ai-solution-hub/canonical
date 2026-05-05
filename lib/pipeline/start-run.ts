@@ -34,6 +34,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import type { Json } from '@/supabase/types/database.types';
 import * as Sentry from '@sentry/nextjs';
 
+/** @public */
 export interface StartPipelineRunParams {
   /**
    * Optional pre-generated UUID. When provided, the server adopts it as
