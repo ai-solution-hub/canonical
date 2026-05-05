@@ -226,16 +226,18 @@ test.describe('Item detail — navigation', () => {
       timeout: 10000,
     });
 
-    // Click any item link to navigate to detail
+    // Click any item link to navigate to detail. Hard-expect a link exists —
+    // the items count above already asserts /browse has rendered items, so
+    // the link locator must resolve. Missing fixtures fail honestly.
     const itemLink = page.locator('a[href^="/item/"]').first();
-    if (await itemLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await itemLink.click();
-      await expect(page).toHaveURL(/\/item\//);
+    await expect(itemLink).toBeVisible({ timeout: 5000 });
 
-      // Use browser back to return
-      await page.goBack();
-      await expect(page).toHaveURL(/\/browse/);
-    }
+    await itemLink.click();
+    await expect(page).toHaveURL(/\/item\//);
+
+    // Use browser back to return
+    await page.goBack();
+    await expect(page).toHaveURL(/\/browse/);
   });
 });
 
