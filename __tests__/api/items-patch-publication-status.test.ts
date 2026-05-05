@@ -52,9 +52,13 @@ vi.mock('next/headers', () => ({
 // Stub the embedding helper — the publication_status branch never calls it,
 // but the route file imports it eagerly so leaving it real would attempt
 // network access on any code path that escaped the branch.
-vi.mock('@/lib/ai/embed', () => ({
-  generateEmbedding: vi.fn(),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: vi.fn(),
+  };
+});
 
 import { PATCH } from '@/app/api/items/[id]/route';
 
@@ -83,10 +87,6 @@ const PINNED_NOW = new Date(PINNED_NOW_ISO);
 // them (NOT NULL).
 function makeCurrentItem(overrides: Record<string, unknown> = {}) {
   return {
-    MAX_EMBEDDING_CHARS: 24_000,
-    getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-    getEmbeddingDimensions: vi.fn(() => 1024),
-
     id: ITEM_ID,
     publication_status: 'draft',
     archived_at: null,

@@ -114,12 +114,13 @@ vi.mock('@/lib/mcp/formatters', () => ({
   CHARACTER_LIMIT: 10000,
 }));
 
-vi.mock('@/lib/ai/embed', () => ({
-  generateEmbedding: vi.fn(),
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn().mockReturnValue('text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn().mockReturnValue(1024),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: vi.fn(),
+  };
+});
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),
   slugifyDomain: vi.fn((d: string) => d.toLowerCase().replace(/\s+/g, '-')),

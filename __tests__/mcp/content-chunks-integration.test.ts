@@ -52,12 +52,13 @@ vi.mock('@/lib/mcp/auth', () => ({
 }));
 
 // Lazy-loaded modules
-vi.mock('@/lib/ai/embed', () => ({
-  generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn().mockReturnValue('text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn().mockReturnValue(1024),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+  };
+});
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn().mockResolvedValue(undefined),
 }));

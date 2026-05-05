@@ -58,13 +58,13 @@ vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
   scoreRelevance: vi.fn(),
 }));
-vi.mock('@/lib/ai/embed', () => ({
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn(() => 1024),
-
-  generateEmbedding: vi.fn(),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: vi.fn(),
+  };
+});
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),
 }));

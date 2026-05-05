@@ -39,15 +39,13 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
-vi.mock('@/lib/ai/embed', () => ({
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn(() => 1024),
-
-  generateEmbedding: mockGenerateEmbedding,
-  getEmbeddingModel: () => 'text-embedding-3-large',
-  getEmbeddingDimensions: () => 1024,
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: mockGenerateEmbedding,
+  };
+});
 
 vi.mock('@/lib/ai/extract-content', () => ({
   extractStructuredContent: mockExtractStructuredContent,

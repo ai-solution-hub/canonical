@@ -77,13 +77,13 @@ vi.mock('@/lib/extraction/url', () => ({
   extractFromUrl: mockExtractFromUrl,
 }));
 
-vi.mock('@/lib/ai/embed', () => ({
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn(() => 1024),
-
-  generateEmbedding: mockGenerateEmbedding,
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: mockGenerateEmbedding,
+  };
+});
 
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: mockClassifyContent,
