@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -34,10 +34,23 @@ interface FeedSourceCardProps {
   canAdmin: boolean;
 }
 
+function subscribeToClientMount(onStoreChange: () => void) {
+  onStoreChange();
+  return () => {};
+}
+
+function getClientMountedSnapshot() {
+  return true;
+}
+
+function getServerMountedSnapshot() {
+  return false;
+}
+
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return 'Never polled';
   const date = new Date(dateString);
-  const now = new Date();
+  const now = new Date(Date.now());
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60_000);
 
@@ -84,9 +97,16 @@ export function FeedSourceCard({
   onToggleActive,
   canAdmin,
 }: FeedSourceCardProps) {
+  const mounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot,
+  );
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const TypeIcon =
     (source.source_type && SOURCE_TYPE_ICONS[source.source_type]) ?? Rss;
+
+  if (!mounted) return null;
 
   return (
     <>
