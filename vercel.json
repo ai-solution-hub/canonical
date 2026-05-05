@@ -88,7 +88,7 @@
     },
     {
       "path": "/api/cron/process-queue",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
