@@ -8,21 +8,37 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { ResponseDraftAllBodySchema } from '@/lib/validation/schemas';
-import { runDraftingPipeline } from '@/lib/ai/draft';
-import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
-import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
-import type { Json } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
-import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
+import { enqueueQueueJob } from '@/lib/queue/enqueue';
+import { buildIdempotencyKey } from '@/lib/queue/envelope';
+import type { BidDraftAllBody } from '@/lib/queue/handlers/bid-draft-all';
 
-export const maxDuration = 120;
+/**
+ * POST /api/bids/:id/responses/draft-all — queue a `bid_draft_all` job.
+ *
+ * Pre-S224, this route ran a synchronous 100-question loop with a
+ * `maxDuration = 120` Vercel cap and a `TIMEOUT_SAFETY_MS = 100_000` safety
+ * break. Per `docs/specs/§5.4.1-batch-draft-all-spec.md` §7.5 + D-6
+ * ratification, the route now ENQUEUES a `bid_draft_all` job onto
+ * `processing_queue` and returns HTTP 202 with `{ job_id, pipeline_run_id,
+ * status: 'queued', deduplicated }`. The cron worker
+ * (`app/api/cron/process-queue/route.ts`) drains the job via
+ * `lib/queue/dispatch.ts` `case 'bid_draft_all':` and the UI polls
+ * `/api/jobs/:job_id/status` for terminal state.
+ *
+ * pipeline_runs Pattern 2 (spec §6.3): the producer pre-allocates the
+ * `pipeline_runs.id` UUID and INSERTs the `running` row at-enqueue, so the
+ * UI can display progress from t=0 (before the worker has claimed the job).
+ * The worker UPDATEs the SAME row at-terminal — see
+ * `lib/queue/dispatch.ts` for the dispatch-level finalisation.
+ */
+export const maxDuration = 30;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** POST /api/bids/:id/responses/draft-all -- draft all eligible questions in a bid */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -49,7 +65,11 @@ export async function POST(
 
     const { model_tier, skip_existing } = parsed.data;
 
-    // Verify bid exists and is in an appropriate state
+    // ----------------------------------------------------------------
+    // Pre-conditions kept verbatim from the pre-S224 sync route — these
+    // fail fast at HTTP-level before any queue work, surfacing 4xx
+    // errors to the user immediately rather than via worker dead-letter.
+    // ----------------------------------------------------------------
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
       .select('id, status, domain_metadata')
@@ -77,248 +97,95 @@ export async function POST(
       );
     }
 
-    // Fetch all questions for this bid
-    const { data: questions, error: questionsError } = await supabase
-      .from('bid_questions')
-      .select(
-        'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
-      )
-      .eq('project_id', id)
-      .order('section_sequence', { ascending: true })
-      .order('question_sequence', { ascending: true });
+    // ----------------------------------------------------------------
+    // Idempotency key per spec §3.2 + D-7 (SHA-256 hex truncated to
+    // 16 chars of canonical-key-order JSON of options).
+    // ----------------------------------------------------------------
+    const optionsCanonical = JSON.stringify({ model_tier, skip_existing });
+    const hashBuffer = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(optionsCanonical),
+    );
+    const requestHash = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(0, 16);
 
-    if (questionsError) {
-      logger.error(
-        { err: questionsError },
-        'Failed to fetch questions for batch drafting',
-      );
-      return NextResponse.json(
-        { error: 'Failed to fetch questions' },
-        { status: 500 },
-      );
-    }
-
-    if (!questions || questions.length === 0) {
-      return NextResponse.json({
-        total_questions: 0,
-        drafted: 0,
-        skipped: 0,
-        failed: 0,
-        results: [],
-        total_cost: 0,
-        total_tokens: 0,
-      });
-    }
-
-    // If skipping existing, get all question IDs that already have responses
-    const existingResponseIds = new Set<string>();
-    if (skip_existing) {
-      const questionIds = questions.map((q) => q.id);
-      const existingResponses = await sb(
-        supabase
-          .from('bid_responses')
-          .select('question_id')
-          .in('question_id', questionIds),
-        'bids.response.draftAll.existingResponses',
-      );
-
-      for (const r of existingResponses) {
-        existingResponseIds.add(r.question_id);
-      }
-    }
-
-    // Process questions sequentially (respects API rate limits, leverages prompt caching)
-    const results: Array<{
-      question_id: string;
-      status: 'drafted' | 'skipped' | 'failed';
-      quality_score?: number;
-      reason?: string;
-      error?: string;
-    }> = [];
-
-    let totalCost = 0;
-    let totalTokens = 0;
-    const startTime = Date.now();
-    const TIMEOUT_SAFETY_MS = 100_000; // Break at 100s to stay under 120s limit
-    let timedOut = false;
-
-    for (const question of questions) {
-      // Check if approaching timeout — break early with partial results
-      if (Date.now() - startTime > TIMEOUT_SAFETY_MS) {
-        timedOut = true;
-        break;
-      }
-
-      // Skip no_content questions
-      if (question.confidence_posture === 'no_content') {
-        results.push({
-          question_id: question.id,
-          status: 'skipped',
-          reason: 'no_content',
-        });
-        continue;
-      }
-
-      // Skip already-drafted if requested
-      if (skip_existing && existingResponseIds.has(question.id)) {
-        results.push({
-          question_id: question.id,
-          status: 'skipped',
-          reason: 'already_drafted',
-        });
-        continue;
-      }
-
-      try {
-        // Fetch matched content items
-        const matchedIds = question.matched_content_ids ?? [];
-        let matchedContent: DraftableContent[] = [];
-
-        if (matchedIds.length > 0) {
-          const { data: contentItems, error: contentError } = await supabase
-            .from('content_items')
-            .select('id, suggested_title, content, content_type, summary')
-            .in('id', matchedIds);
-
-          if (contentError) {
-            // S151 WP4 (C2): never draft with empty source content on a DB
-            // error — that produces a hallucinated batch response. Fail
-            // the per-question draft loudly instead.
-            throw new Error(
-              `Failed to fetch matched content for question ${question.id}: ${contentError.message}`,
-            );
-          }
-
-          matchedContent = (contentItems ?? []).map((item) => ({
-            id: item.id,
-            title: item.suggested_title,
-            content: item.content,
-            content_type: item.content_type,
-            summary: item.summary,
-          }));
-        }
-
-        const draftableQuestion: DraftableQuestion = {
-          id: question.id,
-          question_text: question.question_text,
-          word_limit: question.word_limit,
-          section_name: question.section_name,
-          confidence_posture: question.confidence_posture,
-        };
-
-        const draftResult = await runDraftingPipeline(
-          draftableQuestion,
-          matchedContent,
-          model_tier,
-        );
-
-        totalCost += draftResult.total_cost;
-        totalTokens += draftResult.total_tokens;
-
-        // Upsert the response (overall_score written to both column and metadata for backward compat)
-        const overallScore =
-          draftResult.metadata.quality_data?.overall_score ?? null;
-        await supabase.from('bid_responses').upsert(
-          {
-            question_id: question.id,
-            response_text: draftResult.response_text,
-            source_content_ids: draftResult.source_content_ids,
-            metadata: draftResult.metadata as unknown as Json,
-            review_status: 'ai_drafted',
-            drafted_by: PIPELINE_SYSTEM_USER_ID,
-            updated_at: new Date().toISOString(),
-            overall_score: overallScore,
-          },
-          { onConflict: 'question_id' },
-        );
-
-        // Update question status
-        await supabase
-          .from('bid_questions')
-          .update({ status: 'ai_drafted' })
-          .eq('id', question.id)
-          .eq('project_id', id);
-
-        results.push({
-          question_id: question.id,
-          status: 'drafted',
-          quality_score: draftResult.metadata.quality_data?.overall_score,
-        });
-      } catch (draftErr) {
-        logger.error(
-          { err: draftErr },
-          `Batch draft failed for question ${question.id}`,
-        );
-        results.push({
-          question_id: question.id,
-          status: 'failed',
-          error:
-            draftErr instanceof Error
-              ? draftErr.message
-              : 'Drafting pipeline failed',
-        });
-      }
-    }
-
-    // Transition bid to in_review if all eligible questions are drafted
-    const draftedCount = results.filter((r) => r.status === 'drafted').length;
-    const failedCount = results.filter((r) => r.status === 'failed').length;
-
-    if (
-      draftedCount > 0 &&
-      failedCount === 0 &&
-      bidStatus === 'drafting' &&
-      canTransition(bidStatus, 'in_review')
-    ) {
-      // Check if there are any questions still without responses
-      const { count: undraftedCount } = await supabase
-        .from('bid_questions')
-        .select('id', { count: 'exact', head: true })
-        .eq('project_id', id)
-        .neq('confidence_posture', 'no_content')
-        .not(
-          'id',
-          'in',
-          `(${results
-            .filter((r) => r.status === 'drafted' || r.status === 'skipped')
-            .map((r) => r.question_id)
-            .join(',')})`,
-        )
-        .is('status', null);
-
-      // If all non-no_content questions have been processed, transition
-      if (undraftedCount === null || undraftedCount === 0) {
-        await supabase
-          .from('workspaces')
-          .update({
-            status: 'in_review',
-            updated_by: user.id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', id)
-          .eq('type', 'bid');
-      }
-    }
-
-    return NextResponse.json({
-      total_questions: questions.length,
-      drafted: draftedCount,
-      skipped: results.filter((r) => r.status === 'skipped').length,
-      failed: failedCount,
-      results,
-      total_cost: totalCost,
-      total_tokens: totalTokens,
-      ...(timedOut
-        ? {
-            timed_out: true,
-            remaining: questions.length - results.length,
-            message: `Processed ${results.length} of ${questions.length} questions before approaching timeout. Re-run with skip_existing to continue.`,
-          }
-        : {}),
+    const idempotencyKey = buildIdempotencyKey({
+      jobType: 'bid_draft_all',
+      scopedId: id,
+      requestHash,
     });
-  } catch (err) {
+
+    // ----------------------------------------------------------------
+    // pipeline_runs Pattern 2: caller-allocated UUID + INSERT
+    // `status='running'` at-enqueue. The worker UPDATEs the SAME row
+    // at-terminal (see `lib/queue/dispatch.ts` `case 'bid_draft_all':`).
+    // ----------------------------------------------------------------
+    const pipelineRunId = crypto.randomUUID();
+    await sb(
+      supabase.from('pipeline_runs').insert({
+        id: pipelineRunId,
+        pipeline_name: 'bid_draft_all',
+        status: 'running',
+        workspace_id: id,
+      }),
+      'bids.response.draftAll.pipelineRunInsert',
+    );
+
+    // ----------------------------------------------------------------
+    // Resolve role for envelope auth_context (worker uses this to
+    // re-validate via `reValidateAuthContext` per spec §4.2). The
+    // pre-condition above already passed `getAuthorisedClient(['admin',
+    // 'editor'])` — fall back to 'editor' on lookup failure rather than
+    // failing the enqueue (worker-side re-validation is authoritative).
+    // ----------------------------------------------------------------
+    const { data: roleRow, error: roleErr } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (roleErr) {
+      logger.warn(
+        { err: roleErr, userId: user.id },
+        'bids.response.draftAll: user_roles lookup failed, defaulting role to editor',
+      );
+    }
+    const role = (roleRow?.role ?? 'editor') as
+      | 'admin'
+      | 'editor'
+      | 'viewer';
+
+    // ----------------------------------------------------------------
+    // Enqueue. The chokepoint helper handles dedup pre-INSERT against
+    // the partial UNIQUE index on `(idempotency_key) WHERE status IN
+    // ('pending', 'processing', 'completed')` — same-day re-enqueue
+    // returns the existing job_id with `deduplicated: true`.
+    // ----------------------------------------------------------------
+    const enqueueResult = await enqueueQueueJob<BidDraftAllBody>({
+      supabase,
+      jobType: 'bid_draft_all',
+      body: { bid_id: id, model_tier, skip_existing },
+      authContext: { user_id: user.id, role, workspace_id: id },
+      idempotencyKey,
+      pipelineRunId,
+      priority: 0,
+      maxAttempts: 3,
+    });
+
     return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to batch draft responses') },
+      {
+        job_id: enqueueResult.jobId,
+        pipeline_run_id: pipelineRunId,
+        status: 'queued',
+        deduplicated: enqueueResult.deduplicated,
+      },
+      { status: 202 },
+    );
+  } catch (err) {
+    logger.error({ err }, 'bids.response.draftAll: enqueue failed');
+    return NextResponse.json(
+      { error: safeErrorMessage(err, 'Failed to queue draft-all job') },
       { status: 500 },
     );
   }
