@@ -43,16 +43,22 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    // Silent-failure prevention (spec: docs/specs/silent-failure-prevention-spec.md)
-    // Flags unchecked Supabase error destructures and silent promise catches
-    // in route handlers and library code. Ships at `error` from day one (Q-22).
-    // Full tree is clean as of S152C — the `lib/supabase/safe.ts` ignore is
-    // only because the wrapper itself destructures raw.
-    files: ['app/api/**/*.ts', 'lib/**/*.ts'],
+    // Silent-failure prevention — Supabase error checks
+    // (spec: docs/specs/silent-failure-prevention-spec.md).
+    // Catches unchecked `.data` destructures across route handlers, library
+    // code, AND Server Components / page+layout files in app/**/*.tsx.
+    // OPS-31: extended to app/**/*.tsx so Next.js 16 Server Component data
+    // fetching is in-scope (previously only app/api/** + lib/**).
+    // The `lib/supabase/safe.ts` ignore is only because the wrapper itself
+    // destructures raw.
+    files: ['app/api/**/*.ts', 'lib/**/*.ts', 'app/**/*.tsx'],
     ignores: [
       '**/*.test.ts',
+      '**/*.test.tsx',
       '**/*.spec.ts',
+      '**/*.stories.tsx',
       '__tests__/**',
+      '**/__tests__/**/*.tsx',
       'e2e/**',
       'scripts/**',
       'lib/supabase/safe.ts', // the wrapper itself destructures raw
@@ -62,6 +68,30 @@ const eslintConfig = defineConfig([
     },
     rules: {
       'local/no-unchecked-supabase-error': 'error',
+    },
+  },
+  {
+    // Silent-failure prevention — promise catch swallows
+    // (spec: docs/specs/silent-failure-prevention-spec.md).
+    // Scope intentionally NARROWER than `no-unchecked-supabase-error`: the
+    // app/**/*.tsx Server Component surface contains many existing
+    // `.catch(() => ...)` patterns in client components that are out of
+    // scope for OPS-31 and need a separate sweep before the rule can be
+    // applied there. Ships at `error` from day one (Q-22) for the original
+    // route+lib surface.
+    files: ['app/api/**/*.ts', 'lib/**/*.ts'],
+    ignores: [
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      '__tests__/**',
+      'e2e/**',
+      'scripts/**',
+      'lib/supabase/safe.ts',
+    ],
+    plugins: {
+      local: localRules,
+    },
+    rules: {
       'local/no-silent-promise-catch': 'error',
     },
   },

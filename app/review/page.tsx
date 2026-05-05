@@ -1,6 +1,8 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { ReviewTabs } from '@/components/review/review-tabs';
 
 export default async function ReviewPage() {
@@ -14,14 +16,25 @@ export default async function ReviewPage() {
     redirect('/login');
   }
 
-  // Check role: viewers cannot access the review page
-  const { data: roleData } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single();
-
-  const role = roleData?.role ?? 'viewer';
+  // Check role: viewers cannot access the review page. Use tryQuery so a
+  // Supabase failure surfaces a structured warning instead of silently
+  // treating the user as a viewer.
+  const roleResult = await tryQuery(
+    supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
+    'review.user_role',
+  );
+  if (!roleResult.ok) {
+    logBestEffortWarn(
+      'review.user_role',
+      'user_roles lookup failed; falling back to viewer',
+      {
+        userId: user.id,
+        err: roleResult.error.message,
+        code: roleResult.error.code,
+      },
+    );
+  }
+  const role = roleResult.ok ? (roleResult.data?.role ?? 'viewer') : 'viewer';
 
   if (role === 'viewer') {
     // Redirect viewers to browse with a query param the client can use
