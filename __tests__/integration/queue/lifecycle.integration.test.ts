@@ -94,7 +94,7 @@ import * as supabaseServer from '@/lib/supabase/server';
 // Production cancel-route handler. Same lazy-import discipline.
 
 import type { QueueJobPayload } from '@/lib/queue/envelope';
-import type { Database, Json } from '@/supabase/types/database.types';
+import type { Json } from '@/supabase/types/database.types';
 
 // ---------------------------------------------------------------------------
 // Env-gated graceful skip seam.
