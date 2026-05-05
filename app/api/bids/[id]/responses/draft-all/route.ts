@@ -164,9 +164,18 @@ export async function POST(
     // the partial UNIQUE index on `(idempotency_key) WHERE status IN
     // ('pending', 'processing', 'completed')` — same-day re-enqueue
     // returns the existing job_id with `deduplicated: true`.
+    //
+    // Service-role client: `processing_queue_insert_editor_admin` allows
+    // editor INSERT, but `processing_queue_select_admin` is admin-only —
+    // an editor's `.insert(...).select('id').single()` succeeds at the
+    // INSERT step and then fails at RETURNING (PGRST116 0-rows). Using
+    // the service-role client bypasses RLS for both the dedup SELECT
+    // and the INSERT-with-RETURNING. `created_by` is sourced from
+    // `authContext.user_id` (not `auth.uid()`), so audit trail is
+    // preserved even with the elevated client.
     // ----------------------------------------------------------------
     const enqueueResult = await enqueueQueueJob<BidDraftAllBody>({
-      supabase,
+      supabase: serviceClient,
       jobType: 'bid_draft_all',
       body: { bid_id: id, model_tier, skip_existing },
       authContext: { user_id: user.id, role, workspace_id: id },

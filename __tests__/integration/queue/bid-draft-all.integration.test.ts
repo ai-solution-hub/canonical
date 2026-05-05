@@ -404,6 +404,11 @@ describeIfEnv(
       seededJobIds.add(firstBody.job_id);
       seededPipelineRunIds.add(firstBody.pipeline_run_id);
 
+      // Reset rate-limit between the two POSTs — the route applies
+      // 1 req/120s per user, which would otherwise return 429 here and
+      // mask the dedup behaviour we're actually asserting.
+      _resetRateLimitStore();
+
       const second = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },
@@ -478,6 +483,10 @@ describeIfEnv(
 
       // Advance to the NEXT UTC day.
       vi.setSystemTime(new Date('2026-05-06T12:00:00.000Z'));
+
+      // Reset rate-limit between the two POSTs (route applies 1 req/120s).
+      _resetRateLimitStore();
+
       const second = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },
