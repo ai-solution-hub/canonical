@@ -63,16 +63,9 @@ export async function reapStuckJobs(
   const timeoutSeconds =
     opts.visibilityTimeoutSeconds ?? DEFAULT_VISIBILITY_TIMEOUT_SECONDS;
 
-  // Cast: types/database.types.ts hasn't been regenerated since the
-  // migration adding reap_stuck_jobs landed; types regen happens in the
-  // /update-docs phase post-prod-push. Function name + arg shape verified
-  // against migration 20260505153750_s223_w3_claim_next_job_backoff_window.sql.
-  const { data, error } = await (
-    supabase.rpc as unknown as (
-      fn: 'reap_stuck_jobs',
-      args: { p_timeout_seconds: number },
-    ) => Promise<{ data: number | null; error: { message: string } | null }>
-  )('reap_stuck_jobs', { p_timeout_seconds: timeoutSeconds });
+  const { data, error } = await supabase.rpc('reap_stuck_jobs', {
+    p_timeout_seconds: timeoutSeconds,
+  });
 
   if (error) throw error;
   return data ?? 0;
