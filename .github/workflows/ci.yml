@@ -47,7 +47,7 @@ jobs:
 
       - name: Detect changed paths
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             python:
@@ -544,7 +544,7 @@ jobs:
 
       - name: Detect MCP-related path changes
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             mcp:
