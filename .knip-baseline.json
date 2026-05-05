@@ -1,12 +1,12 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
-  "capturedAt": "2026-05-03",
-  "capturedFromCommit": "kh-prod-readiness-S24 W6.1 Wave A — Knip baseline cleanup: closes the +6 unused-types CI breach (295→285) introduced over S21–S23 cross-track absorbs. Deletes 10 GENUINELY-DEAD type aliases (lib/taxonomy/taxonomy.ts ContentType+Platform; types/digest.ts DigestConfig+DigestGenerateRequest; types/review.ts ReviewActionType+ReviewAction+ReviewSession; types/bid.ts BidQuestionRow+BidResponseRow+WorkspaceRow) and 1 dead export (lib/governance/presets.ts GOVERNANCE_PRESETS const — governance UI reads from DB, S20). Tailwind v4 CSS-first plugin activation gap closed: knip.config.ts now provides syncCompilers.css regex extracting @plugin/@import directives from app/globals.css (Jimmy Guzman pattern), so @tailwindcss/typography is correctly detected via virtual JS imports rather than false-positive on the unused-dependency list (drops dependencies 1→0). Same change consolidated dormant knip.json into knip.config.ts (knip.json took precedence and shadowed knip.config.ts; deleted knip.json). Wave B (PUBLIC-API marking + RECENT-IMPL-ORPHAN wiring) deferred per docs/audits/kh-production-readiness-phase-1/research/19-knip-baseline-triage.md §9.",
+  "capturedAt": "2026-05-05",
+  "capturedFromCommit": "kh-prod-readiness-S31 W4 — OPS-50 Wave B Knip baseline cleanup. Sub-bucket 1 (BACKWARD-COMPAT-REEXPORT delete): trimmed 5 re-export blocks (lib/ingest/markdown-orchestrator.ts, lib/mcp/formatters/index.ts barrel, components/create-content/index.ts, lib/content-browsing/index.ts, contexts/taxonomy-context.tsx). Sub-bucket 2 (PUBLIC-API @public marking): added knip.config.ts `tags: ['-public']` rule and marked ~225 entries with @public JSDoc covering hook returns (UseXReturn/Options/Params/Result), live component prop interfaces (verified mounted in app/), AI client params, MCP tool authoring contracts, pipeline run-record params (CLAUDE.md chokepoints), warnings envelope, intelligence/extraction/coverage public-API types, validation handover-time configurability constants. Sub-bucket 3 (GENUINELY-DEAD delete): removed dead types/schemas in types/content.ts, lib/validation/{template-schemas, ai-schemas, jsonb}.ts, lib/governance/presets.ts, lib/intelligence/types.ts; demoted internal-only constants in lib/search-history.ts and hooks/intelligence/use-feed-articles.ts. Skipped lib/queue/enqueue.ts and 2 bid-template routes per main-track S223 ownership. 8 types remaining: 6 barrel-style `export type { X }` re-exports left alone per memory feedback_three_doc_growth_dynamic; 2 in lib/queue/enqueue.ts (S223 territory).",
   "counts": {
     "dependencies": 0,
     "devDependencies": 0,
-    "exports": 59,
-    "types": 289,
+    "exports": 38,
+    "types": 8,
     "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,
