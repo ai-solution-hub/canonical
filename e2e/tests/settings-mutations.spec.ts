@@ -275,31 +275,23 @@ test.describe('Settings -- Quality Review (Governance)', () => {
       /Quality Review Rules/,
     );
 
-    // Check for domain configuration rows or the empty state.
-    // The component renders a role="list" with listitem rows when configs exist,
-    // or an empty state with "No governance rules configured" text.
+    // Hard-expect the populated governance configuration list. Staging
+    // fixtures must seed at least one governance rule for this test; missing
+    // fixtures fail honestly rather than silently passing on the empty state.
     const configList = main.locator(
       '[role="list"][aria-labelledby="governance-config-heading"]',
     );
-    const emptyState = main.getByText('No governance rules configured');
+    await expect(configList).toBeVisible({ timeout: 3000 });
 
-    if (await configList.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // At least one domain row should exist
-      const listItems = configList.locator('[role="listitem"]');
-      const itemCount = await listItems.count();
-      expect(itemCount).toBeGreaterThan(0);
+    // At least one domain row should exist
+    const listItems = configList.locator('[role="listitem"]');
+    const itemCount = await listItems.count();
+    expect(itemCount).toBeGreaterThan(0);
 
-      // Each row has a domain name and a preset badge (Light-touch or Strict)
-      const firstItem = listItems.first();
-      await expect(firstItem.locator('.text-sm.font-medium')).toBeVisible();
-      await expect(firstItem.locator('[data-slot="badge"]')).toBeVisible();
-    } else {
-      // Empty state is acceptable — verify its content
-      await expect(emptyState).toBeVisible();
-      await expect(
-        main.getByText('Add a domain and choose a preset to get started.'),
-      ).toBeVisible();
-    }
+    // Each row has a domain name and a preset badge (Light-touch or Strict)
+    const firstItem = listItems.first();
+    await expect(firstItem.locator('.text-sm.font-medium')).toBeVisible();
+    await expect(firstItem.locator('[data-slot="badge"]')).toBeVisible();
 
     // "Content Freshness" section should also be visible below governance config
     await expect(
