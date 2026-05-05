@@ -14,6 +14,7 @@ import type { DetailMode } from '@/hooks/ui/use-detail-mode';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface DetailModeToggleProps {
   /** Current detail mode */
   detailMode: DetailMode;

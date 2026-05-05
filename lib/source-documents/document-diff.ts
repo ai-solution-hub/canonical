@@ -16,6 +16,7 @@
 import { diffLines } from 'diff';
 import { logger } from '@/lib/logger';
 
+/** @public */
 export interface QAPair {
   question: string;
   answer: string;
@@ -32,6 +33,7 @@ export interface DiffEntry {
   section_header?: string; // nearest heading context for full-text entries
 }
 
+/** @public */
 export interface DiffResult {
   old_document_id: string;
   new_document_id: string;

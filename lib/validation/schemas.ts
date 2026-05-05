@@ -65,12 +65,14 @@ export const VALID_PLATFORMS = [
   'other',
 ] as const;
 
+/** @public */
 export const VALID_SORT_FIELDS = [
   'captured_date',
   'classification_confidence',
   'primary_domain',
 ] as const;
 
+/** @public */
 export const VALID_SORT_ORDERS = ['asc', 'desc'] as const;
 
 export const VALID_REVIEW_ACTIONS = [
@@ -81,6 +83,7 @@ export const VALID_REVIEW_ACTIONS = [
   'unflag',
 ] as const;
 
+/** @public */
 export const VALID_REVIEW_STATUSES = [
   'unverified',
   'verified',
@@ -89,6 +92,7 @@ export const VALID_REVIEW_STATUSES = [
   'all',
 ] as const;
 
+/** @public */
 export const VALID_DIGEST_TYPES = ['weekly', 'daily', 'custom'] as const;
 
 // ──────────────────────────────────────────
@@ -123,6 +127,7 @@ export const ReviewActionBodySchema = z.object({
 /** GET /api/review/queue — validates status, limit, cursor only.
  *  Domain, content_type, and source_file are parsed separately via
  *  searchParams.getAll() in the route handler for proper array handling. */
+/** @public */
 export const VALID_REVIEW_QUEUE_SORTS = [
   'created_at',
   'confidence_asc',
@@ -647,6 +652,7 @@ export const EDITABLE_FIELDS = new Set([
   'publication_status',
 ] as const);
 
+/** @public */
 export type EditableField =
   | 'suggested_title'
   | 'ai_keywords'
@@ -907,7 +913,10 @@ export const KBIntegrationBodySchema = z.object({
   skip_dedup: z.boolean().optional(),
 });
 
-/** Runtime validation for workspaces.domain_metadata when type='bid' */
+/**
+ * Runtime validation for workspaces.domain_metadata when type='bid'
+ * @public
+ */
 export const BidMetadataSchema = z
   .object({
     buyer: z.string(),
@@ -1380,6 +1389,7 @@ export const TagBulkMergeBodySchema = z.object({
 // Tag morphology drift flags (§1.17 / S197 WP3)
 // ──────────────────────────────────────────
 
+/** @public */
 export const TAG_MORPHOLOGY_DECISION_VALUES = [
   'pending',
   'accept',

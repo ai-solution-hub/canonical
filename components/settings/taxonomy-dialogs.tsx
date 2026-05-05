@@ -30,6 +30,7 @@ import type { AdminDomain, AdminSubtopic } from '@/hooks/use-taxonomy-admin';
 // Props
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface TaxonomyDialogsProps {
   // Domain dialog
   domainDialogOpen: boolean;

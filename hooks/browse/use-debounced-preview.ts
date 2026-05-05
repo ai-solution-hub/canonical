@@ -26,6 +26,7 @@ interface PreviewResponse {
 // (CLAUDE.md UI / Frontend gotcha).
 const EMPTY_RESULTS: PreviewResult[] = [];
 
+/** @public */
 export interface UseDebouncedPreviewOptions {
   /** Minimum query length to trigger a preview fetch. Default: PREVIEW_MIN_QUERY_LENGTH (3) */
   minLength?: number;

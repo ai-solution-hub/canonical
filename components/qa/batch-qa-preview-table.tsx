@@ -14,6 +14,7 @@ export interface QAPair {
   answer: string;
 }
 
+/** @public */
 export interface BatchQAPreviewTableProps {
   /** The list of Q&A pairs to display */
   pairs: QAPair[];

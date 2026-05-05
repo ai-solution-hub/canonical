@@ -23,11 +23,13 @@
  * UUIDs to public-facing names via a SECURITY DEFINER RPC.
  */
 
+/** @public */
 export interface AuthUserShape {
   user_metadata?: Record<string, unknown> | null;
   email?: string | null;
 }
 
+/** @public */
 export interface ResolvedDisplayName {
   /** The first-person greeting name, or null if nothing usable. */
   display_name: string | null;

@@ -12,6 +12,7 @@ import type {
 // Return type
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface UseReviewSessionReturn {
   // Filter/sort
   filters: ReviewFiltersType;

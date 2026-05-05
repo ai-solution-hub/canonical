@@ -5,6 +5,7 @@
  * pipeline. Lazy-imports unpdf for serverless cold-start performance.
  */
 
+/** @public */
 export interface PdfExtractionResult {
   text: string;
   pageCount: number;

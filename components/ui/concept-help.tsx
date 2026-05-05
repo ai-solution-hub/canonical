@@ -81,6 +81,7 @@ const CONCEPT_COPY: Record<ConceptKey, ConceptCopy> = {
 // Component
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface ConceptHelpProps {
   /** Which platform concept to explain. */
   concept: ConceptKey;

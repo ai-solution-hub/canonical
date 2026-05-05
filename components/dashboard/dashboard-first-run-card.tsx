@@ -25,6 +25,7 @@ const DISMISS_KEY = 'dashboard-first-run-dismissed';
 // Component
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface DashboardFirstRunCardProps {
   role: 'admin' | 'editor' | 'viewer';
 }

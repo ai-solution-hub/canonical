@@ -19,6 +19,7 @@ interface StoredDraft {
   responseVersion: number | null;
 }
 
+/** @public */
 export interface DraftRecoveryState {
   /** Whether a recovered draft was found on mount */
   hasDraft: boolean;

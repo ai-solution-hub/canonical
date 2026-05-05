@@ -18,6 +18,7 @@ export interface CitationSourceItem {
 }
 
 /** Result of extracting text and citations from a Claude response */
+/** @public */
 export interface ExtractedCitedResponse {
   text: string;
   citations: CitationEntry[];

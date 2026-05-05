@@ -33,6 +33,7 @@ interface SourceDocumentVersion {
   content_item_count: number;
 }
 
+/** @public */
 export interface SourceDocumentHistoryProps {
   /** The source document ID (any version in the chain) */
   sourceDocumentId: string;

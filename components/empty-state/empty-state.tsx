@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+/** @public */
 export interface EmptyStateCta {
   label: string;
   /** Navigation target. If provided, CTA renders as a link. */
@@ -11,6 +12,7 @@ export interface EmptyStateCta {
   onClick?: () => void;
 }
 
+/** @public */
 export interface EmptyStateProps {
   icon?: ReactNode;
   title: string;

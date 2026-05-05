@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+/** @public */
 export interface WarningsBannerProps {
   /**
    * Non-fatal warnings produced by the dashboard data fetch. Sourced from the

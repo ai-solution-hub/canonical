@@ -38,6 +38,7 @@ export interface UseTaxonomyAdminParams {
   refresh: () => void;
 }
 
+/** @public */
 export interface UseTaxonomyAdminReturn {
   // Data
   domains: AdminDomain[];

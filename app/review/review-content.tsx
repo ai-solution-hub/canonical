@@ -51,6 +51,7 @@ import { ConceptHelp } from '@/components/ui/concept-help';
  *
  * Spec: docs/specs/review-page-tabs-refactor-spec.md §4 + AC (e).
  */
+/** @public */
 export interface ReviewContentProps {
   /**
    * Optional preset for the underlying status filter. When omitted, the

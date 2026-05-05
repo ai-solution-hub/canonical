@@ -12,6 +12,7 @@ import { extractFromHtml } from './html';
 import { extractPdfText } from './pdf';
 import { extractOgMetadata } from './og-metadata';
 
+/** @public */
 export interface ExtractedContent {
   title: string;
   content: string;

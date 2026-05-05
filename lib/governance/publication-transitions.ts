@@ -129,6 +129,7 @@ export function computeAllowedTransitions(
  * audit trail of why/who archived (per spec §3.2 + D-9 archived metadata
  * retention rationale).
  */
+/** @public */
 export type SideEffectPayload = {
   publication_status: PublicationStatus;
   archived_at?: string | null;

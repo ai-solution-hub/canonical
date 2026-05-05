@@ -53,6 +53,7 @@ const EMPTY_ANALYSES: MarkdownIngestAnalysis[] = [];
 type DraftOrFinalChoice = 'draft' | 'final';
 type Role = 'admin' | 'editor' | 'viewer';
 
+/** @public */
 export interface MarkdownAnalysisTableProps {
   /** Analyse-phase per-file records — drives one row each. */
   analyses: MarkdownIngestAnalysis[];

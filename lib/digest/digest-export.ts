@@ -26,6 +26,7 @@ function formatDateForFilename(dateString: string): string {
 // Markdown Export
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface DigestExportOptions {
   /** Include hyperlinks for top items */
   includeItemLinks?: boolean;

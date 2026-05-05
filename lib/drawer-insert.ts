@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/react';
 
+/** @public */
 export interface InsertLibraryContentOptions {
   /** Tiptap editor instance (null if not yet mounted) */
   editor: Editor | null;

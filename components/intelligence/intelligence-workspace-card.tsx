@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { Newspaper, Rss, FileText, ArrowRight } from 'lucide-react';
 import type { IntelligenceWorkspace } from '@/hooks/intelligence/use-intelligence-workspaces';
@@ -8,10 +9,23 @@ interface IntelligenceWorkspaceCardProps {
   workspace: IntelligenceWorkspace;
 }
 
+function subscribeToClientMount(onStoreChange: () => void) {
+  onStoreChange();
+  return () => {};
+}
+
+function getClientMountedSnapshot() {
+  return true;
+}
+
+function getServerMountedSnapshot() {
+  return false;
+}
+
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return 'Never';
   const date = new Date(dateString);
-  const now = new Date();
+  const now = new Date(Date.now());
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60_000);
 
@@ -30,9 +44,16 @@ function formatRelativeTime(dateString: string | null): string {
 export function IntelligenceWorkspaceCard({
   workspace,
 }: IntelligenceWorkspaceCardProps) {
+  const mounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot,
+  );
   const articleCount = workspace.article_count ?? 0;
   const passedCount = workspace.passed_article_count ?? 0;
   const sourceCount = workspace.source_count ?? 0;
+
+  if (!mounted) return null;
 
   return (
     <Link

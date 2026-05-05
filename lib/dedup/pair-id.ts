@@ -16,6 +16,7 @@
  * Spec: docs/specs/§1.9-near-dup-merge-dashboard-spec.md §3.5.
  */
 
+/** @public */
 export interface ParsedPairId {
   leftId: string;
   rightId: string;

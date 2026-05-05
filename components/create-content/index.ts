@@ -5,12 +5,6 @@ export { SaveActionsBar } from './save-actions-bar';
 export { MobileStepIndicator } from './mobile-step-indicator';
 export { TemplateSelector } from './template-selector';
 
-export type { ClassificationFieldsetProps } from './classification-fieldset';
-export type { ProvenanceFieldsetProps } from './provenance-fieldset';
-export type { ProgressiveDepthFieldsetProps } from './progressive-depth-fieldset';
-export type { SaveActionsBarProps } from './save-actions-bar';
-export type { MobileStepIndicatorProps } from './mobile-step-indicator';
-export type {
-  TemplateSelectorProps,
-  TemplateSelectorLayout,
-} from './template-selector';
+// Component prop types are co-located with each component file. Consumers
+// needing the prop type should import it directly from the component module
+// (e.g. `import type { TemplateSelectorProps } from '@/components/create-content/template-selector'`).

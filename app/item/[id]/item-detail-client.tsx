@@ -89,6 +89,7 @@ export interface ItemData {
   feed_article?: FeedArticleJoin | null;
 }
 
+/** @public */
 export interface ItemDetailClientProps {
   item: ItemData;
   relatedItems: Array<ContentListItem & { similarity: number }>;

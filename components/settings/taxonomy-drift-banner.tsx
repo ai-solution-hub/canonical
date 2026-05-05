@@ -15,6 +15,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface TaxonomyDriftBannerProps {
   className?: string;
 }

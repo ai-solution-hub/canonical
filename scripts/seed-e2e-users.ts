@@ -303,6 +303,92 @@ async function verifyPipelineUserShape(
   }
 }
 
+// ── Publication-review fixture (S31 W3 OPS-46) ──────────────────────────────
+//
+// One deterministic content_items row at publication_status='in_review'
+// that the e2e/tests/review-publication-tab.spec.ts spec asserts against.
+//
+// Spec contract: docs/specs/review-page-tabs-refactor-spec.md §10.1.
+//
+// Idempotency rules (verbatim from spec §10.1):
+//   1. Look up the row by its deterministic title.
+//   2. If found, return the existing id WITHOUT updating the mutable
+//      `publication_status` column — re-seeding mid-test would race the
+//      Approve+toast assertion.
+//   3. If absent, INSERT it with publication_status='in_review' and return
+//      the new id.
+//
+// The afterEach reset in the test file (spec §10.2) is the SINGLE owner
+// of the publication_status column for this row; this seeder defers to it.
+//
+// `content_text_hash` is `GENERATED ALWAYS` per CLAUDE.md gotcha — omit
+// from the payload (PG computes it from `content`).
+
+const PUBLICATION_REVIEW_FIXTURE_TITLE =
+  '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row';
+
+/**
+ * Seed (or verify) the single deterministic publication-review fixture
+ * content_items row used by e2e/tests/review-publication-tab.spec.ts.
+ *
+ * Idempotent — re-runs are no-ops + return the existing row's id without
+ * touching mutable columns. See spec §10.1 for the full contract.
+ *
+ * @param client  Supabase service-role client (RLS-bypassing).
+ * @returns       The fixture row's UUID.
+ */
+export async function seedPublicationReviewFixture(
+  client: SupabaseServiceClient,
+): Promise<{ id: string; action: 'created' | 'already-exists' }> {
+  // Step 1: lookup by deterministic title.
+  const { data: existing, error: lookupErr } = await client
+    .from('content_items')
+    .select('id')
+    .eq('title', PUBLICATION_REVIEW_FIXTURE_TITLE)
+    .maybeSingle();
+
+  if (lookupErr) {
+    throw new Error(
+      `publication-review fixture lookup failed: ${lookupErr.message}`,
+    );
+  }
+
+  if (existing) {
+    // Step 2: return existing id WITHOUT touching publication_status.
+    // The test's afterEach resets the column — re-seeding mid-test
+    // would race that reset.
+    return { id: existing.id, action: 'already-exists' };
+  }
+
+  // Step 3: INSERT with publication_status='in_review'.
+  const { data: created, error: insertErr } = await client
+    .from('content_items')
+    .insert({
+      title: PUBLICATION_REVIEW_FIXTURE_TITLE,
+      content_type: 'q_a_pair',
+      primary_domain: 'Technical Capability',
+      summary:
+        'E2E fixture row — exercises the awaiting-publication tab Approve + visibility-gating flow.',
+      content:
+        'Q: E2E fixture question?\nA: This is the E2E fixture row used by review-publication-tab.spec.ts.',
+      platform: 'manual',
+      publication_status: 'in_review',
+      // governance_review_status intentionally null — publication-review
+      // tab is orthogonal to governance state per spec §6 / §7.
+      // content_text_hash is GENERATED ALWAYS — do NOT pass it.
+    })
+    .select('id')
+    .single();
+
+  if (insertErr || !created) {
+    throw new Error(
+      `publication-review fixture insert failed: ${insertErr?.message ?? 'no row returned'}`,
+    );
+  }
+
+  return { id: created.id, action: 'created' };
+}
+
 // ── Test user definitions ──────────────────────────────────────────────────
 
 interface TestUserSpec {
@@ -570,6 +656,59 @@ async function main(): Promise<void> {
       '\n❌ check mode: one or more users missing or misconfigured. Exiting 1.',
     );
     process.exit(EXIT_GENERIC_ERROR);
+  }
+
+  // ── S31 W3 — Publication-review fixture seed ──────────────────────────
+  //
+  // Provisioned post-user seed. Spec §10.1: invoke once per CI E2E job
+  // and emit a single line into the Results: block alongside the user
+  // provisioning results. --check verifies the row exists; --dry-run
+  // skips the INSERT branch.
+  console.log('\n→ Seeding publication-review fixture (S31 W3 OPS-46)…');
+  if (dryRun) {
+    console.log(
+      '  (dry-run — would seed [E2E-PUB-REVIEW-FIXTURE] content_items row if missing)',
+    );
+  } else if (checkOnly) {
+    // --check: read-only verification. Row presence is enough — the
+    // mutable publication_status column is owned by the test's
+    // afterEach (spec §10.2), so any of in_review/published/draft is
+    // an acceptable mid-test state.
+    const { data, error } = await supabase
+      .from('content_items')
+      .select('id, publication_status')
+      .eq('title', '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row')
+      .maybeSingle();
+    if (error) {
+      console.error(
+        `  ❌ publication-review fixture check failed: ${error.message}`,
+      );
+      process.exit(EXIT_GENERIC_ERROR);
+    }
+    if (!data) {
+      console.error(
+        '  ❌ publication-review fixture row missing. Re-run without --check to seed.',
+      );
+      process.exit(EXIT_GENERIC_ERROR);
+    }
+    console.log(
+      `  ✅ publication-review fixture present (id: ${data.id}, status: ${data.publication_status}).`,
+    );
+  } else {
+    try {
+      const fixture = await seedPublicationReviewFixture(supabase);
+      const icon = fixture.action === 'created' ? '✨' : '➖';
+      console.log(
+        `  ${icon} publication-review fixture: ${fixture.action} (${fixture.id})`,
+      );
+    } catch (err) {
+      console.error(
+        `  ❌ publication-review fixture seed failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      process.exit(EXIT_GENERIC_ERROR);
+    }
   }
 
   console.log('\n✅ Done.\n');

@@ -29,6 +29,7 @@ export interface LayerInferenceInput {
   title: string;
 }
 
+/** @public */
 export interface LayerSuggestion {
   /** Suggested layer key (e.g. 'sales_brief') */
   suggestedLayer: string;

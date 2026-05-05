@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export type QuickReviewAction = 'verify' | 'unverify' | 'flag' | 'unflag';
 
 export type OnOptimisticUpdate = (
@@ -19,6 +20,7 @@ export type OnOptimisticUpdate = (
   }>,
 ) => void;
 
+/** @public */
 export interface UseQuickReviewOptions {
   /**
    * Callback invoked immediately (before API call) with the optimistic field

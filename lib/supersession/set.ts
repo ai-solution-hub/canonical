@@ -62,6 +62,7 @@ type ContentItemSupersessionRow = Pick<
   'id' | 'title' | 'superseded_by' | 'dedup_status'
 >;
 
+/** @public */
 export type SupersessionErrorCode =
   | 'SAME_ID'
   | 'OLD_NOT_FOUND'
@@ -92,6 +93,7 @@ interface SupersessionRowSnapshot {
   dedup_status: string;
 }
 
+/** @public */
 export interface SetSupersessionParams {
   oldId: string;
   newId: string;

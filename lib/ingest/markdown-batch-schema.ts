@@ -69,6 +69,9 @@ export const BatchOptionsSchema = z
   })
   .strict();
 
+/** @public */
 export type BatchOptions = z.infer<typeof BatchOptionsSchema>;
+/** @public */
 export type PerFileOverride = z.infer<typeof PerFileOverrideSchema>;
+/** @public */
 export type BatchWideOptions = z.infer<typeof BatchWideOptionsSchema>;

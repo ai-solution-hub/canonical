@@ -15,6 +15,7 @@
  * to surface a warning to the user.
  */
 
+/** @public */
 export interface ParsedMarkdownFrontMatter {
   frontMatter: Record<string, unknown> | null;
   body: string;

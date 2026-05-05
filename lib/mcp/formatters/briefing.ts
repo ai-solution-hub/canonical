@@ -13,6 +13,7 @@ import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface BelowThresholdItem {
   id: string;
   title: string | null;
@@ -25,6 +26,7 @@ export interface BelowThresholdItem {
   classification_confidence: number | null;
 }
 
+/** @public */
 export interface ScoreDropItem {
   id: string;
   title: string | null;
@@ -34,6 +36,7 @@ export interface ScoreDropItem {
   previous_quality_score: number;
 }
 
+/** @public */
 export interface FreshnessTransitionItem {
   id: string;
   title: string | null;
@@ -43,6 +46,7 @@ export interface FreshnessTransitionItem {
   previous_freshness: string | null;
 }
 
+/** @public */
 export interface QualityFlagNotification {
   id: string;
   type: string;
@@ -51,6 +55,7 @@ export interface QualityFlagNotification {
   entity_id: string | null;
 }
 
+/** @public */
 export interface CoverageAlertNotification {
   id: string;
   type: string;
@@ -58,6 +63,7 @@ export interface CoverageAlertNotification {
   created_at: string;
 }
 
+/** @public */
 export interface CertificationWarning {
   canonical_name: string;
   entity_type: string;
@@ -65,6 +71,7 @@ export interface CertificationWarning {
   status: string; // 'expiring_soon' | 'expired'
 }
 
+/** @public */
 export interface QualityBriefingData {
   below_threshold: BelowThresholdItem[];
   score_drops: ScoreDropItem[];

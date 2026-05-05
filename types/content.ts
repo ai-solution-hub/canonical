@@ -74,39 +74,6 @@ export interface ContentListItem {
   publication_status: PublicationStatus | null;
 }
 
-/** Content list item with read state */
-export interface ContentListItemWithReadState extends ContentListItem {
-  is_read: boolean;
-  read_at?: string | null;
-}
-
-/** Full detail view */
-export interface ContentItemDetail extends ContentListItem {
-  content: ContentItemRow['content'];
-  source_url: ContentItemRow['source_url'];
-  file_path: ContentItemRow['file_path'];
-  secondary_domain: ContentItemRow['secondary_domain'];
-  secondary_subtopic: ContentItemRow['secondary_subtopic'];
-  classification_reasoning: string | null;
-  classified_at: string | null;
-  metadata: Record<string, unknown>;
-  summary_data: SummaryData | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-  updated_by: string | null;
-  /** Source bid reference for provenance tracking */
-  source_bid?: string | null;
-  /** Progressive depth: detailed explanation */
-  detail?: string | null;
-  /** Progressive depth: reference/technical detail */
-  reference?: string | null;
-  /** Standard/brief answer for Q&A pairs */
-  answer_standard?: string | null;
-  /** Advanced/detailed answer for Q&A pairs */
-  answer_advanced?: string | null;
-}
-
 /** Multi-level summary data stored as JSONB on content_items */
 export interface SummaryData {
   executive: string;

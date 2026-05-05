@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ChangeReasonInput } from '@/components/item-detail/change-reason-input';
 import type { ContentTabsEditConfig } from '@/components/item-detail/content-tabs';
 
+/** @public */
 export interface InlineTextEditorProps {
   field: 'brief' | 'detail' | 'reference';
   editConfig: ContentTabsEditConfig;

@@ -62,11 +62,10 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
 
     // The Advanced checkbox lives inside the "Q&A Pairs" collapsible
-    // section. Open it if collapsed (defaultOpen={false}).
+    // section. Hard-assert visibility and expand it (defaultOpen={false}).
     const qaSection = page.getByRole('button', { name: /Q&A Pairs/ });
-    if (await qaSection.isVisible()) {
-      await qaSection.click();
-    }
+    await expect(qaSection).toBeVisible();
+    await qaSection.click();
     const includeQaCheckbox = page.getByRole('checkbox', {
       name: /Include Q&A pairs/,
     });
@@ -86,14 +85,11 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     authenticatedPage: page,
   }) => {
     // Only the fallback persona renders the chipComposite card. Admin
-    // users with no primary_focus land there; if a primary_focus is
-    // set, skip.
+    // users with no primary_focus land there. Hard-assert visibility so
+    // a missing chipComposite (e.g. cleanroom DB without persona seeds)
+    // fails honestly rather than silently skipping.
     const chipCard = page.getByTestId('prompt-card-chip-composite');
-    const chipCardExists = await chipCard.isVisible().catch(() => false);
-    test.skip(
-      !chipCardExists,
-      'ChipComposite only renders in fallback persona set',
-    );
+    await expect(chipCard).toBeVisible();
 
     // Fetch a taxonomy domain name from the DB so we don't hardcode
     // `facilities_management` (spec test 18 — a DB rename must not
@@ -128,12 +124,10 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
   test('test 19: click More domains… → filter panel opens, URL unchanged', async ({
     authenticatedPage: page,
   }) => {
+    // Hard-assert chipComposite visibility — missing fallback persona seeds
+    // should fail honestly, not silently skip.
     const chipCard = page.getByTestId('prompt-card-chip-composite');
-    const chipCardExists = await chipCard.isVisible().catch(() => false);
-    test.skip(
-      !chipCardExists,
-      'ChipComposite only renders in fallback persona set',
-    );
+    await expect(chipCard).toBeVisible();
 
     const moreBtn = chipCard.getByRole('button', {
       name: /open filter panel to choose a different domain/i,
@@ -151,12 +145,10 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
   test('test 19b: outside-click dismisses panel via Escape (keyboard a11y)', async ({
     authenticatedPage: page,
   }) => {
+    // Hard-assert chipComposite visibility — missing fallback persona seeds
+    // should fail honestly, not silently skip.
     const chipCard = page.getByTestId('prompt-card-chip-composite');
-    const chipCardExists = await chipCard.isVisible().catch(() => false);
-    test.skip(
-      !chipCardExists,
-      'ChipComposite only renders in fallback persona set',
-    );
+    await expect(chipCard).toBeVisible();
 
     const moreBtn = chipCard.getByRole('button', {
       name: /open filter panel to choose a different domain/i,
@@ -182,12 +174,10 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     // panel — distinct from the keyboard-Escape path covered in 19b.
     // Radix Sheet's overlay element carries `data-slot="sheet-overlay"`
     // (see `components/ui/sheet.tsx:37`).
+    // Hard-assert chipComposite visibility — missing fallback persona seeds
+    // should fail honestly, not silently skip.
     const chipCard = page.getByTestId('prompt-card-chip-composite');
-    const chipCardExists = await chipCard.isVisible().catch(() => false);
-    test.skip(
-      !chipCardExists,
-      'ChipComposite only renders in fallback persona set',
-    );
+    await expect(chipCard).toBeVisible();
 
     const moreBtn = chipCard.getByRole('button', {
       name: /open filter panel to choose a different domain/i,
@@ -213,27 +203,20 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
   }) => {
     // SEARCH cards exist in bid_writing (Past bid responses), account
     // (Account context + Win themes) and marketing (Sector narratives).
-    // Any of them will do. Pick one by accessible name that's a
-    // SEARCH card regardless of persona exposure on the test user.
+    // Any of them will do. Hard-assert that the union of candidate cards
+    // is visible so missing persona seeds fail honestly, then click the
+    // first one that resolves.
     const candidateCards = [
-      /^Win themes and proposals:/i,
-      /^Past bid responses:/i,
-      /^Account context:/i,
-      /^Sector narratives:/i,
+      page
+        .getByRole('button', { name: /^Win themes and proposals:/i })
+        .first(),
+      page.getByRole('button', { name: /^Past bid responses:/i }).first(),
+      page.getByRole('button', { name: /^Account context:/i }).first(),
+      page.getByRole('button', { name: /^Sector narratives:/i }).first(),
     ];
-    let clicked = false;
-    for (const pattern of candidateCards) {
-      const card = page.getByRole('button', { name: pattern }).first();
-      if (await card.isVisible().catch(() => false)) {
-        await card.click();
-        clicked = true;
-        break;
-      }
-    }
-    test.skip(
-      !clicked,
-      'No SEARCH card visible for this persona — skipped cleanly',
-    );
+    const anyCard = candidateCards.reduce((acc, locator) => acc.or(locator));
+    await expect(anyCard).toBeVisible();
+    await anyCard.first().click();
 
     await expect(page).toHaveURL(/[?&]q=/);
   });
@@ -241,12 +224,10 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
   test('language alignment: "Browse by domain" rendered, not "Browse by sector"', async ({
     authenticatedPage: page,
   }) => {
+    // Hard-assert chipComposite visibility — missing fallback persona seeds
+    // should fail honestly, not silently skip.
     const chipCard = page.getByTestId('prompt-card-chip-composite');
-    const chipCardExists = await chipCard.isVisible().catch(() => false);
-    test.skip(
-      !chipCardExists,
-      'ChipComposite only renders in fallback persona set',
-    );
+    await expect(chipCard).toBeVisible();
 
     await expect(chipCard.getByText('Browse by domain')).toBeVisible();
     // Negative assertion — ensure the pre-rename title is gone.

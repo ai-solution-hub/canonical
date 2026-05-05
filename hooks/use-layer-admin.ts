@@ -25,6 +25,7 @@ export interface UseLayerAdminParams {
   refresh: () => void;
 }
 
+/** @public */
 export interface UseLayerAdminReturn {
   layers: AdminLayer[];
   loading: boolean;

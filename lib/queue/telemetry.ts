@@ -79,11 +79,13 @@ interface AuthContextRef {
  *   - `visibility_timeout` — visibility-timeout reaper rescued an orphaned
  *     `status='processing'` row.
  */
+/** @public */
 export type QueueSentryStage = 'invocation' | 'handler' | 'visibility_timeout';
 
 /**
  * Arguments for `emitQueueSentry`.
  */
+/** @public */
 export interface EmitQueueSentryArgs {
   /** Which observability surface is firing — see `QueueSentryStage`. */
   stage: QueueSentryStage;
@@ -174,6 +176,7 @@ export type QueueAnalyticsEvent =
  * see spec §6.2 lines 909-914 — but the helper accepts a single
  * superset-shaped args object and writes only the fields that are set.
  */
+/** @public */
 export interface EmitQueueAnalyticsArgs {
   /** The terminal-state event being reported. */
   event: QueueAnalyticsEvent;

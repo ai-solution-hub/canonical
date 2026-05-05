@@ -5,13 +5,7 @@
  * from '@/lib/mcp/formatters' continue to work without any path changes.
  */
 
-export {
-  CHARACTER_LIMIT,
-  truncate,
-  truncateResponse,
-  formatDeadline,
-  formatProgress,
-} from './shared';
+export { CHARACTER_LIMIT, truncateResponse } from './shared';
 export {
   type SearchResult,
   formatSearchResults,
@@ -65,11 +59,8 @@ export {
   type AuditItem,
   type AuditResult,
   formatAuditResult,
-  type DuplicatePair,
   type DuplicatePairsResult,
   formatDuplicatePairs,
-  type QualityAction,
-  type QualityActionsResult,
   formatQualityActions,
 } from './quality';
 export {
@@ -108,11 +99,8 @@ export {
   formatCreateReviewAssignment,
 } from './review';
 export {
-  type TemplateCoverageRequirement,
-  type TemplateCoverageSection,
   type TemplateCoverageData,
   formatTemplateCoverage,
-  type TemplateListItem,
   type TemplateListData,
   formatTemplateList,
   type TemplateGapsData,
@@ -126,21 +114,7 @@ export {
   formatBidDashboard,
 } from './apps';
 export { type DocumentDiffData, formatDocumentDiff } from './documents';
-export {
-  type IntelligenceArticle,
-  type IntelligenceSummaryData,
-  formatIntelligenceSummary,
-} from './intelligence';
-export {
-  type BelowThresholdItem,
-  type ScoreDropItem,
-  type FreshnessTransitionItem,
-  type QualityFlagNotification,
-  type CoverageAlertNotification,
-  type CertificationWarning,
-  type QualityBriefingData,
-  formatQualityBriefing,
-} from './briefing';
+export { formatIntelligenceSummary } from './intelligence';
 export {
   type ChangeReportItem,
   type ChangeReportData,

@@ -25,4 +25,5 @@ export const TRACKED_REFERENCE_DOCS = [
   'docs/runbooks/github-environments.md',
 ] as const;
 
+/** @public */
 export type TrackedReferenceDoc = (typeof TRACKED_REFERENCE_DOCS)[number];

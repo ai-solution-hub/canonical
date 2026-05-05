@@ -11,6 +11,7 @@ const VALID_FOCUS_VALUES: ReadonlySet<string> = new Set([
   'marketing',
 ]);
 
+/** @public */
 export interface UsePrimaryFocusResult {
   /** The user's selected primary focus, or null if unset / unauthenticated. */
   primaryFocus: PrimaryFocus | null;

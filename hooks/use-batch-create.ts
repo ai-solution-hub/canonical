@@ -16,6 +16,7 @@ export interface BatchQAPair {
   answer: string;
 }
 
+/** @public */
 export interface BatchCreateItem {
   id: string;
   title: string;
@@ -23,6 +24,7 @@ export interface BatchCreateItem {
   error?: string;
 }
 
+/** @public */
 export interface BatchCreateResult {
   created: number;
   failed: number;
@@ -31,6 +33,7 @@ export interface BatchCreateResult {
   batch_id: string;
 }
 
+/** @public */
 export interface BatchCreateProgress {
   current: number;
   total: number;
@@ -42,6 +45,7 @@ export interface DuplicateMatch {
   question: string;
 }
 
+/** @public */
 export interface UseBatchCreateReturn {
   submit: (
     pairs: BatchQAPair[],

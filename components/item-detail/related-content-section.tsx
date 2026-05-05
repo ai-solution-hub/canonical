@@ -7,6 +7,7 @@ import { RelatedByEntities } from '@/components/item-detail/related-by-entities'
 
 import type { ContentListItem } from '@/types/content';
 
+/** @public */
 export interface RelatedContentSectionProps {
   relatedItems: Array<ContentListItem & { similarity: number }>;
   itemId: string;

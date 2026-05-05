@@ -34,6 +34,7 @@ const EMPTY_SUPERSEDED: MarkdownBatchResultsSummary['superseded'] = [];
 const EMPTY_SKIPPED: MarkdownBatchResultsSummary['skipped_excluded'] = [];
 const EMPTY_ERRORED: MarkdownBatchResultsSummary['errored'] = [];
 
+/** @public */
 export interface ImportSummaryCardProps {
   /** `pipeline_run_id` returned by POST /api/ingest/markdown phase=import. */
   pipelineRunId: string;

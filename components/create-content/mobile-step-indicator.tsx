@@ -6,6 +6,7 @@ const FORM_STEPS = [
   { step: 3, label: 'Details' },
 ] as const;
 
+/** @public */
 export interface MobileStepIndicatorProps {
   activeStep: number;
 }

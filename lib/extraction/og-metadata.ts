@@ -31,6 +31,7 @@ function extractMetaContent(html: string, attribute: string): string {
   return '';
 }
 
+/** @public */
 export interface OgMetadata {
   ogImage: string;
   ogDescription: string;

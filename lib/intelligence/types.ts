@@ -108,9 +108,6 @@ export const EMBEDDING_PRE_FILTER_THRESHOLD = 0.25;
 /** Default relevance score threshold for pass/fail */
 export const DEFAULT_RELEVANCE_THRESHOLD = 0.5;
 
-/** Maximum consecutive failures before a feed source is excluded from polling */
-export const MAX_CONSECUTIVE_FAILURES = 10;
-
 /** Maximum number of feed sources to process per cron invocation */
 export const SOURCES_PER_INVOCATION = 10;
 

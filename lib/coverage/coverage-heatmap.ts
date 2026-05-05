@@ -12,6 +12,7 @@ export type FreshnessLevel =
   | 'stale'
   | 'empty';
 
+/** @public */
 export interface FreshnessCounts {
   fresh_count: number;
   aging_count: number;

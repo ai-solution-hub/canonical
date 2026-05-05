@@ -9,6 +9,7 @@ import type { ContentListItem } from '@/types/content';
 // Props
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface CollapsibleGroupProps {
   label: string;
   count: number;
@@ -55,6 +56,7 @@ export function CollapsibleGroup({
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export type GroupBy = 'none' | 'source' | 'domain';
 
 // ---------------------------------------------------------------------------

@@ -68,6 +68,15 @@ const config: KnipConfig = {
     'autoprefixer',
     'postcss',
   ],
+  // Exports tagged `@public` in JSDoc are deliberate library/API surface
+  // that no current callsite consumes by name. Marking them keeps knip's
+  // signal high while preserving the contract for hooks/components that
+  // expose a stable shape (Use*Return interfaces, *Props for live
+  // components, etc.). Per knip docs:
+  // https://knip.dev/reference/configuration#tags
+  // Do NOT add `@public` to barrel-file re-exports — knip treats those
+  // false-positive (memory feedback_three_doc_growth_dynamic).
+  tags: ['-public'],
   // Tailwind v4 CSS-first plugin activation: knip can't see `@plugin "..."`
   // directives in globals.css natively, so we synthesise virtual JS imports
   // from `@plugin` and `@import` directives. This lets knip detect deps like

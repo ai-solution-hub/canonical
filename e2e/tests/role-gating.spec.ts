@@ -14,21 +14,22 @@ test.describe('Viewer role restrictions', { tag: '@smoke' }, () => {
   test('viewer cannot see Review in navigation', async ({
     viewerPage: page,
   }) => {
-    // On mobile, open hamburger first
+    // On mobile, open hamburger first. The hamburger must be present on
+    // mobile viewports — hard-expect rather than silently skipping the
+    // assertion if it fails to render.
     if (isMobileViewport(page)) {
       const hamburger = page.getByRole('button', {
         name: 'Open navigation menu',
       });
-      if (await hamburger.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await hamburger.click();
-        const mobileNav = page.getByRole('navigation', {
-          name: 'Mobile navigation',
-        });
-        await expect(mobileNav).toBeVisible();
-        await expect(
-          mobileNav.getByRole('link', { name: 'Review' }),
-        ).not.toBeVisible();
-      }
+      await expect(hamburger).toBeVisible({ timeout: 3000 });
+      await hamburger.click();
+      const mobileNav = page.getByRole('navigation', {
+        name: 'Mobile navigation',
+      });
+      await expect(mobileNav).toBeVisible();
+      await expect(
+        mobileNav.getByRole('link', { name: 'Review' }),
+      ).not.toBeVisible();
     } else {
       const mainNav = page.getByRole('navigation', { name: 'Main navigation' });
       // Viewer should not see Review link (requires editor+ role)

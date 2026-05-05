@@ -52,10 +52,9 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
 
     await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
 
-    if (!(await guideLink.isVisible({ timeout: 2000 }).catch(() => false))) {
-      test.skip();
-      return;
-    }
+    // Hard-expect a guide link exists; staging must seed at least one published
+    // guide for this test to pass. Empty fixtures should fail honestly here.
+    await expect(guideLink).toBeVisible({ timeout: 2000 });
 
     // Click the first guide link
     await guideLink.click();
@@ -95,10 +94,9 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
 
     await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
 
-    if (!(await guideLink.isVisible({ timeout: 2000 }).catch(() => false))) {
-      test.skip();
-      return;
-    }
+    // Hard-expect a guide link exists; staging must seed at least one published
+    // guide for this test to pass.
+    await expect(guideLink).toBeVisible({ timeout: 2000 });
 
     await guideLink.click();
 
@@ -106,15 +104,15 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
       timeout: 10000,
     });
 
-    // If sections exist, a table of contents navigation is visible
+    // If sections exist, a table of contents navigation is visible. Hard-expect
+    // its presence — published guides are seeded with sections in staging.
     const tocNav = page.getByRole('navigation', { name: 'Guide sections' });
+    await expect(tocNav).toBeVisible({ timeout: 3000 });
 
-    if (await tocNav.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // TOC entries are links within the navigation
-      const tocLinks = tocNav.locator('a');
-      const linkCount = await tocLinks.count();
-      expect(linkCount).toBeGreaterThan(0);
-    }
+    // TOC entries are links within the navigation
+    const tocLinks = tocNav.locator('a');
+    const linkCount = await tocLinks.count();
+    expect(linkCount).toBeGreaterThan(0);
   });
 
   test('guide detail back link navigates to coverage guides tab', async ({
@@ -131,10 +129,9 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
 
     await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
 
-    if (!(await guideLink.isVisible({ timeout: 2000 }).catch(() => false))) {
-      test.skip();
-      return;
-    }
+    // Hard-expect a guide link exists; staging must seed at least one published
+    // guide for this test to pass.
+    await expect(guideLink).toBeVisible({ timeout: 2000 });
 
     await guideLink.click();
 

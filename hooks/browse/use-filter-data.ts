@@ -23,6 +23,7 @@ function getSupabase() {
   return createClient();
 }
 
+/** @public */
 export type FilterCounts = {
   domain: Record<string, number>;
   content_type: Record<string, number>;

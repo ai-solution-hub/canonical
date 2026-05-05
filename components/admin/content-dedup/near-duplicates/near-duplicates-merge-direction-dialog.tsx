@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import type { NearDupPairMember } from '@/lib/query/fetchers';
 
+/** @public */
 export type MergeDirection = 'left-supersedes-right' | 'right-supersedes-left';
 
 interface NearDuplicatesMergeDirectionDialogProps {

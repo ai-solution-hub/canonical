@@ -18,6 +18,7 @@ const RANGE_LABELS: Record<TimeRange, string> = {
   '30d': '30 days',
 };
 
+/** @public */
 export interface PipelineHealthFiltersProps {
   /** Available pipeline kinds extracted from the rollup. */
   availableKinds: readonly string[];

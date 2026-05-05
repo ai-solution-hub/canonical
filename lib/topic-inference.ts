@@ -20,6 +20,7 @@ import { FALLBACK_LAYERS } from '@/lib/client-config';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface TopicSuggestion {
   /** Suggested topic_id string */
   topicId: string;

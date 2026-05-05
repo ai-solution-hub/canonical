@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ChevronDown, ChevronRight, ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/** @public */
 export interface TocEntry {
   id: string;
   text: string;

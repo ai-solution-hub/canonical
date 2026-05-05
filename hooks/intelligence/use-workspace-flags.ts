@@ -37,6 +37,7 @@ export interface WorkspaceFlag {
 }
 
 /** Optional client-side filters for the workspace flags query. */
+/** @public */
 export interface WorkspaceFlagsFilters {
   resolved?: boolean;
   flag_type?: 'false_positive' | 'false_negative';

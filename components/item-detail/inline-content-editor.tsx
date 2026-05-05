@@ -21,6 +21,7 @@ const ContentEditor = dynamic(
   },
 );
 
+/** @public */
 export interface InlineContentEditorProps {
   editConfig: ContentTabsEditConfig;
   /** Whether the 'content' field is currently being edited */

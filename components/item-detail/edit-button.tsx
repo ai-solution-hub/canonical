@@ -3,6 +3,7 @@
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+/** @public */
 export interface EditButtonProps {
   field: 'brief' | 'detail' | 'reference' | 'content';
   label?: string;

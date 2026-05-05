@@ -27,6 +27,7 @@ export interface IntelligenceWorkspace {
   passed_article_count?: number;
 }
 
+/** @public */
 export interface IntelligenceWorkspaceInput {
   name: string;
   description?: string;
@@ -38,6 +39,7 @@ export interface IntelligenceWorkspaceInput {
  * `relevance_threshold` is admin-only and is merged server-side into
  * the workspace's `domain_metadata` JSONB column.
  */
+/** @public */
 export interface IntelligenceWorkspaceUpdateInput {
   name?: string;
   description?: string;

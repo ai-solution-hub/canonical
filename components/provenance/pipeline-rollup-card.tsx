@@ -25,6 +25,7 @@ function statusColour(entry: PipelineRollupEntry): string {
 // Component
 // ──────────────────────────────────────────
 
+/** @public */
 export interface PipelineRollupCardProps {
   entry: PipelineRollupEntry;
 }

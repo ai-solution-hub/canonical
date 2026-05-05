@@ -101,19 +101,18 @@ test.describe('Browse page', () => {
     // parent container. Find the combobox near the view group.
     const sortTrigger = viewGroup.locator('..').getByRole('combobox').first();
 
-    if (await sortTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await sortTrigger.scrollIntoViewIfNeeded();
-      await sortTrigger.click();
+    await expect(sortTrigger).toBeVisible({ timeout: 3000 });
+    await sortTrigger.scrollIntoViewIfNeeded();
+    await sortTrigger.click();
 
-      // Should show sort options in the dropdown listbox
-      const listbox = page.getByRole('listbox');
-      await expect(listbox.getByText('Date (newest)')).toBeVisible();
-      await expect(listbox.getByText('Date (oldest)')).toBeVisible();
-      await expect(listbox.getByText('Domain')).toBeVisible();
+    // Should show sort options in the dropdown listbox
+    const listbox = page.getByRole('listbox');
+    await expect(listbox.getByText('Date (newest)')).toBeVisible();
+    await expect(listbox.getByText('Date (oldest)')).toBeVisible();
+    await expect(listbox.getByText('Domain')).toBeVisible();
 
-      // Select a different sort option
-      await listbox.getByText('Date (oldest)').click();
-    }
+    // Select a different sort option
+    await listbox.getByText('Date (oldest)').click();
   });
 
   test('clicking a content item navigates to the detail page', async ({
@@ -124,23 +123,19 @@ test.describe('Browse page', () => {
       timeout: 10000,
     });
 
-    // Content items are rendered as links — try worker-specific items first
+    // Content items are rendered as links. Prefer worker-specific items,
+    // fall back to any /item/ link. Hard-assert that at least one resolves
+    // so a cleanroom DB without items fails honestly rather than silently
+    // skipping the navigation assertion.
     const workerItemLink = page
       .getByRole('link', { name: new RegExp(`\\${workerData.prefix}`) })
       .first();
+    const anyItemLink = page.locator('a[href^="/item/"]').first();
 
-    // If worker test items exist, click one
-    if (await workerItemLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await workerItemLink.click();
-      await expect(page).toHaveURL(/\/item\//);
-    } else {
-      // Fall back to clicking any content link
-      const anyItemLink = page.locator('a[href^="/item/"]').first();
-      if (await anyItemLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await anyItemLink.click();
-        await expect(page).toHaveURL(/\/item\//);
-      }
-    }
+    const itemLink = workerItemLink.or(anyItemLink);
+    await expect(itemLink).toBeVisible({ timeout: 3000 });
+    await itemLink.first().click();
+    await expect(page).toHaveURL(/\/item\//);
   });
 
   test('shows item count in footer text', async ({
@@ -189,20 +184,21 @@ test.describe('Search', () => {
   }) => {
     await page.goto('/browse?q=SLA');
 
-    // Wait for results to load
+    // Wait for results to load. Hard-assert at least one result so a
+    // cleanroom DB returning zero matches fails honestly rather than
+    // silently skipping the navigation assertion.
     const firstResult = page.locator('a[href^="/item/"]').first();
+    await expect(firstResult).toBeVisible({ timeout: 10000 });
 
-    if (await firstResult.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const href = await firstResult.getAttribute('href');
-      await firstResult.click();
-      await expect(page).toHaveURL(/\/item\//);
+    const href = await firstResult.getAttribute('href');
+    await firstResult.click();
+    await expect(page).toHaveURL(/\/item\//);
 
-      // Verify we navigated to the correct item
-      if (href) {
-        await expect(page).toHaveURL(
-          new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-        );
-      }
+    // Verify we navigated to the correct item
+    if (href) {
+      await expect(page).toHaveURL(
+        new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      );
     }
   });
 });

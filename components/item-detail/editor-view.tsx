@@ -38,6 +38,7 @@ import type { ContentListItem } from '@/types/content';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface EditorViewProps {
   /** Complete data and handlers from useItemDetailData */
   data: ItemDetailData;

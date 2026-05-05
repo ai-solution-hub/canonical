@@ -22,6 +22,7 @@ import type { BidResponseMetadata } from '@/types/bid-metadata';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** @public */
 export interface BidExportData {
   metadata: ExportBidMetadata;
   questions: ExportQuestion[];

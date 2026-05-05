@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import Link from 'next/link';
 import {
   Edit3,
@@ -25,6 +31,19 @@ export type ActivityEventFilter =
   | 'bid'
   | 'system';
 export type ActivityDateRange = 'all' | 'today' | 'week' | 'month';
+
+function subscribeToClientMount(onStoreChange: () => void) {
+  onStoreChange();
+  return () => {};
+}
+
+function getClientMountedSnapshot() {
+  return true;
+}
+
+function getServerMountedSnapshot() {
+  return false;
+}
 
 interface ActivityFeedProps {
   className?: string;
@@ -123,7 +142,7 @@ function getEventCategory(type: string): ActivityEventFilter {
 /** Get the start-of-period date for a date range filter */
 function getDateRangeStart(range: ActivityDateRange): Date | null {
   if (range === 'all') return null;
-  const now = new Date();
+  const now = new Date(Date.now());
   switch (range) {
     case 'today':
       return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -148,6 +167,11 @@ export function ActivityFeed({
   eventFilter = 'all',
   dateRange = 'all',
 }: ActivityFeedProps) {
+  const mounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot,
+  );
   const [activities, setActivities] = useState<GroupedActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -227,6 +251,8 @@ export function ActivityFeed({
     const before = lastItem?.created_at ?? null;
     fetchActivities(before, true);
   }
+
+  if (!mounted) return null;
 
   if (loading) {
     return (

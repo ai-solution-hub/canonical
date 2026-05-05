@@ -11,11 +11,13 @@ export interface VisionAnalysisResult {
   tokens_used: number;
 }
 
+/** @public */
 export interface UseVisionAnalysisParams {
   itemId: string;
   onAnalysisComplete: (result: VisionAnalysisResult) => void;
 }
 
+/** @public */
 export interface UseVisionAnalysisReturn {
   isAnalysing: boolean;
   handleVisionAnalysis: () => void;

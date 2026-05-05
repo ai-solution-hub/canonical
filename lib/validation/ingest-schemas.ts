@@ -21,4 +21,5 @@ export const IngestUrlBodySchema = z.object({
   content_owner_id: z.string().uuid().optional(),
 });
 
+/** @public */
 export type IngestUrlBody = z.infer<typeof IngestUrlBodySchema>;

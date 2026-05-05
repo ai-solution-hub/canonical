@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { BrowseFilters } from '@/types/content';
 
 /** Shape of the local draft state managed by this hook */
+/** @public */
 export interface FilterDraft {
   domains: string[];
   subtopic: string;

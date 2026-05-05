@@ -42,6 +42,7 @@ export function getModelForTier(tier: ModelTier): string {
 // Cost estimation
 // ──────────────────────────────────────────
 
+/** @public */
 export interface TokenUsage {
   input_tokens: number;
   output_tokens: number;

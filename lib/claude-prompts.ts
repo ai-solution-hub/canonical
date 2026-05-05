@@ -14,6 +14,7 @@ import type { ActiveBidSummary } from '@/lib/dashboard';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface ClaudePrompt {
   /** Short label for the button/card */
   label: string;

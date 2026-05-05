@@ -4,8 +4,10 @@ import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ContentTemplate } from '@/lib/content/content-templates';
 
+/** @public */
 export type TemplateSelectorLayout = 'compact' | 'fullwidth';
 
+/** @public */
 export interface TemplateSelectorProps {
   templates: ContentTemplate[];
   selectedId?: string;

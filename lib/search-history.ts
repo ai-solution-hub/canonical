@@ -6,8 +6,8 @@
  * recent-searches list without duplicating the write logic.
  */
 
-export const RECENT_SEARCHES_KEY = 'kb-recent-searches';
-export const MAX_RECENT_SEARCHES = 10;
+const RECENT_SEARCHES_KEY = 'kb-recent-searches';
+const MAX_RECENT_SEARCHES = 10;
 
 // Preview constants — single source of truth for Phase 2 consumers (SD-1/2/3)
 export const PREVIEW_DEBOUNCE_MS = 300;

@@ -95,6 +95,7 @@ export function buildQueueParams(
 // Return type
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface UseReviewQueueDataReturn {
   queue: ReviewQueueItem[];
   isLoading: boolean;

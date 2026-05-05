@@ -50,8 +50,6 @@ export const TemplateUploadBodySchema = z.object({
   description: z.string().max(1000).optional(),
 });
 
-export type TemplateUploadBody = z.infer<typeof TemplateUploadBodySchema>;
-
 // ──────────────────────────────────────────
 // Field Mapping Update (Single)
 // ──────────────────────────────────────────
@@ -60,8 +58,6 @@ export const FieldMappingUpdateSchema = z.object({
   question_id: z.string().uuid().nullable(),
   mapping_status: z.enum(['confirmed', 'rejected', 'manual', 'unmapped']),
 });
-
-export type FieldMappingUpdate = z.infer<typeof FieldMappingUpdateSchema>;
 
 // ──────────────────────────────────────────
 // Bulk Field Mapping
@@ -79,8 +75,6 @@ export const BulkFieldMappingSchema = z.object({
     .min(1, 'At least one mapping required'),
 });
 
-export type BulkFieldMapping = z.infer<typeof BulkFieldMappingSchema>;
-
 // ──────────────────────────────────────────
 // Template Fill Request
 // ──────────────────────────────────────────
@@ -92,8 +86,6 @@ export const TemplateFillBodySchema = z.object({
   response_variant: z.enum(['standard', 'advanced']).default('standard'),
 });
 
-export type TemplateFillBody = z.infer<typeof TemplateFillBodySchema>;
-
 // ──────────────────────────────────────────
 // Auto-Map Request
 // ──────────────────────────────────────────
@@ -101,5 +93,3 @@ export type TemplateFillBody = z.infer<typeof TemplateFillBodySchema>;
 export const AutoMapBodySchema = z.object({
   threshold: z.number().min(0).max(1).default(0.7),
 });
-
-export type AutoMapBody = z.infer<typeof AutoMapBodySchema>;

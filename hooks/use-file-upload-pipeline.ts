@@ -32,6 +32,7 @@ export const SKIP_REVIEW_KEY = 'kh_skip_upload_review';
 // ---------------------------------------------------------------------------
 
 /** Per-file layer suggestion info */
+/** @public */
 export interface FileSuggestedLayer {
   suggestedLayer: string;
   reason: string;
@@ -39,6 +40,7 @@ export interface FileSuggestedLayer {
 }
 
 /** Per-file re-upload detection info */
+/** @public */
 export interface FileReuploadInfo {
   matchType: 'identical' | 'new_version';
   previousVersion: number;
@@ -48,6 +50,7 @@ export interface FileReuploadInfo {
 }
 
 /** Per-file state for progress and dedup tracking */
+/** @public */
 export interface FileUploadState {
   steps: IngestionStep[];
   dedupMatches: DedupMatch[];
@@ -69,9 +72,11 @@ export interface FileUploadState {
   contentType?: string;
 }
 
+/** @public */
 export type UploadPhase = 'select' | 'uploading' | 'review';
 
 /** Configuration options for the upload pipeline hook */
+/** @public */
 export interface UseFileUploadPipelineOptions {
   /**
    * When true, uploads include `draft=true` in the FormData so
@@ -82,6 +87,7 @@ export interface UseFileUploadPipelineOptions {
 }
 
 /** Result returned by handleUpload after all files finish processing */
+/** @public */
 export interface UploadResult {
   successfulItems: UploadReviewItem[];
   errorCount: number;
@@ -89,6 +95,7 @@ export interface UploadResult {
 }
 
 /** Return value from the useFileUploadPipeline hook */
+/** @public */
 export interface UseFileUploadPipelineReturn {
   // State
   phase: UploadPhase;

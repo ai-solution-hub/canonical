@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 
 export type ArticleTab = 'passed' | 'filtered';
 
-export interface ArticleFilters {
+interface ArticleFilters {
   tab: ArticleTab;
   page: number;
   limit: number;
@@ -30,14 +30,14 @@ export interface FeedArticle {
   flag_count: number;
 }
 
-export interface ArticlesResponse {
+interface ArticlesResponse {
   articles: FeedArticle[];
   total: number;
   page: number;
   limit: number;
 }
 
-export interface FeedFlag {
+interface FeedFlag {
   id: string;
   feed_article_id: string;
   flag_type: 'false_positive' | 'false_negative';
@@ -49,7 +49,7 @@ export interface FeedFlag {
   created_at: string;
 }
 
-export interface FlagInput {
+interface FlagInput {
   flag_type: 'false_positive' | 'false_negative';
   notes?: string;
 }

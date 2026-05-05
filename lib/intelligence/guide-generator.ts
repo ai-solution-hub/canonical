@@ -10,6 +10,7 @@ export interface CompanyProfile {
   key_topics: string[];
 }
 
+/** @public */
 export interface GeneratedGuide {
   guideId: string;
   sectionCount: number;

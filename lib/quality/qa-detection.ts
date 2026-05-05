@@ -225,6 +225,7 @@ export function normaliseHeader(text: string): string {
 // ---------------------------------------------------------------------------
 
 /** Recognised table format identifiers. */
+/** @public */
 export type TableFormat =
   | 'audit_6col'
   | 'draft_5col'

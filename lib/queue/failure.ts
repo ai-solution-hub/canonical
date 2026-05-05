@@ -48,12 +48,14 @@ import type { Database } from '@/supabase/types/database.types';
  * Outcome of a failure-handling decision. The worker uses this to drive
  * telemetry (Sentry severity + PostHog event name) per spec §6.1 / §6.2.
  */
+/** @public */
 export type FailureOutcome = 'retried' | 'failed' | 'dead_lettered';
 
 /**
  * Minimal claimed-job shape needed by the failure classifier. The worker
  * passes the row returned by `claim_next_job` (or its dispatch wrapper).
  */
+/** @public */
 export interface ClaimedJobForFailure {
   id: string;
   job_type: string;

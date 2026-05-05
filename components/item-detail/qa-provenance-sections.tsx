@@ -2,16 +2,19 @@
 
 import Link from 'next/link';
 
+/** @public */
 export interface Workspace {
   id: string;
   name: string;
 }
 
+/** @public */
 export interface RelatedQAItem {
   id: string;
   title: string | null;
 }
 
+/** @public */
 export interface QAUsedInBidsProps {
   workspaces: Workspace[];
 }
@@ -42,6 +45,7 @@ export function QAUsedInBids({ workspaces }: QAUsedInBidsProps) {
   );
 }
 
+/** @public */
 export interface QARelatedPairsProps {
   relatedQA: RelatedQAItem[];
 }

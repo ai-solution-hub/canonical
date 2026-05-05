@@ -727,6 +727,7 @@ export interface ClassificationResult {
   cached?: boolean;
 }
 
+/** @public */
 export interface ClassifyParams {
   supabase: SupabaseClient<Database>;
   itemId: string;
@@ -771,6 +772,7 @@ export interface ValidatedEntity {
   reason: string;
 }
 
+/** @public */
 export interface EntityValidationResult {
   validated_entities: ValidatedEntity[];
   removed_count: number;

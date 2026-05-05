@@ -14,7 +14,10 @@ export interface GoldStandardBase {
   content_type: string;
 }
 
-/** Per-item score from any eval suite */
+/**
+ * Per-item score from any eval suite
+ * @public
+ */
 export interface ItemScoreBase {
   content_item_id: string;
   title: string;
@@ -49,7 +52,10 @@ export interface RegressionResult {
   delta: number;
 }
 
-/** Search eval test case */
+/**
+ * Search eval test case
+ * @public
+ */
 export interface SearchTestCase {
   id: string;
   category: string;
@@ -65,7 +71,10 @@ export interface SearchTestCase {
   };
 }
 
-/** Classification gold standard item */
+/**
+ * Classification gold standard item
+ * @public
+ */
 export interface ClassificationGoldItem extends GoldStandardBase {
   expected_domain: string;
   expected_subtopic: string;
@@ -82,7 +91,10 @@ export interface SummarisationGoldItem extends GoldStandardBase {
   notes: string;
 }
 
-/** Bid drafting gold standard item */
+/**
+ * Bid drafting gold standard item
+ * @public
+ */
 export interface BidDraftingGoldItem {
   question_id: string;
   question_text: string;

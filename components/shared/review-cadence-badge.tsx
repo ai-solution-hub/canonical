@@ -8,6 +8,7 @@ import { formatDateUK } from '@/lib/format';
  * Review cadence band — derived from `governance_review_status` and
  * `next_review_date`. See spec §7.2 rendering matrix.
  */
+/** @public */
 export type ReviewBand = 'overdue' | 'due-soon' | 'due-later' | 'none';
 
 /**

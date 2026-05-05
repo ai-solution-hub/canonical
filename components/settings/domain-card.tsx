@@ -24,6 +24,7 @@ import type {
 // Props
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface DomainCardProps {
   domain: AdminDomain;
   index: number;

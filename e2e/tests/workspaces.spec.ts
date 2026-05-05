@@ -60,11 +60,11 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
     // Card has href="/bid"
     await expect(bidsCard).toHaveAttribute('href', '/bid');
 
-    // If active bids exist (count > 0), card shows a count
+    // Hard-expect the active bids count renders. The worker-scoped fixture
+    // (workerData.bidId) seeds at least one active bid, so the count text
+    // must be visible; missing fixtures fail honestly.
     const countText = bidsCard.getByText(/\d+ active bids?/);
-    if (await countText.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await expect(countText).toBeVisible();
-    }
+    await expect(countText).toBeVisible({ timeout: 2000 });
   });
 
   test('bids card navigates to bid list on click', async ({

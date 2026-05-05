@@ -23,11 +23,13 @@ export interface LayerSuggestionData {
   confidence: string;
 }
 
+/** @public */
 export interface TopicSuggestionData {
   topicId: string;
   reason: string;
 }
 
+/** @public */
 export interface LayerSuggestionBannerProps {
   /** The ID of the newly created item */
   itemId: string;
