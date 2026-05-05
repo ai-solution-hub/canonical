@@ -261,12 +261,6 @@ jobs:
     # carries staging Supabase URL/keys + TEST_USER_1/2/3 credentials.
     # Case-sensitive: must exactly match `Staging`.
     environment: Staging
-    # `continue-on-error: true` until staging eval-fixture seed lands
-    # (roadmap §9.16.10) — without seeded content_items/workspaces the
-    # smoke project's 57 tests hang on assertion timeouts. Removing the
-    # flag is part of §9.16.10 close-out so PR-blocking E2E coverage
-    # returns once data dependencies are met.
-    continue-on-error: true
     timeout-minutes: 15
     permissions:
       contents: read
