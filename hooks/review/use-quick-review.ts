@@ -19,6 +19,7 @@ export type OnOptimisticUpdate = (
   }>,
 ) => void;
 
+/** @public */
 export interface UseQuickReviewOptions {
   /**
    * Callback invoked immediately (before API call) with the optimistic field

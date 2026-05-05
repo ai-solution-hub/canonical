@@ -13,6 +13,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface QualityScoreBreakdownProps {
   item: QualityScoreInput;
 }

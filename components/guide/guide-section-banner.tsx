@@ -13,6 +13,7 @@ import type {
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface GuideSectionBannerProps {
   /** Array of guide section matches from suggestGuideSections() */
   guideSections: GuideSectionMatch[];

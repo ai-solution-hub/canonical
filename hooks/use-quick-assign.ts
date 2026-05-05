@@ -16,6 +16,7 @@ export interface ActiveBidWorkspace {
   deadline: string | null;
 }
 
+/** @public */
 export interface UseQuickAssignReturn {
   /** Active bid workspaces (fetched once, cached) */
   activeWorkspaces: ActiveBidWorkspace[];

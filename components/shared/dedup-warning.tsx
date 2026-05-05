@@ -10,6 +10,7 @@ export interface DedupMatch {
   match_type: 'exact' | 'near_duplicate';
 }
 
+/** @public */
 export interface DedupWarningProps {
   matches: DedupMatch[];
   onViewMatch: (id: string) => void;

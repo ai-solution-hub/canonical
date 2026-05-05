@@ -6,6 +6,7 @@ import type { ContentTemplate } from '@/lib/content/content-templates';
 
 export type TemplateSelectorLayout = 'compact' | 'fullwidth';
 
+/** @public */
 export interface TemplateSelectorProps {
   templates: ContentTemplate[];
   selectedId?: string;

@@ -34,6 +34,7 @@ interface SourceDocumentDetail {
   created_at: string;
 }
 
+/** @public */
 export interface SourceDocumentInfoProps {
   /** The source document ID. If null, renders nothing. */
   sourceDocumentId: string | null;

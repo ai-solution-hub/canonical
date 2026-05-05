@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface ReuploadBannerProps {
   /** Whether this is an identical re-upload or a new version */
   matchType: 'identical' | 'new_version';

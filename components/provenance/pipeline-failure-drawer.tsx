@@ -31,6 +31,7 @@ export interface PipelineRunDetail {
   cost: number | null;
 }
 
+/** @public */
 export interface PipelineFailureDrawerProps {
   run: PipelineRunDetail | null;
   open: boolean;

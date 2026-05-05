@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
  */
 const ACCOUNT_AGE_QUERY_KEY = ['user', 'account-age'] as const;
 
+/** @public */
 export interface UseAccountAgeResult {
   /** Hours since `auth.users.created_at`, or `null` while loading / logged out. */
   hours: number | null;

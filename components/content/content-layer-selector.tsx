@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
+/** @public */
 export interface ContentLayerSelectorProps {
   item: ItemData;
   canEdit: boolean;

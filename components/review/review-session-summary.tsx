@@ -25,6 +25,7 @@ export interface ReviewSessionStats {
   skipped: number;
 }
 
+/** @public */
 export interface ReviewSessionSummaryProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

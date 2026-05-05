@@ -8,6 +8,7 @@ import { getLayerLabel } from '@/lib/validation/layer-schemas';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 
+/** @public */
 export interface UseQAProvenanceParams {
   itemId: string;
   isQAPair: boolean;

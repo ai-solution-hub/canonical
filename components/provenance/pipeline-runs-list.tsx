@@ -36,6 +36,7 @@ const CLICKABLE_STATUSES = new Set(['failed', 'completed_with_errors']);
 // Component
 // ──────────────────────────────────────────
 
+/** @public */
 export interface PipelineRunsListProps {
   rows: PipelineRunDetail[];
   onSelectRun: (run: PipelineRunDetail) => void;

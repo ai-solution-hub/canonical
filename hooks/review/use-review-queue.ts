@@ -30,6 +30,7 @@ export interface ReviewAssignmentInfo {
   due_date: string | null;
 }
 
+/** @public */
 export interface UseReviewQueueReturn {
   // State
   queue: ReviewQueueItem[];

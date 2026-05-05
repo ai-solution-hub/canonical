@@ -8,6 +8,7 @@ export interface IngestionStep {
   status: 'pending' | 'active' | 'done' | 'error' | 'skipped';
 }
 
+/** @public */
 export interface IngestionProgressProps {
   steps: IngestionStep[];
   compact?: boolean;

@@ -8,10 +8,12 @@ import { useState, useCallback } from 'react';
 
 export type DetailMode = 'reader' | 'editor';
 
+/** @public */
 export interface UseDetailModeOptions {
   canEdit: boolean;
 }
 
+/** @public */
 export interface UseDetailModeReturn {
   /** Current detail mode — 'reader' or 'editor' */
   detailMode: DetailMode;

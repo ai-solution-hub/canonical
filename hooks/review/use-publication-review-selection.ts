@@ -23,6 +23,7 @@ import { useCallback, useState } from 'react';
  *   `useCallback` deps".
  */
 
+/** @public */
 export interface UsePublicationReviewSelectionResult {
   /** Currently-selected `content_items.id` values. */
   readonly selectedIds: Set<string>;

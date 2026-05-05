@@ -56,6 +56,7 @@ const PdfViewer = dynamic(
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface ReaderViewProps {
   /** Complete data and handlers from useItemDetailData */
   data: ItemDetailData;

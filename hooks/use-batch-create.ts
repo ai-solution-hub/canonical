@@ -42,6 +42,7 @@ export interface DuplicateMatch {
   question: string;
 }
 
+/** @public */
 export interface UseBatchCreateReturn {
   submit: (
     pairs: BatchQAPair[],

@@ -12,6 +12,7 @@ export interface RelatedQAItem {
   title: string | null;
 }
 
+/** @public */
 export interface QAUsedInBidsProps {
   workspaces: Workspace[];
 }
@@ -42,6 +43,7 @@ export function QAUsedInBids({ workspaces }: QAUsedInBidsProps) {
   );
 }
 
+/** @public */
 export interface QARelatedPairsProps {
   relatedQA: RelatedQAItem[];
 }

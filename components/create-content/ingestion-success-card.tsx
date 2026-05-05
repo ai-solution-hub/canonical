@@ -29,6 +29,7 @@ export interface LayerSuggestionInfo {
   confidence: string;
 }
 
+/** @public */
 export interface IngestionSuccessCardProps {
   itemId: string;
   title: string;

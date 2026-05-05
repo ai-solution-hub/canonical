@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import type { FilterPreset } from '@/types/filter-preset';
 import { cn } from '@/lib/utils';
 
+/** @public */
 export interface PresetBarProps {
   presets: FilterPreset[];
   activePresetId: string | null;

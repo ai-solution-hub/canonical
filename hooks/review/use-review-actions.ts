@@ -35,6 +35,7 @@ export interface UseReviewActionsParams {
   setCurrentIndex: React.Dispatch<React.SetStateAction<number>>;
 }
 
+/** @public */
 export interface UseReviewActionsReturn {
   handleVerify: (note?: string) => Promise<void>;
   handlePublish: () => Promise<void>;

@@ -10,6 +10,7 @@ import { validateEditableField } from '@/lib/validation';
 // Types
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface UseInlineFieldEditParams<
   T extends object = Record<string, unknown>,
 > {

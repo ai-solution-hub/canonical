@@ -22,6 +22,7 @@ import type { ContentListItem } from '@/types/content';
 // Props
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface QARowProps {
   item: ContentListItem;
   selected?: boolean;

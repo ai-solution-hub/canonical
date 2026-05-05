@@ -18,6 +18,7 @@ import type { LayerItem } from '@/hooks/use-topic-layer-content';
 // Props
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface TopicLayerComparisonProps {
   currentItem: LayerItem;
   layerContent: Record<string, LayerItem>;

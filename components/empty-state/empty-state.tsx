@@ -11,6 +11,7 @@ export interface EmptyStateCta {
   onClick?: () => void;
 }
 
+/** @public */
 export interface EmptyStateProps {
   icon?: ReactNode;
   title: string;

@@ -11,6 +11,7 @@ export interface TopicLayerItem {
   layer: string | null;
 }
 
+/** @public */
 export interface LayerSwitcherNavProps {
   currentItemId: string;
   topicLayers: TopicLayerItem[];

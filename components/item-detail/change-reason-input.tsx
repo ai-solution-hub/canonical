@@ -2,6 +2,7 @@
 
 import type { ContentTabsEditConfig } from '@/components/item-detail/content-tabs';
 
+/** @public */
 export interface ChangeReasonInputProps {
   editConfig: ContentTabsEditConfig;
 }

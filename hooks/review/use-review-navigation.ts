@@ -19,6 +19,7 @@ const PREFETCH_THRESHOLD = 15;
 // Return type
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface UseReviewNavigationReturn {
   currentIndex: number;
   currentItem: ReviewQueueItem | null;

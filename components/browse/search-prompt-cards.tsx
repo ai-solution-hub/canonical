@@ -203,6 +203,7 @@ function getCardsForPersona(
 // Component
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface SearchPromptCardsProps {
   primaryFocus: PrimaryFocus | null;
   role: 'admin' | 'editor' | 'viewer';

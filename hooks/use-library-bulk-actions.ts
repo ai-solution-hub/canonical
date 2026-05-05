@@ -27,6 +27,7 @@ export interface UseLibraryBulkActionsParams {
   onRefetch?: () => void;
 }
 
+/** @public */
 export interface UseLibraryBulkActionsReturn {
   // Selection state
   selectedIds: Set<string>;

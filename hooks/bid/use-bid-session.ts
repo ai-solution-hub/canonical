@@ -60,6 +60,7 @@ async function fetchBidResponseData(
 
 // ── Hook ──
 
+/** @public */
 export interface UseBidSessionReturn {
   bid: BidSummary | null;
   questions: BidQuestion[];

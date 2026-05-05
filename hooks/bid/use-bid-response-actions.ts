@@ -31,6 +31,7 @@ interface UseBidResponseActionsParams {
 
 // ── Return type ──
 
+/** @public */
 export interface UseBidResponseActionsReturn {
   handleAction: (
     action: ResponseAction,

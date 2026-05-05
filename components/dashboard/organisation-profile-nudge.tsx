@@ -25,6 +25,7 @@ const NUDGE_COPY: Record<PrimaryFocus | 'default', string> = {
 // Component
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface OrganisationProfileNudgeProps {
   /** Whether the organisation profile is complete */
   isProfileComplete: boolean;

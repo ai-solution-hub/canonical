@@ -72,6 +72,7 @@ export interface FileUploadState {
 export type UploadPhase = 'select' | 'uploading' | 'review';
 
 /** Configuration options for the upload pipeline hook */
+/** @public */
 export interface UseFileUploadPipelineOptions {
   /**
    * When true, uploads include `draft=true` in the FormData so
@@ -89,6 +90,7 @@ export interface UploadResult {
 }
 
 /** Return value from the useFileUploadPipeline hook */
+/** @public */
 export interface UseFileUploadPipelineReturn {
   // State
   phase: UploadPhase;

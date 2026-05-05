@@ -28,6 +28,7 @@ export interface TopicSuggestionData {
   reason: string;
 }
 
+/** @public */
 export interface LayerSuggestionBannerProps {
   /** The ID of the newly created item */
   itemId: string;

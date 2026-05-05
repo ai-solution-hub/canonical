@@ -58,6 +58,7 @@ export interface FreshnessCounts {
   expired: number;
 }
 
+/** @public */
 export interface UseBrowseDataReturn {
   items: ContentListItem[];
   totalCount: number | null;

@@ -98,6 +98,7 @@ export function normaliseParams(paramsString: string): string {
 // Hook
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface UseFilterPresetsReturn {
   /** All presets: system presets first, then user presets sorted by createdAt. */
   presets: FilterPreset[];
