@@ -62,6 +62,7 @@ interface ContentItemRow {
   } | null;
 }
 
+/** @public */
 export interface DigestParams {
   supabase: SupabaseClient<Database>;
   periodDays: number;
@@ -73,6 +74,7 @@ export interface DigestParams {
   userId: string;
 }
 
+/** @public */
 export interface DigestResult {
   digest: Digest;
 }

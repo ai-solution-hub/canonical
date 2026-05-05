@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger';
 // Types
 // ──────────────────────────────────────────
 
+/** @public */
 export interface SummariseParams {
   supabase: SupabaseClient<Database>;
   itemId: string;
@@ -30,6 +31,7 @@ export interface SummariseResult {
   summary_data: SummaryData;
 }
 
+/** @public */
 export interface CallSummaryAIParams {
   content: string;
   title: string;
@@ -37,6 +39,7 @@ export interface CallSummaryAIParams {
   domain: string;
 }
 
+/** @public */
 export interface CallSummaryAIResult {
   summaryData: SummaryData;
   inputTokens: number;

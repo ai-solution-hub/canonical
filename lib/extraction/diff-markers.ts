@@ -13,6 +13,7 @@
  * ingest — does not block import.
  */
 
+/** @public */
 export interface DiffMarkerScan {
   gitConflictCount: number;
   plusMinusLineCount: number;

@@ -57,6 +57,7 @@ export interface DraftableContent extends CitationSourceItem {
 }
 
 /** Result from the full drafting pipeline */
+/** @public */
 export interface DraftResult {
   response_text: string;
   citations: CitationEntry[];

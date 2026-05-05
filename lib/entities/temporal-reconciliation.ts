@@ -11,6 +11,7 @@ import type { ClassificationTemporalReference } from '@/lib/ai/classify';
 import type { TemporalReference } from '@/lib/date-extraction';
 
 /** Unified temporal reference after merging both extraction paths. */
+/** @public */
 export interface MergedTemporalReference {
   /** ISO 8601 date string (YYYY-MM-DD) */
   date: string;

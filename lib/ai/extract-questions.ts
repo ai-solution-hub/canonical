@@ -127,6 +127,7 @@ const EXTRACT_QUESTIONS_TOOL = {
   },
 };
 
+/** @public */
 export interface ExtractedPDFQuestions {
   sections: Array<{
     section_name: string;
@@ -141,6 +142,7 @@ export interface ExtractedPDFQuestions {
   }>;
 }
 
+/** @public */
 export interface GeneratedSearchQueries {
   queries: string[];
   primary_topic: string;

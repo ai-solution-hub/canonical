@@ -87,6 +87,7 @@ export async function parseFeedItems(xml: string): Promise<ParsedFeedItem[]> {
 }
 
 /** Validation result for a feed URL */
+/** @public */
 export interface FeedValidationResult {
   valid: boolean;
   title?: string;
@@ -292,6 +293,7 @@ interface WebSourceRef {
  * test endpoint) read it to decide whether to count the credit toward
  * the operator-visible quota.
  */
+/** @public */
 export interface PollWebSourceOptions {
   dryRun?: boolean;
 }
@@ -301,6 +303,7 @@ export interface PollWebSourceOptions {
  * plus telemetry fields needed for the test endpoint (AC-10) and future
  * `pipeline_runs.result.firecrawl_credits_consumed` aggregation (AC-12).
  */
+/** @public */
 export interface WebPollResult extends PollResult {
   /** HTTP status of the HEAD pre-flight; null if HEAD was not issued
    *  (e.g. because validateWebUrl already failed). */

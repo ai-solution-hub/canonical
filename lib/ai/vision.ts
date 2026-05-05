@@ -13,12 +13,14 @@ import { AIServiceError } from '@/lib/ai/errors';
 // Types
 // ──────────────────────────────────────────
 
+/** @public */
 export interface VisionParams {
   supabase: SupabaseClient<Database>;
   itemId: string;
   prompt?: string;
 }
 
+/** @public */
 export interface VisionResult {
   analysis: string;
   model: string;

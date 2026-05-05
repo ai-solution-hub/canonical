@@ -11,18 +11,21 @@
  * filename in that case.
  */
 
+/** @public */
 export type TitleProvenance =
   | 'front-matter'
   | 'bold-after-article-n'
   | 'h1'
   | 'filename';
 
+/** @public */
 export interface ExtractMarkdownTitleInput {
   frontMatter: Record<string, unknown> | null;
   body: string;
   filename: string;
 }
 
+/** @public */
 export interface ExtractedMarkdownTitle {
   title: string;
   provenance: TitleProvenance;

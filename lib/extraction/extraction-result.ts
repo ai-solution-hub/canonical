@@ -1,5 +1,6 @@
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 
+/** @public */
 export interface PipelineExtractionResult {
   source_url?: string;
   source_file?: string;

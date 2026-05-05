@@ -9,6 +9,7 @@
 
 import { turndown } from '@/lib/extraction/turndown';
 
+/** @public */
 export interface HtmlExtractionResult {
   title: string;
   content: string;

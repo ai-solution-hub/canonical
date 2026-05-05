@@ -134,6 +134,7 @@ export function formatGuideList(guides: GuideListItem[]): string {
 // Guide created
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface CreatedGuideResult {
   id: string;
   name: string;
@@ -162,6 +163,7 @@ export function formatCreatedGuide(result: CreatedGuideResult): string {
 // Guide updated
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface UpdatedGuideResult {
   id: string;
   name: string;

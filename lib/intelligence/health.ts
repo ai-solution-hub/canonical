@@ -7,6 +7,7 @@ import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 type Supabase = SupabaseClient<Database>;
 
 /** Overall pipeline health summary */
+/** @public */
 export interface PipelineHealthSummary {
   /** ISO timestamp of the last successful pipeline run */
   lastSuccessfulRun: string | null;
@@ -25,6 +26,7 @@ export interface PipelineHealthSummary {
 }
 
 /** Per-source health data */
+/** @public */
 export interface SourceHealthEntry {
   id: string;
   name: string;
@@ -38,6 +40,7 @@ export interface SourceHealthEntry {
 }
 
 /** Workspace source health summary */
+/** @public */
 export interface SourceHealthSummary {
   workspaceId: string;
   sources: SourceHealthEntry[];

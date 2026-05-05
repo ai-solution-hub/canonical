@@ -56,6 +56,7 @@ export function derivePriorityTier(score: number): PriorityTier {
 // ---------------------------------------------------------------------------
 
 /** Input signals for scoring a taxonomy gap (before score is computed). */
+/** @public */
 export interface TaxonomyGapInput {
   /** Whether a coverage target exists for this domain and is unmet */
   target_unmet: boolean;
@@ -77,6 +78,7 @@ export function scoreTaxonomyGap(input: TaxonomyGapInput): number {
 }
 
 /** Input signals for scoring a template gap (before score is computed). */
+/** @public */
 export interface TemplateGapInput {
   /** Whether the requirement is mandatory (null treated as false) */
   is_mandatory: boolean | null;
@@ -101,6 +103,7 @@ export function scoreTemplateGap(input: TemplateGapInput): number {
 }
 
 /** Input signals for scoring a guide gap (before score is computed). */
+/** @public */
 export interface GuideGapInput {
   /** Whether the section is marked as required */
   is_required: boolean;

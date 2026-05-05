@@ -48,6 +48,7 @@ export interface FlagAnalysisFlag {
   createdAt: string;
 }
 
+/** @public */
 export interface FlagAnalysisInput {
   currentPromptText: string;
   flags: FlagAnalysisFlag[];
@@ -66,6 +67,7 @@ export const PatternClusterSchema = z.object({
   rootCause: z.string().min(1),
 });
 
+/** @public */
 export type PatternCluster = z.infer<typeof PatternClusterSchema>;
 
 /** A single proposed change to the scoring prompt. */
@@ -79,6 +81,7 @@ export const PromptRecommendationSchema = z.object({
   affectedFlags: z.number().int().nonnegative(),
 });
 
+/** @public */
 export type PromptRecommendation = z.infer<typeof PromptRecommendationSchema>;
 
 /** Full structured analysis result. */

@@ -13,6 +13,7 @@ import { AIServiceError } from '@/lib/ai/errors';
 // Types
 // ──────────────────────────────────────────
 
+/** @public */
 export interface ExtractContentParams {
   supabase: SupabaseClient<Database>;
   itemId: string;
@@ -20,6 +21,7 @@ export interface ExtractContentParams {
   prompt?: string;
 }
 
+/** @public */
 export interface ExtractContentResult {
   result: unknown;
   model: string;

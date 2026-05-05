@@ -9,6 +9,7 @@
  * - lib/cost-estimation.ts (batch cost forecasting)
  */
 
+/** @public */
 export interface ModelPricing {
   input: number;
   output: number;

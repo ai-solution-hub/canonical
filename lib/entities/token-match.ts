@@ -12,6 +12,7 @@
  */
 
 /** Result of a token match comparison */
+/** @public */
 export interface TokenMatchResult {
   /** Whether the match meets the confidence threshold */
   match: boolean;
@@ -195,6 +196,7 @@ export function tokenMatch(
 }
 
 /** Parsed result from an ISO 8601 duration string */
+/** @public */
 export interface ParsedDuration {
   years: number;
   months: number;

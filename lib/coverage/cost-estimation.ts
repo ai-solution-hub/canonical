@@ -43,6 +43,7 @@ export function estimateTokens(text: string): number {
 // Per-question cost estimation
 // ──────────────────────────────────────────
 
+/** @public */
 export interface QuestionCostEstimate {
   inputTokens: number;
   outputTokens: number;

@@ -652,6 +652,7 @@ export const EDITABLE_FIELDS = new Set([
   'publication_status',
 ] as const);
 
+/** @public */
 export type EditableField =
   | 'suggested_title'
   | 'ai_keywords'
