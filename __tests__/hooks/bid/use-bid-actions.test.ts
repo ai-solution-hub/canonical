@@ -193,24 +193,50 @@ function mockFetchSuccess(overrides?: {
         json: async () => ({ matched: 5 }),
       });
     }
-    // Draft all
+    // Draft all — post-S224 §5.4.1 D-4 contract: route returns 202 with
+    // queued envelope, then UI polls /api/jobs/:id/status.
     if (
       url === `/api/bids/${TEST_BID_ID}/responses/draft-all` &&
       init?.method === 'POST'
     ) {
       return Promise.resolve({
         ok: true,
+        status: 202,
         json: async () => ({
-          drafted: 8,
-          skipped: 2,
-          failed: 0,
-          total_cost: 0.05,
+          job_id: STUB_JOB_ID,
+          pipeline_run_id: STUB_PIPELINE_RUN_ID,
+          status: 'queued',
+          deduplicated: false,
+        }),
+      });
+    }
+    // Job status polling — terminal completed by default (per polling
+    // tests override with their own polling sequences).
+    if (url === `/api/jobs/${STUB_JOB_ID}/status` &&
+        (!init?.method || init.method === 'GET')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          id: STUB_JOB_ID,
+          job_type: 'bid_draft_all',
+          status: 'completed',
+          result: {
+            drafted: 8,
+            skipped: 2,
+            failed: 0,
+            total_cost: 0.05,
+          },
+          error_message: null,
         }),
       });
     }
     return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
   });
 }
+
+// Stub UUIDs for the queued + polling contract.
+const STUB_JOB_ID = 'aabbccdd-eeff-4011-8022-001122334455';
+const STUB_PIPELINE_RUN_ID = 'bbccddee-ff00-4022-8033-112233445566';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -497,9 +523,12 @@ describe('useBidActions (TanStack Query)', () => {
     });
   });
 
-  // ─── 10. handleDraftAll calls mutation and shows correct toasts ───────
+  // ─── 10. handleDraftAll — post-S224 §5.4.1 queued contract ─────────────
+  //
+  // Mutation success → "queued" toast immediately; polling /api/jobs/:id/status
+  // every 3s; on terminal completion → success/warning/error toast.
 
-  it('handleDraftAll shows success toast on completion', async () => {
+  it('handleDraftAll shows queued toast on mutation success (deduplicated:false)', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
@@ -516,13 +545,12 @@ describe('useBidActions (TanStack Query)', () => {
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith(
-        'Drafted 8 responses (2 skipped)',
+        "Drafting all responses queued — we'll let you know when it's done.",
       );
-      expect(toast.info).toHaveBeenCalledWith('Total cost: $0.0500');
     });
   });
 
-  it('handleDraftAll shows warning toast when there are failures', async () => {
+  it('handleDraftAll shows "Already drafting" info toast when deduplicated:true', async () => {
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       if (
         url === `/api/bids/${TEST_BID_ID}` &&
@@ -542,11 +570,120 @@ describe('useBidActions (TanStack Query)', () => {
       if (url.includes('draft-all') && init?.method === 'POST') {
         return Promise.resolve({
           ok: true,
+          status: 202,
           json: async () => ({
-            drafted: 5,
-            skipped: 1,
-            failed: 3,
-            total_cost: 0,
+            job_id: STUB_JOB_ID,
+            pipeline_run_id: STUB_PIPELINE_RUN_ID,
+            status: 'queued',
+            deduplicated: true,
+          }),
+        });
+      }
+      // Polling: stay pending so the test can assert without terminal
+      // path mutating the toast.
+      if (url.includes('/status')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: STUB_JOB_ID,
+            job_type: 'bid_draft_all',
+            status: 'pending',
+            result: null,
+            error_message: null,
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+
+    await act(async () => {
+      result.current.handleDraftAll();
+    });
+
+    await waitFor(() => {
+      expect(toast.info).toHaveBeenCalledWith(
+        'Already drafting — using existing job…',
+      );
+    });
+  });
+
+  it('handleDraftAll shows success toast on terminal status=completed (no failures)', async () => {
+    mockFetchSuccess();
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+
+    await act(async () => {
+      result.current.handleDraftAll();
+    });
+
+    // Wait for both the queued toast AND the terminal success toast
+    // (driven by the default polling-completed mock).
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        'Drafted 8 responses (2 skipped)',
+      );
+      expect(toast.info).toHaveBeenCalledWith('Total cost: $0.0500');
+    });
+  });
+
+  it('handleDraftAll shows warning toast when terminal result has failures', async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({ ok: true, json: async () => MOCK_BID });
+      }
+      if (
+        url === `/api/bids/${TEST_BID_ID}/questions` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
+      }
+      if (url.includes('draft-all') && init?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            job_id: STUB_JOB_ID,
+            pipeline_run_id: STUB_PIPELINE_RUN_ID,
+            status: 'queued',
+            deduplicated: false,
+          }),
+        });
+      }
+      if (url.includes(`/api/jobs/${STUB_JOB_ID}/status`)) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: STUB_JOB_ID,
+            job_type: 'bid_draft_all',
+            status: 'completed',
+            result: {
+              drafted: 5,
+              skipped: 1,
+              failed: 3,
+              total_cost: 0,
+            },
+            error_message: null,
           }),
         });
       }
@@ -570,6 +707,130 @@ describe('useBidActions (TanStack Query)', () => {
       expect(toast.warning).toHaveBeenCalledWith(
         'Drafted 5 responses, 3 failed, 1 skipped',
       );
+    });
+  });
+
+  it('handleDraftAll shows error toast on terminal status=failed', async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({ ok: true, json: async () => MOCK_BID });
+      }
+      if (
+        url === `/api/bids/${TEST_BID_ID}/questions` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
+      }
+      if (url.includes('draft-all') && init?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            job_id: STUB_JOB_ID,
+            pipeline_run_id: STUB_PIPELINE_RUN_ID,
+            status: 'queued',
+            deduplicated: false,
+          }),
+        });
+      }
+      if (url.includes(`/api/jobs/${STUB_JOB_ID}/status`)) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: STUB_JOB_ID,
+            job_type: 'bid_draft_all',
+            status: 'failed',
+            result: null,
+            error_message: 'bid_not_draftable: matching',
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+
+    await act(async () => {
+      result.current.handleDraftAll();
+    });
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('bid_not_draftable: matching');
+    });
+  });
+
+  it('handleDraftAll shows info toast on terminal status=cancelled', async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({ ok: true, json: async () => MOCK_BID });
+      }
+      if (
+        url === `/api/bids/${TEST_BID_ID}/questions` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
+      }
+      if (url.includes('draft-all') && init?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            job_id: STUB_JOB_ID,
+            pipeline_run_id: STUB_PIPELINE_RUN_ID,
+            status: 'queued',
+            deduplicated: false,
+          }),
+        });
+      }
+      if (url.includes(`/api/jobs/${STUB_JOB_ID}/status`)) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: STUB_JOB_ID,
+            job_type: 'bid_draft_all',
+            status: 'cancelled',
+            result: null,
+            error_message: null,
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+
+    await act(async () => {
+      result.current.handleDraftAll();
+    });
+
+    await waitFor(() => {
+      expect(toast.info).toHaveBeenCalledWith('Drafting cancelled');
     });
   });
 
@@ -878,7 +1139,10 @@ describe('useBidActions (TanStack Query)', () => {
     expect(tabs[2]).toEqual({ id: 'documents', label: 'Documents', count: 2 });
   });
 
-  // ─── 17. draftingAll reflects mutation isPending ──────────────────────
+  // ─── 17. draftingAll reflects (mutation pending OR polling active) ────
+  //
+  // Post-S224 §5.4.1: draftingAll = mutation.isPending || activeJobId !== null.
+  // While polling continues (status=pending/processing), draftingAll stays true.
 
   it('draftingAll is true while draft-all mutation is pending', async () => {
     let resolveDraftAll: ((value: unknown) => void) | undefined;
@@ -903,6 +1167,19 @@ describe('useBidActions (TanStack Query)', () => {
           resolveDraftAll = resolve;
         });
       }
+      // Status polling: terminal 'completed' so draftingAll clears.
+      if (url.includes(`/api/jobs/${STUB_JOB_ID}/status`)) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: STUB_JOB_ID,
+            job_type: 'bid_draft_all',
+            status: 'completed',
+            result: { drafted: 1, skipped: 0, failed: 0, total_cost: 0 },
+            error_message: null,
+          }),
+        });
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
 
@@ -925,22 +1202,99 @@ describe('useBidActions (TanStack Query)', () => {
       expect(result.current.draftingAll).toBe(true);
     });
 
-    // Resolve the mutation
+    // Resolve the mutation with a 202 queued envelope. activeJobId is
+    // then set, polling kicks in. draftingAll STAYS true while polling
+    // is active.
     act(() => {
       resolveDraftAll!({
         ok: true,
+        status: 202,
         json: async () => ({
-          drafted: 1,
-          skipped: 0,
-          failed: 0,
-          total_cost: 0,
+          job_id: STUB_JOB_ID,
+          pipeline_run_id: STUB_PIPELINE_RUN_ID,
+          status: 'queued',
+          deduplicated: false,
         }),
       });
     });
 
+    // Once polling settles to terminal (default mock returns
+    // status=completed), activeJobId clears and draftingAll → false.
     await waitFor(() => {
       expect(result.current.draftingAll).toBe(false);
     });
+  });
+
+  it('draftingAll stays true while job status remains pending (polling active)', async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({ ok: true, json: async () => MOCK_BID });
+      }
+      if (
+        url === `/api/bids/${TEST_BID_ID}/questions` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
+      }
+      if (url.includes('draft-all') && init?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            job_id: STUB_JOB_ID,
+            pipeline_run_id: STUB_PIPELINE_RUN_ID,
+            status: 'queued',
+            deduplicated: false,
+          }),
+        });
+      }
+      // Polling: stay pending forever — exercises the "polling active
+      // ⇒ draftingAll true" branch.
+      if (url.includes(`/api/jobs/${STUB_JOB_ID}/status`)) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: STUB_JOB_ID,
+            job_type: 'bid_draft_all',
+            status: 'pending',
+            result: null,
+            error_message: null,
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+
+    expect(result.current.draftingAll).toBe(false);
+
+    await act(async () => {
+      result.current.handleDraftAll();
+    });
+
+    // After mutation success, activeJobId is set → draftingAll true and
+    // it STAYS true (polling pending).
+    await waitFor(() => {
+      expect(result.current.draftingAll).toBe(true);
+    });
+
+    // Verify it persists for at least a few render cycles.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(result.current.draftingAll).toBe(true);
   });
 
   // ─── 18. transitioning reflects mutation isPending ────────────────────

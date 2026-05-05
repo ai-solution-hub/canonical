@@ -25,6 +25,7 @@ const {
   mockDraftResponseStreaming,
   mockGetModelForTier,
   mockCanTransition,
+  mockEnqueueQueueJob,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockCheckRateLimit: vi.fn(),
@@ -37,6 +38,7 @@ const {
   mockDraftResponseStreaming: vi.fn(),
   mockGetModelForTier: vi.fn(),
   mockCanTransition: vi.fn(),
+  mockEnqueueQueueJob: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -77,6 +79,17 @@ vi.mock('@/lib/anthropic', () => ({
 
 vi.mock('@/lib/bid/bid-state-machine', () => ({
   canTransition: mockCanTransition,
+}));
+
+// Mock the queue enqueue chokepoint helper for the draft-all route's
+// post-S224 §5.4.1 producer pattern. The route POSTs → enqueueQueueJob →
+// returns { jobId, deduplicated }. We simulate both fresh-enqueue and
+// dedup-hit responses per AC-1 / AC-3 / AC-4. The route also imports
+// `buildIdempotencyKey` from @/lib/queue/envelope — we keep that real
+// (it's a pure helper) so the produced key shape can be observed in
+// assertions if needed.
+vi.mock('@/lib/queue/enqueue', () => ({
+  enqueueQueueJob: mockEnqueueQueueJob,
 }));
 
 // Import route handlers AFTER mocks
@@ -208,6 +221,12 @@ beforeEach(() => {
   mockIsEncryptedDocx.mockReturnValue(false);
   mockCanTransition.mockReturnValue(true);
   mockGetModelForTier.mockReturnValue('claude-sonnet-4-6');
+  // Default enqueue: fresh job (deduplicated:false). Tests override with
+  // mockResolvedValueOnce for dedup-hit scenarios.
+  mockEnqueueQueueJob.mockResolvedValue({
+    jobId: 'c0c0c0c0-0000-4000-8000-000000000001',
+    deduplicated: false,
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -634,8 +653,55 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
 // POST /api/bids/:id/responses/draft-all
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/bids/:id/responses/draft-all', () => {
+// Post-S224 §5.4.1: route now ENQUEUES (HTTP 202 + envelope) instead of
+// running the synchronous loop. Tests below assert the producer pattern
+// (route → pre-conditions → pipeline_runs INSERT → enqueueQueueJob → 202
+// response). The handler-side behaviour (per-question loop, no_content /
+// already_drafted skip logic) is covered by the unit tests at
+// __tests__/lib/queue/handlers/bid-draft-all.test.ts and the integration
+// tests at __tests__/integration/queue/bid-draft-all.integration.test.ts.
+
+describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', () => {
   const params = createTestParams({ id: VALID_UUID });
+  const ENQUEUED_JOB_ID = 'c0c0c0c0-0000-4000-8000-000000000001';
+
+  // Helper: configure the mock chain to walk the route's HTTP-level
+  // pre-conditions through to the enqueue point. Sequence:
+  //   1. role lookup (.single) — configureRole
+  //   2. workspaces.select.eq.eq.single() — bid existence
+  //   3. pipeline_runs.insert(...) — awaited via .then (default empty impl)
+  //   4. user_roles.select.eq.maybeSingle() — envelope role lookup
+  function configureRouteToEnqueuePoint(opts: {
+    role?: 'admin' | 'editor' | 'viewer';
+    bid?: { status: string } | null;
+    bidError?: { code: string; message: string } | null;
+    envelopeRole?: 'admin' | 'editor' | 'viewer';
+  } = {}) {
+    const role = opts.role ?? 'editor';
+    configureRole(mockSupabase, role);
+    if (opts.bid !== null) {
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: opts.bid ?? {
+          id: VALID_UUID,
+          status: 'drafting',
+          domain_metadata: {},
+        },
+        error: null,
+      });
+    } else {
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: null,
+        error: opts.bidError ?? { code: 'PGRST116', message: 'No rows found' },
+      });
+    }
+    // Envelope role lookup via maybeSingle().
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { role: opts.envelopeRole ?? role },
+      error: null,
+    });
+  }
+
+  // ───── HTTP-level pre-conditions (preserved from pre-S224 contract) ─────
 
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
@@ -650,6 +716,7 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(401);
+    expect(mockEnqueueQueueJob).not.toHaveBeenCalled();
   });
 
   it('returns 403 for viewer role', async () => {
@@ -665,6 +732,7 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(403);
+    expect(mockEnqueueQueueJob).not.toHaveBeenCalled();
   });
 
   it('returns 400 for invalid UUID', async () => {
@@ -685,15 +753,11 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
 
     const body = await res.json();
     expect(body.error).toContain('Invalid bid ID');
+    expect(mockEnqueueQueueJob).not.toHaveBeenCalled();
   });
 
   it('returns 404 when bid does not exist', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: null,
-      error: { code: 'PGRST116', message: 'No rows found' },
-    });
+    configureRouteToEnqueuePoint({ bid: null });
 
     const req = createTestRequest(
       `/api/bids/${VALID_UUID}/responses/draft-all`,
@@ -705,15 +769,11 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(404);
+    expect(mockEnqueueQueueJob).not.toHaveBeenCalled();
   });
 
   it('returns 400 when bid is not in a draftable state', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'draft', domain_metadata: {} },
-      error: null,
-    });
+    configureRouteToEnqueuePoint({ bid: { status: 'draft' } });
 
     const req = createTestRequest(
       `/api/bids/${VALID_UUID}/responses/draft-all`,
@@ -728,19 +788,117 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
 
     const body = await res.json();
     expect(body.current_status).toBe('draft');
+    expect(mockEnqueueQueueJob).not.toHaveBeenCalled();
   });
 
-  it('returns empty results when no questions exist', async () => {
-    configureRole(mockSupabase, 'editor');
+  // ───── AC-1 — Route enqueues + returns 202 (queued envelope) ─────
+  // Spec §8 AC-1 lines 868-874.
 
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
-      error: null,
+  it('AC-1: returns 202 + {job_id, pipeline_run_id, status:"queued", deduplicated:false} on first POST (editor)', async () => {
+    configureRouteToEnqueuePoint({ role: 'editor', bid: { status: 'drafting' } });
+
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
+
+    const res = await draftAllPost(req, { params });
+    expect(res.status).toBe(202);
+
+    const body = await res.json();
+    expect(body.job_id).toBe(ENQUEUED_JOB_ID);
+    expect(body.status).toBe('queued');
+    expect(body.deduplicated).toBe(false);
+    expect(body.pipeline_run_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+
+    // Enqueue called with the right contract.
+    expect(mockEnqueueQueueJob).toHaveBeenCalledTimes(1);
+    const call = mockEnqueueQueueJob.mock.calls[0][0];
+    expect(call.jobType).toBe('bid_draft_all');
+    expect(call.body).toEqual({
+      bid_id: VALID_UUID,
+      model_tier: 'drafting', // schema default
+      skip_existing: true, // schema default
+    });
+    expect(call.authContext).toMatchObject({
+      role: 'editor',
+      workspace_id: VALID_UUID,
+    });
+    // Idempotency key formula per spec §3.2:
+    // bid_draft_all:<bidId>:<YYYY-MM-DD>:<requestHash>
+    expect(call.idempotencyKey).toMatch(
+      new RegExp(`^bid_draft_all:${VALID_UUID}:\\d{4}-\\d{2}-\\d{2}:[0-9a-f]{16}$`),
+    );
+    expect(call.pipelineRunId).toBe(body.pipeline_run_id);
+    expect(call.maxAttempts).toBe(3);
+  });
+
+  it('AC-1: returns 202 with admin auth (editor-required role gate satisfied via ROLE_RANK)', async () => {
+    configureRouteToEnqueuePoint({ role: 'admin', bid: { status: 'drafting' } });
+
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: { model_tier: 'analysis', skip_existing: false },
+      },
+    );
+
+    const res = await draftAllPost(req, { params });
+    expect(res.status).toBe(202);
+
+    const body = await res.json();
+    expect(body.status).toBe('queued');
+    const call = mockEnqueueQueueJob.mock.calls[0][0];
+    expect(call.body).toEqual({
+      bid_id: VALID_UUID,
+      model_tier: 'analysis',
+      skip_existing: false,
+    });
+    expect(call.authContext.role).toBe('admin');
+  });
+
+  // ───── AC-3 — Same-day re-enqueue dedup ─────
+  // Spec §8 AC-3 lines 887-894.
+
+  it('AC-3: same-day second POST → 202 + same job_id + deduplicated:true', async () => {
+    configureRouteToEnqueuePoint({ role: 'editor', bid: { status: 'drafting' } });
+
+    // Override the default mock to return deduplicated:true.
+    mockEnqueueQueueJob.mockResolvedValueOnce({
+      jobId: ENQUEUED_JOB_ID,
+      deduplicated: true,
     });
 
-    // Questions query returns empty
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
+
+    const res = await draftAllPost(req, { params });
+    expect(res.status).toBe(202);
+
+    const body = await res.json();
+    expect(body.job_id).toBe(ENQUEUED_JOB_ID);
+    expect(body.status).toBe('queued');
+    expect(body.deduplicated).toBe(true);
+  });
+
+  // ───── 500 fallback when enqueue throws ─────
+
+  it('returns 500 when enqueueQueueJob throws (e.g. RLS violation)', async () => {
+    configureRouteToEnqueuePoint({ role: 'editor', bid: { status: 'drafting' } });
+
+    mockEnqueueQueueJob.mockRejectedValueOnce(
+      new Error('permission denied for table processing_queue'),
     );
 
     const req = createTestRequest(
@@ -752,100 +910,10 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
     );
 
     const res = await draftAllPost(req, { params });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(500);
 
     const body = await res.json();
-    expect(body.total_questions).toBe(0);
-    expect(body.drafted).toBe(0);
-  });
-
-  it('skips no_content questions in batch drafting', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
-      error: null,
-    });
-
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: VALID_UUID_2,
-              question_text: 'Test question',
-              word_limit: 200,
-              section_name: 'Section 1',
-              confidence_posture: 'no_content',
-              matched_content_ids: [],
-            },
-          ],
-          error: null,
-        }),
-    );
-
-    const req = createTestRequest(
-      `/api/bids/${VALID_UUID}/responses/draft-all`,
-      {
-        method: 'POST',
-        body: {},
-      },
-    );
-
-    const res = await draftAllPost(req, { params });
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.skipped).toBe(1);
-    expect(body.results[0].reason).toBe('no_content');
-  });
-
-  it('filters out already-drafted questions when skip_existing is true', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
-      error: null,
-    });
-
-    // Questions query
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: VALID_UUID_2,
-              question_text: 'Test question',
-              word_limit: 200,
-              section_name: 'Section 1',
-              confidence_posture: 'strong',
-              matched_content_ids: [],
-            },
-          ],
-          error: null,
-        }),
-    );
-
-    // Existing responses lookup
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [{ question_id: VALID_UUID_2 }], error: null }),
-    );
-
-    const req = createTestRequest(
-      `/api/bids/${VALID_UUID}/responses/draft-all`,
-      {
-        method: 'POST',
-        body: { skip_existing: true },
-      },
-    );
-
-    const res = await draftAllPost(req, { params });
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.skipped).toBe(1);
-    expect(body.results[0].reason).toBe('already_drafted');
+    expect(body.error).toBeTruthy();
   });
 });
 
