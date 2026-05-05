@@ -574,9 +574,10 @@ export async function runBatchReclassifyJob(
   body: BatchReclassifyBody,
   supabase: SupabaseClient<Database>,
   // Dispatcher passes the auth context for forward-compat. Currently unused
-  // inside the handler body.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  authContext: BatchReclassifyAuthContext,
+  // inside the handler body — preserved for parity with `runBidDraftAllJob`
+  // and forward-compatibility (e.g. an `updated_by` audit field on
+  // `content_items`).
+  _authContext: BatchReclassifyAuthContext,
   jobId?: string,
 ): Promise<BatchReclassifyResult> {
   // ------------------------------------------------------------------
@@ -646,12 +647,12 @@ export async function runBatchReclassifyJob(
     if (!items || items.length === 0) {
       candidates = [];
     } else {
-      // Paginate to fetch ALL entity_mentions content_item_ids
+      // Paginate to fetch ALL entity_mentions content_item_ids.
       const mentionedSet = new Set<string>();
       let mentionOffset = 0;
       const mentionPageSize = 5000;
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
+      let pageMore = true;
+      while (pageMore) {
         const { data: mentionPage, error: mentionError } = await supabase
           .from('entity_mentions')
           .select('content_item_id')
@@ -662,12 +663,18 @@ export async function runBatchReclassifyJob(
             `entity_mentions_fetch_failed: ${mentionError.message}`,
           );
         }
-        if (!mentionPage || mentionPage.length === 0) break;
-        for (const r of mentionPage) {
-          mentionedSet.add(r.content_item_id);
+        if (!mentionPage || mentionPage.length === 0) {
+          pageMore = false;
+        } else {
+          for (const r of mentionPage) {
+            mentionedSet.add(r.content_item_id);
+          }
+          if (mentionPage.length < mentionPageSize) {
+            pageMore = false;
+          } else {
+            mentionOffset += mentionPageSize;
+          }
         }
-        if (mentionPage.length < mentionPageSize) break;
-        mentionOffset += mentionPageSize;
       }
 
       const entitiesFiltered = (items as ContentRow[])
