@@ -12,7 +12,7 @@
 
 export type GovernancePreset = 'light_touch' | 'strict';
 
-export interface GovernancePresetValues {
+interface GovernancePresetValues {
   posture: 'open' | 'review_on_change';
   timeout_days: number | null;
   quality_score_threshold: number;
@@ -21,7 +21,7 @@ export interface GovernancePresetValues {
   auto_flag_cooldown_days: number | null;
 }
 
-export interface GovernancePresetLabel {
+interface GovernancePresetLabel {
   name: string;
   description: string;
 }
