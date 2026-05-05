@@ -439,7 +439,7 @@ describeIfEnv(
       expect(afterSecondTick.attempts).toBe(1);
     }, 60_000);
 
-    it('AC-3: transient throws for max_attempts → dead_lettered, attempts === max_attempts', async () => {
+    it('AC-3 (spec §8 lines 1062-1065): transient throws for max_attempts → dead_lettered, attempts === max_attempts', async () => {
       // All claims throw the same transient. With max_attempts=3 the
       // worker should: claim 1 → retry; claim 2 → retry; claim 3 →
       // dead-letter (per lib/queue/failure.ts handleJobFailure when
