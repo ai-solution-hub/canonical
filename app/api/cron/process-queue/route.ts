@@ -39,12 +39,14 @@ import { reapStuckJobs } from '@/lib/queue/visibility-timeout';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Json } from '@/supabase/types/database.types';
 
-export const maxDuration = 50;
+export const maxDuration = 60;
 
 /** Stop claiming when within 10s of the Vercel function timeout
- *  (`maxDuration = 50`) so the in-flight job has time to write its
- *  terminal status + the response can flush. Per spec §4.4. */
-const TIMEOUT_BUFFER_MS = 40_000;
+ *  (`maxDuration = 60` post-S224 §5.4.1 D-3 ratification — Vercel Pro plan
+ *  removes the original Hobby-tier 60s cap blocker) so the in-flight job
+ *  has time to write its terminal status + the response can flush. Per
+ *  spec §4.4. */
+const TIMEOUT_BUFFER_MS = 50_000;
 
 interface InvocationSummary {
   processed: number;
