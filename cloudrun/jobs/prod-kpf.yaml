@@ -28,7 +28,9 @@ spec:
                 limits:
                   cpu: "2"
                   memory: 2Gi
-              # TODO Phase 2 / T2.2 — Secret Manager mounts (see staging-example-client.yaml).
+              # Secret Manager mounts wired declaratively at deploy time —
+              # see `.github/workflows/cloud-run-deploy.yml` `--set-secrets`
+              # step + staging-example-client.yaml header note.
           maxRetries: 1
           timeoutSeconds: 14400
       parallelism: 1

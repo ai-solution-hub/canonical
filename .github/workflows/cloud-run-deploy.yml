@@ -220,6 +220,55 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Mount Secret Manager secrets (Phase 2 / T2.2)
+        # Phase 2 / T2.2 per spec §2.5 — mount the 11 always-required Secret
+        # Manager secrets onto each tenant Job. NEXT_PUBLIC_CLIENT_ID is NOT
+        # mounted here (deploy-time bake per D-RUN-12.1 + F-29). Optional
+        # SUPABASE_AUTH_{EMAIL,PASSWORD} pair (used only by batch-reclassify.ts)
+        # are NOT mounted by default — add them here if the batch-reclassify
+        # invocation path is wired into a Cloud Run Job manifest later.
+        #
+        # `gcloud run jobs update --set-secrets` is declarative: it REPLACES
+        # the full secret-mount set on each invocation. Format is
+        # KEY=secret-name:VERSION; `:latest` follows the most recent enabled
+        # version. The runtime SA (example-client-pipeline-sa / kpf-pipeline-sa per
+        # tenant) needs roles/secretmanager.secretAccessor — granted at
+        # project scope, see docs/runbooks/cloud-run-phase-1-handover.md §3.
+        #
+        # Without this step the container boots but lib/env-server.ts Zod
+        # validation fails fast at module load and the pipeline never emits
+        # its first structured log entry — so this gates Hold (a) and
+        # Hold (a-prod) close-out (OPS-61).
+        run: |
+          # Heredoc body is literal — no untrusted input is interpolated. Each
+          # line is KEY=SECRET:VERSION. Newlines are collapsed to commas for
+          # --set-secrets via tr/sed (gcloud accepts comma-delimited form).
+          SECRETS=$(cat <<'SECRETS_EOF'
+          ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest
+          OPENAI_API_KEY=OPENAI_API_KEY:latest
+          SUPABASE_URL=SUPABASE_URL:latest
+          SUPABASE_PUBLISHABLE_KEY=SUPABASE_PUBLISHABLE_KEY:latest
+          SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest
+          NEXT_PUBLIC_SUPABASE_URL=NEXT_PUBLIC_SUPABASE_URL:latest
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:latest
+          NEXT_PUBLIC_APP_URL=NEXT_PUBLIC_APP_URL:latest
+          FIRECRAWL_API_KEY=FIRECRAWL_API_KEY:latest
+          CRON_SECRET=CRON_SECRET:latest
+          SENTRY_AUTH_TOKEN=SENTRY_AUTH_TOKEN:latest
+          SECRETS_EOF
+          )
+          SECRETS_FLAT=$(echo "$SECRETS" | tr '\n' ',' | sed 's/,$//;s/^,//')
+
+          for TENANT in example-client kpf; do
+            JOB_NAME="kh-pipeline-${TENANT}"
+            echo "::group::Mount secrets on $JOB_NAME"
+            gcloud run jobs update "$JOB_NAME" \
+              --project="$GCP_PROJECT" \
+              --region=europe-west2 \
+              --set-secrets="$SECRETS_FLAT"
+            echo "::endgroup::"
+          done
+
       - name: Smoke verify (jobs describe)
         run: |
           for TENANT in example-client kpf; do
