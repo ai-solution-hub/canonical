@@ -430,9 +430,8 @@ describeIfEnv(
       // Drive the cron worker — runs the real orchestrator which performs
       // dedup + embeddings + INSERT into content_items with the D-A INSERT
       // guard that this test is asserting on.
-      const { GET: cronGet } = await import(
-        '@/app/api/cron/process-queue/route'
-      );
+      const { GET: cronGet } =
+        await import('@/app/api/cron/process-queue/route');
       const cronReq = new NextRequest(
         'http://localhost/api/cron/process-queue',
         {
