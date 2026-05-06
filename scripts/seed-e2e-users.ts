@@ -493,6 +493,7 @@ async function provisionUser(spec: TestUserSpec): Promise<ProvisionResult> {
       password,
       email_confirm: true,
       user_metadata: {
+        full_name: spec.displayName,
         display_name: spec.displayName,
         seeded_by: 'scripts/seed-e2e-users.ts',
       },
