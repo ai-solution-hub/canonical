@@ -385,9 +385,35 @@ async function runImportPhase(
   // Pattern E Step 2: per-file loop with MID-FLIGHT UPDATEs at each
   // file boundary. Mid-flight UPDATE is silent-catch — a transient DB
   // blip while the worker is running must not fail the import.
+  //
+  // Cooperative-cancel poll (S226 §5.4.4 D-8 ratified): when
+  // `options.cancelCheck` is supplied, poll BEFORE each file (cadence=1).
+  // On `true` we stop the loop; the partial outcome envelope is then
+  // finalised below as 'completed_with_errors' with a cancellation
+  // error_message. When omitted (sync-route + Python callers), behaviour
+  // is verbatim with pre-S226.
   // ────────────────────────────────────────────────────────────────────
   let filesCompleted = 0;
+  let cancelled = false;
   for (const file of files) {
+    // Cooperative-cancel poll — cadence=1 per spec §10 D-8 (markdown
+    // batches are typically 1-3 files; every-10 cadence would defeat the
+    // purpose). Invoked BEFORE each file, so a cancel between files lets
+    // the most-recent file's writes complete cleanly.
+    if (options?.cancelCheck) {
+      try {
+        if (await options.cancelCheck()) {
+          cancelled = true;
+          break;
+        }
+      } catch {
+        // Best-effort: a poll error must not abort the loop. Behaviour
+        // matches `update-progress.ts` silent-catch contract for mid-
+        // flight writes — the next iteration re-checks if the caller's
+        // poll surface recovers.
+      }
+    }
+
     const override = overridesByFilename.get(file.filename);
 
     // Per-row exclusion — listed in skipped_excluded, no DB writes.
@@ -457,14 +483,21 @@ async function runImportPhase(
   }
 
   const attemptedCount = files.length - skippedExcluded.length;
-  const status = computeRunStatus({
-    failedCount: errored.length,
-    createdCount: itemsCreated.length,
-    attemptedCount,
-  });
+  // When cancelled mid-batch, the run is recorded as
+  // 'completed_with_errors' per §5.4.4 §10 D-8 ratified (no new
+  // pipeline_runs.status enum value introduced); the operator-facing
+  // signal is the cancellation message in `error_message`.
+  const status: 'completed' | 'completed_with_errors' | 'failed' = cancelled
+    ? 'completed_with_errors'
+    : computeRunStatus({
+        failedCount: errored.length,
+        createdCount: itemsCreated.length,
+        attemptedCount,
+      });
 
-  const errorMessage =
-    errored.length > 0
+  const errorMessage = cancelled
+    ? `cancelled mid-batch after ${filesCompleted}/${filesTotal} files`
+    : errored.length > 0
       ? `${errored.length}/${attemptedCount} files failed`
       : null;
 

@@ -55,6 +55,19 @@ export interface MarkdownBatchOptions {
    * the orchestrator generates one locally via `randomUUID()`.
    */
   pipelineRunIdOverride?: string | null;
+  /**
+   * Optional cooperative-cancel poll callback (S226 §5.4.4 W1-IMPL).
+   * Invoked BEFORE each file in the per-file loop (cadence=1 per
+   * `docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md` §10 D-8
+   * ratified flip). Returning `true` stops the loop after the previous
+   * file boundary; the orchestrator records the partial outcome envelope
+   * and finalises `pipeline_runs` with the in-flight counts.
+   * When omitted (default for non-queued callers — sync route, future
+   * cron Python jobs), the orchestrator never polls; behaviour is
+   * verbatim with pre-S226. Pattern E mid-flight progress writes are
+   * preserved per D-10 RATIFIED.
+   */
+  cancelCheck?: () => Promise<boolean>;
 }
 
 /**
