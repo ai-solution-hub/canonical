@@ -272,7 +272,8 @@ export async function POST(req: NextRequest) {
     // /api/pipeline-runs/[id] using the SAME UUID.
     // ──────────────────────────────────────────────────────────────────
     const pipelineRunId = validatedOptions.pipeline_run_id ?? randomUUID();
-    const callerRole: 'admin' | 'editor' = role === 'admin' ? 'admin' : 'editor';
+    const callerRole: 'admin' | 'editor' =
+      role === 'admin' ? 'admin' : 'editor';
 
     // ──────────────────────────────────────────────────────────────────
     // Pre-INSERT pipeline_runs row at-enqueue (Pattern 2 per spec §6.3 +
@@ -332,7 +333,9 @@ export async function POST(req: NextRequest) {
     const fileSetCanonical = decodedFiles
       .map((f) => ({
         filename: f.filename,
-        contentSha256: createHash('sha256').update(f.content, 'utf8').digest('hex'),
+        contentSha256: createHash('sha256')
+          .update(f.content, 'utf8')
+          .digest('hex'),
       }))
       .sort((a, b) => a.filename.localeCompare(b.filename));
     const fileSetHash = createHash('sha256')
@@ -356,8 +359,7 @@ export async function POST(req: NextRequest) {
       files: decodedFiles.map((f) => ({
         filename: f.filename,
         content: f.content,
-        sizeBytes:
-          f.sizeBytes ?? Buffer.byteLength(f.content, 'utf8'),
+        sizeBytes: f.sizeBytes ?? Buffer.byteLength(f.content, 'utf8'),
       })),
       pipeline_run_id: pipelineRunId,
       caller_user_id: user.id,

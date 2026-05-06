@@ -71,9 +71,8 @@ const { mockEnqueueQueueJob, mockCreateServiceClient, mockOrchestrate } =
   }));
 
 vi.mock('@/lib/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth')>(
-    '@/lib/auth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -124,7 +123,11 @@ function configureAdmin() {
     }
     return {
       success: true,
-      user: { id: ADMIN_USER_ID, email: 'admin@test', user_metadata: {} } as never,
+      user: {
+        id: ADMIN_USER_ID,
+        email: 'admin@test',
+        user_metadata: {},
+      } as never,
       supabase: fakeAuthSupabase(),
       role: 'admin',
     };
@@ -139,7 +142,11 @@ function configureEditor() {
     }
     return {
       success: true,
-      user: { id: EDITOR_USER_ID, email: 'editor@test', user_metadata: {} } as never,
+      user: {
+        id: EDITOR_USER_ID,
+        email: 'editor@test',
+        user_metadata: {},
+      } as never,
       supabase: fakeAuthSupabase(),
       role: 'editor',
     };

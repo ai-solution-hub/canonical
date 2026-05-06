@@ -134,13 +134,13 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 PR-blocking CI (`ci.yml`) runs 7 jobs in parallel: `quality-precheck`,
 `quality-test` (4-shard Vitest matrix), `e2e-smoke`, `mcp-build`,
 `mcp-eval-seed`, `mcp-eval` (L1/L3/L4 matrix), `integration`. Triggers: PR (any
-base) + push on `main`/`staging`. Draft PRs skip CI. Full topology +
-per-step failure-mode table: `docs/runbooks/ci.md`.
+base) + push on `main`/`staging`. Draft PRs skip CI. Full topology + per-step
+failure-mode table: `docs/runbooks/ci.md`.
 
 Side workflows: `cloud-run-deploy.yml` (Python pipeline),
-`migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml`
-(prod ↔ staging diff), `staging-reference-refresh.yml`,
-`supabase-advisors.yml`, `taxonomy-sync.yml`.
+`migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml` (prod ↔
+staging diff), `staging-reference-refresh.yml`, `supabase-advisors.yml`,
+`taxonomy-sync.yml`.
 
 `staging` branch is deploy-only (no long-lived worktree) — used for
 staging-mirror sync per `docs/runbooks/staging-refresh.md`.
@@ -167,16 +167,16 @@ Consult when adding or modifying UI elements.
 
 ## Key Reference Documents
 
-| Document               | Location                                                                   |
-| ---------------------- | -------------------------------------------------------------------------- |
-| State of the Product   | `docs/reference/state-of-the-product.md`                                   |
-| Roadmap                | `docs/reference/post-mvp-roadmap.md`                                       |
-| Product backlog        | `docs/reference/product-backlog.md`                                        |
-| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                 |
+| Document               | Location                                                                    |
+| ---------------------- | --------------------------------------------------------------------------- |
+| State of the Product   | `docs/reference/state-of-the-product.md`                                    |
+| Roadmap                | `docs/reference/post-mvp-roadmap.md`                                        |
+| Product backlog        | `docs/reference/product-backlog.md`                                         |
+| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                  |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
-| Session handoffs       | `docs/continuation-prompts/`                                               |
-| Codebase mapping       | `.planning/codebase/`                                                      |
-| Runbooks               | `docs/runbooks/` — local-development, staging-refresh, github-environments |
+| Session handoffs       | `docs/continuation-prompts/`                                                |
+| Codebase mapping       | `.planning/codebase/`                                                       |
+| Runbooks               | `docs/runbooks/` — local-development, staging-refresh, github-environments  |
 
 Full inventory of all reference docs:
 `docs/reference/documentation-inventory.md`

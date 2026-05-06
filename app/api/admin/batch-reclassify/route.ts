@@ -50,7 +50,10 @@ export const maxDuration = 30;
  * never inline (validation-sweep guard banned).
  */
 const BatchReclassifyBodyZodSchema = z.object({
-  workspace_id: z.string().min(1).default(() => CLIENT_CONFIG.client_id),
+  workspace_id: z
+    .string()
+    .min(1)
+    .default(() => CLIENT_CONFIG.client_id),
   domain: z.string().nullable().optional(),
   limit: z.number().int().min(0).default(0),
   force: z.boolean().default(false),

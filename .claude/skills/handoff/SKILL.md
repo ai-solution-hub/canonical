@@ -193,22 +193,21 @@ the last opportunity to do so.
 
 **Graduation check (mandatory before adding new memory):**
 
-Before writing any new `feedback_*.md` / `project_*.md` / `reference_*.md`
-file, scan whether the lesson is already captured in CLAUDE.md (root + any
+Before writing any new `feedback_*.md` / `project_*.md` / `reference_*.md` file,
+scan whether the lesson is already captured in CLAUDE.md (root + any
 subdirectory `lib/mcp/CLAUDE.md` etc.). Use Grep with the lesson's distinctive
-keyword. If CLAUDE.md already has it as a Gotcha line or in another section,
-do NOT create a duplicate memory — and if a related memory file already
-exists, DELETE it as part of this step (the lesson has graduated; the memory
-is now redundant). One-line CLAUDE.md graduation supersedes a full memory
-file.
+keyword. If CLAUDE.md already has it as a Gotcha line or in another section, do
+NOT create a duplicate memory — and if a related memory file already exists,
+DELETE it as part of this step (the lesson has graduated; the memory is now
+redundant). One-line CLAUDE.md graduation supersedes a full memory file.
 
 **Consolidation check (mandatory):**
 
 Before adding a memory in a domain that already has 3+ memories (worktrees,
-Supabase CLI, specs/verification, doc-freshness, self-silencing-failure
-class), check whether the lesson is a sub-case of an existing master memory.
-If so, append as a sub-section to the master rather than create a new file.
-Master memories live at:
+Supabase CLI, specs/verification, doc-freshness, self-silencing-failure class),
+check whether the lesson is a sub-case of an existing master memory. If so,
+append as a sub-section to the master rather than create a new file. Master
+memories live at:
 
 - `feedback_worktree_master.md`
 - `feedback_supabase_cli_silent_apply_failure.md`
@@ -221,10 +220,9 @@ Master memories live at:
 
 **Index hygiene:**
 
-Index entries in `MEMORY.md` must stay under 200 chars (system warning
-threshold ~150 chars per line is safer). One sentence per entry. Move detail
-into the topic file. Don't pile multiple lessons into a single entry's
-description.
+Index entries in `MEMORY.md` must stay under 200 chars (system warning threshold
+~150 chars per line is safer). One sentence per entry. Move detail into the
+topic file. Don't pile multiple lessons into a single entry's description.
 
 ---
 

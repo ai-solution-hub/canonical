@@ -816,8 +816,56 @@ describeIfEnv(
 // Spec §8 AC-8 lines 1252-1257.
 // ---------------------------------------------------------------------------
 
+describeIfEnv('AC-8 — force:true + 0 candidates → permanent failure', () => {
+  beforeEach(async () => {
+    authCookies.clear();
+    await signInAsTestUser(authCookies, 'admin');
+  });
+  afterEach(() => {
+    authCookies.clear();
+  });
+
+  it('AC-8: enqueue with domain="nonexistent_domain" + force:true → cron tick → status=failed, error_message=no_candidates_under_force', async () => {
+    const { POST } = await import('@/app/api/admin/batch-reclassify/route');
+    const response = await POST(
+      buildPostRequest({
+        domain: 'nonexistent_domain_zzz',
+        force: true,
+        limit: 5,
+      }) as unknown as import('next/server').NextRequest,
+    );
+    const enqueueBody = (await response.json()) as {
+      job_id: string;
+      pipeline_run_id: string;
+    };
+    seededJobIds.add(enqueueBody.job_id);
+    seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
+
+    const { GET } = await import('@/app/api/cron/process-queue/route');
+    await GET(
+      buildCronRequest() as unknown as import('next/server').NextRequest,
+    );
+
+    const { data: row } = await serviceClient
+      .from('processing_queue')
+      .select('status, error_message')
+      .eq('id', enqueueBody.job_id)
+      .single();
+    expect(row!.status).toBe('failed');
+    expect(row!.error_message).toMatch(/no_candidates_under_force/i);
+  }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// AC-9 — Cancel pending → 200; cancel processing on a cooperatively-
+// cancellable job → 200, handler stops.
+// Spec §8 AC-9 lines 1261-1271.
+// Per `lib/queue/cooperative-cancel.ts`: batch_reclassify is in the allow-
+// list, so the cancel route returns 200 even for `processing` rows.
+// ---------------------------------------------------------------------------
+
 describeIfEnv(
-  'AC-8 — force:true + 0 candidates → permanent failure',
+  'AC-9 — cancel pending (200) / processing (200 cooperative)',
   () => {
     beforeEach(async () => {
       authCookies.clear();
@@ -827,12 +875,10 @@ describeIfEnv(
       authCookies.clear();
     });
 
-    it('AC-8: enqueue with domain="nonexistent_domain" + force:true → cron tick → status=failed, error_message=no_candidates_under_force', async () => {
+    it('AC-9 (pending → 200): enqueue + PATCH cancel → status=cancelled, response 200', async () => {
       const { POST } = await import('@/app/api/admin/batch-reclassify/route');
       const response = await POST(
         buildPostRequest({
-          domain: 'nonexistent_domain_zzz',
-          force: true,
           limit: 5,
         }) as unknown as import('next/server').NextRequest,
       );
@@ -843,131 +889,85 @@ describeIfEnv(
       seededJobIds.add(enqueueBody.job_id);
       seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
 
-      const { GET } = await import('@/app/api/cron/process-queue/route');
-      await GET(
-        buildCronRequest() as unknown as import('next/server').NextRequest,
+      const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
+      const cancelReq = new Request(
+        `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
       );
+      const cancelResponse = await PATCH(
+        cancelReq as unknown as import('next/server').NextRequest,
+        { params: Promise.resolve({ id: enqueueBody.job_id }) },
+      );
+      expect(cancelResponse.status).toBe(200);
+      const cancelBody = (await cancelResponse.json()) as {
+        status: string;
+      };
+      expect(cancelBody.status).toBe('cancelled');
 
       const { data: row } = await serviceClient
         .from('processing_queue')
-        .select('status, error_message')
+        .select('status, completed_at')
         .eq('id', enqueueBody.job_id)
         .single();
-      expect(row!.status).toBe('failed');
-      expect(row!.error_message).toMatch(/no_candidates_under_force/i);
-    }, 60_000);
+      expect(row!.status).toBe('cancelled');
+      expect(row!.completed_at).not.toBeNull();
+    }, 30_000);
+
+    it('AC-9 (processing → 200 cooperative): manually-flipped processing row of batch_reclassify → PATCH cancel returns 200; row status flips to cancelled', async () => {
+      const { POST } = await import('@/app/api/admin/batch-reclassify/route');
+      const response = await POST(
+        buildPostRequest({
+          limit: 5,
+        }) as unknown as import('next/server').NextRequest,
+      );
+      const enqueueBody = (await response.json()) as {
+        job_id: string;
+        pipeline_run_id: string;
+      };
+      seededJobIds.add(enqueueBody.job_id);
+      seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
+
+      // Manually flip status to processing.
+      await serviceClient
+        .from('processing_queue')
+        .update({
+          status: 'processing',
+          started_at: new Date(Date.now()).toISOString(),
+        })
+        .eq('id', enqueueBody.job_id);
+
+      const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
+      const cancelReq = new Request(
+        `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
+      const cancelResponse = await PATCH(
+        cancelReq as unknown as import('next/server').NextRequest,
+        { params: Promise.resolve({ id: enqueueBody.job_id }) },
+      );
+      // batch_reclassify opts in to cooperative cancellation per
+      // lib/queue/cooperative-cancel.ts COOPERATIVELY_CANCELLABLE_JOB_TYPES.
+      expect(cancelResponse.status).toBe(200);
+      const cancelBody = (await cancelResponse.json()) as { status: string };
+      expect(cancelBody.status).toBe('cancelled');
+
+      const { data: row } = await serviceClient
+        .from('processing_queue')
+        .select('status')
+        .eq('id', enqueueBody.job_id)
+        .single();
+      expect(row!.status).toBe('cancelled');
+    }, 30_000);
   },
 );
-
-// ---------------------------------------------------------------------------
-// AC-9 — Cancel pending → 200; cancel processing on a cooperatively-
-// cancellable job → 200, handler stops.
-// Spec §8 AC-9 lines 1261-1271.
-// Per `lib/queue/cooperative-cancel.ts`: batch_reclassify is in the allow-
-// list, so the cancel route returns 200 even for `processing` rows.
-// ---------------------------------------------------------------------------
-
-describeIfEnv('AC-9 — cancel pending (200) / processing (200 cooperative)', () => {
-  beforeEach(async () => {
-    authCookies.clear();
-    await signInAsTestUser(authCookies, 'admin');
-  });
-  afterEach(() => {
-    authCookies.clear();
-  });
-
-  it('AC-9 (pending → 200): enqueue + PATCH cancel → status=cancelled, response 200', async () => {
-    const { POST } = await import('@/app/api/admin/batch-reclassify/route');
-    const response = await POST(
-      buildPostRequest({
-        limit: 5,
-      }) as unknown as import('next/server').NextRequest,
-    );
-    const enqueueBody = (await response.json()) as {
-      job_id: string;
-      pipeline_run_id: string;
-    };
-    seededJobIds.add(enqueueBody.job_id);
-    seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
-
-    const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
-    const cancelReq = new Request(
-      `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
-      {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      },
-    );
-    const cancelResponse = await PATCH(
-      cancelReq as unknown as import('next/server').NextRequest,
-      { params: Promise.resolve({ id: enqueueBody.job_id }) },
-    );
-    expect(cancelResponse.status).toBe(200);
-    const cancelBody = (await cancelResponse.json()) as {
-      status: string;
-    };
-    expect(cancelBody.status).toBe('cancelled');
-
-    const { data: row } = await serviceClient
-      .from('processing_queue')
-      .select('status, completed_at')
-      .eq('id', enqueueBody.job_id)
-      .single();
-    expect(row!.status).toBe('cancelled');
-    expect(row!.completed_at).not.toBeNull();
-  }, 30_000);
-
-  it('AC-9 (processing → 200 cooperative): manually-flipped processing row of batch_reclassify → PATCH cancel returns 200; row status flips to cancelled', async () => {
-    const { POST } = await import('@/app/api/admin/batch-reclassify/route');
-    const response = await POST(
-      buildPostRequest({
-        limit: 5,
-      }) as unknown as import('next/server').NextRequest,
-    );
-    const enqueueBody = (await response.json()) as {
-      job_id: string;
-      pipeline_run_id: string;
-    };
-    seededJobIds.add(enqueueBody.job_id);
-    seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
-
-    // Manually flip status to processing.
-    await serviceClient
-      .from('processing_queue')
-      .update({
-        status: 'processing',
-        started_at: new Date(Date.now()).toISOString(),
-      })
-      .eq('id', enqueueBody.job_id);
-
-    const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
-    const cancelReq = new Request(
-      `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
-      {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      },
-    );
-    const cancelResponse = await PATCH(
-      cancelReq as unknown as import('next/server').NextRequest,
-      { params: Promise.resolve({ id: enqueueBody.job_id }) },
-    );
-    // batch_reclassify opts in to cooperative cancellation per
-    // lib/queue/cooperative-cancel.ts COOPERATIVELY_CANCELLABLE_JOB_TYPES.
-    expect(cancelResponse.status).toBe(200);
-    const cancelBody = (await cancelResponse.json()) as { status: string };
-    expect(cancelBody.status).toBe('cancelled');
-
-    const { data: row } = await serviceClient
-      .from('processing_queue')
-      .select('status')
-      .eq('id', enqueueBody.job_id)
-      .single();
-    expect(row!.status).toBe('cancelled');
-  }, 30_000);
-});
 
 // ---------------------------------------------------------------------------
 // AC-10 — pipeline_runs Pattern 2 caller-allocated UPDATE (cardinality
