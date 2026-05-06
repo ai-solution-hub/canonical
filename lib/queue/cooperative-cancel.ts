@@ -1,8 +1,14 @@
 /**
- * Cooperative-cancellation allow-list for queue job types — Session 225 W1-IMPL.
+ * Cooperative-cancellation allow-list for queue job types — Session 225 W1-IMPL,
+ * extended Session 226 W1-IMPL.
  *
- * Spec source: `docs/specs/§5.4.2-batch-reclassify-spec.md` §10 D-9
- * (cooperative cancellation between items, ratified May 5 2026).
+ * Spec sources:
+ *   - `docs/specs/§5.4.2-batch-reclassify-spec.md` §10 D-9 (cooperative
+ *     cancellation between items, ratified May 5 2026; poll cadence=10).
+ *   - `docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md` §10 D-8
+ *     (cooperative cancellation between files, ratified May 6 2026; poll
+ *     cadence=1 because typical markdown batches are 1-3 files; every-10
+ *     cadence would defeat the purpose).
  *
  * Most queue job types inherit §5.4.1's hard-409 policy on `'processing'`
  * cancellation: the cancel route returns 409 ("This job is already running
@@ -17,20 +23,27 @@
  * reclassify can regress historical classifications across the workspace,
  * so a "stop now" mechanism is load-bearing UX.
  *
+ * `markdown_batch` opts in because the per-file work is independent and
+ * users may realise mid-batch they uploaded the wrong file set or wrong
+ * tag/author override. Typical batches are 1-3 files (each ~6-10s); the
+ * per-file poll cadence is 1 (check before EVERY file) because at 10-item
+ * cadence a 3-file batch would never poll. Per spec §10 D-8 ratified
+ * (Liam flipped from authored hard-409 default to cooperative-with-cadence-1).
+ *
  * Implementation pattern:
  *   - The cancel route widens its UPDATE policy ONLY for job-types in this
  *     allow-list (preserves §5.4.1 hard-409 semantics for everyone else).
  *   - The handler polls `processing_queue.status` for the current job_id
- *     between items (cadence: every N=10 items, fixed; configurable in
- *     follow-up if operationally needed).
+ *     between work units (cadence per spec: batch_reclassify=10 items,
+ *     markdown_batch=1 file).
  *   - On `status='cancelled'`: handler breaks the loop, returns the partial
  *     result envelope. The dispatch case-clause finalises `pipeline_runs`
  *     with `status='completed_with_errors'` + `error_message='cancelled
- *     mid-run after N/M items'` per D-9.1 (no new enum value).
+ *     mid-run after N/M units'` per D-9.1 / D-8 (no new enum value).
  *   - Race-safe: the cancel route's UPDATE uses `.in('status', [...])`
  *     filter so a worker claim between SELECT and UPDATE doesn't double-
  *     transition; the handler's poll is best-effort and tolerates a missed
- *     transition (the next 10-item tick re-checks).
+ *     transition (the next poll-tick re-checks).
  */
 
 import type { JobType } from '@/lib/queue/envelope';
@@ -38,13 +51,16 @@ import type { JobType } from '@/lib/queue/envelope';
 /**
  * Job types that opt in to cooperative cancellation. The cancel route checks
  * this list to decide whether `'processing'` jobs are cancellable. Members
- * of this allow-list must implement an inter-item poll on
+ * of this allow-list must implement an inter-unit poll on
  * `processing_queue.status` for the current job_id.
  *
- * Initially: `['batch_reclassify']` (per S225 W1-IMPL).
+ * Members:
+ *   - `'batch_reclassify'` — added S225 W1-IMPL per §5.4.2 D-9 (cadence=10 items).
+ *   - `'markdown_batch'`   — added S226 W1-IMPL per §5.4.4 D-8 (cadence=1 file).
  */
 export const COOPERATIVELY_CANCELLABLE_JOB_TYPES: ReadonlyArray<JobType> = [
   'batch_reclassify',
+  'markdown_batch',
 ];
 
 /**
