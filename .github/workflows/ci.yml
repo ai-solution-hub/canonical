@@ -848,6 +848,11 @@ jobs:
     timeout-minutes: 1
     permissions:
       contents: read
+      # Required by `vercel/repository-dispatch/actions/status@v1` —
+      # action reads workflow run info + posts commit status (W6 / WP-G4.7).
+      actions: read
+      statuses: write
+      checks: write
 
     steps:
       - name: Aggregate upstream job results
