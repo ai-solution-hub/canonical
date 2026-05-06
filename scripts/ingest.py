@@ -57,6 +57,12 @@ def main():
         help="Generate AI summary for each item (default: enabled)"
     )
     parser.add_argument(
+        "--smoke-test", action="store_true",
+        help="No-op smoke test: import + env-validation only, exit 0. "
+             "Used by Cloud Run firstinvoke verification to prove the "
+             "boot chain is GREEN without performing any DB writes."
+    )
+    parser.add_argument(
         "--no-summary", action="store_false", dest="generate_summary",
         help="Skip AI summary generation"
     )
@@ -97,6 +103,13 @@ def main():
     if args.static_taxonomy:
         from kb_pipeline.config import set_static_taxonomy
         set_static_taxonomy(True)
+
+    # No-op smoke test (Cloud Run firstinvoke verification — see Phase 2
+    # close-out in docs/runbooks/cloud-run-phase-1-handover.md §8.3).
+    # Validates env-mount + import chain, exits 0 without DB writes.
+    if args.smoke_test:
+        print("smoke-test: env + imports OK")
+        sys.exit(0)
 
     # Collect URLs
     urls = list(args.urls) if args.urls else []
