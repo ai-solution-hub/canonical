@@ -228,92 +228,10 @@ describe('POST /api/ingest/markdown — phase=analyse', () => {
 // Phase routing — import
 // ---------------------------------------------------------------------------
 
-describe('POST /api/ingest/markdown — phase=import', () => {
-  it('admin success → 200 + { pipeline_run_id, results_summary } (spec §5.4 rich shape)', async () => {
-    configureAdmin();
-    orchestrateMock.mockResolvedValue({
-      pipeline_run_id: '11111111-1111-4111-8111-111111111111',
-      results_summary: {
-        files_processed: 1,
-        stored: [{ id: 'c1', title: 'Foo', filename: 'foo.md' }],
-        dedup_flagged: [],
-        superseded: [],
-        skipped_excluded: [],
-        errored: [],
-      },
-    } as never);
-
-    const req = makeRequest({
-      phase: 'import',
-      files: [{ name: 'foo.md', content: '# Foo' }],
-      optionsJson: JSON.stringify({ batch: { tag: 'kb-2026' } }),
-    });
-
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.pipeline_run_id).toBe('11111111-1111-4111-8111-111111111111');
-    expect(body.results_summary).toEqual({
-      files_processed: 1,
-      stored: [{ id: 'c1', title: 'Foo', filename: 'foo.md' }],
-      dedup_flagged: [],
-      superseded: [],
-      skipped_excluded: [],
-      errored: [],
-    });
-
-    // Orchestrator received phase=import + caller identity + role.
-    expect(orchestrateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        phase: 'import',
-        callerUserId: ADMIN_USER_ID,
-        callerRole: 'admin',
-      }),
-    );
-  });
-
-  it('editor with skip_dedup=true per file → orchestrator receives the flag (silent-ignore happens inside)', async () => {
-    configureEditor();
-    orchestrateMock.mockResolvedValue({
-      pipeline_run_id: '22222222-2222-4222-8222-222222222222',
-      results_summary: {
-        files_processed: 1,
-        stored: [{ id: 'c1', title: 'Foo', filename: 'foo.md' }],
-        dedup_flagged: [],
-        superseded: [],
-        skipped_excluded: [],
-        errored: [],
-      },
-    } as never);
-
-    const req = makeRequest({
-      phase: 'import',
-      files: [{ name: 'foo.md', content: 'body' }],
-      optionsJson: JSON.stringify({
-        per_file_overrides: [{ filename: 'foo.md', skip_dedup: true }],
-      }),
-    });
-
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-
-    // Verify the route forwards the role + flag verbatim — silent-ignore
-    // policy lives in the orchestrator (spec §8.2).
-    const callArg = orchestrateMock.mock.calls[0][0];
-    expect(callArg.phase).toBe('import');
-    if (callArg.phase === 'import') {
-      expect(callArg.callerRole).toBe('editor');
-      expect(callArg.options?.perFileOverrides).toEqual([
-        {
-          filename: 'foo.md',
-          skipDedup: true,
-          excluded: undefined,
-          draftOrFinal: undefined,
-        },
-      ]);
-    }
-  });
-});
+// phase=import behavioural contract moved to `route.queued.test.ts` post-S226
+// §5.4.4 W1-IMPL — that route now returns 202+queued instead of sync 200.
+// The new file covers AC-1/3/4/11 + auth + DB side-effect contracts. Old
+// import-phase forwarding tests removed as implementation-coupled.
 
 // ---------------------------------------------------------------------------
 // Validation: phase / files[] / extensions / size / count
@@ -479,90 +397,6 @@ describe('POST /api/ingest/markdown — options validation', () => {
     expect(body.error).toBe('Validation failed');
   });
 
-  it('omitted options on import → orchestrator receives empty/default options', async () => {
-    configureAdmin();
-    orchestrateMock.mockResolvedValue({
-      pipeline_run_id: '33333333-3333-4333-8333-333333333333',
-      results_summary: {
-        files_processed: 1,
-        stored: [],
-        dedup_flagged: [],
-        superseded: [],
-        skipped_excluded: [],
-        errored: [],
-      },
-    } as never);
-
-    const req = makeRequest({
-      phase: 'import',
-      files: [{ name: 'foo.md', content: 'body' }],
-      // No optionsJson.
-    });
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const callArg = orchestrateMock.mock.calls[0][0];
-    if (callArg.phase === 'import') {
-      expect(callArg.options?.tag).toBeNull();
-      expect(callArg.options?.author).toBeNull();
-      expect(callArg.options?.perFileOverrides).toBeUndefined();
-    }
-  });
-
-  it('auto_supersede forwards through wire→orchestrator mapping', async () => {
-    configureAdmin();
-    orchestrateMock.mockResolvedValue({
-      pipeline_run_id: '44444444-4444-4444-8444-444444444444',
-      results_summary: {
-        files_processed: 1,
-        stored: [],
-        dedup_flagged: [],
-        superseded: [],
-        skipped_excluded: [],
-        errored: [],
-      },
-    } as never);
-
-    const req = makeRequest({
-      phase: 'import',
-      files: [{ name: 'foo.md', content: 'body' }],
-      optionsJson: JSON.stringify({ batch: { auto_supersede: true } }),
-    });
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const callArg = orchestrateMock.mock.calls[0][0];
-    if (callArg.phase === 'import') {
-      expect(callArg.options?.autoSupersede).toBe(true);
-    }
-  });
-
-  it('pipeline_run_id forwards from wire into orchestrator pipelineRunIdOverride (Pattern E client-UUID flow)', async () => {
-    configureAdmin();
-    const clientId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    orchestrateMock.mockResolvedValue({
-      pipeline_run_id: clientId,
-      results_summary: {
-        files_processed: 1,
-        stored: [],
-        dedup_flagged: [],
-        superseded: [],
-        skipped_excluded: [],
-        errored: [],
-      },
-    } as never);
-
-    const req = makeRequest({
-      phase: 'import',
-      files: [{ name: 'foo.md', content: 'body' }],
-      optionsJson: JSON.stringify({ pipeline_run_id: clientId }),
-    });
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const callArg = orchestrateMock.mock.calls[0][0];
-    if (callArg.phase === 'import') {
-      expect(callArg.options?.pipelineRunIdOverride).toBe(clientId);
-    }
-  });
-
   it('rejects malformed pipeline_run_id (not a UUID) → 400 via parseBody', async () => {
     configureAdmin();
     const req = makeRequest({
@@ -576,30 +410,9 @@ describe('POST /api/ingest/markdown — options validation', () => {
     expect(body.error).toBe('Validation failed');
   });
 
-  it('omitted pipeline_run_id → orchestrator receives null override', async () => {
-    configureAdmin();
-    orchestrateMock.mockResolvedValue({
-      pipeline_run_id: 'server-generated-id',
-      results_summary: {
-        files_processed: 1,
-        stored: [],
-        dedup_flagged: [],
-        superseded: [],
-        skipped_excluded: [],
-        errored: [],
-      },
-    } as never);
-
-    const req = makeRequest({
-      phase: 'import',
-      files: [{ name: 'foo.md', content: 'body' }],
-      optionsJson: JSON.stringify({}),
-    });
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const callArg = orchestrateMock.mock.calls[0][0];
-    if (callArg.phase === 'import') {
-      expect(callArg.options?.pipelineRunIdOverride).toBeNull();
-    }
-  });
+  // Forwarding tests (omitted options → defaults; auto_supersede; pipeline_run_id
+  // round-trip; null override) deleted post-S226 §5.4.4 W1-IMPL — those were
+  // implementation-coupled (asserted on `orchestrateMock.mock.calls[0][0]`),
+  // and the import phase no longer invokes the orchestrator inline anyway. The
+  // post-S226 behavioural contract is covered in `route.queued.test.ts`.
 });

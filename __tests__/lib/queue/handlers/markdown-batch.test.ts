@@ -555,6 +555,19 @@ describe('runMarkdownBatchJob — markdown_batch handler (§5.4.4 behavioural)',
       ).rejects.toThrow(/caller_user_id_missing/);
     });
 
+    it('body.caller_user_id !== authContext.user_id → throws PermanentJobError("caller_user_id_mismatch") (defence against payload tampering per spec §4.3:783-784)', async () => {
+      const tamperedUserId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+      await expect(
+        runMarkdownBatchJob(
+          makeBody({ caller_user_id: tamperedUserId }),
+          mockSupabase as unknown as SupabaseClient<Database>,
+          AUTH_CONTEXT,
+          JOB_ID,
+        ),
+      ).rejects.toThrow(/caller_user_id_mismatch/);
+    });
+
     it('body.caller_role="viewer" (invalid for markdown_batch) → throws PermanentJobError("caller_role_invalid: viewer")', async () => {
       const malformed = {
         ...makeBody(),

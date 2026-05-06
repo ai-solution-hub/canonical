@@ -204,10 +204,7 @@ async function isJobCancelled(jobId: string | undefined): Promise<boolean> {
 export async function runMarkdownBatchJob(
   body: MarkdownBatchBody,
   supabase: SupabaseClient<Database>,
-  // Dispatcher passes the auth context for forward-compat. Currently unused
-  // inside the handler body — preserved for parity with `runBidDraftAllJob`
-  // and `runBatchReclassifyJob`.
-  _authContext: MarkdownBatchAuthContext,
+  authContext: MarkdownBatchAuthContext,
   jobId?: string,
 ): Promise<MarkdownBatchResult> {
   // ------------------------------------------------------------------
@@ -221,6 +218,13 @@ export async function runMarkdownBatchJob(
   }
   if (!body.caller_user_id || body.caller_user_id.length === 0) {
     throw new PermanentJobError('caller_user_id_missing');
+  }
+  // Per spec §4.3 line 783-784 — defence against payload tampering. The
+  // `enqueueQueueJob` path always sets both fields from the same
+  // `auth.user.id`, so this guard only fires on a hand-crafted envelope
+  // that bypasses the producer.
+  if (body.caller_user_id !== authContext.user_id) {
+    throw new PermanentJobError('caller_user_id_mismatch');
   }
   if (body.caller_role !== 'admin' && body.caller_role !== 'editor') {
     throw new PermanentJobError(
