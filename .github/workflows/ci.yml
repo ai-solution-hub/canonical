@@ -808,3 +808,77 @@ jobs:
           path: /tmp/integration.log
           retention-days: 14
           if-no-files-found: ignore
+
+  ci-summary:
+    # OPS-58 (S33 W1) — single fixed-name aggregator. Posts on every PR
+    # (including Dependabot) regardless of which upstream jobs ran.
+    #
+    # Why: the prior strict-gating set on ruleset 15785019 required
+    # individual matrix names (`MCP eval (l*)`) and path-conditional jobs
+    # (`REVOKE-guard PR lint`) that DO NOT post on every PR — Dependabot
+    # PRs (where `secrets.*` is empty) and non-migration PRs left these
+    # required checks "missing", blocking merge close-out (PR #49 S32).
+    # The S32 fix removed dead names, leaving `Quality pre-check` +
+    # `E2E smoke` only — but that is brittle (skip-on-empty-secrets
+    # surface for `quality-precheck`, conditional `e2e-smoke` paths).
+    #
+    # Aggregator semantics (per spec): `failure` is the only red signal;
+    # `success` and `skipped` both treated as pass. This decouples
+    # required-check posting from upstream job composition: jobs can be
+    # added, removed, sharded, or path-conditional without touching the
+    # ruleset.
+    #
+    # Branch-protection ruleset 15785019 now requires only
+    # `CI / ci-summary` (drops `Quality pre-check` + `E2E smoke`).
+    #
+    # Security note: every `${{ needs.<job>.result }}` is routed through
+    # an env: var (no direct interpolation in run:). Per
+    # https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/.
+    name: ci-summary
+    if: always()
+    needs:
+      - quality-precheck
+      - quality-test
+      - e2e-smoke
+      - mcp-build
+      - mcp-eval-seed
+      - mcp-eval
+      - integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions:
+      contents: read
+
+    steps:
+      - name: Aggregate upstream job results
+        env:
+          QUALITY_PRECHECK: ${{ needs.quality-precheck.result }}
+          QUALITY_TEST: ${{ needs.quality-test.result }}
+          E2E_SMOKE: ${{ needs.e2e-smoke.result }}
+          MCP_BUILD: ${{ needs.mcp-build.result }}
+          MCP_EVAL_SEED: ${{ needs.mcp-eval-seed.result }}
+          MCP_EVAL: ${{ needs.mcp-eval.result }}
+          INTEGRATION: ${{ needs.integration.result }}
+        run: |
+          set -euo pipefail
+          fail=0
+          for entry in \
+            "quality-precheck=$QUALITY_PRECHECK" \
+            "quality-test=$QUALITY_TEST" \
+            "e2e-smoke=$E2E_SMOKE" \
+            "mcp-build=$MCP_BUILD" \
+            "mcp-eval-seed=$MCP_EVAL_SEED" \
+            "mcp-eval=$MCP_EVAL" \
+            "integration=$INTEGRATION"; do
+            name="${entry%%=*}"
+            res="${entry##*=}"
+            echo "  $name -> $res"
+            if [[ "$res" == "failure" ]]; then
+              fail=1
+            fi
+          done
+          if [[ $fail -eq 1 ]]; then
+            echo "::error::One or more upstream CI jobs failed."
+            exit 1
+          fi
+          echo "All upstream CI jobs passed or skipped."
