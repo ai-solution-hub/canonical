@@ -186,6 +186,18 @@ beforeAll(async () => {
   expect(EDITOR_USER_ID).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
+
+  // Cross-run isolation: nuke any batch_reclassify rows older than 10 minutes
+  // on the persistent staging branch. The route's idempotency key has no
+  // test-unique component (hashes canonical body only) so a prior run's
+  // completed row in the same UTC date bucket would dedup-collide with the
+  // current run's first POST. CI runs serially (`fileParallelism: false`)
+  // and staging is dedicated to CI, so the 10-min age gate is safe.
+  await serviceClient
+    .from('processing_queue')
+    .delete()
+    .eq('job_type', 'batch_reclassify')
+    .lt('created_at', new Date(Date.now() - 10 * 60_000).toISOString());
 }, 30_000);
 
 afterAll(async () => {
@@ -548,7 +560,10 @@ describeIfEnv(
       const { POST } = await import('@/app/api/admin/batch-reclassify/route');
       const response = await POST(
         buildPostRequest({
-          limit: 10,
+          // Distinct limit avoids idempotency-key collision with AC-5
+          // (which uses limit:12). Canonical body is hashed into the key
+          // with no test-unique component.
+          limit: 11,
         }) as unknown as import('next/server').NextRequest,
       );
       expect(response.status).toBe(202);
@@ -654,7 +669,9 @@ describeIfEnv(
       const { POST } = await import('@/app/api/admin/batch-reclassify/route');
       const response = await POST(
         buildPostRequest({
-          limit: 10,
+          // Distinct limit avoids idempotency-key collision with AC-2
+          // (which uses limit:11).
+          limit: 12,
         }) as unknown as import('next/server').NextRequest,
       );
       const enqueueBody = (await response.json()) as {
@@ -879,7 +896,11 @@ describeIfEnv(
       const { POST } = await import('@/app/api/admin/batch-reclassify/route');
       const response = await POST(
         buildPostRequest({
-          limit: 5,
+          // Distinct limit avoids idempotency-key collision with AC-1
+          // (limit:5) — AC-1's row is already drained to 'completed' by
+          // AC-2's cron tick, so dedup pre-SELECT would return that row's
+          // id and the cancel route would return 409 (terminal-state).
+          limit: 6,
         }) as unknown as import('next/server').NextRequest,
       );
       const enqueueBody = (await response.json()) as {
@@ -921,7 +942,9 @@ describeIfEnv(
       const { POST } = await import('@/app/api/admin/batch-reclassify/route');
       const response = await POST(
         buildPostRequest({
-          limit: 5,
+          // Distinct limit avoids idempotency-key collision with
+          // AC-1 (5), AC-3 (7), AC-9 pending (6).
+          limit: 8,
         }) as unknown as import('next/server').NextRequest,
       );
       const enqueueBody = (await response.json()) as {

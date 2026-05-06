@@ -118,7 +118,7 @@ async function seedPendingJob(label: string): Promise<string> {
   return data.id;
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   if (!stagingReachable) return;
   // Build TWO independent service-role clients. Each createClient() call
   // returns a separate fetch-based PostgREST handle, so the two RPC
@@ -127,6 +127,18 @@ beforeAll(() => {
   // what AC-11 requires ("two separate transactions").
   clientA = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   clientB = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // Cross-run isolation: scrub orphan pending rows older than 10 minutes on
+  // the persistent staging branch. AC-11 asserts global cardinality
+  // (`totalRowsClaimed === 1`) which is only meaningful on a clean DB.
+  // Prior interrupted CI runs can leak pending rows that race with the
+  // seeded row. CI is serial (`fileParallelism: false`) and staging is
+  // dedicated, so the 10-min age gate is safe.
+  await serviceClient
+    .from('processing_queue')
+    .delete()
+    .eq('status', 'pending')
+    .lt('created_at', new Date(Date.now() - 10 * 60_000).toISOString());
 });
 
 afterAll(async () => {
@@ -190,10 +202,20 @@ describe.skipIf(!stagingReachable)(
       expect(Array.isArray(rowsA)).toBe(true);
       expect(Array.isArray(rowsB)).toBe(true);
 
-      // Hard contract: total rows returned across both calls === 1.
-      // FOR UPDATE SKIP LOCKED guarantees the loser sees zero rows
-      // (the row is locked + the inner SELECT used SKIP LOCKED, so it
-      // returns no candidate id, so the outer UPDATE no-ops).
+      // Hard contract on the seeded row: exactly one parallel claim hit
+      // our row. This is the AC-11 invariant — `claim_next_job` cannot
+      // serve the same id twice across independent transactions.
+      // Filtering to seededId keeps the assertion meaningful even if a
+      // sub-10-min pending row leaked past the beforeAll scrub.
+      const seededClaimed = [...rowsA, ...rowsB].filter(
+        (r) => r.id === seededId,
+      );
+      expect(seededClaimed).toHaveLength(1);
+
+      // Global cardinality on a clean staging branch: both claims combined
+      // returned exactly one row. Stronger than the seededId check; will
+      // surface if scrub failed to clear staging or if a parallel CI run
+      // leaks pending rows in the test window.
       const totalRowsClaimed = rowsA.length + rowsB.length;
       expect(totalRowsClaimed).toBe(1);
 
