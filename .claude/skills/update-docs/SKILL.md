@@ -616,6 +616,38 @@ git diff --quiet docs/reference/ || \
 
 ---
 
+## Step 10.5: Prettier Sweep (MANDATORY pre-handoff)
+
+**Why:** Recurring CI failure mode — `quality-precheck` failing solely on a
+single unformatted file blocks the whole pipeline (S36 + earlier sessions).
+Running `format:check` at session close catches drift introduced by mid-session
+edits before push.
+
+```bash
+# Run format check; capture unformatted file list if it fails.
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+if ! bun run format:check >/tmp/fmt-check.log 2>&1; then
+  echo "Prettier drift detected — files:"
+  grep -E '^\[warn\] ' /tmp/fmt-check.log | awk '{print $2}'
+  # Surgical fix — only the files Prettier flagged (avoid full-repo reformat).
+  files=$(grep -E '^\[warn\] ' /tmp/fmt-check.log | awk '{print $2}' | tr '\n' ' ')
+  if [ -n "$files" ]; then
+    bunx prettier --write $files
+    git add $files
+    git commit -m "chore(format): prettier sweep at session close"
+  fi
+else
+  echo "Prettier clean — no sweep needed."
+fi
+```
+
+If the only unformatted files are reference docs touched by Steps 3-9 above,
+amend Step 10's commit instead of creating a separate `chore(format)` commit
+(less noise in `git log`).
+
+---
+
 ## Step 11: Report and Chain to Handoff
 
 Present a summary to the user:
