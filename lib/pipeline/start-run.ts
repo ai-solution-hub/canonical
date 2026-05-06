@@ -1,8 +1,8 @@
 // lib/pipeline/start-run.ts
 //
-// At-start INSERT helper for the Pattern E pipeline_runs lifecycle.
-// Returns the new row's id so the route handler / orchestrator can
-// surface it to the client BEFORE the import completes (Pattern E
+// At-start INSERT (now UPSERT) helper for the Pattern E pipeline_runs
+// lifecycle. Returns the row's id so the route handler / orchestrator
+// can surface it to the client BEFORE the import completes (Pattern E
 // requires polling against this id mid-flight).
 //
 // Companion to:
@@ -11,7 +11,12 @@
 //                                      handlers that don't need mid-flight
 //                                      progress — never-throws by contract)
 //
-// Spec: docs/specs/ep2-markdown-ui-ingest-spec.md §7.2 Pattern E.
+// Spec sources:
+//   - docs/specs/ep2-markdown-ui-ingest-spec.md §7.2 Pattern E.
+//   - docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.7 +
+//     §10 D-11 (Path B ratified — UPSERT with ignoreDuplicates so the
+//     orchestrator's at-start INSERT does not collide with a producer
+//     pre-INSERT under Pattern 2).
 // Plan: docs/plans/§1.11-ep2-build-plan.md EP2-T6 (e).
 //
 // Why a new helper rather than reusing `recordPipelineRun()`:
@@ -98,10 +103,15 @@ export async function startPipelineRun(
   const { id, pipelineName, createdBy, sourceFilename, progress } = params;
   const serviceClient = createServiceClient();
 
+  // Date.now() symmetry per `feedback_date_now_constructor_testability` —
+  // `vi.spyOn(Date, 'now')` cannot stub the bare `Date` constructor; using
+  // `new Date(Date.now())` lets tests pin the ISO timestamp. Paired
+  // alignment with the §5.4.4 Pattern 2 producer pre-INSERT (the
+  // route handler also uses `new Date(Date.now()).toISOString()`).
   const insertPayload = {
     pipeline_name: pipelineName,
     status: 'running' as const,
-    started_at: new Date().toISOString(),
+    started_at: new Date(Date.now()).toISOString(),
     items_created: [] as string[],
     created_by: createdBy,
     source_filename: sourceFilename ?? null,
@@ -109,23 +119,61 @@ export async function startPipelineRun(
     ...(id ? { id } : {}),
   };
 
+  // Path B per §5.4.4 §10 D-11 RATIFIED: switch from `.insert(...)` to
+  // `.upsert(..., { onConflict: 'id', ignoreDuplicates: true })` so a
+  // producer pre-INSERT (Pattern 2 caller-allocated UUID) does not
+  // collide with the orchestrator's at-start INSERT inside the worker.
+  //
+  // ignoreDuplicates compiles to PostgreSQL `ON CONFLICT (id) DO NOTHING`,
+  // which (a) does NOT overwrite the producer's pre-existing row (the
+  // worker MUST NOT clobber the caller-allocated row's status/progress),
+  // and (b) does NOT include the conflicting row in RETURNING — so the
+  // upsert response is empty when the row already exists. We therefore
+  // use `.select('id')` WITHOUT `.single()` and inspect the array; on
+  // empty (conflict-skipped) we trust the `id` we passed in (we only
+  // get here when a conflict on the caller-supplied UUID happened, so
+  // the row exists with that id by construction).
+  //
+  // SAFETY: this only changes behaviour when `id` is supplied AND
+  // already exists. Non-Pattern-2 callers (sync route pre-§5.4.4 + EP3
+  // file-upload + cron jobs) supply `id` but the row doesn't exist yet —
+  // upsert behaves like insert and returns the new row. Net behaviour
+  // change is zero for non-queued callers.
   const { data, error } = await serviceClient
     .from('pipeline_runs')
-    .insert(insertPayload)
-    .select('id')
-    .single();
+    .upsert(insertPayload, { onConflict: 'id', ignoreDuplicates: true })
+    .select('id');
 
-  if (error || !data) {
+  if (error) {
     Sentry.captureMessage(`startPipelineRun failed for ${pipelineName}`, {
       level: 'error',
-      extra: { pipelineName, error: error?.message ?? 'unknown' },
+      extra: { pipelineName, error: error.message },
     });
     throw new Error(
-      `Failed to start pipeline_run for ${pipelineName}: ${
-        error?.message ?? 'unknown'
-      }`,
+      `Failed to start pipeline_run for ${pipelineName}: ${error.message}`,
     );
   }
 
-  return data.id;
+  // Empty array = conflict on the caller-supplied id (DO NOTHING path).
+  // The pre-existing row was created by the producer (Pattern 2); return
+  // the same id so subsequent UPDATEs target the correct row.
+  if (data && data.length > 0) {
+    return data[0].id;
+  }
+  if (id) {
+    return id;
+  }
+
+  // No conflict-skip AND no caller-supplied id AND no returned row —
+  // unexpected. Treat as fatal (the row was supposed to be inserted).
+  Sentry.captureMessage(
+    `startPipelineRun returned empty result for ${pipelineName}`,
+    {
+      level: 'error',
+      extra: { pipelineName, providedId: id },
+    },
+  );
+  throw new Error(
+    `Failed to start pipeline_run for ${pipelineName}: empty result without conflict`,
+  );
 }

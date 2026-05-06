@@ -38,24 +38,42 @@ import { startPipelineRun } from '@/lib/pipeline/start-run';
 // Helpers
 // ────────────────────────────────────────────────────────────────────────
 
-interface InsertResult {
-  data: { id: string } | null;
+interface UpsertResult {
+  data: Array<{ id: string }> | null;
   error: { message: string } | null;
 }
 
 /**
  * Build a chain that resolves
- * `from('pipeline_runs').insert(...).select('id').single()` with the
- * supplied result. Returns the spies so tests can assert on them.
+ * `from('pipeline_runs').upsert(..., { onConflict: 'id', ignoreDuplicates: true }).select('id')`
+ * with the supplied result. Per §5.4.4 §10 D-11 Path B ratification.
+ *
+ * The chain previously used `.insert(...).select('id').single()`; switched
+ * to `.upsert(...).select('id')` (no `.single()`) so `ignoreDuplicates: true`
+ * conflict-skip can be detected via empty array.
+ *
+ * Tests still call this with `data: { id }` shorthand (single-row); the
+ * helper wraps to an array. Returns the spies for assertions.
  */
-function configureChain(result: InsertResult) {
-  const single = vi.fn().mockResolvedValue(result);
-  const select = vi.fn(() => ({ single }));
-  const insert = vi.fn(() => ({ select }));
-  const from = vi.fn(() => ({ insert }));
+function configureChain(
+  result: UpsertResult | { data: { id: string } | null; error: { message: string } | null },
+) {
+  // Coerce single-row `data: { id }` to array form for backward compatibility.
+  const normalisedData =
+    result.data === null
+      ? null
+      : Array.isArray(result.data)
+        ? result.data
+        : [result.data as { id: string }];
+  const select = vi.fn().mockResolvedValue({
+    data: normalisedData,
+    error: result.error,
+  });
+  const upsert = vi.fn(() => ({ select }));
+  const from = vi.fn(() => ({ upsert }));
   mockServiceClient.from = from;
   createServiceClientMock.mockReturnValue(mockServiceClient);
-  return { from, insert, select, single };
+  return { from, upsert, insert: upsert, select };
 }
 
 beforeEach(() => {
@@ -85,8 +103,8 @@ describe('startPipelineRun', () => {
     });
 
     expect(chain.from).toHaveBeenCalledWith('pipeline_runs');
-    expect(chain.insert).toHaveBeenCalledTimes(1);
-    const payload = (chain.insert.mock.calls[0] as unknown[])[0] as Record<
+    expect(chain.upsert).toHaveBeenCalledTimes(1);
+    const payload = (chain.upsert.mock.calls[0] as unknown[])[0] as Record<
       string,
       unknown
     >;
@@ -100,6 +118,15 @@ describe('startPipelineRun', () => {
       files_completed: 0,
       files_total: 5,
       detail: 'Beginning batch import (5 files)…',
+    });
+    // Path B per §5.4.4 D-11: upsert with onConflict + ignoreDuplicates.
+    const upsertOpts = (chain.upsert.mock.calls[0] as unknown[])[1] as Record<
+      string,
+      unknown
+    >;
+    expect(upsertOpts).toMatchObject({
+      onConflict: 'id',
+      ignoreDuplicates: true,
     });
     expect(chain.select).toHaveBeenCalledWith('id');
   });
