@@ -9,8 +9,10 @@
  *    `'Pipeline (system)'`, regardless of its `user_roles.display_name`
  *    or `auth.users.raw_user_meta_data` contents.
  * 2. A known human user (TEST_USER_1) resolves to a real display name
- *    via the `user_roles.display_name` → `raw_user_meta_data.display_name`
- *    → `email local-part` → `'A team member'` COALESCE chain.
+ *    via the `user_roles.display_name` → `user_profiles.full_name`
+ *    → `'A team member'` COALESCE chain (post-OPS-60 — S34 dropped the
+ *    `email`-derived branch from the function body when the function
+ *    was flipped SECDEF→INVOKER B-strict).
  * 3. An unknown UUID returns a row with `display_name = 'A team member'`
  *    — NOT a dropped row. This is the C-1 fix from the spec
  *    verification report: the function projects `req.id` from the
@@ -39,7 +41,7 @@ import { getTestUserId } from './helpers/auth-session';
 // ---------------------------------------------------------------------------
 
 const PIPELINE_UUID = 'a0000000-0000-4000-8000-000000000001';
-// Resolved at beforeAll from email via auth admin API (S186 WP-C — no
+// Resolved at beforeAll via test-user lookup helper (S186 WP-C — no
 // more hardcoded OLD-project UUIDs).
 let TEST_USER_1: string = '';
 /** UUID in the test range that is GUARANTEED to not exist in auth.users. */
@@ -76,12 +78,11 @@ describe('get_user_display_names — live SQL function', () => {
     expect(data!.length).toBe(1);
     expect(data![0].user_id).toBe(PIPELINE_UUID);
     expect(data![0].display_name).toBe('Pipeline (system)');
-    // The email is projected from auth.users.email via the LEFT JOIN —
-    // the pipeline service account's email is stable.
-    expect(data![0].email).toBe('pipeline@system.knowledge-hub.internal');
+    // S34 OPS-60: email column dropped from RETURNS (B-strict refactor).
+    // No `.email` assertion — the SQL function no longer projects email.
   });
 
-  it('resolves TEST_USER_1 via the user_roles → raw_user_meta_data → email COALESCE chain', async () => {
+  it('resolves TEST_USER_1 via the user_roles → user_profiles.full_name COALESCE chain', async () => {
     const { data, error } = await serviceClient.rpc('get_user_display_names', {
       user_ids: [TEST_USER_1],
     });
@@ -96,7 +97,9 @@ describe('get_user_display_names — live SQL function', () => {
     // the way through, which is a regression.
     expect(data![0].display_name).not.toBe('A team member');
     expect(data![0].display_name.length).toBeGreaterThan(0);
-    expect(data![0].email).toBe('test.user1@test-kb-aish.co.uk');
+    // S34 OPS-60: email column dropped from RETURNS (B-strict refactor).
+    // The COALESCE chain is now ur.display_name → up.full_name →
+    // 'A team member' — the previous email-prefix fallback was removed.
   });
 
   it('returns "A team member" for an unknown UUID', async () => {
@@ -109,9 +112,7 @@ describe('get_user_display_names — live SQL function', () => {
     expect(data!.length).toBe(1);
     expect(data![0].user_id).toBe(UNKNOWN_UUID);
     expect(data![0].display_name).toBe('A team member');
-    // The email is NULL because `u.email` is NULL when the LEFT JOIN
-    // has no match.
-    expect(data![0].email).toBeNull();
+    // S34 OPS-60: email column dropped from RETURNS (B-strict refactor).
   });
 
   it('returns an empty array for an empty input array', async () => {

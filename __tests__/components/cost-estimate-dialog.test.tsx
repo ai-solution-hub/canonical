@@ -70,6 +70,11 @@ describe('CostEstimateDialog', () => {
 
     renderDialog();
     expect(screen.getByText('Cost Estimate')).toBeInTheDocument();
+    // Drain the fetch promise so the resulting setState fires inside an act
+    // boundary rather than after teardown ("wrapped into act(...)" warning).
+    await waitFor(() => {
+      expect(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+    });
   });
 
   it('does not render content when open is false', () => {
@@ -89,6 +94,11 @@ describe('CostEstimateDialog', () => {
         /Estimated API cost for drafting all eligible questions/,
       ),
     ).toBeInTheDocument();
+    // Drain the fetch promise so the resulting setState fires inside an act
+    // boundary rather than after teardown ("wrapped into act(...)" warning).
+    await waitFor(() => {
+      expect(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+    });
   });
 
   // ---- Loading state ----

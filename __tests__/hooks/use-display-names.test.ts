@@ -197,9 +197,13 @@ describe('useDisplayNames', () => {
       wrapper: createWrapper(),
     });
 
-    await new Promise((r) => setTimeout(r, 100));
-    // Should not crash, just returns empty map
-    expect(result.current.size).toBe(0);
+    // waitFor drains the failed-fetch setState so it lands inside an act
+    // boundary, not after teardown ("wrapped into act(...)" warning).
+    await waitFor(() => {
+      // Should not crash, just returns empty map
+      expect(result.current.size).toBe(0);
+    });
+    expect(mockFetch).toHaveBeenCalled();
   });
 
   // -----------------------------------------------------------------------

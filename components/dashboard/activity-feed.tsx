@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useSyncExternalStore,
-} from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Edit3,
@@ -19,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useDisplayNames } from '@/hooks/use-display-names';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { formatRelativeDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
@@ -31,19 +26,6 @@ export type ActivityEventFilter =
   | 'bid'
   | 'system';
 export type ActivityDateRange = 'all' | 'today' | 'week' | 'month';
-
-function subscribeToClientMount(onStoreChange: () => void) {
-  onStoreChange();
-  return () => {};
-}
-
-function getClientMountedSnapshot() {
-  return true;
-}
-
-function getServerMountedSnapshot() {
-  return false;
-}
 
 interface ActivityFeedProps {
   className?: string;
@@ -167,11 +149,7 @@ export function ActivityFeed({
   eventFilter = 'all',
   dateRange = 'all',
 }: ActivityFeedProps) {
-  const mounted = useSyncExternalStore(
-    subscribeToClientMount,
-    getClientMountedSnapshot,
-    getServerMountedSnapshot,
-  );
+  const mounted = useHydrated();
   const [activities, setActivities] = useState<GroupedActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);

@@ -236,8 +236,11 @@ describe('useQAProvenance', () => {
       { wrapper: createWrapper() },
     );
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(result.current.relatedQA).toEqual([]);
+    // waitFor drains the TanStack Query enable-check + any setState so the
+    // asserted state lands inside an act boundary, not after teardown.
+    await waitFor(() => {
+      expect(result.current.relatedQA).toEqual([]);
+    });
   });
 
   it('does not fetch related Q&A when isQAPair is false', async () => {
@@ -277,13 +280,16 @@ describe('useQAProvenance', () => {
       wrapper: createWrapper(),
     });
 
-    await new Promise((r) => setTimeout(r, 50));
-    // fetch should not have been called with /layers URL
-    const layerCalls = mockFetch.mock.calls.filter(
-      (c: unknown[]) =>
-        typeof c[0] === 'string' && (c[0] as string).includes('/layers'),
-    );
-    expect(layerCalls).toHaveLength(0);
+    // waitFor drains the TanStack Query enable-check + any setState so the
+    // asserted state lands inside an act boundary, not after teardown.
+    await waitFor(() => {
+      // fetch should not have been called with /layers URL
+      const layerCalls = mockFetch.mock.calls.filter(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' && (c[0] as string).includes('/layers'),
+      );
+      expect(layerCalls).toHaveLength(0);
+    });
   });
 
   it('fetches layers when content_layers feature is enabled', async () => {
@@ -314,8 +320,11 @@ describe('useQAProvenance', () => {
       wrapper: createWrapper(),
     });
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(result.current.topicLayers).toEqual([]);
+    // waitFor drains the TanStack Query enable-check + any setState so the
+    // asserted state lands inside an act boundary, not after teardown.
+    await waitFor(() => {
+      expect(result.current.topicLayers).toEqual([]);
+    });
   });
 
   // -----------------------------------------------------------------------

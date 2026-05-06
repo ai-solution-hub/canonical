@@ -147,7 +147,7 @@ describe('QuickReviewActions', () => {
     });
   });
 
-  it('click verify calls stopPropagation', () => {
+  it('click verify calls stopPropagation', async () => {
     const parentClick = vi.fn();
 
     renderWithQuery(
@@ -163,6 +163,18 @@ describe('QuickReviewActions', () => {
 
     fireEvent.click(screen.getByLabelText('Verify'));
     expect(parentClick).not.toHaveBeenCalled();
+    // Drain the verify-mutation triggered by the click so its setState
+    // lands inside an act boundary, not after teardown ("wrapped into
+    // act(...)" warning).
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/review/action',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Verify')).toBeInTheDocument();
+    });
   });
 
   it('flag button opens popover on click', async () => {
@@ -383,8 +395,15 @@ describe('QuickReviewActions', () => {
       });
     });
 
-    // Cleanup
+    // Cleanup — settle the unmount-after-resolve setState inside an act
+    // boundary so it doesn't emit "wrapped into act(...)" on teardown.
     resolvePromise();
+    await waitFor(() => {
+      const buttons = screen.getAllByRole('button');
+      buttons.forEach((btn) => {
+        expect(btn).not.toBeDisabled();
+      });
+    });
   });
 
   it('falls back to useUserRole when canEdit prop is undefined', () => {

@@ -653,24 +653,36 @@ describe('useReviewActions', () => {
         wrapper: createWrapper(queryClient),
       });
 
-      // Start verify without awaiting
-      const verifyPromise = result.current.handleVerify();
-
-      // Wait for the mutation to be in-flight
-      await vi.waitFor(() => {
-        expect(mockMutationFetchJson).toHaveBeenCalled();
+      // Start verify without awaiting — wrap the call itself in act() so
+      // the mutation's onMutate setState lands inside an act boundary
+      // ("wrapped into act(...)" warning otherwise).
+      let verifyPromise!: Promise<unknown>;
+      await act(async () => {
+        verifyPromise = result.current.handleVerify();
+        // Yield once so onMutate fires inside this act block.
+        await Promise.resolve();
       });
 
-      expect(result.current.isActioning).toBe(true);
+      // Wait for the mutation to be in-flight. Both waitFors wrapped in
+      // act() because the polling itself triggers re-renders which would
+      // otherwise emit "wrapped into act(...)" warnings between the prior
+      // and trailing act blocks.
+      await act(async () => {
+        await vi.waitFor(() => {
+          expect(mockMutationFetchJson).toHaveBeenCalled();
+        });
+        await vi.waitFor(() => {
+          expect(result.current.isActioning).toBe(true);
+        });
+      });
 
       // Resolve and verify it returns to false
       resolveMutation();
       await act(async () => {
         await verifyPromise;
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.isActioning).toBe(false);
+        await vi.waitFor(() => {
+          expect(result.current.isActioning).toBe(false);
+        });
       });
     });
   });

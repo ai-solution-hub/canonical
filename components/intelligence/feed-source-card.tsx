@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useHydrated } from '@/hooks/use-hydrated';
 import type { FeedSource } from '@/hooks/intelligence/use-feed-sources';
 
 interface FeedSourceCardProps {
@@ -32,19 +33,6 @@ interface FeedSourceCardProps {
   onDelete: () => void;
   onToggleActive: () => void;
   canAdmin: boolean;
-}
-
-function subscribeToClientMount(onStoreChange: () => void) {
-  onStoreChange();
-  return () => {};
-}
-
-function getClientMountedSnapshot() {
-  return true;
-}
-
-function getServerMountedSnapshot() {
-  return false;
 }
 
 function formatRelativeTime(dateString: string | null): string {
@@ -97,11 +85,7 @@ export function FeedSourceCard({
   onToggleActive,
   canAdmin,
 }: FeedSourceCardProps) {
-  const mounted = useSyncExternalStore(
-    subscribeToClientMount,
-    getClientMountedSnapshot,
-    getServerMountedSnapshot,
-  );
+  const mounted = useHydrated();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const TypeIcon =
     (source.source_type && SOURCE_TYPE_ICONS[source.source_type]) ?? Rss;

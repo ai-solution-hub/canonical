@@ -10,6 +10,8 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
   checkFirecrawlApiKey: vi.fn(),
+  isGoogleNewsUrl: vi.fn(() => false),
+  resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
@@ -20,9 +22,13 @@ vi.mock('@/lib/ai/classify', () => ({
 }));
 
 const mockGenerateEmbedding = vi.fn();
-vi.mock('@/lib/ai/embed', () => ({
-  generateEmbedding: (...args: unknown[]) => mockGenerateEmbedding(...args),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: (...args: unknown[]) => mockGenerateEmbedding(...args),
+  };
+});
 
 // Import after mocks are set up
 // We test the embedding caching through runPipeline which calls loadOrGenerateCompanyEmbedding
@@ -54,10 +60,6 @@ describe('Company embedding caching', () => {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'si_processing_queue') {
           return {
-            MAX_EMBEDDING_CHARS: 24_000,
-            getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-            getEmbeddingDimensions: vi.fn(() => 1024),
-
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ data: [], error: null }),
             }),

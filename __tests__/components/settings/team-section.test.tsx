@@ -467,13 +467,19 @@ describe('TeamSection — Responsive single list', () => {
 // ---------------------------------------------------------------------------
 
 describe('TeamSection — Loading and empty states', () => {
-  it('shows loading spinner initially', () => {
+  it('shows loading spinner initially', async () => {
     // Never resolve the fetch
     fetchMock.mockImplementation(() => new Promise(() => {}));
     render(<TeamSection />);
     expect(
       screen.getByText('', { selector: '.animate-spin' }),
     ).toBeInTheDocument();
+    // Drain the supabase.auth.getUser path — it calls setCurrentUserId,
+    // which fires after render and would otherwise emit "wrapped into
+    // act(...)" when the component unmounts at teardown.
+    await waitFor(() => {
+      expect(mockGetUser).toHaveBeenCalled();
+    });
   });
 
   it('shows empty state when no users', async () => {

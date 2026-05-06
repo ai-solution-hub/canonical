@@ -70,12 +70,13 @@ vi.mock('@/lib/supabase/safe', () => ({
   isOk: (r: { ok: boolean }) => r.ok,
 }));
 
-vi.mock('@/lib/ai/embed', () => ({
-  generateEmbedding: mocks.generateEmbedding,
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn().mockReturnValue('text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn().mockReturnValue(1024),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: mocks.generateEmbedding,
+  };
+});
 
 // Stub the lazy-import shims used by the publish branch (classify, chunk,
 // pipeline-run). These are dynamic imports inside the handler so vi.mock the

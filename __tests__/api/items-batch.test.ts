@@ -93,13 +93,13 @@ vi.mock('next/headers', () => ({
 }));
 
 // Mock AI processing modules — we don't want real AI calls in tests
-vi.mock('@/lib/ai/embed', () => ({
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn(() => 1024),
-
-  generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+  };
+});
 
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn().mockResolvedValue(undefined),

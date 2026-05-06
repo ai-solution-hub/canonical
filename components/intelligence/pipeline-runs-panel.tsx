@@ -2,26 +2,14 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react';
-import { useSyncExternalStore } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { useUserRole } from '@/hooks/use-user-role';
 import type { PipelineRunsRecentResponse } from '@/app/api/admin/pipeline-runs/recent/route';
-function subscribeToClientMount(onStoreChange: () => void) {
-  onStoreChange();
-  return () => {};
-}
-
-function getClientMountedSnapshot() {
-  return true;
-}
-
-function getServerMountedSnapshot() {
-  return false;
-}
 
 /**
  * Admin dashboard tile showing the last 24h of background cron health.
@@ -41,11 +29,7 @@ function getServerMountedSnapshot() {
  * ```
  */
 export function PipelineRunsPanel() {
-  const mounted = useSyncExternalStore(
-    subscribeToClientMount,
-    getClientMountedSnapshot,
-    getServerMountedSnapshot,
-  );
+  const mounted = useHydrated();
   // Defence-in-depth: even if a caller forgets to gate this panel to admins,
   // render nothing for non-admin users. The backing `/api/admin/pipeline-runs/recent`
   // endpoint is also admin-only.

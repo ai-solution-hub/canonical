@@ -47,18 +47,24 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
   checkFirecrawlApiKey: vi.fn(),
+  // OPS-57: pipeline now branches on isGoogleNewsUrl + resolveGoogleNewsUrl
+  // before normalising for feed_articles.external_url. Tests in this file
+  // exercise non-Google-News URLs, so these mocks pass-through and short-
+  // circuit the branch.
+  isGoogleNewsUrl: vi.fn(() => false),
+  resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
   scoreRelevance: vi.fn(),
 }));
-vi.mock('@/lib/ai/embed', () => ({
-  MAX_EMBEDDING_CHARS: 24_000,
-  getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-  getEmbeddingDimensions: vi.fn(() => 1024),
-
-  generateEmbedding: vi.fn(),
-}));
+vi.mock('@/lib/ai/embed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/embed')>();
+  return {
+    ...actual,
+    generateEmbedding: vi.fn(),
+  };
+});
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),
 }));
@@ -129,6 +135,137 @@ describe('processFeedSource', () => {
     const result = await processFeedSource(mockSupabase, source, null, null);
     expect(result.feedSourceId).toBe('source-1');
     expect(result.articlesFound).toBe(0);
+  });
+
+  it('resolves Google News URLs before normalising on the item path (OPS-57 regression guard)', async () => {
+    // Future-regression guard for OPS-57 (S32 W1, fix `ac389433`). Without
+    // this unit-level assertion, the only signal is the gated
+    // `INTEGRATION_INTELLIGENCE=1` integration test — which does not run in
+    // default PR CI. A future S189-style removal of the
+    // `isGoogleNewsUrl ? await resolveGoogleNewsUrl(item.url) : item.url`
+    // branch would only surface in manual one-shot runs.
+    const { pollFeed } = await import('@/lib/intelligence/feed-poller');
+    const contentExtractor =
+      await import('@/lib/intelligence/content-extractor');
+
+    const googleNewsUrl = 'https://news.google.com/articles/CBMiabc123';
+    const resolvedUrl = 'https://www.bbc.co.uk/news/uk-12345';
+
+    vi.mocked(contentExtractor.isGoogleNewsUrl).mockImplementation((url) =>
+      url.includes('news.google.com'),
+    );
+    vi.mocked(contentExtractor.resolveGoogleNewsUrl).mockResolvedValue(
+      resolvedUrl,
+    );
+    vi.mocked(contentExtractor.normaliseUrl).mockImplementation(
+      (url: string) => url,
+    );
+
+    vi.mocked(pollFeed).mockResolvedValue({
+      feedSourceId: 'source-gn-1',
+      status: 'success',
+      items: [
+        {
+          title: 'BBC Article via Google News',
+          url: googleNewsUrl,
+          guid: 'gn-guid-1',
+          publishedAt: '2026-05-06T10:00:00Z',
+          summary: 'Summary',
+          contentEncoded: null,
+          categories: [],
+        },
+      ],
+      etag: null,
+      lastModified: null,
+    });
+
+    const mockSupabase = {
+      from: vi.fn().mockImplementation(() => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi
+              .fn()
+              .mockResolvedValue({ data: { id: 'fa-gn-1' }, error: null }),
+          }),
+          error: null,
+        }),
+      })),
+    } as any;
+
+    const source = {
+      id: 'source-gn-1',
+      workspace_id: 'ws-1',
+      name: 'Google News Feed',
+      url: 'https://news.google.com/rss/search?q=education',
+      etag: null,
+      last_modified: null,
+      polling_interval_minutes: 30,
+      consecutive_failures: 0,
+      article_count: 0,
+    };
+
+    await processFeedSource(mockSupabase, source, null, null);
+
+    // 1. resolveGoogleNewsUrl invoked with the raw Google News wrapper.
+    expect(
+      vi.mocked(contentExtractor.resolveGoogleNewsUrl),
+    ).toHaveBeenCalledWith(googleNewsUrl);
+
+    // 2. normaliseUrl invoked with the RESOLVED URL — proves the resolution
+    // branch ran before normalisation. Reverting the OPS-57 fix removes
+    // resolveGoogleNewsUrl from the item path and normaliseUrl ends up
+    // called with the raw Google News URL instead, failing this expect.
+    expect(vi.mocked(contentExtractor.normaliseUrl)).toHaveBeenCalledWith(
+      resolvedUrl,
+    );
+
+    // 3. Strong regression guard: normaliseUrl must NEVER receive the raw
+    // Google News wrapper on the item path. This catches partial reverts
+    // (e.g. resolveGoogleNewsUrl called but its return value not used).
+    expect(vi.mocked(contentExtractor.normaliseUrl)).not.toHaveBeenCalledWith(
+      googleNewsUrl,
+    );
+
+    // 4. Call order: first resolveGoogleNewsUrl precedes the normaliseUrl
+    // call on the resolved URL (via Vitest's global invocationCallOrder
+    // monotonic counter — shared across all mock.fn instances).
+    const resolveOrders = vi.mocked(contentExtractor.resolveGoogleNewsUrl).mock
+      .invocationCallOrder;
+    const normaliseCalls = vi.mocked(contentExtractor.normaliseUrl).mock.calls;
+    const normaliseOrders = vi.mocked(contentExtractor.normaliseUrl).mock
+      .invocationCallOrder;
+    expect(resolveOrders.length).toBeGreaterThan(0);
+    const resolveCallOrder = resolveOrders[0];
+    const normaliseResolvedIndex = normaliseCalls.findIndex(
+      (args) => args[0] === resolvedUrl,
+    );
+    expect(normaliseResolvedIndex).toBeGreaterThanOrEqual(0);
+    expect(normaliseOrders[normaliseResolvedIndex]).toBeGreaterThan(
+      resolveCallOrder,
+    );
+
+    // Restore module-default mocks (top-of-file `vi.mock` block) so the
+    // overrides above do not leak into subsequent tests that exercise
+    // Google News URLs with the pre-OPS-57 expectations (e.g. the test
+    // at line ~600 asserts feed_articles preserves the raw wrapper URL).
+    vi.mocked(contentExtractor.isGoogleNewsUrl).mockImplementation(() => false);
+    vi.mocked(contentExtractor.resolveGoogleNewsUrl).mockImplementation(
+      (url: string) => Promise.resolve(url),
+    );
+    vi.mocked(contentExtractor.normaliseUrl).mockImplementation(
+      (url: string) => url,
+    );
   });
 
   it('skips content item creation when no company profile exists', async () => {

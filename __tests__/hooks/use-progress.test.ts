@@ -298,8 +298,11 @@ describe('useProgress', () => {
       wrapper: createWrapper(),
     });
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(mockToast.success).not.toHaveBeenCalled();
+    // waitFor drains useEffect setState so it lands inside an act boundary,
+    // not after teardown ("wrapped into act(...)" warning).
+    await waitFor(() => {
+      expect(mockToast.success).not.toHaveBeenCalled();
+    });
   });
 
   it('does not show milestone toast twice for the same milestone', async () => {

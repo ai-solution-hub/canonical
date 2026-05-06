@@ -213,7 +213,7 @@ export async function getItemProvenance(
   const displayNames =
     draftUserIds.length > 0
       ? await resolveUserDisplayNames(supabase, draftUserIds)
-      : new Map<string, { display_name: string; email: string | null }>();
+      : new Map<string, { display_name: string }>();
 
   // 7. Resolve bid workspace names
   const projectIds = recentDraftsResult

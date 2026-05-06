@@ -241,5 +241,11 @@ describe('MetadataSidebar — classification details admin-only guard (P1-6 F2)'
     expect(
       screen.queryByText(/classified as Corporate/i),
     ).not.toBeInTheDocument();
+    // Drain the supabase quality-flags fetch (mockFetchFlags) so its
+    // setState lands inside an act boundary, not after teardown
+    // ("wrapped into act(...)" warning).
+    await waitFor(() => {
+      expect(mockFetchFlags).toHaveBeenCalled();
+    });
   });
 });

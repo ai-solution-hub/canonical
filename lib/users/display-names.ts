@@ -18,21 +18,32 @@
  *      March 2026 code review.
  *
  * Both are closed by a single SQL round trip via
- * `public.get_user_display_names(uuid[])` (SECURITY DEFINER, GRANTed to
- * `authenticated` + `service_role`). The function guarantees exactly one
- * row per input UUID (it projects `req.id` from `unnest(user_ids)`, not
- * the LEFT JOIN result — see migration comment for C-1 context) and
- * hard-codes `'Pipeline (system)'` for the pipeline service account.
+ * `public.get_user_display_names(uuid[])` (post-S34 OPS-60: SECURITY
+ * INVOKER, EXECUTE GRANTed to `authenticated` + `service_role`, with
+ * a permissive lookup-only RLS policy + column GRANT SELECT (id,
+ * full_name) on `user_profiles` so any authenticated tier can resolve
+ * display names). The function guarantees exactly one row per input
+ * UUID (it projects `req.id` from `unnest(user_ids)`, not the LEFT
+ * JOIN result — see migration comment for C-1 context) and hard-codes
+ * `'Pipeline (system)'` for the pipeline service account.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
-/** @public */
+/**
+ * @public
+ *
+ * S34 OPS-60: `email` field removed. The SQL function previously returned
+ * `email` from `up.email`, but no caller actually USED `.email` (verified
+ * S33 V_W2). Dropping it lets `get_user_display_names` flip from
+ * SECURITY DEFINER to SECURITY INVOKER without granting authenticated
+ * direct read access to email — see migration
+ * `20260506115807_s34_w2b_ops60_get_user_display_names_invoker.sql`.
+ */
 export interface UserDisplayInfo {
   user_id: string;
   display_name: string;
-  email: string | null;
 }
 
 /**
@@ -86,7 +97,6 @@ export async function resolveUserDisplayNames(
     result.set(row.user_id, {
       user_id: row.user_id,
       display_name: row.display_name ?? 'A team member',
-      email: row.email,
     });
   }
 

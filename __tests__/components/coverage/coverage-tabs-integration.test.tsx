@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
@@ -141,7 +141,13 @@ describe('Coverage tabs — ConceptHelp a11y integration', () => {
       name: /what does priority gaps mean\?/i,
     });
 
-    helper.focus();
+    // Wrap focus in act() so Radix Tooltip's open setState lands inside an
+    // act boundary, not after teardown ("wrapped into act(...)" warning).
+    await act(async () => {
+      helper.focus();
+      // Yield twice so Radix's internal setTimeouts (delayed open) settle.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(helper).toHaveFocus();
 
     await waitFor(() => {
@@ -153,10 +159,17 @@ describe('Coverage tabs — ConceptHelp a11y integration', () => {
     });
 
     // Also verify it is reachable by keyboard tabbing (not just direct focus).
-    helper.blur();
+    await act(async () => {
+      helper.blur();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     await user.tab();
     // The helper should be in the tab order (it is the first focusable
     // element in the rendered tree).
     expect(document.activeElement).toBe(helper);
+    // Final drain so any Radix close-transition setStates settle inside act.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
   });
 });
