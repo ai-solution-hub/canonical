@@ -18,3 +18,5 @@ SELECT cron.schedule(
     WHERE status IN ('completed', 'failed', 'cancelled', 'dead_lettered')
       AND completed_at < NOW() - INTERVAL '30 days'$$
 );
+
+-- Re-affirm marker (S226 close-out): spec path in line 3 comment now points at .planning/.archive/.specs/ (no DDL change).
