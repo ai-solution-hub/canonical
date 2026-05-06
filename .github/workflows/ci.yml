@@ -882,3 +882,14 @@ jobs:
             exit 1
           fi
           echo "All upstream CI jobs passed or skipped."
+
+      # WP-G4.7 — Vercel deploy gate. Dispatches the workflow status to
+      # Vercel so prod deploys can be gated on this check. Vercel-side
+      # configuration: project must opt in to the named check via the
+      # Vercel dashboard. `if: always()` so Vercel sees both success and
+      # failure signals — without it, Vercel would only ever see green.
+      - name: Notify Vercel — ci-summary status
+        if: always()
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: 'Vercel - knowledge-hub: ci-summary'

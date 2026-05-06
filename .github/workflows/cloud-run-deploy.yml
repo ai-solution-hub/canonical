@@ -283,3 +283,13 @@ jobs:
             fi
             echo "OK: $JOB_NAME deployed"
           done
+
+      # WP-G4.7 — Vercel deploy gate. Dispatches the workflow status to
+      # Vercel so prod deploys can be gated on the Cloud Run pipeline-
+      # image build + deploy chain. `if: always()` so Vercel sees both
+      # success and failure — without it Vercel would only ever see green.
+      - name: Notify Vercel — cloud-run-deploy status
+        if: always()
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: 'Vercel - knowledge-hub: cloud-run-deploy'
