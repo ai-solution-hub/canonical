@@ -127,10 +127,7 @@ export async function updateNotificationPreferences(
 // Wire shape uses snake_case (see lib/ingest/markdown-batch-schema.ts) — the
 // route maps to camelCase before calling the orchestrator.
 
-import type {
-  MarkdownIngestAnalysis,
-  MarkdownBatchResultsSummary,
-} from '@/types/ingest';
+import type { MarkdownIngestAnalysis } from '@/types/ingest';
 
 /** Per-file override on the wire (snake_case mirror of MarkdownPerFileOverride). */
 export interface MarkdownPerFileOverrideWire {
@@ -192,7 +189,15 @@ async function throwApiError(res: Response): Promise<never> {
 export interface PipelineRunRow {
   id: string;
   pipeline_name: string;
-  status: 'running' | 'completed' | 'completed_with_errors' | 'failed';
+  // S226 §5.4.4 W1-IMPL: 'cancelled' added — pipeline_runs.status now
+  // includes user-initiated cancellation (cooperative-cancel flow per
+  // §10 D-8 ratified flip — markdown_batch opts in).
+  status:
+    | 'running'
+    | 'completed'
+    | 'completed_with_errors'
+    | 'failed'
+    | 'cancelled';
   progress: {
     step?: string;
     steps_completed?: number;
@@ -259,17 +264,51 @@ export async function analyseMarkdownBatch(
 }
 
 /**
+ * Response shape returned by POST /api/ingest/markdown phase=import
+ * post-§5.4.4 W1-IMPL (S226). The route now returns HTTP 202 with a
+ * job_id + pipeline_run_id; the UI continues polling against
+ * `GET /api/pipeline-runs/[id]` (Pattern E preserved) until terminal
+ * state. Per docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md
+ * §7.5 + §7.6 step 1.
+ */
+/** @public */
+export interface ImportMarkdownQueuedResponse {
+  /** UUID of the processing_queue row (the worker job). */
+  job_id: string;
+  /** UUID of the pipeline_runs row pre-INSERTed by the producer
+   *  (Pattern 2 + Pattern E). The UI polls
+   *  `GET /api/pipeline-runs/${pipeline_run_id}` until terminal state. */
+  pipeline_run_id: string;
+  /** Always 'queued' on first call; reflects the queue lifecycle entry
+   *  point. Subsequent polling reads pipeline_runs.status which evolves
+   *  to 'running' (orchestrator at-start) → 'completed' /
+   *  'completed_with_errors' / 'failed' / 'cancelled'. */
+  status: 'queued';
+  /** True when the idempotency-key dedup matched an existing job (e.g.
+   *  AJAX retry of a same-batch POST). The UI shows a toast "Already
+   *  importing — joining the existing batch…" rather than starting
+   *  fresh polling. */
+  deduplicated: boolean;
+}
+
+/**
  * Import-phase fetcher — POST multipart to /api/ingest/markdown with
- * phase='import' + options JSON-stringified. Blocks for ~80-100s while the
- * orchestrator runs the per-file pipeline (spec §4.4 / §7.2 Pattern E).
+ * phase='import' + options JSON-stringified.
+ *
+ * Post-§5.4.4 (S226 W1-IMPL): the route returns HTTP 202 immediately
+ * with `{ job_id, pipeline_run_id, status: 'queued', deduplicated }`.
+ * The UI continues polling against `GET /api/pipeline-runs/[id]` (Pattern
+ * E preserved) until terminal state. Per spec §7.5 + §7.6.
+ *
+ * `MarkdownBatchResultsSummary` is no longer in the POST response — it
+ * lives on `pipeline_runs.result` post-completion (orchestrator's
+ * finaliseRun writes it). Consumers should read it off the polling
+ * response (`PipelineRunRow.result.results_summary`).
  */
 export async function importMarkdownBatch(args: {
   files: File[];
   options: MarkdownBatchWireOptions;
-}): Promise<{
-  pipeline_run_id: string;
-  results_summary: MarkdownBatchResultsSummary;
-}> {
+}): Promise<ImportMarkdownQueuedResponse> {
   const { files, options } = args;
   const formData = new FormData();
   formData.append('phase', 'import');
@@ -284,10 +323,34 @@ export async function importMarkdownBatch(args: {
   if (!res.ok) {
     return throwApiError(res);
   }
-  return res.json() as Promise<{
-    pipeline_run_id: string;
-    results_summary: MarkdownBatchResultsSummary;
-  }>;
+  return res.json() as Promise<ImportMarkdownQueuedResponse>;
+}
+
+/**
+ * Cancel an in-flight markdown_batch job. Per §5.4.4 §10 D-8 ratified
+ * flip: markdown_batch opts in to cooperative cancellation (poll
+ * cadence=1 — check before every file).
+ *
+ * PATCH /api/jobs/${jobId}/cancel:
+ *   - 200 + { jobId, status: 'cancelled' } on success (pending OR
+ *     processing-and-cooperative).
+ *   - 409 on race-loss (job already terminal). UI surfaces "Job
+ *     already finished — refresh for results."
+ *   - 404 on unknown job_id.
+ *   - 401 / 403 on auth failure.
+ */
+export async function cancelMarkdownBatchJob(
+  jobId: string,
+): Promise<{ jobId: string; status: 'cancelled' }> {
+  const res = await fetch(`/api/jobs/${jobId}/cancel`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    return throwApiError(res);
+  }
+  return res.json() as Promise<{ jobId: string; status: 'cancelled' }>;
 }
 
 export async function mutationFetchJson<T>(

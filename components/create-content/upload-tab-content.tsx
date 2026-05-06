@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -36,6 +36,7 @@ import { useFileUploadPipeline } from '@/hooks/use-file-upload-pipeline';
 import {
   analyseMarkdownBatch,
   importMarkdownBatch,
+  cancelMarkdownBatchJob,
   fetchPipelineRun,
   type MarkdownPerFileOverrideWire,
 } from '@/lib/query/fetchers';
@@ -157,10 +158,16 @@ export function UploadTabContent({
 
   // Pattern E (S212 W2): client generates pipeline_run_id BEFORE the import
   // mutation fires so the polling query can target /api/pipeline-runs/[id]
-  // immediately. Cleared when the mutation settles or the surface resets.
+  // immediately. Cleared when the surface resets.
   const [importPipelineRunId, setImportPipelineRunId] = useState<string | null>(
     null,
   );
+
+  // S226 §5.4.4: the import mutation now returns a job_id (HTTP 202 +
+  // queued). The UI tracks the job_id so the Cancel button can PATCH
+  // /api/jobs/${jobId}/cancel during polling. Cleared when the surface
+  // resets.
+  const [importJobId, setImportJobId] = useState<string | null>(null);
 
   const safeMdAnalyses = useMemo(
     () => mdAnalyses ?? EMPTY_ANALYSES,
@@ -179,6 +186,7 @@ export function UploadTabContent({
     setMdAutoSupersede(false);
     setMdResult(null);
     setImportPipelineRunId(null);
+    setImportJobId(null);
   }, []);
 
   const analyseMutation = useMutation({
@@ -198,6 +206,12 @@ export function UploadTabContent({
     },
   });
 
+  // S226 §5.4.4: post-migration the POST returns HTTP 202 with
+  // { job_id, pipeline_run_id, status: 'queued', deduplicated }. The
+  // mutation no longer carries the result envelope — that lives on
+  // pipeline_runs.result post-completion (orchestrator's finaliseRun
+  // writes it). The UI continues polling until terminal state and reads
+  // the summary off the polling response.
   const importMutation = useMutation({
     mutationFn: async (args: {
       rawFiles: File[];
@@ -211,23 +225,24 @@ export function UploadTabContent({
       setMdPhase('importing');
     },
     onSuccess: (data) => {
-      setMdResult({
-        pipeline_run_id: data.pipeline_run_id,
-        results_summary: data.results_summary,
-      });
-      setMdPhase('done');
+      // Track the job_id so the Cancel button can PATCH the cancel route.
+      setImportJobId(data.job_id);
+      // §7.6 step 4: dedup-hit toast — the UI is joining an existing
+      // batch rather than starting fresh. Polling continues against the
+      // same pipeline_run_id (server returned the existing job's id).
+      if (data.deduplicated) {
+        toast.info('Already importing — joining the existing batch…');
+      }
+      // Do NOT flip to 'done' here — the polling resolves to terminal
+      // state and the UI reads the summary off pipeline_runs.result.
     },
     onError: (err: unknown) => {
       const message =
         err instanceof Error ? err.message : 'Markdown import failed';
       toast.error(message);
       setMdPhase('reviewing');
-    },
-    onSettled: () => {
-      // Stop polling once the mutation resolves (success OR error). The
-      // final summary card consumes the resolved `data` payload directly,
-      // so we no longer need /api/pipeline-runs/[id] data after settle.
       setImportPipelineRunId(null);
+      setImportJobId(null);
     },
   });
 
@@ -236,7 +251,9 @@ export function UploadTabContent({
   // files_completed/files_total without waiting for the mutation to resolve.
   // Polling is gated on `mdPhase === 'importing'` and a non-null id; the
   // fetcher tolerates 404 (returns null) for the racy at-start window
-  // where the server's INSERT hasn't landed yet (~sub-100ms after send).
+  // where the producer's pre-INSERT hasn't landed yet (sub-100ms after
+  // send — though post-§5.4.4 the producer pre-INSERTs synchronously
+  // BEFORE returning the 202, so the UI should resolve immediately).
   // 1500 ms refetch cadence — fast enough for ~80-100 s imports to feel
   // alive without hammering the API.
   const { data: pipelineRun } = useQuery({
@@ -249,12 +266,80 @@ export function UploadTabContent({
     refetchInterval: 1500,
   });
 
+  // S226 §5.4.4: the import mutation no longer carries the result envelope
+  // (the route returns HTTP 202; the orchestrator writes the terminal
+  // pipeline_runs.result asynchronously). The polling query resolves the
+  // result once the orchestrator's finaliseRun has run. When status flips
+  // to a terminal value, copy the result into mdResult and advance to
+  // the 'done' phase.
+  useEffect(() => {
+    if (mdPhase !== 'importing' || !pipelineRun) return;
+    const terminalStatuses = [
+      'completed',
+      'completed_with_errors',
+      'failed',
+      'cancelled',
+    ];
+    if (!terminalStatuses.includes(pipelineRun.status)) return;
+
+    const resultCandidate = pipelineRun.result as
+      | { results_summary?: MarkdownBatchResultsSummary }
+      | null;
+    if (resultCandidate?.results_summary) {
+      setMdResult({
+        pipeline_run_id: pipelineRun.id,
+        results_summary: resultCandidate.results_summary,
+      });
+      setMdPhase('done');
+    } else if (pipelineRun.status === 'failed') {
+      // Failed run with no results envelope — surface the error_message
+      // and bounce back to the reviewing phase so the user can retry.
+      toast.error(pipelineRun.error_message ?? 'Markdown import failed');
+      setMdPhase('reviewing');
+    } else if (pipelineRun.status === 'cancelled') {
+      toast.info(
+        pipelineRun.error_message ?? 'Markdown import cancelled by user',
+      );
+      setMdPhase('reviewing');
+    }
+    // Stop polling when terminal — clear job_id (no-op if already cleared).
+    setImportJobId(null);
+  }, [mdPhase, pipelineRun]);
+
+  // S226 §5.4.4 D-8: Cancel mutation for the in-flight markdown_batch
+  // job. Wired to PATCH /api/jobs/${jobId}/cancel; on success the polling
+  // query resolves to status='cancelled' (pending) or
+  // 'completed_with_errors' (processing-and-cooperative). The Cancel
+  // button is visible whenever importJobId is set + mdPhase==='importing'.
+  const cancelMutation = useMutation({
+    mutationFn: async (jobId: string) => cancelMarkdownBatchJob(jobId),
+    onSuccess: () => {
+      toast.info('Cancellation requested. The batch will stop shortly.');
+      // Polling will surface terminal state (cancelled or
+      // completed_with_errors) and the useEffect above flips mdPhase.
+    },
+    onError: (err: unknown) => {
+      // 409 race-loss = job already finished; 404 = unknown job_id.
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Failed to cancel — refresh for results';
+      // Per spec §7.6: 409 toast guidance.
+      if (/409/.test(message) || /already/i.test(message)) {
+        toast.info('Job already finished — refresh for results.');
+      } else {
+        toast.error(message);
+      }
+    },
+  });
+
   // Destructure mutate functions to keep useCallback dep arrays referentially
   // stable (TanStack Query mutation objects are NOT stable per render — see
   // ESLint rule @tanstack/query/no-unstable-deps).
   const { mutate: analyseMutate, isPending: analyseIsPending } =
     analyseMutation;
   const { mutate: importMutate, isPending: importIsPending } = importMutation;
+  const { mutate: cancelMutate, isPending: cancelIsPending } = cancelMutation;
 
   const handleAnalyseMarkdownBatch = useCallback(() => {
     const rawFiles = files.map((f) => f.file);
@@ -300,6 +385,12 @@ export function UploadTabContent({
       },
     });
   }, [files, safeMdOverrides, mdAutoSupersede, importMutate]);
+
+  const handleCancelMarkdownBatch = useCallback(() => {
+    if (importJobId) {
+      cancelMutate(importJobId);
+    }
+  }, [importJobId, cancelMutate]);
 
   const handleMarkdownImportAnother = useCallback(() => {
     resetMarkdownBatch();
@@ -797,7 +888,7 @@ export function UploadTabContent({
             {/* Pattern E poll-driven detail — the polling query updates
                 this every 1.5s while the orchestrator runs. Pre-row-arrival
                 fallback ("Starting…") covers the racy ~sub-100ms window
-                where the server's at-start INSERT hasn't landed yet. */}
+                where the producer's pre-INSERT hasn't landed yet. */}
             {pipelineRun?.progress?.detail ? (
               <p
                 className="text-muted-foreground"
@@ -827,6 +918,26 @@ export function UploadTabContent({
               Imports of {files.length} file{files.length === 1 ? '' : 's'}{' '}
               typically take 80&ndash;100 seconds.
             </p>
+            {/* S226 §5.4.4 D-8: Cancel batch button. Visible whenever the
+                polled pipeline_runs.status === 'running' (mdPhase ===
+                'importing') AND we have a job_id. PATCHes
+                /api/jobs/${jobId}/cancel; the polling query then resolves
+                to a terminal status. */}
+            {importJobId &&
+              (!pipelineRun ||
+                pipelineRun.status === 'running') && (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelMarkdownBatch}
+                    disabled={cancelIsPending}
+                    data-testid="markdown-batch-cancel-running"
+                  >
+                    Cancel batch
+                  </Button>
+                </div>
+              )}
           </div>
         )}
       </div>
