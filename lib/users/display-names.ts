@@ -18,11 +18,14 @@
  *      March 2026 code review.
  *
  * Both are closed by a single SQL round trip via
- * `public.get_user_display_names(uuid[])` (SECURITY DEFINER, GRANTed to
- * `authenticated` + `service_role`). The function guarantees exactly one
- * row per input UUID (it projects `req.id` from `unnest(user_ids)`, not
- * the LEFT JOIN result — see migration comment for C-1 context) and
- * hard-codes `'Pipeline (system)'` for the pipeline service account.
+ * `public.get_user_display_names(uuid[])` (post-S34 OPS-60: SECURITY
+ * INVOKER, EXECUTE GRANTed to `authenticated` + `service_role`, with
+ * a permissive lookup-only RLS policy + column GRANT SELECT (id,
+ * full_name) on `user_profiles` so any authenticated tier can resolve
+ * display names). The function guarantees exactly one row per input
+ * UUID (it projects `req.id` from `unnest(user_ids)`, not the LEFT
+ * JOIN result — see migration comment for C-1 context) and hard-codes
+ * `'Pipeline (system)'` for the pipeline service account.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

@@ -9,8 +9,10 @@
  *    `'Pipeline (system)'`, regardless of its `user_roles.display_name`
  *    or `auth.users.raw_user_meta_data` contents.
  * 2. A known human user (TEST_USER_1) resolves to a real display name
- *    via the `user_roles.display_name` → `raw_user_meta_data.display_name`
- *    → `email local-part` → `'A team member'` COALESCE chain.
+ *    via the `user_roles.display_name` → `user_profiles.full_name`
+ *    → `'A team member'` COALESCE chain (post-OPS-60 — S34 dropped the
+ *    `email`-derived branch from the function body when the function
+ *    was flipped SECDEF→INVOKER B-strict).
  * 3. An unknown UUID returns a row with `display_name = 'A team member'`
  *    — NOT a dropped row. This is the C-1 fix from the spec
  *    verification report: the function projects `req.id` from the
@@ -39,7 +41,7 @@ import { getTestUserId } from './helpers/auth-session';
 // ---------------------------------------------------------------------------
 
 const PIPELINE_UUID = 'a0000000-0000-4000-8000-000000000001';
-// Resolved at beforeAll from email via auth admin API (S186 WP-C — no
+// Resolved at beforeAll via test-user lookup helper (S186 WP-C — no
 // more hardcoded OLD-project UUIDs).
 let TEST_USER_1: string = '';
 /** UUID in the test range that is GUARANTEED to not exist in auth.users. */
