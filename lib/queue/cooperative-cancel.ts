@@ -5,7 +5,7 @@
  * Spec sources:
  *   - `docs/specs/§5.4.2-batch-reclassify-spec.md` §10 D-9 (cooperative
  *     cancellation between items, ratified May 5 2026; poll cadence=10).
- *   - `docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md` §10 D-8
+ *   - `.planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md` §10 D-8
  *     (cooperative cancellation between files, ratified May 6 2026; poll
  *     cadence=1 because typical markdown batches are 1-3 files; every-10
  *     cadence would defeat the purpose).

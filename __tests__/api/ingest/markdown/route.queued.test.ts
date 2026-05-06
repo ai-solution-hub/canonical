@@ -2,7 +2,7 @@
  * Behavioural tests for `app/api/ingest/markdown/route.ts` (POST,
  * phase=import) — Session 226 W1-C.
  *
- * Spec: docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.5 +
+ * Spec: .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.5 +
  * §8 (ACs 1, 3, 4, 11) + auth contract from spec §5.3 D-1.
  *
  * Behaviour-focused: each test asserts on the OBSERVABLE HTTP CONTRACT

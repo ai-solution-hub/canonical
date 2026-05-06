@@ -1,7 +1,7 @@
 /**
  * `markdown_batch` queue handler — Session 226 W1-IMPL.
  *
- * Spec: `docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md` §3.1 (body
+ * Spec: `.planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md` §3.1 (body
  * interface), §4.1 (handler signature + result envelope), §4.3
  * (PermanentJobError conditions), §5.2 (continue-with-partial — inherited
  * from orchestrator), §10 D-8 (cooperative cancellation poll cadence=1),

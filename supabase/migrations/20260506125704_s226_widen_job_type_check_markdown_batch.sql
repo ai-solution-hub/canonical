@@ -1,6 +1,6 @@
 -- §5.4.4 markdown-batch migration: add 'markdown_batch' to
 -- processing_queue.job_type CHECK.
--- Per docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.1 +
+-- Per .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.1 +
 -- feedback_db_check_ts_union_paired_widening +
 -- feedback_out_of_band_psql_must_become_migration (idempotent DO-block).
 

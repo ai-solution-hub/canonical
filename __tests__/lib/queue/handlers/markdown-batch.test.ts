@@ -2,7 +2,7 @@
  * Behavioural unit tests for `lib/queue/handlers/markdown-batch.ts` —
  * Session 226 W1-C.
  *
- * Spec: docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §8 (12 ACs).
+ * Spec: .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md §8 (12 ACs).
  *
  * Behaviour-focused (per memory `feedback_e2e_no_workarounds` +
  * `OPS-56`): each test asserts on the OBSERVABLE CONTRACT — handler

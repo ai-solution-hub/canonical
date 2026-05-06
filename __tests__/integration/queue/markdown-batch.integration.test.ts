@@ -1,7 +1,7 @@
 /**
  * S226 W1-C — §5.4.4 markdown-batch integration tests.
  *
- * Spec: docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §8 ACs
+ * Spec: .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md §8 ACs
  * 1, 2, 3, 4, 7b, 8, 10, 12. (Handler-tier ACs 5/9 are unit-tested in
  * `__tests__/lib/queue/handlers/markdown-batch.test.ts`; UI-flow E2E
  * coverage stays in Playwright.)

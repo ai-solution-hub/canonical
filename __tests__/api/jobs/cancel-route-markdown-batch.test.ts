@@ -2,7 +2,7 @@
  * Behavioural tests for `app/api/jobs/[id]/cancel/route.ts` —
  * markdown_batch-specific coverage. Session 226 W1-C.
  *
- * Spec: docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §10 D-8
+ * Spec: .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md §10 D-8
  * (cooperative-cancel ratified flip; markdown_batch joins the
  * `COOPERATIVELY_CANCELLABLE_JOB_TYPES` allow-list).
  *

@@ -13,7 +13,7 @@
 //
 // Spec sources:
 //   - docs/specs/ep2-markdown-ui-ingest-spec.md §7.2 Pattern E.
-//   - docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.7 +
+//   - .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.7 +
 //     §10 D-11 (Path B ratified — UPSERT with ignoreDuplicates so the
 //     orchestrator's at-start INSERT does not collide with a producer
 //     pre-INSERT under Pattern 2).

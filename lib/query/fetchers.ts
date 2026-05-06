@@ -268,7 +268,7 @@ export async function analyseMarkdownBatch(
  * post-§5.4.4 W1-IMPL (S226). The route now returns HTTP 202 with a
  * job_id + pipeline_run_id; the UI continues polling against
  * `GET /api/pipeline-runs/[id]` (Pattern E preserved) until terminal
- * state. Per docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md
+ * state. Per .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md
  * §7.5 + §7.6 step 1.
  */
 /** @public */
