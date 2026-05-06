@@ -1,23 +1,38 @@
 // app/api/ingest/markdown/route.ts
 //
 // EP2 §1.11 markdown-batch UI ingest — dedicated POST route.
-// Spec: docs/specs/ep2-markdown-ui-ingest-spec.md §5.1-§5.5
-//   (D-D9 dedicated route resolved S199 WP3.1).
+// Spec sources:
+//   - docs/specs/ep2-markdown-ui-ingest-spec.md §5.1-§5.5
+//     (D-D9 dedicated route resolved S199 WP3.1).
+//   - docs/specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.5
+//     (S226 W1-IMPL queue migration: phase=import flips to 202+enqueue).
 // Plan: docs/plans/§1.11-ep2-build-plan.md EP2-T4 row.
 //
-// Two phases:
-//   - phase=analyse → read-only pre-flight; returns `{ analysis }`.
-//                     No `pipeline_runs` row.
-//   - phase=import  → full pipeline; orchestrator opens pipeline_runs row,
-//                     inserts content_items, returns
-//                     `{ pipeline_run_id, results_summary }`.
+// Two phases (post-§5.4.4 phase asymmetry per R8):
+//   - phase=analyse → SYNC — read-only pre-flight; returns 200 with
+//                     `{ analysis }`. No `pipeline_runs` row. Unchanged
+//                     by S226 (analyse is fast + read-only; no progress
+//                     signal needed). Inherits AC-11.
+//   - phase=import  → QUEUED (S226) — pre-allocates `pipelineRunId`,
+//                     INSERTs `pipeline_runs` row at-enqueue (Pattern 2 +
+//                     Pattern E preservation per spec §6.3), enqueues
+//                     `markdown_batch` job, returns 202 with
+//                     `{ job_id, pipeline_run_id, status: 'queued',
+//                       deduplicated }`.
+//                     The cron worker (lib/queue/dispatch.ts case
+//                     'markdown_batch') invokes runMarkdownBatchJob which
+//                     delegates to the existing orchestrateMarkdownBatch
+//                     unchanged — Pattern E mid-flight progress writes
+//                     preserved (D-10 RATIFIED MANDATORY).
 //
 // Auth: admin OR editor (spec §5.3 D-1). Editors get silent-ignore on
 // admin-only override flags inside the orchestrator (skip_dedup,
 // auto_supersede) — the route forwards everything verbatim.
 //
-// `maxDuration=300` is scoped to THIS route only — EP3's
-// `app/api/upload/route.ts:12` keeps `maxDuration=60` unchanged.
+// maxDuration=60 (S226 §10 D-7 ratified default — symmetric with §5.4.1
+// + §5.4.2 producer routes). Pre-S226 the route held the AJAX connection
+// open for the full sync batch (~80-100s for 10 files); post-S226 it
+// pre-INSERTs the pipeline_runs row + enqueues the job in milliseconds.
 //
 // Validation:
 //   - `parseBody(BatchOptionsSchema, parsed)` for the JSON `options` field
@@ -26,8 +41,24 @@
 //   - File-shape validation is done inline (multipart File objects, not
 //     a JSON body) — extension / size / count / UTF-8 decode.
 //
-// All pipeline_runs writes happen INSIDE `orchestrateMarkdownBatch` —
-// the route is a thin delegator (spec §5.4 + plan EP2-T4 row guidance).
+// pipeline_runs Pattern 2 (per spec §6.3 +
+// `feedback_pipeline_runs_pattern_2_direct_update`): the producer pre-
+// INSERTs the row at-enqueue using the service-role client (RLS bypass
+// because pipeline_runs has admin-only INSERT and no UPDATE/DELETE
+// policies — orchestrator L728-732 documents this). The orchestrator's
+// at-start INSERT inside the worker idempotently adopts the pre-existing
+// row via the §7.7 Path B UPSERT (D-11 ratified) so no PK collision.
+//
+// Idempotency (per spec §3.2 + D-9 ratified flip): the dedup formula is
+//   markdown_batch:${pipelineRunId}:${YYYY-MM-DD}:${fileSetHash}
+// where fileSetHash = sha256( JSON.stringify( files.sort by filename,
+// then [{filename, contentSha256: sha256(contentBytes)}] ) ) sliced 16
+// hex chars. D-9 RATIFIED FLIP: per-file content SHA-256 nested in the
+// file-set JSON, NOT a single concatenated buffer (the original authored
+// default was filenames+sizes only — flipped to per-file content hash for
+// collision-resistance over memory efficiency).
+
+import { createHash, randomUUID } from 'node:crypto';
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
@@ -42,10 +73,17 @@ import {
   type MarkdownIngestFile,
 } from '@/lib/ingest/markdown-orchestrator';
 import { BatchOptionsSchema } from '@/lib/ingest/markdown-batch-schema';
+import { enqueueQueueJob } from '@/lib/queue/enqueue';
+import { buildIdempotencyKey } from '@/lib/queue/envelope';
+import type { MarkdownBatchBody } from '@/lib/queue/handlers/markdown-batch';
+import { sb } from '@/lib/supabase/safe';
+import { createServiceClient } from '@/lib/supabase/server';
+import type { Json } from '@/supabase/types/database.types';
 
-// Per-route Vercel function-duration budget. EP2 imports can take ~80-100s
-// for 10 files (spec §5.4 line 587). Scoped to this route only.
-export const maxDuration = 300;
+// Per-route Vercel function-duration budget. Post-§5.4.4 the route does
+// pre-conditions + INSERT + enqueue → bounded to ~seconds. 60s matches
+// the §5.4.1 + §5.4.2 producer ratified default per spec §10 D-7.
+export const maxDuration = 60;
 
 /** Per-file size ceiling (D6: 1 MB). */
 const MAX_FILE_SIZE_BYTES = 1_048_576;
@@ -225,35 +263,136 @@ export async function POST(req: NextRequest) {
     }
     const validatedOptions = optionsValidation.data;
 
-    // Map the wire shape (snake_case) to the orchestrator's camelCase
-    // contract on `MarkdownBatchOptions`.
-    const orchestratorOptions = {
-      perFileOverrides: validatedOptions.per_file_overrides?.map((o) => ({
-        filename: o.filename,
-        excluded: o.excluded,
-        draftOrFinal: o.draft_or_final,
-        skipDedup: o.skip_dedup,
-      })),
-      tag: validatedOptions.batch?.tag ?? null,
-      author: validatedOptions.batch?.author ?? null,
-      autoSupersede: validatedOptions.batch?.auto_supersede,
-      // Pattern E client-UUID flow (S212 W2). When the UI pre-generates
-      // a UUID and sends it via the wire field, the orchestrator's at-
-      // start INSERT adopts it verbatim so polling against
-      // /api/pipeline-runs/[id] resolves the same row.
-      pipelineRunIdOverride: validatedOptions.pipeline_run_id ?? null,
-    };
+    // ──────────────────────────────────────────────────────────────────
+    // S226 §5.4.4 W1-IMPL: phase=import is QUEUED.
+    //
+    // Pattern E client-UUID flow (S212 W2 + spec §7.5): adopt
+    // validatedOptions.pipeline_run_id when the UI pre-generates one;
+    // else generate fresh server-side. Either way, the UI polls against
+    // /api/pipeline-runs/[id] using the SAME UUID.
+    // ──────────────────────────────────────────────────────────────────
+    const pipelineRunId = validatedOptions.pipeline_run_id ?? randomUUID();
+    const callerRole: 'admin' | 'editor' = role === 'admin' ? 'admin' : 'editor';
 
-    const result = await orchestrateMarkdownBatch({
-      phase: 'import',
-      files: decodedFiles,
-      supabase,
-      callerUserId: user.id,
-      callerRole: role === 'admin' ? 'admin' : 'editor',
-      options: orchestratorOptions,
+    // ──────────────────────────────────────────────────────────────────
+    // Pre-INSERT pipeline_runs row at-enqueue (Pattern 2 per spec §6.3 +
+    // `feedback_pipeline_runs_pattern_2_direct_update`).
+    //
+    // Uses the service-role client because pipeline_runs has admin-only
+    // INSERT and NO UPDATE/DELETE policies — the orchestrator at L728-732
+    // documents the same RLS chokepoint. Pre-INSERTing here means the UI
+    // polling endpoint resolves the row from t=0, before the cron worker
+    // has even claimed the job (Pattern E preservation per D-10 RATIFIED).
+    //
+    // The orchestrator's at-start INSERT inside the worker uses the
+    // §7.7 Path B UPSERT (D-11 ratified) so this pre-INSERT does not
+    // collide on the primary key.
+    // ──────────────────────────────────────────────────────────────────
+    const serviceClient = createServiceClient();
+    const initialProgress = {
+      step: 'enqueued',
+      files_completed: 0,
+      files_total: decodedFiles.length,
+      detail: `Queued ${decodedFiles.length} file(s); awaiting worker claim…`,
+    } as const;
+    await sb(
+      serviceClient
+        .from('pipeline_runs')
+        .insert({
+          id: pipelineRunId,
+          pipeline_name: 'upload_markdown_batch',
+          status: 'running',
+          started_at: new Date(Date.now()).toISOString(),
+          created_by: user.id,
+          progress: initialProgress as unknown as Json,
+          items_created: [] as string[],
+        })
+        .select('id'),
+      'markdown_batch.producer.pipeline_runs.insert',
+    );
+
+    // ──────────────────────────────────────────────────────────────────
+    // Compute fileSetHash per spec §3.2 + §10 D-9 RATIFIED FLIP.
+    //
+    // Verbatim from spec §10 D-9 (ratified):
+    //   "Full file content (SHA-256 of concatenated content) — collision-
+    //    resistant. Cost: buffers all 10 MB of file content into the hash
+    //    buffer. Memory cost is ~10 MB peak per enqueue (briefly). For
+    //    10-file batches at 1 MB/file this is well within Lambda memory
+    //    budget; no real cost. Liam may prefer this for collision-
+    //    resistance peace-of-mind."
+    //
+    // The fileSetHash is SHA-256( JSON.stringify( files.sort by filename,
+    // then [{filename, contentSha256: sha256(contentBytes)}] ) ) sliced
+    // 16 hex chars. Per-file content SHA-256 is nested in the file-set
+    // JSON, NOT a single concatenated buffer (avoids buffer-allocation
+    // peak; each per-file digest is a constant 32-byte hash regardless
+    // of file size).
+    // ──────────────────────────────────────────────────────────────────
+    const fileSetCanonical = decodedFiles
+      .map((f) => ({
+        filename: f.filename,
+        contentSha256: createHash('sha256').update(f.content, 'utf8').digest('hex'),
+      }))
+      .sort((a, b) => a.filename.localeCompare(b.filename));
+    const fileSetHash = createHash('sha256')
+      .update(JSON.stringify(fileSetCanonical))
+      .digest('hex')
+      .slice(0, 16);
+
+    // Idempotency formula per spec §3.2:
+    //   markdown_batch:${pipelineRunId}:${YYYY-MM-DD}:${fileSetHash}
+    // Date bucket is mandatory (per infra spec §5.5 + Liam D-1 ratified).
+    const idempotencyKey = buildIdempotencyKey({
+      jobType: 'markdown_batch',
+      scopedId: pipelineRunId,
+      requestHash: fileSetHash,
     });
 
-    return NextResponse.json(result, { status: 200 });
+    // ──────────────────────────────────────────────────────────────────
+    // Enqueue the markdown_batch job.
+    // ──────────────────────────────────────────────────────────────────
+    const body: MarkdownBatchBody = {
+      files: decodedFiles.map((f) => ({
+        filename: f.filename,
+        content: f.content,
+        sizeBytes:
+          f.sizeBytes ?? Buffer.byteLength(f.content, 'utf8'),
+      })),
+      pipeline_run_id: pipelineRunId,
+      caller_user_id: user.id,
+      caller_role: callerRole,
+      ...(validatedOptions.batch ? { batch: validatedOptions.batch } : {}),
+      ...(validatedOptions.per_file_overrides
+        ? { per_file_overrides: validatedOptions.per_file_overrides }
+        : {}),
+    };
+
+    const enqueueResult = await enqueueQueueJob({
+      supabase,
+      jobType: 'markdown_batch',
+      body,
+      authContext: {
+        user_id: user.id,
+        role: callerRole,
+        // workspace_id omitted — markdown-batch has no stable workspace
+        // UUID per spec §3.4 (inherits §5.4.2 D-8 ratified default).
+      },
+      idempotencyKey,
+      pipelineRunId,
+      priority: 0,
+      maxAttempts: 3,
+    });
+
+    return NextResponse.json(
+      {
+        job_id: enqueueResult.jobId,
+        pipeline_run_id: pipelineRunId,
+        status: 'queued',
+        deduplicated: enqueueResult.deduplicated,
+      },
+      { status: 202 },
+    );
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to ingest markdown batch') },
