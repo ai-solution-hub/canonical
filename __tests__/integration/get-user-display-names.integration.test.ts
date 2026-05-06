@@ -76,12 +76,11 @@ describe('get_user_display_names — live SQL function', () => {
     expect(data!.length).toBe(1);
     expect(data![0].user_id).toBe(PIPELINE_UUID);
     expect(data![0].display_name).toBe('Pipeline (system)');
-    // The email is projected from auth.users.email via the LEFT JOIN —
-    // the pipeline service account's email is stable.
-    expect(data![0].email).toBe('pipeline@system.knowledge-hub.internal');
+    // S34 OPS-60: email column dropped from RETURNS (B-strict refactor).
+    // No `.email` assertion — the SQL function no longer projects email.
   });
 
-  it('resolves TEST_USER_1 via the user_roles → raw_user_meta_data → email COALESCE chain', async () => {
+  it('resolves TEST_USER_1 via the user_roles → user_profiles.full_name COALESCE chain', async () => {
     const { data, error } = await serviceClient.rpc('get_user_display_names', {
       user_ids: [TEST_USER_1],
     });
@@ -96,7 +95,9 @@ describe('get_user_display_names — live SQL function', () => {
     // the way through, which is a regression.
     expect(data![0].display_name).not.toBe('A team member');
     expect(data![0].display_name.length).toBeGreaterThan(0);
-    expect(data![0].email).toBe('test.user1@test-kb-aish.co.uk');
+    // S34 OPS-60: email column dropped from RETURNS (B-strict refactor).
+    // The COALESCE chain is now ur.display_name → up.full_name →
+    // 'A team member' — the previous email-prefix fallback was removed.
   });
 
   it('returns "A team member" for an unknown UUID', async () => {
@@ -109,9 +110,7 @@ describe('get_user_display_names — live SQL function', () => {
     expect(data!.length).toBe(1);
     expect(data![0].user_id).toBe(UNKNOWN_UUID);
     expect(data![0].display_name).toBe('A team member');
-    // The email is NULL because `u.email` is NULL when the LEFT JOIN
-    // has no match.
-    expect(data![0].email).toBeNull();
+    // S34 OPS-60: email column dropped from RETURNS (B-strict refactor).
   });
 
   it('returns an empty array for an empty input array', async () => {

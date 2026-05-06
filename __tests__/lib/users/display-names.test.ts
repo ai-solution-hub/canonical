@@ -27,10 +27,11 @@ const UNKNOWN = '00000000-4000-4000-8000-000000000999';
 // Mock Supabase client — only the `.rpc` method is used by the wrapper.
 // ---------------------------------------------------------------------------
 
+// S34 OPS-60: SQL function no longer returns `email` (B-strict refactor).
+// See migration 20260506115807_s34_w2b_ops60_get_user_display_names_invoker.sql.
 type DisplayRow = {
   user_id: string;
   display_name: string;
-  email: string | null;
 };
 
 function buildMockClient(
@@ -66,7 +67,6 @@ describe('resolveUserDisplayNames', () => {
         {
           user_id: USER_1,
           display_name: 'Test User1',
-          email: 'test.user1@test-kb-aish.co.uk',
         },
       ],
       error: null,
@@ -78,7 +78,6 @@ describe('resolveUserDisplayNames', () => {
     expect(result.get(USER_1)).toEqual({
       user_id: USER_1,
       display_name: 'Test User1',
-      email: 'test.user1@test-kb-aish.co.uk',
     });
   });
 
@@ -113,7 +112,6 @@ describe('resolveUserDisplayNames', () => {
         {
           user_id: PIPELINE_UUID,
           display_name: 'Pipeline (system)',
-          email: 'pipeline@system.knowledge-hub.internal',
         },
       ],
       error: null,
@@ -130,7 +128,7 @@ describe('resolveUserDisplayNames', () => {
     // accidentally reintroduce the "drop rows with null user_id"
     // behaviour that bug exposed.
     const client = buildMockClient({
-      data: [{ user_id: UNKNOWN, display_name: 'A team member', email: null }],
+      data: [{ user_id: UNKNOWN, display_name: 'A team member' }],
       error: null,
     });
 
@@ -139,7 +137,6 @@ describe('resolveUserDisplayNames', () => {
     expect(result.get(UNKNOWN)).toEqual({
       user_id: UNKNOWN,
       display_name: 'A team member',
-      email: null,
     });
   });
 
@@ -168,7 +165,6 @@ describe('resolveUserDisplayNames', () => {
         {
           user_id: UNKNOWN,
           display_name: null as unknown as string,
-          email: null,
         },
       ],
       error: null,
@@ -185,8 +181,8 @@ describe('resolveUserDisplayNames', () => {
     // response; the caller decides what to do with extras.
     const client = buildMockClient({
       data: [
-        { user_id: USER_1, display_name: 'Test User1', email: null },
-        { user_id: USER_2, display_name: 'Someone Else', email: null },
+        { user_id: USER_1, display_name: 'Test User1' },
+        { user_id: USER_2, display_name: 'Someone Else' },
       ],
       error: null,
     });

@@ -28,11 +28,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
-/** @public */
+/**
+ * @public
+ *
+ * S34 OPS-60: `email` field removed. The SQL function previously returned
+ * `email` from `up.email`, but no caller actually USED `.email` (verified
+ * S33 V_W2). Dropping it lets `get_user_display_names` flip from
+ * SECURITY DEFINER to SECURITY INVOKER without granting authenticated
+ * direct read access to email — see migration
+ * `20260506115807_s34_w2b_ops60_get_user_display_names_invoker.sql`.
+ */
 export interface UserDisplayInfo {
   user_id: string;
   display_name: string;
-  email: string | null;
 }
 
 /**
@@ -86,7 +94,6 @@ export async function resolveUserDisplayNames(
     result.set(row.user_id, {
       user_id: row.user_id,
       display_name: row.display_name ?? 'A team member',
-      email: row.email,
     });
   }
 
