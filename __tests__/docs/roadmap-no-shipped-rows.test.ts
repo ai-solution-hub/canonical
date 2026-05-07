@@ -1,12 +1,12 @@
 /**
  * Roadmap forward-discipline guard.
  *
- * The roadmap (`docs/reference/post-mvp-roadmap.md`) MUST stay forward-looking.
+ * The roadmap (`docs/reference/product-roadmap.md`) MUST stay forward-looking.
  * Once a row ships its narrative belongs in the State of the Product
  * (`docs/reference/state-of-the-product.md`) and the row itself should be
  * removed from the roadmap. The audit trail lives in `git log` + continuation
  * prompts; the roadmap is not the audit trail. See:
- * - `docs/reference/post-mvp-roadmap.md` line 3 ("Forward-looking only")
+ * - `docs/reference/product-roadmap.md` line 3 ("Forward-looking only")
  * - Memory: `feedback_roadmap_forward_looking.md`
  * - Memory: `feedback_action_items_single_location.md`
  *
@@ -41,7 +41,7 @@ import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
 const PROJECT_ROOT = join(__dirname, '../..');
-const ROADMAP_PATH = join(PROJECT_ROOT, 'docs/reference/post-mvp-roadmap.md');
+const ROADMAP_PATH = join(PROJECT_ROOT, 'docs/reference/product-roadmap.md');
 
 /**
  * Forbidden status values — anchored to the BEGINNING of the Status cell

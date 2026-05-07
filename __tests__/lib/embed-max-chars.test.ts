@@ -24,7 +24,7 @@
  *   docs/specs/esm-embedding-silent-failure-spec.md
  *   docs/audits/si-classification-verification-s156.md § Run 2
  *   docs/audits/s159-wp4a-wp4b-adversarial-verification.md
- *   docs/reference/post-mvp-roadmap.md §2.1.12
+ *   docs/reference/product-roadmap.md §2.1.12
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

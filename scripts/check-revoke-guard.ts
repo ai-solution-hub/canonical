@@ -179,9 +179,9 @@ export const INTENTIONAL_ANON_ALLOW_LIST: ReadonlyArray<AllowListEntry> = [
   {
     signature: 'public.set_config(setting text, value text, is_local boolean)',
     rationale:
-      'PostgREST session-config wrapper. Exposed to anon by design — used by RLS to set request.jwt.* GUCs during anonymous read paths. Verified S22 (OPS-43 spec §AC-5). Replacement migrations MUST re-GRANT EXECUTE TO anon explicitly per Finding 9.3.',
+      "Supabase-managed SQL shim wrapping pg_catalog.set_config (owner=postgres; body = SELECT pg_catalog.set_config(setting, value, is_local)). PostgREST session-config wrapper. Exposed to anon by design — used by RLS to set request.jwt.* GUCs during anonymous read paths. Verified S22 (OPS-43 spec §AC-5). kh-prod-readiness-S38 W2 OPS-64 deep-investigation re-affirmed (07/05/2026): ZERO exploitable surface today — live pg_policies scan returned no rows reading app.* GUCs as identity claims, so the GUC-injection-bypass attack vector is inactive. Only consumer of any app.* GUC is the snapshot_bid_response_history() trigger reading app.change_reason for audit-trail capture, reached only via admin/editor-gated UPDATE bid_responses (admin/editor RLS upstream blocks anon). Future-drift guard __tests__/migrations/no-app-guc-rls-policy.test.ts blocks any CREATE POLICY adopting current_setting('app.X') pattern. Replacement migrations MUST re-GRANT EXECUTE TO anon explicitly per Finding 9.3. Revisit if OPS-65 (refactor set_config out of app entirely) ships.",
     added_session:
-      'kh-prod-readiness-S22 (carried forward; intent predates audit)',
+      'kh-prod-readiness-S22 (carried forward; intent predates audit; rationale extended kh-prod-readiness-S38 W2 OPS-64 close-out)',
   },
 ];
 

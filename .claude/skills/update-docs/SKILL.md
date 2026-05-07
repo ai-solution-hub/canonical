@@ -20,7 +20,7 @@ The planning documents have distinct, non-overlapping roles:
 | Document                              | File                                                                   | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **State of the product**              | `docs/reference/state-of-the-product.md`                               | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to the per-§ change-log file matching the touched SoTP §N (`state-of-the-product-change-log-section-{5,8,9}.md`) atomically. The pointer-doc `state-of-the-product-change-log.md` is the discovery index — never an append target. |
-| **Roadmap**                           | `docs/reference/post-mvp-roadmap.md`                                   | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Shipped/Resolved items.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Roadmap**                           | `docs/reference/product-roadmap.md`                                    | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Shipped/Resolved items.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | **Product backlog**                   | `docs/reference/product-backlog.json`                                  | Items awaiting promotion to the roadmap. **JSON-shaped** since kh-prod-readiness-S37 cutover; `items[]` array with `id`, `description`, `type`, `status`, `effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`. Status enum: `needs_spec` / `needs_research` / `parked` / `ready` / `blocked` (no closure values — closed items are removed entirely).                                                                                                                                                                                                                                        |
 | **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings) | **Discovery index (pointer-doc) + per-section append targets.** A thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom.                                                                                                                                                                                                                                                                                                                                               |
 | **Wave status ledgers**               | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`)     | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                                                                                                                                                                                                                                                                                                                               |
@@ -121,7 +121,7 @@ affected SoTP §N:
 
 ## Step 4: Update Roadmap
 
-**File:** `docs/reference/post-mvp-roadmap.md`
+**File:** `docs/reference/product-roadmap.md`
 
 **Prerequisite:** Step 3 SoTP capture must be complete before pruning roadmap
 rows. The `>` callout below assumes the SoTP edit + change-log row already exist
@@ -307,7 +307,7 @@ the row entirely instead.
   comma if not the last item). The audit trail lives in git log + continuation
   prompts + State of the Product narrative.
 - **Item promoted to roadmap** → remove the row from `product-backlog.json` and
-  add a record to `post-mvp-roadmap.md` in the same commit.
+  add a record to `product-roadmap.md` in the same commit.
 
 After every edit, bump the top-level `last_updated` field to the current session
 label (e.g. `"kh-prod-readiness-S37 close-out"`).
@@ -411,7 +411,7 @@ Stage the canonical docs.
 # Commit reference doc updates. The change-log glob captures both the
 # pointer-doc and the per-§ append-target files.
 git diff --quiet docs/reference/ || \
-  (git add docs/reference/post-mvp-roadmap.md docs/reference/state-of-the-product.md \
+  (git add docs/reference/product-roadmap.md docs/reference/state-of-the-product.md \
    docs/reference/state-of-the-product-change-log.md \
    docs/reference/state-of-the-product-change-log-section-*.md \
    docs/reference/product-backlog.json 2>/dev/null && \

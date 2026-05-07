@@ -170,7 +170,7 @@ Consult when adding or modifying UI elements.
 | Document               | Location                                                                    |
 | ---------------------- | --------------------------------------------------------------------------- |
 | State of the Product   | `docs/reference/state-of-the-product.md`                                    |
-| Roadmap                | `docs/reference/post-mvp-roadmap.md`                                        |
+| Roadmap                | `docs/reference/product-roadmap.md`                                         |
 | Product backlog        | `docs/reference/product-backlog.json`                                       |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                  |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
