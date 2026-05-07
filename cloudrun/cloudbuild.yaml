@@ -28,6 +28,7 @@ steps:
       - build
       - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:${_COMMIT_SHA}
       - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
+      - --cache-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:cache
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/ingest.py
       - --env=GOOGLE_RUNTIME=python
@@ -46,6 +47,7 @@ steps:
       - build
       - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:${_COMMIT_SHA}
       - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
+      - --cache-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:cache
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/eval-classification.py
       - --env=GOOGLE_RUNTIME=python

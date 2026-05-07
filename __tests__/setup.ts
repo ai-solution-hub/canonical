@@ -52,6 +52,24 @@ for (const [k, v] of Object.entries(TEST_ENV_DEFAULTS)) {
 // scope (Staging) and do not share this setup file.
 process.env.NEXT_PUBLIC_CLIENT_ID = 'default';
 
+// React act() regression guard (S32 audit close-out, S37 W4 IMPL).
+// Any console.error matching the act() warning patterns throws, surfacing
+// the offending test via Vitest's stack trace. Per-test
+// `vi.spyOn(console, 'error').mockImplementation(...)` patterns overlay this
+// wrapper and restore cleanly. See feedback_react_act_warning_classes for the
+// 3-class taxonomy this guard protects against (A: bare dispatchEvent,
+// B: child useEffect fetch, C: waitFor drain).
+const ACT_WARNING_RE =
+  /wrapped into act|not wrapped in act|inside a test was not wrapped in act/;
+const realConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  const first = args[0];
+  if (typeof first === 'string' && ACT_WARNING_RE.test(first)) {
+    throw new Error(`React act() warning leaked: ${first}`);
+  }
+  realConsoleError(...args);
+};
+
 import '@testing-library/jest-dom/vitest';
 
 // Skip browser polyfills in node environment (real DB integration tests use @vitest-environment node)
