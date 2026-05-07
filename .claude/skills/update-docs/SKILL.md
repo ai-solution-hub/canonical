@@ -52,42 +52,7 @@ packages were completed, partially completed, or deferred.
 
 ---
 
-## Step 3: Update Roadmap
-
-**File:** `docs/reference/post-mvp-roadmap.md`
-
-> Any item that shipped this session is REMOVED from the roadmap (no
-> strikethrough, no "Status: Done") and its capability narrative is folded into
-> SoTP §5/§8 + change-log in the SAME commit.
-
-Read the file, then:
-
-1. Move any completed roadmap items to `state-of-the-product.md` (the canonical
-   built record) and the relevant product-functionality document(s). The roadmap
-   is **forward-looking only** — never leave Completed/Shipped/Done items in it.
-   This provides clear visibility of priority, actionable tasks on the roadmap,
-   which can be updated with new items from the product backlog when capacity
-   allows/priorities evolve.
-2. Update statuses for in-progress items (with effort and source-spec references
-   where helpful).
-
----
-
-## Step 4: Archive Completed Specs (Conditional)
-
-\*_"Spec" below also applies to "plan" files._
-
-If any roadmap items were marked as completed in Step 3, check whether their
-backing spec is now fully delivered — i.e. **every item** in the spec has
-shipped. A spec is only archived once ALL of its items are complete, not before.
-
-For each fully-completed spec move it to `.planning/.archive/.specs/`.
-
-If a spec still has outstanding items (even one), leave it in `docs/specs/`.
-
----
-
-## Step 5: Update State of the Product
+## Step 3: Update State of the Product (capture-then-prune anchor)
 
 **Files:**
 
@@ -97,6 +62,14 @@ If a spec still has outstanding items (even one), leave it in `docs/specs/`.
   append-only per-section narrative (warm tier, S186 onwards).
 - `docs/reference/state-of-the-product-change-log.md` — discovery index /
   pointer-doc.
+
+**Why SoTP first (capture-then-prune principle).** SoTP + change-log are the
+audit trail for any shipped work. Record the capability narrative here BEFORE
+pruning forward-looking trackers (Step 4 roadmap; Step 8 backlog) so a future
+reader (or AI) can always trace shipped work to a present-tense capability
+bullet. If you remove a roadmap or backlog row first, the only surviving record
+is the git diff — fine for the diligent, brittle for skim-readers and AI agents
+that read SoTP as canonical.
 
 SoTP carries the bullet list of what is currently built; the change-log carries
 when/how/why each capability changed. **Capability edits and change-log appends
@@ -143,6 +116,45 @@ affected SoTP §N:
 ```
 | DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
 ```
+
+---
+
+## Step 4: Update Roadmap
+
+**File:** `docs/reference/post-mvp-roadmap.md`
+
+**Prerequisite:** Step 3 SoTP capture must be complete before pruning roadmap
+rows. The `>` callout below assumes the SoTP edit + change-log row already exist
+this commit cycle.
+
+> Any item that shipped this session is REMOVED from the roadmap (no
+> strikethrough, no "Status: Done"). Step 3 already folded the capability
+> narrative into SoTP §5/§8 + change-log; the same commit ships both edits.
+
+Read the file, then:
+
+1. Move any completed roadmap items to `state-of-the-product.md` (the canonical
+   built record) and the relevant product-functionality document(s). The roadmap
+   is **forward-looking only** — never leave Completed/Shipped/Done items in it.
+   This provides clear visibility of priority, actionable tasks on the roadmap,
+   which can be updated with new items from the product backlog when capacity
+   allows/priorities evolve.
+2. Update statuses for in-progress items (with effort and source-spec references
+   where helpful).
+
+---
+
+## Step 5: Archive Completed Specs (Conditional)
+
+\*_"Spec" below also applies to "plan" files._
+
+If any roadmap items were marked as completed in Step 4, check whether their
+backing spec is now fully delivered — i.e. **every item** in the spec has
+shipped. A spec is only archived once ALL of its items are complete, not before.
+
+For each fully-completed spec move it to `.planning/.archive/.specs/`.
+
+If a spec still has outstanding items (even one), leave it in `docs/specs/`.
 
 ---
 
@@ -266,6 +278,11 @@ prompt **only** — never duplicated into roadmap or backlog (memory
 ## Step 8: Update Product Backlog (Conditional)
 
 **File:** `docs/reference/product-backlog.json`
+
+**Prerequisite:** Step 3 SoTP capture must be complete before removing backlog
+rows for shipped items. Same capture-then-prune principle as Step 4 (roadmap):
+the SoTP capability bullet + change-log row are the audit trail; the backlog
+prune only removes the now-redundant tracker entry.
 
 JSON-shaped backlog (kh-prod-readiness-S37 cutover). Edit the `items[]` array
 directly via the Edit tool, anchoring on the unique `"id": "<ID>"` line for each
@@ -411,15 +428,15 @@ Present a summary to the user:
 > Documentation updated:
 >
 > - **Stats:** {regenerated / no changes}
-> - **Roadmap:** {N items updated — X done, Y partial, Z new}
-> - **Specs archived:** {N specs archived / none eligible}
 > - **State of product:** {updated / no changes needed}
 > - **Change-log:** {row appended / N/A}
+> - **Roadmap:** {N items updated — X done, Y partial, Z new}
+> - **Specs archived:** {N specs archived / none eligible}
 > - **Product-functionality docs:** {N areas updated / no existing docs affected
 >   / N areas flagged for doc session}
+> - **Backlog:** {N items updated — Z new}
 > - **Wave ledger:** {N items transitioned — X shipped, Y blocked / no active
 >   wave touched}
-> - **Backlog:** {N items updated — Z new}
 >
 > Generating continuation prompt now.
 
