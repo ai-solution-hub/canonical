@@ -126,3 +126,8 @@ output.jsonl
 *_session_output.json
 *-session-output.json
 /docs/database/
+
+# Graphify baseline outputs — too big for git, regenerable from run_baseline.py
+.planning/codebase/graphify-baselines/*/graph.json
+.planning/codebase/graphify-baselines/*/graph.html
+.planning/codebase/graphify-baselines/*/graphify-out/
