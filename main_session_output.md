@@ -1,732 +1,563 @@
-# Session: afcc348b-86f0-4622-87d6-72ae729bed4c
+# Session: e0ec0499-c078-410f-b1f9-79f847a3c1c7
 
 ## Turn 1 — User [Initial Prompt]
 
-Base directory for this skill: /Users/liamj/Documents/development/knowledge-hub-production-readiness/.claude/skills/start-session
+I've just used /clear, Claude, as a considerable amount of work was covered over several turns, but by continuing without using clear, the conversation wouldn't have been cached. Instead, I've saved the full output to: /Users/liamj/Documents/development/knowledge-hub/main_session_output.json.                                                
 
-# Start Session — Pre-flight and Context Loading
+Please review the output in full as it shows our entire session from the point that we began with the continuation prompt. Then, please see below for my feedback based on your last response before I used /clear. Please also review any other documents, as necessary, to ensure you have the full context.                                                                                                                       
 
-Run this skill at the beginning of every new Knowledge Hub session. It ensures a
-clean working environment, loads critical context, and asks the user to provide
-the continuation prompt before any implementation work begins.
+Keep in mind that we won't yet have used /update-docs or /handoff yet due to using /clear, but instead, as we are in a fresh session from a token perspective, we can continue with the outstanding work now, and then once those items are complete, we can close out the session as we normally would and prepare for the next one. 
 
----
+It is critical that we get this right, given where the product currently is in terms of pre-launch status. If anything is unclear please ask before proceeding.
 
-## Step 1: Git Hygiene (parallel)
+## User General Feedback
 
-Run these commands to clean up stale worktrees and branches from previous
-sessions:
+- Having reviewed the synthesis I believe more investigation work is required before we finalise the next steps. I can see in principle why `P3 Q&A docx`, `P4 TS URL ingest`, `P5 TS manual creation`, `P9 RSS`, and `P10 MCP` are consider unique entry points but is there a more efficient approach available, which would standardise the ingestion setup? 
+    - Are there normalisation opportunities with the various entry point shapes, for example?
+    - There shouldn't be any difference in classification and embedding (and chunking) between the python and TS paths. Unless I've misunderstand, there are two top-level types of content - something is either a document (source_file), or a URL (source_url) - even UI or MCP created content can take the form of a "document"
+- The investigation covered items where only some paths set a field and others don't, but have we also covered where none of the paths are setting the value? (e.g., for P1-3, content_owner_id, created_by, source_document_id etc.)
+- The system has been built up over time, quickly and by lots of different agents - it's our development approach which often leads to architectural decisions being made and often without the full understanding of exactly what's required or what already exists.
+    - Three key factors that we should consider: 
+        - When the system was originally built, there wasn't a canonical format. There now is, and all content should be converted to markdown. If that's the case, we need to determine whether it's even required to store a document in a storage bucket versus store the markdown in a table which also allows versioning of content.
+        - The Python pathways were again originally just because we didn't have another mechanism available and all of the ingestion and classification and embeddings was taking place via my laptop locally using scripts as the UI hadn't been built, but it has now, and we have Cloud Run set up for staging and prod.
+            - P1 - what does P1 do (bulk URL ingest)?
+            - P2 (Python markdown) - Built early in the platform's development, so that we had a mechanism for ingesting and then testing content. This isn't likely to be used day-to-day by a client. Are there aspects of this that should or could be used for P8 EP2?
+            - P7 TS file upload - why couldn't P6 (TS batch creation) & P8 (EP2 markdown batch) be absorbed?
+            - `OPS-47 - EP3 markdown ingest UI` is already on the product backlog and 1.11 is on the roadmap/in-flight.
+        - As noted earlier, re-ingestion isn't a problem at this stage because we know exactly what files it is we're looking to re-ingest from the client and the subset is small. If we're going to make any architectural changes now is the time to do it.
+    - Based on the investigation findings so far, is the Knip config incorrect and hiding failures? If so, we need to update it to prevent further issues.
 
-```bash
-# Prune orphaned worktrees
-git worktree prune
+## Metadata file bag feedback
 
-# Delete merged worktree branches
-git branch --merged main | grep worktree | xargs -r git branch -d
+- To me, this looks like a key example of "built not wired", where some of the fields were already lifted to 'source_documents' and 'feed_articles' tables, but the UI/backend may not have been updated correctly, and the data not migrated.
+    - **Track source spec/plan (will be in .planning/.archive/.specs or .plans)**
+- What is the intended relationship between a source document and content items, in terms of how the system treats these? E.g., is it that a source document gets ingested and split out into content items?
 
-# Count remaining worktree branches (informational)
-git branch | grep worktree | wc -l
+## Provisional Decision/Question Responses
 
-# Verify clean working tree
-git status
-```
+**Provisional** open question responses - subject to change, based on wider framing from general user feedback section, as are the previous responses I gave to the initial questions:
 
-Report any unmerged worktree branches or uncommitted changes. If unmerged
-branches exist, deploy an agent to investigate whether they should be merged or
-deleted.
+- Q1. Agreed - always set ingestion-now() on every path; promote source-publication-date to a typed column source_published_at
+- Q2. Agreed on deferred status
+- NEW1. I would need more info here. Where are we setting expiry date? How is it extracted and used currently? And does this tie in with the item on the roadmap in the first section related to human-in-the-loop metadata?
+- NEW2. Should be set on all paths with known semantics.
+- NEW3. Drop now.
+- NEW4. B - worker-side.
+- NEW5, NEW6, and NEW7. I need some guidance here. Whilst we want to ensure we're consistent, I also don't know what the difference is in terms of quality for MD5 versus SHA-256 and therefore which we should be using. In terms of storage path for markdown, what happens currently? My instinct is that the content should be saved to a storage bucket. But again, I don't know what the current backend setup is for any of the documents that get ingested via any of the paths. As quality of data is one of our key differentiators, we should ensure that we have the necessary setup in place for things like re-upload detection. But do we not already have this, or is that only for .docx?
+- NEW8. Yes.
+- NEW9. Cron only, across all paths.
+- NEW10. Yes.
+- NEW11. `sb()` + `logBestEffortWarn` - we need to ensure that any issues are surfaced to a user, and tied to the specific content item.
+- NEW12. Ideally before re-ingestion, but non-blocking
+- NEW13. What would be the best approach here, given that there will be a considerable undertaking of work which will likely lead to changes across reference docs.
 
-**Parallel track worktrees vs agent worktrees:** The project may have two types
-of worktrees:
+## Items to bring forward to pre-re-ingestion (subject to wider re-framing)
 
-- **Top-level track worktrees** — long-lived worktrees for parallel development
-  tracks. These have their own continuation prompts and are NOT cleaned up
-  between sessions. Do not delete or prune these. Currently:
-  - `/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`
-    (branch `kh-knowledge-platform`) — engineering-docs dogfood + productisation
-    validation; track-local session counter `kh-kpf-sN`; does NOT merge back to
-    main (one-way references only). Primer:
-    `docs/tracks/kh-knowledge-platform.md`.
-  - `/Users/liamj/Documents/development/knowledge-hub-production-readiness`
-    (branch `production-readiness`) — CI/CD, staging DB, structured logging,
-    handover infra; track-local session counter `kh-prod-readiness-sN`; Primer:
-    `docs/tracks/production-readiness.md`.
-- **Agent worktrees** under `.claude/worktrees/` — ephemeral worktrees created
-  by `isolation: "worktree"` during sessions. These SHOULD be cleaned up
-  (prune + delete merged branches).
+- no-multi-write-shared-catch, no-fire-and-forget-supabase-write, cron-catch-must-record-failure, Python ruff B902 ESLint rules
+- Fixing all 'supabase-js error not destructured' findings
+- Fixing the '0.2.6 — Swallow-catch (~150 catch sites - 8 P1 / 50+ P2)' items
+- 'P1 missing FKs (workspaces, processing_queue, digests)' + rename for DB/UI consistency.
+- P2 ingestion_quality_log FK ground-truthing
+- Q&A docx caller for log_quality_issue helper (Path 6 §2.9)
 
-When reporting worktree state, distinguish between the two types, and confirm
-which track the session is on before reading continuation prompts (filename
-conventions differ per track — see `docs/continuation-prompts/README.md`).
+## From **WILL FIX** section
 
----
-
-## Step 2: Read Critical Documents (parallel with Step 1)
-
-Read these documents in parallel to load context:
-
-### 2a: CLAUDE.md
-
-```
-Read file: CLAUDE.md
-```
-
-This contains commands, architecture, schema, gotchas, and conventions. Pay
-special attention to the "Gotchas" section — the implementation workflow is
-covered in Step 4 below.
-
-### 2b: Memory Files
-
-Read the MEMORY.md file from the project memory directory.
-
----
-
-## Step 3: Review Continuation Prompt and Confirm Session Plan
-
-```bash
-ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -2
-```
-
-1. Read the continuation prompt for your repo thoroughly
-2. Read any referenced specs in full before planning implementation
-3. Identify the session objectives and work packages
-4. Present a summary to the user:
-
-> ## Session {NNN} Plan
->
-> **Objectives:** {summarise from continuation prompt}
->
-> **Work packages:** {list WPs with priority}
->
-> **Execution strategy:** {wave structure, parallel agents, dependencies}
->
-> **Estimated scope:** {hours of work}
-
-5. Invoke `/using-agent-skills`, taking note of any skills which will be
-   relevant to you for your tasks this session, or which should be provided to
-   subagents based on their respective tasks e.g., `/spec-driven-development` if
-   a task requires a new spec, `/planning-and-task-breakdown` if a spec requires
-   decomposing to tasks, `/code-simplification` when adversarially reviewing a
-   spec/plan, `/code-review-and-quality` if implementation work is being
-   adversarially reviewed, `/documentation -and-adrs` for documentation-related
-   tasks, and so on.
-
-6. Proceed with outlined plan - if any adjustments are required, user will
-   notify you.
-
----
-
-## Implementation Workflow (MUST FOLLOW)
-
-This is the core execution discipline for the project. Every implementation must
-follow this workflow.
-
-### Agent Work Limits
-
-- **Max 2 hours of work per agent** — never let one agent complete an entire
-  multi-phase spec without a verification gate. If a spec/plan is estimated at
-  more than 2 hours, split it between sequential agents with verification
-  between each stage.
-
-### Agent Skills
-
-When deploying the agent make it clear which agent-skill they should be invoking
-based on the task(s) they will be assigned.
-
-### Verification Gates
-
-After EVERY implementation and spec/plan-writing agent completes, deploy a
-**separate verification agent** before merging. This is not optional. The
-verification agent must:
-
-1. Read the spec/plan requirements for the implemented work
-2. Read the implementation code
-3. Check spec/plan compliance — are all requirements met?
-4. Check code quality — semantic tokens, UK English, auth patterns, error
-   handling
-5. Check test quality — do tests verify real behaviour, not just mock returns?
-6. Return a verdict: **PASS** / **PASS WITH NOTES** / **FAIL**
-
-**Fix ALL verification findings** (including minor/low severity) before merging.
-Deploy a fix agent for any findings, no matter the severity. Not integrating all
-findings creates unneccessary technical debt that can be easily avoided by doing
-things right the first time.
-
-### Wave Structure
-
-1. **Wave N implementation:** Launch parallel worktree agents (strict file
-   ownership, no overlap)
-2. **Wave N verification:** Deploy verification agents after all implementation
-   agents complete
-3. **Wave N fix:** Fix any findings from verification
-4. **Wave N merge:** Merge worktrees sequentially, run full test suite after
-   each merge
-5. Proceed to Wave N+1 only after current wave is merged and green
-
-### Documentation
-
-Documentation will be updated at the end of the session when `/update-docs` is
-invoked. There is no requirement to update reference documentation (roadmap,
-state-of-the-product, etc.) throughout the session.
-
----
-
-## Critical Reminders
-
-These are the most commonly missed items across sessions:
-
-- **`bun run test`** not `bun test` — the latter runs Bun's built-in test
-  runner, not Vitest
-- **`bun run build`** needs `dangerouslyDisableSandbox: true`
-- **Worktree agents MUST commit to their worktree** before finishing —
-  auto-cleanup destroys uncommitted work
-- **Merge worktrees sequentially**
-- **Never run two sessions on the same working tree** — they destroy each
-  other's untracked files
-- **ALL verification gaps must be fixed** — even minor ones
-- **Semantic tokens only** — never raw Tailwind colours in components
-- **UK English throughout** — DD/MM/YYYY, colour, organisation
+16. What examples are there of "classifier just wasn't called"?
+17. Do we know why the content chunks weren't originally generated for the RSS items, and is the underlying issue now fixed so that future RSS items don't need to be regenerated?
+18. As above for batch (P6)
 
 ---
 
 ## Turn 2 — Assistant
 
-Working tree clean. Latest prompt is S38. Reading now.
+Reading session output + key context first.
+
+Got prior session context. Now reading synthesis + spec history + EP3 backlog item before responding.
+
+Reading more synthesis sections + key spec history before responding.
+
+Now confirming working tree clean before drafting response.
+
+Got enough context. Modified SKILL.md is no-op stat change — leave for now. Drafting response addressing each feedback item.
+
+---
+
+# Session resumption — context loaded, response below
+
+Read prior session output + 0.6 synthesis (lines 1-897) + ingest-path-consistency-spec (S203 RATIFIED — relevant) + extractDates implementation + expiry readers + EP3/OPS-47 backlog + roadmap §1.15. Working tree has one stat-only change on update-docs SKILL.md (no diff content) — ignoring.
+
+Substantive response on each feedback area below. **Drop caveman mode** for this — multi-step architectural framing where fragment order matters; resume on shorter status updates.
+
+---
+
+## 1. Architectural reframing — your strongest point
+
+You're right and the synthesis underweighted this. The synthesis treated 10 paths as a fixed inventory and asked "are they all needed" as a yes/no per-path question (§4.4). The right question is **"is the 10-path inventory itself a historical artefact of the system being built before a canonical pipeline shape existed?"** — and the answer is mostly yes.
+
+**Re-stating your model:**
+
+> Two top-level input shapes: **document** (carries `source_file`) or **URL** (carries `source_url`). Markdown is the canonical text format. Everything else (UI, MCP, cron) is a *transport*, not a *content shape*.
+
+If we accept that, the canonical pipeline is **one** flow, not two:
+
+```
+input shape (doc | url)
+  → extract to canonical markdown
+  → classify (single classifier, single model)
+  → embed (single model)
+  → chunk (single helper)
+  → store (content_items + source_documents row + chunks + entity side-effects)
+  → observability (pipeline_runs + telemetry + quality_log uniformly)
+```
+
+Where the existing 10 paths fit under this:
+
+| Today's path | Input shape | Transport | Why it exists today | Could collapse into |
+|---|---|---|---|---|
+| P1 Python URL cron | URL | Cloud Run cron (or local CLI) | Pre-UI bulk URL ingest from operator's laptop | **Cloud Run cron + canonical URL ingest core**. P4 is the same thing with a UI wrapper |
+| P2 Python markdown | Document (md) | Local CLI | Pre-UI dev/test seeding | **EP2/EP3 markdown UI** absorbs (your roadmap §1.11 / OPS-47) |
+| P3 Q&A docx | Document (docx) | Local CLI | Specialised parser for Pattern A/B tables | **File upload + parser dispatch** (P7-shape with content-type routing) |
+| P4 TS URL ingest | URL | API/UI | Single-URL UI variant | Same canonical URL core as P1 |
+| P5 TS manual | "URL or file but actually neither" | API/UI form | User typing/pasting | Genuinely distinct — content originates in UI, no extract step |
+| P6 TS batch | Document (mixed) | UI autosplit | Autosplit DOCX/markdown | **EP2/EP3** absorbs once autosplit is reshaped |
+| P7 TS file upload | Document (binary) | API/UI | Multipart binary; only path with source_documents | Canonical document core |
+| P8 EP2 markdown batch | Document (md) | UI queue | Just shipped S226; queue + worker | Canonical document core (markdown sub-shape) |
+| P9 RSS | URL (discovered) | Cron poll | Discovery + relevance filter | Genuinely distinct — discovery side-channel + filter; output shape is URL once promoted |
+| P10 MCP create | URL or Document | MCP/OAuth | AI-client write surface | Distinct transport; payload could be URL OR file ref |
+
+**Net architectural verdict (preliminary, needs sub-agent verification):**
+
+- **3 truly distinct shapes/transports**: P5 (manual UI typing), P9 (RSS discovery), P10 (MCP — but its payload is URL-or-doc, so it could share the canonical core for that part)
+- **2 canonical cores needed**: URL ingest, Document ingest
+- **5 of the 10 paths are legacy artefacts** (P1, P2, P3, P6, partial P8 — markdown variant of doc ingest)
+
+Implication: instead of fixing 10 paths' inconsistencies (the OVERSIGHT cluster from §4.2), we **collapse** the legacy paths onto canonical cores. The OVERSIGHT problems (`source_domain`, `platform`, `content_owner_id`, `pipeline_runs`, `quality_score`) disappear because there's only one place to set them.
+
+But this is a **bigger architectural change than the re-ingest gates currently scoped (16-30h).** Doing it pre-launch is the right time per your earlier point ("re-ingestion isn't a problem at this stage"), but I want your direction before scoping.
+
+---
+
+## 2. Direct answers to where I can give them now
+
+### NEW5/6/7 — MD5 vs SHA-256, storage path, current backend setup
+
+**MD5 vs SHA-256 (NEW6):**
+- For dedup/integrity (our use case), **MD5 is fine**. Faster, smaller (32 hex chars vs 64), and we're not protecting against adversarial hash-collision attacks.
+- The DB already commits to MD5: `content_items.content_text_hash` is `GENERATED ALWAYS AS md5(normalised_text)`. Path 7 stores `content_hash` on `source_documents` using MD5.
+- SHA-256 only justified if we'd reuse it for authentication/signing (we won't).
+- **Recommend MD5 for content_hash on source_documents (NEW6) — parity with existing pattern.** Confidence high.
+
+**Current storage backend (NEW5/NEW7):**
+- Path 7 (binary upload) writes to Storage bucket `documents` (key in `file_path`), then writes `source_documents.storage_path` referencing that key. So we DO have re-upload detection infrastructure for binary files (via `content_hash` on source_documents).
+- Markdown today: P8 (EP2) does NOT write to storage — text is held inline in the request payload, written to `content_items.content` only. No `source_documents` row, no bucket object.
+- For markdown, three options for `storage_path`:
+  - **(a) Nullable** — markdown stays in `content_items.content`; `source_documents` row carries metadata only (filename, hash, mime, size). Smallest change. **Recommend for v1.** Versioning later via `content_history` already wired.
+  - **(b) Persist to bucket `markdown`** — full parity with binary; gives us downloadable original. ~2-3h extra work. Worth doing if we want "download original" UX symmetry.
+  - **(c) Sentinel** (e.g. `inline:` URI) — clever but anti-pattern.
+- Re-upload detection (NEW7): with `source_documents.content_hash` set, the same MD5 lookup we use for binaries works for markdown too. Defer to WP-F per the earlier recommendation, but the **infrastructure is the same**, not a new system.
+
+**Recommendation matrix for D2 v1 (markdown source_documents):**
+- `storage_path`: **nullable** for v1 (keeps text in `content_items.content`). Promote to bucket later if needed.
+- `content_hash`: **MD5** of normalised markdown text.
+- `mime_type`: `text/markdown`.
+- `original_filename`: from upload form.
+- `extracted_text`: NULL for markdown (the text IS the source; nothing to "extract").
+
+### NEW1 — expiry_date deep dive
+
+**Where set:**
+- `app/api/ingest/url/route.ts:250-253` (P4) — calls `extractDates(extracted.content)` from `lib/date-extraction.ts:737` then `findExpiryDate()` to pick the most likely expiry candidate.
+- `app/api/upload/route.ts:495-498` (P7) — same helper.
+- All other paths: **never written** at ingest. `metadata-sidebar.tsx` allows admin/editor to edit post-ingest.
+
+**How extracted:**
+- `lib/date-extraction.ts` — regex-based pattern matcher (recognises "expires…", "valid until…", DD/MM/YYYY etc.). No AI involved.
+- `findExpiryDate()` selects the date most contextually-tagged as an expiry/end-date. Heuristic, not validated by AI.
+
+**How used:**
+- **`metadata-sidebar.tsx:271-345`** — primary user surface (read + edit).
+- **`framework-summary-card.tsx`** + **`certification-summary-card.tsx`** — DIFFERENT field (`entity_mentions.metadata.expiry_date` for certifications, NOT `content_items.expiry_date`). Two-store architecture per memory `project_expiry_date_gap`.
+- Probably consumed by freshness/governance crons (need to confirm).
+
+**Roadmap tie-in:**
+- **§1.15 Human-validation for auto-extracted metadata** — pending Liam answers to 7 OQs in `docs/research/human-validation-auto-metadata-research.md`. **Yes**, NEW1 ties directly to §1.15. The research doc treats certification expiry as the highest-impact case but content_items.expiry_date is part of the broader scope.
+
+**My recommendation for NEW1:**
+- **Keep extractDates wired on P4 + P7 only** for v1 (don't extend extraction to other paths; date extraction is non-trivial and only structured content has reliable signals).
+- **Defer the cross-path uniformity decision to §1.15 human-validation work** — that work-package will define how auto-extracted metadata gets validated, and expiry_date will fall under it.
+- For re-ingest: the 617 prod rows lose nothing — re-ingesting via P4/P7 fixes their expiry_date too.
+
+### WILL FIX 16/17/18
+
+**16 — "classifier just wasn't called" examples:**
+The synthesis was vague here. Concretely, from the 10-path audits:
+- **P3 Q&A docx** — uses `keyword_classifier` (no AI), not `classifyContent`. Means primary_domain/subtopic/keywords come from keyword maps. Distinct by design but means the 440 Q&A rows have lower-fidelity classification than AI paths would give them.
+- **P5 manual** — `classify` is OPTIONAL in `app/api/items/route.ts` (gated by request body). Default behaviour when admin types in UI: **classify NOT called**. Result: ~71 prod rows MAY have NULL classification fields.
+- **P10 MCP create** — gated by `!isDraft`. If MCP call has `publication_status='draft'`, classify never runs.
+- **The actual underlying pattern** in WILL FIX 16: it's **not** "classifier wasn't called" but rather **"the path's variant of classify was wired but inferior or skipped"**. Re-ingest doesn't fix this unless we route through the canonical pipeline.
+
+**17 — RSS chunks regen root cause:**
+- `lib/intelligence/pipeline.ts` `storeAsContentItem` writes `content_items` + classify, but **does NOT call `regenerateChunks()`** after content is committed.
+- All other paths (P4/P5/P7/P8/P10) call `regenerateChunks()` in their post-classify step.
+- **Fix:** add 3-line call to `regenerateChunks()` in `storeAsContentItem` post-classify. ~30 min.
+- **Future-proof:** the 28 existing RSS rows can be backfilled via `bun run scripts/backfill-chunks.ts`. **Not** something only re-ingest fixes.
+- **Underlying issue NOT yet fixed.** Future RSS items will continue to be created without chunks until the wire-up lands.
+
+**18 — Batch (P6) chunks regen root cause:**
+- `app/api/items/batch/route.ts` writes `content_items` + classify per item, but **does NOT call `regenerateChunks()`**.
+- Same fix pattern. ~30 min.
+- **Underlying issue NOT yet fixed.** Future batch ingests will continue without chunks.
+
+Both 17 and 18 should move from WILL FIX to **MUST** — they're not "re-ingest naturally fixes" because the wiring gap means future ingests have the same problem.
+
+---
+
+## 3. Coverage gap you spotted — fields where NO paths set value
+
+You're right, the synthesis enumerated some-set-but-not-others but didn't separately enumerate fields-no-path-sets. Quick sweep from §3.1:
+
+**ALL paths leave NULL on insert (intentional / lifecycle):** archived_at/by, archive_reason, freshness, freshness_checked_at, governance_review_due, governance_review_status, governance_reviewer_id, next_review_date, previous_freshness, previous_quality_score, priority, starred, superseded_by, verified_at/by, review_cadence_days. **All ACTIVE-LIFECYCLE — set at transition events, not ingest.**
+
+**ALL paths leave NULL — actually NEVER-WIRED:**
+- 7 telemetry columns (universal gap → Phase D).
+
+**ALL paths leave NULL on insert — DROP-CANDIDATE:**
+- `notes`, `parent_id`, `source_bid` (Q3 ratified).
+
+**Some paths leave NULL where they SHOULDN'T (your specific call-out):**
+- `content_owner_id` — P1, P2, P3, P9 (service-role). **OVERSIGHT** — should be pipeline-service UUID.
+- `created_by` — same set, same fix.
+- `source_document_id` — currently P7-only when its catch-arm fires. Should be ALL document-shape paths after D2 + ingest-path-consolidation work.
+
+**Conclusion:** the "fields nobody writes" category is small once you exclude lifecycle. The bigger structural finding from your reframing is that fields like `content_owner_id`/`created_by` SHOULDN'T need per-path wiring — a canonical pipeline core sets them once.
+
+---
+
+## 4. Knip config — investigation needed
+
+Phase 0.3 reviewed knip suppressions. From my notes:
+- 21 GENUINE-BUILD-NOT-WIRED + 17 LEGACY-SCAFFOLD findings surfaced
+- 9 INTENTIONAL-RE-EXPORT confirmed correct
+- BUT: the 0.3 review **classified** items, it didn't audit whether the config update was over-aggressive
+
+You're asking the right question: **"is the knip config now hiding genuine signals?"** I think probably yes for a subset of the 17 LEGACY-SCAFFOLD items — anything classified "legacy scaffold" might actually be "build-not-wired we forgot about". Need a focused re-audit.
+
+**Recommend Phase 0.7.x: knip config validation pass** — re-run knip with all suppressions OFF, classify each finding as:
+- TRUE-POSITIVE-FIXED-NOW (action: code change)
+- TRUE-POSITIVE-DEFERRED (action: backlog ticket)
+- INTENTIONAL-FALSE-POSITIVE (action: keep config suppression, document why)
+- DRIFT (action: remove stale suppression)
+
+Output: corrected knip baseline + ticket list.
+
+---
+
+## 5. Metadata file-bag spec history
+
+Your hypothesis: source_documents and feed_articles tables exist because someone lifted file-bag metadata into typed columns, but UI/backend wasn't updated and data wasn't migrated.
+
+**To verify, need to trace through `.planning/.archive/.specs/`:**
+- `ingest-path-consistency-spec.md` (S203, RATIFIED) — covers ingest_source/created_by/content_owner_id consistency. Doesn't cover metadata→source_documents lift.
+- `feed-articles-content-items-link-spec.md` — covers feed_articles ↔ content_items relationship.
+- `ingestion-implementation-spec.md` — older; original ingestion design.
+- Need to find the spec that introduced `source_documents` table.
+
+**Recommend Phase 0.7.y: source_documents history trace** — find the spec that added `source_documents` table; verify whether file-bag metadata migration was scoped (and dropped) or never planned.
+
+**Source documents <-> content_items relationship (your specific question):**
+
+From current code reading (Path 7):
+- `source_documents` is created **per uploaded file** (1 row per file).
+- `content_items` is created **first** (1 row per content unit), then `source_documents` references it via `content_item_id`, AND `content_items.source_document_id` back-references the source_documents row.
+- For **single-file ingestion** (most P7 cases): 1 file → 1 source_documents row → 1 content_items row.
+- For **autosplit / multi-content files** (P6): theoretically 1 file → 1 source_documents row → N content_items rows. **But P6 doesn't write source_documents at all today**, so this is hypothetical.
+
+**Intended relationship (per archived specs, needs verification):**
+- 1 source_documents row per uploaded artefact (file)
+- 1+ content_items rows per source_documents row (autosplit produces N)
+- bidirectional link: `source_documents.content_item_id` (when 1:1) OR via a junction (when 1:N — does this exist?).
+
+**Open question — does the schema support 1:N source_documents → content_items?** Not certain from current reading. Need to verify.
+
+---
+
+## 6. Provisional decisions — now ratified for planning
+
+| # | Decision | Provisional answer | Treatment |
+|---|---|---|---|
+| Q1 | captured_date semantics | Always set ingestion-now() + add `source_published_at` typed col | Ratified — proceed |
+| Q2 | Pass 2 entity validation | Deferred status confirmed | Ratified — errata only |
+| NEW1 | expiry_date strategy | Need more info — see §2 above + tie to §1.15 | **Pending your call after reading §2** |
+| NEW2 | platform controlled-vocab | Set on all paths with known semantics | Ratified — proceed |
+| NEW3 | metadata.ingestion_source deprecation | Drop now | Ratified |
+| NEW4 | D2 placement | B (worker-side) | Ratified |
+| NEW5 | D2 storage_path for markdown | Need guidance — see §2 above | **My recommendation: nullable for v1** — confirm? |
+| NEW6 | D2 content_hash algo | Need guidance — see §2 above | **My recommendation: MD5** — confirm? |
+| NEW7 | Re-upload detection in v1? | Need guidance — see §2 above | **My recommendation: defer to WP-F (infra is same)** — confirm? |
+| NEW8 | TS-side ingestion_quality_log | Yes | Ratified |
+| NEW9 | quality_score sync vs cron | Cron-only across all paths | Ratified |
+| NEW10 | pipeline_runs for RSS | Yes | Ratified |
+| NEW11 | Path 7 swallow-catch policy | sb() + logBestEffortWarn, surface to user, tied to content item | Ratified — but need to spec how "tied to specific content item" displays in UI (per-item warnings panel? ingestion_quality_log entry?) |
+| NEW12 | ai_call_log timing | Ideally before re-ingest, non-blocking | **Soft-deferred** — Phase D scope |
+| NEW13 | Phase 0.4 unpause | Need guidance | **My recommendation: post-Phase 0.7+ when full scope known** — confirm? |
+
+---
+
+## 7. Pre-re-ingest items moved forward (per your list)
+
+Confirmed inclusion in MUST or SHOULD before re-ingest:
+- ESLint rules: no-multi-write-shared-catch, no-fire-and-forget-supabase-write, cron-catch-must-record-failure, Python ruff B902 → **MUST** (prevents regression during re-ingest design + helps the audit work)
+- supabase-js error not destructured findings → **MUST** (system-wide fix)
+- 0.2.6 swallow-catch (~150 sites — 8 P1 / 50+ P2) → **MUST** for the 8 P1; **SHOULD** for the P2 batch
+- P1 missing FKs (workspaces, processing_queue, digests) + UI rename for consistency → **MUST**
+- P2 ingestion_quality_log FK ground-truthing → **SHOULD**
+- Q&A docx caller for log_quality_issue helper → **SHOULD**
+
+Total revised effort: **~22-26h MUST + ~14h SHOULD ≈ 36-40h** (vs. prior 26-30h, before reframing).
+
+If we accept the canonical-pipeline reframing in §1, this could **decrease** because OVERSIGHT-uniformity work becomes "wire helper once at canonical core" instead of N call-sites.
+
+---
+
+## 8. Proposed Phase 0.7 — architecture investigation (new phase)
+
+Five focused investigations, mostly read-only sub-agents. Estimated 4-5h wall clock.
+
+| Sub | Question | Effort | Sequence |
+|---|---|---|---|
+| 0.7.1 | **Path normalisation feasibility** — is 10→5 path collapse architecturally sound? Map each path's true distinct value vs duplication. Output: collapse map + blockers list. | ~1h | parallel |
+| 0.7.2 | **Python paths obsolescence** — given Cloud Run + UI exist, can P1, P2, P3 retire? P3 needs the docx parser preserved (becomes parser dispatch in P7-shape). | ~1h | parallel |
+| 0.7.3 | **P6/P8 absorption into P7-shape** — autosplit reshape; markdown variant of doc ingest. Output: scope + risk for collapsing. | ~30 min | parallel |
+| 0.7.4 | **source_documents history trace + intended relationship** — `.planning/.archive/.specs` audit. Confirm 1:N relationship intent. Confirm metadata file-bag migration was scoped/dropped/never-planned. | ~1h | parallel |
+| 0.7.5 | **Knip config validation** — re-run with suppressions OFF; classify each finding TRUE-POSITIVE-FIX/DEFERRED/INTENTIONAL/DRIFT. Output: corrected baseline + ticket list. | ~1h | parallel |
+
+After 0.7 returns: **Phase 0.8 — re-plan re-ingest gates with canonical-pipeline option** vs **incremental-fix option** (your call between architectural rework now or wiring fixes only).
+
+---
+
+## 9. Specific questions for you before I dispatch
+
+I want to confirm scope before kicking off agents. Three groups:
+
+### Group A — confirm provisional answers I gave myself
+
+A1. **NEW5 storage_path = nullable for v1 markdown** — confirm? (Alternative: storage to `markdown` bucket adds 2-3h, gives "download original" parity.)
+
+A2. **NEW6 content_hash = MD5 (parity with existing)** — confirm?
+
+A3. **NEW7 re-upload detection = defer to WP-F** — confirm? (Infrastructure already there via source_documents.content_hash; WP-F just adds the check at ingest time.)
+
+A4. **NEW13 Phase 0.4 unpause = post-Phase 0.7+** — confirm? (Drift banners stay in place until full scope of changes is known so we don't rewrite docs twice.)
+
+### Group B — architectural framing
+
+B1. **Canonical pipeline reframing** — proceed with Phase 0.7 to evaluate feasibility, OR stop and stick with incremental-fix-the-10-paths approach? (Phase 0.7 is read-only; doesn't commit to anything.)
+
+B2. **WILL FIX 17/18 promotion to MUST** — agree these aren't really "WILL FIX" because the wiring gap means future ingests inherit the bug? Add to MUST list?
+
+B3. **Path 7 swallow-catch UI surfacing (NEW11 follow-up)** — when an ingestion has a problem ("source_documents insert failed but content_items succeeded"), how should the user see it?
+- (i) `ingestion_quality_log` entry tied to content_item_id, surfaced in the item's metadata sidebar as a warning chip
+- (ii) Per-item warnings panel (new UX surface)
+- (iii) Toast notification on completion + persistent flag on item
+
+### Group C — any clarifications you want from me
+
+C1. Anything in §1 reframing that's unclear or that I've got wrong?
+
+C2. Should I commit the prior session's untracked stat-only `.claude/skills/update-docs/SKILL.md` change first (it might have been from a prior /update-docs invocation), or leave alone?
+
+---
+
+**No agents dispatched yet — awaiting your direction on Groups A/B/C.** Then I'll dispatch Phase 0.7 agents in parallel and report findings.
 
 ---
 
 ## Turn 3 — User
 
-Base directory for this skill: /Users/liamj/.claude/skills/using-agent-skills
+Thanks Claude.
 
-# Using Agent Skills
+- Agreed on Proposed Phase 0.7.
 
-## Overview
+Group A:
+- NEW6 - Agreed on MD5.
+- Agreed - NEW13 Phase 0.4 unpause = post-Phase 0.7+ (no rush for this item at this stage)
+- For NEW5/NEW7 - If all content is ingested and then converted to markdown, is there still value to saving the source file versus saving the extracted markdown to a column? And then, if a user wants to download that content as a markdown.docx, etc., file. This is something we already have in place for another of our systems, which would actually be quite straightforward. Is most of this already in place from a database perspective with the content history schema? Or should it be instead that we have a source documents history table? I'm still interested in the dynamic between content items and source documents. So the investigation into these will be beneficial and will likely help drive the answer to this question. 
 
-Agent Skills is a collection of engineering workflow skills organized by development phase. Each skill encodes a specific process that senior engineers follow. This meta-skill helps you discover and apply the right skill for your current task.
+Group B:
+- Agreed that Canonical pipeline is the right way forward for the platform, and will remove considerable duplication and complexity.
+- WILL FIX 16, 17, 18: 
+    - Noted, canonical pipeline is the path forward, and promoting items from WILL to MUST.
+    - The platform also already includes a UI (on the item page) for classifying content - we'll need to check how this is currently wired.
+    - This is likely just my lack of understanding from a technical perspective, but why is it that we 'regenerate' chunks rather than 'generate' chunks? Or is the terminology irrelevant here?
+- B3. The answer is either (i) or (ii), but again, Understanding the current dynamic between the two types, as well as then deciding what the right approach is, will help us determine the UI. 
 
-## Skill Discovery
-
-When a task arrives, identify the development phase and apply the corresponding skill:
-
-```
-Task arrives
-    │
-    ├── Vague idea/need refinement? ──→ idea-refine
-    ├── New project/feature/change? ──→ spec-driven-development
-    ├── Have a spec, need tasks? ──────→ planning-and-task-breakdown
-    ├── Implementing code? ────────────→ incremental-implementation
-    │   ├── UI work? ─────────────────→ frontend-ui-engineering
-    │   ├── API work? ────────────────→ api-and-interface-design
-    │   └── Need better context? ─────→ context-engineering
-    ├── Writing/running tests? ────────→ test-driven-development
-    │   └── Browser-based? ───────────→ browser-testing-with-devtools
-    ├── Something broke? ──────────────→ debugging-and-error-recovery
-    ├── Reviewing code? ───────────────→ code-review-and-quality
-    │   ├── Security concerns? ───────→ security-and-hardening
-    │   └── Performance concerns? ────→ performance-optimization
-    ├── Committing/branching? ─────────→ git-workflow-and-versioning
-    ├── CI/CD pipeline work? ──────────→ ci-cd-and-automation
-    ├── Writing docs/ADRs? ───────────→ documentation-and-adrs
-    └── Deploying/launching? ─────────→ shipping-and-launch
-```
-
-## Core Operating Behaviors
-
-These behaviors apply at all times, across all skills. They are non-negotiable.
-
-### 1. Surface Assumptions
-
-Before implementing anything non-trivial, explicitly state your assumptions:
-
-```
-ASSUMPTIONS I'M MAKING:
-1. [assumption about requirements]
-2. [assumption about architecture]
-3. [assumption about scope]
-→ Correct me now or I'll proceed with these.
-```
-
-Don't silently fill in ambiguous requirements. The most common failure mode is making wrong assumptions and running with them unchecked. Surface uncertainty early — it's cheaper than rework.
-
-### 2. Manage Confusion Actively
-
-When you encounter inconsistencies, conflicting requirements, or unclear specifications:
-
-1. **STOP.** Do not proceed with a guess.
-2. Name the specific confusion.
-3. Present the tradeoff or ask the clarifying question.
-4. Wait for resolution before continuing.
-
-**Bad:** Silently picking one interpretation and hoping it's right.
-**Good:** "I see X in the spec but Y in the existing code. Which takes precedence?"
-
-### 3. Push Back When Warranted
-
-You are not a yes-machine. When an approach has clear problems:
-
-- Point out the issue directly
-- Explain the concrete downside (quantify when possible — "this adds ~200ms latency" not "this might be slower")
-- Propose an alternative
-- Accept the human's decision if they override with full information
-
-Sycophancy is a failure mode. "Of course!" followed by implementing a bad idea helps no one. Honest technical disagreement is more valuable than false agreement.
-
-### 4. Enforce Simplicity
-
-Your natural tendency is to overcomplicate. Actively resist it.
-
-Before finishing any implementation, ask:
-- Can this be done in fewer lines?
-- Are these abstractions earning their complexity?
-- Would a staff engineer look at this and say "why didn't you just..."?
-
-If you build 1000 lines and 100 would suffice, you have failed. Prefer the boring, obvious solution. Cleverness is expensive.
-
-### 5. Maintain Scope Discipline
-
-Touch only what you're asked to touch.
-
-Do NOT:
-- Remove comments you don't understand
-- "Clean up" code orthogonal to the task
-- Refactor adjacent systems as a side effect
-- Delete code that seems unused without explicit approval
-- Add features not in the spec because they "seem useful"
-
-Your job is surgical precision, not unsolicited renovation.
-
-### 6. Verify, Don't Assume
-
-Every skill includes a verification step. A task is not complete until verification passes. "Seems right" is never sufficient — there must be evidence (passing tests, build output, runtime data).
-
-## Failure Modes to Avoid
-
-These are the subtle errors that look like productivity but create problems:
-
-1. Making wrong assumptions without checking
-2. Not managing your own confusion — plowing ahead when lost
-3. Not surfacing inconsistencies you notice
-4. Not presenting tradeoffs on non-obvious decisions
-5. Being sycophantic ("Of course!") to approaches with clear problems
-6. Overcomplicating code and APIs
-7. Modifying code or comments orthogonal to the task
-8. Removing things you don't fully understand
-9. Building without a spec because "it's obvious"
-10. Skipping verification because "it looks right"
-
-## Skill Rules
-
-1. **Check for an applicable skill before starting work.** Skills encode processes that prevent common mistakes.
-
-2. **Skills are workflows, not suggestions.** Follow the steps in order. Don't skip verification steps.
-
-3. **Multiple skills can apply.** A feature implementation might involve `idea-refine` → `spec-driven-development` → `planning-and-task-breakdown` → `incremental-implementation` → `test-driven-development` → `code-review-and-quality` → `shipping-and-launch` in sequence.
-
-4. **When in doubt, start with a spec.** If the task is non-trivial and there's no spec, begin with `spec-driven-development`.
-
-## Lifecycle Sequence
-
-For a complete feature, the typical skill sequence is:
-
-```
-1. idea-refine                 → Refine vague ideas
-2. spec-driven-development     → Define what we're building
-3. planning-and-task-breakdown → Break into verifiable chunks
-4. context-engineering         → Load the right context
-5. incremental-implementation  → Build slice by slice
-6. test-driven-development     → Prove each slice works
-7. code-review-and-quality     → Review before merge
-8. git-workflow-and-versioning → Clean commit history
-9. documentation-and-adrs      → Document decisions
-10. shipping-and-launch        → Deploy safely
-```
-
-Not every task needs every skill. A bug fix might only need: `debugging-and-error-recovery` → `test-driven-development` → `code-review-and-quality`.
-
-## Quick Reference
-
-| Phase | Skill | One-Line Summary |
-|-------|-------|-----------------|
-| Define | idea-refine | Refine ideas through structured divergent and convergent thinking |
-| Define | spec-driven-development | Requirements and acceptance criteria before code |
-| Plan | planning-and-task-breakdown | Decompose into small, verifiable tasks |
-| Build | incremental-implementation | Thin vertical slices, test each before expanding |
-| Build | context-engineering | Right context at the right time |
-| Build | frontend-ui-engineering | Production-quality UI with accessibility |
-| Build | api-and-interface-design | Stable interfaces with clear contracts |
-| Verify | test-driven-development | Failing test first, then make it pass |
-| Verify | browser-testing-with-devtools | Chrome DevTools MCP for runtime verification |
-| Verify | debugging-and-error-recovery | Reproduce → localize → fix → guard |
-| Review | code-review-and-quality | Five-axis review with quality gates |
-| Review | security-and-hardening | OWASP prevention, input validation, least privilege |
-| Review | performance-optimization | Measure first, optimize only what matters |
-| Ship | git-workflow-and-versioning | Atomic commits, clean history |
-| Ship | ci-cd-and-automation | Automated quality gates on every change |
-| Ship | documentation-and-adrs | Document the why, not just the what |
-| Ship | shipping-and-launch | Pre-launch checklist, monitoring, rollback plan |
+Group C:
+- All makes sense so far. Also to note, agreed, MCP should share canonical core.
+- Yes please, the change to the file was me. I'm also going to use our python script that extracts the main session output to a file in the same way that you reviewed at the start of this session, as you've outlined a considerable amount of valuable context that I don't want us to lose as we move into a new session after the work we complete in this session. Would it make sense for the output to be saved as JSON or Markdown, as I can create either with our script, and the content can be saved with the other investigation work.
 
 ---
 
 ## Turn 4 — Assistant
 
-## Session kh-prod-readiness-S38 Plan
+Good — answers ratified. Quick checks then dispatching.
 
-**Track:** production-readiness. HEAD `a62276be` (S37 update-docs+handoff). Working tree clean.
+SKILL.md diff is 0 lines — stat-only, nothing to commit. Will `git checkout` to clean.
 
-**Worktrees:** 27 agent branches under main repo `.claude/worktrees/` — locked, not this track's. Leave alone.
+## Quick answers to your questions
 
-**Objectives (5 waves, ~5-7h Claude-driven, +6-9h sub-agent for W3):**
+**JSON vs Markdown for session output:** **Markdown.** Investigation context gets read by humans (you, future agents reading specs/notes) more than parsed programmatically. Easier to integrate with the other `docs/plans/phase-0-investigation/` files, easier to grep, links naturally to other docs. JSON only wins if we'd build tooling around it (we won't).
 
-| Wave | Scope | Type | Files | Skill |
-|------|-------|------|-------|-------|
-| W1 (~30-45m) | data-entry-points.md (markdown ingest upsert refresh) + SCHEMA-QUICK-REF §user-profiles (post-OPS-60 backfill discipline) | Doc edit | EXTEND 2 ref docs | documentation-and-adrs + incremental-implementation |
-| W2 (~30-45m) | OPS-64 `set_config` SECDEF advisor investigation; CLI-first migration if action taken | IMPL | NEW migration (maybe) + EXTEND SCHEMA-QUICK-REF | incremental-implementation + supabase-postgres-best-practices |
-| W3 (~3-4h) | Test-audit fan-out — 4 parallel sub-agents (B components / C lib / D mixed / E e2e+integration) | Audit | 4 NEW agent-output files | code-review-and-quality + test-driven-development + playwright-best-practices (E only) |
-| W4 (~1-2h) | Consolidation — merge 5 agent outputs (A from S37 + B-E) → consolidated-findings.md + remediation-plan.md | Synthesis | 2 NEW files | code-review-and-quality + planning-and-task-breakdown |
-| W5 (~1-2h) | Roadmap MD→JSON Phase 1 — `git mv post-mvp-roadmap.md → product-roadmap.md` + Zod schema + shipped-framing detector + roadmap-to-json scaffold | IMPL | RENAME + 5-10 cross-ref edits + 2 NEW lib/script files | spec-driven-development + incremental-implementation |
+**Regenerate vs generate chunks (terminology):** Function uses DELETE+INSERT idempotent pattern — wipes existing chunks for the item, recomputes, inserts fresh. Naming reflects the *pattern* not the call count. First-time run: DELETE is no-op, behaves like generate. Subsequent runs: actual regeneration. Naming is fine — communicates "safe to run anytime" which is the contract that matters. Not worth changing.
 
-**Parallelism plan:** W1 + W2 + W5 touch different files → can run direct work in any order/parallel. W3 dispatches after W1+W2 GREEN (avoids context bloat collision). W4 strict sequential after W3 returns.
+**Classification UI on item page:** Good catch — folding into Phase 0.7 as new sub-task **0.7.6**. Need to map what UI exists, what it calls (classifyContent or its own path), how it interacts with the canonical pipeline. If wired correctly it becomes the "manual override" entry point under canonical core; if wired wrong it's another oversight.
 
-**3 pre-requisite decisions before dispatch:**
+**Phase 0.7.4 brief expansion** to include your deeper question:
+- Original intent of source_documents (spec history)
+- 1:1 vs 1:N source_documents → content_items
+- File-bag-to-source_documents migration scoped/dropped/never-planned
+- **NEW:** If all content becomes canonical markdown, do we need bucket storage for markdown-only inputs, or does extracted_text + content_items.content cover it?
+- **NEW:** Does content_history (versions content_items.content) cover source_documents lifecycle versioning, OR do we need source_documents_history table parallel to it?
+- **NEW:** Re-upload-with-edits flow — what happens today and what should happen?
 
-Defaults accepted. Creating task list and loading source docs in parallel.
+Setting up tasks then dispatching.
 
-Need to grep for sections in large files instead of reading whole.
+Tree clean. Dispatching 6 parallel agents now. Each writes own file + commits.
 
-Need to verify which data-entry-points section maps to `app/api/ingest/markdown/route.ts`.
+5 of 6 returned. 0.7.2 hit socket error. Checking state + recovering.
 
-Found §12 (Markdown Batch Ingest UI). Step 3 says "row INSERT" but code uses upsert. Editing.
+0.7.1, 0.7.3, 0.7.4, 0.7.5, 0.7.6 committed cleanly. 0.7.2 socket-died with no file written — redispatching fresh.
 
-Now bump Last-verified header on data-entry-points + edit SCHEMA-QUICK-REF.
+All 6 outputs in. Reading them now to synthesise canonical pipeline plan myself.
 
-Now edit SCHEMA-QUICK-REF user_profiles + Last-verified.
+All 6 outputs read. Writing Phase 0.7 synthesis now.
 
-W1 doc-content edits done. SCHEMA-QUICK-REF Last-verified bump deferred until W2 completes (shared file, single-commit batch). Starting W2 investigation.
+Committing synthesis + delivering conversational summary.
 
-Critical: TWO prod callers + revoke-guard already exempts it. Investigating rationale.
+# Phase 0.7 complete — 7 documents committed
 
-## W2 OPS-64 investigation findings — REVOKE blocked
-
-| Check | Result |
-|-------|--------|
-| Origin | Supabase-managed SQL shim. Owner=`postgres`. Body: `SELECT pg_catalog.set_config(setting, value, is_local);`. Wraps built-in GUC setter. |
-| ACL | `{=X/postgres, postgres=X/postgres, anon=X/postgres, authenticated=X/postgres, service_role=X/postgres}` — explicit per-role grants, NOT `pg_default_acl` drift. PUBLIC `=X/postgres` line means anon falls through PUBLIC even after role-level REVOKE. |
-| Prod callers | **2 ACTIVE** — `app/api/bids/[id]/responses/[rId]/route.ts:250` + `restore/route.ts:85`. Both set `app.change_reason` GUC (`is_local=true`) so the `bid_response_history` insert trigger captures the human-supplied reason in version snapshots. |
-| Existing carve-out | `scripts/check-revoke-guard.ts:178-186` `INTENTIONAL_ANON_ALLOW_LIST[0]` lists `set_config` as PostgREST session-config wrapper — verified S22 OPS-43 spec §AC-5. Spec procedure for additions exists; this entry pre-dates audit. |
-
-**Pre-investigation hypothesis (your Recommended choice REVOKE) is wrong for this function.** REVOKE would break bid response edit + restore audit-trail. Three real options:
+`docs/plans/phase-0-investigation/0.7-synthesis.md` is the master output (400 lines). Below is the high-level summary; the synthesis doc has full detail.
 
 ---
 
-## Turn 5 — User
+## What changed in our understanding
 
-Base directory for this skill: /Users/liamj/Documents/development/knowledge-hub-production-readiness/.claude/skills/supabase-postgres-best-practices
+**Three findings reshape the 0.6 plan materially:**
 
-# Supabase Postgres Best Practices
+### 1. `source_documents` was NOT a half-finished file-bag lift
 
-Comprehensive performance optimization guide for Postgres, maintained by Supabase. Contains rules across 8 categories, prioritized by impact to guide automated query optimization and schema design.
+The table was deliberately designed in `content-lifecycle-spec.md` (20 March 2026) as a first-class lineage primitive with versioning baked in (`version` + self-FK `parent_id` + `content_hash` + `archived_at`). The "0/617 prod rows" gap is **operational** (P0-1 silent-fail in P7), not architectural. We don't need to redesign — we need to fix the silent-fail and close the EP2 gap (D2). 
 
-## When to Apply
+**Relationship is 1:N** (one source_documents → many content_items). Confirmed via qa-autosplit-spec R18-R20 and absence of `content_item_id` column on source_documents.
 
-Reference these guidelines when:
-- Writing SQL queries or designing schemas
-- Implementing indexes or query optimization
-- Reviewing database performance issues
-- Configuring connection pooling or scaling
-- Optimizing for Postgres-specific features
-- Working with Row-Level Security (RLS)
+### 2. The biggest UX friction is "re-upload always creates a NEW content_items row"
 
-## Rule Categories by Priority
+Today, every re-upload (even with edits) spawns a fresh content_items row with no link to the prior. The user's mental model — "I edited my doc, see v2 in KB" — is broken. Today the user must manually wire the new item to replace the old via diff-review.
 
-| Priority | Category | Impact | Prefix |
-|----------|----------|--------|--------|
-| 1 | Query Performance | CRITICAL | `query-` |
-| 2 | Connection Management | CRITICAL | `conn-` |
-| 3 | Security & RLS | CRITICAL | `security-` |
-| 4 | Schema Design | HIGH | `schema-` |
-| 5 | Concurrency & Locking | MEDIUM-HIGH | `lock-` |
-| 6 | Data Access Patterns | MEDIUM | `data-` |
-| 7 | Monitoring & Diagnostics | LOW-MEDIUM | `monitor-` |
-| 8 | Advanced Features | LOW | `advanced-` |
+**The canonical-pipeline reframe is what unlocks the fix:** re-upload UPDATEs the existing content_items row (creating content_history v2) while source_documents version-chain captures binary lineage in parallel.
 
-## How to Use
+### 3. Two parent-session assumptions invalidated
 
-Read individual rule files for detailed explanations and SQL examples:
+- **There is NO per-item Classify button on the item detail page.** Only working classify-from-UI is the bulk Re-classify toolbar on `/library`. A "Re-classify after save" toggle is **declared in `ContentTabsEditConfig` but never wired** — `useItemDetailData.tabEditConfig` omits the setter. The PATCH route accepts a `reclassify` body field but only writes a string to a warnings envelope that's discarded. Classic build-not-wired.
+- **`detectQAPairs()` has zero production callers.** P6's `pipeline_name='qa_autosplit'` is misleading — Q&A pairs arrive at the route already-formed via paste-from-spreadsheet UI.
+
+---
+
+## Architectural recommendation
+
+10 paths reduce to **5 distinct kernels + 1 canonical pipeline core** under a unified `IngestRequest` envelope:
 
 ```
-rules/query-missing-indexes.md
-rules/schema-partial-indexes.md
-rules/_sections.md
+Layer 1: 5 transports (cron / API / MCP / CLI / queued worker)
+Layer 2: input-shape router
+Layer 3: 5 shape adapters (URL / binary / text / qa-docx / rss-discovery)
+Layer 4: ONE canonical pipeline core
+         (dedup → side-channel writes → INSERT → classify → embed → chunk
+          → post-stages → pipeline_runs → ingestion_quality_log)
 ```
 
-Each rule file contains:
-- Brief explanation of why it matters
-- Incorrect SQL example with explanation
-- Correct SQL example with explanation
-- Optional EXPLAIN output or metrics
-- Additional context and references
-- Supabase-specific notes (when applicable)
+**3 paths retire** (P1→P4, P2→P8, P6→P8). **5 paths refactor** as canonical-core implementations (P4 URL, P5 manual, P7 binary, P8 markdown-batch, P10 MCP). **2 paths stay specialised** (P3 Q&A docx, P9 RSS).
 
-## Full Compiled Document
-
-For the complete guide with all rules expanded: `AGENTS.md`
+The canonical core is the chokepoint where `source_domain`, `platform`, `content_owner_id`, `summary_data`, `thumbnail_url`, `pipeline_runs`, `ingestion_quality_log`, AI telemetry happen **once** — not 10 times. The OVERSIGHT-uniformity work disappears by construction.
 
 ---
 
-## Turn 6 — Assistant
+## Effort + sequencing
 
-Investigating actual attack surface — checking RLS policies for `current_setting('app.X')` reads + KH's actual usage patterns.
+**Stream 1 — re-ingest readiness gates** (regardless of canonical decision): **~22-28h**
+- Same as 0.6 §10 plus 4 knip TRUE-POSITIVE-FIX-NOW items + RSS/batch chunks regen wiring (promoted from WILL FIX) + NEW8 ingestion_quality_log helper + NEW11 swallow-catch surfacing spec.
 
-Deep investigation complete. Findings flip the picture entirely.
+**Stream 2 — canonical pipeline collapse** (only if A1 ratified): **~9-12 weeks** (~330-470h)
+- Phase A foundation (~2 weeks) blocks everything; Phases B-G run in parallel after A.
 
-## OPS-64 attack-surface analysis
-
-| Check | Result |
-|-------|--------|
-| RLS policies reading `current_setting('app.X')` | **ZERO** — empty `pg_policies` query against staging |
-| Functions reading app.* GUCs | **1** — `snapshot_bid_response_history()` trigger reads `app.change_reason` only |
-| Trigger entry path | `UPDATE bid_responses` — RLS-gated to admin/editor via `getAuthorisedClient` |
-| Anon-reachable consumers of any `app.*` GUC | **NONE** today |
-| Built-in GUC elevation (`role`, `search_path`) | Blocked by `pg_catalog.set_config` privilege check |
-| Python pipeline usage | None |
-
-**Conclusion:** the anon+authenticated EXECUTE on `public.set_config` has **zero exploitable attack surface today**. The hypothesis it's a GUC-injection bypass vector requires an RLS policy that reads `app.*` GUCs as identity claims — KH has none.
-
-The carve-out (`scripts/check-revoke-guard.ts:178-186` S22 §AC-5) is factually correct. The advisor lints 0028+0029 are noise on this row UNLESS a future RLS policy adopts the `current_setting('app.X')` pattern.
-
-## Two closure paths, both security-first
+**Recommended sequencing: re-ingest at end of Stream 1, NOT after Stream 2.** Re-ingesting after canonical foundation compounds risk; better to re-ingest with existing-shape rows clean, then canonical-collapse migrates rows in place.
 
 ---
 
-## Turn 7 — User
+## 13 open questions for you (consolidated)
 
-[Request interrupted by user for tool use]
+**Group A — canonical-pipeline architectural commitment:**
 
----
+- **A1** — Ratify canonical-pipeline collapse as v1 target? Phased plan, ~9-12 weeks pre-launch on top of Stream 1.
+- **A2** — If A1=yes: re-upload UPDATEs existing content_items (content_history v2) vs creates new? *(biggest UX unlock)*
 
-## Turn 8 — User
+**Group B — Stream 1 ratifications:**
 
-Keep + guard + add backlog item
+- **B1** — P3.B keyword_classifier vs AI classify for 440 prod Q&A rows? *(Recommend AI with 50-row eval gate.)*
+- **B2** — NEW1 expiry_date: keep extractDates on P4+P7 only; defer cross-path to roadmap §1.15? Or wire all paths now?
+- **B3** — 0.7.4-Q1 identical-re-upload `parent_id`: chain to existing or NULL? *(Recommend chain.)*
+- **B4** — Python Q&A 387-row backfill from `source_file` text in Stream 1, or defer until binaries available?
+- **B5** — `?format=markdown|docx` export route in Stream 1 (3-5h) or defer? *(`bid-export-docx.ts` already does it; just needs extraction.)*
+- **B6** — Per-item Re-classify button on item-detail (~1h) in Stream 1 or Stream 2?
 
----
+**Group C — operational / cross-track:**
 
-## Turn 9 — Assistant
-
-Writing OPS-64 governance guard test — file-scan on `CREATE POLICY` blocks for `current_setting('app.X')` reads.
-
-Hook false positive. Retrying.
-
-Run the new test against current migrations.
-
-Test passes 3/3. Now update revoke-guard rationale + add SCHEMA-QUICK-REF §32.1.8 + close+add backlog rows.
-
-Now bump SCHEMA-QUICK-REF Last-verified covering both W1+W2.
-
-Updating revoke-guard rationale + closing OPS-64 + adding OPS-65 backlog row.
-
-Now close OPS-64 + add OPS-65 in product-backlog.json.
-
-Verifying W1+W2 changes don't break guard tests + revoke-guard CLI accepts the rewritten rationale.
-
-Pre-existing doc-freshness failure on `state-of-the-product-change-log-section-8.md` from S37 commit `00225f1b`. Verifying.
-
-S37 close-out missed bumping `state-of-the-product-change-log-section-8.md` Last-verified. Hygiene fix.
-
-Test expected to pass post-commit (reads `git log -1`; uncommitted edits not visible). Marking W1+W2 done; moving to W5.
-
-Checking guard tests + script references for `post-mvp-roadmap`.
-
-Renaming the doc + cross-ref fix-up. Starting with `git mv`.
-
-Mass cross-ref fix-up. Doing operational files first (CLAUDE.md, backlog, SoTP, doc-inventory, update-docs skill, 4 test files), then historical docs.
-
-Mass sed for operational files (unambiguous rename — `post-mvp-roadmap` → `product-roadmap`).
-
-Sed blocked on `.claude/skills/`. Re-running without that path; will handle skill file separately.
-
-Sed partially completed before sandbox block. Operational files are clean; finishing historical docs + skill file.
-
-Historical docs done. Now the skill file with sandbox bypass.
-
-Rename complete. Building Zod schema now per §6.1 ratified shape.
-
-Hook flake. Retrying.
-
-Run the detector — should find the §5.4.4 SHIPPED parenthetical + others.
-
-Now Step 3 — `roadmap-to-json.ts` scaffold.
-
-Hook caught child_process import. Switching to `Bun.spawnSync` (no child_process import).
-
-Smoke-test the scaffold (`--check --skip-detector` to bypass shipped-framing check for validation-only run).
-
-W5 scaffold validates 27 sections / 85 items. Verifying guard tests post-rename.
-
-W5 done. Mark complete, dispatch W3 (4 parallel sub-agents per scope-and-dispatch §5 template).
-
-4 agents launched in background (B/C/D/E). Running pre-emptive verification sweeps while they audit.
-
-Prettier complete. Verifying changed-files test scope while agents run.
-
-All changed-scope tests pass (95/95). W1+W2+W5 done; W3 agents running in background.
-
-| Wave | Status | Notes |
-|------|--------|-------|
-| W1 doc drift | ✅ | data-entry-points.md §12 producer-UPSERT narrative + SCHEMA-QUICK-REF §user_profiles post-OPS-60 backfill discipline; both Last-verified bumped same-commit |
-| W2 OPS-64 | ✅ | Deep investigation flipped REVOKE → KEEP-with-rationale; zero exploitable surface today (no RLS reads `app.*` GUCs); future-drift guard `__tests__/migrations/no-app-guc-rls-policy.test.ts` (3/3 pass); SCHEMA-QUICK-REF §32.1.8 NEW; check-revoke-guard rationale extended; OPS-64 closed; **OPS-65 NEW** for refactor option |
-| W5 roadmap Phase 1 | ✅ | `git mv post-mvp-roadmap.md → product-roadmap.md` + 50+ cross-ref fixes; `lib/validation/roadmap-schema.ts` Zod (Item 9+10 ratified — no shipped fields); `scripts/detect-roadmap-shipped-framings.ts` finds 7 framings; `scripts/roadmap-to-json.ts` scaffold validates 27 sections / 85 items |
-| W3 fan-out | ⏳ | 4 sub-agents launched (B=components 237, C=lib 171, D=mixed 218, E=e2e+integration 77). Outputs to `.planning/.research/s37-test-audit/agent-{b,c,d,e}-output.md` |
-| W4 consolidation | ⏸️ | Blocked on W3 |
-
-Pre-existing doc-freshness failure on `state-of-the-product-change-log-section-8.md` (S37 commit `00225f1b` missed bump) — header now corrected; resolves on commit. Will await W3 agent completion notifications.
+- **C1** — production-readiness Cloud Run scheduler timing? *(P1 retirement blocked.)*
+- **C2** — EP8 ship priority? *(P3 retirement blocked; ~16-19h on roadmap §1.11.)*
+- **C3** — Knip baseline reduction — apply 0.7.5 §6 (4 fixes + 25 @public migrations) in Stream 1 or defer?
 
 ---
 
-## Turn 10 — User
+## Specific 0.7.x findings worth highlighting
 
-<task-notification>
-<task-id>aea905827c5624c1b</task-id>
-<tool-use-id>toolu_019ySdionUdXakhrT4v7shVD</tool-use-id>
-<output-file>/private/tmp/claude-501/-Users-liamj-Documents-development-knowledge-hub-production-readiness/afcc348b-86f0-4622-87d6-72ae729bed4c/tasks/aea905827c5624c1b.output</output-file>
-<status>completed</status>
-<summary>Agent "Test-audit Agent B — components" completed</summary>
-<result>Output is in place (725 lines, comparable depth to Agent A's 646). Returning the executive summary now.
+**0.7.1 Path normalisation (87%)** — refined hypothesis: 5 shape adapters + 5 transport overlays. Q&A and RSS stay as specialised kernels. P3 alone covers 71% of prod data → cannot risk regression-via-collapse; defer P3 to Phase F.
 
----
+**0.7.2 Python obsolescence (88%)** — TS port of Q&A docx extractor already exists (`lib/bid-library-ingest/extract-qa-pairs.ts`) with parity tests. The heavy preservation work (extractors, dedup, classify, embed, chunk) is already TS-canonical or has TS ports. Per-path retire timelines: P2 ~2 weeks, P1 ~3 weeks (blocked on Cloud Run scheduler), P3 ~5-7 weeks (via EP8).
 
-**Agent B audit summary — `__tests__/components/` (237 files, 3,184 tests, ~85 min)**
+**0.7.3 P6/P8 absorption (78%)** — P8 is already 80% canonical. Recommended sequencing: D1 → D2 → generalise P8 → absorb P6 → absorb P7. The reshape of P6 finally wires the orphan `detectQAPairs()` function. ~6 sessions total.
 
-Programmatic detection: C1 black-box 0/237 (all `vi.spyOn` legitimate); C2 self-mocks 0/237 + 14 page-component soft-mislocations; C3 internal-detail dominated by **CSS-class coupling** — 36 files / 119 `.className.toContain(...)` + 25 `toHaveClass()` + 11 `querySelector('.&lt;class&gt;')` for state detection (~155 hard couplings to Tailwind tokens); C4 mock-only suites 0/237 (all render real SUT); C5 implementation-shaped titles 67 occurrences across ~27 files (`/^(passes|configures|wraps|forwards|sets|applies|uses) /`) plus 86 borderline `/^calls onX/` callback-prop titles across 42 files; C6 7 cross-file factory-name duplicates + 16 inconsistently-named prop factories. The dispatcher's `/^renders/` exemption decision is correct — 786 "renders X when Y" titles are behavioural at component scale and zero are vacuous.
+**0.7.4 source_documents (85%)** — biggest synthesis output (866 lines). Confirms: bucket-only-for-binaries in v1; `markdown` bucket in v2; no separate `source_documents_history` needed (`parent_id` chain IS history); `?format=markdown|docx` reuses `bid-export-docx.ts` (~3-5h). 387 Q&A rows have NULL `source_document_id` (Python pipeline doesn't write source_documents either — D2b gap).
 
-Top-5 worst offenders: `quality-badge.test.tsx` (15 className asserts), `template-field-review.test.tsx` (9, including focus-state-via-class), `source-document-diff-review.test.tsx` (8), `verification-badge.test.tsx`, `response-editor.test.tsx`. Recommended S38 IMPL: P1 className-assertion sweep (replace with `getByRole`/`aria-current` or design-system contract test), P2 implementation-title rewrite, P2 `createMockItem`/`createQueryClient` hoist to `__tests__/helpers/factories/`. Cross-cutting finding for orchestrator: both Agent A (chain-method coupling) and Agent B (CSS-class coupling) hit the same root pattern — assertion shape, not existence — remediable via a shared S38+ anti-coupling sweep. Full per-file verdicts in `.planning/.research/s37-test-audit/agent-b-output.md`.</result>
-<usage><total_tokens>170990</total_tokens><tool_uses>101</tool_uses><duration_ms>779135</duration_ms></usage>
-</task-notification>
+**0.7.5 Knip validation (88%)** — config is "mildly over-aggressive". 4 fix-now items: G-6 batch-reclassify test drift, D-8 untyped admin response, D-9/D-10 orphan VALID_SORT_* consts. Proposed action: migrate 9 queue-handler types and 16 shadcn re-exports to @public; reduce baseline from `41/15/3` to `4/4/1`. 3 of 11 DRIFT items would self-resolve under canonical-pipeline.
+
+**0.7.6 Classification UI (90%)** — corrects parent assumption. NO per-item Classify button exists. Three forked classify implementations (canonical, queue handler, CLI) — Phase 0.7 should fold to single chokepoint `runClassifyForItem`. Recommended fix: add per-item Re-classify button (~1h) + drop dead `reclassifyAfterSave` toggle.
 
 ---
 
-## Turn 11 — Assistant
+## Next step
 
-Agent B done (components: 0/237 C1, 14 C2 soft-mislocations, ~155 className-coupling hits, 67 impl titles, 7 factory dupes; top offender `quality-badge.test.tsx` with 15 className asserts). Cross-cutting finding with Agent A: both flag assertion-shape coupling. Waiting on C/D/E.
+Awaiting your ratification on Groups A/B/C. Group A is the architectural commitment (yes/no canonical collapse). Group B answers shape Stream 1. Group C tracks cross-track dependencies.
 
----
-
-## Turn 12 — User
-
-<task-notification>
-<task-id>ae03076fbf84cf035</task-id>
-<tool-use-id>toolu_01VbKNeGQHW9TTjMQSw8zrJj</tool-use-id>
-<output-file>/private/tmp/claude-501/-Users-liamj-Documents-development-knowledge-hub-production-readiness/afcc348b-86f0-4622-87d6-72ae729bed4c/tasks/ae03076fbf84cf035.output</output-file>
-<status>completed</status>
-<summary>Agent "Test-audit Agent C — lib" completed</summary>
-<result>Output file written. Returning the 200-word executive summary as requested.
-
----
-
-**Agent C — `__tests__/lib/` audit (171 files, ~75 min, no overrun).**
-
-**Programmatic counts.** C1 black-box: 0 (every `vi.spyOn` is `console`/`Date.now`). C2 public-API: 1 mislocation — `guide-section-integration.test.ts` imports `POST` from `@/app/api/items/route` (symmetric inversion of S37 pattern). C3 invocation-shape chain asserts: 7 files / 23 occurrences (worst: `guide-section-mapping`, `quality-actions`, `validation/layer-schemas`, `queue/auth`, `queue/failure`, `queue/enqueue`); 7 borderline content-shape uses in `entity-metadata-bridge` correctly NOT flagged per refined §3.3. C4 mock-only: 0. C5 implementation titles: 16 files / ~28 titles; ~70 superficially-matching titles (`applies -5 penalty at 15d…`) are behaviour and NOT flagged. C6 factories: 6 cross-file duplicates of `createMockSupabase()` — top consolidation candidate.
-
-**Lib-slice rule-set findings.** §3.5 verb-regex over-fires 3:1 at lib scale — must be sub-agent-triaged. C5 API exemptions (`/^returns \d{3}/`, `/^(rejects|accepts) /`) don't apply. Negative chain asserts (`_chain.X.not.toHaveBeenCalled()`) are NOT C3 violations — they verify side-effect absence. Multi-tenant `_chain.eq('user_id', X)` security contracts should migrate to integration tests rather than delete. Full per-file verdict + top-20 sketches in `.planning/.research/s37-test-audit/agent-c-output.md`.</result>
-<usage><total_tokens>189159</total_tokens><tool_uses>88</tool_uses><duration_ms>761179</duration_ms></usage>
-</task-notification>
-
----
-
-## Turn 13 — Assistant
-
-Agent C done (lib: 0 C1, 1 C2 reverse-mislocation, 7 files / 23 chain-asserts, 0 C4, 16 files / ~28 impl titles, 6 cross-file `createMockSupabase` duplicates). Notable rule refinements: API C5 exemptions don't apply at lib scale; negative chain asserts (`.not.toHaveBeenCalled()`) are legitimate side-effect-absence checks; multi-tenant security `_chain.eq('user_id', X)` should migrate to integration tier not delete. Waiting on D/E.
-
----
-
-## Turn 14 — User
-
-<task-notification>
-<task-id>a9a15ec25ea48b7ce</task-id>
-<tool-use-id>toolu_014sZKHHVSwyV4u852Gyr8Ec</tool-use-id>
-<output-file>/private/tmp/claude-501/-Users-liamj-Documents-development-knowledge-hub-production-readiness/afcc348b-86f0-4622-87d6-72ae729bed4c/tasks/a9a15ec25ea48b7ce.output</output-file>
-<status>completed</status>
-<summary>Agent "Test-audit Agent D — mixed slice" completed</summary>
-<result>Output written.
-
----
-
-## Executive summary (Agent D — mixed slice, 188 files)
-
-**Slice reconciliation:** brief estimated ~218 files, actual 188 (per-row tally — brief headline overcounted; +1 migration since brief). All 188 audited.
-
-**Programmatic counts:** C1 = 0 SUT-internal spies (all 22 vi.spyOn target framework boundaries); C2 = 1 mislocation (`__tests__/app/dashboard-first-run.test.tsx` tests `@/lib/dashboard-signals`); C3 = 4 real chain-shape violations + 2 borderline (fixture-helpers + script-helpers whose contract IS query composition); C4 = 0 mock-only suites; C5 = ~95 titles flagged pre-tree-exemption, dropping to ~30-40 actionable after proposed exemptions (callback-binding hooks, MCP RPC pass-through, validation accepts/rejects, eval thresholds); C6 = 50+ local factories with massive cross-tree duplication (24 MCP tests independently spell `createMockMcpServer`/`createMockServer`/`createTestServer`).
-
-**Top-3 worst offenders:** `dashboard-first-run.test.tsx` (C2 mislocation), `admin-dedup-fixture-helpers.test.ts` (C3 borderline — chain coupling but contract IS the SQL composition), `wp-b-triage-report.test.ts` (C3 + C5 — query construction in title and asserts).
-
-**Biggest IMPL win:** consolidating MCP server factories into `__tests__/helpers/mcp-server.ts` saves ~600 LOC across 24 files and locks one canonical shape — proposed P0.
-
-Output: `.planning/.research/s37-test-audit/agent-d-output.md` (871 lines).</result>
-<usage><total_tokens>189996</total_tokens><tool_uses>80</tool_uses><duration_ms>835846</duration_ms></usage>
-</task-notification>
-
----
-
-## Turn 15 — Assistant
-
-Agent D done (mixed: 188 files actual vs 218 brief est, 0 C1, 1 C2 `dashboard-first-run` mislocation, 4 real + 2 borderline C3, 0 C4, ~30-40 actionable C5 post-exemption, 50+ local factories with massive cross-tree duplication). **Top P0:** consolidate 24 MCP server factories (`createMockMcpServer`/`createMockServer`/`createTestServer`) into `__tests__/helpers/mcp-server.ts` saves ~600 LOC. Agent E still running.
-
----
-
-## Turn 16 — User
-
-<task-notification>
-<task-id>a1385cd6aaf300c06</task-id>
-<tool-use-id>toolu_01V9aP8BTzLenj72UqYdYUgX</tool-use-id>
-<output-file>/private/tmp/claude-501/-Users-liamj-Documents-development-knowledge-hub-production-readiness/afcc348b-86f0-4622-87d6-72ae729bed4c/tasks/a1385cd6aaf300c06.output</output-file>
-<status>completed</status>
-<summary>Agent "Test-audit Agent E — e2e+integration" completed</summary>
-<result>The output file is written. Now let me return the 200-word executive summary as my final message.
-
-**Agent E executive summary (e2e/tests/ + __tests__/integration/, 77 files, ~1.5h):**
-
-**Integration tree (30 files): zero violations.** All use the documented `describe.skipIf(!HAS_REQUIRED_ENV)` env-gate pattern. Mocking is scoped to documented seams (cookie shim for `next/headers`; AI/embed mocks in `si-google-news-dedup` with TODO; dispatch boundary in `queue/lifecycle`). Titles describe externally observable behaviour. The integration suite is the gold standard — `display-name-routes`, `queue/lifecycle`, `queue/concurrency`, `admin-users`, `archive-trigger-coverage` are reference templates.
-
-**E2E tree (47 files): 7 files with E2E-1 violations (~12 silent-skip points), all clustered in older specs (Wave 1 batch + digest-page + provenance-* + settings-mutations).** The canonical pattern is `if (badgeCount &gt; 0) { … }` or `isVisible(...).catch(() =&gt; false)` — silently passes on empty staging. 19 specs are exemplary (admin-dedup-*, bid-draft-*, oauth-consent-flow, role-write-enforcement, mcp-invocation, publication-bulk-action.e2e, coverage-page, review-publication-tab, content-ingestion-*) — these explicitly cite `feedback_e2e_*` in module docstrings, use real fixtures + cleanup, hard-expect every assertion. **§3.7 rule set (E2E-1..E2E-4) catches everything; no new rules needed.** S38+ E2E remediation budget: ~10-12h across 6 work packages. Full output: `.planning/.research/s37-test-audit/agent-e-output.md`.</result>
-<usage><total_tokens>250509</total_tokens><tool_uses>135</tool_uses><duration_ms>850274</duration_ms></usage>
-</task-notification>
+Once ratified: I'll draft the **Phase 0.X re-ingest plan** as a final document (incorporates all decisions; concrete work-package list with effort + sequence). Then we can use `/update-docs` and `/handoff` to close out cleanly.
 
 ---
 
 ## Session Summary
 
-- **User turns:** 9
-- **Assistant turns:** 7
-- **Total content:** 34,662 chars, 8,672 tokens
+- **User turns:** 2
+- **Assistant turns:** 2
+- **Total content:** 41,258 chars, 10,150 tokens
 
 ### Files Read
 
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/CLAUDE.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/continuation-prompts/continuation-prompt-kh-prod-readiness-s38-test-audit-fanout-plus-w2-drift-plus-ops64.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/audits/kh-production-readiness-phase-1/STATUS.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/data-entry-points.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/.planning/.research/s37-test-audit/scope-and-dispatch.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/app/api/ingest/markdown/route.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/lib/pipeline/start-run.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/SCHEMA-QUICK-REFERENCE.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/product-backlog.json`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/.planning/.research/s37-housekeeping/roadmap-conversion-approach.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/scripts/check-revoke-guard.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/app/api/bids/[id]/responses/[rId]/route.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/app/api/bids/[id]/responses/[rId]/restore/route.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/.claude/skills/supabase-postgres-best-practices/rules/security-privileges.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/.claude/skills/supabase-postgres-best-practices/rules/security-rls-basics.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/__tests__/migrations/auth-users-insert-guard.test.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/state-of-the-product-change-log-section-8.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`
+- `/Users/liamj/Documents/development/knowledge-hub/main_session_output.json`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.6-synthesis.md`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.7.1-path-normalisation-feasibility.md`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.7.2-python-paths-obsolescence.md`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.7.3-p6-p8-absorption.md`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.7.4-source-documents-history-relationship.md`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.7.5-knip-config-validation.md`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.7.6-classification-ui-wiring.md`
 
 ### Files Written
 
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/data-entry-points.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/SCHEMA-QUICK-REFERENCE.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/__tests__/migrations/no-app-guc-rls-policy.test.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/scripts/check-revoke-guard.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/product-backlog.json`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/docs/reference/state-of-the-product-change-log-section-8.md`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/lib/validation/roadmap-schema.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/scripts/detect-roadmap-shipped-framings.ts`
-- `/Users/liamj/Documents/development/knowledge-hub-production-readiness/scripts/roadmap-to-json.ts`
+- `/Users/liamj/Documents/development/knowledge-hub/docs/plans/phase-0-investigation/0.7-synthesis.md`
