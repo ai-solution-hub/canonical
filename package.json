@@ -24,6 +24,8 @@
     "build:plugin": "bun run scripts/bundle-plugin.ts",
     "sync:plugin-taxonomy": "bun run scripts/sync-plugin-taxonomy.ts",
     "sync:taxonomy": "bun run scripts/generate-classification-prompt-taxonomy.ts && bun run scripts/generate-taxonomy-snapshot.ts && bun run scripts/sync-plugin-taxonomy.ts && bun run build:plugin",
+    "roadmap:to-json": "bun run scripts/roadmap-to-json.ts",
+    "roadmap:render": "bun run scripts/roadmap-from-json.ts",
     "test:mcp-eval": "bun run scripts/mcp-eval/protocol-compliance.ts",
     "test:mcp-eval:skip-ai": "bun run scripts/mcp-eval/protocol-compliance.ts --skip-ai",
     "test:mcp-eval:rq": "bun run scripts/mcp-eval/response-quality.ts",

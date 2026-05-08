@@ -136,6 +136,15 @@ export const RoadmapItemSchema = z
     effort_estimate: z.string().nullable(),
     priority: RoadmapPriority.nullable(),
     /**
+     * Phase 2 addition (kh-prod-readiness-S39 W1) — preserves the original
+     * priority cell text verbatim when it carries editorial annotation
+     * beyond the canonical enum (e.g. "Should (demoted from Must)",
+     * "Medium (deferred)", "Low (H2)"). Renderer prefers `priority_note`
+     * over the canonical capitalised enum so round-trip is lossless.
+     * Null when the source cell was the unannotated canonical form.
+     */
+    priority_note: z.string().nullable(),
+    /**
      * Item 8 ratification — §3.2 only (gap-analysis grading C2/H5/M4).
      * Null on every other section.
      */

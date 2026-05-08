@@ -239,7 +239,7 @@ function classifyColumns(headerCells: string[]): ColumnSet | null {
     return 'item_desc_owner_effort_status';
   }
   if (
-    norm.length === 5 &&
+    norm.length === 6 &&
     norm.includes('effort') &&
     norm.includes('priority') &&
     norm.includes('status')
@@ -247,10 +247,11 @@ function classifyColumns(headerCells: string[]): ColumnSet | null {
     return 'item_desc_effort_priority_status';
   }
   if (
-    norm.length === 4 &&
+    norm.length === 5 &&
     (norm.includes('item') || norm.includes('phase')) &&
     norm.includes('priority') &&
-    norm.includes('status')
+    norm.includes('status') &&
+    !norm.includes('effort')
   ) {
     return 'item_desc_priority_status';
   }
@@ -313,17 +314,59 @@ function uniq(arr: string[]): string[] {
   return Array.from(new Set(arr));
 }
 
+/**
+ * Item 6 hybrid-parsing — extract the text span following a `Blocks:` /
+ * `Coordinates with` marker up to the next paragraph break, sentence
+ * terminator at column boundary, or end of cell. Markdown bold wrapping
+ * (`**Blocks:**`) is tolerated. Inner parentheticals are captured (so
+ * `§6` references inside annotation parens get pulled into blocks/coords
+ * with their parent — acceptable approximation for round-trip purposes
+ * given description text already preserves the verbatim annotation).
+ */
+function captureNamedSpan(
+  text: string,
+  marker: 'Blocks?' | 'Coordinates with',
+): string {
+  const re = new RegExp(
+    '\\*{0,2}\\b' + marker + ':?\\*{0,2}\\s+([\\s\\S]+?)(?:\\.\\s|\\.\\*\\*|$)',
+    'i',
+  );
+  const m = re.exec(text);
+  return m ? m[1] : '';
+}
+
+function tokensInSpan(span: string): string[] {
+  return uniq([
+    ...(span.match(SECTION_REF_RE) ?? []),
+    ...(span.match(D_REF_RE) ?? []),
+    ...(span.match(OPS_REF_RE) ?? []),
+  ]);
+}
+
 function sweepStructuredRefs(text: string): {
   depends_on: string[];
+  blocks: string[];
+  coordinates_with: string[];
   cross_doc_links: DocLink[];
   session_refs: string[];
   commit_refs: string[];
 } {
-  const depends_on = uniq([
+  const blocksSpan = captureNamedSpan(text, 'Blocks?');
+  const coordsSpan = captureNamedSpan(text, 'Coordinates with');
+  const blocks = tokensInSpan(blocksSpan);
+  const coordinates_with = tokensInSpan(coordsSpan);
+  const blocksSet = new Set(blocks);
+  const coordsSet = new Set(coordinates_with);
+  const allRefs = uniq([
     ...(text.match(SECTION_REF_RE) ?? []),
     ...(text.match(D_REF_RE) ?? []),
     ...(text.match(OPS_REF_RE) ?? []),
   ]);
+  // depends_on excludes refs already attributed to blocks/coordinates_with.
+  // Per §6.1 Item 6 the three relationship buckets are mutually exclusive.
+  const depends_on = allRefs.filter(
+    (ref) => !blocksSet.has(ref) && !coordsSet.has(ref),
+  );
   const session_refs = uniq(text.match(SESSION_RE) ?? []);
   const commit_refs = uniq(
     (text.match(COMMIT_RE) ?? [])
@@ -340,7 +383,193 @@ function sweepStructuredRefs(text: string): {
     cross_doc_links.push({ path, anchor: anchor ?? null, raw: m[0] });
   }
   SPEC_LINK_RE.lastIndex = 0;
-  return { depends_on, cross_doc_links, session_refs, commit_refs };
+  return {
+    depends_on,
+    blocks,
+    coordinates_with,
+    cross_doc_links,
+    session_refs,
+    commit_refs,
+  };
+}
+
+// ──────────────────────────────────────────
+// Priority + status enum parsers
+//
+// Source MD cells contain canonical enum text ("Must", "Should", "Pending")
+// AND editorial annotations ("Should (demoted from Must)", "Spec pending
+// Liam OQ answers", "Blocked on bid-to-template linkage"). The parsers
+// emit:
+//   - canonical enum value when the cell prefix matches one of the
+//     ratified enum spellings;
+//   - `*_note: string` carrying the verbatim original cell text whenever
+//     the cell text differs from the canonical capitalised enum form.
+//
+// The renderer prefers the note over the capitalised enum so round-trip
+// preserves the original wording.
+// ──────────────────────────────────────────
+
+const PRIORITY_KEYWORDS = [
+  'must',
+  'should',
+  'could',
+  'future',
+  'high',
+  'medium',
+  'low',
+  'trigger',
+] as const;
+
+function canonicalCapitalise(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function parsePriorityCell(cell: string | undefined): {
+  priority: RoadmapItem['priority'];
+  priority_note: string | null;
+} {
+  const trimmed = (cell ?? '').trim();
+  if (trimmed.length === 0) return { priority: null, priority_note: null };
+  const lc = trimmed.toLowerCase();
+  for (const keyword of PRIORITY_KEYWORDS) {
+    if (lc === keyword) return { priority: keyword, priority_note: null };
+    if (lc.startsWith(keyword + ' ') || lc.startsWith(keyword + '(')) {
+      return { priority: keyword, priority_note: trimmed };
+    }
+  }
+  return { priority: null, priority_note: trimmed };
+}
+
+const STATUS_KEYWORDS: Array<{ enum: RoadmapItem['status']; match: RegExp }> = [
+  { enum: 'spec_needed', match: /\bspec\s*(pending|needed)\b/i },
+  { enum: 'in_progress', match: /\bin[\s_]?progress\b/i },
+  { enum: 'imp_deferred', match: /\b(impl|implementation)\s+deferred\b/i },
+  { enum: 'deferred', match: /\bdeferred\b/i },
+  { enum: 'blocked', match: /\bblocked\b/i },
+  { enum: 'pending', match: /\bpending\b/i },
+];
+
+function parseStatusCell(cell: string | undefined): {
+  status: RoadmapItem['status'];
+  status_note: string | null;
+} {
+  const trimmed = (cell ?? '').trim();
+  if (trimmed.length === 0) return { status: null, status_note: null };
+  for (const { enum: enumValue, match } of STATUS_KEYWORDS) {
+    if (match.test(trimmed)) {
+      const canonicalText = canonicalCapitalise(
+        (enumValue ?? '').replace('_', ' '),
+      );
+      const note = trimmed === canonicalText ? null : trimmed;
+      return { status: enumValue, status_note: note };
+    }
+  }
+  return { status: null, status_note: trimmed };
+}
+
+// ──────────────────────────────────────────
+// Per-columnSet cell mapping (Phase 2)
+//
+// `cells` arrives with the leading ID stripped (see assembleSection). Each
+// columnSet variant lays out post-ID cells differently — this fan-out
+// captures every variation seen in the audited 27-section corpus.
+// ──────────────────────────────────────────
+
+interface ColumnExtraction {
+  title: string;
+  phase_label: string | null;
+  description: string;
+  owner: string | null;
+  effort_estimate: string | null;
+  priority: RoadmapItem['priority'];
+  priority_note: string | null;
+  severity: string | null;
+  status: RoadmapItem['status'];
+  status_note: string | null;
+}
+
+function emptyExtraction(): ColumnExtraction {
+  return {
+    title: '',
+    phase_label: null,
+    description: '',
+    owner: null,
+    effort_estimate: null,
+    priority: null,
+    priority_note: null,
+    severity: null,
+    status: null,
+    status_note: null,
+  };
+}
+
+function blankToNull(value: string | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+function extractCells(cells: string[], columnSet: ColumnSet): ColumnExtraction {
+  const out = emptyExtraction();
+  out.title = cells[0]?.trim() ?? '';
+  out.description = cells[1] ?? '';
+  switch (columnSet) {
+    case 'item_desc_owner_effort_status': {
+      out.owner = blankToNull(cells[2]);
+      out.effort_estimate = blankToNull(cells[3]);
+      const parsedStatus = parseStatusCell(cells[4]);
+      out.status = parsedStatus.status;
+      out.status_note = parsedStatus.status_note;
+      break;
+    }
+    case 'item_desc_effort_priority': {
+      out.effort_estimate = blankToNull(cells[2]);
+      const parsedPriority = parsePriorityCell(cells[3]);
+      out.priority = parsedPriority.priority;
+      out.priority_note = parsedPriority.priority_note;
+      break;
+    }
+    case 'phase_desc_effort_priority': {
+      // Item 5 ratification — phase_label only populates when the source
+      // row text uses the canonical "Phase N — Title" pattern. Mixed
+      // sections (e.g. §3.7 with rows like "OPS-N — Tighten Zod ...")
+      // surface in the same column but are not Phase rows; populating
+      // phase_label with their non-Phase title is semantic noise.
+      if (/^Phase\s+\d/i.test(out.title)) {
+        out.phase_label = out.title;
+      }
+      out.effort_estimate = blankToNull(cells[2]);
+      const parsedPriority = parsePriorityCell(cells[3]);
+      out.priority = parsedPriority.priority;
+      out.priority_note = parsedPriority.priority_note;
+      break;
+    }
+    case 'item_desc_effort_severity': {
+      out.effort_estimate = blankToNull(cells[2]);
+      out.severity = blankToNull(cells[3]);
+      break;
+    }
+    case 'item_desc_priority_status': {
+      const parsedPriority = parsePriorityCell(cells[2]);
+      out.priority = parsedPriority.priority;
+      out.priority_note = parsedPriority.priority_note;
+      const parsedStatus = parseStatusCell(cells[3]);
+      out.status = parsedStatus.status;
+      out.status_note = parsedStatus.status_note;
+      break;
+    }
+    case 'item_desc_effort_priority_status': {
+      out.effort_estimate = blankToNull(cells[2]);
+      const parsedPriority = parsePriorityCell(cells[3]);
+      out.priority = parsedPriority.priority;
+      out.priority_note = parsedPriority.priority_note;
+      const parsedStatus = parseStatusCell(cells[4]);
+      out.status = parsedStatus.status;
+      out.status_note = parsedStatus.status_note;
+      break;
+    }
+  }
+  return out;
 }
 
 function buildItem(
@@ -349,28 +578,24 @@ function buildItem(
   cells: string[],
   columnSet: ColumnSet,
 ): RoadmapItem {
-  // TODO(S39+): per-columnSet field mapping. Phase 1 scaffold returns a
-  // skeleton item with structured-ref sweeps applied so the schema
-  // validates, while leaving column-specific parsing (priority enum
-  // mapping, status enum mapping, effort_estimate trimming) for the
-  // round-trip-verified Phase 2 IMPL.
-  const description = cells[1] ?? '';
-  const refs = sweepStructuredRefs(description);
+  const fields = extractCells(cells, columnSet);
+  const refs = sweepStructuredRefs(fields.description);
   return {
     id: rawId,
     section_id: sectionId,
-    title: cells[0] ?? '',
-    phase_label: columnSet === 'phase_desc_effort_priority' ? cells[0] : null,
-    description,
-    effort_estimate: null,
-    priority: null,
-    severity: null,
-    status: null,
-    status_note: null,
-    owner: null,
+    title: fields.title,
+    phase_label: fields.phase_label,
+    description: fields.description,
+    effort_estimate: fields.effort_estimate,
+    priority: fields.priority,
+    priority_note: fields.priority_note,
+    severity: fields.severity,
+    status: fields.status,
+    status_note: fields.status_note,
+    owner: fields.owner,
     depends_on: refs.depends_on,
-    blocks: [],
-    coordinates_with: [],
+    blocks: refs.blocks,
+    coordinates_with: refs.coordinates_with,
     cross_doc_links: refs.cross_doc_links,
     session_refs: refs.session_refs,
     commit_refs: refs.commit_refs,
@@ -414,20 +639,33 @@ function assembleSection(raw: RawSection): RoadmapSection {
 // ──────────────────────────────────────────
 
 function extractDate(content: string): string {
-  const m = /Date:\s*(\d{4}-\d{2}-\d{2})/.exec(content);
-  if (m) return m[1];
-  const now = new Date();
-  return now.toISOString().slice(0, 10);
+  const iso = /Date:\s*\**\s*(\d{4}-\d{2}-\d{2})/.exec(content);
+  if (iso) return iso[1];
+  const uk = /Date:\**\s*(\d{2})\/(\d{2})\/(\d{4})/.exec(content);
+  if (uk) return uk[3] + '-' + uk[2] + '-' + uk[1];
+  return new Date().toISOString().slice(0, 10);
 }
 
 function extractDocumentPurpose(content: string): string {
-  const lines = content.split('\n').slice(0, 30);
-  for (const line of lines) {
-    if (line.startsWith('>') || line.startsWith('#')) continue;
-    const trimmed = line.trim();
-    if (trimmed.length > 30) return trimmed;
+  const lines = content.split('\n');
+  const headingIdx = lines.findIndex((l) => /^#\s+/.test(l));
+  if (headingIdx === -1) {
+    return 'Knowledge Hub product roadmap — forward-looking work only.';
   }
-  return 'Knowledge Hub product roadmap — forward-looking work only.';
+  const ruleIdx = lines.findIndex(
+    (l, i) => i > headingIdx && /^---\s*$/.test(l),
+  );
+  if (ruleIdx === -1) {
+    return 'Knowledge Hub product roadmap — forward-looking work only.';
+  }
+  const preamble = lines
+    .slice(headingIdx + 1, ruleIdx)
+    .join('\n')
+    .trim();
+  if (preamble.length === 0) {
+    return 'Knowledge Hub product roadmap — forward-looking work only.';
+  }
+  return preamble;
 }
 
 // ──────────────────────────────────────────
