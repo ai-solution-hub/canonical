@@ -131,3 +131,7 @@ output.jsonl
 .planning/codebase/graphify-baselines/*/graph.json
 .planning/codebase/graphify-baselines/*/graph.html
 .planning/codebase/graphify-baselines/*/graphify-out/
+
+# graphify-out from incidental graphify runs (project root + client-doc subdir)
+/graphify-out/
+docs/client-documentation/graphify-out/
