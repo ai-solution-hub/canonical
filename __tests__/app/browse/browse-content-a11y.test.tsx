@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { createQueryWrapper } from '../helpers/query-wrapper';
+import { createQueryWrapper } from '../../helpers/query-wrapper';
 
 // Cold-start gate transitively renders `PromptCardChipComposite` which
 // reads `useTaxonomy` + `useTopDomains` (Supabase RPC). Stub both so

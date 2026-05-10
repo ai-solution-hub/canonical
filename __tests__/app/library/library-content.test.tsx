@@ -8,8 +8,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { mockTaxonomyContext } from '../helpers/mock-contexts';
-import { createQueryWrapper } from '../helpers/query-wrapper';
+import { mockTaxonomyContext } from '../../helpers/mock-contexts';
+import { createQueryWrapper } from '../../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
