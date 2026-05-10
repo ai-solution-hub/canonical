@@ -448,7 +448,7 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
     expect(userIds).toEqual([ADMIN_ID_1, ADMIN_ID_2].sort());
   });
 
-  it('uses batch summary path when >20 items are flagged', async () => {
+  it('sends a single batch-summary notification when an owner has more than 20 overdue items', async () => {
     const items = Array.from({ length: 25 }, (_, i) =>
       makeCandidate({
         id: `00000000-0000-4000-8000-${String(100 + i).padStart(12, '0')}`,
@@ -477,7 +477,7 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
     expect(notifications[0].title).toContain('25 items overdue');
   });
 
-  it('uses individual notifications at the 20-item threshold', async () => {
+  it('sends per-item notifications when an owner has exactly 20 overdue items', async () => {
     const items = Array.from({ length: 20 }, (_, i) =>
       makeCandidate({
         id: `00000000-0000-4000-8000-${String(200 + i).padStart(12, '0')}`,

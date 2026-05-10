@@ -205,7 +205,7 @@ describe('Read Marks API', () => {
       expect(body.success).toBe(true);
     });
 
-    it('passes correct user_id to upsert', async () => {
+    it('records the read mark against the authenticated caller', async () => {
       const request = createTestRequest('/api/read-marks', {
         method: 'POST',
         body: { action: 'mark_read', item_id: ITEM_UUID, source: 'manual' },

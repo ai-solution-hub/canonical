@@ -381,7 +381,7 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/merge', () => {
       );
     });
 
-    it('uses fallback values for content_history snapshot when loser load fails', async () => {
+    it('still records the merge with placeholder snapshot when loading the loser fails', async () => {
       configureRole(mockSupabase, 'admin');
       // Loser load returns error — route should still proceed
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({

@@ -133,7 +133,7 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
     expect(data[0].ratio).toBe(67);
   });
 
-  it('uses default granularity (daily) and period (90d)', async () => {
+  it('returns daily-granularity trends over the last 90 days when no period is specified', async () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
@@ -198,7 +198,7 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
     expect(data[2].date).toBe('2026-03-10');
   });
 
-  it('passes through ratio from RPC as percentage 0-100', async () => {
+  it('reports the filter ratio as a percentage between 0 and 100', async () => {
     configureRole(mockSupabase, 'admin');
 
     const rows = makeTrendRows([

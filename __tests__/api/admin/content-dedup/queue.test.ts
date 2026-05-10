@@ -206,7 +206,7 @@ describe('GET /api/admin/content-dedup/queue', () => {
       });
     });
 
-    it('applies primary_domain filter when ?domain= present', async () => {
+    it('restricts queue rows to the requested primary domain', async () => {
       configureRole(mockSupabase, 'admin');
       configureQueueRows([]);
 
@@ -221,7 +221,7 @@ describe('GET /api/admin/content-dedup/queue', () => {
       );
     });
 
-    it('applies cursor as < created_at', async () => {
+    it('paginates queue rows older than the supplied cursor', async () => {
       configureRole(mockSupabase, 'admin');
       configureQueueRows([]);
 

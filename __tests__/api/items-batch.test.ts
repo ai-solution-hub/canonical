@@ -377,7 +377,7 @@ describe('POST /api/items/batch', () => {
       }
     });
 
-    it('sets source_document_id when provided', async () => {
+    it('links each item to its originating source document when provided', async () => {
       configureRole(mockSupabase, 'editor');
 
       const sourceDocId = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
@@ -402,7 +402,7 @@ describe('POST /api/items/batch', () => {
       }
     });
 
-    it('sets ingestion_source to upload_autosplit in metadata', async () => {
+    it('records upload_autosplit as the ingestion source in item metadata', async () => {
       configureRole(mockSupabase, 'editor');
 
       await POST(makeRequest({ items: makeSampleItems(1) }));
@@ -590,7 +590,7 @@ describe('POST /api/items/batch', () => {
       }
     });
 
-    it('sets answer_advanced when provided', async () => {
+    it('persists the advanced answer alongside the standard answer when provided', async () => {
       configureRole(mockSupabase, 'editor');
 
       await POST(

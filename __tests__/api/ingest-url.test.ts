@@ -408,7 +408,7 @@ describe('POST /api/ingest/url — Successful Import', () => {
     expect(body.primary_domain).toBe('General Business');
   });
 
-  it('passes content_type through when provided', async () => {
+  it('honours the requested content_type on the ingested item', async () => {
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
       body: { url: SAMPLE_URL, content_type: 'blog' },
@@ -419,7 +419,7 @@ describe('POST /api/ingest/url — Successful Import', () => {
     expect(body.content_type).toBe('blog');
   });
 
-  it('passes user_tags through when provided', async () => {
+  it('persists supplied user_tags on the ingested item', async () => {
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
       body: { url: SAMPLE_URL, user_tags: ['tag-a', 'tag-b'] },
@@ -469,7 +469,7 @@ describe('POST /api/ingest/url — Successful Import', () => {
     expect(insertData.created_by).toBe('test-user-id');
   });
 
-  it('sets platform to web', async () => {
+  it('records "web" as the platform for URL-ingested items', async () => {
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
       body: { url: SAMPLE_URL },
@@ -480,7 +480,7 @@ describe('POST /api/ingest/url — Successful Import', () => {
     expect(insertData.platform).toBe('web');
   });
 
-  it('sets metadata.ingestion_source to url_import', async () => {
+  it('records url_import as the ingestion source in metadata', async () => {
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
       body: { url: SAMPLE_URL },

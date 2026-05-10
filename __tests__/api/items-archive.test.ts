@@ -346,7 +346,7 @@ describe('POST /api/items/[id]/archive', () => {
   // =========================================================================
 
   describe('successful archive', () => {
-    it('sets archived_at, archived_by, and archive_reason on the item', async () => {
+    it('records who archived the item, when, and why', async () => {
       configureRole(mockSupabase, 'editor');
 
       const archivedItem = {

@@ -517,7 +517,7 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
     expect(domainInCall![1]).toEqual(['Finance']);
   });
 
-  it('passes through unrestricted when assignment has null filter arrays', async () => {
+  it('returns the unrestricted queue when the reviewer assignment has no filters set', async () => {
     configureRole(mockSupabase, 'editor');
 
     // Assignment with both filter arrays null = unrestricted
@@ -609,7 +609,7 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
 describe('GET /api/review/queue — include_overdue filter (S205 WP-E T2)', () => {
   beforeEach(resetMocks);
 
-  it('uses query.is(verified_at, null) when include_overdue is missing (default off)', async () => {
+  it('returns only never-verified items when include_overdue is omitted (default off)', async () => {
     // T2-AC7: missing param resolves to off — the existing default
     // unverified branch still applies the simple verified_at IS NULL
     // predicate. No widening, no .or() call for the verification axis.

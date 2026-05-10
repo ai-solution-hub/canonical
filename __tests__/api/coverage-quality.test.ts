@@ -213,7 +213,7 @@ describe('GET /api/coverage', () => {
     expect(body.summary).toEqual(summaryData);
   });
 
-  it('passes layer param to get_coverage_matrix RPC', async () => {
+  it('returns coverage scoped to the requested layer', async () => {
     mockSupabase.rpc
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null });
@@ -417,7 +417,7 @@ describe('GET /api/dashboard', () => {
     expect(body.errors).toEqual([]);
   });
 
-  it('passes isAdmin=true when user has admin role', async () => {
+  it('treats admins as admin when fetching dashboard data', async () => {
     configureRole(mockSupabase, 'admin');
 
     await dashboardGet();
@@ -430,7 +430,7 @@ describe('GET /api/dashboard', () => {
     );
   });
 
-  it('passes isAdmin=false when user has viewer role', async () => {
+  it('treats viewers as non-admin when fetching dashboard data', async () => {
     configureRole(mockSupabase, 'viewer');
 
     await dashboardGet();
@@ -530,7 +530,7 @@ describe('GET /api/quality', () => {
     expect(body.error).toBe('Validation failed');
   });
 
-  it('applies filter params to query', async () => {
+  it('restricts results to all supplied filter parameters', async () => {
     const req = createTestRequest('/api/quality', {
       searchParams: {
         item_id: VALID_UUID,

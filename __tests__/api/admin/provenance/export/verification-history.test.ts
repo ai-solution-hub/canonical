@@ -152,7 +152,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
   });
 
   describe('Date range handling', () => {
-    it('uses default 30-day range when no params provided', async () => {
+    it('exports the last 30 days of verification history when no range is specified', async () => {
       configureAdminAuth();
       mockSupabase._chain.then.mockImplementation(
         (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
@@ -167,7 +167,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
       expect(mockSupabase._chain.lte).toHaveBeenCalled();
     });
 
-    it('uses custom date range when provided', async () => {
+    it('exports verification history for the requested date range', async () => {
       configureAdminAuth();
       mockSupabase._chain.then.mockImplementation(
         (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),

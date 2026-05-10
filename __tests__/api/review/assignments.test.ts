@@ -186,7 +186,7 @@ describe('GET /api/review/assignments', () => {
     expect(hasReviewerIdFilter).toBe(false);
   });
 
-  it('applies status filter', async () => {
+  it('restricts assignments to the requested status', async () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then.mockImplementation(

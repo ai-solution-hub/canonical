@@ -295,7 +295,7 @@ describe('POST /api/digest/generate', () => {
     );
   });
 
-  it('passes optional filter parameters to generateDigest', async () => {
+  it('honours optional digest filters when generating a digest', async () => {
     configureRole(mockSupabase, 'editor');
 
     const req = createTestRequest('/api/digest/generate', {

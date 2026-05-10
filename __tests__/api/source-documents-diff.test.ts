@@ -592,7 +592,7 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     expect(body.summary.dismissed).toBe(2);
   });
 
-  it('sets reviewed_at and reviewed_by for applied status', async () => {
+  it('records who applied a diff entry and when', async () => {
     configureRole(mockSupabase, 'editor');
 
     // Verification query

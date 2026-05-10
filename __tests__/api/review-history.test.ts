@@ -328,7 +328,7 @@ describe('GET /api/review/history', () => {
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(10);
   });
 
-  it('passes the item_id from the query parameter to the eq filter', async () => {
+  it('returns history scoped to the requested item_id', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -464,7 +464,7 @@ describe('GET /api/review/history', () => {
     expect(entry).toHaveProperty('resolved_by_name');
   });
 
-  it('wraps the result in a { history } envelope', async () => {
+  it('returns history entries inside a { history } envelope', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );

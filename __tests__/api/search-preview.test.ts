@@ -340,7 +340,7 @@ describe('GET /api/search/preview', () => {
     );
   });
 
-  it('passes escaped query to ilike filter', async () => {
+  it('escapes ilike wildcards in user search input', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [], error: null, count: 0 }),

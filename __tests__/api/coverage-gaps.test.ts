@@ -454,7 +454,7 @@ describe('GET /api/coverage/gaps', () => {
     expect(domainsInResult.every((d: string) => d === 'Finance')).toBe(true);
   });
 
-  it('applies pagination with limit and offset', async () => {
+  it('paginates gap results using the supplied limit and offset', async () => {
     const req = createTestRequest('/api/coverage/gaps', {
       searchParams: { limit: '2', offset: '0' },
     });

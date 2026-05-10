@@ -245,7 +245,7 @@ describe('POST /api/summaries/generate', () => {
     );
   });
 
-  it('passes force=true when specified in request body', async () => {
+  it('regenerates summary when force=true is in request body', async () => {
     configureRole(mockSupabase, 'admin');
 
     const req = createTestRequest('/api/summaries/generate', {

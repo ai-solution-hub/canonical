@@ -156,7 +156,7 @@ describe('GET /api/entities/co-occurrence', () => {
     });
   });
 
-  it('passes entity type filter to RPC', async () => {
+  it('restricts results to the requested entity type', async () => {
     const rpcResult = [
       {
         entity_a: 'ISO 27001',
@@ -189,7 +189,7 @@ describe('GET /api/entities/co-occurrence', () => {
     });
   });
 
-  it('passes limit parameter to RPC', async () => {
+  it('returns at most the requested number of pairs', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
         {

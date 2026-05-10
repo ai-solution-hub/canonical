@@ -938,7 +938,7 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
     expect(updatedIds).not.toContain(agingItem.id);
   });
 
-  it('uses domain-specific cooldown days from governance_config', async () => {
+  it('honours each domains configured cooldown when deciding whether to auto-flag', async () => {
     // Item was verified 5 days ago, domain cooldown is 3 days -> should flag
     const fiveDaysAgo = new Date(
       Date.now() - 5 * 24 * 60 * 60 * 1000,
@@ -970,7 +970,7 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
     expect(body.auto_governance_triggered).toBe(1);
   });
 
-  it('sets governance_review_due based on domain timeout_days', async () => {
+  it('schedules the governance review due date using each domains configured timeout_days', async () => {
     const item = makeTransitionItem({
       id: '00000000-0000-4000-8000-000000000010',
       freshness: 'stale',

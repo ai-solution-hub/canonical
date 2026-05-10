@@ -472,7 +472,7 @@ describe('GET /api/cron/quality-score', () => {
     expect(mockCreateBulkNotifications).not.toHaveBeenCalled();
   });
 
-  it('uses per-domain threshold from governance_config', async () => {
+  it('flags items only when their quality drops below their domain-specific threshold', async () => {
     const complianceItem = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       title: 'Compliance Item',
@@ -522,7 +522,7 @@ describe('GET /api/cron/quality-score', () => {
     }
   });
 
-  it('uses default threshold (40) when no governance_config exists for domain', async () => {
+  it('falls back to a default 40 quality threshold when the domain has no governance_config row', async () => {
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       primary_domain: 'Unknown Domain',

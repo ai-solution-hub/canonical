@@ -287,7 +287,7 @@ describe('GET /api/pipeline-runs', () => {
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(100);
   });
 
-  it('uses default limit of 20 when not specified', async () => {
+  it('returns up to 20 runs when no limit is specified', async () => {
     configureRole(mockSupabase, 'editor');
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) =>

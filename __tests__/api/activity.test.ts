@@ -149,7 +149,7 @@ describe('GET /api/activity', () => {
 
   // -- Default limit --
 
-  it('uses default limit of 20', async () => {
+  it('returns up to 20 activity items when no limit is specified', async () => {
     configureAuth(mockSupabase).asAdmin();
 
     const req = createTestRequest('/api/activity');
@@ -164,7 +164,7 @@ describe('GET /api/activity', () => {
 
   // -- Custom limit --
 
-  it('passes custom limit from query param', async () => {
+  it('honours a custom limit supplied in the query string', async () => {
     configureAuth(mockSupabase).asAdmin();
 
     const req = createTestRequest('/api/activity', {
@@ -211,7 +211,7 @@ describe('GET /api/activity', () => {
 
   // -- Cursor / before parameter --
 
-  it('passes before cursor from query param', async () => {
+  it('paginates from the supplied before cursor', async () => {
     configureAuth(mockSupabase).asAdmin();
 
     const req = createTestRequest('/api/activity', {
@@ -289,7 +289,7 @@ describe('GET /api/activity', () => {
 
   // -- has_more flag --
 
-  it('sets has_more to true when results fill the limit', async () => {
+  it('reports has_more=true when results saturate the requested limit', async () => {
     configureAuth(mockSupabase).asAdmin();
     // Return exactly 20 rows (the default limit)
     const rows = Array.from({ length: 20 }, (_, i) =>
@@ -306,7 +306,7 @@ describe('GET /api/activity', () => {
     expect(body.has_more).toBe(true);
   });
 
-  it('sets has_more to false when results are fewer than the limit', async () => {
+  it('reports has_more=false when results fall short of the limit', async () => {
     configureAuth(mockSupabase).asAdmin();
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [makeRpcRow()],

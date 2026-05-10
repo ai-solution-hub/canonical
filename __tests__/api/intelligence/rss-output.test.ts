@@ -186,7 +186,7 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     expect(res.status).toBe(404);
   });
 
-  it('sets Cache-Control header to 15 minutes', async () => {
+  it('caches the feed for 15 minutes via Cache-Control headers', async () => {
     configureWorkspaceFound();
     configureArticles([]);
 
@@ -229,7 +229,7 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(50);
   });
 
-  it('uses default limit of 50 when not specified', async () => {
+  it('returns up to 50 articles when no limit is specified', async () => {
     configureWorkspaceFound();
     configureArticles([]);
 
@@ -256,7 +256,7 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     });
   });
 
-  it('uses ai_summary for description, falling back to relevance_reasoning', async () => {
+  it('shows ai_summary as the description, falling back to relevance_reasoning when missing', async () => {
     const articleNoSummary = {
       ...MOCK_ARTICLE,
       ai_summary: null,
@@ -352,7 +352,7 @@ describe('GET /api/feeds/:workspaceId/rss/filtered', () => {
     });
   });
 
-  it('uses default limit of 20 when not specified', async () => {
+  it('returns up to 20 near-miss articles when no limit is specified', async () => {
     configureWorkspaceFound();
     configureArticles([]);
 
@@ -377,7 +377,7 @@ describe('GET /api/feeds/:workspaceId/rss/filtered', () => {
     expect(res.status).toBe(404);
   });
 
-  it('sets Cache-Control header to 15 minutes', async () => {
+  it('caches the feed for 15 minutes via Cache-Control headers', async () => {
     configureWorkspaceFound();
     configureArticles([]);
 

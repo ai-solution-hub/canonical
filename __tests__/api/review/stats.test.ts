@@ -162,7 +162,7 @@ describe('GET /api/review/stats', () => {
     expect(mockSupabase.rpc).toHaveBeenCalledWith('get_review_breakdown_stats');
   });
 
-  it('passes through overdue=0 unchanged when no rows are overdue', async () => {
+  it('reports overdue=0 when no rows are overdue', async () => {
     configureRole(mockSupabase, 'editor');
     configureRpcResponse({ overdue: 0 });
 
@@ -212,7 +212,7 @@ describe('GET /api/review/stats', () => {
       expect(archivedFilter).toBeDefined();
     });
 
-    it('passes awaiting_publication=0 unchanged when nothing in_review', async () => {
+    it('reports awaiting_publication=0 when nothing is in_review', async () => {
       configureRole(mockSupabase, 'editor');
       configureRpcResponse({ overdue: 0 });
       configureAwaitingPublicationCount(0);

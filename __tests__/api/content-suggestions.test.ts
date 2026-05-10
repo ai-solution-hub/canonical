@@ -110,7 +110,7 @@ describe('GET /api/content-suggestions', () => {
     );
   });
 
-  it('passes limit query param', async () => {
+  it('honours the requested limit when generating suggestions', async () => {
     const req = createTestRequest('/api/content-suggestions', {
       searchParams: { limit: '10' },
     });
@@ -155,7 +155,7 @@ describe('GET /api/content-suggestions', () => {
     );
   });
 
-  it('passes domain filter when provided', async () => {
+  it('restricts suggestions to the requested domain when provided', async () => {
     const req = createTestRequest('/api/content-suggestions', {
       searchParams: { domain: 'Security' },
     });

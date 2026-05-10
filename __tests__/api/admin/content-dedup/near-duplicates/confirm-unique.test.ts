@@ -257,7 +257,7 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique'
       );
     });
 
-    it('passes p_note=undefined when note is omitted', async () => {
+    it('omits the resolution note when none is supplied in the request body', async () => {
       configureRole(mockSupabase, 'admin');
       configurePairExists();
       configureRpcOk();
@@ -276,7 +276,7 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique'
       );
     });
 
-    it('forwards similarity_at_resolution + threshold_at_resolution (OQ2)', async () => {
+    it('records similarity and threshold scores at resolution time (OQ2)', async () => {
       configureRole(mockSupabase, 'admin');
       configurePairExists();
       configureRpcOk();

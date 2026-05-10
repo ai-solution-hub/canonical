@@ -221,7 +221,7 @@ describe('GET /api/entities', () => {
     expect(acme.relationship_count).toBe(1);
   });
 
-  it('applies pagination via limit and offset', async () => {
+  it('paginates entity results using the supplied limit and offset', async () => {
     configureRole(mockSupabase, 'admin');
 
     // RPC returns paginated result (2 entities out of 5 total)

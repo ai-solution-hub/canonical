@@ -213,7 +213,7 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       expect(body.error).toBe('invalid_signature');
     });
 
-    it('uses raw body bytes for HMAC, not parsed JSON', async () => {
+    it('verifies HMAC against raw request bytes so re-formatting does not invalidate the signature', async () => {
       // Construct a payload with specific formatting that would change if re-stringified
       const rawBody =
         '{"run_id":"' +
