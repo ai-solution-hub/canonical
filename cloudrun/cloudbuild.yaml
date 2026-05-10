@@ -29,9 +29,11 @@ steps:
       - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:${_COMMIT_SHA}
       - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
       - --cache-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:cache
+      - --previous-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/ingest.py
       - --env=GOOGLE_RUNTIME=python
+      - --env=GOOGLE_PYTHON_VERSION=3.13.13
       - --publish
 
   # kh-pipeline-eval — bert-score + full requirements.txt.
@@ -48,9 +50,11 @@ steps:
       - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:${_COMMIT_SHA}
       - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
       - --cache-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:cache
+      - --previous-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/eval-classification.py
       - --env=GOOGLE_RUNTIME=python
+      - --env=GOOGLE_PYTHON_VERSION=3.13.13
       - --publish
 
 # Image push is handled by pack `--publish` inside each build step. We deliberately
