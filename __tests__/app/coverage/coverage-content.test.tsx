@@ -19,7 +19,7 @@ const { mockFetch, mockTaxonomy, mockUserRole, mockCoverageTargets } =
     mockFetch: vi.fn(),
     mockTaxonomy: {
       value: null as ReturnType<
-        typeof import('../helpers/mock-contexts').mockTaxonomyContext
+        typeof import('../../helpers/mock-contexts').mockTaxonomyContext
       > | null,
     },
     mockUserRole: {
