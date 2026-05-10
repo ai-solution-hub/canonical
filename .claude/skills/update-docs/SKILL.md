@@ -105,17 +105,53 @@ together.
 affected SoTP §N:
 
 - §5 Feature State →
-  `docs/reference/state-of-the-product-change-log-section-5.md`
+  `docs/reference/state-of-the-product-change-log-section-5.md` (single table)
 - §8 AI Integration Points →
-  `docs/reference/state-of-the-product-change-log-section-8.md` (find the right
-  `### sub-section` heading if applicable — Test Infrastructure / Observability
-  & Build Chain)
+  `docs/reference/state-of-the-product-change-log-section-8.md` — **three
+  sub-tables** routed by `### sub-section` heading:
+  - `## §8 AI Integration Points — change log` (top table, default) for MCP tool
+    / prompt / classification changes
+  - `### Test Infrastructure — change log` for test fixtures, mocks,
+    test-discipline rule changes
+  - `### Observability & Build Chain — change log` for CI workflows, Cloud Build
+    / Cloud Run deploys, telemetry, scheduler matrix
 - §9 Format Canonicalisation →
   `docs/reference/state-of-the-product-change-log-section-9.md`
+
+**Row format:**
 
 ```
 | DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
 ```
+
+**Append discipline:**
+
+- **Insert at end of the relevant table; newest at bottom.** Do not insert
+  mid-table — chronological order is load-bearing for the rolling-window cut
+  (below) and for human readers scanning recent work.
+- **Bump the per-§ file's `<!-- Last verified -->` header** in the same commit
+  as the row append, per `feedback_doc_freshness_guard_per_commit`. The
+  freshness guard fires on touched-but-stale tracked docs.
+- **Bump the pointer-doc** `state-of-the-product-change-log.md`
+  `<!-- Last verified -->` header in the same commit. Touching any per-§ file
+  cascades to the pointer-doc per the freshness guard.
+
+**Rolling-window discipline (Shape C analogue, post-S42 W1).** SoTP per-§
+change-logs now sit under the same Shape C pattern as `STATUS-change-log.md`:
+
+- Each sub-table caps at **last 10 data rows**. If the table currently has 10
+  rows and you append one, **move the topmost (oldest) data row to the bottom of
+  the matching archive sibling**:
+  - §5 → `state-of-the-product-change-log-section-5-archive.md`
+  - §8 → `state-of-the-product-change-log-section-8-archive.md` (preserves the
+    same sub-table headings — `### sub-section` route the archived row to the
+    matching archive table)
+- If a sub-table has **fewer than 10 rows**, leave it alone (no rolling).
+- Both files (live + archive) stay in chronological order (oldest at top of
+  archive's data block; newest at bottom of live).
+- Both files commit together with the row append; freshness guard expects both
+  Last-verified headers bumped (the archive sibling carries the
+  cutover-rationale prose, live carries the latest verify).
 
 ---
 
