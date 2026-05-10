@@ -19,7 +19,7 @@
  *  - Graceful degradation: errors are caught, upload still succeeds
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createMockSupabaseClient } from '../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../../helpers/mock-supabase';
 import {
   computeDocumentDiff,
   extractQAPairs,
