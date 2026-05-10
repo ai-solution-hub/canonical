@@ -188,17 +188,17 @@ If Liam edits, he creates a new commit (not amend).
 ## Step 8 — Memory capture
 
 Mempalace is the canonical memory system (see `CLAUDE.md` "Memory (Mempalace)"
-section for full protocol + tool inventory + known issues). Stop +
-PreCompact hooks fire automatically; no manual ingest needed.
+section for full protocol + tool inventory + known issues). Stop + PreCompact
+hooks fire automatically; no manual ingest needed.
 
 Do NOT author new auto-memory files. New lessons either (a) graduate to a
-one-line CLAUDE.md Gotcha entry, (b) get recorded inline in the
-continuation prompt's "Critical rules from recent sessions" section
-(max 5 items), or (c) wait for a more substantive memory-shape ratification.
+one-line CLAUDE.md Gotcha entry, (b) get recorded inline in the continuation
+prompt's "Critical rules from recent sessions" section (max 5 items), or (c)
+wait for a more substantive memory-shape ratification.
 
 Optional: write a brief AAAK-format entry via `mempalace_diary_write`
-(`agent_name=claude`, default wing) summarising the session for personal
-journal recall — diary read works, search currently does not.
+(`agent_name=claude`, default wing) summarising the session for personal journal
+recall — diary read works, search currently does not.
 
 ---
 

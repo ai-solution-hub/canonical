@@ -79,13 +79,12 @@ covered in Step 4 below.
 
 ### 2b: Memory recall (mempalace)
 
-Mempalace MCP is the canonical memory system — full protocol + tool
-inventory + known issues are in `CLAUDE.md` "Memory (Mempalace)" section.
-Confirm `claude mcp list` shows `mempalace ✓ Connected` and call
-`mempalace_status` to confirm wing+drawer counts before deeper work.
-For recall during the session, prefer `mempalace_kg_query` and
-`mempalace_diary_read`; `mempalace_search` is broken upstream — fall
-back to `git log` + `grep` if recall errors.
+Mempalace MCP is the canonical memory system — full protocol + tool inventory +
+known issues are in `CLAUDE.md` "Memory (Mempalace)" section. Confirm
+`claude mcp list` shows `mempalace ✓ Connected` and call `mempalace_status` to
+confirm wing+drawer counts before deeper work. For recall during the session,
+prefer `mempalace_kg_query` and `mempalace_diary_read`; `mempalace_search` is
+broken upstream — fall back to `git log` + `grep` if recall errors.
 
 ---
 

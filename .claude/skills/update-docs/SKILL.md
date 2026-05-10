@@ -17,13 +17,13 @@ work, then auto-chains to `/handoff` to generate the continuation prompt.
 
 The planning documents have distinct, non-overlapping roles:
 
-| Document                              | File                                                                                     | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **State of the product**              | `docs/reference/state-of-the-product.md`                                                 | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to the per-§ change-log file matching the touched SoTP §N (`state-of-the-product-change-log-section-{5,8,9}.md`) atomically. The pointer-doc `state-of-the-product-change-log.md` is the discovery index — never an append target. |
-| **Roadmap**                           | `docs/reference/product-roadmap.json` (authoritative) + `product-roadmap.md` (generated) | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Shipped/Resolved items. **JSON-shaped post-S39 W1 Phase 2** — edit JSON only; regenerate MD via `bun run roadmap:render`. Round-trip CI guard enforces parity. Section narratives live in `sections[*].narrative`; per-item `status` / `priority` enums + `*_note` freetext companions per `lib/validation/roadmap-schema.ts`.                                                                                                                                                      |
-| **Product backlog**                   | `docs/reference/product-backlog.json`                                                    | Items awaiting promotion to the roadmap. **JSON-shaped** since kh-prod-readiness-S37 cutover; `items[]` array with `id`, `description`, `type`, `status`, `effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`. Status enum: `needs_spec` / `needs_research` / `parked` / `ready` / `blocked` (no closure values — closed items are removed entirely).                                                                                                                                                                                                                                        |
-| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings)                   | **Discovery index (pointer-doc) + per-section append targets.** A thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom.                                                                                                                                                                                                                                                                                                                                               |
-| **Track change-log**                  | `docs/audits/*/STATUS-change-log.md` (+ `STATUS-change-log-archive.md` rolling-window sibling per Shape C)                       | **Per-session net-delta log** (one row per session, rolling last 10). Append-only; oldest rows roll to archive sibling. The single-file `STATUS.md` ledger pattern was archived kh-prod-readiness-S41 W3 — all active items now live in `product-roadmap.json` / `product-backlog.json`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Document                              | File                                                                                                       | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **State of the product**              | `docs/reference/state-of-the-product.md`                                                                   | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to the per-§ change-log file matching the touched SoTP §N (`state-of-the-product-change-log-section-{5,8,9}.md`) atomically. The pointer-doc `state-of-the-product-change-log.md` is the discovery index — never an append target. |
+| **Roadmap**                           | `docs/reference/product-roadmap.json` (authoritative) + `product-roadmap.md` (generated)                   | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Shipped/Resolved items. **JSON-shaped post-S39 W1 Phase 2** — edit JSON only; regenerate MD via `bun run roadmap:render`. Round-trip CI guard enforces parity. Section narratives live in `sections[*].narrative`; per-item `status` / `priority` enums + `*_note` freetext companions per `lib/validation/roadmap-schema.ts`.                                                                                                                                                      |
+| **Product backlog**                   | `docs/reference/product-backlog.json`                                                                      | Items awaiting promotion to the roadmap. **JSON-shaped** since kh-prod-readiness-S37 cutover; `items[]` array with `id`, `description`, `type`, `status`, `effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`. Status enum: `needs_spec` / `needs_research` / `parked` / `ready` / `blocked` (no closure values — closed items are removed entirely).                                                                                                                                                                                                                                        |
+| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings)                                     | **Discovery index (pointer-doc) + per-section append targets.** A thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom.                                                                                                                                                                                                                                                                                                                                               |
+| **Track change-log**                  | `docs/audits/*/STATUS-change-log.md` (+ `STATUS-change-log-archive.md` rolling-window sibling per Shape C) | **Per-session net-delta log** (one row per session, rolling last 10). Append-only; oldest rows roll to archive sibling. The single-file `STATUS.md` ledger pattern was archived kh-prod-readiness-S41 W3 — all active items now live in `product-roadmap.json` / `product-backlog.json`.                                                                                                                                                                                                                                                                                                                           |
 
 ---
 
@@ -342,29 +342,27 @@ label (e.g. `"kh-prod-readiness-S37 close-out"`).
 ## Step 9: Update Track Change-log (Conditional)
 
 If the session shipped material work on a track that maintains a per-session
-change-log file, append one row to that file. Currently
-`production-readiness` track uses
-`docs/audits/kh-production-readiness-phase-1/STATUS-change-log.md` (rolling
-last-10 window per Shape C; older rows in `STATUS-change-log-archive.md`).
+change-log file, append one row to that file. Currently `production-readiness`
+track uses `docs/audits/kh-production-readiness-phase-1/STATUS-change-log.md`
+(rolling last-10 window per Shape C; older rows in
+`STATUS-change-log-archive.md`).
 
-**Append a row** with `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`.
-Newest at bottom. Multi-paragraph rows are valid Markdown table syntax.
+**Append a row** with `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`. Newest at
+bottom. Multi-paragraph rows are valid Markdown table syntax.
 
-**Rolling window discipline (Shape C):** when the active log exceeds
-10 data rows, move the topmost (oldest) data row to the bottom of the
-archive log's data block and drop it from active. Both files stay in
-chronological order (newest at bottom).
+**Rolling window discipline (Shape C):** when the active log exceeds 10 data
+rows, move the topmost (oldest) data row to the bottom of the archive log's data
+block and drop it from active. Both files stay in chronological order (newest at
+bottom).
 
-**Optional handoff block.** If the next session needs deeper context than
-the change-log row carries (deferred scope, pending decisions, focus
-pivot), append a `### S{N} → S{N+1} handoff` block to
-`STATUS-handoffs.md`. Otherwise skip — the change-log row plus the
-continuation prompt is sufficient.
+**Optional handoff block.** If the next session needs deeper context than the
+change-log row carries (deferred scope, pending decisions, focus pivot), append
+a `### S{N} → S{N+1} handoff` block to `STATUS-handoffs.md`. Otherwise skip —
+the change-log row plus the continuation prompt is sufficient.
 
-The single-file `STATUS.md` ledger pattern was archived
-kh-prod-readiness-S41 W3 (file is now `STATUS-phase-1-archive.md`, cold
-storage). All active items track in `product-roadmap.json` /
-`product-backlog.json`.
+The single-file `STATUS.md` ledger pattern was archived kh-prod-readiness-S41 W3
+(file is now `STATUS-phase-1-archive.md`, cold storage). All active items track
+in `product-roadmap.json` / `product-backlog.json`.
 
 ---
 
