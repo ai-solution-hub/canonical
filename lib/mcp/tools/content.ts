@@ -413,9 +413,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         // Dedup — soft-block per spec §6 D1. Exact-hash match stamps
         // `dedup_status='suspected_duplicate'` + records the existing
-        // id in `metadata.suspected_duplicate_of`. `find_exact_duplicates`
-        // is SECURITY DEFINER so the RLS-scoped client sees cross-user
-        // matches.
+        // id in `metadata.suspected_duplicate_of`.
         const { checkExactDuplicate, resolveDedupStamp } =
           await import('@/lib/dedup');
         let dedupStamp: {

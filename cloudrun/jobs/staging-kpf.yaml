@@ -17,8 +17,8 @@ spec:
         spec:
           serviceAccountName: kpf-pipeline-sa@kh-staging-494815.iam.gserviceaccount.com
           containers:
-            - name: kh-pipeline-slim
-              image: europe-west2-docker.pkg.dev/kh-staging-494815/pipeline/kh-pipeline-slim:latest
+            - name: kh-pipeline
+              image: europe-west2-docker.pkg.dev/kh-staging-494815/pipeline/kh-pipeline:latest
               env:
                 - name: NEXT_PUBLIC_CLIENT_ID
                   value: kpf

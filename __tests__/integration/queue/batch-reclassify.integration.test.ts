@@ -186,6 +186,18 @@ beforeAll(async () => {
   expect(EDITOR_USER_ID).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
+
+  // Cross-run isolation: nuke any batch_reclassify rows older than 10 minutes
+  // on the persistent staging branch. The route's idempotency key has no
+  // test-unique component (hashes canonical body only) so a prior run's
+  // completed row in the same UTC date bucket would dedup-collide with the
+  // current run's first POST. CI runs serially (`fileParallelism: false`)
+  // and staging is dedicated to CI, so the 10-min age gate is safe.
+  await serviceClient
+    .from('processing_queue')
+    .delete()
+    .eq('job_type', 'batch_reclassify')
+    .lt('created_at', new Date(Date.now() - 10 * 60_000).toISOString());
 }, 30_000);
 
 afterAll(async () => {
@@ -548,7 +560,10 @@ describeIfEnv(
       const { POST } = await import('@/app/api/admin/batch-reclassify/route');
       const response = await POST(
         buildPostRequest({
-          limit: 10,
+          // Distinct limit avoids idempotency-key collision with AC-5
+          // (which uses limit:12). Canonical body is hashed into the key
+          // with no test-unique component.
+          limit: 11,
         }) as unknown as import('next/server').NextRequest,
       );
       expect(response.status).toBe(202);
@@ -654,7 +669,9 @@ describeIfEnv(
       const { POST } = await import('@/app/api/admin/batch-reclassify/route');
       const response = await POST(
         buildPostRequest({
-          limit: 10,
+          // Distinct limit avoids idempotency-key collision with AC-2
+          // (which uses limit:11).
+          limit: 12,
         }) as unknown as import('next/server').NextRequest,
       );
       const enqueueBody = (await response.json()) as {
@@ -816,48 +833,45 @@ describeIfEnv(
 // Spec §8 AC-8 lines 1252-1257.
 // ---------------------------------------------------------------------------
 
-describeIfEnv(
-  'AC-8 — force:true + 0 candidates → permanent failure',
-  () => {
-    beforeEach(async () => {
-      authCookies.clear();
-      await signInAsTestUser(authCookies, 'admin');
-    });
-    afterEach(() => {
-      authCookies.clear();
-    });
+describeIfEnv('AC-8 — force:true + 0 candidates → permanent failure', () => {
+  beforeEach(async () => {
+    authCookies.clear();
+    await signInAsTestUser(authCookies, 'admin');
+  });
+  afterEach(() => {
+    authCookies.clear();
+  });
 
-    it('AC-8: enqueue with domain="nonexistent_domain" + force:true → cron tick → status=failed, error_message=no_candidates_under_force', async () => {
-      const { POST } = await import('@/app/api/admin/batch-reclassify/route');
-      const response = await POST(
-        buildPostRequest({
-          domain: 'nonexistent_domain_zzz',
-          force: true,
-          limit: 5,
-        }) as unknown as import('next/server').NextRequest,
-      );
-      const enqueueBody = (await response.json()) as {
-        job_id: string;
-        pipeline_run_id: string;
-      };
-      seededJobIds.add(enqueueBody.job_id);
-      seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
+  it('AC-8: enqueue with domain="nonexistent_domain" + force:true → cron tick → status=failed, error_message=no_candidates_under_force', async () => {
+    const { POST } = await import('@/app/api/admin/batch-reclassify/route');
+    const response = await POST(
+      buildPostRequest({
+        domain: 'nonexistent_domain_zzz',
+        force: true,
+        limit: 5,
+      }) as unknown as import('next/server').NextRequest,
+    );
+    const enqueueBody = (await response.json()) as {
+      job_id: string;
+      pipeline_run_id: string;
+    };
+    seededJobIds.add(enqueueBody.job_id);
+    seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
 
-      const { GET } = await import('@/app/api/cron/process-queue/route');
-      await GET(
-        buildCronRequest() as unknown as import('next/server').NextRequest,
-      );
+    const { GET } = await import('@/app/api/cron/process-queue/route');
+    await GET(
+      buildCronRequest() as unknown as import('next/server').NextRequest,
+    );
 
-      const { data: row } = await serviceClient
-        .from('processing_queue')
-        .select('status, error_message')
-        .eq('id', enqueueBody.job_id)
-        .single();
-      expect(row!.status).toBe('failed');
-      expect(row!.error_message).toMatch(/no_candidates_under_force/i);
-    }, 60_000);
-  },
-);
+    const { data: row } = await serviceClient
+      .from('processing_queue')
+      .select('status, error_message')
+      .eq('id', enqueueBody.job_id)
+      .single();
+    expect(row!.status).toBe('failed');
+    expect(row!.error_message).toMatch(/no_candidates_under_force/i);
+  }, 60_000);
+});
 
 // ---------------------------------------------------------------------------
 // AC-9 — Cancel pending → 200; cancel processing on a cooperatively-
@@ -867,107 +881,116 @@ describeIfEnv(
 // list, so the cancel route returns 200 even for `processing` rows.
 // ---------------------------------------------------------------------------
 
-describeIfEnv('AC-9 — cancel pending (200) / processing (200 cooperative)', () => {
-  beforeEach(async () => {
-    authCookies.clear();
-    await signInAsTestUser(authCookies, 'admin');
-  });
-  afterEach(() => {
-    authCookies.clear();
-  });
+describeIfEnv(
+  'AC-9 — cancel pending (200) / processing (200 cooperative)',
+  () => {
+    beforeEach(async () => {
+      authCookies.clear();
+      await signInAsTestUser(authCookies, 'admin');
+    });
+    afterEach(() => {
+      authCookies.clear();
+    });
 
-  it('AC-9 (pending → 200): enqueue + PATCH cancel → status=cancelled, response 200', async () => {
-    const { POST } = await import('@/app/api/admin/batch-reclassify/route');
-    const response = await POST(
-      buildPostRequest({
-        limit: 5,
-      }) as unknown as import('next/server').NextRequest,
-    );
-    const enqueueBody = (await response.json()) as {
-      job_id: string;
-      pipeline_run_id: string;
-    };
-    seededJobIds.add(enqueueBody.job_id);
-    seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
+    it('AC-9 (pending → 200): enqueue + PATCH cancel → status=cancelled, response 200', async () => {
+      const { POST } = await import('@/app/api/admin/batch-reclassify/route');
+      const response = await POST(
+        buildPostRequest({
+          // Distinct limit avoids idempotency-key collision with AC-1
+          // (limit:5) — AC-1's row is already drained to 'completed' by
+          // AC-2's cron tick, so dedup pre-SELECT would return that row's
+          // id and the cancel route would return 409 (terminal-state).
+          limit: 6,
+        }) as unknown as import('next/server').NextRequest,
+      );
+      const enqueueBody = (await response.json()) as {
+        job_id: string;
+        pipeline_run_id: string;
+      };
+      seededJobIds.add(enqueueBody.job_id);
+      seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
 
-    const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
-    const cancelReq = new Request(
-      `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
-      {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      },
-    );
-    const cancelResponse = await PATCH(
-      cancelReq as unknown as import('next/server').NextRequest,
-      { params: Promise.resolve({ id: enqueueBody.job_id }) },
-    );
-    expect(cancelResponse.status).toBe(200);
-    const cancelBody = (await cancelResponse.json()) as {
-      status: string;
-    };
-    expect(cancelBody.status).toBe('cancelled');
+      const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
+      const cancelReq = new Request(
+        `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
+      const cancelResponse = await PATCH(
+        cancelReq as unknown as import('next/server').NextRequest,
+        { params: Promise.resolve({ id: enqueueBody.job_id }) },
+      );
+      expect(cancelResponse.status).toBe(200);
+      const cancelBody = (await cancelResponse.json()) as {
+        status: string;
+      };
+      expect(cancelBody.status).toBe('cancelled');
 
-    const { data: row } = await serviceClient
-      .from('processing_queue')
-      .select('status, completed_at')
-      .eq('id', enqueueBody.job_id)
-      .single();
-    expect(row!.status).toBe('cancelled');
-    expect(row!.completed_at).not.toBeNull();
-  }, 30_000);
+      const { data: row } = await serviceClient
+        .from('processing_queue')
+        .select('status, completed_at')
+        .eq('id', enqueueBody.job_id)
+        .single();
+      expect(row!.status).toBe('cancelled');
+      expect(row!.completed_at).not.toBeNull();
+    }, 30_000);
 
-  it('AC-9 (processing → 200 cooperative): manually-flipped processing row of batch_reclassify → PATCH cancel returns 200; row status flips to cancelled', async () => {
-    const { POST } = await import('@/app/api/admin/batch-reclassify/route');
-    const response = await POST(
-      buildPostRequest({
-        limit: 5,
-      }) as unknown as import('next/server').NextRequest,
-    );
-    const enqueueBody = (await response.json()) as {
-      job_id: string;
-      pipeline_run_id: string;
-    };
-    seededJobIds.add(enqueueBody.job_id);
-    seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
+    it('AC-9 (processing → 200 cooperative): manually-flipped processing row of batch_reclassify → PATCH cancel returns 200; row status flips to cancelled', async () => {
+      const { POST } = await import('@/app/api/admin/batch-reclassify/route');
+      const response = await POST(
+        buildPostRequest({
+          // Distinct limit avoids idempotency-key collision with
+          // AC-1 (5), AC-3 (7), AC-9 pending (6).
+          limit: 8,
+        }) as unknown as import('next/server').NextRequest,
+      );
+      const enqueueBody = (await response.json()) as {
+        job_id: string;
+        pipeline_run_id: string;
+      };
+      seededJobIds.add(enqueueBody.job_id);
+      seededPipelineRunIds.add(enqueueBody.pipeline_run_id);
 
-    // Manually flip status to processing.
-    await serviceClient
-      .from('processing_queue')
-      .update({
-        status: 'processing',
-        started_at: new Date(Date.now()).toISOString(),
-      })
-      .eq('id', enqueueBody.job_id);
+      // Manually flip status to processing.
+      await serviceClient
+        .from('processing_queue')
+        .update({
+          status: 'processing',
+          started_at: new Date(Date.now()).toISOString(),
+        })
+        .eq('id', enqueueBody.job_id);
 
-    const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
-    const cancelReq = new Request(
-      `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
-      {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      },
-    );
-    const cancelResponse = await PATCH(
-      cancelReq as unknown as import('next/server').NextRequest,
-      { params: Promise.resolve({ id: enqueueBody.job_id }) },
-    );
-    // batch_reclassify opts in to cooperative cancellation per
-    // lib/queue/cooperative-cancel.ts COOPERATIVELY_CANCELLABLE_JOB_TYPES.
-    expect(cancelResponse.status).toBe(200);
-    const cancelBody = (await cancelResponse.json()) as { status: string };
-    expect(cancelBody.status).toBe('cancelled');
+      const { PATCH } = await import('@/app/api/jobs/[id]/cancel/route');
+      const cancelReq = new Request(
+        `http://localhost/api/jobs/${enqueueBody.job_id}/cancel`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
+      const cancelResponse = await PATCH(
+        cancelReq as unknown as import('next/server').NextRequest,
+        { params: Promise.resolve({ id: enqueueBody.job_id }) },
+      );
+      // batch_reclassify opts in to cooperative cancellation per
+      // lib/queue/cooperative-cancel.ts COOPERATIVELY_CANCELLABLE_JOB_TYPES.
+      expect(cancelResponse.status).toBe(200);
+      const cancelBody = (await cancelResponse.json()) as { status: string };
+      expect(cancelBody.status).toBe('cancelled');
 
-    const { data: row } = await serviceClient
-      .from('processing_queue')
-      .select('status')
-      .eq('id', enqueueBody.job_id)
-      .single();
-    expect(row!.status).toBe('cancelled');
-  }, 30_000);
-});
+      const { data: row } = await serviceClient
+        .from('processing_queue')
+        .select('status')
+        .eq('id', enqueueBody.job_id)
+        .single();
+      expect(row!.status).toBe('cancelled');
+    }, 30_000);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // AC-10 — pipeline_runs Pattern 2 caller-allocated UPDATE (cardinality

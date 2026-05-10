@@ -897,4 +897,4 @@ jobs:
         if: always()
         uses: vercel/repository-dispatch/actions/status@v1
         with:
-          name: 'Vercel - knowledge-hub: ci-summary'
+          name: "Vercel - knowledge-hub: ci-summary"

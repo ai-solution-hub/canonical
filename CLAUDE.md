@@ -107,6 +107,9 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 
 ## Testing
 
+- **Philosophy:** `docs/reference/test-philosophy.md` — six audit criteria,
+  three observed antipatterns, mock discipline. Read before writing or
+  remediating tests.
 - **Framework:** Vitest (`bun run test`), coverage via `bun run test:coverage`
 - **Location:** `__tests__/` — counts in `docs/generated/codebase-stats.md`
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
@@ -134,13 +137,13 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 PR-blocking CI (`ci.yml`) runs 7 jobs in parallel: `quality-precheck`,
 `quality-test` (4-shard Vitest matrix), `e2e-smoke`, `mcp-build`,
 `mcp-eval-seed`, `mcp-eval` (L1/L3/L4 matrix), `integration`. Triggers: PR (any
-base) + push on `main`/`staging`. Draft PRs skip CI. Full topology +
-per-step failure-mode table: `docs/runbooks/ci.md`.
+base) + push on `main`/`staging`. Draft PRs skip CI. Full topology + per-step
+failure-mode table: `docs/runbooks/ci.md`.
 
 Side workflows: `cloud-run-deploy.yml` (Python pipeline),
-`migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml`
-(prod ↔ staging diff), `staging-reference-refresh.yml`,
-`supabase-advisors.yml`, `taxonomy-sync.yml`.
+`migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml` (prod ↔
+staging diff), `staging-reference-refresh.yml`, `supabase-advisors.yml`,
+`taxonomy-sync.yml`.
 
 `staging` branch is deploy-only (no long-lived worktree) — used for
 staging-mirror sync per `docs/runbooks/staging-refresh.md`.
@@ -167,16 +170,16 @@ Consult when adding or modifying UI elements.
 
 ## Key Reference Documents
 
-| Document               | Location                                                                   |
-| ---------------------- | -------------------------------------------------------------------------- |
-| State of the Product   | `docs/reference/state-of-the-product.md`                                   |
-| Roadmap                | `docs/reference/post-mvp-roadmap.md`                                       |
-| Product backlog        | `docs/reference/product-backlog.md`                                        |
-| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                 |
+| Document               | Location                                                                    |
+| ---------------------- | --------------------------------------------------------------------------- |
+| State of the Product   | `docs/reference/state-of-the-product.md`                                    |
+| Roadmap                | `docs/reference/product-roadmap.md`                                         |
+| Product backlog        | `docs/reference/product-backlog.json`                                       |
+| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                  |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
-| Session handoffs       | `docs/continuation-prompts/`                                               |
-| Codebase mapping       | `.planning/codebase/`                                                      |
-| Runbooks               | `docs/runbooks/` — local-development, staging-refresh, github-environments |
+| Session handoffs       | `docs/continuation-prompts/`                                                |
+| Codebase mapping       | `.planning/codebase/`                                                       |
+| Runbooks               | `docs/runbooks/` — local-development, staging-refresh, github-environments  |
 
 Full inventory of all reference docs:
 `docs/reference/documentation-inventory.md`
@@ -184,6 +187,37 @@ Full inventory of all reference docs:
 Historical planning: `.planning/.archive/{doc-type}` (`.specs/`, `.audits/`,
 `.research/`, `.coninuation-prompts/` etc.) Grep explicitly when researching
 past decisions; treat as point-in-time snapshots.
+
+## Memory (Mempalace)
+
+Mempalace MCP server is the canonical memory system (replaced auto-memory file
+system 2026-05-10). Plugin `mempalace@mempalace` v3.3.5 enabled in
+`~/.claude/settings.json` `enabledPlugins`; Stop + PreCompact hooks fire
+automatically per session — no manual ingest needed.
+
+**One wing per worktree.** Drawer counts as of S41: `knowledge-hub` (75,877) ·
+`knowledge-hub-prod-readiness` (22,773) · `knowledge-hub-kpf` (7,342) ·
+`knowledge-hub-ui-ux` (15,299) · plus minor worktrees. Total ~127k drawers
+across 12 wings.
+
+**MCP tools:**
+
+- `mempalace_status` ✓ — wing + drawer + room counts.
+- `mempalace_list_wings` ✓ — drawer counts per wing.
+- `mempalace_kg_stats` / `mempalace_kg_query` ✓ — KG empty until seeded.
+- `mempalace_diary_write` / `mempalace_diary_read` ✓ — works for default
+  `wing_<agent>`; cross-project `wing` param errors. Use AAAK format (entity
+  codes + emotion markers + pipe-separated fields).
+- `mempalace_search` ⚠ **BROKEN upstream** — every query returns
+  `Error executing plan: Internal error: Error finding id`. Filed; awaiting
+  upstream fix. Until resolved, deep recall depends on git log + grep.
+
+**Auto-memory file system phased out.** Do NOT author new `feedback_*.md` /
+`project_*.md` / `reference_*.md` files in `~/.claude/projects/.../memory/`. New
+lessons either (a) graduate to a one-line CLAUDE.md Gotcha entry, (b) get
+recorded inline in the next continuation prompt's "Critical rules from recent
+sessions" section (max 5 items), or (c) wait for a more substantive memory-shape
+ratification.
 
 ## Implementation Workflow
 

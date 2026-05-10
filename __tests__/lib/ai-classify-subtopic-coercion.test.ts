@@ -18,7 +18,7 @@
  * Source:
  *   docs/specs/classifycontent-subtopic-contract-spec.md
  *   docs/audits/si-classification-verification-s156.md § Run 2
- *   docs/reference/post-mvp-roadmap.md §2.1.11
+ *   docs/reference/product-roadmap.md §2.1.11
  */
 
 import { describe, it, expect } from 'vitest';

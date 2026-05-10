@@ -20,6 +20,8 @@ export const TRACKED_REFERENCE_DOCS = [
   'docs/reference/state-of-the-product-change-log-section-5.md',
   'docs/reference/state-of-the-product-change-log-section-8.md',
   'docs/reference/state-of-the-product-change-log-section-9.md',
+  'docs/reference/product-roadmap.json',
+  'docs/reference/test-philosophy.md',
   'docs/runbooks/local-development.md',
   'docs/runbooks/staging-refresh.md',
   'docs/runbooks/github-environments.md',

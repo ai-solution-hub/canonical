@@ -297,4 +297,4 @@ jobs:
         if: always()
         uses: vercel/repository-dispatch/actions/status@v1
         with:
-          name: 'Vercel - knowledge-hub: cloud-run-deploy'
+          name: "Vercel - knowledge-hub: cloud-run-deploy"

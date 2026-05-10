@@ -881,9 +881,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
       const uniqueKeywords = [...new Set(normalisedKeywords)];
 
       // Apply canonicalisation + alias resolution to entity names.
-      const entities = (
-        Array.isArray(result.entities) ? result.entities : []
-      )
+      const entities = (Array.isArray(result.entities) ? result.entities : [])
         .filter(
           (e) =>
             !isExcludedEntity(e.name) && !isExcludedEntity(e.canonical_name),
@@ -1087,11 +1085,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
   const skippedCount = itemResults.filter((r) => r.status === 'skipped').length;
   const totalProcessed = itemResults.length;
 
-  if (
-    !cancelled &&
-    totalProcessed > 0 &&
-    failedCount / totalProcessed > 0.8
-  ) {
+  if (!cancelled && totalProcessed > 0 && failedCount / totalProcessed > 0.8) {
     throw new PermanentJobError(
       `eval_rule_regression_suspected: ${failedCount}/${totalProcessed} items failed (>80% threshold)`,
     );

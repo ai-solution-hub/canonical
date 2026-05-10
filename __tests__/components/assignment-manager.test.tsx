@@ -138,9 +138,7 @@ describe('AssignmentManager', () => {
   it('renders freshness checkboxes', async () => {
     render(<AssignmentManager />);
 
-    expect(
-      await screen.findByLabelText('Filter by fresh'),
-    ).toBeInTheDocument();
+    expect(await screen.findByLabelText('Filter by fresh')).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by aging')).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by stale')).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by expired')).toBeInTheDocument();

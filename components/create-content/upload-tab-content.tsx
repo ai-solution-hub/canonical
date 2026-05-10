@@ -282,9 +282,9 @@ export function UploadTabContent({
     ];
     if (!terminalStatuses.includes(pipelineRun.status)) return;
 
-    const resultCandidate = pipelineRun.result as
-      | { results_summary?: MarkdownBatchResultsSummary }
-      | null;
+    const resultCandidate = pipelineRun.result as {
+      results_summary?: MarkdownBatchResultsSummary;
+    } | null;
     if (resultCandidate?.results_summary) {
       setMdResult({
         pipeline_run_id: pipelineRun.id,
@@ -924,8 +924,7 @@ export function UploadTabContent({
                 /api/jobs/${jobId}/cancel; the polling query then resolves
                 to a terminal status. */}
             {importJobId &&
-              (!pipelineRun ||
-                pipelineRun.status === 'running') && (
+              (!pipelineRun || pipelineRun.status === 'running') && (
                 <div className="pt-2">
                   <Button
                     variant="outline"

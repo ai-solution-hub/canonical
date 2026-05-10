@@ -272,21 +272,25 @@ export async function POST(req: NextRequest) {
     // /api/pipeline-runs/[id] using the SAME UUID.
     // ──────────────────────────────────────────────────────────────────
     const pipelineRunId = validatedOptions.pipeline_run_id ?? randomUUID();
-    const callerRole: 'admin' | 'editor' = role === 'admin' ? 'admin' : 'editor';
+    const callerRole: 'admin' | 'editor' =
+      role === 'admin' ? 'admin' : 'editor';
 
     // ──────────────────────────────────────────────────────────────────
-    // Pre-INSERT pipeline_runs row at-enqueue (Pattern 2 per spec §6.3 +
+    // Pre-UPSERT pipeline_runs row at-enqueue (Pattern 2 per spec §6.3 +
     // `feedback_pipeline_runs_pattern_2_direct_update`).
     //
     // Uses the service-role client because pipeline_runs has admin-only
     // INSERT and NO UPDATE/DELETE policies — the orchestrator at L728-732
-    // documents the same RLS chokepoint. Pre-INSERTing here means the UI
+    // documents the same RLS chokepoint. Pre-UPSERTing here means the UI
     // polling endpoint resolves the row from t=0, before the cron worker
     // has even claimed the job (Pattern E preservation per D-10 RATIFIED).
     //
-    // The orchestrator's at-start INSERT inside the worker uses the
-    // §7.7 Path B UPSERT (D-11 ratified) so this pre-INSERT does not
-    // collide on the primary key.
+    // Mirrors the worker-side §7.7 Path B UPSERT in
+    // `lib/pipeline/start-run.ts` (D-11 ratified). When AC-3 (same-day
+    // re-enqueue with stable pipeline_run_id) or AC-4 (next-day re-enqueue)
+    // POSTs the same UUID twice, ON CONFLICT DO NOTHING leaves the existing
+    // row untouched — the worker's terminal UPDATE handles status. A raw
+    // INSERT here would collide on `pipeline_runs_pkey` and surface as 500.
     // ──────────────────────────────────────────────────────────────────
     const serviceClient = createServiceClient();
     const initialProgress = {
@@ -298,17 +302,20 @@ export async function POST(req: NextRequest) {
     await sb(
       serviceClient
         .from('pipeline_runs')
-        .insert({
-          id: pipelineRunId,
-          pipeline_name: 'upload_markdown_batch',
-          status: 'running',
-          started_at: new Date(Date.now()).toISOString(),
-          created_by: user.id,
-          progress: initialProgress as unknown as Json,
-          items_created: [] as string[],
-        })
+        .upsert(
+          {
+            id: pipelineRunId,
+            pipeline_name: 'upload_markdown_batch',
+            status: 'running',
+            started_at: new Date(Date.now()).toISOString(),
+            created_by: user.id,
+            progress: initialProgress as unknown as Json,
+            items_created: [] as string[],
+          },
+          { onConflict: 'id', ignoreDuplicates: true },
+        )
         .select('id'),
-      'markdown_batch.producer.pipeline_runs.insert',
+      'markdown_batch.producer.pipeline_runs.upsert',
     );
 
     // ──────────────────────────────────────────────────────────────────
@@ -332,7 +339,9 @@ export async function POST(req: NextRequest) {
     const fileSetCanonical = decodedFiles
       .map((f) => ({
         filename: f.filename,
-        contentSha256: createHash('sha256').update(f.content, 'utf8').digest('hex'),
+        contentSha256: createHash('sha256')
+          .update(f.content, 'utf8')
+          .digest('hex'),
       }))
       .sort((a, b) => a.filename.localeCompare(b.filename));
     const fileSetHash = createHash('sha256')
@@ -356,8 +365,7 @@ export async function POST(req: NextRequest) {
       files: decodedFiles.map((f) => ({
         filename: f.filename,
         content: f.content,
-        sizeBytes:
-          f.sizeBytes ?? Buffer.byteLength(f.content, 'utf8'),
+        sizeBytes: f.sizeBytes ?? Buffer.byteLength(f.content, 'utf8'),
       })),
       pipeline_run_id: pipelineRunId,
       caller_user_id: user.id,

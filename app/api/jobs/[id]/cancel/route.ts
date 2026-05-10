@@ -113,7 +113,10 @@ export async function PATCH(
       cancellableStatuses.push('processing');
     }
 
-    if (existing.status === 'processing' && !cancellableStatuses.includes('processing')) {
+    if (
+      existing.status === 'processing' &&
+      !cancellableStatuses.includes('processing')
+    ) {
       return NextResponse.json(
         {
           error: 'This job is already running and cannot be cancelled.',
@@ -122,10 +125,7 @@ export async function PATCH(
         { status: 409 },
       );
     }
-    if (
-      existing.status !== 'pending' &&
-      existing.status !== 'processing'
-    ) {
+    if (existing.status !== 'pending' && existing.status !== 'processing') {
       return NextResponse.json(
         {
           error: `Job is in terminal state '${existing.status}' and cannot be cancelled.`,

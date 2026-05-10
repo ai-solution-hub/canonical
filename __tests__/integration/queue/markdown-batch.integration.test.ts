@@ -61,11 +61,11 @@ import type { Json } from '@/supabase/types/database.types';
 
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.CRON_SECRET &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD &&
-    process.env.TEST_USER_2_PASSWORD,
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.CRON_SECRET &&
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD &&
+  process.env.TEST_USER_2_PASSWORD,
 );
 
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
