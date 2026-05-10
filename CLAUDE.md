@@ -107,6 +107,9 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 
 ## Testing
 
+- **Philosophy:** `docs/reference/test-philosophy.md` — six audit criteria,
+  three observed antipatterns, mock discipline. Read before writing or
+  remediating tests.
 - **Framework:** Vitest (`bun run test`), coverage via `bun run test:coverage`
 - **Location:** `__tests__/` — counts in `docs/generated/codebase-stats.md`
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
