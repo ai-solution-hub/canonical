@@ -13,6 +13,7 @@ import type {
   CoverageMatrixData,
   BidDashboardData,
 } from '@/lib/mcp/formatters';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — vi.mock factories are hoisted above const declarations
@@ -122,29 +123,6 @@ vi.mock('@modelcontextprotocol/ext-apps/server', () => ({
   ),
 }));
 
-interface RegisteredTool {
-  name: string;
-  config: Record<string, unknown>;
-  handler: ToolHandler;
-}
-
-function createMockMcpServer() {
-  const tools: Record<string, RegisteredTool> = {};
-
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { name, config, handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -278,7 +256,7 @@ describe('MCP App trigger tools #22-23', () => {
 
   describe('show_coverage_matrix', () => {
     beforeEach(async () => {
-      await registerAppTools(mockServer as never);
+      await registerAppTools(mockServer.server as never);
     });
     it('returns structured CoverageMatrixData with correct shape', async () => {
       const handler = mockServer.getHandler('show_coverage_matrix')!;
@@ -801,7 +779,7 @@ describe('MCP App trigger tools #22-23', () => {
     ];
 
     beforeEach(async () => {
-      await registerAppTools(mockServer as never);
+      await registerAppTools(mockServer.server as never);
     });
 
     it('returns structured BidDashboardData with correct shape', async () => {
@@ -1372,7 +1350,7 @@ describe('MCP App trigger tools #22-23', () => {
       ({ registerBidTools } = await import('@/lib/mcp/tools/bids'));
     }, MCP_TOOL_IMPORT_TIMEOUT_MS);
     beforeEach(async () => {
-      await registerBidTools(mockServer as never);
+      await registerBidTools(mockServer.server as never);
     });
     it('should return sections grouped by section_name', async () => {
       const handler = mockServer.getHandler('get_bid_detail')!;

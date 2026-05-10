@@ -162,6 +162,10 @@ vi.mock('@/lib/supabase/safe', () => ({
 // ---------------------------------------------------------------------------
 
 import { registerContentTools } from '@/lib/mcp/tools/content';
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Test harness
@@ -173,39 +177,11 @@ const OWNER_ID = '00000000-0000-4000-8000-000000000099';
 const ITEM_1 = '10000000-0000-4000-8000-000000000001';
 const ITEM_2 = '20000000-0000-4000-8000-000000000002';
 
-interface ToolRegistration {
-  name: string;
-  config: Record<string, unknown>;
-  handler: (
-    args: Record<string, unknown>,
-    extra: Record<string, unknown>,
-  ) => Promise<{
-    content: Array<{ type: string; text: string }>;
-    isError?: boolean;
-    structuredContent?: Record<string, unknown>;
-  }>;
-}
+// Re-assigned in beforeEach.
+let mockServer: ReturnType<typeof createMockMcpServer>;
 
-const registeredTools: ToolRegistration[] = [];
-
-function createMockServer() {
-  registeredTools.length = 0;
-  return {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        handler: ToolRegistration['handler'],
-      ) => {
-        registeredTools.push({ name, config, handler });
-        return { enabled: true };
-      },
-    ),
-  };
-}
-
-function getBulkAssignTool(): ToolRegistration {
-  const tool = registeredTools.find((t) => t.name === 'bulk_assign_owner');
+function getBulkAssignTool(): MockToolRegistration {
+  const tool = mockServer.getTool('bulk_assign_owner');
   if (!tool) throw new Error('bulk_assign_owner not registered');
   return tool;
 }
@@ -250,7 +226,7 @@ function setHistoryInsertError(message: string) {
 // ---------------------------------------------------------------------------
 
 describe('bulk_assign_owner MCP tool', () => {
-  let tool: ToolRegistration;
+  let tool: MockToolRegistration;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -297,8 +273,8 @@ describe('bulk_assign_owner MCP tool', () => {
     mocks.contentItemsChain.order.mockReturnValue(mocks.contentItemsChain);
     mocks.contentItemsChain.limit.mockReturnValue(mocks.contentItemsChain);
 
-    const server = createMockServer();
-    await registerContentTools(server as never);
+    mockServer = createMockMcpServer();
+    await registerContentTools(mockServer.server);
     tool = getBulkAssignTool();
   });
 

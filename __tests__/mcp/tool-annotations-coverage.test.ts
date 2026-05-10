@@ -19,7 +19,7 @@
  * `find_duplicate_candidates` in S217 W1B).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Mocks — keep minimal; these tools are never executed, only registered
@@ -65,9 +65,13 @@ import { registerChangeReportTools } from '@/lib/mcp/tools/change-report';
 import { registerWorkspaceTools } from '@/lib/mcp/tools/workspaces';
 
 // ---------------------------------------------------------------------------
-// Mock server — captures (name, config) from every registerTool call
+// Captures (name, config) from every registerTool call via canonical helper
 // ---------------------------------------------------------------------------
 
+/**
+ * Subset of MockToolRegistration the annotation-coverage assertions read.
+ * The `annotations` slot is the only field this test inspects.
+ */
 interface ToolRegistration {
   name: string;
   config: {
@@ -80,20 +84,9 @@ interface ToolRegistration {
   };
 }
 
-function createMockServer(registered: ToolRegistration[]): McpServer {
-  return {
-    registerTool: vi.fn((name: string, config: ToolRegistration['config']) => {
-      registered.push({ name, config });
-      // Return a shape loosely compatible with `RegisteredTool` — the ext-apps
-      // `registerAppTool` wrapper inspects nothing on the result.
-      return { enabled: true };
-    }),
-  } as unknown as McpServer;
-}
-
 async function collectAllTools(): Promise<ToolRegistration[]> {
-  const registered: ToolRegistration[] = [];
-  const server = createMockServer(registered);
+  const mockServer = createMockMcpServer();
+  const server = mockServer.server;
 
   // Registration order matches `tools/index.ts` for completeness. The
   // `registerAppTool` path in apps.ts delegates internally to
@@ -116,7 +109,7 @@ async function collectAllTools(): Promise<ToolRegistration[]> {
   await registerChangeReportTools(server);
   await registerWorkspaceTools(server);
 
-  return registered;
+  return mockServer.toolList as ToolRegistration[];
 }
 
 // ---------------------------------------------------------------------------

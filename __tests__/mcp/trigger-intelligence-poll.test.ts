@@ -37,38 +37,11 @@ vi.mock('@/lib/intelligence/summary', () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import type {
-  McpServer,
-  RegisteredTool,
-} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerIntelligenceTools } from '@/lib/mcp/tools/intelligence';
-
-// ---------------------------------------------------------------------------
-// Mock server that captures tool registrations
-// ---------------------------------------------------------------------------
-
-interface CapturedTool {
-  name: string;
-  config: Record<string, unknown>;
-  callback: (...args: unknown[]) => unknown;
-}
-
-function createMockServer(): { server: McpServer; tools: CapturedTool[] } {
-  const tools: CapturedTool[] = [];
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        cb: (...args: unknown[]) => unknown,
-      ) => {
-        tools.push({ name, config, callback: cb });
-        return { enabled: true } as unknown as RegisteredTool;
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -105,7 +78,7 @@ const MOCK_PIPELINE_RESULT = {
 // ---------------------------------------------------------------------------
 
 describe('trigger_intelligence_poll MCP tool', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -113,21 +86,20 @@ describe('trigger_intelligence_poll MCP tool', () => {
     mocks.checkMcpRole.mockResolvedValue('admin');
     mocks.createServiceClient.mockReturnValue({});
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerIntelligenceTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerIntelligenceTools(mockServer.server);
   });
 
-  function getTriggerTool(): CapturedTool {
-    const tool = tools.find((t) => t.name === 'trigger_intelligence_poll');
+  function getTriggerTool(): MockToolRegistration {
+    const tool = mockServer.getTool('trigger_intelligence_poll');
     if (!tool) throw new Error('trigger_intelligence_poll not registered');
     return tool;
   }
 
   it('registers the trigger_intelligence_poll tool', () => {
-    expect(tools.some((t) => t.name === 'trigger_intelligence_poll')).toBe(
-      true,
-    );
+    expect(
+      mockServer.toolList.some((t) => t.name === 'trigger_intelligence_poll'),
+    ).toBe(true);
   });
 
   it('has NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS', () => {
@@ -143,7 +115,7 @@ describe('trigger_intelligence_poll MCP tool', () => {
     mocks.runPipeline.mockResolvedValue(MOCK_PIPELINE_RESULT);
 
     const tool = getTriggerTool();
-    const result = await tool.callback({}, MOCK_EXTRA);
+    const result = await tool.handler({}, MOCK_EXTRA);
 
     expect(mocks.checkMcpRole).toHaveBeenCalledWith(MOCK_AUTH_INFO, ['admin']);
     expect(mocks.runPipeline).toHaveBeenCalledOnce();
@@ -177,7 +149,7 @@ describe('trigger_intelligence_poll MCP tool', () => {
     });
 
     const tool = getTriggerTool();
-    const result = (await tool.callback({}, MOCK_EXTRA)) as {
+    const result = (await tool.handler({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       structuredContent: Record<string, unknown>;
     };
@@ -192,7 +164,7 @@ describe('trigger_intelligence_poll MCP tool', () => {
     mocks.checkMcpRole.mockResolvedValue(null);
 
     const tool = getTriggerTool();
-    const result = (await tool.callback({}, MOCK_EXTRA)) as {
+    const result = (await tool.handler({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       isError: boolean;
     };
@@ -207,7 +179,7 @@ describe('trigger_intelligence_poll MCP tool', () => {
     mocks.runPipeline.mockRejectedValue(new Error('Database connection lost'));
 
     const tool = getTriggerTool();
-    const result = (await tool.callback({}, MOCK_EXTRA)) as {
+    const result = (await tool.handler({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       isError: boolean;
     };

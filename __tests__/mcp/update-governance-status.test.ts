@@ -96,38 +96,15 @@ vi.mock('@/lib/content/chunk-store', () => ({
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
-import type {
-  McpServer,
-  RegisteredTool,
-} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerGovernanceTools } from '@/lib/mcp/tools/governance';
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
-// Mock server + supabase chain
+// Supabase chain builder
 // ---------------------------------------------------------------------------
-
-interface CapturedTool {
-  name: string;
-  config: Record<string, unknown>;
-  callback: (...args: unknown[]) => unknown;
-}
-
-function createMockServer(): { server: McpServer; tools: CapturedTool[] } {
-  const tools: CapturedTool[] = [];
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        cb: (...args: unknown[]) => unknown,
-      ) => {
-        tools.push({ name, config, callback: cb });
-        return { enabled: true } as unknown as RegisteredTool;
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 type QueryResolver = {
   data: unknown;
@@ -176,21 +153,15 @@ const MOCK_EXTRA = {
   sendElicitationRequest: vi.fn(),
 };
 
-function findTool(tools: CapturedTool[], name: string): CapturedTool {
-  const t = tools.find((x) => x.name === name);
-  if (!t) throw new Error(`${name} not registered`);
-  return t;
-}
-
 async function callTool(
-  tool: CapturedTool,
+  tool: MockToolRegistration,
   args: Record<string, unknown>,
 ): Promise<{
   content: Array<{ text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }> {
-  return (await tool.callback(args, MOCK_EXTRA)) as {
+  return (await tool.handler(args, MOCK_EXTRA)) as {
     content: Array<{ text: string }>;
     structuredContent?: Record<string, unknown>;
     isError?: boolean;
@@ -295,9 +266,9 @@ async function runUpdate({
   });
   mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-  const mock = createMockServer();
-  await registerGovernanceTools(mock.server);
-  const tool = findTool(mock.tools, 'update_governance_status');
+  const localServer = createMockMcpServer();
+  await registerGovernanceTools(localServer.server);
+  const tool = localServer.getTool('update_governance_status')!;
 
   const res = await callTool(tool, {
     item_ids: [TEST_ITEM_ID],
@@ -322,7 +293,7 @@ async function runUpdate({
 // ---------------------------------------------------------------------------
 
 describe('update_governance_status — registration', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -335,18 +306,17 @@ describe('update_governance_status — registration', () => {
       from: vi.fn(() => chain({ data: null, error: null })),
     });
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerGovernanceTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerGovernanceTools(mockServer.server);
   });
 
   it('registers update_governance_status with the documented title', () => {
-    const tool = findTool(tools, 'update_governance_status');
+    const tool = mockServer.getTool('update_governance_status')!;
     expect(tool.config.title).toBe('Update Governance Status');
   });
 
   it('description distinguishes from update_publication_status and notes the T8a rewire', () => {
-    const tool = findTool(tools, 'update_governance_status');
+    const tool = mockServer.getTool('update_governance_status')!;
     const desc = tool.config.description as string;
     // Per T8a: external 'draft' verb is unchanged for LLM callers but the
     // underlying column is now publication_status. Description should
@@ -362,13 +332,13 @@ describe('update_governance_status — registration', () => {
   });
 
   it('inputSchema declares item_ids (array of UUIDs) and status (publish|draft enum)', () => {
-    const tool = findTool(tools, 'update_governance_status');
+    const tool = mockServer.getTool('update_governance_status')!;
     const schema = tool.config.inputSchema as Record<string, unknown>;
     expect(Object.keys(schema).sort()).toEqual(['item_ids', 'status']);
   });
 
   it('uses SAFE_WRITE_ANNOTATIONS', () => {
-    const tool = findTool(tools, 'update_governance_status');
+    const tool = mockServer.getTool('update_governance_status')!;
     const ann = tool.config.annotations as Record<string, boolean>;
     expect(ann.readOnlyHint).toBe(false);
     expect(ann.idempotentHint).toBe(true);

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 const mocks = vi.hoisted(() => {
   return {
@@ -72,22 +73,6 @@ interface ToolResult {
   isError?: boolean;
 }
 
-function createMockMcpServer() {
-  const tools: Record<string, ToolHandler> = {};
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = handler;
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name];
-    },
-  };
-}
 
 const baseReorientData = {
   last_active_at: '2026-03-01T10:00:00Z',
@@ -126,7 +111,7 @@ describe('show_reorient_me trigger tool', () => {
     vi.clearAllMocks();
     mockServer = createMockMcpServer();
     const { registerAppTools } = await import('@/lib/mcp/tools/apps');
-    await registerAppTools(mockServer as never);
+    await registerAppTools(mockServer.server as never);
   });
 
   it('returns valid structuredContent', async () => {

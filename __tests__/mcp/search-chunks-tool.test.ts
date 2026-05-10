@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — supabase auth client + lazy-loaded embedding generator
@@ -56,32 +57,10 @@ vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 // Mock McpServer
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
 interface ToolResult {
   content: Array<{ type: string; text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
-}
-
-function createMockMcpServer() {
-  const tools: Record<string, { handler: ToolHandler }> = {};
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -124,7 +103,7 @@ describe('search_content_chunks tool handler', () => {
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
     await registerSearchTools(
-      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
+      mockServer.server as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 

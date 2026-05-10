@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 import {
   formatDocumentDiff,
   type DocumentDiffData,
@@ -67,27 +68,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 vi.mock('@/lib/ai/classify', () => ({ classifyContent: vi.fn() }));
 vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
-function createMockMcpServer() {
-  const tools: Record<string, { handler: ToolHandler }> = {};
-  return {
-    tools,
-    registerTool(
-      name: string,
-      _config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
-}
 
 // ──────────────────────────────────────────
 // Fixtures
@@ -507,7 +487,7 @@ describe('get_document_diff handler — diff_id parameter', () => {
     server = createMockMcpServer();
 
     const { registerContentTools } = await import('@/lib/mcp/tools/content');
-    await registerContentTools(server as never);
+    await registerContentTools(server.server as never);
   });
 
   const extra = { authInfo: { token: 'test', clientId: 'test', scopes: [] } };

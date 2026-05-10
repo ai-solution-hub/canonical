@@ -11,35 +11,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { registerPrompts } from '@/lib/mcp/resources';
-
-type PromptHandler = (args: Record<string, unknown>) => Promise<{
-  messages: Array<{
-    role: string;
-    content: { type: string; text: string };
-  }>;
-}>;
-
-interface PromptRegistration {
-  config: Record<string, unknown>;
-  handler: PromptHandler;
-}
-
-function createMockMcpServer() {
-  const prompts: Record<string, PromptRegistration> = {};
-  return {
-    prompts,
-    registerPrompt(
-      name: string,
-      config: Record<string, unknown>,
-      handler: PromptHandler,
-    ) {
-      prompts[name] = { config, handler };
-    },
-    getPrompt(name: string): PromptRegistration | undefined {
-      return prompts[name];
-    },
-  };
-}
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 describe('MCP review_item prompt — governance skill wiring', () => {
   let server: ReturnType<typeof createMockMcpServer>;
@@ -47,7 +19,7 @@ describe('MCP review_item prompt — governance skill wiring', () => {
   beforeEach(() => {
     server = createMockMcpServer();
     // registerPrompts is synchronous; the per-prompt handler is async.
-    registerPrompts(server as never);
+    registerPrompts(server.server as never);
   });
 
   it('registers a review_item prompt', () => {

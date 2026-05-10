@@ -37,38 +37,15 @@ vi.mock('@/lib/supabase/safe', () => ({
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
-import type {
-  McpServer,
-  RegisteredTool,
-} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerGovernanceTools } from '@/lib/mcp/tools/governance';
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
-// Mock server + Supabase builder
+// Supabase chain builder
 // ---------------------------------------------------------------------------
-
-interface CapturedTool {
-  name: string;
-  config: Record<string, unknown>;
-  callback: (...args: unknown[]) => unknown;
-}
-
-function createMockServer(): { server: McpServer; tools: CapturedTool[] } {
-  const tools: CapturedTool[] = [];
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        cb: (...args: unknown[]) => unknown,
-      ) => {
-        tools.push({ name, config, callback: cb });
-        return { enabled: true } as unknown as RegisteredTool;
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 /**
  * Minimal chainable query mock — each chain method returns the same object
@@ -119,21 +96,15 @@ const MOCK_EXTRA = {
   sendElicitationRequest: vi.fn(),
 };
 
-function findTool(tools: CapturedTool[], name: string): CapturedTool {
-  const t = tools.find((x) => x.name === name);
-  if (!t) throw new Error(`${name} not registered`);
-  return t;
-}
-
 async function callTool(
-  tool: CapturedTool,
+  tool: MockToolRegistration,
   args: Record<string, unknown>,
 ): Promise<{
   content: Array<{ text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }> {
-  return (await tool.callback(args, MOCK_EXTRA)) as {
+  return (await tool.handler(args, MOCK_EXTRA)) as {
     content: Array<{ text: string }>;
     structuredContent?: Record<string, unknown>;
     isError?: boolean;
@@ -145,7 +116,7 @@ async function callTool(
 // ---------------------------------------------------------------------------
 
 describe('get_governance_queue MCP tool', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -153,13 +124,12 @@ describe('get_governance_queue MCP tool', () => {
     mocks.getMcpUserId.mockReturnValue('user-admin-001');
     mocks.getMcpUserRole.mockResolvedValue('editor');
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerGovernanceTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerGovernanceTools(mockServer.server);
   });
 
   it('registers the get_governance_queue tool with READ_ONLY annotations', () => {
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     expect(tool.config.title).toBe('Get Governance Queue');
     const ann = tool.config.annotations as Record<string, boolean>;
     expect(ann.readOnlyHint).toBe(true);
@@ -170,7 +140,7 @@ describe('get_governance_queue MCP tool', () => {
 
   it('returns permission denied for viewer role', async () => {
     mocks.checkMcpRole.mockResolvedValueOnce(null);
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     const res = await callTool(tool, { limit: 20, offset: 0 });
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain('Permission denied');
@@ -180,7 +150,7 @@ describe('get_governance_queue MCP tool', () => {
   it('renders the empty-state message when no items are pending', async () => {
     const empty = chain({ data: [], error: null, count: 0 });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => empty) });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     const res = await callTool(tool, { limit: 20, offset: 0 });
     expect(res.isError).toBeUndefined();
     expect(res.content[0]?.text).toContain('Governance queue is clear');
@@ -213,7 +183,7 @@ describe('get_governance_queue MCP tool', () => {
     ];
     const q = chain({ data: rows, error: null, count: 2 });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     const res = await callTool(tool, { limit: 20, offset: 0 });
     expect(res.isError).toBeUndefined();
     const text = res.content[0]?.text ?? '';
@@ -229,7 +199,7 @@ describe('get_governance_queue MCP tool', () => {
     const q = chain({ data: [], error: null, count: 0 });
     const from = vi.fn(() => q);
     mocks.createMcpClient.mockReturnValue({ from });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     await callTool(tool, { limit: 20, offset: 0, domain: 'audit-content' });
     // §5.5 Phase 4 — review-status filter switched from .eq('pending') to
     // .in([...]). `.in` is invoked once for the review-status set; `.eq` is
@@ -246,7 +216,7 @@ describe('get_governance_queue MCP tool', () => {
   it('surfaces DB errors via isError', async () => {
     const q = chain({ data: null, error: { message: 'db down' }, count: null });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     const res = await callTool(tool, { limit: 20, offset: 0 });
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain('db down');
@@ -262,7 +232,7 @@ describe('get_governance_queue MCP tool', () => {
     it('default (no args) queries both pending AND review_overdue', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       const res = await callTool(tool, { limit: 20, offset: 0 });
 
       expect(res.isError).toBeUndefined();
@@ -280,7 +250,7 @@ describe('get_governance_queue MCP tool', () => {
     it('include_overdue=true (explicit) queries both states (AC3)', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       await callTool(tool, { limit: 20, offset: 0, include_overdue: true });
 
       const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
@@ -293,7 +263,7 @@ describe('get_governance_queue MCP tool', () => {
     it('include_overdue=false restricts to pending only (legacy)', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       const res = await callTool(tool, {
         limit: 20,
         offset: 0,
@@ -308,7 +278,7 @@ describe('get_governance_queue MCP tool', () => {
     it('status_filter="review_overdue" returns ONLY overdue items (AC4)', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       const res = await callTool(tool, {
         limit: 20,
         offset: 0,
@@ -328,7 +298,7 @@ describe('get_governance_queue MCP tool', () => {
     it('status_filter="pending" restricts to pending only', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       await callTool(tool, {
         limit: 20,
         offset: 0,
@@ -342,7 +312,7 @@ describe('get_governance_queue MCP tool', () => {
     it('status_filter="all" queries both states', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       await callTool(tool, {
         limit: 20,
         offset: 0,
@@ -359,7 +329,7 @@ describe('get_governance_queue MCP tool', () => {
     it('status_filter takes precedence over include_overdue when both are set', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       // Conflicting: include_overdue=true would suggest both states, but
       // status_filter='pending' should win and restrict to pending only.
       await callTool(tool, {
@@ -376,7 +346,7 @@ describe('get_governance_queue MCP tool', () => {
     it('composes review-status set with publication_status filter (AND)', async () => {
       const q = chain({ data: [], error: null, count: 0 });
       mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-      const tool = findTool(tools, 'get_governance_queue');
+      const tool = mockServer.getTool('get_governance_queue')!;
       await callTool(tool, {
         limit: 20,
         offset: 0,
@@ -396,7 +366,7 @@ describe('get_governance_queue MCP tool', () => {
 });
 
 describe('review_governance_item MCP tool', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -404,13 +374,12 @@ describe('review_governance_item MCP tool', () => {
     mocks.getMcpUserId.mockReturnValue('user-admin-001');
     mocks.getMcpUserRole.mockResolvedValue('editor');
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerGovernanceTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerGovernanceTools(mockServer.server);
   });
 
   it('registers the review_governance_item tool with NON_IDEMPOTENT_WRITE annotations', () => {
-    const tool = findTool(tools, 'review_governance_item');
+    const tool = mockServer.getTool('review_governance_item')!;
     expect(tool.config.title).toBe('Process Governance Review Action');
     const ann = tool.config.annotations as Record<string, boolean>;
     expect(ann.readOnlyHint).toBe(false);
@@ -421,7 +390,7 @@ describe('review_governance_item MCP tool', () => {
 
   it('returns permission denied for viewer role', async () => {
     mocks.checkMcpRole.mockResolvedValueOnce(null);
-    const tool = findTool(tools, 'review_governance_item');
+    const tool = mockServer.getTool('review_governance_item')!;
     const res = await callTool(tool, {
       item_id: '11111111-1111-4111-8111-111111111111',
       action: 'approve',
@@ -445,7 +414,7 @@ describe('review_governance_item MCP tool', () => {
       });
     });
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
-    const tool = findTool(tools, 'review_governance_item');
+    const tool = mockServer.getTool('review_governance_item')!;
     const res = await callTool(tool, {
       item_id: '11111111-1111-4111-8111-111111111111',
       action: 'approve',
@@ -458,7 +427,7 @@ describe('review_governance_item MCP tool', () => {
   it('returns 404-style error when item does not exist', async () => {
     const fromMock = vi.fn(() => chain({ data: null, error: null }));
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
-    const tool = findTool(tools, 'review_governance_item');
+    const tool = mockServer.getTool('review_governance_item')!;
     const res = await callTool(tool, {
       item_id: '11111111-1111-4111-8111-111111111111',
       action: 'approve',
@@ -497,7 +466,7 @@ describe('review_governance_item MCP tool', () => {
     });
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-    const tool = findTool(tools, 'review_governance_item');
+    const tool = mockServer.getTool('review_governance_item')!;
     const res = await callTool(tool, {
       item_id: itemRow.id,
       action: 'approve',
@@ -549,10 +518,9 @@ describe('review_governance_item MCP tool', () => {
       });
       mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-      const mock = createMockServer();
-      tools = mock.tools;
-      await registerGovernanceTools(mock.server);
-      const tool = findTool(tools, 'review_governance_item');
+      mockServer = createMockMcpServer();
+      await registerGovernanceTools(mockServer.server);
+      const tool = mockServer.getTool('review_governance_item')!;
 
       const res = await callTool(tool, {
         item_id: '11111111-1111-4111-8111-111111111111',
@@ -595,7 +563,7 @@ describe('review_governance_item MCP tool', () => {
     });
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-    const tool = findTool(tools, 'review_governance_item');
+    const tool = mockServer.getTool('review_governance_item')!;
     const res = await callTool(tool, {
       item_id: itemRow.id,
       action: 'approve',
@@ -624,7 +592,7 @@ describe('review_governance_item MCP tool', () => {
       });
     });
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
-    const tool = findTool(tools, 'review_governance_item');
+    const tool = mockServer.getTool('review_governance_item')!;
     const res = await callTool(tool, {
       item_id: '11111111-1111-4111-8111-111111111111',
       action: 'approve',
@@ -686,10 +654,9 @@ describe('review_governance_item MCP tool', () => {
       });
       mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-      const mock = createMockServer();
-      const localTools = mock.tools;
-      await registerGovernanceTools(mock.server);
-      const tool = findTool(localTools, 'review_governance_item');
+      const localServer = createMockMcpServer();
+      await registerGovernanceTools(localServer.server);
+      const tool = localServer.getTool('review_governance_item')!;
 
       const res = await callTool(tool, {
         item_id: itemRow.id as string,
@@ -825,10 +792,9 @@ describe('review_governance_item MCP tool', () => {
       });
       mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-      const mock = createMockServer();
-      const localTools = mock.tools;
-      await registerGovernanceTools(mock.server);
-      const tool = findTool(localTools, 'review_governance_item');
+      const localServer = createMockMcpServer();
+      await registerGovernanceTools(localServer.server);
+      const tool = localServer.getTool('review_governance_item')!;
 
       const res = await callTool(tool, {
         item_id: itemRow.id,
@@ -878,10 +844,9 @@ describe('review_governance_item MCP tool', () => {
       });
       mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-      const mock = createMockServer();
-      const localTools = mock.tools;
-      await registerGovernanceTools(mock.server);
-      const tool = findTool(localTools, 'review_governance_item');
+      const localServer = createMockMcpServer();
+      await registerGovernanceTools(localServer.server);
+      const tool = localServer.getTool('review_governance_item')!;
 
       const res = await callTool(tool, {
         item_id: itemRow.id,

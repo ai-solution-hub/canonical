@@ -12,7 +12,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  createMockMcpServer,
+  type MockToolHandler,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -102,36 +105,8 @@ vi.mock('@/lib/pipeline/record-run', () => ({
 import { registerContentTools } from '@/lib/mcp/tools/content';
 
 // ---------------------------------------------------------------------------
-// Harness
+// Harness — uses canonical createMockMcpServer helper
 // ---------------------------------------------------------------------------
-
-interface RegisteredTool {
-  name: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  config: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (args: any, extra: any) => Promise<any>;
-}
-
-function createTestServer(): {
-  server: McpServer;
-  tools: Map<string, RegisteredTool>;
-} {
-  const tools = new Map<string, RegisteredTool>();
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: RegisteredTool['config'],
-        handler: RegisteredTool['handler'],
-      ) => {
-        tools.set(name, { name, config, handler });
-        return { enabled: true };
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 const MOCK_AUTH_INFO = {
   token: 'test-token',
@@ -181,8 +156,8 @@ function findContentItemsInsert(insertMock: {
 }
 
 describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
-  let createTool: RegisteredTool['handler'];
-  let createConfig: RegisteredTool['config'];
+  let createTool: MockToolHandler;
+  let createConfig: Record<string, unknown>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -195,9 +170,9 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
     mocks.chain.update.mockReturnValue(mocks.chain);
     mocks.chain.eq.mockReturnValue(mocks.chain);
 
-    const { server, tools } = createTestServer();
-    await registerContentTools(server);
-    const tool = tools.get('create_content_item');
+    const mockServer = createMockMcpServer();
+    await registerContentTools(mockServer.server);
+    const tool = mockServer.getTool('create_content_item');
     if (!tool) throw new Error('create_content_item not registered');
     createTool = tool.handler;
     createConfig = tool.config;
@@ -311,7 +286,10 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
       // The MCP SDK builds `z.object(inputSchema)` on the registered shape.
       // We re-construct the same z.object and parse a payload containing
       // `source_document` to assert the boundary error surfaces.
-      const schema = z.object(createConfig.inputSchema);
+      const schema = z.object(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createConfig.inputSchema as Record<string, any>,
+      );
 
       const parsed = schema.safeParse({
         title: 'Legacy Caller',
@@ -336,7 +314,10 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
     });
 
     it('Zod schema accepts the three typed replacements', () => {
-      const schema = z.object(createConfig.inputSchema);
+      const schema = z.object(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createConfig.inputSchema as Record<string, any>,
+      );
 
       // source_url
       expect(
@@ -431,7 +412,10 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
     });
 
     it('Zod schema accepts an optional content_owner_id UUID', () => {
-      const schema = z.object(createConfig.inputSchema);
+      const schema = z.object(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createConfig.inputSchema as Record<string, any>,
+      );
 
       expect(
         schema.safeParse({
@@ -444,7 +428,10 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
     });
 
     it('Zod schema rejects a non-UUID content_owner_id', () => {
-      const schema = z.object(createConfig.inputSchema);
+      const schema = z.object(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createConfig.inputSchema as Record<string, any>,
+      );
 
       expect(
         schema.safeParse({
@@ -459,7 +446,7 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
 });
 
 describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
-  let createTool: RegisteredTool['handler'];
+  let createTool: MockToolHandler;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -471,9 +458,9 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
     mocks.chain.update.mockReturnValue(mocks.chain);
     mocks.chain.eq.mockReturnValue(mocks.chain);
 
-    const { server, tools } = createTestServer();
-    await registerContentTools(server);
-    const tool = tools.get('create_content_item');
+    const mockServer = createMockMcpServer();
+    await registerContentTools(mockServer.server);
+    const tool = mockServer.getTool('create_content_item');
     if (!tool) throw new Error('create_content_item not registered');
     createTool = tool.handler;
 
@@ -769,7 +756,7 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
 // ───────────────────────────────────────────────────────────────────
 
 describe('MCP create_content_item — MCP-EMBED-1 embedding truncation', () => {
-  let createTool: RegisteredTool['handler'];
+  let createTool: MockToolHandler;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -781,9 +768,9 @@ describe('MCP create_content_item — MCP-EMBED-1 embedding truncation', () => {
     mocks.chain.update.mockReturnValue(mocks.chain);
     mocks.chain.eq.mockReturnValue(mocks.chain);
 
-    const { server, tools } = createTestServer();
-    await registerContentTools(server);
-    const tool = tools.get('create_content_item');
+    const mockServer = createMockMcpServer();
+    await registerContentTools(mockServer.server);
+    const tool = mockServer.getTool('create_content_item');
     if (!tool) throw new Error('create_content_item not registered');
     createTool = tool.handler;
 
