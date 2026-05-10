@@ -77,30 +77,15 @@ This contains commands, architecture, schema, gotchas, and conventions. Pay
 special attention to the "Gotchas" section — the implementation workflow is
 covered in Step 4 below.
 
-### 2b: Memory recall (mempalace transition in progress)
+### 2b: Memory recall (mempalace)
 
-The auto-memory MEMORY.md system is being phased out (kh-prod-readiness-S40) in
-favour of mempalace MCP tools (`mempalace_status`, `mempalace_search`,
-`mempalace_kg_query`, `mempalace_diary_read`). MEMORY.md still exists in this
-worktree as a stub pointer; the main worktree's MEMORY.md was already replaced
-2026-05-10.
-
-- Confirm mempalace MCP is available (`claude mcp list` should show `mempalace`
-  ✓ Connected). If not, follow setup in `~/.claude.json` project section
-  (`claude mcp add mempalace -- mempalace-mcp`).
-- Call `mempalace_status` to confirm wing+drawer counts.
-- Read `MEMORY.md` opportunistically (legacy, transition residue) — most content
-  is already mined into mempalace as drawers under the
-  `knowledge-hub-prod-readiness` wing.
-- For deeper recall during the session, prefer `mempalace_search` (semantic
-  hybrid) or `mempalace_kg_query` (entity relations with temporal validity).
-  Note: as of S40, `mempalace_search` returns "Error finding id" for some
-  queries — fall back to grep + git log if recall errors.
-
-**Open question for next session(s):** ratify final shape (Shape A diary-write /
-Shape B KG-backed STATUS / Shape C auto-archive). See
-`docs/audits/kh-production-readiness-phase-1/STATUS.md` "Mempalace transition"
-section.
+Mempalace MCP is the canonical memory system — full protocol + tool
+inventory + known issues are in `CLAUDE.md` "Memory (Mempalace)" section.
+Confirm `claude mcp list` shows `mempalace ✓ Connected` and call
+`mempalace_status` to confirm wing+drawer counts before deeper work.
+For recall during the session, prefer `mempalace_kg_query` and
+`mempalace_diary_read`; `mempalace_search` is broken upstream — fall
+back to `git log` + `grep` if recall errors.
 
 ---
 

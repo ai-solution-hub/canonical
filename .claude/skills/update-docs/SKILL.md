@@ -23,7 +23,7 @@ The planning documents have distinct, non-overlapping roles:
 | **Roadmap**                           | `docs/reference/product-roadmap.json` (authoritative) + `product-roadmap.md` (generated) | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Shipped/Resolved items. **JSON-shaped post-S39 W1 Phase 2** — edit JSON only; regenerate MD via `bun run roadmap:render`. Round-trip CI guard enforces parity. Section narratives live in `sections[*].narrative`; per-item `status` / `priority` enums + `*_note` freetext companions per `lib/validation/roadmap-schema.ts`.                                                                                                                                                      |
 | **Product backlog**                   | `docs/reference/product-backlog.json`                                                    | Items awaiting promotion to the roadmap. **JSON-shaped** since kh-prod-readiness-S37 cutover; `items[]` array with `id`, `description`, `type`, `status`, `effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`. Status enum: `needs_spec` / `needs_research` / `parked` / `ready` / `blocked` (no closure values — closed items are removed entirely).                                                                                                                                                                                                                                        |
 | **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings)                   | **Discovery index (pointer-doc) + per-section append targets.** A thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom.                                                                                                                                                                                                                                                                                                                                               |
-| **Wave status ledgers**               | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`)                       | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                                                                                                                                                                                                                                                                                                                               |
+| **Track change-log**                  | `docs/audits/*/STATUS-change-log.md` (+ `STATUS-change-log-archive.md` rolling-window sibling per Shape C)                       | **Per-session net-delta log** (one row per session, rolling last 10). Append-only; oldest rows roll to archive sibling. The single-file `STATUS.md` ledger pattern was archived kh-prod-readiness-S41 W3 — all active items now live in `product-roadmap.json` / `product-backlog.json`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ---
 
@@ -339,69 +339,32 @@ label (e.g. `"kh-prod-readiness-S37 close-out"`).
 
 ---
 
-## Step 9: Update Wave Status Ledgers (Conditional)
+## Step 9: Update Track Change-log (Conditional)
 
-**Directory:** `docs/audits/*/STATUS.md` (and sibling split files where they
-exist).
+If the session shipped material work on a track that maintains a per-session
+change-log file, append one row to that file. Currently
+`production-readiness` track uses
+`docs/audits/kh-production-readiness-phase-1/STATUS-change-log.md` (rolling
+last-10 window per Shape C; older rows in `STATUS-change-log-archive.md`).
 
-If the session touched items in an active multi-session wave that maintains a
-`STATUS.md` ledger (for example `docs/audits/{wave-name}-{yyyy-mm}/STATUS.md`),
-update the ledger to reflect shipped state. One ledger per wave.
+**Append a row** with `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`.
+Newest at bottom. Multi-paragraph rows are valid Markdown table syntax.
 
-**Two layouts exist — check which the wave uses before editing:**
+**Rolling window discipline (Shape C):** when the active log exceeds
+10 data rows, move the topmost (oldest) data row to the bottom of the
+archive log's data block and drop it from active. Both files stay in
+chronological order (newest at bottom).
 
-- **Single-file ledger** (default) — everything lives in `STATUS.md`: snapshot,
-  gates, items, change log, handoffs.
-- **Split ledger** — when a single STATUS.md grows too large to read, the wave
-  may split into siblings:
-  - `STATUS.md` — at-a-glance view (snapshot, gates, items, pending pickup
-    list).
-  - `STATUS-change-log.md` — per-session net-delta log; append-only.
-  - `STATUS-handoffs.md` — multi-paragraph outcome-and-next-scope blocks;
-    written only when the next session needs deeper handoff narrative than the
-    change-log row provides.
+**Optional handoff block.** If the next session needs deeper context than
+the change-log row carries (deferred scope, pending decisions, focus
+pivot), append a `### S{N} → S{N+1} handoff` block to
+`STATUS-handoffs.md`. Otherwise skip — the change-log row plus the
+continuation prompt is sufficient.
 
-  Detect by `ls docs/audits/<wave>/STATUS-*.md`. If the split exists, treat each
-  file as the canonical home for its content type — never duplicate content
-  across the split, and never put change-log rows or handoff prose back into
-  `STATUS.md`.
-
-  Currently using split layout: `kh-production-readiness-phase-1/`.
-
-**When to update:**
-
-- Any item in the ledger transitioned state this session (`Not started` →
-  `In progress`, `In progress` → `Shipped`, blocker discovered, spec written,
-  etc.).
-- A gate cleared.
-- A new item was added to the underlying DECISIONS / SPEC-SEQUENCE and needs a
-  ledger row.
-
-**What to update (single-file or split — same content, different homes):**
-
-1. **Per-item rows (item tables in `STATUS.md` §4 or equivalent).** Flip the
-   `Status` column, populate `Shipped in` with
-   `S{NNN} ({DD/MM/YYYY}, `{short_sha}`)`, update `Artefact` if the spec was
-   written or archived, and append a one-line note to `Notes` if a blocker
-   surfaced or a dependency closed.
-2. **Gate status (`STATUS.md` §2 or equivalent).** If a gate cleared, mark
-   **Cleared** and record the `Cleared in` session.
-3. **Snapshot counts (`STATUS.md` §1 or equivalent).** Adjust the
-   shipped-per-session line and any cumulative totals. Update §1.1 external
-   holds: tag any holds that closed this session with ✅ CLOSED + session ref.
-4. **Pending pickup list (`STATUS.md` §4.x or equivalent).** Remove items that
-   shipped; add items newly identified as pending; reflect any held-on-X
-   transitions.
-5. **Change log row.**
-   - **Split layout:** append one row to `STATUS-change-log.md` §1 with
-     `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`.
-   - **Single-file:** append one row to `STATUS.md` §8 (or equivalent) under the
-     change-log section.
-6. **Handoff narrative (split layout only — conditional).** If the next session
-   needs deeper handoff context than a change-log row carries (deferred scope,
-   pending decisions, focus pivot), append a `### S{N} → S{N+1} handoff` block
-   to `STATUS-handoffs.md` §1. Otherwise skip — the change-log row plus the
-   continuation prompt is sufficient.
+The single-file `STATUS.md` ledger pattern was archived
+kh-prod-readiness-S41 W3 (file is now `STATUS-phase-1-archive.md`, cold
+storage). All active items track in `product-roadmap.json` /
+`product-backlog.json`.
 
 ---
 

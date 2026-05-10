@@ -185,33 +185,20 @@ If Liam edits, he creates a new commit (not amend).
 
 ---
 
-## Step 8 — Memory capture (mempalace transition in progress)
+## Step 8 — Memory capture
 
-**Deferred kh-prod-readiness-S40.** The auto-memory system
-(`~/.claude/projects/.../memory/feedback_*.md` + `MEMORY.md` index) is being
-phased out in favour of mempalace MCP tools. The replacement shape (Shape A
-diary-write / Shape B KG-backed / Shape C auto-archive — see sub-agent report
-referenced in S40 STATUS row) is **not yet ratified**.
+Mempalace is the canonical memory system (see `CLAUDE.md` "Memory (Mempalace)"
+section for full protocol + tool inventory + known issues). Stop +
+PreCompact hooks fire automatically; no manual ingest needed.
 
-Until then:
+Do NOT author new auto-memory files. New lessons either (a) graduate to a
+one-line CLAUDE.md Gotcha entry, (b) get recorded inline in the
+continuation prompt's "Critical rules from recent sessions" section
+(max 5 items), or (c) wait for a more substantive memory-shape ratification.
 
-- Do NOT create new `feedback_*.md` / `project_*.md` / `reference_*.md` files.
-  New lessons either (a) graduate to a one-line CLAUDE.md Gotcha entry, (b) get
-  recorded inline in the continuation prompt's "Critical rules from recent
-  sessions" section (max 5 items), or (c) wait for the mempalace shape to land.
-- The CLAUDE.md graduation check still applies: distinctive-keyword grep before
-  authoring anything memory-shaped; one-line CLAUDE.md entry beats a full
-  markdown file when the lesson is already proven.
-- DELETE candidates (memory files made redundant by CLAUDE.md graduation) stay
-  on the radar but are NOT touched this session — they'll be picked up by the
-  mempalace migration script when Shape A/B/C is wired.
-
-**Open question for next session(s):** ratify final mempalace shape. See
-`docs/audits/kh-production-readiness-phase-1/STATUS.md` "Mempalace transition"
-section + the sub-agent report referenced there. The investigation likely lives
-on the main repo (per S40 user direction) — check
-`/Users/liamj/Documents/development/knowledge-hub` for cutover artefacts before
-making per-branch decisions.
+Optional: write a brief AAAK-format entry via `mempalace_diary_write`
+(`agent_name=claude`, default wing) summarising the session for personal
+journal recall — diary read works, search currently does not.
 
 ---
 

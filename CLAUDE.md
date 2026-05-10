@@ -188,6 +188,37 @@ Historical planning: `.planning/.archive/{doc-type}` (`.specs/`, `.audits/`,
 `.research/`, `.coninuation-prompts/` etc.) Grep explicitly when researching
 past decisions; treat as point-in-time snapshots.
 
+## Memory (Mempalace)
+
+Mempalace MCP server is the canonical memory system (replaced auto-memory file
+system 2026-05-10). Plugin `mempalace@mempalace` v3.3.5 enabled in
+`~/.claude/settings.json` `enabledPlugins`; Stop + PreCompact hooks fire
+automatically per session — no manual ingest needed.
+
+**One wing per worktree.** Drawer counts as of S41:
+`knowledge-hub` (75,877) · `knowledge-hub-prod-readiness` (22,773) ·
+`knowledge-hub-kpf` (7,342) · `knowledge-hub-ui-ux` (15,299) ·
+plus minor worktrees. Total ~127k drawers across 12 wings.
+
+**MCP tools:**
+
+- `mempalace_status` ✓ — wing + drawer + room counts.
+- `mempalace_list_wings` ✓ — drawer counts per wing.
+- `mempalace_kg_stats` / `mempalace_kg_query` ✓ — KG empty until seeded.
+- `mempalace_diary_write` / `mempalace_diary_read` ✓ — works for default
+  `wing_<agent>`; cross-project `wing` param errors. Use AAAK format
+  (entity codes + emotion markers + pipe-separated fields).
+- `mempalace_search` ⚠ **BROKEN upstream** — every query returns
+  `Error executing plan: Internal error: Error finding id`. Filed; awaiting
+  upstream fix. Until resolved, deep recall depends on git log + grep.
+
+**Auto-memory file system phased out.** Do NOT author new
+`feedback_*.md` / `project_*.md` / `reference_*.md` files in
+`~/.claude/projects/.../memory/`. New lessons either (a) graduate to a
+one-line CLAUDE.md Gotcha entry, (b) get recorded inline in the next
+continuation prompt's "Critical rules from recent sessions" section
+(max 5 items), or (c) wait for a more substantive memory-shape ratification.
+
 ## Implementation Workflow
 
 Spec-Code-Verify workflow is loaded via `/start-session` skill at session start.
