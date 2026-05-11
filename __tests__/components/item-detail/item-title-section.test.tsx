@@ -58,50 +58,17 @@ vi.mock('@/hooks/use-display-names', () => ({
 
 import { ItemTitleSection } from '@/components/item-detail/item-title-section';
 import type { ItemTitleSectionProps } from '@/components/item-detail/item-title-section';
-import type { ItemData } from '@/app/item/[id]/item-detail-client';
+import { createMockItem } from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
-  return {
-    id: 'item-1',
-    title: 'Test Title',
-    suggested_title: null,
-    content: null,
-    summary: null,
-    ai_keywords: null,
-    primary_domain: null,
-    primary_subtopic: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
-    content_type: 'article',
-    platform: null,
-    author_name: null,
-    source_url: null,
-    file_path: null,
-    source_domain: null,
-    thumbnail_url: null,
-    captured_date: null,
-    classification_confidence: null,
-    classification_reasoning: null,
-    classified_at: null,
-    summary_data: null,
-    priority: null,
-    user_tags: null,
-    freshness: null,
-    governance_review_status: null,
-    metadata: null,
-    ...overrides,
-  };
-}
-
 function createDefaultProps(
   overrides: Partial<ItemTitleSectionProps> = {},
 ): ItemTitleSectionProps {
   return {
-    item: createMockItem(),
+    item: createMockItem({ title: 'Test Title' }),
     title: 'Test Title',
     ...overrides,
   };

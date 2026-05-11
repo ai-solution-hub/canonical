@@ -13,29 +13,22 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { HealthPanel } from '@/components/intelligence/health-panel';
 import type { WorkspaceHealthResponse } from '@/hooks/intelligence/use-workspace-health';
+import { createQueryWrapper } from '../../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
-  });
-}
-
+/**
+ * Render a component wrapped in a fresh QueryClientProvider. Delegates to
+ * the canonical `createQueryWrapper` helper.
+ */
 function renderWithQuery(ui: React.ReactElement) {
-  const queryClient = createQueryClient();
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
-  );
+  const { Wrapper } = createQueryWrapper();
+  return render(ui, { wrapper: Wrapper });
 }
 
 /** Pin Date.now() so relative-time formatting is deterministic. */

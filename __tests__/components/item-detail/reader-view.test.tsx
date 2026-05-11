@@ -172,44 +172,40 @@ vi.mock('@/components/item-detail/content-effectiveness-panel', () => ({
 import { ReaderView } from '@/components/item-detail/reader-view';
 import type { ItemDetailData } from '@/hooks/use-item-detail-data';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
+import { createMockItem as createMockItemFactory } from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Wrapper around the canonical factory that applies ReaderView-specific
+ * defaults — same fixture shape as the editor-view test (the reader and
+ * editor views render the same fixture; the difference is mode).
+ */
 function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
-  return {
-    id: 'item-1',
-    title: 'Test Item',
+  return createMockItemFactory({
     suggested_title: 'Suggested Title',
     content: 'Test content that is long enough to display.',
     summary: 'AI summary text',
     ai_keywords: ['keyword1', 'keyword2'],
     primary_domain: 'business_operations',
     primary_subtopic: 'procurement',
-    secondary_domain: null,
-    secondary_subtopic: null,
-    content_type: 'article',
     platform: 'web',
     author_name: 'Test Author',
     source_url: 'https://example.com/article',
-    file_path: null,
     source_domain: 'example.com',
-    thumbnail_url: null,
     captured_date: '2026-01-15',
     classification_confidence: 0.95,
     classification_reasoning: 'High confidence match',
     classified_at: '2026-01-15T10:00:00Z',
-    summary_data: null,
-    priority: null,
     user_tags: [],
     freshness: 'fresh',
-    governance_review_status: null,
     metadata: {},
     created_at: '2026-01-15T10:00:00Z',
     updated_at: '2026-01-15T10:00:00Z',
     ...overrides,
-  };
+  });
 }
 
 function createMockData(
