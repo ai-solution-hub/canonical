@@ -408,10 +408,11 @@ hook isolation, cross-track hygiene rules.
     applies to **sub-agents** juggling sub-agent worktrees: after Read of a
     worktree file, subsequent git commands silently run in the wrong tree —
     always `cd <main-repo-path> &&` before main-repo git operations.
-- **Sub-agents are hard-limited to 200K tokens — NOT the parent session's 1M.**
-  Split large tasks across multiple sub-agents. Common failure: agent runs out
-  of budget during final `git commit` — always check worktree `git status`
-  before removing it.
+- **Sub-agents can blow their token budget before final `git commit`:**
+  always check worktree `git status` before removing it, in case the agent
+  exited mid-commit. (Prior "200K hard cap" claim was wrong — empirically
+  agents run past 200K on Opus 4.7 1M-context. Budget is harness-configured,
+  not a fixed sub-agent ceiling.)
 - **"Build the thing, forget to turn it on":** Every fix must trace from the
   production entry point to the change. Run `bun run knip` for deterministic
   detection of unused files/exports.
