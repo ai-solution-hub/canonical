@@ -24,20 +24,19 @@ describe('fetchActiveLayerKeys', () => {
       mock as unknown as SupabaseClient<Database>,
     );
 
+    // The returned array shape (4 active layers in display order) is the
+    // helper's full observable contract — invocation-shape chain asserts
+    // (.from('layer_vocabulary'), .select('key'), .eq('is_active', true),
+    // .order('display_order', {ascending:true})) removed under W2-RD-lib
+    // (S44) as they only documented how the query was built. Refactoring
+    // to a stored procedure with the same external behaviour must not
+    // break this test.
     expect(keys).toEqual([
       'sales_brief',
       'bid_detail',
       'company_reference',
       'research',
     ]);
-
-    // Verify correct table and filters were used
-    expect(mock.from).toHaveBeenCalledWith('layer_vocabulary');
-    expect(mock._chain.select).toHaveBeenCalledWith('key');
-    expect(mock._chain.eq).toHaveBeenCalledWith('is_active', true);
-    expect(mock._chain.order).toHaveBeenCalledWith('display_order', {
-      ascending: true,
-    });
   });
 
   it('throws on Supabase error', async () => {

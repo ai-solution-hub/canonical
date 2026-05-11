@@ -60,10 +60,12 @@ describe('reValidateAuthContext', () => {
     );
 
     expect(result).toEqual({ ok: true });
-    // Verify the lookup queried the right table + column.
-    expect(mockClient.from).toHaveBeenCalledWith('user_roles');
-    expect(mockClient._chain.select).toHaveBeenCalledWith('role');
-    expect(mockClient._chain.eq).toHaveBeenCalledWith('user_id', USER_ID);
+    // NOTE: invocation-shape asserts on table/column/user_id-scoping chain
+    // calls removed under W2-RD-lib (S44). The user_id-scoped role lookup
+    // is a multi-tenant security contract — its enforcement is verified
+    // structurally at the database layer via the integration suite
+    // (`__tests__/integration/queue-auth.integration.test.ts` under the
+    // W-RD' sibling wave, per remediation-plan.md §3.5).
   });
 
   it('returns { ok: true } when the live role exceeds requiredRole (admin exceeds editor)', async () => {

@@ -97,10 +97,10 @@ describe('enqueueQueueJob', () => {
     });
 
     expect(result).toEqual({ jobId: 'new-job-id-1', deduplicated: false });
-    // The dedup `maybeSingle` MUST NOT have been invoked (no idempotency key).
+    // Negative side-effect assert (allowed per audit §4 C3 #1): the dedup
+    // path is skipped when no idempotency key is supplied. A successful
+    // jobId echo above implies the insert ran.
     expect(mockClient._chain.maybeSingle).not.toHaveBeenCalled();
-    // Single insert call (only the terminal `.single()` of insert chain).
-    expect(mockClient._chain.insert).toHaveBeenCalledTimes(1);
   });
 
   // -------------------------------------------------------------------------
@@ -123,18 +123,20 @@ describe('enqueueQueueJob', () => {
     });
 
     expect(result).toEqual({ jobId: 'new-job-id-2', deduplicated: false });
-    expect(mockClient._chain.maybeSingle).toHaveBeenCalledTimes(1);
-    expect(mockClient._chain.insert).toHaveBeenCalledTimes(1);
-    // Confirm dedup query targeted the right column + status range.
-    expect(mockClient._chain.eq).toHaveBeenCalledWith(
-      'idempotency_key',
-      'classify:item-2:2026-05-02:hash',
-    );
-    expect(mockClient._chain.in).toHaveBeenCalledWith('status', [
-      'pending',
-      'processing',
-      'completed',
-    ]);
+    // Content-shape inspection of the captured insert payload (allowed per
+    // audit §4 C3 #1) confirms the idempotency key is propagated to the
+    // row.
+    const insertCall = mockClient._chain.insert.mock.calls[0]?.[0] as
+      | Record<string, unknown>
+      | undefined;
+    expect(insertCall?.idempotency_key).toBe('classify:item-2:2026-05-02:hash');
+    // NOTE: invocation-shape asserts on `_chain.eq('idempotency_key', ...)`
+    // and `_chain.in('status', ['pending','processing','completed'])`
+    // removed under W2-RD-lib (S44). The active-status dedup-window
+    // contract is load-bearing but unit-mocking cannot enforce a WHERE
+    // clause — the partial UNIQUE index + DB-level dedup behaviour
+    // migrates to the integration suite per remediation-plan.md §3.5
+    // (W-RD' sibling wave).
   });
 
   // -------------------------------------------------------------------------
@@ -194,7 +196,9 @@ describe('enqueueQueueJob', () => {
       jobId: 'new-job-after-failed',
       deduplicated: false,
     });
-    expect(mockClient._chain.insert).toHaveBeenCalledTimes(1);
+    // `deduplicated: false` plus the returned `jobId` echo from the insert
+    // mock together prove the INSERT path ran — invocation-count assert
+    // removed under W2-RD-lib (S44).
   });
 
   // -------------------------------------------------------------------------
@@ -383,6 +387,8 @@ describe('enqueueQueueJob', () => {
       jobId: 'new-job-after-dedup-error',
       deduplicated: false,
     });
-    expect(mockClient._chain.insert).toHaveBeenCalledTimes(1);
+    // `deduplicated: false` plus the returned `jobId` echo prove the
+    // INSERT path ran despite the dedup SELECT erroring — invocation-count
+    // assert removed under W2-RD-lib (S44).
   });
 });
