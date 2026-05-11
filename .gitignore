@@ -54,6 +54,8 @@ venv/
 !.claude/skills/review/
 !.claude/skills/start-session/
 !.claude/skills/update-docs/
+!.claude/skills/write-product-spec/
+!.claude/skills/write-tech-spec/
 
 # IDE
 .idea/
