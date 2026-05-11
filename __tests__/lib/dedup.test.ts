@@ -7,45 +7,14 @@ import {
   DEFAULT_NEAR_DUPLICATE_THRESHOLD,
 } from '@/lib/dedup';
 import type { DedupResult } from '@/lib/dedup';
+import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
-// Mock Supabase client
+// Mock Supabase client (delegates to canonical lib-table helper per W2-RG)
 // ---------------------------------------------------------------------------
-
-function createMockChain() {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-  const chainMethods = [
-    'select',
-    'insert',
-    'update',
-    'delete',
-    'eq',
-    'neq',
-    'not',
-    'is',
-    'limit',
-    'single',
-    'maybeSingle',
-  ];
-  for (const m of chainMethods) {
-    chain[m] = vi.fn().mockReturnValue(chain);
-  }
-  // Terminal method defaults
-  chain.then = vi
-    .fn()
-    .mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
-    );
-  return chain;
-}
 
 function createMockSupabase() {
-  const chain = createMockChain();
-  return {
-    from: vi.fn().mockReturnValue(chain),
-    rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
-    _chain: chain,
-  };
+  return createMockSupabaseTable();
 }
 
 // ---------------------------------------------------------------------------

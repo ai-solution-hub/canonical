@@ -29,6 +29,7 @@ import {
   setAliasCache,
 } from '@/lib/entities/entity-aliases';
 import { canonicalise } from '@/lib/entities/entity-dedup';
+import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 beforeEach(() => {
   clearAliasCache();
@@ -130,17 +131,18 @@ describe('clearAliasCache', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('loadAliases', () => {
+  /**
+   * Adapter to the canonical `createMockSupabaseTable` helper. The lib
+   * function awaits `from(...).select(...).eq(...)` directly — the
+   * canonical helper makes the chain thenable via its `then` shim, so
+   * we configure that for terminal resolution.
+   */
   function createMockSupabase(
     data: Array<{ alias: string; canonical: string }> | null,
     error: unknown = null,
   ) {
-    return {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data, error }),
-        }),
-      }),
-    };
+    const supabase = createMockSupabaseTable({ data, error });
+    return supabase;
   }
 
   it('merges DB data with baseline', async () => {

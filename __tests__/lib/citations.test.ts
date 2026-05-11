@@ -25,6 +25,7 @@ import {
 } from '@/lib/citations';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CitationEntry } from '@/types/bid-metadata';
+import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 beforeEach(() => {
   loggerMocks.warn.mockClear();
@@ -523,13 +524,17 @@ describe('getOrphanedSourceIds', () => {
 });
 
 describe('checkOrphanedSourceIds', () => {
+  /**
+   * Adapter to the canonical `createMockSupabaseTable`. The lib function
+   * only touches `supabase.rpc(...)`, so the canonical's `rpc` field
+   * resolves to the supplied initialResolution — equivalent to the
+   * previous inline 3-line factory.
+   */
   function createMockSupabase(
     data: Array<{ id: string; item_exists: boolean }> | null,
     error: unknown = null,
   ) {
-    return {
-      rpc: vi.fn().mockResolvedValue({ data, error }),
-    };
+    return createMockSupabaseTable({ data, error });
   }
 
   it('returns empty set when all sources exist', async () => {

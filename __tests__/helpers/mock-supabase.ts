@@ -3,6 +3,16 @@
  *
  * Creates a chainable mock that mirrors the Supabase query builder pattern.
  * Configure per-test responses via the returned chain mock methods.
+ *
+ * **Two factories:**
+ * - `createMockSupabaseClient()` — full client (`from`, `rpc`, `auth`,
+ *   `storage`, `_chain`). Use for api-route tests that exercise the full
+ *   surface.
+ * - `createMockSupabaseTable(initialResolution?)` — minimal chainable
+ *   single-table builder. Use for lib-function tests that only consume
+ *   `from(table).<chain>`. Per W2-RG in `remediation-plan.md` §3.8 —
+ *   covers the per-file `createMockSupabase()` duplicates in
+ *   `__tests__/lib/`. Added S44 W2-RG.
  */
 import { vi } from 'vitest';
 
@@ -209,4 +219,124 @@ export function configureAuthServiceError(client: MockSupabaseClient) {
       status: 503,
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Single-table builders (S44 W2-RG)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolution shape used by `createMockSupabaseTable()`. Both lib tests and
+ * api-route tests await a chain terminator returning this shape — match it
+ * literally so consumers can pass through their fixture data.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface MockTableResolution<TData = any> {
+  data: TData;
+  error: unknown;
+}
+
+/**
+ * Build a minimal chainable mock that resolves any `from(<table>).<chain>`
+ * call to `initialResolution`. Replaces 6+ per-file `createMockSupabase()`
+ * duplicates in `__tests__/lib/` per W2-RG.
+ *
+ * The chain methods (`select`, `insert`, `update`, `delete`, `eq`, `neq`,
+ * `in`, `is`, `not`, `gte`, `lte`, `order`, `limit`) all return the chain
+ * itself, so the lib function under test can compose them freely. Terminal
+ * methods (`single`, `maybeSingle`, the implicit `then`) resolve to the
+ * provided `initialResolution`.
+ *
+ * Override per-test via `chain.<method>.mockResolvedValueOnce(...)` for
+ * narrow-shape tests, or `chain.then.mockImplementationOnce(...)` for
+ * tests that await the chain directly.
+ *
+ * @param initialResolution Default resolved value. Defaults to
+ *                          `{ data: [], error: null }` — the safest
+ *                          "empty success" baseline.
+ *
+ * @example Simple terminal `eq` resolution
+ * ```ts
+ * const supabase = createMockSupabaseTable({
+ *   data: [{ alias: 'example-client', canonical: 'Example Client Ltd' }],
+ *   error: null,
+ * });
+ * await loadAliases(supabase);
+ * ```
+ *
+ * @example Override per-test
+ * ```ts
+ * const supabase = createMockSupabaseTable();
+ * supabase._chain.single.mockResolvedValueOnce({ data: row, error: null });
+ * ```
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function createMockSupabaseTable<TData = any>(
+  initialResolution: MockTableResolution<TData> = {
+    data: [] as unknown as TData,
+    error: null,
+  },
+): {
+  from: ReturnType<typeof vi.fn>;
+  rpc: ReturnType<typeof vi.fn>;
+  _chain: MockQueryChain;
+} {
+  const chain: MockQueryChain = {
+    select: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
+    upsert: vi.fn(),
+    delete: vi.fn(),
+    eq: vi.fn(),
+    neq: vi.fn(),
+    in: vi.fn(),
+    is: vi.fn(),
+    not: vi.fn(),
+    ilike: vi.fn(),
+    contains: vi.fn(),
+    gte: vi.fn(),
+    lte: vi.fn(),
+    gt: vi.fn(),
+    lt: vi.fn(),
+    or: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    range: vi.fn(),
+    single: vi.fn().mockResolvedValue(initialResolution),
+    maybeSingle: vi.fn().mockResolvedValue(initialResolution),
+    csv: vi.fn().mockResolvedValue(initialResolution),
+    then: vi.fn((resolve: (v: unknown) => void) => resolve(initialResolution)),
+  };
+
+  const chainableMethods: (keyof MockQueryChain)[] = [
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
+  ];
+  for (const method of chainableMethods) {
+    chain[method].mockReturnValue(chain);
+  }
+
+  return {
+    from: vi.fn().mockReturnValue(chain),
+    rpc: vi.fn().mockResolvedValue(initialResolution),
+    _chain: chain,
+  };
 }

@@ -26,6 +26,7 @@ import {
   createBulkNotifications,
   getExistingNotificationIds,
 } from '@/lib/notifications';
+import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 beforeEach(() => {
   loggerMocks.error.mockClear();
@@ -33,6 +34,17 @@ beforeEach(() => {
   loggerMocks.info.mockClear();
 });
 
+/**
+ * Adapter to the canonical `createMockSupabaseTable`. The lib under test
+ * exercises two paths:
+ *   1. `from(...).insert(...)` — awaited directly. Configured via
+ *      `chain.insert.mockResolvedValueOnce(insertResult)`.
+ *   2. `from(...).select(...).eq(...).gte(...).in(...)` — awaited at the
+ *      end. Configured via `chain.in.mockResolvedValueOnce(selectResult)`.
+ *
+ * The canonical helper exposes `_chain` so both legs are configurable on
+ * a single instance.
+ */
 function createMockSupabase(
   insertResult: { error: { message: string } | null } = { error: null },
   selectResult: {
@@ -40,18 +52,10 @@ function createMockSupabase(
     error: { message: string } | null;
   } = { data: [], error: null },
 ) {
-  return {
-    from: vi.fn().mockReturnValue({
-      insert: vi.fn().mockResolvedValue(insertResult),
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          gte: vi.fn().mockReturnValue({
-            in: vi.fn().mockResolvedValue(selectResult),
-          }),
-        }),
-      }),
-    }),
-  };
+  const supabase = createMockSupabaseTable();
+  supabase._chain.insert.mockResolvedValue(insertResult);
+  supabase._chain.in.mockResolvedValue(selectResult);
+  return supabase;
 }
 
 describe('createNotification', () => {
