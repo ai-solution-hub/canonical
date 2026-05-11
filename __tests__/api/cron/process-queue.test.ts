@@ -29,6 +29,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+import { createMockCronRequest } from '@/__tests__/helpers/factories/cron-request';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — declared via `vi.hoisted` per CLAUDE.md vi.mock gotcha.
@@ -130,13 +131,6 @@ function makeJob(overrides: Partial<JobFixture> = {}): JobFixture {
   };
 }
 
-function createCronRequest() {
-  return new Request('http://localhost:3000/api/cron/process-queue', {
-    method: 'GET',
-    headers: { authorization: 'Bearer test-cron-secret' },
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -214,7 +208,7 @@ describe('GET /api/cron/process-queue', () => {
   it('returns 401 when verifyCronAuth fails', async () => {
     mockVerifyCronAuth.mockReturnValue(false);
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     expect(res.status).toBe(401);
     // Worker MUST NOT have called any internal helpers when auth fails.
@@ -228,7 +222,7 @@ describe('GET /api/cron/process-queue', () => {
   it('AC-8: uses createServiceClient and never createClient or getAuthorisedClient', async () => {
     configureClaimSequence([]); // no work
 
-    await GET(createCronRequest() as never);
+    await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     expect(mockCreateServiceClient).toHaveBeenCalledTimes(1);
     expect(mockCreateClient).not.toHaveBeenCalled();
@@ -253,7 +247,7 @@ describe('GET /api/cron/process-queue', () => {
       return mockSupabase._chain;
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -294,7 +288,7 @@ describe('GET /api/cron/process-queue', () => {
     configureClaimSequence([job]);
     mockRunJobByType.mockResolvedValueOnce({ ok: true });
 
-    await GET(createCronRequest() as never);
+    await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     // Assertion: the worker invoked supabase.rpc('claim_next_job', ...).
     // FOR UPDATE SKIP LOCKED concurrency is DB-side per spec §3.6 — the
@@ -330,7 +324,7 @@ describe('GET /api/cron/process-queue', () => {
       return mockSupabase._chain;
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     expect(res.status).toBe(200);
     // Worker MUST have invoked handleJobFailure with the supabase, job, error.
@@ -362,7 +356,7 @@ describe('GET /api/cron/process-queue', () => {
     configureClaimSequence([]); // no work
     mockReapStuckJobs.mockResolvedValueOnce(0);
 
-    await GET(createCronRequest() as never);
+    await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     expect(mockReapStuckJobs).toHaveBeenCalledTimes(1);
     expect(mockReapStuckJobs).toHaveBeenCalledWith(mockSupabase);
@@ -386,7 +380,7 @@ describe('GET /api/cron/process-queue', () => {
     configureClaimSequence([job]);
     mockRunJobByType.mockResolvedValueOnce({ ok: true });
 
-    await GET(createCronRequest() as never);
+    await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     expect(mockRunJobByType).toHaveBeenCalledTimes(1);
     const passedJob = mockRunJobByType.mock.calls[0][0];
@@ -406,7 +400,7 @@ describe('GET /api/cron/process-queue', () => {
   it('returns summary with processed=0 when queue is empty', async () => {
     configureClaimSequence([]); // no work
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/process-queue' }) as never);
 
     expect(res.status).toBe(200);
     const body = await res.json();

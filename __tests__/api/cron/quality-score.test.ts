@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '../../helpers/mock-supabase';
+import { createMockCronRequest } from '../../helpers/factories/cron-request';
 
 // ---------------------------------------------------------------------------
 // Mock setup
@@ -96,13 +97,6 @@ function makeContentItem(
     governance_review_status: overrides.governance_review_status ?? null,
     verified_at: overrides.verified_at ?? null,
   };
-}
-
-function createCronRequest() {
-  return new Request('http://localhost:3000/api/cron/quality-score', {
-    method: 'GET',
-    headers: { authorization: 'Bearer test-cron-secret' },
-  });
 }
 
 /** Track which table .from() was called with, to return appropriate data */
@@ -332,7 +326,7 @@ describe('GET /api/cron/quality-score', () => {
   it('returns 401 when cron auth fails', async () => {
     mockVerifyCronAuth.mockReturnValue(false);
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(401);
 
     const body = await res.json();
@@ -351,7 +345,7 @@ describe('GET /api/cron/quality-score', () => {
 
     configureFromSequence({ items: [item] });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -373,7 +367,7 @@ describe('GET /api/cron/quality-score', () => {
 
     configureFromSequence({ items: [item] });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -393,7 +387,7 @@ describe('GET /api/cron/quality-score', () => {
 
     const { updateCalls } = configureDetailedMock({ items: [item] });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     // Find the quality score update (not the governance update)
@@ -423,7 +417,7 @@ describe('GET /api/cron/quality-score', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -464,7 +458,7 @@ describe('GET /api/cron/quality-score', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -503,7 +497,7 @@ describe('GET /api/cron/quality-score', () => {
       items: [complianceItem, operationsItem],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -535,7 +529,7 @@ describe('GET /api/cron/quality-score', () => {
 
     configureDetailedMock({ items: [item] });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -547,7 +541,7 @@ describe('GET /api/cron/quality-score', () => {
       items: [makeContentItem()],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const pipelineInserts = insertCalls.filter(
@@ -566,7 +560,7 @@ describe('GET /api/cron/quality-score', () => {
   it('handles empty content items gracefully', async () => {
     configureFromSequence({ items: [] });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -587,7 +581,7 @@ describe('GET /api/cron/quality-score', () => {
 
     configureDetailedMock({ items: [item] });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -647,7 +641,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -704,7 +698,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -737,7 +731,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -769,7 +763,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -801,7 +795,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -838,7 +832,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -876,7 +870,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -911,7 +905,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -959,7 +953,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const pipelineInserts = insertCalls.filter(
@@ -996,7 +990,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -1034,7 +1028,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       items,
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(createMockCronRequest({ path: '/api/cron/quality-score' }) as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
