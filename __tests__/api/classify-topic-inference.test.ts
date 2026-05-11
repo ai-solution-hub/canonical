@@ -8,11 +8,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
 import {
   createMockSupabaseClient,
   type MockSupabaseClient,
 } from '../helpers/mock-supabase';
+import { createMockApiRequest } from '../helpers/factories/api-request';
 
 // ── Mock setup ──────────────────────────────────────────────────────
 
@@ -72,9 +72,9 @@ import { getAuthorisedClient } from '@/lib/auth';
 const itemId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
 
 function buildRequest(body: Record<string, unknown> = { force: true }) {
-  return new NextRequest(`http://localhost:3000/api/items/${itemId}/classify`, {
-    method: 'POST',
-    body: JSON.stringify(body),
+  return createMockApiRequest({
+    path: `/api/items/${itemId}/classify`,
+    body,
   });
 }
 

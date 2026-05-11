@@ -42,6 +42,7 @@ import {
   createMockSupabaseClient,
   type MockSupabaseClient,
 } from '@/__tests__/helpers/mock-supabase';
+import { createMockApiRequest } from '@/__tests__/helpers/factories/api-request';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 
 // ---------------------------------------------------------------------------
@@ -77,7 +78,6 @@ vi.mock('@/lib/supabase/server', () => ({
 
 import { POST } from '@/app/api/admin/batch-reclassify/route';
 import { getAuthorisedClient } from '@/lib/auth';
-import type { NextRequest } from 'next/server';
 
 const getAuthorisedClientMock = vi.mocked(getAuthorisedClient);
 
@@ -94,11 +94,10 @@ let mockServiceClient: MockSupabaseClient;
 
 /** Build a NextRequest with JSON body. */
 function buildRequest(body: Record<string, unknown> | undefined = undefined) {
-  return new Request('http://localhost/api/admin/batch-reclassify', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  }) as unknown as NextRequest;
+  return createMockApiRequest({
+    path: '/api/admin/batch-reclassify',
+    body,
+  });
 }
 
 /** Configure auth as the given role. */
@@ -314,10 +313,10 @@ describe('POST /api/admin/batch-reclassify — body validation', () => {
 
     // No body — request.json() throws.
     const response = await POST(
-      new Request('http://localhost/api/admin/batch-reclassify', {
-        method: 'POST',
+      createMockApiRequest({
+        path: '/api/admin/batch-reclassify',
         headers: { 'content-type': 'application/json' },
-      }) as unknown as NextRequest,
+      }),
     );
 
     expect(response.status).toBe(202);
