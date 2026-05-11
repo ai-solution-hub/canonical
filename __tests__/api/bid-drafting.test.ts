@@ -1693,7 +1693,11 @@ describe('POST /api/bids/:id/tender', () => {
    * — the same strategy the inline original used to satisfy the route's
    * cross-realm instanceof check.
    */
-  function makeMockFile(bytes: Uint8Array, name: string, mimeType: string): File {
+  function makeMockFile(
+    bytes: Uint8Array,
+    name: string,
+    mimeType: string,
+  ): File {
     return createMockFile({ name, content: bytes, type: mimeType });
   }
 

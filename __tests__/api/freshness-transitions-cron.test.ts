@@ -165,7 +165,11 @@ describe('GET /api/cron/freshness-transitions', () => {
         resolve({ data: [ownedItem], error: null }),
     );
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -215,7 +219,11 @@ describe('GET /api/cron/freshness-transitions', () => {
         resolve({ data: [unownedItem], error: null }),
     );
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -260,7 +268,11 @@ describe('GET /api/cron/freshness-transitions', () => {
         resolve({ data: [ownedItem, unownedItem], error: null }),
     );
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -312,7 +324,11 @@ describe('GET /api/cron/freshness-transitions', () => {
         }),
     );
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -336,7 +352,11 @@ describe('GET /api/cron/freshness-transitions', () => {
     // Both idempotency checks return the item as already notified
     mockGetExistingNotificationIds.mockResolvedValue(new Set([item.id]));
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);

@@ -73,7 +73,9 @@ export interface ApiRequestOptions {
  * expect((await POST(req)).status).toBe(401);
  * ```
  */
-export function createMockApiRequest(overrides: ApiRequestOptions): NextRequest {
+export function createMockApiRequest(
+  overrides: ApiRequestOptions,
+): NextRequest {
   const { path, method = 'POST', body, searchParams, headers } = overrides;
 
   return createTestRequest(path, {

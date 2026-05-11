@@ -270,17 +270,33 @@ export interface MockTableResolution<TData = any> {
  * supabase._chain.single.mockResolvedValueOnce({ data: row, error: null });
  * ```
  */
+/**
+ * Return type of `createMockSupabaseTable()`. The `from` / `rpc` signatures
+ * are tightened from raw `Mock<Procedure | Constructable>` to the structural
+ * shape the lib functions expect — `(table: string) => unknown` and
+ * `(name: string, args?: unknown) => PromiseLike<{data, error}>` — so the
+ * helper drops in as a `SupabaseClient` substitute without per-callsite
+ * casts. The underlying functions are still vitest Mocks at runtime
+ * (`vi.fn()`), preserving `mock.calls` introspection.
+ */
+export interface MockSupabaseTable {
+  from: ((table: string) => MockQueryChain) & ReturnType<typeof vi.fn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rpc: ((
+    name: string,
+    args?: unknown,
+  ) => PromiseLike<{ data: any; error: any }>) &
+    ReturnType<typeof vi.fn>;
+  _chain: MockQueryChain;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createMockSupabaseTable<TData = any>(
   initialResolution: MockTableResolution<TData> = {
     data: [] as unknown as TData,
     error: null,
   },
-): {
-  from: ReturnType<typeof vi.fn>;
-  rpc: ReturnType<typeof vi.fn>;
-  _chain: MockQueryChain;
-} {
+): MockSupabaseTable {
   const chain: MockQueryChain = {
     select: vi.fn(),
     insert: vi.fn(),
@@ -335,8 +351,10 @@ export function createMockSupabaseTable<TData = any>(
   }
 
   return {
-    from: vi.fn().mockReturnValue(chain),
-    rpc: vi.fn().mockResolvedValue(initialResolution),
+    from: vi.fn().mockReturnValue(chain) as MockSupabaseTable['from'],
+    rpc: vi
+      .fn()
+      .mockResolvedValue(initialResolution) as MockSupabaseTable['rpc'],
     _chain: chain,
   };
 }

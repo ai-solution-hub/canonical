@@ -267,7 +267,11 @@ describe('GET /api/cron/freshness-transitions', () => {
   it('returns 401 when cron auth fails', async () => {
     mockVerifyCronAuth.mockReturnValue(false);
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(401);
 
     const body = await res.json();
@@ -277,7 +281,11 @@ describe('GET /api/cron/freshness-transitions', () => {
   it('returns empty result when no transitions detected', async () => {
     configureDetailedMock({ items: [] });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -316,7 +324,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -376,7 +388,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -410,7 +426,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -438,7 +458,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -465,7 +489,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -492,7 +520,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -519,7 +551,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -551,7 +587,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -584,7 +624,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -611,7 +655,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -641,7 +689,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -683,7 +735,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -718,7 +774,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items,
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -784,7 +844,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items,
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -828,7 +892,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const pipelineInserts = insertCalls.filter(
@@ -862,7 +930,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const pipelineInserts = insertCalls.filter(
@@ -914,7 +986,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [agingItem, staleItem, expiredItem],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -957,7 +1033,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -986,7 +1066,11 @@ describe('GET /api/cron/freshness-transitions — governance bridge', () => {
       items: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/freshness-transitions' }) as never);
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/freshness-transitions',
+      }) as never,
+    );
     expect(res.status).toBe(200);
 
     const govUpdates = updateCalls.filter(

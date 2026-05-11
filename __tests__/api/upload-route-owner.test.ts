@@ -256,11 +256,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'editor');
     configureSuccessFlow();
 
-    const file = makeMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file });
 
     const res = await POST(req);
@@ -288,11 +284,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureSuccessFlow();
 
     const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
-    const file = makeMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file, contentOwnerId: OTHER_UUID });
 
     const res = await POST(req);
@@ -319,11 +311,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureSuccessFlow();
 
     const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
-    const file = makeMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file, contentOwnerId: OTHER_UUID });
 
     const res = await POST(req);
@@ -352,11 +340,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'editor');
     configureSuccessFlow();
 
-    const file = makeMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file });
 
     const res = await POST(req);
@@ -384,11 +368,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'admin');
     configureSuccessFlow();
 
-    const file = makeMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file, contentOwnerId: 'not-a-uuid' });
 
     const res = await POST(req);

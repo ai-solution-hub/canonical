@@ -221,7 +221,9 @@ describe('GET /api/cron/review-cadence — auth + empty', () => {
   it('returns 401 when cron auth fails', async () => {
     mockVerifyCronAuth.mockReturnValue(false);
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(401);
 
     const body = await res.json();
@@ -234,7 +236,9 @@ describe('GET /api/cron/review-cadence — auth + empty', () => {
   it('records 0-candidate run when no items are overdue', async () => {
     configureDetailedMock({ candidates: [] });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -270,7 +274,9 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
       candidates: [item],
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -334,7 +340,9 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
     // never reach the candidates list. Mock returns [] to simulate filter.
     configureDetailedMock({ candidates: [] });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     const body = await res.json();
     expect(body.items_flagged).toBe(0);
     expect(mockCreateBulkNotifications).not.toHaveBeenCalled();
@@ -343,7 +351,9 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
   it('(c) does NOT flag items with archived_at (excluded by SQL filter)', async () => {
     configureDetailedMock({ candidates: [] });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     const body = await res.json();
     expect(body.items_flagged).toBe(0);
     expect(mockCreateBulkNotifications).not.toHaveBeenCalled();
@@ -355,7 +365,9 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
     // 'review_overdue'. Mock returns [] for filter rejection.
     configureDetailedMock({ candidates: [] });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     const body = await res.json();
     expect(body.items_flagged).toBe(0);
     expect(mockCreateBulkNotifications).not.toHaveBeenCalled();
@@ -369,7 +381,9 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
     // The same SQL filter excludes 'review_overdue' status. Re-run = empty.
     configureDetailedMock({ candidates: [] });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     const body = await res.json();
     expect(body.items_flagged).toBe(0);
     expect(body.notifications_created).toBe(0);
@@ -391,7 +405,9 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
       error: { message: 'NOTIF_DB_DOWN', code: '500' } as unknown,
     });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -425,7 +441,9 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
 
     configureDetailedMock({ candidates: [item] });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(200);
 
     expect(mockGetUsersByRole).toHaveBeenCalledWith(expect.anything(), [
@@ -453,7 +471,9 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
 
     configureDetailedMock({ candidates: items });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -482,7 +502,9 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
 
     configureDetailedMock({ candidates: items });
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -520,7 +542,9 @@ describe('GET /api/cron/review-cadence — notification idempotency', () => {
     // Simulate a notification already created today
     mockGetExistingNotificationIds.mockResolvedValueOnce(new Set([item.id]));
 
-    const res = await GET(createMockCronRequest({ path: '/api/cron/review-cadence' }) as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/review-cadence' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
