@@ -51,12 +51,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 import {
   createMockSupabaseClient,
   type MockSupabaseClient,
 } from '@/__tests__/helpers/mock-supabase';
+import {
+  createMockFile,
+  createMockUploadRequest,
+} from '@/__tests__/helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks (file-scope per
@@ -182,48 +186,25 @@ interface FakeFile {
   type?: string;
 }
 
-function buildFakeFile(args: FakeFile): File {
-  const bytes =
-    typeof args.content === 'string'
-      ? new TextEncoder().encode(args.content)
-      : args.content;
-  const blob = new Blob([bytes as unknown as BlobPart], {
-    type: args.type ?? 'text/markdown',
-  });
-  return Object.create(File.prototype, {
-    name: { value: args.name, enumerable: true },
-    type: { value: args.type ?? 'text/markdown', enumerable: true },
-    size: { value: bytes.byteLength, enumerable: true },
-    arrayBuffer: { value: () => blob.arrayBuffer() },
-  }) as File;
-}
-
 function makeRequest(args: {
   phase: string | null;
   files: FakeFile[];
   optionsJson?: string;
 }): NextRequest {
-  const builtFiles = args.files.map(buildFakeFile);
-
-  const fakeFormData = {
-    get: vi.fn((key: string): FormDataEntryValue | null => {
-      if (key === 'phase') return args.phase;
-      if (key === 'options' && args.optionsJson !== undefined) {
-        return args.optionsJson;
-      }
-      return null;
+  const builtFiles = args.files.map((f) =>
+    createMockFile({
+      name: f.name,
+      content: f.content,
+      type: f.type ?? 'text/markdown',
     }),
-    getAll: vi.fn((key: string): FormDataEntryValue[] => {
-      if (key === 'files[]')
-        return builtFiles as unknown as FormDataEntryValue[];
-      return [];
-    }),
-  };
+  );
 
-  const req = {
-    formData: vi.fn().mockResolvedValue(fakeFormData),
-  };
-  return req as unknown as NextRequest;
+  return createMockUploadRequest({
+    path: '/api/ingest/markdown',
+    files: builtFiles,
+    phase: args.phase,
+    optionsJson: args.optionsJson,
+  });
 }
 
 // ---------------------------------------------------------------------------

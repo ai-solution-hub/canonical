@@ -23,6 +23,7 @@ import {
   useFileUploadPipeline,
   SKIP_REVIEW_KEY,
 } from '@/hooks/use-file-upload-pipeline';
+import { createMockFile } from '../helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,10 +37,18 @@ function renderUploadHook(
   return renderHook(() => useFileUploadPipeline(options), { wrapper: Wrapper });
 }
 
-/** Create a minimal File object for testing */
+/**
+ * Create a minimal File object for testing. Hook tests run in jsdom and
+ * the hook uses the File directly (no cross-realm instanceof), so the
+ * plain DOM File constructor works.
+ */
 function createTestFile(name = 'test-document.pdf', size = 1024): File {
-  const content = new ArrayBuffer(size);
-  return new File([content], name, { type: 'application/pdf' });
+  return createMockFile({
+    name,
+    size,
+    type: 'application/pdf',
+    construction: 'plain',
+  });
 }
 
 /** Build a successful upload API response */

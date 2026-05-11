@@ -5,6 +5,10 @@ import {
   configureUnauthenticated,
 } from '../helpers/mock-supabase';
 import { createTestRequest, createTestParams } from '../helpers/mock-next';
+import {
+  createMockFile,
+  createMockUploadRequest,
+} from '../helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -1683,59 +1687,51 @@ describe('POST /api/bids/:id/tender', () => {
   ]);
 
   /**
-   * Create a mock File that works in jsdom. The route checks
-   * `file instanceof File` which fails cross-realm. We create a plain
-   * object with all the File properties the route uses.
+   * Adapter to match the (bytes, name, mimeType) signature used by the
+   * tender-upload describe block below. Delegates to the canonical
+   * factory which spoofs `instanceof File` via Object.create(File.prototype)
+   * — the same strategy the inline original used to satisfy the route's
+   * cross-realm instanceof check.
    */
-  function createMockFile(
-    bytes: Uint8Array,
-    name: string,
-    mimeType: string,
-  ): File {
-    const blob = new Blob([bytes as BlobPart], { type: mimeType });
-    // Construct an object that satisfies both the instanceof check and
-    // the route's property accesses. Object.create(File.prototype) makes
-    // instanceof File pass in the same realm.
-    const file = Object.create(File.prototype, {
-      name: { value: name, writable: false },
-      type: { value: mimeType, writable: false },
-      size: { value: bytes.length, writable: false },
-      arrayBuffer: { value: () => blob.arrayBuffer(), writable: false },
-    });
-    return file;
+  function makeMockFile(bytes: Uint8Array, name: string, mimeType: string): File {
+    return createMockFile({ name, content: bytes, type: mimeType });
   }
 
-  // Helper to create a NextRequest whose formData() returns a controlled FormData
+  /**
+   * Adapter wrapping the canonical upload-request factory. Forwards
+   * `null` as a no-file body so the route exercises its "no file"
+   * validation branch.
+   */
   function createTenderRequest(
     mockFile: File | null,
     bidId: string = VALID_UUID,
   ): import('next/server').NextRequest {
-    const req = createTestRequest(`/api/bids/${bidId}/tender`, {
-      method: 'POST',
-      body: {}, // placeholder — we override formData()
-    });
-
-    // Override formData() to return our controlled data
-    const formData = new FormData();
     if (mockFile) {
-      // Use defineProperty to put the object as a regular value
-      formData.get = vi.fn((key: string) => {
-        if (key === 'file') return mockFile;
-        return null;
+      return createMockUploadRequest({
+        path: `/api/bids/${bidId}/tender`,
+        file: mockFile,
       });
     }
 
+    // The "no file" path — the original helper built an empty FormData
+    // whose .get always returns null. createMockUploadRequest requires a
+    // File, so for this single branch fall back to the lower-level
+    // request builder plus a manual empty FormData override.
+    const req = createTestRequest(`/api/bids/${bidId}/tender`, {
+      method: 'POST',
+      body: {},
+    });
+    const formData = new FormData();
     (req as unknown as { formData: () => Promise<FormData> }).formData = vi
       .fn()
       .mockResolvedValue(formData);
-
     return req;
   }
 
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const file = createMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
+    const file = makeMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
     const req = createTenderRequest(file);
 
     const res = await tenderPost(req, { params });
@@ -1745,7 +1741,7 @@ describe('POST /api/bids/:id/tender', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const file = createMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
+    const file = makeMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
     const req = createTenderRequest(file);
 
     const res = await tenderPost(req, { params });
@@ -1755,7 +1751,7 @@ describe('POST /api/bids/:id/tender', () => {
   it('returns 400 for invalid UUID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const file = createMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
+    const file = makeMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
     const req = createTenderRequest(file, INVALID_UUID);
 
     const res = await tenderPost(req, {
@@ -1780,7 +1776,7 @@ describe('POST /api/bids/:id/tender', () => {
     configureRole(mockSupabase, 'editor');
 
     const emptyBytes = new Uint8Array(0);
-    const file = createMockFile(emptyBytes, 'test.pdf', 'application/pdf');
+    const file = makeMockFile(emptyBytes, 'test.pdf', 'application/pdf');
     const req = createTenderRequest(file);
 
     const res = await tenderPost(req, { params });
@@ -1794,7 +1790,7 @@ describe('POST /api/bids/:id/tender', () => {
     configureRole(mockSupabase, 'editor');
 
     const textBytes = new TextEncoder().encode('test content');
-    const file = createMockFile(
+    const file = makeMockFile(
       new Uint8Array(textBytes),
       'test.txt',
       'text/plain',
@@ -1816,7 +1812,7 @@ describe('POST /api/bids/:id/tender', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const file = createMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
+    const file = makeMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
     const req = createTenderRequest(file);
 
     const res = await tenderPost(req, { params });
@@ -1833,7 +1829,7 @@ describe('POST /api/bids/:id/tender', () => {
     });
 
     // Create a "PDF" file with wrong magic bytes (DOCX magic)
-    const file = createMockFile(DOCX_MAGIC, 'test.pdf', 'application/pdf');
+    const file = makeMockFile(DOCX_MAGIC, 'test.pdf', 'application/pdf');
     const req = createTenderRequest(file);
 
     const res = await tenderPost(req, { params });
@@ -1856,7 +1852,7 @@ describe('POST /api/bids/:id/tender', () => {
 
     const docxType =
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    const file = createMockFile(DOCX_MAGIC, 'test.docx', docxType);
+    const file = makeMockFile(DOCX_MAGIC, 'test.docx', docxType);
     const req = createTenderRequest(file);
 
     const res = await tenderPost(req, { params });

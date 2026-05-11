@@ -15,7 +15,11 @@
  * `__tests__/integration/markdown-batch-*.integration.test.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
+import {
+  createMockFile,
+  createMockUploadRequest,
+} from '@/__tests__/helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Module mocks — `getAuthorisedClient` (auth gate) and the orchestrator.
@@ -90,65 +94,29 @@ function configureUnauthenticated() {
 }
 
 /**
- * Build a synthetic File-like object that survives the canonical override
- * pattern. jsdom's FormData/Request round-trip drops File.name and
- * substitutes literal "undefined" bytes for the content; the `formData()`
- * override pattern below avoids the round-trip entirely (see
- * `__tests__/api/upload-route-owner.test.ts:140-152` + memory pattern note
- * on canonical upload-test mock approach at bid-drafting.test.ts:1624).
- */
-function buildFakeFile(args: {
-  name: string;
-  content: string | Uint8Array;
-  type?: string;
-}): File {
-  const bytes =
-    typeof args.content === 'string'
-      ? new TextEncoder().encode(args.content)
-      : args.content;
-  const blob = new Blob([bytes as unknown as BlobPart], {
-    type: args.type ?? 'text/markdown',
-  });
-  return Object.create(File.prototype, {
-    name: { value: args.name, enumerable: true },
-    type: { value: args.type ?? 'text/markdown', enumerable: true },
-    size: { value: bytes.byteLength, enumerable: true },
-    arrayBuffer: { value: () => blob.arrayBuffer() },
-  }) as File;
-}
-
-/**
- * Build a `NextRequest` whose `formData()` is pre-mocked to return the
- * supplied `phase`, `files[]`, and optional `options` JSON. Overriding
- * `formData()` directly is the canonical pattern for upload-route tests
- * in this repo (see `__tests__/api/upload-route-owner.test.ts:155-181`).
+ * Adapter to the canonical upload-request factory: convert the legacy
+ * `{ phase, files, optionsJson }` arg shape to the factory's call shape.
+ * The factory defaults `filesKey` to `'files[]'` (the spec §5.2 key).
  */
 function makeRequest(args: {
   phase: string | null;
   files: Array<{ name: string; content: string | Uint8Array; type?: string }>;
   optionsJson?: string;
 }): NextRequest {
-  const builtFiles = args.files.map(buildFakeFile);
-
-  const fakeFormData = {
-    get: vi.fn((key: string): FormDataEntryValue | null => {
-      if (key === 'phase') return args.phase;
-      if (key === 'options' && args.optionsJson !== undefined) {
-        return args.optionsJson;
-      }
-      return null;
+  const builtFiles = args.files.map((f) =>
+    createMockFile({
+      name: f.name,
+      content: f.content,
+      type: f.type ?? 'text/markdown',
     }),
-    getAll: vi.fn((key: string): FormDataEntryValue[] => {
-      if (key === 'files[]')
-        return builtFiles as unknown as FormDataEntryValue[];
-      return [];
-    }),
-  };
+  );
 
-  const req = {
-    formData: vi.fn().mockResolvedValue(fakeFormData),
-  };
-  return req as unknown as NextRequest;
+  return createMockUploadRequest({
+    path: '/api/ingest/markdown',
+    files: builtFiles,
+    phase: args.phase,
+    optionsJson: args.optionsJson,
+  });
 }
 
 // ---------------------------------------------------------------------------
