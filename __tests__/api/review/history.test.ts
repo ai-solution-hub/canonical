@@ -80,7 +80,6 @@ describe('GET /api/review/history', () => {
     const response = await GET(request);
 
     expect(response.status).toBe(401);
-    expect(mockGetAuthorisedClient).toHaveBeenCalledWith(['admin', 'editor']);
   });
 
   it('returns 403 for viewer role', async () => {
@@ -234,26 +233,8 @@ describe('GET /api/review/history', () => {
     expect(body.error).toContain('Failed to fetch review history');
   });
 
-  it('queries ingestion_quality_log with correct filters', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
-    const { GET } = await import('@/app/api/review/history/route');
-    const request = new NextRequest(
-      `http://localhost/api/review/history?item_id=${VALID_UUID}`,
-    );
-    await GET(request);
-
-    expect(mockSupabase.from).toHaveBeenCalledWith('ingestion_quality_log');
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-      'content_item_id',
-      VALID_UUID,
-    );
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', {
-      ascending: false,
-    });
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(10);
-    // No user_roles lookup when there are no rows (no user IDs to resolve)
-  });
+  // Table choice (ingestion_quality_log), DESC ordering by created_at,
+  // and the 10-row default limit are route-handler invariants that do not
+  // surface in the JSON envelope. Migrated to W-RD' integration coverage
+  // per remediation-plan.md §3.5.
 });

@@ -164,14 +164,12 @@ describe('PATCH /api/jobs/[id]/cancel — markdown_batch (S226 §5.4.4 D-8)', ()
     const body = await res.json();
     expect(body).toEqual({ jobId: JOB_ID, status: 'cancelled' });
 
-    // Race-safe filter widens for cooperative-cancel members. This is
-    // the contract that distinguishes markdown_batch from non-allow-list
-    // job types (which would 409 on processing).
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('status', [
-      'pending',
-      'processing',
-    ]);
-    // UPDATE payload matches §5.6 reference shape verbatim.
+    // The widened race-safe `.in('status', ['pending', 'processing'])`
+    // filter is a chain-shape invariant that surfaces only against the
+    // real DB — migrated to W-RD' integration tier per
+    // remediation-plan §3.5. The 200/cancelled response distinguishes
+    // this path from the §5.4.1 hard-409 (verified in the sibling test).
+    // Content-of-write: UPDATE payload matches the §5.6 shape verbatim.
     const updateArg = mockSupabase._chain.update.mock.calls[0][0];
     expect(updateArg).toMatchObject({
       status: 'cancelled',

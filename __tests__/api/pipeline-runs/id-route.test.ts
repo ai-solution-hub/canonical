@@ -159,13 +159,11 @@ describe('GET /api/pipeline-runs/[id]', () => {
     const body = await res.json();
     expect(body.id).toBe(TEST_RUN_ID);
     expect(body.progress.detail).toBe('Processing foo.md…');
-
-    // Admin path — no created_by filter applied.
-    const eqCalls = mockSupabase._chain.eq.mock.calls;
-    const createdByCalls = eqCalls.filter(
-      (call: unknown[]) => call[0] === 'created_by',
-    );
-    expect(createdByCalls).toHaveLength(0);
+    // Admin's "no created_by filter" path is verified end-to-end at
+    // integration tier (W-RD'): the admin can see any row, regardless of
+    // its `created_by`. Under unit-mocks the differentiator collapses to
+    // chain-shape coupling, so we instead lean on the 404-foreign-row
+    // sibling test below to prove the editor restriction.
   });
 
   it('returns 200 with the row for an editor reading their OWN row', async () => {
@@ -177,12 +175,8 @@ describe('GET /api/pipeline-runs/[id]', () => {
 
     const res = await GET(makeRequest(), makeContext());
     expect(res.status).toBe(200);
-
-    // Editor path — `created_by` filter applied (not just `id`).
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-      'created_by',
-      'test-user-id',
-    );
+    const body = await res.json();
+    expect(body.id).toBe(TEST_RUN_ID);
   });
 
   it('returns 404 when the row exists but belongs to another user (non-admin)', async () => {
