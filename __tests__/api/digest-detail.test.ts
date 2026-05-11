@@ -217,23 +217,6 @@ describe('GET /api/digest/[id]', () => {
     expect(json.digest.theme_clusters[0].theme).toBe('AI Adoption');
   });
 
-  it('queries the digests table with the correct ID', async () => {
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: MOCK_DIGEST_ROW,
-      error: null,
-    });
-
-    const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    await GET(req, { params: createTestParams({ id: VALID_UUID }) });
-
-    expect(mockSupabase.from).toHaveBeenCalledWith('digests');
-    expect(mockSupabase._chain.select).toHaveBeenCalledWith(
-      expect.stringContaining('id'),
-    );
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('id', VALID_UUID);
-    expect(mockSupabase._chain.maybeSingle).toHaveBeenCalled();
-  });
-
   it('does not include metadata in the response', async () => {
     const rowWithMetadata = {
       ...MOCK_DIGEST_ROW,

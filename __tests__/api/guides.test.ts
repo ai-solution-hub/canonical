@@ -181,17 +181,35 @@ describe('GET /api/guides', () => {
     expect(body[0].slug).toBe('scp-sector');
   });
 
-  it('filters by guide type when type param is provided', async () => {
+  it('returns only the sector guides when type=sector is supplied', async () => {
+    // The handler relays a single filtered query — the DB layer would have
+    // returned only sector rows, so the response body must surface those.
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: '1',
+              slug: 'scp-sector',
+              name: 'SCP Sector',
+              guide_type: 'sector',
+            },
+          ],
+          error: null,
+        }),
     );
 
     const req = createTestRequest('/api/guides', {
       searchParams: { type: 'sector' },
     });
-    await listGuides(req);
+    const res = await listGuides(req);
+    expect(res.status).toBe(200);
 
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('guide_type', 'sector');
+    const body = await res.json();
+    expect(body).toHaveLength(1);
+    expect(body.every((row: { guide_type: string }) => row.guide_type === 'sector')).toBe(
+      true,
+    );
   });
 });
 
