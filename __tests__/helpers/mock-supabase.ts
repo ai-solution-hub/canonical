@@ -281,10 +281,10 @@ export interface MockTableResolution<TData = any> {
  */
 export interface MockSupabaseTable {
   from: ((table: string) => MockQueryChain) & ReturnType<typeof vi.fn>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rpc: ((
     name: string,
     args?: unknown,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ) => PromiseLike<{ data: any; error: any }>) &
     ReturnType<typeof vi.fn>;
   _chain: MockQueryChain;
