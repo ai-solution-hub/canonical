@@ -6,7 +6,6 @@
  * and tests the assigned_to_me filter intersection logic.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -44,22 +43,6 @@ import { GET as getQueue } from '@/app/api/review/queue/route';
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
-
-/**
- * Create a NextRequest with multi-value searchParams support.
- * The standard createTestRequest only supports single-value params via .set().
- * This helper uses .append() so keys like domain can appear multiple times.
- */
-function createMultiParamRequest(
-  path: string,
-  params: [string, string][],
-): NextRequest {
-  const url = new URL(path, 'http://localhost:3000');
-  for (const [key, value] of params) {
-    url.searchParams.append(key, value);
-  }
-  return new NextRequest(url, { method: 'GET' });
-}
 
 function makeMockItem(overrides: Record<string, unknown> = {}) {
   return {
