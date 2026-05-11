@@ -85,10 +85,14 @@ describe('delete_content_item and find_all_duplicates', () => {
       await import('@/lib/mcp/tools/governance');
     const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
     await registerGovernanceTools(
-      mockServer.server as unknown as Parameters<typeof registerGovernanceTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerGovernanceTools
+      >[0],
     );
     await registerQualityTools(
-      mockServer.server as unknown as Parameters<typeof registerQualityTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerQualityTools
+      >[0],
     );
   });
 

@@ -73,7 +73,6 @@ interface ToolResult {
   isError?: boolean;
 }
 
-
 const baseReorientData = {
   last_active_at: '2026-03-01T10:00:00Z',
   last_active_relative: '10 days ago',

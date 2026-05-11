@@ -461,7 +461,6 @@ type ToolHandler = (
   extra: Record<string, unknown>,
 ) => Promise<unknown>;
 
-
 function makeAuthExtra(authInfo?: Partial<AuthInfo>) {
   return {
     authInfo: {

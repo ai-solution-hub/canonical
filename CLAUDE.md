@@ -208,14 +208,13 @@ across 12 wings.
 - `mempalace_diary_write` / `mempalace_diary_read` ✓ — works for default
   `wing_<agent>`; cross-project `wing` param errors. Use AAAK format (entity
   codes + emotion markers + pipe-separated fields).
-- `mempalace_search` ⚠ **PARTIAL** — default (no `wing` param) WORKS as of
-  3.3.5 (verified S43 W1: returned 9 hits for "test-audit MCP factory"). Any
-  `wing` filter still errors `Error executing plan: Internal error: Error
-  finding id` (verified `wing: knowledge-hub` AND `wing:
-  knowledge-hub-prod-readiness`). 3.3.5 PR #1396 fixed `tool_search` Chroma
-  transient retry, NOT wing-filter id resolution. Workaround: search default,
-  filter results client-side by `wing` field; or fall back to git log + grep
-  for wing-scoped recall.
+- `mempalace_search` ⚠ **PARTIAL** — default (no `wing` param) WORKS as of 3.3.5
+  (verified S43 W1: returned 9 hits for "test-audit MCP factory"). Any `wing`
+  filter still errors `Error executing plan: Internal error: Error finding id`
+  (verified `wing: knowledge-hub` AND `wing: knowledge-hub-prod-readiness`).
+  3.3.5 PR #1396 fixed `tool_search` Chroma transient retry, NOT wing-filter id
+  resolution. Workaround: search default, filter results client-side by `wing`
+  field; or fall back to git log + grep for wing-scoped recall.
 
 **Auto-memory file system phased out.** Do NOT author new `feedback_*.md` /
 `project_*.md` / `reference_*.md` files in `~/.claude/projects/.../memory/`. New

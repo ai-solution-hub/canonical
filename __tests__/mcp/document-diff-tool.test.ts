@@ -68,7 +68,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 vi.mock('@/lib/ai/classify', () => ({ classifyContent: vi.fn() }));
 vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 
-
 // ──────────────────────────────────────────
 // Fixtures
 // ──────────────────────────────────────────

@@ -83,7 +83,6 @@ vi.mock('@/lib/mcp/app-bundles', () => ({
 // Mock McpServer
 // ---------------------------------------------------------------------------
 
-
 // ---------------------------------------------------------------------------
 // Tests: formatQualityBriefing
 // ---------------------------------------------------------------------------
@@ -484,7 +483,9 @@ describe('get_quality_briefing tool', () => {
     mockServer = createMockMcpServer();
     const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
     await registerQualityTools(
-      mockServer.server as unknown as Parameters<typeof registerQualityTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerQualityTools
+      >[0],
     );
   });
 

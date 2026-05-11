@@ -51,7 +51,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 vi.mock('@/lib/ai/classify', () => ({ classifyContent: vi.fn() }));
 vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 
-
 describe('audit_content brief_content logic', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = { authInfo: { token: 'test' } };
@@ -61,7 +60,9 @@ describe('audit_content brief_content logic', () => {
     mockServer = createMockMcpServer();
     const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
     await registerQualityTools(
-      mockServer.server as unknown as Parameters<typeof registerQualityTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerQualityTools
+      >[0],
     );
   });
 

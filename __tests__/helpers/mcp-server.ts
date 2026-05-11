@@ -73,9 +73,7 @@ export type MockToolHandler = (
  * Prompt handler signature for `registerPrompt`. Prompts return MCP
  * `messages` envelopes (role + content blocks).
  */
-export type MockPromptHandler = (
-  args: Record<string, unknown>,
-) => Promise<{
+export type MockPromptHandler = (args: Record<string, unknown>) => Promise<{
   messages: Array<{
     role: string;
     content: { type: string; text: string };
