@@ -17,13 +17,13 @@ work, then auto-chains to `/handoff` to generate the continuation prompt.
 
 The planning documents have distinct, non-overlapping roles:
 
-| Document                              | File                                                                   | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **State of the product**              | `docs/reference/state-of-the-product.md`                               | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to the per-§ change-log file matching the touched SoTP §N (`state-of-the-product-change-log-section-{5,8,9}.md`) atomically. The pointer-doc `state-of-the-product-change-log.md` is the discovery index — never an append target. |
-| **Roadmap**                           | `docs/reference/post-mvp-roadmap.md`                                   | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Shipped/Resolved items.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **Product backlog**                   | `docs/reference/product-backlog.json`                                  | Items awaiting promotion to the roadmap. **JSON-shaped** since kh-prod-readiness-S37 cutover; `items[]` array with `id`, `description`, `type`, `status`, `effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`. Status enum: `needs_spec` / `needs_research` / `parked` / `ready` / `blocked` (no closure values — closed items are removed entirely). |
-| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings) | **Discovery index (pointer-doc) + per-section append targets.** A thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom.  |
-| **Wave status ledgers**               | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`)     | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched.                                                                                                                                                                                                                                                                                                                                               |
+| Document                              | File                                                                                                       | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **State of the product**              | `docs/reference/state-of-the-product.md`                                                                   | **Canonical record of what is CURRENTLY built.** Bullet-list-driven capability ledger organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Each section describes the present-tense capability — never a session-by-session changelog. Updated whenever a significant feature lands; the corresponding session narrative is appended to the per-§ change-log file matching the touched SoTP §N (`state-of-the-product-change-log-section-{5,8,9}.md`) atomically. The pointer-doc `state-of-the-product-change-log.md` is the discovery index — never an append target. |
+| **Roadmap**                           | `docs/reference/product-roadmap.json` (authoritative) + `product-roadmap.md` (generated)                   | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Shipped/Resolved items. **JSON-shaped post-S39 W1 Phase 2** — edit JSON only; regenerate MD via `bun run roadmap:render`. Round-trip CI guard enforces parity. Section narratives live in `sections[*].narrative`; per-item `status` / `priority` enums + `*_note` freetext companions per `lib/validation/roadmap-schema.ts`.                                                                                                                                                      |
+| **Product backlog**                   | `docs/reference/product-backlog.json`                                                                      | Items awaiting promotion to the roadmap. **JSON-shaped** since kh-prod-readiness-S37 cutover; `items[]` array with `id`, `description`, `type`, `status`, `effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`. Status enum: `needs_spec` / `needs_research` / `parked` / `ready` / `blocked` (no closure values — closed items are removed entirely).                                                                                                                                                                                                                                        |
+| **State of the product — change log** | `docs/reference/state-of-the-product-change-log.md` (+ per-§ siblings)                                     | **Discovery index (pointer-doc) + per-section append targets.** A thin pointer-doc carrying a discovery table that lists the per-§ files; append-only writes route to `state-of-the-product-change-log-section-{5,8,9}.md` — one file per SoTP §N. Newest at bottom.                                                                                                                                                                                                                                                                                                                                               |
+| **Track change-log**                  | `docs/audits/*/STATUS-change-log.md` (+ `STATUS-change-log-archive.md` rolling-window sibling per Shape C) | **Per-session net-delta log** (one row per session, rolling last 10). Append-only; oldest rows roll to archive sibling. The single-file `STATUS.md` ledger pattern was archived kh-prod-readiness-S41 W3 — all active items now live in `product-roadmap.json` / `product-backlog.json`.                                                                                                                                                                                                                                                                                                                           |
 
 ---
 
@@ -47,8 +47,8 @@ cd "$ROOT" && bun run generate:mcp-inventory
 
 ## Step 2: Understand Session Work
 
-Read the conversation context and any task tracking to understand which
-work packages were completed, partially completed, or deferred.
+Read the conversation context and any task tracking to understand which work
+packages were completed, partially completed, or deferred.
 
 ---
 
@@ -71,9 +71,10 @@ bullet. If you remove a roadmap or backlog row first, the only surviving record
 is the git diff — fine for the diligent, brittle for skim-readers and AI agents
 that read SoTP as canonical.
 
-SoTP carries the bullet list of what is currently built; the change-log carries when/how/why each capability
-changed. **Capability edits and change-log appends always ship in the SAME
-COMMIT** so a future reader can diff both surfaces together.
+SoTP carries the bullet list of what is currently built; the change-log carries
+when/how/why each capability changed. **Capability edits and change-log appends
+always ship in the SAME COMMIT** so a future reader can diff both surfaces
+together.
 
 **1. Determine the type of session work:**
 
@@ -92,8 +93,8 @@ COMMIT** so a future reader can diff both surfaces together.
    Integration Points (e.g. "Sector Intelligence", "AI Evaluation", "Test
    Infrastructure", "MCP Server Integration"). Each section describes the
    present-tense capability — never a session-by-session changelog.
-2. **Update the capability bullet in place.** The capability statement is what's true; the change-log
-   carries when/how/why it changed.
+2. **Update the capability bullet in place.** The capability statement is what's
+   true; the change-log carries when/how/why it changed.
 3. **If a feature was REMOVED**, delete the bullet outright.
 4. **If the section does not exist**, add a new bullet under the most
    appropriate sub-section.
@@ -104,42 +105,103 @@ COMMIT** so a future reader can diff both surfaces together.
 affected SoTP §N:
 
 - §5 Feature State →
-  `docs/reference/state-of-the-product-change-log-section-5.md`
+  `docs/reference/state-of-the-product-change-log-section-5.md` (single table)
 - §8 AI Integration Points →
-  `docs/reference/state-of-the-product-change-log-section-8.md` (find the right
-  `### sub-section` heading if applicable — Test Infrastructure / Observability
-  & Build Chain)
+  `docs/reference/state-of-the-product-change-log-section-8.md` — **three
+  sub-tables** routed by `### sub-section` heading:
+  - `## §8 AI Integration Points — change log` (top table, default) for MCP tool
+    / prompt / classification changes
+  - `### Test Infrastructure — change log` for test fixtures, mocks,
+    test-discipline rule changes
+  - `### Observability & Build Chain — change log` for CI workflows, Cloud Build
+    / Cloud Run deploys, telemetry, scheduler matrix
 - §9 Format Canonicalisation →
   `docs/reference/state-of-the-product-change-log-section-9.md`
+
+**Row format:**
 
 ```
 | DD/MM/YYYY | S{NNN} OR kh-prod-readiness-S{N} | {Δ description — multi-paragraph permitted; cross-link SHA, spec, and the SoTP capability bullet that the change refined} |
 ```
 
+**Append discipline:**
+
+- **Insert at end of the relevant table; newest at bottom.** Do not insert
+  mid-table — chronological order is load-bearing for the rolling-window cut
+  (below) and for human readers scanning recent work.
+- **Bump the per-§ file's `<!-- Last verified -->` header** in the same commit
+  as the row append, per `feedback_doc_freshness_guard_per_commit`. The
+  freshness guard fires on touched-but-stale tracked docs.
+- **Bump the pointer-doc** `state-of-the-product-change-log.md`
+  `<!-- Last verified -->` header in the same commit. Touching any per-§ file
+  cascades to the pointer-doc per the freshness guard.
+
+**Rolling-window discipline (Shape C analogue, post-S42 W1).** SoTP per-§
+change-logs now sit under the same Shape C pattern as `STATUS-change-log.md`:
+
+- Each sub-table caps at **last 10 data rows**. If the table currently has 10
+  rows and you append one, **move the topmost (oldest) data row to the bottom of
+  the matching archive sibling**:
+  - §5 → `state-of-the-product-change-log-section-5-archive.md`
+  - §8 → `state-of-the-product-change-log-section-8-archive.md` (preserves the
+    same sub-table headings — `### sub-section` route the archived row to the
+    matching archive table)
+- If a sub-table has **fewer than 10 rows**, leave it alone (no rolling).
+- Both files (live + archive) stay in chronological order (oldest at top of
+  archive's data block; newest at bottom of live).
+- Both files commit together with the row append; freshness guard expects both
+  Last-verified headers bumped (the archive sibling carries the
+  cutover-rationale prose, live carries the latest verify).
+
 ---
 
 ## Step 4: Update Roadmap
 
-**File:** `docs/reference/post-mvp-roadmap.md`
+**Files:**
+
+- `docs/reference/product-roadmap.json` — **authoritative source** post-S39 W1
+  Phase 2 (per `roadmap-conversion-approach.md` §6.1 step 5).
+- `docs/reference/product-roadmap.md` — **generated artefact**. Never hand-edit.
+  Regenerated via `bun run roadmap:render`. The round-trip CI guard
+  (`__tests__/docs/roadmap-roundtrip.test.ts`) fails the build when the two
+  drift apart.
 
 **Prerequisite:** Step 3 SoTP capture must be complete before pruning roadmap
 rows. The `>` callout below assumes the SoTP edit + change-log row already exist
 this commit cycle.
 
-> Any item that shipped this session is REMOVED from the roadmap (no
+> Any item that shipped this session is REMOVED from the roadmap JSON (no
 > strikethrough, no "Status: Done"). Step 3 already folded the capability
-> narrative into SoTP §5/§8 + change-log; the same commit ships both edits.
+> narrative into SoTP §5/§8 + change-log; the same commit ships JSON edits +
+> regenerated MD + SoTP edits.
 
-Read the file, then:
+**Workflow (JSON-edit / MD-regen):**
 
-1. Move any completed roadmap items to `state-of-the-product.md` (the canonical
-   built record) and the relevant product-functionality document(s). The roadmap
-   is **forward-looking only** — never leave Completed/Shipped/Done items in it. This
-   provides clear visibility of priority, actionable tasks on the roadmap, which
-   can be updated with new items from the product backlog when capacity
-   allows/priorities evolve.
-2. Update statuses for in-progress items (with effort and source-spec references
-   where helpful).
+1. **Edit `product-roadmap.json` only.** Find the `sections[*].items[*]` entry
+   for the shipped item and remove it; or update its `status` / `status_note` /
+   `priority_note` / `description` as appropriate. Section narrative lives in
+   `sections[*].narrative` (markdown-preserved string).
+2. **Bump `last_updated`.** The root `last_updated` field is the freshness
+   marker the edit-coupled freshness guard checks (parallel to the MD
+   `<!-- Last verified: -->` HTML comment used by other tracked docs). One-line
+   form: `kh-prod-readiness-SNN <wave> close-out`. **Seed-commit exception:**
+   when adding a NEW JSON-tracked doc to `TRACKED_REFERENCE_DOCS`, include
+   `[skip-doc-freshness-guard]` in the commit body — there is no prior
+   `last_updated` to bump from. Subsequent edits follow the standard bump rule.
+3. **Run `bun run roadmap:render`.** This emits `product-roadmap.md` from JSON.
+   Both files commit together — the round-trip guard rejects partial commits.
+4. **Pre-flight detector.** If you intentionally added narrative that includes
+   the word "shipped" (e.g. cross-referencing SoTP), run
+   `bun run scripts/detect-roadmap-shipped-framings.ts` first; the converter
+   refuses to emit JSON while findings exist. Reword to avoid the
+   forward-looking-only doctrine breach OR migrate to SoTP.
+5. **Move any completed roadmap items to `state-of-the-product.md`** (the
+   canonical built record) and the relevant product-functionality document(s).
+   The roadmap is **forward-looking only** — never leave Completed/Shipped/Done
+   items in it.
+6. **Update statuses for in-progress items** (with effort and source-spec
+   references where helpful) by editing the JSON `status` / `status_note` /
+   `effort_estimate` / `description` fields.
 
 ---
 
@@ -283,84 +345,60 @@ rows for shipped items. Same capture-then-prune principle as Step 4 (roadmap):
 the SoTP capability bullet + change-log row are the audit trail; the backlog
 prune only removes the now-redundant tracker entry.
 
-JSON-shaped backlog (kh-prod-readiness-S37 cutover). Edit the `items[]` array directly via the Edit tool, anchoring on the unique `"id": "<ID>"` line for each row.
+JSON-shaped backlog (kh-prod-readiness-S37 cutover). Edit the `items[]` array
+directly via the Edit tool, anchoring on the unique `"id": "<ID>"` line for each
+row.
 
-**Schema:** every item must carry `id`, `description`, `type`, `status`, `effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`. Status must be one of `needs_spec` / `needs_research` / `parked` / `ready` / `blocked` — closure values (`done`, `shipped`, `closed`, `wontfix`) are forbidden by the `__tests__/docs/backlog-no-closed-rows.test.ts` guard; remove the row entirely instead.
+**Schema:** every item must carry `id`, `description`, `type`, `status`,
+`effort_estimate`, `priority`, `track`, `depends_on`, `surfaced`, `notes`.
+Status must be one of `needs_spec` / `needs_research` / `parked` / `ready` /
+`blocked` — closure values (`done`, `shipped`, `closed`, `wontfix`) are
+forbidden by the `__tests__/docs/backlog-no-closed-rows.test.ts` guard; remove
+the row entirely instead.
 
 **Operations:**
 
-- **New item discovered in session** → append a new object to the `items[]` array (use Edit anchoring on the closing `]` of the last item). Pick the next sequential ID (e.g. if the latest is `OPS-62`, the next is `OPS-63`).
-- **Existing item progressed in session** → update the row's `status` / `effort_estimate` / `notes` via Edit anchoring on the unique `"id": "<ID>"` line.
-- **Item completed** → remove the entire row (the closing `}` plus the preceding comma if not the last item). The audit trail lives in git log + continuation prompts + State of the Product narrative.
-- **Item promoted to roadmap** → remove the row from `product-backlog.json` and add a record to `post-mvp-roadmap.md` in the same commit.
+- **New item discovered in session** → append a new object to the `items[]`
+  array (use Edit anchoring on the closing `]` of the last item). Pick the next
+  sequential ID (e.g. if the latest is `OPS-62`, the next is `OPS-63`).
+- **Existing item progressed in session** → update the row's `status` /
+  `effort_estimate` / `notes` via Edit anchoring on the unique `"id": "<ID>"`
+  line.
+- **Item completed** → remove the entire row (the closing `}` plus the preceding
+  comma if not the last item). The audit trail lives in git log + continuation
+  prompts + State of the Product narrative.
+- **Item promoted to roadmap** → remove the row from `product-backlog.json` and
+  add a record to `product-roadmap.md` in the same commit.
 
-After every edit, bump the top-level `last_updated` field to the current session label (e.g. `"kh-prod-readiness-S37 close-out"`).
+After every edit, bump the top-level `last_updated` field to the current session
+label (e.g. `"kh-prod-readiness-S37 close-out"`).
 
 ---
 
-## Step 9: Update Wave Status Ledgers (Conditional)
+## Step 9: Update Track Change-log (Conditional)
 
-**Directory:** `docs/audits/*/STATUS.md` (and sibling split files where they
-exist).
+If the session shipped material work on a track that maintains a per-session
+change-log file, append one row to that file. Currently `production-readiness`
+track uses `docs/audits/kh-production-readiness-phase-1/STATUS-change-log.md`
+(rolling last-10 window per Shape C; older rows in
+`STATUS-change-log-archive.md`).
 
-If the session touched items in an active multi-session wave that maintains a
-`STATUS.md` ledger (for example `docs/audits/{wave-name}-{yyyy-mm}/STATUS.md`),
-update the ledger to reflect shipped state. One ledger per wave.
+**Append a row** with `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`. Newest at
+bottom. Multi-paragraph rows are valid Markdown table syntax.
 
-**Two layouts exist — check which the wave uses before editing:**
+**Rolling window discipline (Shape C):** when the active log exceeds 10 data
+rows, move the topmost (oldest) data row to the bottom of the archive log's data
+block and drop it from active. Both files stay in chronological order (newest at
+bottom).
 
-- **Single-file ledger** (default) — everything lives in `STATUS.md`: snapshot,
-  gates, items, change log, handoffs.
-- **Split ledger** — when a single STATUS.md grows too large to read, the wave
-  may split into siblings:
-  - `STATUS.md` — at-a-glance view (snapshot, gates, items, pending pickup
-    list).
-  - `STATUS-change-log.md` — per-session net-delta log; append-only.
-  - `STATUS-handoffs.md` — multi-paragraph outcome-and-next-scope blocks;
-    written only when the next session needs deeper handoff narrative than the
-    change-log row provides.
+**Optional handoff block.** If the next session needs deeper context than the
+change-log row carries (deferred scope, pending decisions, focus pivot), append
+a `### S{N} → S{N+1} handoff` block to `STATUS-handoffs.md`. Otherwise skip —
+the change-log row plus the continuation prompt is sufficient.
 
-  Detect by `ls docs/audits/<wave>/STATUS-*.md`. If the split exists, treat each
-  file as the canonical home for its content type — never duplicate content
-  across the split, and never put change-log rows or handoff prose back into
-  `STATUS.md`.
-
-  Currently using split layout: `kh-production-readiness-phase-1/`.
-
-**When to update:**
-
-- Any item in the ledger transitioned state this session (`Not started` →
-  `In progress`, `In progress` → `Shipped`, blocker discovered, spec written,
-  etc.).
-- A gate cleared.
-- A new item was added to the underlying DECISIONS / SPEC-SEQUENCE and needs a
-  ledger row.
-
-**What to update (single-file or split — same content, different homes):**
-
-1. **Per-item rows (item tables in `STATUS.md` §4 or equivalent).** Flip the
-   `Status` column, populate `Shipped in` with
-   `S{NNN} ({DD/MM/YYYY}, `{short_sha}`)`, update `Artefact` if the spec was
-   written or archived, and append a one-line note to `Notes` if a blocker
-   surfaced or a dependency closed.
-2. **Gate status (`STATUS.md` §2 or equivalent).** If a gate cleared, mark
-   **Cleared** and record the `Cleared in` session.
-3. **Snapshot counts (`STATUS.md` §1 or equivalent).** Adjust the
-   shipped-per-session line and any cumulative totals. Update §1.1 external
-   holds: tag any holds that closed this session with ✅ CLOSED + session ref.
-4. **Pending pickup list (`STATUS.md` §4.x or equivalent).** Remove items that
-   shipped; add items newly identified as pending; reflect any held-on-X
-   transitions.
-5. **Change log row.**
-   - **Split layout:** append one row to `STATUS-change-log.md` §1 with
-     `| {DD/MM/YYYY} | S{NNN} | {net delta prose} |`.
-   - **Single-file:** append one row to `STATUS.md` §8 (or equivalent) under the
-     change-log section.
-6. **Handoff narrative (split layout only — conditional).** If the next session
-   needs deeper handoff context than a change-log row carries (deferred scope,
-   pending decisions, focus pivot), append a `### S{N} → S{N+1} handoff` block
-   to `STATUS-handoffs.md` §1. Otherwise skip — the change-log row plus the
-   continuation prompt is sufficient.
+The single-file `STATUS.md` ledger pattern was archived kh-prod-readiness-S41 W3
+(file is now `STATUS-phase-1-archive.md`, cold storage). All active items track
+in `product-roadmap.json` / `product-backlog.json`.
 
 ---
 
@@ -395,7 +433,8 @@ Stage the canonical docs.
 # Commit reference doc updates. The change-log glob captures both the
 # pointer-doc and the per-§ append-target files.
 git diff --quiet docs/reference/ || \
-  (git add docs/reference/post-mvp-roadmap.md docs/reference/state-of-the-product.md \
+  (git add docs/reference/product-roadmap.json docs/reference/product-roadmap.md \
+   docs/reference/state-of-the-product.md \
    docs/reference/state-of-the-product-change-log.md \
    docs/reference/state-of-the-product-change-log-section-*.md \
    docs/reference/product-backlog.json 2>/dev/null && \

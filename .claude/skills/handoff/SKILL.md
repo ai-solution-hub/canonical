@@ -185,46 +185,20 @@ If Liam edits, he creates a new commit (not amend).
 
 ---
 
-## Step 8 — Update memory files (optional)
+## Step 8 — Memory capture
 
-If the session warrants it, use auto memory after the prompt commits. The
-sessions usually end here, and if there's anything relevant to note, this may be
-the last opportunity to do so.
+Mempalace is the canonical memory system (see `CLAUDE.md` "Memory (Mempalace)"
+section for full protocol + tool inventory + known issues). Stop + PreCompact
+hooks fire automatically; no manual ingest needed.
 
-**Graduation check (mandatory before adding new memory):**
+Do NOT author new auto-memory files. New lessons either (a) graduate to a
+one-line CLAUDE.md Gotcha entry, (b) get recorded inline in the continuation
+prompt's "Critical rules from recent sessions" section (max 5 items), or (c)
+wait for a more substantive memory-shape ratification.
 
-Before writing any new `feedback_*.md` / `project_*.md` / `reference_*.md`
-file, scan whether the lesson is already captured in CLAUDE.md (root + any
-subdirectory `lib/mcp/CLAUDE.md` etc.). Use Grep with the lesson's distinctive
-keyword. If CLAUDE.md already has it as a Gotcha line or in another section,
-do NOT create a duplicate memory — and if a related memory file already
-exists, DELETE it as part of this step (the lesson has graduated; the memory
-is now redundant). One-line CLAUDE.md graduation supersedes a full memory
-file.
-
-**Consolidation check (mandatory):**
-
-Before adding a memory in a domain that already has 3+ memories (worktrees,
-Supabase CLI, specs/verification, doc-freshness, self-silencing-failure
-class), check whether the lesson is a sub-case of an existing master memory.
-If so, append as a sub-section to the master rather than create a new file.
-Master memories live at:
-
-- `feedback_worktree_master.md`
-- `feedback_supabase_cli_silent_apply_failure.md`
-- `feedback_self_verify_own_specs.md`
-- `feedback_doc_freshness_guard_per_commit.md`
-- `feedback_self_silencing_failure_class.md`
-- `feedback_supabase_cli_field_existence_groundtruth.md`
-- `feedback_gcp_cloud_run_deploy.md`
-- `feedback_pg17_pgdump_psql_pooler_restrict.md`
-
-**Index hygiene:**
-
-Index entries in `MEMORY.md` must stay under 200 chars (system warning
-threshold ~150 chars per line is safer). One sentence per entry. Move detail
-into the topic file. Don't pile multiple lessons into a single entry's
-description.
+Optional: write a brief AAAK-format entry via `mempalace_diary_write`
+(`agent_name=claude`, default wing) summarising the session for personal journal
+recall — diary read works, search currently does not.
 
 ---
 
