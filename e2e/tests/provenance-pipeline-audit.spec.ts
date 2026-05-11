@@ -42,30 +42,26 @@ test.describe('Provenance -- Pipeline Health tab', () => {
     );
   });
 
-  test('shows kind filter when pipeline data is available', async ({
+  test('shows kind filter with at least one pipeline pill', async ({
     authenticatedPage: page,
   }) => {
-    // The pipeline filter group appears only when availableKinds > 0.
-    // If there are pipeline runs in the DB, the filter pills will be visible.
-    // We check for the group's existence — if no data, the group won't render
-    // but we don't fail (the DB may be empty in test environments).
+    // The pipeline filter group renders when `availableKinds.length > 0`
+    // (derived from the rollup returned by /api/admin/provenance/pipeline-runs
+    // for the default 24h window). The persistent staging branch records
+    // pipeline_runs from organic CI and seed activity, so the populated
+    // branch must render under the default range. The previous
+    // `if (await pipelineFilter.isVisible()) { … }` conditional silently
+    // passed against an empty pipeline_runs window per
+    // `feedback_e2e_conditional_false_pass` (test-philosophy §2.1).
     const pipelineFilter = page.getByRole('group', {
       name: 'Pipeline filter',
     });
+    await expect(pipelineFilter).toBeVisible({ timeout: 15000 });
 
-    // Wait a reasonable time for the data to load
-    const isVisible = await pipelineFilter
-      .isVisible({ timeout: 10000 })
-      .catch(() => false);
-
-    if (isVisible) {
-      // At least one filter pill should be present
-      const buttons = pipelineFilter.getByRole('button');
-      const count = await buttons.count();
-      expect(count).toBeGreaterThan(0);
-    }
-    // If no pipeline data exists, the filter group simply doesn't render —
-    // this is expected behaviour, not a test failure.
+    // At least one filter pill should be present
+    const buttons = pipelineFilter.getByRole('button');
+    const count = await buttons.count();
+    expect(count).toBeGreaterThan(0);
   });
 });
 
