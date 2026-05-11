@@ -143,4 +143,8 @@ docs/client-documentation/graphify-out/
 # MemPalace per-project files (issue #185)
 mempalace.yaml
 entities.json
+
+# Phase 0.9 spike artefacts (ephemeral)
+.spike-s10/
 .spike-s15/
+.venv-spike-s10/
