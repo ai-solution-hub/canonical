@@ -305,6 +305,9 @@ hook isolation, cross-track hygiene rules.
 - **mcp-handler breaks on Vercel:** Use MCP SDK's
   `WebStandardStreamableHTTPServerTransport` directly, not `createMcpHandler`.
   Fresh server + transport per request. `mcp-handler` only for `.well-known`.
+- **`snyk-agent-scan --scan-all-users` dumps env-var values verbatim in JSON.**
+  Never use in CI. Add redaction wrapper before any v2 cloud upload. Package
+  renamed from `mcp-scan`; install via `pipx install snyk-agent-scan`.
 
 ### Data & Architecture
 
@@ -378,6 +381,12 @@ hook isolation, cross-track hygiene rules.
   `scripts/docx_utils.py`, not `Document(path)` directly.
 - **mammoth `convertToMarkdown()` drops tables:** Use two-step
   `mammoth.convertToHtml()` → Turndown (with `turndown-plugin-gfm`).
+- **cocoindex 1.0.3 requires `dangerouslyDisableSandbox: true`** for both PyPI
+  install and Rust-engine LMDB startup in dev. `localfs.walk_dir` defaults
+  `recursive=False` — explicit `recursive=True` needed for nested corpora.
+- **`pip install pullmd-cli` does NOT exist** — pullmd ships only as Docker
+  Compose / npm-from-source / pre-built Docker image
+  (`aeternalabshq/pullmd`). v1 deployment uses Docker.
 - **Worktree isolation rules:**
   - Two sessions on same working tree destroy each other's files — use
     `isolation: "worktree"` or `git worktree add` for parallel work.
@@ -395,7 +404,10 @@ hook isolation, cross-track hygiene rules.
     gitignored except `knowledge-hub/`; agents needing other plugins must `cp`
     from parent repo after `git reset --hard main`.
   - **Bash CWD drifts into worktree dirs after `Read`:** prefix git operations
-    with `cd <main-repo-path> &&` after any Read on worktree files.
+    with `cd <main-repo-path> &&` after any Read on worktree files. Also
+    applies to **sub-agents** juggling sub-agent worktrees: after Read of a
+    worktree file, subsequent git commands silently run in the wrong tree —
+    always `cd <main-repo-path> &&` before main-repo git operations.
 - **Sub-agents are hard-limited to 200K tokens — NOT the parent session's 1M.**
   Split large tasks across multiple sub-agents. Common failure: agent runs out
   of budget during final `git commit` — always check worktree `git status`
@@ -416,3 +428,7 @@ hook isolation, cross-track hygiene rules.
   `docs/runbooks/local-development.md` §3.
 - **Dev server memory:** If OOM, run `bun run dev:clean`. Monitor with `btm`.
 - **Node 24 has V8 memory regressions:** `.node-version` pins to 22 LTS.
+- **`mempalace_search` FIXED in v3.3.5** (PR #1396 — retry-on-transient +
+  drift-segment auto-quarantine). Verified live in S230 WP8/S15 spike.
+  Supersedes prior "BROKEN upstream — every query returns 'Error finding id'"
+  note from S229.
