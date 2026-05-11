@@ -8,6 +8,8 @@
  * Phase 5 of the test data strategy (S75).
  */
 
+import { BRANDING } from '@/lib/client-config';
+
 // ---------------------------------------------------------------------------
 // Freshness offsets (milliseconds from now, negative = in the past)
 // ---------------------------------------------------------------------------
@@ -603,21 +605,21 @@ export function buildEntityRelationships(): EntityRelationshipShape[] {
   return [
     {
       itemIndex: 5,
-      source_entity: 'Our Organisation',
+      source_entity: BRANDING.organisationName,
       target_entity: 'ISO 27001',
       relationship_type: 'holds',
       confidence: 0.95,
     },
     {
       itemIndex: 5,
-      source_entity: 'Our Organisation',
+      source_entity: BRANDING.organisationName,
       target_entity: 'Cyber Essentials Plus',
       relationship_type: 'holds',
       confidence: 0.9,
     },
     {
       itemIndex: 6,
-      source_entity: 'Our Organisation',
+      source_entity: BRANDING.organisationName,
       target_entity: 'G-Cloud 14',
       relationship_type: 'holds',
       confidence: 0.9,
