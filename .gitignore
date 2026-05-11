@@ -18,6 +18,10 @@ __pycache__/
 .venv/
 venv/
 
+# Phase 0.9 spike scratch dirs (ephemeral; reports under docs/plans/phase-0-investigation/)
+.spike-s14/
+.venv-spike-s14/
+
 # Claude Code workspace — selective tracking (S157 WP4)
 # Blanket-ignore everything under .claude/ by default to protect per-machine
 # state (settings.local.json, worktree metadata) and prevent marketplace-
