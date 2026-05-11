@@ -456,11 +456,6 @@ describe('generateCertificationReviewPrompt', () => {
 // OPS-24 — Holder coverage tests (tool handler via mock MCP server)
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
 function makeAuthExtra(authInfo?: Partial<AuthInfo>) {
   return {
     authInfo: {

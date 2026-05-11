@@ -69,11 +69,6 @@ vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 // Mock McpServer that captures both registration metadata and tool callbacks
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
 interface ToolResult {
   content: Array<{ type: string; text: string }>;
   structuredContent?: Record<string, unknown>;
