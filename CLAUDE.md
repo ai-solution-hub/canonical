@@ -195,9 +195,9 @@ system 2026-05-10). Plugin `mempalace@mempalace` v3.3.5 enabled in
 `~/.claude/settings.json` `enabledPlugins`; Stop + PreCompact hooks fire
 automatically per session — no manual ingest needed.
 
-**One wing per worktree.** Drawer counts as of S41: `knowledge-hub` (75,877) ·
+**One wing per worktree.** Drawer counts as of S43: `knowledge-hub` (75,878) ·
 `knowledge-hub-prod-readiness` (22,773) · `knowledge-hub-kpf` (7,342) ·
-`knowledge-hub-ui-ux` (15,299) · plus minor worktrees. Total ~127k drawers
+`knowledge-hub-ui-ux` (15,299) · plus minor worktrees. Total ~128k drawers
 across 12 wings.
 
 **MCP tools:**
@@ -208,9 +208,14 @@ across 12 wings.
 - `mempalace_diary_write` / `mempalace_diary_read` ✓ — works for default
   `wing_<agent>`; cross-project `wing` param errors. Use AAAK format (entity
   codes + emotion markers + pipe-separated fields).
-- `mempalace_search` ⚠ **BROKEN upstream** — every query returns
-  `Error executing plan: Internal error: Error finding id`. Filed; awaiting
-  upstream fix. Until resolved, deep recall depends on git log + grep.
+- `mempalace_search` ⚠ **PARTIAL** — default (no `wing` param) WORKS as of
+  3.3.5 (verified S43 W1: returned 9 hits for "test-audit MCP factory"). Any
+  `wing` filter still errors `Error executing plan: Internal error: Error
+  finding id` (verified `wing: knowledge-hub` AND `wing:
+  knowledge-hub-prod-readiness`). 3.3.5 PR #1396 fixed `tool_search` Chroma
+  transient retry, NOT wing-filter id resolution. Workaround: search default,
+  filter results client-side by `wing` field; or fall back to git log + grep
+  for wing-scoped recall.
 
 **Auto-memory file system phased out.** Do NOT author new `feedback_*.md` /
 `project_*.md` / `reference_*.md` files in `~/.claude/projects/.../memory/`. New
