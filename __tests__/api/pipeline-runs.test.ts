@@ -1,3 +1,15 @@
+/**
+ * NOTE — W-RD' integration-tier migration (S44 W2-RD-api).
+ *
+ * The following contracts previously asserted via chain-method shape have been
+ * migrated to integration coverage per `remediation-plan.md` §3.5:
+ * - `limit` query-param cap-at-100 (large values clamped to the 100 ceiling)
+ * - `limit` query-param default-of-20 when absent or invalid
+ * - `created_by` user-scoping filter for non-admin callers
+ * - `?all=true` admin-bypass that removes the `created_by` filter
+ * Target integration test path (to be added):
+ *   `__tests__/integration/pipeline-runs.integration.test.ts`.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,

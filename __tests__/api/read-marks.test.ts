@@ -242,6 +242,17 @@ describe('Read Marks API', () => {
   // POST /api/read-marks — mark_unread
   // =========================================================================
 
+  /**
+   * NOTE — W-RD' integration-tier migration (S44 W2-RD-api).
+   *
+   * The following contracts previously asserted via chain-method shape have
+   * been migrated to integration coverage per `remediation-plan.md` §3.5:
+   * - `mark_unread` DELETE security scope (the row deletion MUST be partitioned
+   *   by `user_id` so a caller can only remove their own read mark, never
+   *   another user's)
+   * Target integration test path (to be added):
+   *   `__tests__/integration/read-marks.integration.test.ts`.
+   */
   describe('POST /api/read-marks (mark_unread)', () => {
     it('returns 200 on successful mark_unread', async () => {
       const request = createTestRequest('/api/read-marks', {

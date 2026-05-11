@@ -550,8 +550,10 @@ describe('GET /api/quality', () => {
 
     const body = await res.json();
     // The paging contract surfaces in the response envelope — the raw
-    // filter forwarding to the DB layer is covered by the integration
-    // tier; here we verify the paging window matches the request.
+    // filter forwarding (item_id + flag_type + resolved eq composition) to
+    // the DB layer is covered by the W-RD' integration tier per
+    // `remediation-plan.md` §3.5; here we verify the paging window matches
+    // the request.
     expect(body.limit).toBe(10);
     expect(body.offset).toBe(5);
     expect(body.total).toBe(42);

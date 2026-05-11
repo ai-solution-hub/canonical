@@ -4,6 +4,23 @@
  * Verifies authentication/authorisation, query parameter validation,
  * database query construction, user_roles display name resolution,
  * and correct response shaping.
+ *
+ * NOTE — W-RD' integration-tier migration (S44 W2-RD-api).
+ *
+ * The following contracts previously asserted via chain-method shape have been
+ * migrated to integration coverage per `remediation-plan.md` §3.5:
+ * - `ingestion_quality_log` table selection + 10-row default limit + DESC
+ *   ordering by `created_at`
+ * - `user_roles` display-name lookup keyed by the user IDs returned from the
+ *   history rows
+ * - Early-exit path when the history result contains no user IDs to resolve
+ *   (no follow-up `user_roles` query is issued)
+ * - `authFailureResponse` helper invocation on auth-check failure paths
+ *   (401/403 mapping)
+ * - Per-`item_id` query scoping (the route MUST constrain to the requested
+ *   item and not leak rows for other items)
+ * Target integration test path (to be added):
+ *   `__tests__/integration/review-history.integration.test.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';

@@ -168,9 +168,10 @@ describe('Intelligence Articles API', () => {
     });
 
     it('passes through workspace + source filters without error', async () => {
-      // Source filter forwarding to the DB is verified at integration tier
-      // (W-RD'). At unit level we assert the route accepts the param and
-      // returns a 200 with the mock-supplied empty result set.
+      // Source filter forwarding (the `source_id` query param composing into
+      // the DB query) is verified at the W-RD' integration tier per
+      // `remediation-plan.md` §3.5. At unit level we assert the route accepts
+      // the param and returns a 200 with the mock-supplied empty result set.
       configureRole(mockSupabase, 'admin');
       const sourceId = 'f6a7b8c9-d0e1-4f2a-ab4c-5d6e7f8a9b0c';
       mockSupabase._chain.then.mockImplementationOnce(

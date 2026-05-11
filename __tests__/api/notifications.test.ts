@@ -1,3 +1,14 @@
+/**
+ * NOTE — W-RD' integration-tier migration (S44 W2-RD-api).
+ *
+ * The following contracts previously asserted via chain-method shape have been
+ * migrated to integration coverage per `remediation-plan.md` §3.5:
+ * - `user_id` partition for the list-notifications query (the route MUST
+ *   constrain returned notifications to the authenticated caller so no user
+ *   ever sees another user's notifications)
+ * Target integration test path (to be added):
+ *   `__tests__/integration/notifications.integration.test.ts`.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
