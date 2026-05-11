@@ -187,7 +187,9 @@ describe('GET /api/review/assignments', () => {
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ id: VALID_UUID, reviewer_id: REVIEWER_UUID, status: 'completed' }],
+          data: [
+            { id: VALID_UUID, reviewer_id: REVIEWER_UUID, status: 'completed' },
+          ],
           error: null,
         }),
     );

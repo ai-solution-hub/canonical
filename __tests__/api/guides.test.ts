@@ -207,9 +207,9 @@ describe('GET /api/guides', () => {
 
     const body = await res.json();
     expect(body).toHaveLength(1);
-    expect(body.every((row: { guide_type: string }) => row.guide_type === 'sector')).toBe(
-      true,
-    );
+    expect(
+      body.every((row: { guide_type: string }) => row.guide_type === 'sector'),
+    ).toBe(true);
   });
 });
 
