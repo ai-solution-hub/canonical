@@ -35,8 +35,8 @@ spec:
         spec:
           serviceAccountName: example-client-pipeline-sa@kh-staging-494815.iam.gserviceaccount.com
           containers:
-            - name: kh-pipeline-slim
-              image: europe-west2-docker.pkg.dev/kh-staging-494815/pipeline/kh-pipeline-slim:latest
+            - name: kh-pipeline
+              image: europe-west2-docker.pkg.dev/kh-staging-494815/pipeline/kh-pipeline:latest
               env:
                 # NEXT_PUBLIC_CLIENT_ID baked at deploy time per D-RUN-12.1 +
                 # feedback_branding_client_id_env. Wrong slug → loadBranding()

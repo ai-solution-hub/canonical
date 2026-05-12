@@ -84,7 +84,9 @@ const { mockAnthropicCreate, mockCreateServiceClient } = vi.hoisted(() => ({
 // `new Anthropic(...)`, so the implementation must be a function expression
 // (which has `[[Construct]]`) NOT an arrow function.
 vi.mock('@anthropic-ai/sdk', () => {
-  function Anthropic(this: { messages: { create: typeof mockAnthropicCreate } }) {
+  function Anthropic(this: {
+    messages: { create: typeof mockAnthropicCreate };
+  }) {
     this.messages = { create: mockAnthropicCreate };
   }
   return { default: Anthropic };
@@ -130,7 +132,10 @@ vi.mock('@/lib/entities/entity-metadata-bridge', () => ({
 }));
 
 vi.mock('@/lib/layer-inference', () => ({
-  inferLayer: vi.fn(() => ({ suggestedLayer: 'core' as const, confidence: 0.9 })),
+  inferLayer: vi.fn(() => ({
+    suggestedLayer: 'core' as const,
+    confidence: 0.9,
+  })),
 }));
 
 vi.mock('@/lib/validation/schemas', () => ({
@@ -196,19 +201,21 @@ function makeBody(
 
 /** Default Claude tool-use response — successful classification with empty
  *  entities/relationships (zero downstream side-effects). */
-function makeAnthropicResponse(opts: {
-  primary_domain?: string;
-  primary_subtopic?: string;
-  ai_keywords?: string[];
-  entities?: Array<{ name: string; type: string; canonical_name: string }>;
-  relationships?: Array<{
-    source: string;
-    relationship: string;
-    target: string;
-  }>;
-  input_tokens?: number;
-  output_tokens?: number;
-} = {}) {
+function makeAnthropicResponse(
+  opts: {
+    primary_domain?: string;
+    primary_subtopic?: string;
+    ai_keywords?: string[];
+    entities?: Array<{ name: string; type: string; canonical_name: string }>;
+    relationships?: Array<{
+      source: string;
+      relationship: string;
+      target: string;
+    }>;
+    input_tokens?: number;
+    output_tokens?: number;
+  } = {},
+) {
   return {
     content: [
       {
@@ -289,7 +296,11 @@ interface SupabaseScenario {
   domains: Array<{ id: string; name: string }> | null;
   domainsError?: { message: string } | null;
   /** Taxonomy subtopics. */
-  subtopics: Array<{ name: string; domain_id: string; description: string | null }>;
+  subtopics: Array<{
+    name: string;
+    domain_id: string;
+    description: string | null;
+  }>;
   subtopicsError?: { message: string } | null;
   /** Content items the filter selects. */
   contentItems: ReturnType<typeof makeContentRow>[];
@@ -336,8 +347,9 @@ function configureSupabase(
 
 /** Configure the cooperative-cancel poll path: a separate service client whose
  *  processing_queue.select.eq.maybeSingle returns a flippable status. */
-function configureCancelPoll(status: 'pending' | 'processing' | 'cancelled'):
-  MockSupabaseClient {
+function configureCancelPoll(
+  status: 'pending' | 'processing' | 'cancelled',
+): MockSupabaseClient {
   const cancelClient = createMockSupabaseClient();
   cancelClient._chain.maybeSingle.mockResolvedValue({
     data: { status },

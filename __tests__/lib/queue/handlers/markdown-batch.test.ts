@@ -90,9 +90,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 // Import the handler AFTER vi.mock so the mocked modules resolve first.
-const { runMarkdownBatchJob } = await import(
-  '@/lib/queue/handlers/markdown-batch'
-);
+const { runMarkdownBatchJob } =
+  await import('@/lib/queue/handlers/markdown-batch');
 
 // ---------------------------------------------------------------------------
 // Fixtures — RFC 4122 v4-compliant UUIDs (Zod uuid() rejects placeholders
@@ -342,7 +341,12 @@ describe('runMarkdownBatchJob — markdown_batch handler (§5.4.4 behavioural)',
       const storedFilenames = result.results_summary.stored.map(
         (s) => s.filename,
       );
-      expect(storedFilenames).toEqual(['one.md', 'two.md', 'four.md', 'five.md']);
+      expect(storedFilenames).toEqual([
+        'one.md',
+        'two.md',
+        'four.md',
+        'five.md',
+      ]);
     });
   });
 
@@ -370,9 +374,7 @@ describe('runMarkdownBatchJob — markdown_batch handler (§5.4.4 behavioural)',
         results_summary: cancelledSummary(body.files, filesProcessed),
       } satisfies MarkdownImportPhaseResult);
       // Cancel poll: cancelled.
-      mockCreateServiceClient.mockReturnValue(
-        configureCancelPoll('cancelled'),
-      );
+      mockCreateServiceClient.mockReturnValue(configureCancelPoll('cancelled'));
 
       const result = await runMarkdownBatchJob(
         body,
@@ -619,7 +621,9 @@ describe('runMarkdownBatchJob — markdown_batch handler (§5.4.4 behavioural)',
     it('handler propagates fail-fast when orchestrator throws on a non-conflict error (other than PK collision)', async () => {
       const body = makeBody();
       mockOrchestrate.mockRejectedValue(
-        new Error('Failed to start pipeline_run for upload_markdown_batch: connection refused'),
+        new Error(
+          'Failed to start pipeline_run for upload_markdown_batch: connection refused',
+        ),
       );
 
       // Non-PermanentJobError errors propagate (transient by classifier

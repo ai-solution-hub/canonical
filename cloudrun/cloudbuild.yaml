@@ -1,12 +1,18 @@
-# Cloud Build pipeline — produces both Cloud Run Job image variants.
+# Cloud Build pipeline — single image variant (kh-prod-readiness-S41 W3 collapse).
 #
-# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-run-cloud-run-provisioning-spec.md §2.13 (image registry)
+# Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-run-cloud-run-provisioning-spec.md §2.13 (image registry) — AC-2 amended v1.6 to single variant
 # Plan: docs/audits/kh-production-readiness-phase-1/plans/wp-run-cloud-run-provisioning-plan.md T1b.3 step 2
 #
-# Two image variants per spec:
-#   * kh-pipeline-slim — routine ingest workloads (entrypoint: python3 scripts/ingest.py per F-11)
-#   * kh-pipeline-eval — eval suite (entrypoint: python3 scripts/eval-classification.py;
-#     bert-score uses full requirements.txt, not slim)
+# Single image variant: kh-pipeline (default entrypoint: python3 scripts/ingest.py).
+# Eval entrypoint (scripts/eval-classification.py) is overridden at exec time via
+# Cloud Run Job `args` once Phase 2 lands the script (does not exist today).
+#
+# Pre-S41 W3 history: previously built two variants kh-pipeline-{slim,eval} from
+# identical requirements.txt — both 3.3 GB, both pulling bert-score+torch+CUDA.
+# Verified empirically S40+S41 logs that the package lists were byte-identical.
+# eval image was built every CI run only to satisfy the original AC-2 ("both
+# variants present") and never invoked. Single-image collapse halves Cloud Build
+# duration (S41 W2 measurement: per-step ~6 min × 2 → single ~6 min).
 #
 # Buildpack base: gcr.io/buildpacks/python (per D-RUN-2 primary path).
 # Dockerfile escape hatch is Phase 1c contingent (R-10) — TODO if buildpack fails on bert-score.
@@ -15,43 +21,28 @@
 # Tag strategy: $COMMIT_SHA + latest. Push targets keyed by $PROJECT_ID
 # so the same cloudbuild.yaml ships both kh-prod-494815 and kh-staging-494815 from a
 # single GH Actions invocation.
+#
+# Cache plumbing per spec §2.13.1 v1.5 (S41 W2 amendment): --previous-image=:latest
+# gives the lifecycle analyzer a previous image to derive layer metadata from
+# (the SHA-tagged primary doesn't exist for new commits); --cache-image=:cache
+# is both source and target for the buildpack's pip layer cache.
 steps:
-  # kh-pipeline-slim — routine ingest jobs.
-  # Multi-tag publish: pack build accepts repeated --tag for additional tags;
-  # with --publish, pack pushes all tags to the registry in one step
-  # (avoids the broken pack --publish + docker tag pattern where the local
-  # daemon never sees the SHA-tagged image).
-  - id: build-slim
+  - id: build
     name: gcr.io/k8s-skaffold/pack
     entrypoint: pack
     args:
       - build
-      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:${_COMMIT_SHA}
-      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-slim:latest
+      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline:${_COMMIT_SHA}
+      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline:latest
+      - --cache-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline:cache
+      - --previous-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/ingest.py
       - --env=GOOGLE_RUNTIME=python
+      - --env=GOOGLE_PYTHON_VERSION=3.13.13
       - --publish
 
-  # kh-pipeline-eval — bert-score + full requirements.txt.
-  # Forward reference: scripts/eval-classification.py is authored in Phase 2
-  # (per spec §4 file changes table line 623). T1b.5 first-deploy smoke
-  # only executes the slim image, never the eval image — eval image is
-  # built here so that AC-2 (both variants present) verifies green; eval
-  # invocation is gated until Phase 2 lands the entrypoint.
-  - id: build-eval
-    name: gcr.io/k8s-skaffold/pack
-    entrypoint: pack
-    args:
-      - build
-      - europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:${_COMMIT_SHA}
-      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-pipeline-eval:latest
-      - --builder=gcr.io/buildpacks/builder:google-22
-      - --env=GOOGLE_ENTRYPOINT=python3 scripts/eval-classification.py
-      - --env=GOOGLE_RUNTIME=python
-      - --publish
-
-# Image push is handled by pack `--publish` inside each build step. We deliberately
+# Image push is handled by pack `--publish` inside the build step. We deliberately
 # do NOT use the top-level `images:` block here: that block triggers a final
 # Docker-daemon push at the end of the build, which fails when pack `--publish`
 # has already pushed (pack discards the local Docker image, so the post-step push

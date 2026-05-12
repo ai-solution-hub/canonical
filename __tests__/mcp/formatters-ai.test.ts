@@ -10,7 +10,7 @@
  *
  * Source:
  *   docs/audits/s159-wp4a-wp4b-adversarial-verification.md §WP4a §1
- *   docs/reference/post-mvp-roadmap.md §2.1.11
+ *   docs/reference/product-roadmap.md §2.1.11
  */
 
 import { describe, it, expect } from 'vitest';

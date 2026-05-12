@@ -158,7 +158,9 @@ const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
   process.env.SUPABASE_SERVICE_ROLE_KEY &&
-  process.env.TEST_USER_1_PASSWORD,
+  process.env.TEST_USER_1_PASSWORD &&
+  process.env.CRON_SECRET &&
+  process.env.OPENAI_API_KEY,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -403,24 +405,52 @@ describeIfEnv(
 
       // ─────────────────────────────────────────────────────────────────
       // Phase 1: import via POST /api/ingest/markdown.
+      //
+      // Post-S226 §5.4.4 the route is async — returns 202 with a queue
+      // envelope. The orchestrator runs under the cron worker, which is
+      // what writes content_items + sets publication_status='in_review'
+      // (the D-A INSERT guard under test). We drive the worker explicitly
+      // and look up the resulting row by source_file.
       // ─────────────────────────────────────────────────────────────────
       const importRes = await postImportSingleFile({ filename, body });
       const importBodyText = await importRes.clone().text();
-      expect(importRes.status, importBodyText).toBe(200);
+      expect(importRes.status, importBodyText).toBe(202);
       const importJson = (await importRes.json()) as {
+        job_id: string;
         pipeline_run_id: string;
-        results_summary: {
-          files_processed: number;
-          stored: Array<{ id: string; title: string; filename: string }>;
-          errored: Array<{ filename: string; error: string }>;
-        };
+        status: 'queued';
+        deduplicated: boolean;
       };
+      expect(importJson.status).toBe('queued');
+      expect(importJson.deduplicated).toBe(false);
       expect(importJson.pipeline_run_id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
-      expect(importJson.results_summary.errored).toEqual([]);
-      expect(importJson.results_summary.stored.length).toBe(1);
-      const importedId = importJson.results_summary.stored[0]!.id;
+
+      // Drive the cron worker — runs the real orchestrator which performs
+      // dedup + embeddings + INSERT into content_items with the D-A INSERT
+      // guard that this test is asserting on.
+      const { GET: cronGet } =
+        await import('@/app/api/cron/process-queue/route');
+      const cronReq = new NextRequest(
+        'http://localhost/api/cron/process-queue',
+        {
+          method: 'GET',
+          headers: { authorization: `Bearer ${process.env.CRON_SECRET!}` },
+        },
+      );
+      const cronRes = await cronGet(cronReq);
+      expect(cronRes.status).toBe(200);
+
+      // Look up the row the worker wrote, keyed on (source_file, created_by).
+      const lookup = await serviceClient
+        .from('content_items')
+        .select('id')
+        .eq('source_file', filename)
+        .eq('created_by', TEST_USER_1_ID)
+        .single();
+      expect(lookup.error).toBeNull();
+      const importedId = lookup.data!.id;
       seededIds.push(importedId);
 
       // ─────────────────────────────────────────────────────────────────

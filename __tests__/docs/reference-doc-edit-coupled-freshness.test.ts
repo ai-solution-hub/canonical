@@ -2,11 +2,18 @@
  * Edit-coupled reference-doc freshness guard.
  *
  * For every tracked canonical reference and runbook doc, asserts that the
- * most recent commit touching the file ALSO modified the
- * `<!-- Last verified: ... -->` header line in the same commit. Commits whose
- * message body contains the literal string `[skip-doc-freshness-guard]` are
- * exempt — this is how the WP2a seed commit (`943eb13b`) is excluded, since
- * it planted the header for the first time and has no prior value to bump.
+ * most recent commit touching the file ALSO bumped the doc's freshness
+ * marker in the same commit. Two marker conventions are supported:
+ *   - **MD docs:** the `<!-- Last verified: ... -->` HTML comment header.
+ *   - **JSON docs:** the `last_updated` string field at the document root
+ *     (e.g. `docs/reference/product-roadmap.json` post-S39 W1 Phase 2).
+ *     Per `roadmap-conversion-approach.md` §6.1 step 5 the JSON is
+ *     authoritative and `last_updated` is the canonical bump target.
+ *
+ * Commits whose message body contains the literal string
+ * `[skip-doc-freshness-guard]` are exempt — this is how the WP2a seed
+ * commit (`943eb13b`) is excluded, since it planted the header for the
+ * first time and has no prior value to bump.
  *
  * Pattern: same as `__tests__/validation/pipeline-parity.test.ts` — drives
  * iteration from a shared constant (`TRACKED_REFERENCE_DOCS`) so the test
@@ -44,17 +51,28 @@ describe('Reference doc edit-coupled freshness', () => {
       }
 
       const patch = git(['show', '--format=', sha, '--', doc]);
+      const isJson = doc.endsWith('.json');
+      const markerRegex = isJson
+        ? /^\+\s*"last_updated":/
+        : /^\+{1,2}<!-- Last verified:/;
+      const markerName = isJson
+        ? '`last_updated` field'
+        : '`<!-- Last verified: ... -->` header';
       const headerAdded = patch
         .split('\n')
-        .some((line) => /^\+{1,2}<!-- Last verified:/.test(line));
+        .some((line) => markerRegex.test(line));
       expect(
         headerAdded,
         `Tracked doc ${doc} was last modified by ${sha}, but that commit ` +
-          'did not bump the `<!-- Last verified: ... -->` header. ' +
-          'Run `/kpf:refresh-reference-docs` (or update the header by hand) ' +
-          'and amend the commit. To intentionally skip this guard for a ' +
-          'one-off commit, include `[skip-doc-freshness-guard]` in the ' +
-          'commit message body.',
+          `did not bump the ${markerName}. ` +
+          (isJson
+            ? 'Update the `last_updated` field in the JSON (and re-render ' +
+              'any generated MD via `bun run roadmap:render` if applicable) ' +
+              'and amend the commit. '
+            : 'Run `/kpf:refresh-reference-docs` (or update the header by hand) ' +
+              'and amend the commit. ') +
+          'To intentionally skip this guard for a one-off commit, include ' +
+          '`[skip-doc-freshness-guard]` in the commit message body.',
       ).toBe(true);
     },
   );

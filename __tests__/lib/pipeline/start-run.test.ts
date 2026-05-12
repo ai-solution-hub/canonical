@@ -56,7 +56,9 @@ interface UpsertResult {
  * helper wraps to an array. Returns the spies for assertions.
  */
 function configureChain(
-  result: UpsertResult | { data: { id: string } | null; error: { message: string } | null },
+  result:
+    | UpsertResult
+    | { data: { id: string } | null; error: { message: string } | null },
 ) {
   // Coerce single-row `data: { id }` to array form for backward compatibility.
   const normalisedData =

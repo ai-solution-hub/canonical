@@ -73,7 +73,9 @@ describe('CostEstimateDialog', () => {
     // Drain the fetch promise so the resulting setState fires inside an act
     // boundary rather than after teardown ("wrapped into act(...)" warning).
     await waitFor(() => {
-      expect(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+      expect(
+        globalThis.fetch as unknown as ReturnType<typeof vi.fn>,
+      ).toHaveBeenCalled();
     });
   });
 
@@ -97,7 +99,9 @@ describe('CostEstimateDialog', () => {
     // Drain the fetch promise so the resulting setState fires inside an act
     // boundary rather than after teardown ("wrapped into act(...)" warning).
     await waitFor(() => {
-      expect(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+      expect(
+        globalThis.fetch as unknown as ReturnType<typeof vi.fn>,
+      ).toHaveBeenCalled();
     });
   });
 

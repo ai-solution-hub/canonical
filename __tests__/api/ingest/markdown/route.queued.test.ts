@@ -41,7 +41,7 @@
  *     `EnqueueQueueJobResult` shape verbatim.
  *   - `@/lib/supabase/server` `createServiceClient` mocked to a fresh
  *     mock supabase client that captures the producer's
- *     `pipeline_runs.insert` call.
+ *     `pipeline_runs.upsert` call.
  *   - `@/lib/ingest/markdown-orchestrator` mocked for the analyse-phase
  *     test only (the import-phase no longer calls it directly post-S226).
  *   - Per `feedback_validation_sweep_safeparse_ban`: the route uses
@@ -71,9 +71,8 @@ const { mockEnqueueQueueJob, mockCreateServiceClient, mockOrchestrate } =
   }));
 
 vi.mock('@/lib/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth')>(
-    '@/lib/auth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -124,7 +123,11 @@ function configureAdmin() {
     }
     return {
       success: true,
-      user: { id: ADMIN_USER_ID, email: 'admin@test', user_metadata: {} } as never,
+      user: {
+        id: ADMIN_USER_ID,
+        email: 'admin@test',
+        user_metadata: {},
+      } as never,
       supabase: fakeAuthSupabase(),
       role: 'admin',
     };
@@ -139,7 +142,11 @@ function configureEditor() {
     }
     return {
       success: true,
-      user: { id: EDITOR_USER_ID, email: 'editor@test', user_metadata: {} } as never,
+      user: {
+        id: EDITOR_USER_ID,
+        email: 'editor@test',
+        user_metadata: {},
+      } as never,
       supabase: fakeAuthSupabase(),
       role: 'editor',
     };
@@ -229,10 +236,12 @@ beforeEach(() => {
   mockServiceClient = createMockSupabaseClient();
   authSupabase = createMockSupabaseClient();
   mockCreateServiceClient.mockReturnValue(mockServiceClient);
-  // Default: pipeline_runs.insert(...).select('id') resolves successfully.
+  // Default: pipeline_runs.upsert(...).select('id') resolves successfully.
   // The chain default `.then` fires the first time the chain is awaited.
   // We push a single mockImplementationOnce so the route's `sb()` call
-  // resolves cleanly.
+  // resolves cleanly. Post-S36 W0b Class B the route uses UPSERT (not
+  // INSERT) for idempotency; the chain's `.then` resolver is shared so
+  // the resolver below covers both call shapes equivalently.
   mockServiceClient._chain.then.mockImplementationOnce(
     (resolve: (v: unknown) => void) =>
       resolve({ data: [{ id: 'inserted' }], error: null }),
@@ -327,15 +336,20 @@ describe('POST /api/ingest/markdown — DB side-effect contract (pipeline_runs P
     expect(res.status).toBe(202);
     const body = (await res.json()) as { pipeline_run_id: string };
 
-    // Observable side-effect: the route called pipeline_runs.insert(...)
-    // via the service client. We assert on the INSERT payload shape, not
-    // on which method was called (a different impl could do an UPSERT
-    // and still satisfy the contract — but the producer SHOULD INSERT
-    // because it's allocating the row).
+    // Observable side-effect: the route called pipeline_runs.upsert(...)
+    // via the service client. The producer-side UPSERT (with
+    // `{ onConflict: 'id', ignoreDuplicates: true }`) mirrors the
+    // worker-side Path B UPSERT in `lib/pipeline/start-run.ts:142` so
+    // that same-day and next-day re-enqueues against a stable
+    // `pipeline_run_id` are idempotent at the row level (S36 W0b
+    // Class B fix — prior `.insert()` collided on `pipeline_runs_pkey`).
     expect(mockServiceClient.from).toHaveBeenCalledWith('pipeline_runs');
-    const insertCall = mockServiceClient._chain.insert.mock.calls[0];
-    expect(insertCall).toBeDefined();
-    const payload = insertCall![0] as Record<string, unknown>;
+    const upsertCall = mockServiceClient._chain.upsert.mock.calls[0];
+    expect(upsertCall).toBeDefined();
+    const payload = upsertCall![0] as Record<string, unknown>;
+    const upsertOptions = upsertCall![1] as Record<string, unknown>;
+    expect(upsertOptions.onConflict).toBe('id');
+    expect(upsertOptions.ignoreDuplicates).toBe(true);
     expect(payload.id).toBe(body.pipeline_run_id);
     expect(payload.status).toBe('running');
     expect(payload.pipeline_name).toBe('upload_markdown_batch');
@@ -368,7 +382,7 @@ describe('POST /api/ingest/markdown — AC-3 contract (same-day dedup)', () => {
       deduplicated: true,
     });
 
-    // Need additional pipeline_runs.insert resolvers for the second call.
+    // Need additional pipeline_runs.upsert resolvers for the second call.
     mockServiceClient._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: 'inserted2' }], error: null }),
@@ -405,7 +419,7 @@ describe('POST /api/ingest/markdown — AC-3 contract (same-day dedup)', () => {
       deduplicated: true,
     });
 
-    // Re-add pipeline_runs.insert resolvers.
+    // Re-add pipeline_runs.upsert resolvers.
     mockServiceClient._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: 'inserted-a' }], error: null }),
@@ -482,7 +496,7 @@ describe('POST /api/ingest/markdown — AC-4 contract (next-day generates new jo
       deduplicated: false,
     });
 
-    // Two pipeline_runs.insert resolvers — one per POST.
+    // Two pipeline_runs.upsert resolvers — one per POST.
     mockServiceClient._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: 'p1' }], error: null }),

@@ -267,9 +267,7 @@ describe('POST /api/admin/batch-reclassify — body validation', () => {
       details: Array<{ field: string; message: string }>;
     };
     expect(body.error).toBe('Validation failed');
-    expect(
-      body.details.some((d) => d.field === 'batch_size'),
-    ).toBe(true);
+    expect(body.details.some((d) => d.field === 'batch_size')).toBe(true);
     // enqueueQueueJob NOT called (request rejected pre-enqueue).
     expect(mockEnqueueQueueJob).not.toHaveBeenCalled();
   });
@@ -284,9 +282,7 @@ describe('POST /api/admin/batch-reclassify — body validation', () => {
     const body = (await response.json()) as {
       details: Array<{ field: string; message: string }>;
     };
-    expect(
-      body.details.some((d) => d.field === 'limit'),
-    ).toBe(true);
+    expect(body.details.some((d) => d.field === 'limit')).toBe(true);
   });
 
   it('empty body → defaults applied → 202 (workspace_id=CLIENT_CONFIG.client_id, limit=0, force=false, batch_size=1, etc.)', async () => {
