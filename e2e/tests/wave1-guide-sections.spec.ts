@@ -103,14 +103,17 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
       }),
     ).toBeVisible();
 
-    // Section links should point to /guide/ paths
+    // Section links should point to /guide/ paths. The banner only renders
+    // when guideSections.length > 0 (see GuideSectionBanner) and every match
+    // becomes a Link, so at least one link must be present once the banner is
+    // visible. Previous `if (linkCount > 0)` conditional silently passed when
+    // the banner branched to a different layout per
+    // `feedback_e2e_conditional_false_pass`.
     const sectionLinks = guideBanner.locator('a[href*="/guide/"]');
-    const linkCount = await sectionLinks.count();
-    if (linkCount > 0) {
-      const firstHref = await sectionLinks.first().getAttribute('href');
-      // Verify href format: /guide/{slug}#{sectionId}
-      expect(firstHref).toMatch(/^\/guide\/[a-z0-9-]+#/);
-    }
+    await expect(sectionLinks.first()).toBeVisible({ timeout: 5000 });
+    const firstHref = await sectionLinks.first().getAttribute('href');
+    // Verify href format: /guide/{slug}#{sectionId}
+    expect(firstHref).toMatch(/^\/guide\/[a-z0-9-]+#/);
 
     // Match strength badges should be present (one of: Exact match, Partial match, Domain match)
     const badgeTexts = ['Exact match', 'Partial match', 'Domain match'];
@@ -228,13 +231,16 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
     // At least one group of sections should be present
     expect(listCount).toBeGreaterThanOrEqual(1);
 
-    // Each section link should have an accessible name describing the guide context
+    // Each section link should have an accessible name describing the guide
+    // context. The banner only renders when guideSections.length > 0 and
+    // every match becomes a <Link aria-label="View {section} in {guide}">,
+    // so at least one link must be present once the banner is visible.
+    // Previous `if (firstLinkCount > 0)` conditional silently passed on
+    // partial-render regressions per `feedback_e2e_conditional_false_pass`.
     const sectionLinks = guideBanner.locator('a[href*="/guide/"]');
-    const firstLinkCount = await sectionLinks.count();
-    if (firstLinkCount > 0) {
-      const ariaLabel = await sectionLinks.first().getAttribute('aria-label');
-      // Format: "View {sectionName} in {guideName}"
-      expect(ariaLabel).toMatch(/^View .+ in .+$/);
-    }
+    await expect(sectionLinks.first()).toBeVisible({ timeout: 5000 });
+    const ariaLabel = await sectionLinks.first().getAttribute('aria-label');
+    // Format: "View {sectionName} in {guideName}"
+    expect(ariaLabel).toMatch(/^View .+ in .+$/);
   });
 });

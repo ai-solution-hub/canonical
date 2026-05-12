@@ -57,38 +57,15 @@ vi.mock('@/lib/supabase/safe', () => ({
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
-import type {
-  McpServer,
-  RegisteredTool,
-} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerGovernanceTools } from '@/lib/mcp/tools/governance';
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
-// Mock server + supabase chain
+// Supabase chain builder
 // ---------------------------------------------------------------------------
-
-interface CapturedTool {
-  name: string;
-  config: Record<string, unknown>;
-  callback: (...args: unknown[]) => unknown;
-}
-
-function createMockServer(): { server: McpServer; tools: CapturedTool[] } {
-  const tools: CapturedTool[] = [];
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        cb: (...args: unknown[]) => unknown,
-      ) => {
-        tools.push({ name, config, callback: cb });
-        return { enabled: true } as unknown as RegisteredTool;
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 type QueryResolver = {
   data: unknown;
@@ -137,21 +114,15 @@ const MOCK_EXTRA = {
   sendElicitationRequest: vi.fn(),
 };
 
-function findTool(tools: CapturedTool[], name: string): CapturedTool {
-  const t = tools.find((x) => x.name === name);
-  if (!t) throw new Error(`${name} not registered`);
-  return t;
-}
-
 async function callTool(
-  tool: CapturedTool,
+  tool: MockToolRegistration,
   args: Record<string, unknown>,
 ): Promise<{
   content: Array<{ text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }> {
-  return (await tool.callback(args, MOCK_EXTRA)) as {
+  return (await tool.handler(args, MOCK_EXTRA)) as {
     content: Array<{ text: string }>;
     structuredContent?: Record<string, unknown>;
     isError?: boolean;
@@ -238,9 +209,9 @@ async function runTransition({
   const fromMock = vi.fn(() => chain({ data: null, error: null }));
   mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-  const mock = createMockServer();
-  await registerGovernanceTools(mock.server);
-  const tool = findTool(mock.tools, 'update_publication_status');
+  const localServer = createMockMcpServer();
+  await registerGovernanceTools(localServer.server);
+  const tool = localServer.getTool('update_publication_status')!;
 
   const args: Record<string, unknown> = {
     item_id: TEST_ITEM_ID,
@@ -274,7 +245,7 @@ async function runTransition({
 // ---------------------------------------------------------------------------
 
 describe('update_publication_status — registration (AC6.2)', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -287,18 +258,17 @@ describe('update_publication_status — registration (AC6.2)', () => {
       from: vi.fn(() => chain({ data: null, error: null })),
     });
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerGovernanceTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerGovernanceTools(mockServer.server);
   });
 
   it('registers update_publication_status with the documented title', () => {
-    const tool = findTool(tools, 'update_publication_status');
+    const tool = mockServer.getTool('update_publication_status')!;
     expect(tool.config.title).toBe('Update Publication Status');
   });
 
   it('description distinguishes from update_governance_status', () => {
-    const tool = findTool(tools, 'update_publication_status');
+    const tool = mockServer.getTool('update_publication_status')!;
     const desc = tool.config.description as string;
     // Spec §7.1.1 — description must mention the four states + the
     // distinction from change-management status.
@@ -312,7 +282,7 @@ describe('update_publication_status — registration (AC6.2)', () => {
   });
 
   it('inputSchema declares item_id, new_status (4-enum), and archive_reason', () => {
-    const tool = findTool(tools, 'update_publication_status');
+    const tool = mockServer.getTool('update_publication_status')!;
     const schema = tool.config.inputSchema as Record<string, unknown>;
     expect(Object.keys(schema).sort()).toEqual([
       'archive_reason',
@@ -322,7 +292,7 @@ describe('update_publication_status — registration (AC6.2)', () => {
   });
 
   it('uses SAFE_WRITE_ANNOTATIONS', () => {
-    const tool = findTool(tools, 'update_publication_status');
+    const tool = mockServer.getTool('update_publication_status')!;
     const ann = tool.config.annotations as Record<string, boolean>;
     expect(ann.readOnlyHint).toBe(false);
     expect(ann.idempotentHint).toBe(true);
@@ -645,9 +615,9 @@ describe('update_publication_status — error paths', () => {
       from: vi.fn(() => chain({ data: null, error: null })),
     });
 
-    const mock = createMockServer();
-    await registerGovernanceTools(mock.server);
-    const tool = findTool(mock.tools, 'update_publication_status');
+    const localServer = createMockMcpServer();
+    await registerGovernanceTools(localServer.server);
+    const tool = localServer.getTool('update_publication_status')!;
     const res = await callTool(tool, {
       item_id: TEST_ITEM_ID,
       new_status: 'in_review',
@@ -668,9 +638,9 @@ describe('update_publication_status — error paths', () => {
       from: vi.fn(() => chain({ data: null, error: null })),
     });
 
-    const mock = createMockServer();
-    await registerGovernanceTools(mock.server);
-    const tool = findTool(mock.tools, 'update_publication_status');
+    const localServer = createMockMcpServer();
+    await registerGovernanceTools(localServer.server);
+    const tool = localServer.getTool('update_publication_status')!;
     const res = await callTool(tool, {
       item_id: TEST_ITEM_ID,
       new_status: 'in_review',
@@ -685,7 +655,7 @@ describe('update_publication_status — error paths', () => {
 // ---------------------------------------------------------------------------
 
 describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -695,19 +665,18 @@ describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', (
     mocks.tryQuery.mockResolvedValue({ ok: true, data: null });
     mocks.sb.mockResolvedValue(null);
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerGovernanceTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerGovernanceTools(mockServer.server);
   });
 
   it('inputSchema declares optional publication_status enum', () => {
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     const schema = tool.config.inputSchema as Record<string, unknown>;
     expect(schema).toHaveProperty('publication_status');
   });
 
   it('description mentions the publication_status filter and AND composition', () => {
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     const desc = tool.config.description as string;
     expect(desc).toContain('publication_status');
     // Spec §7.2: filters compose via AND; description should signal that.
@@ -717,7 +686,7 @@ describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', (
   it('passes publication_status="in_review" to .eq() alongside the existing filters', async () => {
     const q = chain({ data: [], error: null, count: 0 });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     await callTool(tool, {
       limit: 20,
       offset: 0,
@@ -737,7 +706,7 @@ describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', (
   it('omits the .eq publication_status filter when the param is not supplied (backwards-compat)', async () => {
     const q = chain({ data: [], error: null, count: 0 });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     await callTool(tool, { limit: 20, offset: 0 });
     const calls = (q.eq as ReturnType<typeof vi.fn>).mock.calls as Array<
       [string, unknown]
@@ -749,7 +718,7 @@ describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', (
   it('composes domain + publication_status filters via AND when both are supplied', async () => {
     const q = chain({ data: [], error: null, count: 0 });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     await callTool(tool, {
       limit: 20,
       offset: 0,
@@ -771,7 +740,7 @@ describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', (
   it('surfaces the publication_status filter in structuredContent metadata', async () => {
     const q = chain({ data: [], error: null, count: 0 });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = findTool(tools, 'get_governance_queue');
+    const tool = mockServer.getTool('get_governance_queue')!;
     const res = await callTool(tool, {
       limit: 20,
       offset: 0,

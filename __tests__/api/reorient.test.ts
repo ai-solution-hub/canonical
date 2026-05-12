@@ -183,7 +183,7 @@ describe('GET /api/reorient', () => {
     expect(body.counts.unread_notifications).toBe(0);
   });
 
-  it('passes correct parameters to fetchReorientData', async () => {
+  it('fetches reorient data scoped to the caller and their role', async () => {
     configureAuth(mockSupabase).asAdmin();
 
     await GET();

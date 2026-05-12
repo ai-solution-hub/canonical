@@ -47,38 +47,11 @@ vi.mock('@/lib/supabase/safe', () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import type {
-  McpServer,
-  RegisteredTool,
-} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerWorkspaceTools } from '@/lib/mcp/tools/workspaces';
-
-// ---------------------------------------------------------------------------
-// Mock server that captures tool registrations
-// ---------------------------------------------------------------------------
-
-interface CapturedTool {
-  name: string;
-  config: Record<string, unknown>;
-  callback: (...args: unknown[]) => unknown;
-}
-
-function createMockServer(): { server: McpServer; tools: CapturedTool[] } {
-  const tools: CapturedTool[] = [];
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        cb: (...args: unknown[]) => unknown,
-      ) => {
-        tools.push({ name, config, callback: cb });
-        return { enabled: true } as unknown as RegisteredTool;
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -121,7 +94,7 @@ const WORKSPACE_FIXTURES = {
 // ---------------------------------------------------------------------------
 
 describe('list_user_workspaces MCP tool', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -134,13 +107,12 @@ describe('list_user_workspaces MCP tool', () => {
     mocks.supabaseClient.from.mockReturnValue(mocks.fromReturn);
     mocks.createMcpClient.mockReturnValue(mocks.supabaseClient);
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerWorkspaceTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerWorkspaceTools(mockServer.server);
   });
 
-  function getWorkspaceTool(): CapturedTool {
-    const tool = tools.find((t) => t.name === 'list_user_workspaces');
+  function getWorkspaceTool(): MockToolRegistration {
+    const tool = mockServer.getTool('list_user_workspaces');
     if (!tool) throw new Error('list_user_workspaces not registered');
     return tool;
   }
@@ -158,7 +130,7 @@ describe('list_user_workspaces MCP tool', () => {
     mocks.selectReturn.order.mockResolvedValue({ data: [], error: null });
 
     const tool = getWorkspaceTool();
-    const result = (await tool.callback({}, MOCK_EXTRA)) as {
+    const result = (await tool.handler({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       structuredContent: Record<string, unknown>;
     };
@@ -174,7 +146,7 @@ describe('list_user_workspaces MCP tool', () => {
     });
 
     const tool = getWorkspaceTool();
-    const result = (await tool.callback({}, MOCK_EXTRA)) as {
+    const result = (await tool.handler({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       structuredContent: unknown;
     };
@@ -206,7 +178,7 @@ describe('list_user_workspaces MCP tool', () => {
     });
 
     const tool = getWorkspaceTool();
-    const result = (await tool.callback({}, MOCK_EXTRA)) as {
+    const result = (await tool.handler({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       structuredContent: unknown;
     };
@@ -241,7 +213,7 @@ describe('list_user_workspaces MCP tool', () => {
     mocks.fromReturn.select.mockReturnValue(chainedQuery);
 
     const tool = getWorkspaceTool();
-    await tool.callback({ type: 'intelligence' }, MOCK_EXTRA);
+    await tool.handler({ type: 'intelligence' }, MOCK_EXTRA);
 
     // Verify eq was called with both is_archived and type filter
     expect(eqCalls).toContainEqual(['is_archived', false]);
@@ -265,7 +237,7 @@ describe('list_user_workspaces MCP tool', () => {
     mocks.fromReturn.select.mockReturnValue(chainedQuery);
 
     const tool = getWorkspaceTool();
-    await tool.callback({ type: 'content' }, MOCK_EXTRA);
+    await tool.handler({ type: 'content' }, MOCK_EXTRA);
 
     // DB enum is kb_section, not content
     expect(eqCalls).toContainEqual(['type', 'kb_section']);
@@ -276,7 +248,7 @@ describe('list_user_workspaces MCP tool', () => {
     mocks.checkMcpRole.mockResolvedValue(null);
 
     const tool = getWorkspaceTool();
-    const result = (await tool.callback({}, MOCK_EXTRA)) as {
+    const result = (await tool.handler({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       isError: boolean;
     };

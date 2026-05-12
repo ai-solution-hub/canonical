@@ -23,7 +23,10 @@ import {
   createMockSupabaseClient,
   configureRole,
 } from '../helpers/mock-supabase';
-import { createTestRequest } from '../helpers/mock-next';
+import {
+  createMockFile,
+  createMockUploadRequest,
+} from '../helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -134,54 +137,27 @@ const NEW_ITEM_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const CALLER_USER_ID = 'a0000000-0000-4000-8000-000000000aaa';
 
 /**
- * Create a mock File compatible with the route's `instanceof File` check.
- * Mirrors the bid-drafting.test.ts helper.
+ * Adapter to match the (bytes, name, mimeType) signature used by callers
+ * below. Delegates to the canonical factory.
  */
-function createMockFile(
-  bytes: Uint8Array,
-  name: string,
-  mimeType: string,
-): File {
-  // Cast through BlobPart[] — Blob accepts Uint8Array at runtime (DOM
-  // types are a touch tighter than the actual platform behaviour).
-  const blob = new Blob([bytes as unknown as BlobPart], { type: mimeType });
-  const file = Object.create(File.prototype, {
-    name: { value: name, writable: false },
-    type: { value: mimeType, writable: false },
-    size: { value: bytes.length, writable: false },
-    arrayBuffer: { value: () => blob.arrayBuffer(), writable: false },
-  });
-  return file;
+function makeMockFile(bytes: Uint8Array, name: string, mimeType: string): File {
+  return createMockFile({ name, content: bytes, type: mimeType });
 }
 
 /**
- * Create a NextRequest with `formData()` pre-mocked to return the given
- * fields. Overriding formData() directly is the canonical pattern for
- * upload tests in this repo (see bid-drafting.test.ts:1624).
+ * Adapter to match the original `buildUploadRequest({ file, contentOwnerId })`
+ * shape. Delegates to the canonical factory which uses a generic `fields`
+ * record so callers may pass any form field by name.
  */
 function buildUploadRequest(fields: {
   file: File;
   contentOwnerId?: string;
 }): import('next/server').NextRequest {
-  const req = createTestRequest('/api/upload', {
-    method: 'POST',
-    body: {}, // placeholder — we override formData()
+  return createMockUploadRequest({
+    path: '/api/upload',
+    file: fields.file,
+    fields: { content_owner_id: fields.contentOwnerId },
   });
-
-  const formData = new FormData();
-  formData.get = vi.fn((key: string) => {
-    if (key === 'file') return fields.file;
-    if (key === 'content_owner_id' && fields.contentOwnerId !== undefined) {
-      return fields.contentOwnerId;
-    }
-    return null;
-  }) as unknown as typeof formData.get;
-
-  (req as unknown as { formData: () => Promise<FormData> }).formData = vi
-    .fn()
-    .mockResolvedValue(formData);
-
-  return req;
 }
 
 /**
@@ -280,11 +256,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'editor');
     configureSuccessFlow();
 
-    const file = createMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file });
 
     const res = await POST(req);
@@ -312,11 +284,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureSuccessFlow();
 
     const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
-    const file = createMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file, contentOwnerId: OTHER_UUID });
 
     const res = await POST(req);
@@ -343,11 +311,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureSuccessFlow();
 
     const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
-    const file = createMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file, contentOwnerId: OTHER_UUID });
 
     const res = await POST(req);
@@ -376,11 +340,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'editor');
     configureSuccessFlow();
 
-    const file = createMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file });
 
     const res = await POST(req);
@@ -408,11 +368,7 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'admin');
     configureSuccessFlow();
 
-    const file = createMockFile(
-      VALID_PDF_BYTES,
-      'sample.pdf',
-      'application/pdf',
-    );
+    const file = makeMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
     const req = buildUploadRequest({ file, contentOwnerId: 'not-a-uuid' });
 
     const res = await POST(req);

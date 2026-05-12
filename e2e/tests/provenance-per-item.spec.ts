@@ -65,9 +65,16 @@ test.describe('Provenance -- Per-item tab', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    // workerData.articleId is the first seeded content item (IT Support Policy)
+    // workerData.articleId is the first seeded content item (IT Support Policy);
+    // the worker-scoped fixture seeds 12 content_items via `.throwOnError()`,
+    // so `articleId` is always present. Hard-expecting its truthiness lets a
+    // missing-fixture regression fail honestly rather than skip silently per
+    // `feedback_e2e_conditional_false_pass` (test-philosophy §2.1).
     const itemId = workerData.articleId;
-    test.skip(!itemId, 'No content item ID available from worker data');
+    expect(
+      itemId,
+      'workerData.articleId must be seeded by test-data-fixture',
+    ).toBeTruthy();
 
     const searchInput = page.getByLabel('Content item UUID');
     await expect(searchInput).toBeVisible();

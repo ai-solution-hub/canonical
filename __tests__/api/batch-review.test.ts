@@ -211,14 +211,10 @@ describe('POST /api/items/batch-review', () => {
     const json = await res.json();
     expect(json.updated).toBe(2);
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith({
-      governance_review_status: 'pending',
-    });
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [
-      VALID_UUID_1,
-      VALID_UUID_2,
-    ]);
+    // Content-of-write is observable: the recorded update payload must
+    // set the governance review status to the requested value.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toEqual({ governance_review_status: 'pending' });
   });
 
   it('updates items and returns count for admin', async () => {

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // S217 W1B — split LLM-discovery surface from admin dedup surface.
@@ -68,40 +69,10 @@ vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 // Mock McpServer that captures both registration metadata and tool callbacks
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
 interface ToolResult {
   content: Array<{ type: string; text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
-}
-
-interface RegisteredTool {
-  config: Record<string, unknown>;
-  handler: ToolHandler;
-}
-
-function createMockMcpServer() {
-  const tools: Record<string, RegisteredTool> = {};
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { config, handler };
-    },
-    getTool(name: string): RegisteredTool | undefined {
-      return tools[name];
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -151,7 +122,7 @@ describe('find_similar_items + find_duplicate_candidates registration', () => {
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
     await registerSearchTools(
-      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
+      mockServer.server as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 
@@ -212,7 +183,7 @@ describe('find_similar_items handler', () => {
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
     await registerSearchTools(
-      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
+      mockServer.server as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 
@@ -297,7 +268,7 @@ describe('find_duplicate_candidates handler', () => {
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
     await registerSearchTools(
-      mockServer as unknown as Parameters<typeof registerSearchTools>[0],
+      mockServer.server as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 

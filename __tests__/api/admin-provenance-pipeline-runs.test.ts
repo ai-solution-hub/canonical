@@ -269,7 +269,7 @@ describe('GET /api/admin/provenance/pipeline-runs', () => {
 
   // ── Filter application ─────────────────
   describe('filter application', () => {
-    it('passes kinds filter to the query chain', async () => {
+    it('restricts results to the requested pipeline kinds', async () => {
       mockAuthSuccess();
       mockTwoQueries([], []);
 
@@ -284,7 +284,7 @@ describe('GET /api/admin/provenance/pipeline-runs', () => {
       expect(inCalls.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('applies range to the gte filter', async () => {
+    it('restricts results to the requested time range', async () => {
       // Pin Date.now BEFORE calling the route
       const now = new Date('2026-04-16T12:00:00.000Z').getTime();
       vi.spyOn(Date, 'now').mockReturnValue(now);
@@ -356,7 +356,7 @@ describe('GET /api/admin/provenance/pipeline-runs', () => {
 
   // ── Cursor pagination ──────────────────
   describe('cursor pagination', () => {
-    it('sets hasMore and nextCursor when more rows exist', async () => {
+    it('signals more pages available and returns a cursor when results overflow the limit', async () => {
       mockAuthSuccess();
 
       // Create limit+1 rows (default limit=50, so 51 rows)
@@ -382,7 +382,7 @@ describe('GET /api/admin/provenance/pipeline-runs', () => {
       expect(body.rows).toHaveLength(50);
     });
 
-    it('applies keyset cursor via .or() clause', async () => {
+    it('paginates from the supplied keyset cursor', async () => {
       mockAuthSuccess();
       mockTwoQueries([], []);
 

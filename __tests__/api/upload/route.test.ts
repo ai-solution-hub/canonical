@@ -40,7 +40,10 @@ import {
   createMockSupabaseClient,
   configureRole,
 } from '@/__tests__/helpers/mock-supabase';
-import { createTestRequest } from '@/__tests__/helpers/mock-next';
+import {
+  createMockFile,
+  createMockUploadRequest,
+} from '@/__tests__/helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -163,53 +166,26 @@ const CALLER_USER_ID = 'a0000000-0000-4000-8000-000000000aaa';
 const EXISTING_DUP_ID = 'b0000000-0000-4000-8000-000000000bbb';
 
 /**
- * Create a mock File compatible with the route's `instanceof File` check.
- * Mirrors the helper at upload-route-owner.test.ts:137-152.
+ * Adapter to match the (bytes, name, mimeType) signature used by callers
+ * below. Delegates to the canonical factory.
  */
-function createMockFile(
-  bytes: Uint8Array,
-  name: string,
-  mimeType: string,
-): File {
-  const blob = new Blob([bytes as unknown as BlobPart], { type: mimeType });
-  const file = Object.create(File.prototype, {
-    name: { value: name, writable: false },
-    type: { value: mimeType, writable: false },
-    size: { value: bytes.length, writable: false },
-    arrayBuffer: { value: () => blob.arrayBuffer(), writable: false },
-  });
-  return file;
+function makeMockFile(bytes: Uint8Array, name: string, mimeType: string): File {
+  return createMockFile({ name, content: bytes, type: mimeType });
 }
 
 /**
- * Create a NextRequest with `formData()` pre-mocked. Files come through
- * `formData.get('file')` and overrides via `formData.get(<key>)`.
- *
- * Canonical pattern: upload-route-owner.test.ts:159-182.
+ * Adapter to match the original `buildUploadRequest({ file, skipDedup })`
+ * shape. Delegates to the canonical factory.
  */
 function buildUploadRequest(fields: {
   file: File;
   skipDedup?: 'true' | 'false';
 }): import('next/server').NextRequest {
-  const req = createTestRequest('/api/upload', {
-    method: 'POST',
-    body: {},
+  return createMockUploadRequest({
+    path: '/api/upload',
+    file: fields.file,
+    fields: { skip_dedup: fields.skipDedup },
   });
-
-  const formData = new FormData();
-  formData.get = vi.fn((key: string) => {
-    if (key === 'file') return fields.file;
-    if (key === 'skip_dedup' && fields.skipDedup !== undefined) {
-      return fields.skipDedup;
-    }
-    return null;
-  }) as unknown as typeof formData.get;
-
-  (req as unknown as { formData: () => Promise<FormData> }).formData = vi
-    .fn()
-    .mockResolvedValue(formData);
-
-  return req;
 }
 
 /**
@@ -322,7 +298,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
       configureRole(mockSupabase, 'admin');
       configureSuccessFlow();
 
-      const file = createMockFile(
+      const file = makeMockFile(
         VALID_PDF_BYTES,
         'sample.pdf',
         'application/pdf',
@@ -393,7 +369,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
       // but the route returns 415 with a content-type-mismatch error.
       configureSuccessFlow();
 
-      const file = createMockFile(PK_ZIP_BYTES, 'fake.pdf', 'application/pdf');
+      const file = makeMockFile(PK_ZIP_BYTES, 'fake.pdf', 'application/pdf');
       const req = buildUploadRequest({ file });
 
       const res = await POST(req);
@@ -429,7 +405,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
       huge[1] = 0x50;
       huge[2] = 0x44;
       huge[3] = 0x46;
-      const file = createMockFile(huge, 'huge.pdf', 'application/pdf');
+      const file = makeMockFile(huge, 'huge.pdf', 'application/pdf');
       const req = buildUploadRequest({ file });
 
       const res = await POST(req);
@@ -488,7 +464,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
       );
 
       const md = '# Sample\n\nbody text long enough to clear hash threshold';
-      const file = createMockFile(
+      const file = makeMockFile(
         new TextEncoder().encode(md),
         'sample.md',
         'text/markdown',
@@ -563,7 +539,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
       );
 
       const md = '# Sample\n\nbody text long enough to clear hash threshold';
-      const file = createMockFile(
+      const file = makeMockFile(
         new TextEncoder().encode(md),
         'sample.md',
         'text/markdown',
@@ -630,7 +606,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
       );
 
       const md = '# Sample\n\nbody text long enough to clear hash threshold';
-      const file = createMockFile(
+      const file = makeMockFile(
         new TextEncoder().encode(md),
         'sample.md',
         'text/markdown',
@@ -661,7 +637,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
     it('returns 403 for non-admin/non-editor (e.g. viewer)', async () => {
       configureRole(mockSupabase, 'viewer');
 
-      const file = createMockFile(
+      const file = makeMockFile(
         VALID_PDF_BYTES,
         'sample.pdf',
         'application/pdf',
@@ -686,7 +662,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
         },
       });
 
-      const file = createMockFile(
+      const file = makeMockFile(
         VALID_PDF_BYTES,
         'sample.pdf',
         'application/pdf',

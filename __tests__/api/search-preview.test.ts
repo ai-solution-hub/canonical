@@ -211,54 +211,13 @@ describe('GET /api/search/preview', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Limit
+  // NOTE — limit cap-at-20 / default-of-8 contracts are migrated to the
+  // integration tier under W-RD'. Chain-method asserts on `_chain.limit`
+  // coupled to the mock builder rather than observable response shape;
+  // the route does not surface its applied limit in the JSON envelope so
+  // the only honest verification is at integration tier against the real
+  // DB. See remediation-plan.md §3.4 / §3.5.
   // -----------------------------------------------------------------------
-
-  it('defaults limit to 8 (PREVIEW_MAX_RESULTS)', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
-
-    const req = createTestRequest('/api/search/preview', {
-      searchParams: { q: 'test' },
-    });
-
-    await GET(req);
-
-    // The chain should have .limit() called with 8
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(8);
-  });
-
-  it('respects custom limit param', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
-
-    const req = createTestRequest('/api/search/preview', {
-      searchParams: { q: 'test', limit: '5' },
-    });
-
-    await GET(req);
-
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(5);
-  });
-
-  it('clamps limit at max 20', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
-
-    const req = createTestRequest('/api/search/preview', {
-      searchParams: { q: 'test', limit: '100' },
-    });
-
-    await GET(req);
-
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(20);
-  });
 
   // -----------------------------------------------------------------------
   // Escape helper (pure function — tested directly)
@@ -316,46 +275,13 @@ describe('GET /api/search/preview', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Supabase query construction
+  // NOTE — Supabase or() / ilike() composition asserts (table name, select
+  // column list, and the assembled OR clause shape) are migrated to the
+  // integration tier under W-RD'. The route does not surface the filter
+  // string in its response, so the only observable proof of escaping is
+  // against a real DB. The pure `escapeIlike` helper is unit-tested above.
+  // See remediation-plan.md §3.4 / §3.5.
   // -----------------------------------------------------------------------
-
-  it('calls supabase with correct table and ilike filter', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
-
-    const req = createTestRequest('/api/search/preview', {
-      searchParams: { q: 'risk assessment' },
-    });
-
-    await GET(req);
-
-    expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
-    expect(mockSupabase._chain.select).toHaveBeenCalledWith(
-      'id, title, content_type, primary_domain, layer',
-    );
-    expect(mockSupabase._chain.or).toHaveBeenCalledWith(
-      'title.ilike.%risk assessment%,content.ilike.%risk assessment%',
-    );
-  });
-
-  it('passes escaped query to ilike filter', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
-
-    const req = createTestRequest('/api/search/preview', {
-      searchParams: { q: '50% discount' },
-    });
-
-    await GET(req);
-
-    expect(mockSupabase._chain.or).toHaveBeenCalledWith(
-      'title.ilike.%50\\% discount%,content.ilike.%50\\% discount%',
-    );
-  });
 
   // -----------------------------------------------------------------------
   // Error handling

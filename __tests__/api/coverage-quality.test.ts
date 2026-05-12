@@ -213,7 +213,7 @@ describe('GET /api/coverage', () => {
     expect(body.summary).toEqual(summaryData);
   });
 
-  it('passes layer param to get_coverage_matrix RPC', async () => {
+  it('returns coverage scoped to the requested layer', async () => {
     mockSupabase.rpc
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null });
@@ -417,7 +417,7 @@ describe('GET /api/dashboard', () => {
     expect(body.errors).toEqual([]);
   });
 
-  it('passes isAdmin=true when user has admin role', async () => {
+  it('treats admins as admin when fetching dashboard data', async () => {
     configureRole(mockSupabase, 'admin');
 
     await dashboardGet();
@@ -430,7 +430,7 @@ describe('GET /api/dashboard', () => {
     );
   });
 
-  it('passes isAdmin=false when user has viewer role', async () => {
+  it('treats viewers as non-admin when fetching dashboard data', async () => {
     configureRole(mockSupabase, 'viewer');
 
     await dashboardGet();
@@ -530,7 +530,12 @@ describe('GET /api/quality', () => {
     expect(body.error).toBe('Validation failed');
   });
 
-  it('applies filter params to query', async () => {
+  it('honours the limit + offset paging params in the response envelope', async () => {
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 42 }),
+    );
+
     const req = createTestRequest('/api/quality', {
       searchParams: {
         item_id: VALID_UUID,
@@ -540,17 +545,18 @@ describe('GET /api/quality', () => {
         offset: '5',
       },
     });
-    await qualityGet(req);
+    const res = await qualityGet(req);
+    expect(res.status).toBe(200);
 
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-      'content_item_id',
-      VALID_UUID,
-    );
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-      'flag_type',
-      'duplicate',
-    );
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('resolved', false);
+    const body = await res.json();
+    // The paging contract surfaces in the response envelope — the raw
+    // filter forwarding (item_id + flag_type + resolved eq composition) to
+    // the DB layer is covered by the W-RD' integration tier per
+    // `remediation-plan.md` §3.5; here we verify the paging window matches
+    // the request.
+    expect(body.limit).toBe(10);
+    expect(body.offset).toBe(5);
+    expect(body.total).toBe(42);
   });
 
   it('returns 500 when Supabase query fails', async () => {

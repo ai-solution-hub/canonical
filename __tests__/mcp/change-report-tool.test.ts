@@ -5,7 +5,7 @@
  * with all three sections, domain filter, keyword filter.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -59,42 +59,8 @@ vi.mock('@/lib/mcp/auth', () => ({
 import { registerChangeReportTools } from '@/lib/mcp/tools/change-report';
 
 // ---------------------------------------------------------------------------
-// Test harness — capture registered tools + their configs
+// Test harness — uses canonical createMockMcpServer helper
 // ---------------------------------------------------------------------------
-
-interface RegisteredTool {
-  name: string;
-  config: {
-    annotations?: {
-      readOnlyHint?: boolean;
-      idempotentHint?: boolean;
-      destructiveHint?: boolean;
-      openWorldHint?: boolean;
-    };
-  };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (...args: any[]) => Promise<any>;
-}
-
-function createTestServer(): {
-  server: McpServer;
-  tools: Map<string, RegisteredTool>;
-} {
-  const tools = new Map<string, RegisteredTool>();
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: RegisteredTool['config'],
-        handler: RegisteredTool['handler'],
-      ) => {
-        tools.set(name, { name, config, handler });
-        return { enabled: true };
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 const MOCK_AUTH_INFO = {
   token: 'test-token',
@@ -108,14 +74,13 @@ const MOCK_AUTH_INFO = {
 // ---------------------------------------------------------------------------
 
 describe('get_change_report MCP tool', () => {
-  let tools: Map<string, RegisteredTool>;
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    const harness = createTestServer();
-    tools = harness.tools;
-    await registerChangeReportTools(harness.server);
+    mockServer = createMockMcpServer();
+    await registerChangeReportTools(mockServer.server);
 
     // Reset chain defaults — all queries return empty by default
     mocks.chain.then.mockImplementation((resolve: (v: unknown) => void) =>
@@ -129,7 +94,7 @@ describe('get_change_report MCP tool', () => {
   // -------------------------------------------------------------------------
 
   it('registers with READ_ONLY annotations', () => {
-    const tool = tools.get('get_change_report');
+    const tool = mockServer.getTool('get_change_report');
     expect(tool).toBeDefined();
     expect(tool!.config.annotations).toEqual({
       readOnlyHint: true,
@@ -146,7 +111,7 @@ describe('get_change_report MCP tool', () => {
   it('denies viewer role', async () => {
     mocks.checkMcpRole.mockResolvedValueOnce(null);
 
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
     const result = await handler(
       { period_days: 7 },
       { authInfo: MOCK_AUTH_INFO },
@@ -162,7 +127,7 @@ describe('get_change_report MCP tool', () => {
 
   it('returns friendly empty-state markdown when no changes', async () => {
     // All three queries return empty arrays (default mock behaviour)
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
     const result = await handler(
       { period_days: 7 },
       { authInfo: MOCK_AUTH_INFO },
@@ -235,7 +200,7 @@ describe('get_change_report MCP tool', () => {
       return resolve({ data: [], error: null });
     });
 
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
     const result = await handler(
       { period_days: 14 },
       { authInfo: MOCK_AUTH_INFO },
@@ -266,7 +231,7 @@ describe('get_change_report MCP tool', () => {
   // -------------------------------------------------------------------------
 
   it('applies domain filter to all three queries', async () => {
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
     await handler(
       { period_days: 7, domain: 'Cyber Security' },
       { authInfo: MOCK_AUTH_INFO },
@@ -286,7 +251,7 @@ describe('get_change_report MCP tool', () => {
   // -------------------------------------------------------------------------
 
   it('applies keyword ILIKE filter to all three queries', async () => {
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
     await handler(
       { period_days: 7, keywords: ['cyber', 'policy'] },
       { authInfo: MOCK_AUTH_INFO },
@@ -308,7 +273,7 @@ describe('get_change_report MCP tool', () => {
   // -------------------------------------------------------------------------
 
   it('includes domain and keywords in structured content', async () => {
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
     const result = await handler(
       { period_days: 30, domain: 'Policy', keywords: ['GDPR'] },
       { authInfo: MOCK_AUTH_INFO },
@@ -326,7 +291,7 @@ describe('get_change_report MCP tool', () => {
   // -------------------------------------------------------------------------
 
   it('returns isError when any of the three queries fails', async () => {
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
 
     // Override `then` on the primary chain to simulate a DB failure.
     mocks.chain.then = vi.fn((resolve: (v: unknown) => void) =>
@@ -349,7 +314,7 @@ describe('get_change_report MCP tool', () => {
   // -------------------------------------------------------------------------
 
   it('strips PostgREST metacharacters (comma, parens, backslash) from keywords before interpolation', async () => {
-    const handler = tools.get('get_change_report')!.handler;
+    const handler = mockServer.getTool('get_change_report')!.handler;
     await handler(
       {
         period_days: 7,
@@ -382,7 +347,7 @@ describe('get_change_report MCP tool', () => {
   it('rejects period_days > 90 at the Zod schema layer', () => {
     // Walk the registration to grab the inputSchema. Zod is the MCP SDK's
     // layer of defence; the handler never runs for out-of-range values.
-    const config = tools.get('get_change_report')!.config as {
+    const config = mockServer.getTool('get_change_report')!.config as {
       inputSchema: {
         period_days: {
           safeParse: (v: unknown) => {
@@ -398,7 +363,7 @@ describe('get_change_report MCP tool', () => {
   });
 
   it('rejects period_days < 1 at the Zod schema layer', () => {
-    const config = tools.get('get_change_report')!.config as {
+    const config = mockServer.getTool('get_change_report')!.config as {
       inputSchema: {
         period_days: {
           safeParse: (v: unknown) => { success: boolean };
@@ -410,7 +375,7 @@ describe('get_change_report MCP tool', () => {
   });
 
   it('accepts period_days at the boundaries (1 and 90)', () => {
-    const config = tools.get('get_change_report')!.config as {
+    const config = mockServer.getTool('get_change_report')!.config as {
       inputSchema: {
         period_days: {
           safeParse: (v: unknown) => { success: boolean };

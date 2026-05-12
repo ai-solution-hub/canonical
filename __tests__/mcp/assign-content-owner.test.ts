@@ -56,6 +56,10 @@ vi.mock('@/lib/ai/summarise', () => ({
 // ---------------------------------------------------------------------------
 
 import { registerContentTools } from '@/lib/mcp/tools/content';
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,39 +70,13 @@ const OWNER_ID = '00000000-0000-4000-8000-000000000099';
 const ITEM_ID_1 = '00000000-0000-4000-8000-000000000010';
 const ITEM_ID_2 = '00000000-0000-4000-8000-000000000011';
 
-interface ToolRegistration {
-  name: string;
-  config: Record<string, unknown>;
-  handler: (
-    args: Record<string, unknown>,
-    extra: Record<string, unknown>,
-  ) => Promise<{
-    content: Array<{ type: string; text: string }>;
-    isError?: boolean;
-    structuredContent?: Record<string, unknown>;
-  }>;
-}
+// Mutable container so the helper module-singleton pattern can stay —
+// individual tests still call createMockMcpServer() in beforeEach which
+// resets capture state. Re-assigned in beforeEach.
+let mockServer: ReturnType<typeof createMockMcpServer>;
 
-// Capture tool registrations
-const registeredTools: ToolRegistration[] = [];
-
-function createMockServer() {
-  registeredTools.length = 0;
-  return {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        handler: ToolRegistration['handler'],
-      ) => {
-        registeredTools.push({ name, config, handler });
-      },
-    ),
-  };
-}
-
-function getAssignOwnerTool(): ToolRegistration | undefined {
-  return registeredTools.find((t) => t.name === 'assign_content_owner');
+function getAssignOwnerTool(): MockToolRegistration | undefined {
+  return mockServer.getTool('assign_content_owner');
 }
 
 function createMockExtra(
@@ -128,8 +106,8 @@ describe('assign_content_owner MCP tool', () => {
     mockGetMcpUserId.mockReturnValue(ADMIN_USER_ID);
     mockCheckMcpRole.mockResolvedValue('admin');
 
-    const server = createMockServer();
-    await registerContentTools(server as never);
+    mockServer = createMockMcpServer();
+    await registerContentTools(mockServer.server);
   });
 
   it('registers the assign_content_owner tool', () => {

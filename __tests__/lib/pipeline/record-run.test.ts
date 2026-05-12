@@ -26,11 +26,19 @@ import * as Sentry from '@sentry/nextjs';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Adapter to the canonical `createMockSupabaseTable`. The lib under test
+ * does `await supabase.from('pipeline_runs').insert(row)`, which the
+ * canonical helper supports — `chain.insert(...)` returns the chain
+ * whose `then` resolves to the `initialResolution`. Exposes `insertSpy`
+ * so callers can introspect the insert payload via `mock.calls[0][0]`.
+ */
 function createMockSupabase(
   insertResult:
     | { data: null; error: null }
@@ -42,11 +50,10 @@ function createMockSupabase(
   client: SupabaseClient<Database>;
   insertSpy: ReturnType<typeof vi.fn>;
 } {
-  const insertSpy = vi.fn(() => Promise.resolve(insertResult));
-  const fromSpy = vi.fn(() => ({ insert: insertSpy }));
+  const supabase = createMockSupabaseTable(insertResult);
   return {
-    client: { from: fromSpy } as unknown as SupabaseClient<Database>,
-    insertSpy,
+    client: supabase as unknown as SupabaseClient<Database>,
+    insertSpy: supabase._chain.insert,
   };
 }
 

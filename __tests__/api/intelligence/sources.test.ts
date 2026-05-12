@@ -279,7 +279,7 @@ describe('Intelligence Feed Sources API', () => {
   // ─── POST web source 360-min default (P0-WEB / WP3C) ───
 
   describe('POST web source polling interval default (WP3C)', () => {
-    it('applies 360-min default for web source when no polling_interval_minutes provided (T15)', async () => {
+    it('defaults web sources to a 360-minute polling interval when none is supplied (T15)', async () => {
       configureRole(mockSupabase, 'admin');
       // Workspace verification
       mockSupabase._chain.single.mockResolvedValueOnce({

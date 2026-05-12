@@ -9,42 +9,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { z } from 'zod';
 import { registerPrompts } from '@/lib/mcp/resources';
-
-type PromptHandler = (args: Record<string, unknown>) => Promise<{
-  messages: Array<{
-    role: string;
-    content: { type: string; text: string };
-  }>;
-}>;
-
-interface PromptRegistration {
-  config: Record<string, unknown>;
-  handler: PromptHandler;
-}
-
-function createMockMcpServer() {
-  const prompts: Record<string, PromptRegistration> = {};
-  return {
-    prompts,
-    registerPrompt(
-      name: string,
-      config: Record<string, unknown>,
-      handler: PromptHandler,
-    ) {
-      prompts[name] = { config, handler };
-    },
-    getPrompt(name: string): PromptRegistration | undefined {
-      return prompts[name];
-    },
-  };
-}
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 describe('MCP bid_pipeline_review prompt', () => {
   let server: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(() => {
     server = createMockMcpServer();
-    registerPrompts(server as never);
+    registerPrompts(server.server as never);
   });
 
   it('registers a bid_pipeline_review prompt', () => {

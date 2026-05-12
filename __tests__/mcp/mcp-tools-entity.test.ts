@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — vi.mock factories are hoisted above const declarations
@@ -76,40 +77,6 @@ vi.mock('@/lib/reorient', () => ({
 // Mock McpServer that captures registered tool handlers
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
-interface RegisteredTool {
-  name: string;
-  config: Record<string, unknown>;
-  handler: ToolHandler;
-}
-
-function createMockMcpServer() {
-  const tools: RegisteredTool[] = [];
-
-  return {
-    tools: tools as unknown as Record<string, RegisteredTool>,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      (tools as unknown as Record<string, RegisteredTool>)[name] = {
-        name,
-        config,
-        handler,
-      };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return (tools as unknown as Record<string, RegisteredTool>)[name]
-        ?.handler;
-    },
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
@@ -143,8 +110,8 @@ describe('MCP tools #14-16', () => {
     // citation/effectiveness bid tools.
     const { registerEntityTools } = await import('@/lib/mcp/tools/entities');
     const { registerBidTools } = await import('@/lib/mcp/tools/bids');
-    await registerEntityTools(mockServer as never);
-    await registerBidTools(mockServer as never);
+    await registerEntityTools(mockServer.server as never);
+    await registerBidTools(mockServer.server as never);
   });
 
   // ─────────────────────────────────────────

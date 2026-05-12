@@ -346,7 +346,7 @@ describe('POST /api/items/[id]/archive', () => {
   // =========================================================================
 
   describe('successful archive', () => {
-    it('sets archived_at, archived_by, and archive_reason on the item', async () => {
+    it('records who archived the item, when, and why', async () => {
       configureRole(mockSupabase, 'editor');
 
       const archivedItem = {
@@ -380,7 +380,7 @@ describe('POST /api/items/[id]/archive', () => {
       expect(body.archive_reason).toBe('Discarded during upload review');
     });
 
-    it('calls supabase update with correct fields', async () => {
+    it('writes archived_by + archive_reason on the archived row', async () => {
       configureRole(mockSupabase, 'editor');
 
       mockSupabase._chain.single.mockResolvedValueOnce({
@@ -399,22 +399,28 @@ describe('POST /api/items/[id]/archive', () => {
         body: { reason: 'Test reason' },
       });
 
-      await POST(request, {
+      const response = await POST(request, {
         params: createTestParams({ id: VALID_UUID }),
       });
 
-      // Verify the chain was called: from('content_items').update(...).eq('id', ...).select().single()
-      expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
-      expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          archived_by: 'test-user-id',
-          archive_reason: 'Test reason',
-        }),
-      );
-      expect(mockSupabase._chain.eq).toHaveBeenCalledWith('id', VALID_UUID);
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body).toMatchObject({
+        id: VALID_UUID,
+        archived_by: 'test-user-id',
+        archive_reason: 'Test reason',
+      });
+
+      // Content of the write is observable through the recorded payload —
+      // the route MUST stamp the actor + reason onto the archived row.
+      const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+      expect(updateArg).toMatchObject({
+        archived_by: 'test-user-id',
+        archive_reason: 'Test reason',
+      });
     });
 
-    it('trims the reason string', async () => {
+    it('trims surrounding whitespace from the archive reason', async () => {
       configureRole(mockSupabase, 'editor');
 
       mockSupabase._chain.single.mockResolvedValueOnce({
@@ -433,15 +439,17 @@ describe('POST /api/items/[id]/archive', () => {
         body: { reason: '  Trimmed reason  ' },
       });
 
-      await POST(request, {
+      const response = await POST(request, {
         params: createTestParams({ id: VALID_UUID }),
       });
 
-      expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          archive_reason: 'Trimmed reason',
-        }),
-      );
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.archive_reason).toBe('Trimmed reason');
+
+      // The recorded payload reflects the trimmed reason (content-of-write).
+      const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+      expect(updateArg.archive_reason).toBe('Trimmed reason');
     });
   });
 

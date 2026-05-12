@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '../../helpers/mock-supabase';
+import { createMockCronRequest } from '../../helpers/factories/cron-request';
 
 // ---------------------------------------------------------------------------
 // Mock setup
@@ -77,13 +78,6 @@ interface CoverageTargetRow {
   metric_name: string;
   target_value: number;
   taxonomy_domains: { name: string } | null;
-}
-
-function createCronRequest() {
-  return new Request('http://localhost:3000/api/cron/coverage-alerts', {
-    method: 'GET',
-    headers: { authorization: 'Bearer test-cron-secret' },
-  });
 }
 
 function resetMocks() {
@@ -229,7 +223,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -282,7 +278,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -330,7 +328,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -390,7 +390,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -423,7 +425,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -470,7 +474,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       existingTitles: [existingTitle],
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -502,7 +508,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -553,7 +561,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -591,7 +601,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -629,7 +641,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     // pipeline_runs insert should include target_breaches
@@ -671,7 +685,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -708,7 +724,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -745,7 +763,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -790,7 +810,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       },
     });
 
-    const res = await GET(createCronRequest() as never);
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/coverage-alerts' }) as never,
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();

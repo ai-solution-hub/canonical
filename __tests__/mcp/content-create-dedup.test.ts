@@ -3,7 +3,10 @@
  * (WP1 / spec §6 D1, D2).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  createMockMcpServer,
+  type MockToolHandler,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -88,30 +91,8 @@ vi.mock('@/lib/guide-section-mapping', () => ({
 import { registerContentTools } from '@/lib/mcp/tools/content';
 
 // ---------------------------------------------------------------------------
-// Harness
+// Harness — uses canonical createMockMcpServer helper
 // ---------------------------------------------------------------------------
-
-interface RegisteredTool {
-  name: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (args: any, extra: any) => Promise<any>;
-}
-
-function createTestServer(): {
-  server: McpServer;
-  tools: Map<string, RegisteredTool>;
-} {
-  const tools = new Map<string, RegisteredTool>();
-  const server = {
-    registerTool: vi.fn(
-      (name: string, _config: unknown, handler: RegisteredTool['handler']) => {
-        tools.set(name, { name, handler });
-        return { enabled: true };
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 const MOCK_AUTH_INFO = {
   token: 'test-token',
@@ -134,7 +115,7 @@ const LONG_CONTENT =
 // ---------------------------------------------------------------------------
 
 describe('MCP create_content_item — dedup soft-block', () => {
-  let createTool: RegisteredTool['handler'];
+  let createTool: MockToolHandler;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -147,9 +128,9 @@ describe('MCP create_content_item — dedup soft-block', () => {
     mocks.chain.update.mockReturnValue(mocks.chain);
     mocks.chain.eq.mockReturnValue(mocks.chain);
 
-    const { server, tools } = createTestServer();
-    await registerContentTools(server);
-    const tool = tools.get('create_content_item');
+    const mockServer = createMockMcpServer();
+    await registerContentTools(mockServer.server);
+    const tool = mockServer.getTool('create_content_item');
     if (!tool) throw new Error('create_content_item not registered');
     createTool = tool.handler;
 

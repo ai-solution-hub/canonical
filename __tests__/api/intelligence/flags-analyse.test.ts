@@ -14,7 +14,8 @@ import {
   configureRole,
   configureUnauthenticated,
 } from '../../helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '../../helpers/mock-next';
+import { createTestParams } from '../../helpers/mock-next';
+import { createMockApiRequest } from '../../helpers/factories/api-request';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -170,10 +171,10 @@ function configureHappyChain(role: 'admin' | 'editor' = 'editor') {
 }
 
 function buildRequest(body: unknown) {
-  return createTestRequest(
-    `/api/intelligence/workspaces/${WORKSPACE_UUID}/flags/analyse`,
-    { method: 'POST', body },
-  );
+  return createMockApiRequest({
+    path: `/api/intelligence/workspaces/${WORKSPACE_UUID}/flags/analyse`,
+    body: body as Record<string, unknown>,
+  });
 }
 
 // ---------------------------------------------------------------------------

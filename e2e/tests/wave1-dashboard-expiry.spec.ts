@@ -19,24 +19,19 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('compliance status section renders or is absent gracefully', async ({
+  test('compliance status section renders with the seeded data', async ({
     authenticatedPage: page,
   }) => {
-    // ComplianceStatusSection renders only when certification data exists.
-    // It has aria-label="Compliance status" in all states (loading, error, populated).
-    // If no data, it returns null (not rendered at all).
+    // ComplianceStatusSection renders when certification data exists (it
+    // returns null otherwise). The worker fixture seeds 4 entity_relationships
+    // ('holds') + entity_mentions for ISO 27001 / Cyber Essentials Plus /
+    // G-Cloud 14, so the populated branch must render. The previous
+    // conditional `if (await section.isVisible())` masked missing-fixture
+    // regressions per `feedback_e2e_conditional_false_pass`.
     const section = page.locator('section[aria-label="Compliance status"]');
 
-    // Wait a reasonable time for the API response
-    const isVisible = await section
-      .isVisible({ timeout: 10000 })
-      .catch(() => false);
-
-    if (isVisible) {
-      // When visible, it should show the heading
-      await expect(section.getByText('Compliance Status')).toBeVisible();
-    }
-    // If not visible, the API returned empty data — this is valid
+    await expect(section).toBeVisible({ timeout: 10000 });
+    await expect(section.getByText('Compliance Status')).toBeVisible();
   });
 
   test('compliance section shows certification cards when data exists', async ({
@@ -68,17 +63,19 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
 
     await expect(section).toBeVisible({ timeout: 10000 });
 
-    // Expiry badges have aria-label="Expiry status: {label}"
+    // Expiry badges have aria-label="Expiry status: {label}". Worker fixture
+    // seeds at least one self-held certification (ISO 27001 → Valid) plus one
+    // expiring (Cyber Essentials Plus → Expiring Soon), so at least one badge
+    // must render. Previous `if (badgeCount > 0)` conditional silently passed
+    // on empty DBs per `feedback_e2e_conditional_false_pass`.
     const expiryBadges = section.locator('span[aria-label^="Expiry status:"]');
-    const badgeCount = await expiryBadges.count();
+    await expect(expiryBadges.first()).toBeVisible({ timeout: 10000 });
 
-    if (badgeCount > 0) {
-      // Verify the badge label is one of the valid statuses
-      const ariaLabel = await expiryBadges.first().getAttribute('aria-label');
-      expect(ariaLabel).toMatch(
-        /Expiry status: (Valid|Expiring Soon|Expired|Unknown)/,
-      );
-    }
+    // Verify the badge label is one of the valid statuses
+    const ariaLabel = await expiryBadges.first().getAttribute('aria-label');
+    expect(ariaLabel).toMatch(
+      /Expiry status: (Valid|Expiring Soon|Expired|Unknown)/,
+    );
   });
 
   test('expiring certifications show Renew button', async ({
@@ -89,18 +86,19 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     await expect(section).toBeVisible({ timeout: 10000 });
 
     // The Renew button appears for items with expiring_soon or expired status.
-    // It is an <a> element with aria-label="Upload renewed {name} document"
+    // Worker fixture seeds Cyber Essentials Plus (expiring_soon) and G-Cloud
+    // 14 (expiring_soon framework), so at least one Renew link must render.
+    // Previous `if (renewCount > 0)` conditional silently passed on empty DBs
+    // per `feedback_e2e_conditional_false_pass`.
     const renewLinks = section.locator('a[aria-label*="Upload renewed"]');
-    const renewCount = await renewLinks.count();
+    await expect(renewLinks.first()).toBeVisible({ timeout: 10000 });
 
-    if (renewCount > 0) {
-      // Verify the Renew link points to an item detail page with renewal_entity param
-      const href = await renewLinks.first().getAttribute('href');
-      expect(href).toMatch(/\/item\/[a-f0-9-]+\?renewal_entity=/);
+    // Verify the Renew link points to an item detail page with renewal_entity param
+    const href = await renewLinks.first().getAttribute('href');
+    expect(href).toMatch(/\/item\/[a-f0-9-]+\?renewal_entity=/);
 
-      // The link should contain "Renew" text
-      await expect(renewLinks.first().getByText('Renew')).toBeVisible();
-    }
+    // The link should contain "Renew" text
+    await expect(renewLinks.first().getByText('Renew')).toBeVisible();
   });
 
   test('compliance section shows expiring count badge in heading', async ({

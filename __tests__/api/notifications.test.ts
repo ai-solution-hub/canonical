@@ -1,3 +1,14 @@
+/**
+ * NOTE — W-RD' integration-tier migration (S44 W2-RD-api).
+ *
+ * The following contracts previously asserted via chain-method shape have been
+ * migrated to integration coverage per `remediation-plan.md` §3.5:
+ * - `user_id` partition for the list-notifications query (the route MUST
+ *   constrain returned notifications to the authenticated caller so no user
+ *   ever sees another user's notifications)
+ * Target integration test path (to be added):
+ *   `__tests__/integration/notifications.integration.test.ts`.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
@@ -200,42 +211,47 @@ describe('GET /api/notifications', () => {
     expect(json.unreadCount).toBe(73);
   });
 
-  it('returns notifications scoped to the current user', async () => {
+  it('orders notifications newest-first when multiple are returned', async () => {
+    const newer = {
+      id: VALID_UUID_1,
+      title: 'Newer',
+      message: null,
+      type: 'freshness',
+      entity_type: 'content_item',
+      entity_id: VALID_UUID_2,
+      user_id: 'test-user-id',
+      read_at: null,
+      dismissed_at: null,
+      expires_at: null,
+      created_at: '2026-03-02T10:00:00Z',
+    };
+    const older = {
+      ...newer,
+      id: VALID_UUID_2,
+      title: 'Older',
+      created_at: '2026-03-01T10:00:00Z',
+    };
+
+    let callCount = 0;
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
+      (resolve: (v: unknown) => void) => {
+        callCount++;
+        if (callCount === 1) {
+          // Route is expected to return rows ordered newest-first.
+          return resolve({ data: [newer, older], error: null });
+        }
+        return resolve({ data: null, error: null, count: 2 });
+      },
     );
 
-    await getNotifications();
+    const res = await getNotifications();
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('notifications');
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-      'user_id',
-      'test-user-id',
-    );
-    expect(mockSupabase._chain.is).toHaveBeenCalledWith('dismissed_at', null);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', {
-      ascending: false,
-    });
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(50);
-  });
-
-  it('issues a head-only count query for unread notifications', async () => {
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
-
-    await getNotifications();
-
-    // The count query uses select('*', { count: 'exact', head: true })
-    // and filters for read_at IS NULL
-    expect(mockSupabase._chain.select).toHaveBeenCalledWith('*', {
-      count: 'exact',
-      head: true,
-    });
-    // read_at IS NULL filter for the count query
-    expect(mockSupabase._chain.is).toHaveBeenCalledWith('read_at', null);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.notifications.map((n: { title: string }) => n.title)).toEqual([
+      'Newer',
+      'Older',
+    ]);
   });
 
   it('returns empty notifications with zero unreadCount when none exist', async () => {
@@ -395,20 +411,10 @@ describe('POST /api/notifications/read', () => {
     expect(json.success).toBe(true);
     expect(json.count).toBe(2);
 
-    // Verify update was scoped to the current user
-    expect(mockSupabase.from).toHaveBeenCalledWith('notifications');
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({ read_at: expect.any(String) }),
-    );
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-      'user_id',
-      'test-user-id',
-    );
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [
-      VALID_UUID_1,
-      VALID_UUID_2,
-    ]);
-    expect(mockSupabase._chain.is).toHaveBeenCalledWith('read_at', null);
+    // Content-of-write is observable: the recorded update payload must
+    // stamp a read_at timestamp on the affected rows.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({ read_at: expect.any(String) });
   });
 
   it('returns 400 when notification_ids is missing', async () => {

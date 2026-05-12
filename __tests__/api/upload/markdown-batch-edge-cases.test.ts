@@ -40,7 +40,10 @@ import {
   createMockSupabaseClient,
   configureRole,
 } from '@/__tests__/helpers/mock-supabase';
-import { createTestRequest } from '@/__tests__/helpers/mock-next';
+import {
+  createMockFile as createMockFileFactory,
+  createMockUploadRequest,
+} from '@/__tests__/helpers/factories/file-upload';
 
 const mockSupabase = createMockSupabaseClient();
 
@@ -77,51 +80,41 @@ import { POST } from '@/app/api/ingest/markdown/route';
 
 const CALLER_USER_ID = 'a0000000-0000-4000-8000-000000000aaa';
 
+/**
+ * Adapter to match the legacy `{ name, content, bytes, type }` arg shape.
+ * Delegates to the canonical factory; `bytes` precedence over `content`
+ * matches the original semantic.
+ */
 function createMockFile(args: {
   name: string;
   content?: string;
   bytes?: Uint8Array;
   type?: string;
 }): File {
-  const { name, type = 'text/markdown' } = args;
-  const bytes = args.bytes ?? new TextEncoder().encode(args.content ?? '');
-  const blob = new Blob([bytes as unknown as BlobPart], { type });
-  return Object.create(File.prototype, {
-    name: { value: name, writable: false },
-    type: { value: type, writable: false },
-    size: { value: bytes.length, writable: false },
-    arrayBuffer: { value: () => blob.arrayBuffer(), writable: false },
-  }) as File;
+  return createMockFileFactory({
+    name: args.name,
+    content: args.bytes ?? args.content,
+    type: args.type ?? 'text/markdown',
+  });
 }
 
+/**
+ * Adapter wrapping the canonical upload-request factory. The original
+ * inline helper accepted `options: object` and JSON-serialised it; the
+ * canonical factory expects an already-serialised `optionsJson` string,
+ * so the adapter handles the serialise step.
+ */
 function buildBatchRequest(args: {
   phase: 'analyse' | 'import';
   files: File[];
   options?: object;
 }): import('next/server').NextRequest {
-  const req = createTestRequest('/api/ingest/markdown', {
-    method: 'POST',
-    body: {},
+  return createMockUploadRequest({
+    path: '/api/ingest/markdown',
+    files: args.files,
+    phase: args.phase,
+    optionsJson: args.options ? JSON.stringify(args.options) : undefined,
   });
-
-  const formData = new FormData();
-  formData.get = vi.fn((key: string) => {
-    if (key === 'phase') return args.phase;
-    if (key === 'options') {
-      return args.options ? JSON.stringify(args.options) : null;
-    }
-    return null;
-  }) as unknown as typeof formData.get;
-  formData.getAll = vi.fn((key: string) => {
-    if (key === 'files[]') return args.files;
-    return [];
-  }) as unknown as typeof formData.getAll;
-
-  (req as unknown as { formData: () => Promise<FormData> }).formData = vi
-    .fn()
-    .mockResolvedValue(formData);
-
-  return req;
 }
 
 beforeEach(() => {

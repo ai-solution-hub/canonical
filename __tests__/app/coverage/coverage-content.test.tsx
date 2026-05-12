@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { mockTaxonomyContext } from '../helpers/mock-contexts';
+import { mockTaxonomyContext } from '../../helpers/mock-contexts';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mock values referenced in vi.mock() factories
@@ -19,7 +19,7 @@ const { mockFetch, mockTaxonomy, mockUserRole, mockCoverageTargets } =
     mockFetch: vi.fn(),
     mockTaxonomy: {
       value: null as ReturnType<
-        typeof import('../helpers/mock-contexts').mockTaxonomyContext
+        typeof import('../../helpers/mock-contexts').mockTaxonomyContext
       > | null,
     },
     mockUserRole: {

@@ -564,7 +564,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
     expect(json.last_edited_by).toBe('test-user-id');
   });
 
-  it('sets approved_by when review_status is approved', async () => {
+  it('records the approver when a response is approved', async () => {
     configureRole(mockSupabase, 'admin');
 
     // Response found

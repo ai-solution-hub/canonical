@@ -2,7 +2,7 @@
  * Unit tests for guide MCP tools (list_guides, get_guide, create_guide, update_guide).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -76,30 +76,8 @@ vi.mock('@/lib/validation/layer-schemas', async (importOriginal) => {
 import { registerGuideTools } from '@/lib/mcp/tools/guides';
 
 // ---------------------------------------------------------------------------
-// Test harness — capture registered tools
+// Test harness — uses canonical createMockMcpServer helper
 // ---------------------------------------------------------------------------
-
-interface RegisteredTool {
-  name: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (...args: any[]) => Promise<any>;
-}
-
-function createTestServer(): {
-  server: McpServer;
-  tools: Map<string, RegisteredTool>;
-} {
-  const tools = new Map<string, RegisteredTool>();
-  const server = {
-    registerTool: vi.fn(
-      (name: string, _config: unknown, handler: RegisteredTool['handler']) => {
-        tools.set(name, { name, handler });
-        return { enabled: true };
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 const MOCK_AUTH_INFO = {
   token: 'test-token',
@@ -116,14 +94,13 @@ const SECTION_UUID = 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f';
 // ---------------------------------------------------------------------------
 
 describe('Guide MCP tools', () => {
-  let tools: Map<string, RegisteredTool>;
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    const harness = createTestServer();
-    tools = harness.tools;
-    await registerGuideTools(harness.server);
+    mockServer = createMockMcpServer();
+    await registerGuideTools(mockServer.server);
 
     // Reset chain defaults
     mocks.chain.then.mockImplementation((resolve: (v: unknown) => void) =>
@@ -169,7 +146,7 @@ describe('Guide MCP tools', () => {
         }),
       );
 
-      const handler = tools.get('list_guides')!.handler;
+      const handler = mockServer.getHandler('list_guides')!;
       const result = await handler(
         { published_only: true, limit: 50 },
         { authInfo: MOCK_AUTH_INFO },
@@ -186,7 +163,7 @@ describe('Guide MCP tools', () => {
         resolve({ data: [], error: null }),
       );
 
-      const handler = tools.get('list_guides')!.handler;
+      const handler = mockServer.getHandler('list_guides')!;
       const result = await handler(
         { published_only: true, limit: 50 },
         { authInfo: MOCK_AUTH_INFO },
@@ -202,7 +179,7 @@ describe('Guide MCP tools', () => {
         resolve({ data: [], error: null }),
       );
 
-      const handler = tools.get('list_guides')!.handler;
+      const handler = mockServer.getHandler('list_guides')!;
       await handler(
         { guide_type: 'sector', published_only: true, limit: 50 },
         { authInfo: MOCK_AUTH_INFO },
@@ -256,7 +233,7 @@ describe('Guide MCP tools', () => {
         }),
       );
 
-      const handler = tools.get('get_guide')!.handler;
+      const handler = mockServer.getHandler('get_guide')!;
       const result = await handler(
         { id: GUIDE_UUID },
         { authInfo: MOCK_AUTH_INFO },
@@ -291,7 +268,7 @@ describe('Guide MCP tools', () => {
         resolve({ data: [], error: null }),
       );
 
-      const handler = tools.get('get_guide')!.handler;
+      const handler = mockServer.getHandler('get_guide')!;
       const result = await handler(
         { slug: 'cyber-security' },
         { authInfo: MOCK_AUTH_INFO },
@@ -307,7 +284,7 @@ describe('Guide MCP tools', () => {
         error: { message: 'Row not found', code: 'PGRST116' },
       });
 
-      const handler = tools.get('get_guide')!.handler;
+      const handler = mockServer.getHandler('get_guide')!;
       const result = await handler(
         { id: GUIDE_UUID },
         { authInfo: MOCK_AUTH_INFO },
@@ -318,7 +295,7 @@ describe('Guide MCP tools', () => {
     });
 
     it('returns error when both id and slug are provided', async () => {
-      const handler = tools.get('get_guide')!.handler;
+      const handler = mockServer.getHandler('get_guide')!;
       const result = await handler(
         { id: GUIDE_UUID, slug: 'cyber-security' },
         { authInfo: MOCK_AUTH_INFO },
@@ -329,7 +306,7 @@ describe('Guide MCP tools', () => {
     });
 
     it('returns error when neither id nor slug is provided', async () => {
-      const handler = tools.get('get_guide')!.handler;
+      const handler = mockServer.getHandler('get_guide')!;
       const result = await handler({}, { authInfo: MOCK_AUTH_INFO });
 
       expect(result.isError).toBe(true);
@@ -354,7 +331,7 @@ describe('Guide MCP tools', () => {
         error: null,
       });
 
-      const handler = tools.get('create_guide')!.handler;
+      const handler = mockServer.getHandler('create_guide')!;
       const result = await handler(
         {
           name: 'New Guide',
@@ -390,7 +367,7 @@ describe('Guide MCP tools', () => {
         resolve({ data: [], error: null }),
       );
 
-      const handler = tools.get('create_guide')!.handler;
+      const handler = mockServer.getHandler('create_guide')!;
       const result = await handler(
         {
           name: 'New Guide',
@@ -424,7 +401,7 @@ describe('Guide MCP tools', () => {
         error: { message: 'duplicate key value', code: '23505' },
       });
 
-      const handler = tools.get('create_guide')!.handler;
+      const handler = mockServer.getHandler('create_guide')!;
       const result = await handler(
         {
           name: 'Duplicate Guide',
@@ -444,7 +421,7 @@ describe('Guide MCP tools', () => {
     it('returns error when role is denied', async () => {
       mocks.checkMcpRole.mockResolvedValueOnce(null);
 
-      const handler = tools.get('create_guide')!.handler;
+      const handler = mockServer.getHandler('create_guide')!;
       const result = await handler(
         {
           name: 'Forbidden Guide',
@@ -478,7 +455,7 @@ describe('Guide MCP tools', () => {
         resolve({ data: null, error: { message: 'FK violation' } }),
       );
 
-      const handler = tools.get('create_guide')!.handler;
+      const handler = mockServer.getHandler('create_guide')!;
       const result = await handler(
         {
           name: 'New Guide',
@@ -543,7 +520,7 @@ describe('Guide MCP tools', () => {
         return mocks.chain;
       });
 
-      const handler = tools.get('update_guide')!.handler;
+      const handler = mockServer.getHandler('update_guide')!;
       const result = await handler(
         {
           id: GUIDE_UUID,
@@ -569,7 +546,7 @@ describe('Guide MCP tools', () => {
         return guideChain;
       });
 
-      const handler = tools.get('update_guide')!.handler;
+      const handler = mockServer.getHandler('update_guide')!;
       const result = await handler(
         {
           id: GUIDE_UUID,
@@ -597,7 +574,7 @@ describe('Guide MCP tools', () => {
         return guideChain;
       });
 
-      const handler = tools.get('update_guide')!.handler;
+      const handler = mockServer.getHandler('update_guide')!;
       const result = await handler(
         {
           id: GUIDE_UUID,
@@ -613,7 +590,7 @@ describe('Guide MCP tools', () => {
     it('returns error when role is denied', async () => {
       mocks.checkMcpRole.mockResolvedValueOnce(null);
 
-      const handler = tools.get('update_guide')!.handler;
+      const handler = mockServer.getHandler('update_guide')!;
       const result = await handler(
         {
           id: GUIDE_UUID,

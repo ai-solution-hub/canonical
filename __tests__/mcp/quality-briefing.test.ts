@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { formatQualityBriefing } from '@/lib/mcp/formatters/briefing';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -81,44 +82,6 @@ vi.mock('@/lib/mcp/app-bundles', () => ({
 // ---------------------------------------------------------------------------
 // Mock McpServer
 // ---------------------------------------------------------------------------
-
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-type ResourceHandler = (...args: unknown[]) => Promise<unknown>;
-
-function createMockMcpServer() {
-  const tools: Record<string, { handler: ToolHandler }> = {};
-  const resources: Record<string, { handler: ResourceHandler }> = {};
-
-  return {
-    tools,
-    resources,
-    registerTool(
-      name: string,
-      _config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { handler };
-    },
-    // Handle both static resource (4 args) and template resource (4 args with template)
-    registerResource(
-      name: string,
-      _uriOrTemplate: unknown,
-      _metadata: unknown,
-      handler: ResourceHandler,
-    ) {
-      resources[name] = { handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-    getResourceHandler(name: string): ResourceHandler | undefined {
-      return resources[name]?.handler;
-    },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Tests: formatQualityBriefing
@@ -520,7 +483,9 @@ describe('get_quality_briefing tool', () => {
     mockServer = createMockMcpServer();
     const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
     await registerQualityTools(
-      mockServer as unknown as Parameters<typeof registerQualityTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerQualityTools
+      >[0],
     );
   });
 
@@ -812,7 +777,7 @@ describe('kb://quality-briefing resource', () => {
     mockServer = createMockMcpServer();
     const { registerResources } = await import('@/lib/mcp/resources');
     await registerResources(
-      mockServer as unknown as Parameters<typeof registerResources>[0],
+      mockServer.server as unknown as Parameters<typeof registerResources>[0],
     );
   });
 

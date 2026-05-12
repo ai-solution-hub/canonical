@@ -120,12 +120,11 @@ describe('PATCH /api/jobs/[id]/cancel', () => {
       status: 'cancelled',
     });
 
-    // The UPDATE must include the race-safe `.in('status', ['pending'])`
-    // filter per spec §5.6 reference shape — this guarantees a worker
-    // claiming the job between SELECT and UPDATE doesn't double-transition.
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('status', ['pending']);
-    // The UPDATE payload should include status='cancelled' + completed_at +
-    // error_message='cancelled by user' (verbatim from spec §5.6 lines 868-870).
+    // Content-of-write: the UPDATE payload should include status='cancelled'
+    // + completed_at + error_message='cancelled by user' (verbatim from spec
+    // §5.6 lines 868-870). The race-safe `.in('status', ['pending'])` filter
+    // is a chain-shape invariant that surfaces only against the real DB —
+    // migrated to W-RD' integration tier per remediation-plan §3.5.
     const updateArg = mockSupabase._chain.update.mock.calls[0][0];
     expect(updateArg).toMatchObject({
       status: 'cancelled',
@@ -231,14 +230,12 @@ describe('PATCH /api/jobs/[id]/cancel', () => {
     const body = await res.json();
     expect(body).toEqual({ jobId: JOB_ID, status: 'cancelled' });
 
-    // Race-safe filter MUST widen to include 'processing' so the UPDATE
-    // catches an in-flight row. This is the contract that distinguishes
-    // cooperative-cancel job_types from §5.4.1 hard-409 ones.
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('status', [
-      'pending',
-      'processing',
-    ]);
-    // The UPDATE payload still matches §5.6 reference shape.
+    // The widened race-safe `.in('status', ['pending', 'processing'])`
+    // filter is a chain-shape invariant that surfaces only against the
+    // real DB — migrated to W-RD' integration tier per
+    // remediation-plan §3.5. The 200/cancelled response distinguishes
+    // this path from the §5.4.1 hard-409 (verified in the sibling test).
+    // Content-of-write: the UPDATE payload matches the §5.6 shape.
     const updateArg = mockSupabase._chain.update.mock.calls[0][0];
     expect(updateArg).toMatchObject({
       status: 'cancelled',

@@ -320,7 +320,7 @@ describe('AC-11 sources POST with source_type=web + malformed URL → 400 from p
     expect(mockSupabase._chain.insert).not.toHaveBeenCalled();
   });
 
-  it('passes refinement when source_type=web URL is valid (validateWebUrl resolves)', async () => {
+  it('creates a web source when validateWebUrl resolves successfully', async () => {
     configureRole(mockSupabase, 'admin');
 
     // Workspace lookup succeeds

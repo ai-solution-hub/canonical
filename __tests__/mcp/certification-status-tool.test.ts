@@ -18,6 +18,7 @@ import {
   type CertificationReportData,
   type CertificationReportEntry,
 } from '@/lib/mcp/formatters/entities';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 import { deriveExpiryStatus } from '@/lib/certification-status';
 import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
 
@@ -455,35 +456,6 @@ describe('generateCertificationReviewPrompt', () => {
 // OPS-24 — Holder coverage tests (tool handler via mock MCP server)
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
-interface RegisteredTool {
-  name: string;
-  config: Record<string, unknown>;
-  handler: ToolHandler;
-}
-
-function createMockMcpServer() {
-  const tools: Record<string, RegisteredTool> = {};
-
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { name, config, handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
-}
-
 function makeAuthExtra(authInfo?: Partial<AuthInfo>) {
   return {
     authInfo: {
@@ -510,7 +482,7 @@ describe('get_certification_status — holder coverage (OPS-24)', () => {
     mockServer = createMockMcpServer();
 
     const { registerEntityTools } = await import('@/lib/mcp/tools/entities');
-    await registerEntityTools(mockServer as never);
+    await registerEntityTools(mockServer.server as never);
   });
 
   /**

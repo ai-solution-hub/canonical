@@ -220,7 +220,7 @@ describe('GET /api/review/queue?publication_status=in_review (publication-review
   // -------------------------------------------------------------------------
   // (b) Domain filter merge — both publication_status AND domain applied
   // -------------------------------------------------------------------------
-  it('applies BOTH publication_status=in_review AND domain filter when domain present (b)', async () => {
+  it('combines publication_status=in_review with the domain filter when both are supplied (b)', async () => {
     configureRole(mockSupabase, 'editor');
 
     let thenCallCount = 0;

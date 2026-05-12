@@ -245,8 +245,14 @@ describe('PATCH /api/entities/[canonical_name]/metadata', () => {
     const res = await PATCH(req, { params });
     expect(res.status).toBe(200);
 
-    // Verify the update was called with merged metadata
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith({
+    const body = await res.json();
+    // The merged metadata is observable in the response — the prior version
+    // value must survive alongside the new issuing_body.
+    expect(body.metadata).toEqual({ version: '2022', issuing_body: 'BSI' });
+
+    // Content-of-write: the recorded update payload carries the merged shape.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toEqual({
       metadata: { version: '2022', issuing_body: 'BSI' },
     });
   });
@@ -300,10 +306,10 @@ describe('PATCH /api/entities/[canonical_name]/metadata', () => {
     const res = await PATCH(req, { params });
     expect(res.status).toBe(200);
 
-    // Verify the eq call used the decoded name
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-      'canonical_name',
-      'G Cloud 14',
-    );
+    // Decoded form is observable through the response payload — if the
+    // route had passed the raw encoded string through, the lookup would
+    // have returned 404 and the success body would not match.
+    const body = await res.json();
+    expect(body.canonical_name).toBe('G Cloud 14');
   });
 });

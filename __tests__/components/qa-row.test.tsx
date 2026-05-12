@@ -33,41 +33,31 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 import { QARow } from '@/components/qa/qa-row';
+import { createMockQAItem } from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Wrapper around the canonical Q&A factory. The qa-row tests use richer
+ * defaults — Technical/Information Security domain, dated capture — so
+ * apply them as overrides.
+ */
 function createQAItem(
   overrides: Partial<ContentListItem> = {},
 ): ContentListItem {
-  return {
+  return createMockQAItem({
     id: 'qa-1',
     title: 'How does your organisation handle data security?',
-    suggested_title: null,
-    summary: null,
     primary_domain: 'Technical',
     primary_subtopic: 'Information Security',
-    content_type: 'qa_pair',
-    platform: 'web',
-    author_name: null,
-    source_domain: null,
-    thumbnail_url: null,
     captured_date: '2026-01-15',
-    ai_keywords: [],
-    classification_confidence: null,
-    priority: null,
-    freshness: null,
-    user_tags: [],
-    governance_review_status: null,
-    metadata: null,
-    source_file: null,
     answer_standard: null,
     answer_advanced: null,
     content: null,
-    publication_status: null,
     ...overrides,
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------

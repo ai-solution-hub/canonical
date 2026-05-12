@@ -96,42 +96,28 @@ vi.mock('@/components/reader/transcript-reader', () => ({
 import { ContentBody } from '@/components/item-detail/content-body';
 import type { ContentBodyProps } from '@/components/item-detail/content-body';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
+import { createMockItem as createMockItemFactory } from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Wrapper around the canonical factory that applies ContentBody-specific
+ * defaults: a sample content body, primary_domain Corporate, platform web,
+ * author/source presence — values used by `renders article reader` and
+ * sibling tests' content assertions.
+ */
 function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
-  return {
-    id: 'item-1',
-    title: 'Test Item',
-    suggested_title: null,
+  return createMockItemFactory({
     content: 'Some content body',
-    summary: null,
-    ai_keywords: null,
     primary_domain: 'Corporate',
-    primary_subtopic: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
-    content_type: 'article',
     platform: 'web',
     author_name: 'Author',
     source_url: 'https://example.com',
-    file_path: null,
     source_domain: 'example.com',
-    thumbnail_url: null,
-    captured_date: null,
-    classification_confidence: null,
-    classification_reasoning: null,
-    classified_at: null,
-    summary_data: null,
-    priority: null,
-    user_tags: null,
-    freshness: null,
-    governance_review_status: null,
-    metadata: null,
     ...overrides,
-  };
+  });
 }
 
 function createDefaultProps(

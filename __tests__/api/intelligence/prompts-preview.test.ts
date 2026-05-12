@@ -308,7 +308,7 @@ describe('POST /api/intelligence/workspaces/:id/prompts/preview', () => {
     expect(body.warnings.some((w: string) => /boom/.test(w))).toBe(true);
   });
 
-  it('passes the candidate prompt_text through to scoreRelevance', async () => {
+  it('scores articles against the candidate prompt rather than the saved one', async () => {
     configureRole(mockSupabase, 'admin');
     const articles = mockArticles(1);
     configureSuccessfulPreviewChain(articles);

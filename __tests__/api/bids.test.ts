@@ -303,18 +303,18 @@ describe('POST /api/bids', () => {
     expect(body.id).toBe(VALID_UUID);
     expect(body.name).toBe('Test Bid');
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('workspaces');
-    expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'New Bid',
-        type: 'bid',
-        created_by: 'test-user-id',
-        domain_metadata: expect.objectContaining({
-          buyer: 'Test Buyer',
-          status: 'draft',
-        }),
+    // Content-of-write: the new bid row carries the caller-supplied name +
+    // buyer, defaults the status to draft, and stamps the actor.
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertArg).toMatchObject({
+      name: 'New Bid',
+      type: 'bid',
+      created_by: 'test-user-id',
+      domain_metadata: expect.objectContaining({
+        buyer: 'Test Buyer',
+        status: 'draft',
       }),
-    );
+    });
   });
 
   it('returns 409 on duplicate name (Postgres 23505)', async () => {
@@ -596,16 +596,18 @@ describe('PATCH /api/bids/[id]', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.name).toBe('Updated Bid');
+    expect(body.domain_metadata.buyer).toBe('Updated Buyer');
 
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        domain_metadata: expect.objectContaining({
-          buyer: 'Updated Buyer',
-          status: 'draft',
-        }),
-        updated_by: 'test-user-id',
+    // Content-of-write: the patch must merge the new buyer into
+    // domain_metadata, preserve the prior status, and stamp updated_by.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({
+      domain_metadata: expect.objectContaining({
+        buyer: 'Updated Buyer',
+        status: 'draft',
       }),
-    );
+      updated_by: 'test-user-id',
+    });
   });
 
   it('returns 400 for invalid state transition', async () => {
@@ -763,9 +765,5 @@ describe('DELETE /api/bids/[id]', () => {
     });
 
     expect(res.status).toBe(204);
-
-    expect(mockSupabase.from).toHaveBeenCalledWith('workspaces');
-    expect(mockSupabase._chain.delete).toHaveBeenCalled();
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('id', VALID_UUID);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // ---------------------------------------------------------------------------
 // Hoisted mocks
 // ---------------------------------------------------------------------------
@@ -67,32 +68,10 @@ vi.mock('@/lib/bid/bid-queries', () => ({ fetchBidSections: vi.fn() }));
 // Mock McpServer
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
 interface ToolResult {
   content: Array<{ type: string; text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
-}
-
-function createMockMcpServer() {
-  const tools: Record<string, { handler: ToolHandler }> = {};
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
 }
 
 describe('delete_content_item and find_all_duplicates', () => {
@@ -106,10 +85,14 @@ describe('delete_content_item and find_all_duplicates', () => {
       await import('@/lib/mcp/tools/governance');
     const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
     await registerGovernanceTools(
-      mockServer as unknown as Parameters<typeof registerGovernanceTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerGovernanceTools
+      >[0],
     );
     await registerQualityTools(
-      mockServer as unknown as Parameters<typeof registerQualityTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerQualityTools
+      >[0],
     );
   });
 

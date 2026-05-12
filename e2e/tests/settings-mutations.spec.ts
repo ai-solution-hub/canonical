@@ -70,17 +70,16 @@ test.describe('Settings -- Team management', () => {
     // The desktop table renders a <select> (via SelectTrigger) for non-current-user rows.
     // The current user row shows a static Badge instead. Find a SelectTrigger in the
     // team table (desktop view) — its presence confirms a non-self user row.
+    //
+    // Staging seeds three test users (admin/editor/viewer) via `bun run seed:e2e-users`
+    // and the authenticated user for this test is admin, so at least two
+    // non-self rows (editor + viewer) must render a role dropdown. The previous
+    // `if (dropdownCount === 0) { test.skip(...) }` conditional silently passed
+    // when the user_roles fixture drifted per `feedback_e2e_conditional_false_pass`
+    // (test-philosophy §2.1).
     const tableArea = main.locator('table');
     const roleDropdowns = tableArea.locator('button[role="combobox"]');
-    const dropdownCount = await roleDropdowns.count();
-
-    if (dropdownCount === 0) {
-      test.skip(
-        true,
-        'No non-current-user rows found — cannot test role dropdown',
-      );
-      return;
-    }
+    await expect(roleDropdowns.first()).toBeVisible({ timeout: 10000 });
 
     // Click the first role dropdown to open it
     await roleDropdowns.first().click();
@@ -109,18 +108,16 @@ test.describe('Settings -- Team management', () => {
       main.getByRole('heading', { name: /team members/i }),
     ).toBeVisible({ timeout: 15000 });
 
-    // Find the invite/add button
+    // Find the invite/add button. The team-section component renders the
+    // InviteUserDialog trigger ("Invite User" button) unconditionally for the
+    // admin user once the team list has loaded (see components/settings/team-section.tsx).
+    // The previous `if (!isVisible) { test.skip(...) }` conditional silently
+    // passed if the invite flow regressed or the admin role gating broke, per
+    // `feedback_e2e_conditional_false_pass` (test-philosophy §2.1).
     const inviteButton = main
       .getByRole('button', { name: /invite|add/i })
       .first();
-    const isVisible = await inviteButton.isVisible({ timeout: 5000 });
-    if (!isVisible) {
-      test.skip(
-        true,
-        'Invite button not found — invite flow may not be implemented yet',
-      );
-      return;
-    }
+    await expect(inviteButton).toBeVisible({ timeout: 10000 });
 
     await inviteButton.click();
 

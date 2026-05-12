@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // ---------------------------------------------------------------------------
 // Hoisted mocks
 // ---------------------------------------------------------------------------
@@ -50,32 +51,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 vi.mock('@/lib/ai/classify', () => ({ classifyContent: vi.fn() }));
 vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 
-// ---------------------------------------------------------------------------
-// Mock McpServer
-// ---------------------------------------------------------------------------
-
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
-function createMockMcpServer() {
-  const tools: Record<string, { handler: ToolHandler }> = {};
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
-}
-
 describe('audit_content brief_content logic', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = { authInfo: { token: 'test' } };
@@ -85,7 +60,9 @@ describe('audit_content brief_content logic', () => {
     mockServer = createMockMcpServer();
     const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
     await registerQualityTools(
-      mockServer as unknown as Parameters<typeof registerQualityTools>[0],
+      mockServer.server as unknown as Parameters<
+        typeof registerQualityTools
+      >[0],
     );
   });
 

@@ -6,7 +6,7 @@
  * stored metadata.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient } from '../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Shared mock client

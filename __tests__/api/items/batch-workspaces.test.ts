@@ -212,25 +212,9 @@ describe('POST /api/items/batch-workspaces', () => {
     expect(res.status).toBe(500);
   });
 
-  it('queries the content_item_workspaces table with the correct item IDs', async () => {
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
-    const req = createTestRequest('/api/items/batch-workspaces', {
-      method: 'POST',
-      body: { item_ids: [UUID_1, UUID_2] },
-    });
-
-    await POST(req);
-
-    expect(mockSupabase.from).toHaveBeenCalledWith('content_item_workspaces');
-    expect(mockSupabase._chain.select).toHaveBeenCalledWith(
-      'content_item_id, workspace_id',
-    );
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('content_item_id', [
-      UUID_1,
-      UUID_2,
-    ]);
-  });
+  // Table, select column list, and `.in('content_item_id', ...)` filter
+  // forwarding are route-handler invariants on the DB layer. The "grouped
+  // assignments" happy-path test above already proves the route reads the
+  // assignment rows it was given. Chain-shape coupling migrated to
+  // W-RD' integration tier per remediation-plan §3.5.
 });

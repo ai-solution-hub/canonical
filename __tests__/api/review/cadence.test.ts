@@ -396,7 +396,7 @@ describe('GET /api/review/cadence', () => {
     expect(json.by_domain.Operations.overdue).toBe(1); // 100 > 90 days
   });
 
-  it('uses Uncategorised for items without primary_domain', async () => {
+  it('groups items without a primary_domain under "Uncategorised"', async () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
@@ -507,7 +507,7 @@ describe('GET /api/review/cadence', () => {
 
   // -- Display title fallback --
 
-  it('uses suggested_title then title then Untitled for overdue items', async () => {
+  it('falls back from suggested_title to title to "Untitled" when displaying overdue items', async () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [

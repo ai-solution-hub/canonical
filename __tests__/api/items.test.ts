@@ -327,7 +327,7 @@ describe('POST /api/items', () => {
     expect(body.error).toBe('Failed to create content item');
   });
 
-  it('passes optional metadata fields through to Supabase insert', async () => {
+  it('persists optional metadata fields when provided', async () => {
     configureRole(mockSupabase, 'editor');
 
     const createdItem = {

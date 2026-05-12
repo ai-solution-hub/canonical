@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — supabase client, lazy-loaded AI + chunk-store modules
@@ -82,32 +83,10 @@ import { registerContentTools } from '@/lib/mcp/tools/content';
 // Mock McpServer
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  extra: Record<string, unknown>,
-) => Promise<unknown>;
-
 interface ToolResult {
   content: Array<{ type: string; text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
-}
-
-function createMockMcpServer() {
-  const tools: Record<string, { handler: ToolHandler }> = {};
-  return {
-    tools,
-    registerTool(
-      name: string,
-      config: Record<string, unknown>,
-      handler: ToolHandler,
-    ) {
-      tools[name] = { handler };
-    },
-    getHandler(name: string): ToolHandler | undefined {
-      return tools[name]?.handler;
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +99,7 @@ const extra = { authInfo: { token: 'test' } };
 async function setupServer() {
   mockServer = createMockMcpServer();
   await registerContentTools(
-    mockServer as unknown as Parameters<typeof registerContentTools>[0],
+    mockServer.server as unknown as Parameters<typeof registerContentTools>[0],
   );
 }
 

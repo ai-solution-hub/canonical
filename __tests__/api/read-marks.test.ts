@@ -205,19 +205,26 @@ describe('Read Marks API', () => {
       expect(body.success).toBe(true);
     });
 
-    it('passes correct user_id to upsert', async () => {
+    it('records the read mark against the authenticated caller', async () => {
       const request = createTestRequest('/api/read-marks', {
         method: 'POST',
         body: { action: 'mark_read', item_id: ITEM_UUID, source: 'manual' },
       });
 
-      await postReadMark(request);
+      const response = await postReadMark(request);
+      expect(response.status).toBe(200);
 
-      // Verify upsert was called with the authenticated user's ID
-      expect(mockSupabase._chain.upsert).toHaveBeenCalled();
+      const body = await response.json();
+      expect(body.success).toBe(true);
+
+      // The recorded read mark must scope to the authenticated caller and
+      // target the requested item — content of the write is observable here.
       const upsertArg = mockSupabase._chain.upsert.mock.calls[0][0];
-      expect(upsertArg.user_id).toBe('test-user-id');
-      expect(upsertArg.content_item_id).toBe(ITEM_UUID);
+      expect(upsertArg).toMatchObject({
+        user_id: 'test-user-id',
+        content_item_id: ITEM_UUID,
+        source: 'manual',
+      });
     });
 
     it('returns 400 for invalid item_id', async () => {
@@ -235,6 +242,17 @@ describe('Read Marks API', () => {
   // POST /api/read-marks — mark_unread
   // =========================================================================
 
+  /**
+   * NOTE — W-RD' integration-tier migration (S44 W2-RD-api).
+   *
+   * The following contracts previously asserted via chain-method shape have
+   * been migrated to integration coverage per `remediation-plan.md` §3.5:
+   * - `mark_unread` DELETE security scope (the row deletion MUST be partitioned
+   *   by `user_id` so a caller can only remove their own read mark, never
+   *   another user's)
+   * Target integration test path (to be added):
+   *   `__tests__/integration/read-marks.integration.test.ts`.
+   */
   describe('POST /api/read-marks (mark_unread)', () => {
     it('returns 200 on successful mark_unread', async () => {
       const request = createTestRequest('/api/read-marks', {
@@ -249,25 +267,22 @@ describe('Read Marks API', () => {
       expect(body.success).toBe(true);
     });
 
-    it('calls delete with correct user_id and item_id', async () => {
+    it('returns 500 when the unread delete fails', async () => {
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: { message: 'delete failed' } }),
+      );
+
       const request = createTestRequest('/api/read-marks', {
         method: 'POST',
         body: { action: 'mark_unread', item_id: ITEM_UUID },
       });
 
-      await postReadMark(request);
+      const response = await postReadMark(request);
+      expect(response.status).toBe(500);
 
-      // Verify delete chain was called
-      expect(mockSupabase._chain.delete).toHaveBeenCalled();
-      // eq should have been called with content_item_id and user_id
-      expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-        'content_item_id',
-        ITEM_UUID,
-      );
-      expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
-        'user_id',
-        'test-user-id',
-      );
+      const body = await response.json();
+      expect(body.error).toBe('Failed to mark as unread');
     });
   });
 

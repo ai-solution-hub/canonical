@@ -103,6 +103,21 @@ function resetMocks() {
 describe('POST /api/review/action — verification_history recording', () => {
   beforeEach(resetMocks);
 
+  /** Pick out the verification_history insert payload, if any. */
+  function recordedHistoryInsert(): Record<string, unknown> | null {
+    return (
+      mockSupabase._chain.insert.mock.calls
+        .map((c: unknown[]) => c[0] as Record<string, unknown>)
+        .find(
+          (payload) =>
+            payload &&
+            typeof payload === 'object' &&
+            'action_type' in payload &&
+            'performed_by' in payload,
+        ) ?? null
+    );
+  }
+
   it('records verify action in verification_history', async () => {
     configureRole(mockSupabase, 'editor');
 
@@ -125,11 +140,9 @@ describe('POST /api/review/action — verification_history recording', () => {
     const res = await postAction(req);
     expect(res.status).toBe(200);
 
-    // Verify that from('verification_history') was called
-    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
-
-    // Verify that insert was called with the correct data
-    expect(mockSupabase._chain.insert).toHaveBeenCalledWith({
+    // Content-of-write is the observable here: a verify action must
+    // produce a history row carrying the action, target item, and actor.
+    expect(recordedHistoryInsert()).toEqual({
       content_item_id: VALID_UUID,
       action_type: 'verify',
       note: null,
@@ -161,8 +174,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     const res = await postAction(req);
     expect(res.status).toBe(200);
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
-    expect(mockSupabase._chain.insert).toHaveBeenCalledWith({
+    expect(recordedHistoryInsert()).toEqual({
       content_item_id: VALID_UUID,
       action_type: 'verify',
       note: 'Looks good, verified content accuracy',
@@ -190,8 +202,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     const res = await postAction(req);
     expect(res.status).toBe(200);
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
-    expect(mockSupabase._chain.insert).toHaveBeenCalledWith({
+    expect(recordedHistoryInsert()).toEqual({
       content_item_id: VALID_UUID,
       action_type: 'unverify',
       note: null,
@@ -223,8 +234,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     const res = await postAction(req);
     expect(res.status).toBe(200);
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
-    expect(mockSupabase._chain.insert).toHaveBeenCalledWith({
+    expect(recordedHistoryInsert()).toEqual({
       content_item_id: VALID_UUID,
       action_type: 'unverify',
       note: 'Content is out of date',
@@ -256,8 +266,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     const res = await postAction(req);
     expect(res.status).toBe(200);
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
-    expect(mockSupabase._chain.insert).toHaveBeenCalledWith({
+    expect(recordedHistoryInsert()).toEqual({
       content_item_id: VALID_UUID,
       action_type: 'flag',
       note: 'Outdated statistics',
@@ -285,8 +294,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     const res = await postAction(req);
     expect(res.status).toBe(200);
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
-    expect(mockSupabase._chain.insert).toHaveBeenCalledWith({
+    expect(recordedHistoryInsert()).toEqual({
       content_item_id: VALID_UUID,
       action_type: 'flag',
       note: null,
@@ -350,9 +358,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     const res = await postAction(req);
     expect(res.status).toBe(200);
 
-    // 'verification_history' should not appear in from() calls
-    // (from('content_items') is called for the existence check, but not verification_history)
-    const fromCalls = mockSupabase.from.mock.calls.map((c: unknown[]) => c[0]);
-    expect(fromCalls).not.toContain('verification_history');
+    // No history row is written for the no-op skip action — content-of-write
+    // is observable here as the absence of any action_type/performed_by row.
+    expect(recordedHistoryInsert()).toBeNull();
   });
 });

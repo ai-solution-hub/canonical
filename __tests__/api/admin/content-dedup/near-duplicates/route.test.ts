@@ -204,7 +204,7 @@ describe('GET /api/admin/content-dedup/near-duplicates', () => {
       expect(response.status).toBe(400);
     });
 
-    it('uses default threshold 0.95 when omitted', async () => {
+    it('defaults the similarity threshold to 0.95 when none is supplied', async () => {
       configureRole(mockSupabase, 'admin');
       configureRpcRows([]);
       const request = createTestRequest(
@@ -268,7 +268,7 @@ describe('GET /api/admin/content-dedup/near-duplicates', () => {
       });
     });
 
-    it('forwards domain filter to RPC (AC3)', async () => {
+    it('restricts duplicate pairs to the requested domain (AC3)', async () => {
       configureRole(mockSupabase, 'admin');
       configureRpcRows([]);
       const request = createTestRequest(

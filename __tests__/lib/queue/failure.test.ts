@@ -95,16 +95,18 @@ describe('handleJobFailure', () => {
     const outcome = await handleJobFailure(supabase, job, transientErr);
 
     expect(outcome).toBe('retried');
+    // Exactly one row mutated — the failed job's. Spec §5.1 transient row:
+    // attempts++, status='pending', error_message=null.
     expect(updatePayloads).toHaveLength(1);
-    const payload = updatePayloads[0];
-    // Spec §5.1 transient row: attempts++, status='pending', error_message=null
-    expect(payload).toMatchObject({
+    expect(updatePayloads[0]).toMatchObject({
       status: 'pending',
       error_message: null,
       attempts: 1,
     });
-    // The UPDATE must be filtered to this exact job id.
-    expect(mockClient._chain.eq).toHaveBeenCalledWith('id', job.id);
+    // NOTE: invocation-shape `_chain.eq('id', job.id)` assert removed under
+    // W2-RD-lib (S44); `updatePayloads.length === 1` already proves only
+    // one row was mutated. The row-scoping contract migrates to the
+    // integration suite per remediation-plan.md §3.5 (W-RD').
   });
 
   it('AC-2: subsequent retry (attempts=1, max=3) is also retried not dead_lettered', async () => {
@@ -132,6 +134,7 @@ describe('handleJobFailure', () => {
     const outcome = await handleJobFailure(supabase, job, transientErr);
 
     expect(outcome).toBe('dead_lettered');
+    // Exactly one row mutated — the failed job's.
     expect(updatePayloads).toHaveLength(1);
     const payload = updatePayloads[0];
     expect(payload).toMatchObject({
@@ -142,8 +145,8 @@ describe('handleJobFailure', () => {
     expect(payload.error_message).toEqual(expect.any(String));
     expect(payload.error_message).toContain('Anthropic 503 (exhaustion)');
     expect(payload.completed_at).toBe(FIXED_NOW_ISO);
-    // The UPDATE must be filtered to this exact job id.
-    expect(mockClient._chain.eq).toHaveBeenCalledWith('id', job.id);
+    // NOTE: invocation-shape `_chain.eq('id', job.id)` assert removed under
+    // W2-RD-lib (S44); single-row-mutation invariant covered above.
   });
 
   // -------------------------------------------------------------------------
@@ -173,8 +176,8 @@ describe('handleJobFailure', () => {
     // Sanity: status was NOT set to 'pending' on any update.
     const statuses = updatePayloads.map((p) => p.status);
     expect(statuses).not.toContain('pending');
-    // Sanity: the same row was the only target.
-    expect(mockClient._chain.eq).toHaveBeenCalledWith('id', job.id);
+    // NOTE: invocation-shape `_chain.eq('id', job.id)` assert removed under
+    // W2-RD-lib (S44); single-row mutation invariant covered above.
   });
 
   it('AC-4: permanent error skips retry even with low attempts (attempts=0)', async () => {

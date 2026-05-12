@@ -189,7 +189,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
   // -------------------------------------------------------------------------
 
   describe('Path 1 — POST /api/items', () => {
-    it('sets answer_standard = content for q_a_pair creation', async () => {
+    it('mirrors content into answer_standard for q_a_pair items created via /api/items', async () => {
       configureRole(mockSupabase, 'editor');
 
       const itemContent = 'This is the answer to our question.';
@@ -260,7 +260,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
   // -------------------------------------------------------------------------
 
   describe('Path 2 — POST /api/items/batch', () => {
-    it('sets answer_standard to extracted answer (not composite) for q_a_pair batch', async () => {
+    it('stores only the extracted answer (not the composite Q+A) in answer_standard for batch q_a_pair items', async () => {
       configureRole(mockSupabase, 'editor');
 
       const batchContent = 'Q: What is our policy?\n\nWe follow best practice.';
@@ -403,7 +403,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
   // -------------------------------------------------------------------------
 
   describe('Path 3 — POST /api/bids/[id]/outcome/integrate', () => {
-    it('sets answer_standard = content for q_a_pair created from bid outcome', async () => {
+    it('mirrors content into answer_standard for q_a_pair items integrated from a won bid outcome', async () => {
       configureRole(mockSupabase, 'editor');
 
       const params = createTestParams({ id: BID_UUID });

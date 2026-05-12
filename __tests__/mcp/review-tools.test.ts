@@ -35,38 +35,15 @@ vi.mock('@/lib/notifications', () => ({
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
-import type {
-  McpServer,
-  RegisteredTool,
-} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerReviewTools } from '@/lib/mcp/tools/review';
+import {
+  createMockMcpServer,
+  type MockToolRegistration,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
-// Mock server + chainable Supabase builder
+// Chainable Supabase builder
 // ---------------------------------------------------------------------------
-
-interface CapturedTool {
-  name: string;
-  config: Record<string, unknown>;
-  callback: (...args: unknown[]) => unknown;
-}
-
-function createMockServer(): { server: McpServer; tools: CapturedTool[] } {
-  const tools: CapturedTool[] = [];
-  const server = {
-    registerTool: vi.fn(
-      (
-        name: string,
-        config: Record<string, unknown>,
-        cb: (...args: unknown[]) => unknown,
-      ) => {
-        tools.push({ name, config, callback: cb });
-        return { enabled: true } as unknown as RegisteredTool;
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 type QueryResolver = {
   data: unknown;
@@ -112,21 +89,15 @@ const MOCK_EXTRA = {
   sendElicitationRequest: vi.fn(),
 };
 
-function findTool(tools: CapturedTool[], name: string): CapturedTool {
-  const t = tools.find((x) => x.name === name);
-  if (!t) throw new Error(`${name} not registered`);
-  return t;
-}
-
 async function callTool(
-  tool: CapturedTool,
+  tool: MockToolRegistration,
   args: Record<string, unknown>,
 ): Promise<{
   content: Array<{ text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }> {
-  return (await tool.callback(args, MOCK_EXTRA)) as {
+  return (await tool.handler(args, MOCK_EXTRA)) as {
     content: Array<{ text: string }>;
     structuredContent?: Record<string, unknown>;
     isError?: boolean;
@@ -138,7 +109,7 @@ async function callTool(
 // ---------------------------------------------------------------------------
 
 describe('get_review_queue MCP tool', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -146,13 +117,12 @@ describe('get_review_queue MCP tool', () => {
     mocks.getMcpUserId.mockReturnValue('user-editor-001');
     mocks.getMcpUserRole.mockResolvedValue('editor');
 
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerReviewTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerReviewTools(mockServer.server);
   });
 
   it('registers with READ_ONLY annotations', () => {
-    const tool = findTool(tools, 'get_review_queue');
+    const tool = mockServer.getTool('get_review_queue')!;
     expect(tool.config.title).toBe('Get Review Queue');
     const ann = tool.config.annotations as Record<string, boolean>;
     expect(ann.readOnlyHint).toBe(true);
@@ -161,14 +131,14 @@ describe('get_review_queue MCP tool', () => {
 
   it('returns permission denied for viewer role', async () => {
     mocks.checkMcpRole.mockResolvedValueOnce(null);
-    const tool = findTool(tools, 'get_review_queue');
+    const tool = mockServer.getTool('get_review_queue')!;
     const res = await callTool(tool, { status: 'unverified' });
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain('Permission denied');
   });
 
   it('returns a friendly not-yet-available message for flagged status', async () => {
-    const tool = findTool(tools, 'get_review_queue');
+    const tool = mockServer.getTool('get_review_queue')!;
     const res = await callTool(tool, { status: 'flagged' });
     // Not an error — the tool chose to surface a helpful pointer rather
     // than error out. Makes the caller aware without breaking their flow.
@@ -188,7 +158,7 @@ describe('get_review_queue MCP tool', () => {
       return chain({ data: null, error: null, count: 0 });
     });
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
-    const tool = findTool(tools, 'get_review_queue');
+    const tool = mockServer.getTool('get_review_queue')!;
     const res = await callTool(tool, { status: 'unverified' });
     expect(res.isError).toBeUndefined();
     expect(res.content[0]?.text).toContain('# Review Queue');
@@ -225,7 +195,7 @@ describe('get_review_queue MCP tool', () => {
     });
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-    const tool = findTool(tools, 'get_review_queue');
+    const tool = mockServer.getTool('get_review_queue')!;
     const res = await callTool(tool, {
       status: 'unverified',
       domain: 'compliance',
@@ -250,24 +220,23 @@ describe('get_review_queue MCP tool', () => {
 // ---------------------------------------------------------------------------
 
 describe('get_assignments_for_user MCP tool', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerReviewTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerReviewTools(mockServer.server);
   });
 
   it('registers with READ_ONLY annotations', () => {
-    const tool = findTool(tools, 'get_assignments_for_user');
+    const tool = mockServer.getTool('get_assignments_for_user')!;
     const ann = tool.config.annotations as Record<string, boolean>;
     expect(ann.readOnlyHint).toBe(true);
   });
 
   it('denies viewer role', async () => {
     mocks.checkMcpRole.mockResolvedValueOnce(null);
-    const tool = findTool(tools, 'get_assignments_for_user');
+    const tool = mockServer.getTool('get_assignments_for_user')!;
     const res = await callTool(tool, { status: 'active' });
     expect(res.isError).toBe(true);
   });
@@ -281,7 +250,7 @@ describe('get_assignments_for_user MCP tool', () => {
     const fromMock = vi.fn(() => q);
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
 
-    const tool = findTool(tools, 'get_assignments_for_user');
+    const tool = mockServer.getTool('get_assignments_for_user')!;
     const res = await callTool(tool, {
       status: 'active',
       // Non-admin tries to query another reviewer — must NOT escape scope.
@@ -308,7 +277,7 @@ describe('get_assignments_for_user MCP tool', () => {
     const q = chain({ data: [], error: null });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
 
-    const tool = findTool(tools, 'get_assignments_for_user');
+    const tool = mockServer.getTool('get_assignments_for_user')!;
     const res = await callTool(tool, {
       status: 'active',
       reviewer_id: '44444444-4444-4444-8444-444444444444',
@@ -350,7 +319,7 @@ describe('get_assignments_for_user MCP tool', () => {
     const q = chain({ data: rows, error: null });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
 
-    const tool = findTool(tools, 'get_assignments_for_user');
+    const tool = mockServer.getTool('get_assignments_for_user')!;
     const res = await callTool(tool, { status: 'active' });
     expect(res.isError).toBeUndefined();
     expect(res.structuredContent?.scope).toBe('all');
@@ -365,7 +334,7 @@ describe('get_assignments_for_user MCP tool', () => {
     const q = chain({ data: [], error: null });
     mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
 
-    const tool = findTool(tools, 'get_assignments_for_user');
+    const tool = mockServer.getTool('get_assignments_for_user')!;
     await callTool(tool, { status: 'completed' });
     const eqCalls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
     expect(eqCalls).toContainEqual(['status', 'completed']);
@@ -377,17 +346,16 @@ describe('get_assignments_for_user MCP tool', () => {
 // ---------------------------------------------------------------------------
 
 describe('create_review_assignment MCP tool', () => {
-  let tools: CapturedTool[];
+  let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const mock = createMockServer();
-    tools = mock.tools;
-    await registerReviewTools(mock.server);
+    mockServer = createMockMcpServer();
+    await registerReviewTools(mockServer.server);
   });
 
   it('registers with NON_IDEMPOTENT_WRITE annotations', () => {
-    const tool = findTool(tools, 'create_review_assignment');
+    const tool = mockServer.getTool('create_review_assignment')!;
     const ann = tool.config.annotations as Record<string, boolean>;
     expect(ann.readOnlyHint).toBe(false);
     expect(ann.idempotentHint).toBe(false);
@@ -397,7 +365,7 @@ describe('create_review_assignment MCP tool', () => {
 
   it('rejects non-admin callers (editor gets permission denied)', async () => {
     mocks.checkMcpRole.mockResolvedValueOnce(null);
-    const tool = findTool(tools, 'create_review_assignment');
+    const tool = mockServer.getTool('create_review_assignment')!;
     const res = await callTool(tool, {
       reviewer_id: '11111111-1111-4111-8111-111111111111',
       filter_domains: [],
@@ -441,7 +409,7 @@ describe('create_review_assignment MCP tool', () => {
     mocks.createMcpClient.mockReturnValue({ from: fromMock });
     mocks.createNotification.mockResolvedValue({ error: null });
 
-    const tool = findTool(tools, 'create_review_assignment');
+    const tool = mockServer.getTool('create_review_assignment')!;
     const res = await callTool(tool, {
       reviewer_id: '11111111-1111-4111-8111-111111111111',
       filter_domains: ['compliance'],
@@ -490,7 +458,7 @@ describe('create_review_assignment MCP tool', () => {
       error: { message: 'SMTP down' },
     });
 
-    const tool = findTool(tools, 'create_review_assignment');
+    const tool = mockServer.getTool('create_review_assignment')!;
     const res = await callTool(tool, {
       reviewer_id: '11111111-1111-4111-8111-111111111111',
       filter_domains: [],
@@ -522,7 +490,7 @@ describe('create_review_assignment MCP tool', () => {
       }),
     });
 
-    const tool = findTool(tools, 'create_review_assignment');
+    const tool = mockServer.getTool('create_review_assignment')!;
     const res = await callTool(tool, {
       reviewer_id: '11111111-1111-4111-8111-111111111111',
       filter_domains: [],

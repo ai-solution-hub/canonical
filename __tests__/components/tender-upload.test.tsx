@@ -95,6 +95,7 @@ vi.mock('lucide-react', () => ({
 
 // Import AFTER mocks
 import { TenderUpload } from '@/components/bid/tender-upload';
+import { createMockFile as createMockFileFactory } from '@/__tests__/helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,9 +109,14 @@ function mockFetchResponse(data: unknown, ok = true, status = 200) {
   });
 }
 
+/**
+ * Adapter to match the legacy (name, size, type) signature. Delegates to
+ * the canonical factory in `plain` construction mode — TenderUpload is a
+ * React component rendered in jsdom, so the plain DOM File constructor
+ * works (no cross-realm `instanceof` to satisfy).
+ */
 function createMockFile(name: string, size: number, type: string): File {
-  const buffer = new ArrayBuffer(size);
-  return new File([buffer], name, { type });
+  return createMockFileFactory({ name, size, type, construction: 'plain' });
 }
 
 // ---------------------------------------------------------------------------

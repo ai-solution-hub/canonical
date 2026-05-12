@@ -12,7 +12,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  createMockMcpServer,
+  type MockToolHandler,
+} from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -55,30 +58,8 @@ import {
 import { SupabaseError } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
-// Harness
+// Harness — uses canonical createMockMcpServer helper
 // ---------------------------------------------------------------------------
-
-interface RegisteredTool {
-  name: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (args: any, extra: any) => Promise<any>;
-}
-
-function createTestServer(): {
-  server: McpServer;
-  tools: Map<string, RegisteredTool>;
-} {
-  const tools = new Map<string, RegisteredTool>();
-  const server = {
-    registerTool: vi.fn(
-      (name: string, _config: unknown, handler: RegisteredTool['handler']) => {
-        tools.set(name, { name, handler });
-        return { enabled: true };
-      },
-    ),
-  } as unknown as McpServer;
-  return { server, tools };
-}
 
 const MOCK_AUTH_INFO = {
   token: 'test-token',
@@ -113,7 +94,7 @@ const HAPPY_PATH_RESULT: SetSupersessionResult = {
 // ---------------------------------------------------------------------------
 
 describe('MCP supersede_content_item', () => {
-  let supersedeTool: RegisteredTool['handler'];
+  let supersedeTool: MockToolHandler;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -121,9 +102,9 @@ describe('MCP supersede_content_item', () => {
     mocks.getMcpUserId.mockReturnValue('11111111-1111-4111-8111-111111111111');
     mocks.setSupersession.mockResolvedValue(HAPPY_PATH_RESULT);
 
-    const { server, tools } = createTestServer();
-    await registerSupersessionTools(server);
-    const tool = tools.get('supersede_content_item');
+    const mockServer = createMockMcpServer();
+    await registerSupersessionTools(mockServer.server);
+    const tool = mockServer.getTool('supersede_content_item');
     if (!tool) throw new Error('supersede_content_item not registered');
     supersedeTool = tool.handler;
   });

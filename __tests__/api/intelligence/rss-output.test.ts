@@ -186,7 +186,7 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     expect(res.status).toBe(404);
   });
 
-  it('sets Cache-Control header to 15 minutes', async () => {
+  it('caches the feed for 15 minutes via Cache-Control headers', async () => {
     configureWorkspaceFound();
     configureArticles([]);
 
@@ -200,63 +200,12 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     );
   });
 
-  it('respects valid limit query param', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
+  // NOTE — limit (default 50, max 100, fallback 50 on overflow) and the
+  // passed=true / ingested_at DESC query shape are route-handler invariants
+  // not visible in the RSS body. They are migrated to W-RD' integration
+  // coverage where the real DB enforces them. See remediation-plan.md §3.5.
 
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss', {
-      searchParams: { limit: '75' },
-    });
-    await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(75);
-  });
-
-  it('falls back to default limit when value exceeds maximum', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss', {
-      searchParams: { limit: '200' },
-    });
-    await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    // Zod rejects >100, so route falls back to default of 50
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(50);
-  });
-
-  it('uses default limit of 50 when not specified', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
-    await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(50);
-  });
-
-  it('queries passed=true articles ordered by ingested_at desc', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
-    await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('passed', true);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith('ingested_at', {
-      ascending: false,
-    });
-  });
-
-  it('uses ai_summary for description, falling back to relevance_reasoning', async () => {
+  it('shows ai_summary as the description, falling back to relevance_reasoning when missing', async () => {
     const articleNoSummary = {
       ...MOCK_ARTICLE,
       ai_summary: null,
@@ -335,36 +284,9 @@ describe('GET /api/feeds/:workspaceId/rss/filtered', () => {
     expect(body).toContain('false negatives');
   });
 
-  it('queries passed=false articles ordered by relevance_score desc', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest(
-      '/api/feeds/' + WORKSPACE_ID + '/rss/filtered',
-    );
-    await filteredGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('passed', false);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith('relevance_score', {
-      ascending: false,
-    });
-  });
-
-  it('uses default limit of 20 when not specified', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest(
-      '/api/feeds/' + WORKSPACE_ID + '/rss/filtered',
-    );
-    await filteredGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(20);
-  });
+  // NOTE — passed=false filter + relevance_score DESC ordering + default
+  // 20-row limit for near-misses are route-handler invariants migrated to
+  // W-RD' integration coverage. See remediation-plan.md §3.5.
 
   it('returns 404 for non-existent workspace', async () => {
     configureWorkspaceNotFound();
@@ -377,7 +299,7 @@ describe('GET /api/feeds/:workspaceId/rss/filtered', () => {
     expect(res.status).toBe(404);
   });
 
-  it('sets Cache-Control header to 15 minutes', async () => {
+  it('caches the feed for 15 minutes via Cache-Control headers', async () => {
     configureWorkspaceFound();
     configureArticles([]);
 

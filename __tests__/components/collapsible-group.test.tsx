@@ -7,45 +7,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ContentListItem } from '@/types/content';
 
 import {
   CollapsibleGroup,
   groupItems,
 } from '@/components/shell/collapsible-group';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function createQAItem(
-  overrides: Partial<ContentListItem> = {},
-): ContentListItem {
-  return {
-    id: overrides.id ?? 'item-1',
-    title: overrides.title ?? 'Test Q&A',
-    suggested_title: null,
-    summary: null,
-    primary_domain: overrides.primary_domain ?? 'Corporate',
-    primary_subtopic: null,
-    content_type: 'qa_pair',
-    platform: 'web',
-    author_name: null,
-    source_domain: null,
-    thumbnail_url: null,
-    captured_date: '2026-01-01',
-    ai_keywords: [],
-    classification_confidence: null,
-    priority: null,
-    freshness: null,
-    user_tags: [],
-    governance_review_status: null,
-    metadata: overrides.metadata ?? null,
-    source_file: overrides.source_file ?? null,
-    publication_status: null,
-    ...overrides,
-  };
-}
+import { createMockQAItem as createQAItem } from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Tests
