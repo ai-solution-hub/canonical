@@ -51,7 +51,9 @@ venv/
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/handoff/
+!.claude/skills/implement-specs/
 !.claude/skills/review/
+!.claude/skills/spec-driven-implementation/
 !.claude/skills/start-session/
 !.claude/skills/update-docs/
 !.claude/skills/write-product-spec/
