@@ -1,8 +1,5 @@
 # CLAUDE.md
 
-**This project uses a 1M context window — optimise for completeness over
-compression in all persisted outputs.**
-
 This file provides guidance to Claude Code (claude.ai/code) when working with
 code in this repository.
 
@@ -28,14 +25,6 @@ applications.
 | `bun run test:integration`                                                                                                             | Integration suite — `__tests__/integration/**.integration.test.ts`, real Anthropic + Supabase        |
 | `bun lint`                                                                                                                             | ESLint                                                                                               |
 | `pip install -r requirements.txt`                                                                                                      | Install Python pipeline dependencies                                                                 |
-| `python3 scripts/ingest.py <url>`                                                                                                      | Ingest a single URL (extract, dedup, classify, embed, store)                                         |
-| `python3 scripts/ingest.py --file urls.txt`                                                                                            | Batch ingest from file                                                                               |
-| `python3 scripts/ingest_markdown.py <dir>`                                                                                             | Ingest .md files from directory (--dry-run, --limit, --skip-existing, --tag, --author)               |
-| `bun run scripts/kb-search.ts "query"`                                                                                                 | Semantic search CLI (--limit, --domain, --full, --json)                                              |
-| `bun run scripts/batch-generate-summaries.ts`                                                                                          | Batch AI summary generation                                                                          |
-| `bun run scripts/backfill-reader-html.ts`                                                                                              | Backfill reader HTML for articles/blogs (--limit, --dry-run)                                         |
-| `python3 scripts/import_bid_library.py <dir>`                                                                                          | Import Q&A pairs from client .docx files (--dry-run, --batch-tag)                                    |
-| `python3 scripts/extract_docx_tables.py <file>`                                                                                        | Extract tables from .docx files                                                                      |
 | `python3 -m pytest scripts/tests/`                                                                                                     | Run Python tests                                                                                     |
 | `bun run format`                                                                                                                       | Prettier format all files                                                                            |
 | `bun run format:check`                                                                                                                 | Check Prettier formatting                                                                            |
@@ -43,7 +32,6 @@ applications.
 | `bun run build:plugin`                                                                                                                 | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after                             |
 | `bun run test:e2e`                                                                                                                     | Run Playwright E2E tests                                                                             |
 | `bun run test:watch`                                                                                                                   | Vitest in watch mode                                                                                 |
-| `bun run sync:taxonomy`                                                                                                                | Full taxonomy sync (classification prompt + snapshot + plugin + rebuild)                             |
 | `bun run test:mcp-eval`                                                                                                                | Run MCP eval Layer 1 (protocol compliance, 42 checks)                                                |
 | `bun run test:mcp-eval:rq`                                                                                                             | Run MCP eval Layer 3 (response quality, 17 checks)                                                   |
 | `bun run test:mcp-eval:fc`                                                                                                             | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB)                                    |
@@ -83,7 +71,7 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 ## Environment
 
 Env vars in `.env.local` — the single source of truth for both TS and Python
-pipelines. (`.env` retired kh-prod-readiness-S6 27/04/2026.)
+pipelines. 
 
 `.env.local` points at the persistent staging Supabase branch
 (`turayklvaunphgbgscat`). Prod-targeted CLI work opts in via `--env=prod` or
@@ -100,7 +88,6 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 - **Function search_path:** All new PL/pgSQL functions **MUST** include
   `SET search_path = public, extensions`
 - **Prefer proper schema** — tables and columns over JSONB for key data
-- One Supabase project per client — simple isolation, not multi-tenant RLS
 - **Schema reference:** `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 - RLS: role-based via `get_user_role()`. Embeddings: `vector(1024)`
   (text-embedding-3-large). Canonical constants: `lib/validation/schemas.ts`.
@@ -120,8 +107,7 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 - **Platform:** Vercel (Next.js app) + Cloud Run (Python pipeline jobs)
 - **Production URL:** https://www.kh.client.example
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
-- **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`
-  (production-readiness branch). Auth via WIF — no JSON keys. Deploy:
+- **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`. Auth via WIF — no JSON keys. Deploy:
   `.github/workflows/cloud-run-deploy.yml`. Runbook:
   `docs/runbooks/cloud-run-phase-1-handover.md`.
 - **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
@@ -152,7 +138,6 @@ staging-mirror sync per `docs/runbooks/staging-refresh.md`.
   `docs/reference/ai-visibility-policy.md`
 - **Programmatic where possible** — deterministic functions for deterministic
   tasks
-- **Generic over specific** — reusable containers/workflows, not bid-specific
 - **UK English throughout** — DD/MM/YYYY, "colour", "organisation"
 - **WCAG 2.1 AA** — never colour alone for meaning
 - **Package manager: bun** (NOT npm/yarn)
@@ -170,7 +155,7 @@ Consult when adding or modifying UI elements.
 | Document               | Location                                                                   |
 | ---------------------- | -------------------------------------------------------------------------- |
 | State of the Product   | `docs/reference/state-of-the-product.md`                                   |
-| Roadmap                | `docs/reference/post-mvp-roadmap.md`                                       |
+| Roadmap                | `docs/reference/product-roadmap.json`                                       |
 | Product backlog        | `docs/reference/product-backlog.json`                                      |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                 |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
@@ -194,8 +179,7 @@ findings before merge, sequential merges only.
 **Parallel agent isolation:** Use `isolation: "worktree"` on Agent tool calls
 for parallel implementation work. This auto-creates a git worktree, runs the
 agent there, and returns changes on a branch. Merge sequentially on main — check
-`git status` for leaked files before each merge. Reserve manual worktree
-management only for merge-conflict-prone work requiring interactive resolution.
+`git status` for leaked files before each merge.
 
 ## Parallel Tracks
 
@@ -205,15 +189,11 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 - **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
 - **kh-knowledge-platform**
   (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`, branch
-  `kh-knowledge-platform`) — engineering-docs dogfood + productisation
-  validation. Primer: `docs/tracks/kh-knowledge-platform.md`.
+  `kh-knowledge-platform`). Primer: `docs/tracks/kh-knowledge-platform.md`.
 - **production-readiness**
   (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`,
   branch `production-readiness`) — CI/CD, staging DB, structured logging,
   handover infra. Primer: `docs/tracks/production-readiness.md`.
-
-Memory reference: `reference_parallel_tracks_overview.md` — naming conventions,
-hook isolation, cross-track hygiene rules.
 
 ## Gotchas
 
@@ -229,10 +209,6 @@ hook isolation, cross-track hygiene rules.
 - **CLI in Claude Code sandbox:** Run `supabase migration new`, `db push`, and
   `gen types` with `dangerouslyDisableSandbox: true`. `POSTGRES_PASSWORD` must
   be set as a shell env var.
-- **Empty migration files from worktree cherry-picks:** Migration files may
-  arrive as 0-byte. Supabase CLI marks them "applied" anyway. Always verify
-  content after cherry-pick; if empty was already recorded, apply SQL via
-  `execute_sql` and backfill the local file.
 - **Bun fetch hangs on HTTP 204 through sandbox proxy:** supabase-js
   `.update()`/`.insert()`/`.upsert()`/`.delete()` without `.select()` returns
   204, which Bun hangs on in the sandbox. Production is unaffected. **Fix:** run
@@ -242,9 +218,6 @@ hook isolation, cross-track hygiene rules.
   or update value rejected with `cannot insert a non-DEFAULT value into column`.
   PG auto-computes via `md5(normalised content)`. Omit the field from any
   payload writing `content_items`.
-- **`pg_dump` version must match server PG major version:** Supabase 'r' runs PG
-  17.6; Homebrew `pg_dump@16` refuses to dump. Install `postgresql@17` via
-  Homebrew and use `/opt/homebrew/opt/postgresql@17/bin/pg_dump` explicitly.
 - **CLI `.temp/project-ref` can silently go stale post-env-flip:**
   `supabase db push` may push to the WRONG project (looks like silent-fail on
   intended project). Always `cat supabase/.temp/project-ref` before any push;
@@ -257,7 +230,7 @@ hook isolation, cross-track hygiene rules.
 - **`mcp__supabase__apply_migration` auto-generates server-side timestamps**
   that diverge from local file naming. Re-pull
   `supabase_migrations.schema_migrations` post-apply, rename the local file to
-  match, and `UPDATE` the staging row if it diverged by seconds.
+  match, and `UPDATE` the staging row if it diverged.
 
 ### Testing
 
@@ -319,9 +292,6 @@ hook isolation, cross-track hygiene rules.
   Full spec: `docs/specs/silent-failure-prevention-spec.md`.
 - **Cron `pipeline_runs` inserts:** Use `recordPipelineRun()` from
   `@/lib/pipeline/record-run`, not raw insert.
-- **`BRANDING.organisationName` is camelCase, not snake_case:** TS code
-  referencing the client org name uses
-  `BRANDING.organisationName.toLowerCase()`.
 - **Data fetching:** TanStack Query exclusively. Keys in
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
   fetch in hooks.
@@ -335,9 +305,7 @@ hook isolation, cross-track hygiene rules.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy
   (`contexts/taxonomy-context.tsx`); `lib/taxonomy/taxonomy.ts` is now a 24-line
   re-export shim for content types and platforms only — Python pipeline reads
-  taxonomy from `scripts/tests/fixtures/taxonomy_snapshot.json`. After taxonomy
-  changes, run `bun run sync:taxonomy` to regenerate classification prompt and
-  plugin files. DB is single source of truth.
+  taxonomy from `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports";
@@ -374,8 +342,6 @@ hook isolation, cross-track hygiene rules.
 
 - **Next.js Image rejects query-string cache-busters on local paths.**
   `<Image src="/foo.webp?v=dev">` fails — Next.js handles its own caching.
-- **`bun run format` reformats the entire repo.** Use
-  `bunx prettier --write <path>` for targeted formatting.
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
 - **python-docx and Track Changes:** Use `open_document_safe()` from
   `scripts/docx_utils.py`, not `Document(path)` directly.
@@ -384,9 +350,6 @@ hook isolation, cross-track hygiene rules.
 - **cocoindex 1.0.3 requires `dangerouslyDisableSandbox: true`** for both PyPI
   install and Rust-engine LMDB startup in dev. `localfs.walk_dir` defaults
   `recursive=False` — explicit `recursive=True` needed for nested corpora.
-- **`pip install pullmd-cli` does NOT exist** — pullmd ships only as Docker
-  Compose / npm-from-source / pre-built Docker image
-  (`aeternalabshq/pullmd`). v1 deployment uses Docker.
 - **Worktree isolation rules:**
   - Two sessions on same working tree destroy each other's files — use
     `isolation: "worktree"` or `git worktree add` for parallel work.
@@ -423,13 +386,3 @@ hook isolation, cross-track hygiene rules.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
-- **Default target is staging — prod CLI scripts return empty unless opted-in.**
-  Post-WP-S5.2 `.env.local` points at staging. Scripts accept `--env=prod` or
-  require explicit `SUPABASE_URL=<prod> …` at invocation). Full table:
-  `docs/runbooks/local-development.md` §3.
-- **Dev server memory:** If OOM, run `bun run dev:clean`. Monitor with `btm`.
-- **Node 24 has V8 memory regressions:** `.node-version` pins to 22 LTS.
-- **`mempalace_search` FIXED in v3.3.5** (PR #1396 — retry-on-transient +
-  drift-segment auto-quarantine). Verified live in S230 WP8/S15 spike.
-  Supersedes prior "BROKEN upstream — every query returns 'Error finding id'"
-  note from S229.
