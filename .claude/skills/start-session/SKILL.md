@@ -3,7 +3,7 @@ name: start-session
 description:
   Run at the start of every new session. Cleans up git worktrees, reads critical
   documents, then plans the session based on the continuation prompt and/or user feedback. Triggers on
-  "start session", "begin session".
+  "start session".
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, MCP
 ---
 
@@ -73,9 +73,7 @@ covered in Step 4 below.
 
 ### 2b: Memory recall
 
-Mempalace MCP is the canonical memory system. Call `mempalace_status` to
-confirm wing+drawer counts before deeper work. For recall during the session,
-prefer `mempalace_kg_query` and `mempalace_diary_read`; any errors are transient and should resolve on retry.
+Mempalace MCP is the canonical memory system. Call `mempalace_diary_read` for latest `wing: claude` entry. For recall during the session, use `mempalace_search` and `mempalace_kg_query`; any errors are transient and should resolve on retry.
 
 ---
 
