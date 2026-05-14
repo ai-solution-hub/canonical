@@ -98,7 +98,7 @@ mkdir -p "$WORKTREE_BASE"
 
 # --- Check for cmux workspace name collision ---
 
-if cmux list-workspaces 2>/dev/null | grep -qF "$WORKER_NAME"; then
+if cmux list-workspaces 2>/dev/null | grep -qE "(^|[[:space:]])${WORKER_NAME}([[:space:]]|$)"; then
   echo "Error: cmux workspace '$WORKER_NAME' already exists" >&2
   rm -rf "$EVENTS_DIR"
   exit 1

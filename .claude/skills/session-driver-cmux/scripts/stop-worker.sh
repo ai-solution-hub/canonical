@@ -45,7 +45,7 @@ fi
 # --- Resolve and exit cmux workspace ---
 
 if command -v cmux >/dev/null 2>&1; then
-  WS_REF=$(cmux list-workspaces 2>/dev/null | grep -F "$WORKER_NAME" | grep -oE 'workspace:[0-9]+' | head -1 || true)
+  WS_REF=$(cmux list-workspaces 2>/dev/null | grep -E "(^|[[:space:]])${WORKER_NAME}([[:space:]]|$)" | grep -oE 'workspace:[0-9]+' | head -1 || true)
 
   if [ -n "$WS_REF" ]; then
     cmux send --workspace "$WS_REF" "/exit\n" 2>/dev/null || true
@@ -61,7 +61,7 @@ if command -v cmux >/dev/null 2>&1; then
 
     sleep 1
 
-    WS_CHECK=$(cmux list-workspaces 2>/dev/null | grep -F "$WORKER_NAME" | grep -oE 'workspace:[0-9]+' | head -1 || true)
+    WS_CHECK=$(cmux list-workspaces 2>/dev/null | grep -E "(^|[[:space:]])${WORKER_NAME}([[:space:]]|$)" | grep -oE 'workspace:[0-9]+' | head -1 || true)
     if [ -n "$WS_CHECK" ]; then
       cmux close-workspace --workspace "$WS_CHECK" 2>/dev/null || true
     fi
