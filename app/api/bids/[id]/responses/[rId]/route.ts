@@ -10,8 +10,12 @@ import { ResponseUpdateBodySchema } from '@/lib/validation/schemas';
 import { countWords } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
+import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
+
+type BidResponseUpdate =
+  Database['public']['Tables']['bid_responses']['Update'];
 
 export const maxDuration = 30;
 
@@ -199,7 +203,7 @@ export async function PATCH(
     }
 
     // Build update payload
-    const updates: Record<string, unknown> = {
+    const updates: BidResponseUpdate = {
       last_edited_by: user.id,
       updated_at: new Date().toISOString(),
     };
