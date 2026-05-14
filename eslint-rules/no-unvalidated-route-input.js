@@ -54,14 +54,10 @@ const VALIDATION_CALL_NAMES = new Set([
  * trap (e.g. `SLUG_RE`, `EMAIL_RE`, `WORKSPACE_KEY_RE` etc.) the rule would
  * otherwise force.
  */
-const REGEX_IDENTIFIER_PATTERN = /^([A-Z][A-Z0-9_]*_RE|[A-Z][A-Z0-9_]*_REGEX|[a-z][A-Za-z0-9]*Regex)$/;
+const REGEX_IDENTIFIER_PATTERN =
+  /^([A-Z][A-Z0-9_]*_RE|[A-Z][A-Z0-9_]*_REGEX|[a-z][A-Za-z0-9]*Regex)$/;
 
-const REQUEST_RECEIVER_NAMES = new Set([
-  'request',
-  'req',
-  '_request',
-  '_req',
-]);
+const REQUEST_RECEIVER_NAMES = new Set(['request', 'req', '_request', '_req']);
 
 const BODY_CONSUMER_METHODS = new Set([
   'json',
