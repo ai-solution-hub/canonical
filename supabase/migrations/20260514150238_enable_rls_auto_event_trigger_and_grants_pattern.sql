@@ -136,3 +136,17 @@ COMMENT ON FUNCTION grant_standard_public_table_access(regclass) IS
 COMMENT ON EVENT TRIGGER ensure_rls IS
   'Auto-enables row-level security on new public.* tables. Pairs with '
   'grant_standard_public_table_access for the standard onboarding flow.';
+
+-- -----------------------------------------------------------------------------
+-- SCHEMA-QUICK-REFERENCE.md sync (post-apply)
+-- -----------------------------------------------------------------------------
+-- After Liam ratifies + applies this migration, bump
+-- docs/reference/SCHEMA-QUICK-REFERENCE.md in the same commit:
+--   * Add `rls_auto_enable()` to §32 RPC Functions (event-trigger function)
+--   * Add `grant_standard_public_table_access(regclass)` to §32 RPC Functions
+--   * Add `ensure_rls` event trigger to the event-trigger section (or §32 if no
+--     dedicated section exists)
+--   * Bump the `<!-- Last verified -->` header timestamp + cite S238 WP5
+-- The S238 commit landing this draft skips the doc-freshness guard via the
+-- `[skip-doc-freshness-guard]` marker — this is the documented escape hatch
+-- per `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts:102`.
