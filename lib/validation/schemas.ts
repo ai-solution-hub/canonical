@@ -3,6 +3,7 @@ import pluralize from 'pluralize';
 import { getValidTypeValues } from '@/lib/workspace-types';
 import { logger } from '@/lib/logger/client';
 import { validateWebUrl } from '@/lib/intelligence/url-validation';
+import { CONTENT_TYPE_VALUES } from '@/lib/ontology/content-type-registry';
 
 // ──────────────────────────────────────────
 // Tag morphology — domain uncountable registration
@@ -38,23 +39,17 @@ for (const word of DOMAIN_UNCOUNTABLES) {
 // Shared enums / constants
 // ──────────────────────────────────────────
 
-export const VALID_CONTENT_TYPES = [
-  'article',
-  'blog',
-  'pdf',
-  'note',
-  'research',
-  'other',
-  'q_a_pair',
-  'case_study',
-  'policy',
-  'certification',
-  'compliance',
-  'methodology',
-  'capability',
-  'product_description',
-  'document',
-] as const;
+/**
+ * Closed enumeration of valid `content_items.content_type` values.
+ *
+ * Re-exported from the markdown ontology register
+ * (`docs/ontology/04-content-type.md` → `lib/ontology/content-type-registry.ts`).
+ * The parity test (`__tests__/lib/ontology/markdown-parity.test.ts`) asserts
+ * the markdown register and the live DB CHECK constraint remain in lockstep.
+ *
+ * Spec: `docs/specs/wp6-ontology-harness/TECH.md` §5.3.
+ */
+export const VALID_CONTENT_TYPES = CONTENT_TYPE_VALUES;
 
 export const VALID_PLATFORMS = [
   'web',
@@ -261,7 +256,7 @@ export const ReadMarkBodySchema = z.discriminatedUnion('action', [
 export const ItemCreateBodySchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(500),
   content: z.string().min(1, 'Content is required').max(500_000),
-  content_type: z.enum(VALID_CONTENT_TYPES),
+  content_type: z.enum(VALID_CONTENT_TYPES as readonly [string, ...string[]]),
 
   // Optional metadata
   primary_domain: z.string().max(200).optional(),
