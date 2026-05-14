@@ -608,10 +608,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             // Store the suggested layer in the dedicated column
             await supabase
               .from('content_items')
-              .update({ layer: suggestion.suggestedLayer } as Record<
-                string,
-                unknown
-              >)
+              .update({
+                layer: suggestion.suggestedLayer,
+              } as Database['public']['Tables']['content_items']['Update'])
               .eq('id', item.id);
           } catch (layerErr) {
             // Non-fatal — item is still usable without a layer

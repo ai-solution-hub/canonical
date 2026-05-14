@@ -4,8 +4,11 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { buildItemMetadataUpdateSchema } from '@/lib/validation/schemas';
 import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
-import type { Json } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
+
+type ContentItemUpdate =
+  Database['public']['Tables']['content_items']['Update'];
 
 export const maxDuration = 30;
 
@@ -40,7 +43,7 @@ export async function PATCH(
     // Build metadata to merge — strip undefined values, keep nulls for deletion
     // Promoted fields (layer) go to columns, not JSONB
     const newMetadata: Record<string, unknown> = {};
-    const columnUpdates: Record<string, unknown> = {};
+    const columnUpdates: ContentItemUpdate = {};
     for (const [key, value] of Object.entries(parsed.data)) {
       if (value !== undefined) {
         if (key === 'layer') {

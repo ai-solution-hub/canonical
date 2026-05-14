@@ -1423,7 +1423,7 @@ ${contentForClassification}`,
   const uniqueKeywords = [...new Set(normalisedKeywords)];
 
   // Update the content item with classification results
-  const updateData: Record<string, unknown> = {
+  const updateData: Database['public']['Tables']['content_items']['Update'] = {
     primary_domain: result.primary_domain,
     primary_subtopic: result.primary_subtopic,
     secondary_domain: result.secondary_domain ?? null,

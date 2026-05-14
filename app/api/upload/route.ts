@@ -6,7 +6,10 @@ import { parseBody } from '@/lib/validation';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import { updatePipelineProgress } from '@/lib/pipeline/update-progress';
-import type { Json } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
+
+type ContentItemUpdate =
+  Database['public']['Tables']['content_items']['Update'];
 import { extractPdfText as sharedExtractPdf } from '@/lib/extraction/pdf';
 import path from 'path';
 import crypto from 'crypto';
@@ -551,7 +554,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Update the content_item with extracted content, file_path, and metadata
-    const updateData: Record<string, unknown> = {
+    const updateData: ContentItemUpdate = {
       content: extractedText || '',
       file_path: storagePath,
       dedup_status: dedupStamp.dedup_status,
@@ -583,7 +586,7 @@ export async function POST(request: NextRequest) {
     if (dedupStamp.suspected_duplicate_of) {
       metadataUpdate.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
     }
-    updateData.metadata = metadataUpdate;
+    updateData.metadata = metadataUpdate as Json;
 
     // Set expiry_date and lifecycle_type if a high/medium confidence expiry date was found
     if (expiryDate) {

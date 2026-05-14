@@ -227,10 +227,11 @@ export async function generateSummary(
   });
 
   // Store in Supabase (also sync summary with the higher-quality executive)
-  const updatePayload: Record<string, unknown> = {
-    summary_data: toJson(summaryData),
-    summary: summaryData.executive,
-  };
+  const updatePayload: Database['public']['Tables']['content_items']['Update'] =
+    {
+      summary_data: toJson(summaryData),
+      summary: summaryData.executive,
+    };
   if (userId) {
     updatePayload.updated_by = userId;
   }

@@ -5,6 +5,9 @@ import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { IntelligenceWorkspaceUpdateSchema } from '@/lib/validation/schemas';
+import type { Database } from '@/supabase/types/database.types';
+
+type WorkspaceUpdate = Database['public']['Tables']['workspaces']['Update'];
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -94,7 +97,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // Build the database update payload. Direct columns are passed through;
     // relevance_threshold is merged into the existing domain_metadata JSONB.
-    const updatePayload: Record<string, unknown> = { ...directFields };
+    const updatePayload: WorkspaceUpdate = { ...directFields };
 
     if (relevance_threshold !== undefined) {
       // Fetch the current workspace to merge into existing domain_metadata

@@ -243,7 +243,7 @@ export async function PATCH(
       updates.metadata = {
         ...existingMeta,
         quality_data: updatedQuality,
-      };
+      } as unknown as BidResponseUpdate['metadata'];
 
       // Also write overall_score to the dedicated column (backward compat: metadata still has it)
       updates.overall_score = updatedQuality.overall_score ?? null;

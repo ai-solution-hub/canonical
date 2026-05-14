@@ -14,6 +14,10 @@ import {
 } from '@/lib/governance/review-input-statuses';
 import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/supabase/types/database.types';
+
+type ContentItemUpdate =
+  Database['public']['Tables']['content_items']['Update'];
 
 export const maxDuration = 30;
 
@@ -123,7 +127,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let updateData: Record<string, unknown>;
+    let updateData: ContentItemUpdate;
 
     switch (action) {
       case 'approve': {

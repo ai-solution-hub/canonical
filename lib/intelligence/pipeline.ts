@@ -757,7 +757,7 @@ async function updateSourceAfterPoll(
 ): Promise<void> {
   const isSuccess = status === 'success' || status === 'not_modified';
 
-  const updateData: Record<string, unknown> = {
+  const updateData: Database['public']['Tables']['feed_sources']['Update'] = {
     last_polled_at: new Date().toISOString(),
     last_polled_status: status as
       | 'success'

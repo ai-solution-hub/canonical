@@ -37,6 +37,11 @@ import type {
   GuideDetail,
   GuideSectionDetail,
 } from '@/lib/mcp/formatters/guides';
+import type { Database } from '@/supabase/types/database.types';
+
+type GuideUpdate = Database['public']['Tables']['guides']['Update'];
+type GuideSectionUpdate =
+  Database['public']['Tables']['guide_sections']['Update'];
 
 export async function registerGuideTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
@@ -695,7 +700,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
           const updateResult = await tryQuery(
             supabase
               .from('guides')
-              .update(updateData)
+              .update(updateData as GuideUpdate)
               .eq('id', args.id)
               .select('id'),
             'mcp.guides.update',
@@ -805,7 +810,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
 
           // Update existing sections
           for (const section of toUpdate) {
-            const sectionData: Record<string, unknown> = {};
+            const sectionData: GuideSectionUpdate = {};
             if (section.section_name !== undefined)
               sectionData.section_name = section.section_name;
             if (section.description !== undefined)
