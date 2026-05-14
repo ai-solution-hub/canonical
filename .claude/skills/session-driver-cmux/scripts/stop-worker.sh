@@ -38,14 +38,26 @@ if [ ! -f "$META_FILE" ]; then
 fi
 
 WORKTREE_PATH=""
+WS_REF=""
 if [ -f "$META_FILE" ]; then
   WORKTREE_PATH=$(jq -r '.cwd // empty' "$META_FILE")
+  WS_REF=$(jq -r '.cmux_workspace // empty' "$META_FILE")
 fi
 
 # --- Resolve and exit cmux workspace ---
+#
+# Workspace ref comes from the meta file recorded at launch — cmux titles
+# drift to track the currently-running command, so a grep-based lookup is
+# unreliable. If the meta is gone or empty, fall back to a JSON title
+# scan that excludes the current workspace.
 
 if command -v cmux >/dev/null 2>&1; then
-  WS_REF=$(cmux list-workspaces 2>/dev/null | grep -E "(^|[[:space:]])${WORKER_NAME}([[:space:]]|$)" | grep -oE 'workspace:[0-9]+' | head -1 || true)
+  if [ -z "$WS_REF" ]; then
+    WS_REF=$(cmux --json list-workspaces 2>/dev/null \
+      | jq -r --arg name "$WORKER_NAME" \
+        '[.workspaces[]? | select(.selected != true and .title == $name) | .ref] | first // ""' \
+      2>/dev/null || true)
+  fi
 
   if [ -n "$WS_REF" ]; then
     cmux send --workspace "$WS_REF" "/exit\n" 2>/dev/null || true
@@ -61,12 +73,14 @@ if command -v cmux >/dev/null 2>&1; then
 
     sleep 1
 
-    WS_CHECK=$(cmux list-workspaces 2>/dev/null | grep -E "(^|[[:space:]])${WORKER_NAME}([[:space:]]|$)" | grep -oE 'workspace:[0-9]+' | head -1 || true)
-    if [ -n "$WS_CHECK" ]; then
-      cmux close-workspace --workspace "$WS_CHECK" 2>/dev/null || true
+    # Confirm the workspace still exists before close (it may have exited cleanly)
+    if cmux --json list-workspaces 2>/dev/null \
+       | jq -e --arg ref "$WS_REF" '.workspaces[]? | select(.ref == $ref)' \
+         >/dev/null 2>&1; then
+      cmux close-workspace --workspace "$WS_REF" 2>/dev/null || true
     fi
   else
-    echo "Note: cmux workspace '$WORKER_NAME' not found (already closed?)." >&2
+    echo "Note: cmux workspace for worker '$WORKER_NAME' not found (already closed?)." >&2
   fi
 else
   echo "Warning: cmux CLI not available — skipping workspace cleanup." >&2

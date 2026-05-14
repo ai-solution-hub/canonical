@@ -97,8 +97,17 @@ mkdir -p "$EVENTS_DIR"
 mkdir -p "$WORKTREE_BASE"
 
 # --- Check for cmux workspace name collision ---
+#
+# cmux auto-updates workspace titles to the currently-running command line,
+# which would cause `grep WORKER_NAME` against the human-readable output to
+# false-positive (the launch command itself contains WORKER_NAME). Use the
+# structured JSON output, filter out the current workspace (it cannot be a
+# collision by definition), and require an exact title match.
 
-if cmux list-workspaces 2>/dev/null | grep -qE "(^|[[:space:]])${WORKER_NAME}([[:space:]]|$)"; then
+if cmux --json list-workspaces 2>/dev/null \
+   | jq -e --arg name "$WORKER_NAME" \
+     '.workspaces[]? | select(.selected != true and .title == $name)' \
+     >/dev/null 2>&1; then
   echo "Error: cmux workspace '$WORKER_NAME' already exists" >&2
   rm -rf "$EVENTS_DIR"
   exit 1
