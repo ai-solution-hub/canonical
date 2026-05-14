@@ -72,7 +72,9 @@ if [ -z "$WS_REF" ]; then
   exit 1
 fi
 
-# Send prompt body, then Enter separately (a combined \n is unreliable in TUI)
-cmux send --workspace "$WS_REF" "${PROMPT_TEXT}"
+# Send prompt body, then Enter separately (a combined \n is unreliable in TUI).
+# Suppress cmux send "OK ..." chatter so converse.sh and pipeline callers see
+# a clean stdout.
+cmux send --workspace "$WS_REF" "${PROMPT_TEXT}" >/dev/null 2>&1
 sleep 0.3
-cmux send --workspace "$WS_REF" "\n"
+cmux send --workspace "$WS_REF" "\n" >/dev/null 2>&1
