@@ -53,11 +53,18 @@ venv/
 !.claude/skills/handoff/
 !.claude/skills/implement-specs/
 !.claude/skills/review/
+!.claude/skills/session-driver-cmux/
 !.claude/skills/spec-driven-implementation/
 !.claude/skills/start-session/
 !.claude/skills/update-docs/
 !.claude/skills/write-product-spec/
 !.claude/skills/write-tech-spec/
+
+# Session-driver-cmux runtime state (per-worker event streams + worktrees).
+# Both are blanket-ignored by .claude/* above; listing explicitly to document
+# intent and so newcomers don't try to track them.
+.claude/cmux-events/
+.claude/worktrees/
 
 # IDE
 .idea/
