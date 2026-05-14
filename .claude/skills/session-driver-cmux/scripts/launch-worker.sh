@@ -183,7 +183,7 @@ if [ -z "$WS_REF" ]; then
   exit 1
 fi
 
-cmux rename-workspace --workspace "$WS_REF" "$WORKER_NAME" 2>/dev/null || true
+cmux rename-workspace --workspace "$WS_REF" "$WORKER_NAME" >/dev/null 2>&1 || true
 
 # --- Build the launch command ---
 
@@ -200,12 +200,13 @@ for arg in "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"; do
   CLAUDE_CMD="${CLAUDE_CMD} '${arg}'"
 done
 
-# Send the launch command (\n = Enter to cmux)
-cmux send --workspace "$WS_REF" "${CLAUDE_CMD}\n"
+# Send the launch command (\n = Enter to cmux). Stdout/stderr suppressed so
+# launch-worker.sh's own stdout stays JSON-only for the caller's jq parse.
+cmux send --workspace "$WS_REF" "${CLAUDE_CMD}\n" >/dev/null 2>&1
 
 # Accept the workspace trust dialog if cmux shows one
 sleep 3
-cmux send --workspace "$WS_REF" "\n"
+cmux send --workspace "$WS_REF" "\n" >/dev/null 2>&1
 
 # Update meta with the cmux ref for later lookups
 jq --arg ws_ref "$WS_REF" '. + {cmux_workspace: $ws_ref}' \
