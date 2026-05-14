@@ -46,6 +46,26 @@ CURRENT ROADMAP/BACKLOG STATE (read by you):
 
 You do NOT invoke executor- or checker-side skills (`test-driven-development`, `code-review-and-quality`, etc.) — those are for code work, not for triage.
 
+## Optional: Advisor tool for hard triage cases
+
+The Anthropic Advisor tool (beta `advisor-tool-2026-03-01`) lets an executor model consult a higher-intelligence advisor model mid-generation. **Use it when triage is genuinely ambiguous** — specifically:
+
+- Roadmap-vs-backlog is unclear (the finding has both strategic and tactical features).
+- Impact radius is unclear (could touch one feature or many; you can't tell from the evidence).
+- "Already covered" is debatable (existing entry partially overlaps but isn't a clean match).
+
+If advisor is available in your environment, invoke it inside the `triage-finding` skill at Step 2 of the decision tree. The advisor sees your full transcript (including the finding packet and roadmap/backlog reads); ask it to weigh in on the branch-A/B/C/D choice. Then record the decision yourself — the advisor returns advice text, not a write.
+
+If advisor is **not** available (the tool isn't enabled, or the API rejects the beta header), record the case as `ambiguous` instead of forcing a decision:
+
+```yaml
+decision: ambiguous
+ambiguity_reason: "..."
+suggested_resolution: "Recommend orchestrator review"
+```
+
+The orchestrator can then escalate to product-owner judgement. Do not default-promote ambiguous findings — that creates ledger noise.
+
 ## Workflow
 
 ### Step 1 — Read the finding packet

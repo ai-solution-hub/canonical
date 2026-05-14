@@ -19,7 +19,7 @@ if ! command -v cmux >/dev/null 2>&1; then
 fi
 
 # Resolve workspace ref from name
-WS_REF=$(cmux list-workspaces 2>/dev/null | grep -F "$WORKER_NAME" | grep -oE 'workspace:[0-9]+' | head -1)
+WS_REF=$(cmux list-workspaces 2>/dev/null | grep -E "(^|[[:space:]])${WORKER_NAME}([[:space:]]|$)" | grep -oE 'workspace:[0-9]+' | head -1)
 
 if [ -z "$WS_REF" ]; then
   echo "Error: cmux workspace '$WORKER_NAME' does not exist" >&2

@@ -61,6 +61,11 @@ If an existing roadmap or backlog item already covers this finding:
 
 Walk the decision tree in order. Stop at the first match.
 
+**If the case is genuinely ambiguous after walking the tree** (roadmap-vs-backlog unclear, impact radius unclear, "already covered" debatable):
+
+- **If the Advisor tool is available** (Anthropic beta `advisor-tool-2026-03-01`): invoke it before forcing a decision. The advisor sees your full transcript (finding packet + roadmap/backlog reads) and returns advice on the branch-A/B/C/D choice. Record the decision yourself — advisor returns text only, not a write.
+- **If advisor is not available**: return `decision: ambiguous` with `ambiguity_reason` and `suggested_resolution`. Do **not** default-promote ambiguous findings — that creates ledger noise. The orchestrator escalates to the product owner.
+
 ### Branch A — Is it in-scope for the current task?
 
 A finding is **in-scope** (and therefore a `subtask`) when **any** of these hold:
