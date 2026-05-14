@@ -45,8 +45,7 @@ User Feedback:
   - graphify-evaluation-feedback.md
   - trpc-evaluation.md
   - trpc-evaluation-feedback.md
-  - kh-client-feedback.md  
-
+  - kh-client-feedback.md
 
 It would then make sense to re-review the 07 synthesis file that was created in
 the last session and then my 07 synthesis  
