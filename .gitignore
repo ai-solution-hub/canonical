@@ -32,6 +32,7 @@ venv/
 .claude/*
 
 # Project-specific files we want tracked
+!.claude/agents/
 !.claude/checks/
 !.claude/hooks/
 !.claude/settings.json
@@ -54,7 +55,9 @@ venv/
 !.claude/skills/review/
 !.claude/skills/session-driver-cmux/
 !.claude/skills/start-session/
+!.claude/skills/triage-finding/
 !.claude/skills/update-docs/
+!.claude/skills/update-roadmap-backlog/
 !.claude/skills/write-product-spec/
 !.claude/skills/write-tech-spec/
 
