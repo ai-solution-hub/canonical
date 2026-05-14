@@ -1,11 +1,11 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
   "capturedAt": "2026-05-14",
-  "capturedFromCommit": "Post-dependabot PR #58 (45-package bump) + knip 6.3→6.13 upgrade. Exports 43→47: 4 newly-detected unused UI component re-exports (SelectScrollDownButton, SelectScrollUpButton, PopoverHeader, PopoverDescription etc.) surfaced by knip 6.13's improved analysis. Types 15→34: 19 newly-detected unused type exports across bid, intelligence, MCP formatter, and coverage modules — all pre-existing project types now flagged by the upgraded knip + updated TypeScript package graph. Unlisted 3→2: one unlisted dependency resolved by the bump. No new code authored; baseline raised to absorb the upgraded tooling's broader detection surface.",
+  "capturedFromCommit": "S237 WP6 D1 implementer (commit a258d144) — exports 47→52: 5 new public surfaces from the ontology harness (OntologyCVSchema in lib/ontology/schemas.ts + loadOntologyCVs in lib/ontology/loader.ts + CONTENT_TYPE_VALUES in lib/ontology/content-type-registry.ts + the re-export shim for VALID_CONTENT_TYPES at lib/validation/schemas.ts:41 + one Zod-side surface flagged by knip's strict re-export detection). All five are wired end-to-end; knip flags them because the consumer is a different package than the declarer. Baseline raised to absorb the harness public surface; no code removed. Previously: Post-dependabot PR #58 (45-package bump) + knip 6.3→6.13 upgrade — exports 43→47, types 15→34, unlisted 3→2 from the upgraded knip detection surface.",
   "counts": {
     "dependencies": 3,
     "devDependencies": 0,
-    "exports": 47,
+    "exports": 52,
     "types": 34,
     "unlisted": 2,
     "binaries": 0,

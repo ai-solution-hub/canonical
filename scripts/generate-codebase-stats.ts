@@ -168,10 +168,9 @@ export function collectCodeStats(): Record<string, number> {
     mcp_prompts: countPatternsInFiles('lib/mcp/resources.ts', [
       'registerPrompt(',
     ]),
-    content_types: countArrayEntries(
-      'lib/validation/schemas.ts',
-      'VALID_CONTENT_TYPES',
-    ),
+    content_types: countPatternsInFiles('docs/ontology/04-content-type.md', [
+      '- key:',
+    ]),
   };
 }
 

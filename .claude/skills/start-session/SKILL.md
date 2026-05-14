@@ -2,14 +2,15 @@
 name: start-session
 description:
   Run at the start of every new session. Cleans up git worktrees, reads critical
-  documents, then plans the session based on the continuation prompt and/or user feedback. Triggers on
-  "start session".
+  documents, then plans the session based on the continuation prompt and/or user
+  feedback. Triggers on "start session".
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, MCP
 ---
 
 # start-session
 
-Ensures a clean working environment, loads critical context, and plans the session before any implementation work begins.
+Ensures a clean working environment, loads critical context, and plans the
+session before any implementation work begins.
 
 ---
 
@@ -32,8 +33,8 @@ git branch | grep worktree | wc -l
 git status
 ```
 
-If unmerged branches exist, deploy an agent to investigate whether they should be merged or
-deleted.
+If unmerged branches exist, deploy an agent to investigate whether they should
+be merged or deleted.
 
 **Parallel track worktrees vs agent worktrees:** The project may have two types
 of worktrees:
@@ -42,18 +43,17 @@ of worktrees:
   tracks. These have their own continuation prompts and are NOT cleaned up
   between sessions. Do not delete or prune these. Currently:
   - `/Users/liamj/Documents/development/knowledge-hub-production-readiness`
-    (branch `production-readiness`) — CI/CD, structured logging,
-    handover infra; track-local session counter `kh-prod-readiness-sN`; Primer:
+    (branch `production-readiness`) — CI/CD, structured logging, handover infra;
+    track-local session counter `kh-prod-readiness-sN`; Primer:
     `docs/tracks/production-readiness.md`.
   - `/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`
     (branch `kh-knowledge-platform`).
-  
 - **Agent worktrees** under `.claude/worktrees/` — ephemeral worktrees created
   by `isolation: "worktree"` during sessions. These SHOULD be cleaned up
   (prune + delete merged branches).
 
-When reporting worktree state, confirm which track the session is on before reading continuation prompts (filename
-conventions differ per track).
+When reporting worktree state, confirm which track the session is on before
+reading continuation prompts (filename conventions differ per track).
 
 ---
 
@@ -73,7 +73,10 @@ covered in Step 4 below.
 
 ### 2b: Memory recall
 
-Mempalace MCP is the canonical memory system. Call `mempalace_diary_read` for latest `wing: claude` entry. For recall during the session, use `mempalace_search` and `mempalace_kg_query`; any errors are transient and should resolve on retry.
+Mempalace MCP is the canonical memory system. Call `mempalace_diary_read` for
+latest `wing: claude` entry. For recall during the session, use
+`mempalace_search` and `mempalace_kg_query`; any errors are transient and should
+resolve on retry.
 
 ---
 
@@ -98,12 +101,14 @@ ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -
 >
 > **Estimated scope:** {hours of work}
 
-5. Note any skills which will be relevant to you for your tasks this session, or which should be provided to
-   subagents based on their respective tasks e.g., `/writing-product-spec` and `writing-tech-spec` if
-   a WP requires a new spec, `/planning-and-task-breakdown` if a spec requires
-   decomposing to tasks, `/code-simplification` then `/code-review-and-quality` if implementation work is being
-   adversarially reviewed, `/documentation-and-adrs` for documentation-related
-   tasks, `/supabase-postgres-best-practices` for database tasks, `/playwright-best-practices` for E2E test tasks, and so on.
+5. Note any skills which will be relevant to you for your tasks this session, or
+   which should be provided to subagents based on their respective tasks e.g.,
+   `/writing-product-spec` and `writing-tech-spec` if a WP requires a new spec,
+   `/planning-and-task-breakdown` if a spec requires decomposing to tasks,
+   `/code-simplification` then `/code-review-and-quality` if implementation work
+   is being adversarially reviewed, `/documentation-and-adrs` for
+   documentation-related tasks, `/supabase-postgres-best-practices` for database
+   tasks, `/playwright-best-practices` for E2E test tasks, and so on.
 
 6. Proceed with outlined plan - if any adjustments are required, user will
    notify you.
@@ -124,8 +129,8 @@ follow this workflow.
 
 ### Agent Skills
 
-When deploying the agent make it clear which skill they should be invoking
-based on the task(s) they will be assigned.
+When deploying the agent make it clear which skill they should be invoking based
+on the task(s) they will be assigned.
 
 ### Verification Gates
 
@@ -138,7 +143,8 @@ verification agent must:
 3. Check spec/plan compliance — are all requirements met?
 4. Review code quality — semantic tokens, UK English, auth patterns, error
    handling
-5. Check test quality — tests MUST verify real behaviour, NOT test the implemenation
+5. Check test quality — tests MUST verify real behaviour, NOT test the
+   implemenation
 6. Return a verdict: **PASS** / **PASS WITH NOTES** / **FAIL**
 
 **Fix ALL verification findings** (including minor/low severity) before merging.
