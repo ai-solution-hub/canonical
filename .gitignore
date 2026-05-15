@@ -162,3 +162,6 @@ entities.json
 .spike-s10/
 .spike-s15/
 .venv-spike-s10/
+
+# AST dataflow tool — per-worktree cache (see docs/specs/ast-dataflow-tool/TECH.md)
+.ast-dataflow-cache/
