@@ -72,6 +72,7 @@ Invoke the skills the orchestrator listed, in the order the workpackage requires
 | DB / schema change | `supabase-postgres-best-practices` plus `supabase` (Supabase CLI for DDL, never MCP `execute_sql`) |
 | API/route change | `api-and-interface-design` |
 | E2E test work | `playwright-best-practices` |
+| Web/UI smoke or scrape (lightweight) | `cmux-browser` (cmux webview surface — cheaper than Playwright for one-off form-fills, screenshots, snapshots) |
 | Bug fix | `test-driven-development` (reproduce first, then fix) |
 
 If a skill triggers a sub-skill (e.g. TDD inside `implement-specs`), follow the chain.

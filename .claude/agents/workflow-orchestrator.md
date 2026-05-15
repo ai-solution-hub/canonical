@@ -28,7 +28,7 @@ The skills you invoke or instruct sub-agents to invoke at each phase:
 | Verification | `code-review-and-quality`, `simplify` | Checker (one per wave) |
 | Finding triage | `triage-finding` | Curator (when checker/executor surfaces out-of-scope work) |
 | Roadmap/backlog promotion | `update-roadmap-backlog` | Curator |
-| Worker dispatch | `session-driver-cmux` (the worker-spawning primitive) | Orchestrator (you), each dispatch |
+| Worker dispatch | `session-driver-cmux` (worker-spawning primitive); `cmux` (topology/placement when you need deterministic visual layout across the cmux fleet) | Orchestrator (you), each dispatch |
 | Commit & branch hygiene | `git-workflow-and-versioning`, `commit-commands` | Executor (before finishing) |
 | End-of-session | `update-docs`, `handoff` | Orchestrator (you) |
 
