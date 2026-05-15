@@ -72,9 +72,11 @@ if [ -z "$WS_REF" ]; then
   exit 1
 fi
 
-# Send prompt body, then Enter separately (a combined \n is unreliable in TUI).
+# Send prompt body as text, then Enter as an explicit key event.
+# Claude's TUI runs in raw mode and ignores a bare "\n" byte from `cmux send`;
+# `cmux send-key enter` delivers an actual Return key event.
 # Suppress cmux send "OK ..." chatter so converse.sh and pipeline callers see
 # a clean stdout.
 cmux send --workspace "$WS_REF" "${PROMPT_TEXT}" >/dev/null 2>&1
 sleep 0.3
-cmux send --workspace "$WS_REF" "\n" >/dev/null 2>&1
+cmux send-key --workspace "$WS_REF" enter >/dev/null 2>&1
