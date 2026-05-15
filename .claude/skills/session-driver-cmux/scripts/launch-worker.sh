@@ -12,13 +12,19 @@ set -euo pipefail
 # cmux adaptation of superpowers/claude-session-driver 1.0.1).
 #
 # Usage:
-#   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra claude args...]
+#   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--worker-mode <mode>] [extra claude args...]
 #
 # Arguments:
-#   <worker-name>  Unique cmux workspace name (e.g. "worker-api").
-#   <base-dir>     Project root (use ".") — used to anchor worktree and
-#                  events directory paths.
-#   --branch <ref> Optional ref to branch from. Defaults to current HEAD.
+#   <worker-name>       Unique cmux workspace name (e.g. "worker-api").
+#   <base-dir>          Project root (use ".") — anchors worktree + events.
+#   --branch <ref>      Optional ref to branch from. Defaults to current HEAD.
+#   --worker-mode <m>   Worker context profile. Values:
+#                         full    (default) — workflow-executor default context.
+#                         minimal           — workflow-worker-minimal: exports
+#                                             CLAUDE_CODE_DISABLE_CLAUDE_MDS=1
+#                                             and CLAUDE_CODE_DISABLE_POLICY_SKILLS=1
+#                                             before claude invocation, stripping
+#                                             CLAUDE.md + policy-skill discovery.
 #
 # Exits non-zero with a message on cmux unavailability, name collision, or
 # session_start timeout.
@@ -27,13 +33,22 @@ WORKER_NAME="${1:?Usage: launch-worker.sh <worker-name> <base-dir> [--branch <re
 BASE_DIR="${2:?Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra args]}"
 shift 2
 
-# Parse optional --branch flag
+# Parse optional --branch and --worker-mode flags
 BRANCH_REF=""
+WORKER_MODE="full"
 EXTRA_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --branch)
       BRANCH_REF="${2:?--branch requires a ref argument}"
+      shift 2
+      ;;
+    --worker-mode)
+      WORKER_MODE="${2:?--worker-mode requires a value (full|minimal)}"
+      case "$WORKER_MODE" in
+        full|minimal) ;;
+        *) echo "Error: --worker-mode must be 'full' or 'minimal' (got '$WORKER_MODE')" >&2; exit 1 ;;
+      esac
       shift 2
       ;;
     *)
@@ -193,7 +208,12 @@ cmux rename-workspace --workspace "$WS_REF" "$WORKER_NAME" >/dev/null 2>&1 || tr
 # pointing --plugin-dir at the local skill dir.
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
 
-CLAUDE_CMD="cd ${WORKTREE_PATH} && KH_CMUX_EVENTS_DIR=${EVENTS_BASE} CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT=${APPROVAL_TIMEOUT} claude --session-id ${SESSION_ID} --plugin-dir ${SKILL_DIR} --dangerously-skip-permissions"
+MINIMAL_ENV=""
+if [ "$WORKER_MODE" = "minimal" ]; then
+  MINIMAL_ENV="CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 CLAUDE_CODE_DISABLE_POLICY_SKILLS=1 "
+fi
+
+CLAUDE_CMD="cd ${WORKTREE_PATH} && ${MINIMAL_ENV}KH_CMUX_EVENTS_DIR=${EVENTS_BASE} CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT=${APPROVAL_TIMEOUT} claude --session-id ${SESSION_ID} --plugin-dir ${SKILL_DIR} --dangerously-skip-permissions"
 
 # Append extra args, quoted
 for arg in "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"; do
@@ -250,6 +270,7 @@ jq -n \
   --arg events_file "$EVENT_FILE" \
   --arg events_dir "$EVENTS_DIR" \
   --arg branch "$BRANCH_NAME" \
+  --arg worker_mode "$WORKER_MODE" \
   '{
     session_id: $session_id,
     worker_name: $worker_name,
@@ -257,5 +278,6 @@ jq -n \
     worktree_path: $worktree_path,
     events_file: $events_file,
     events_dir: $events_dir,
-    branch: $branch
+    branch: $branch,
+    worker_mode: $worker_mode
   }'
