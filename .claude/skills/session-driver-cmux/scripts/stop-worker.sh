@@ -60,7 +60,11 @@ if command -v cmux >/dev/null 2>&1; then
   fi
 
   if [ -n "$WS_REF" ]; then
-    cmux send --workspace "$WS_REF" "/exit\n" 2>/dev/null || true
+    # Send /exit as text body, then Enter as a key event — Claude TUI runs in
+    # raw mode and a bare "\n" byte does not register as Return. Stdout/stderr
+    # suppressed so the wrapper's stdout stays clean for pipeline callers.
+    cmux send --workspace "$WS_REF" "/exit" >/dev/null 2>&1 || true
+    cmux send-key --workspace "$WS_REF" enter >/dev/null 2>&1 || true
 
     # Poll the event file for session_end (avoids upstream path dependency)
     DEADLINE=$((SECONDS + 10))
@@ -77,7 +81,7 @@ if command -v cmux >/dev/null 2>&1; then
     if cmux --json list-workspaces 2>/dev/null \
        | jq -e --arg ref "$WS_REF" '.workspaces[]? | select(.ref == $ref)' \
          >/dev/null 2>&1; then
-      cmux close-workspace --workspace "$WS_REF" 2>/dev/null || true
+      cmux close-workspace --workspace "$WS_REF" >/dev/null 2>&1 || true
     fi
   else
     echo "Note: cmux workspace for worker '$WORKER_NAME' not found (already closed?)." >&2

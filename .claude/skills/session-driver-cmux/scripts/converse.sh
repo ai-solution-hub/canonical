@@ -50,7 +50,10 @@ if [ -d "$CWD" ]; then
   CWD=$(cd "$CWD" && pwd -P)
 fi
 
+# Claude encodes BOTH '/' and '.' as '-' in project log dir names.
+# e.g. '/Users/liamj/.claude/foo' -> '-Users-liamj--claude-foo'
 ENCODED_PATH="${CWD//\//-}"
+ENCODED_PATH="${ENCODED_PATH//./-}"
 LOG_FILE="$HOME/.claude/projects/${ENCODED_PATH}/${SESSION_ID}.jsonl"
 
 # Helper: count assistant messages that contain at least one text block.
@@ -112,8 +115,10 @@ fi
 
 # --- Wait for the new assistant text response to land in the session log ---
 # Stop event and log write happen concurrently; the log may lag the stop
-# event by a few hundred ms.
-for _ in $(seq 1 20); do
+# event by several seconds on macOS (observed empirically up to ~5s under
+# normal load). Poll for up to 30s before failing — Claude has already
+# stopped emitting tokens by this point, so the log is the bottleneck.
+for _ in $(seq 1 300); do
   if [ ! -f "$LOG_FILE" ]; then
     sleep 0.1
     continue
