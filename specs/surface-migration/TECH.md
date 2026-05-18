@@ -152,9 +152,9 @@ export const RoadmapStatus = WorkStatus.exclude([
 // imp_deferred | needs_research
 
 export const BacklogStatus = WorkStatus.exclude([
-  'done', 'in_progress', 'cancelled', 'deferred', 'imp_deferred',
+  'pending', 'done', 'in_progress', 'cancelled', 'deferred', 'imp_deferred',
 ]);
-// Pre-work: pending | blocked | spec_needed | needs_research | parked | ready
+// Pre-work: blocked | spec_needed | needs_research | parked | ready (5 values)
 
 export const TaskListStatus = WorkStatus.exclude([
   'needs_research', 'parked', 'ready',
