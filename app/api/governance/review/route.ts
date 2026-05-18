@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       const itemDetailResult = await tryQuery(
         supabase
           .from('content_items')
-          .select('updated_by, content_owner_id' as 'updated_by')
+          .select('updated_by, content_owner_id')
           .eq('id', item_id)
           .maybeSingle(),
         'governance.review.item_detail',
@@ -203,18 +203,16 @@ export async function POST(request: NextRequest) {
           'governance.review.item_detail failed — skipping notifications',
         );
       }
-      const itemDetail = isOk(itemDetailResult) ? itemDetailResult.data : null;
-
-      const detail = itemDetail as Record<string, unknown> | null;
+      const detail = isOk(itemDetailResult) ? itemDetailResult.data : null;
       const notifyTargets = new Set<string>();
 
       // Notify content owner first (primary recipient)
       if (detail?.content_owner_id && detail.content_owner_id !== user.id) {
-        notifyTargets.add(detail.content_owner_id as string);
+        notifyTargets.add(detail.content_owner_id);
       }
       // Also notify last editor if different from owner and reviewer
       if (detail?.updated_by && detail.updated_by !== user.id) {
-        notifyTargets.add(detail.updated_by as string);
+        notifyTargets.add(detail.updated_by);
       }
 
       for (const targetUserId of notifyTargets) {

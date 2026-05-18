@@ -128,7 +128,7 @@ export async function PATCH(
 
     return NextResponse.json({
       metadata: updated?.metadata ?? {},
-      layer: (updated as Record<string, unknown> | null)?.layer ?? null,
+      layer: updated?.layer ?? null,
     });
   } catch (err) {
     return NextResponse.json(

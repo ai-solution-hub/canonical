@@ -105,9 +105,7 @@ export async function GET(
 
     // Prefer overall_score from the dedicated column; fall back to metadata for pre-migration data
     const overallScore =
-      (response as Record<string, unknown>).overall_score ??
-      qualityCheck?.overall_score ??
-      null;
+      response.overall_score ?? qualityCheck?.overall_score ?? null;
 
     return NextResponse.json({
       id: response.id,

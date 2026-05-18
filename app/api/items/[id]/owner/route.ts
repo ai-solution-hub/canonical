@@ -63,8 +63,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    const currentData = current as Record<string, unknown>;
-    const previousOwnerId = currentData.content_owner_id;
+    const previousOwnerId = current.content_owner_id;
 
     // Update content_owner_id
     const updateData = {
@@ -121,8 +120,8 @@ export async function PATCH(
         const historyInsert: ContentHistoryInsert = {
           content_item_id: id,
           version: nextVersion,
-          title: (currentData.title as string) ?? '',
-          content: (currentData.content as string) ?? '',
+          title: current.title ?? '',
+          content: current.content ?? '',
           change_type: 'owner_change',
           change_summary: `Content owner ${owner_id ? 'assigned' : 'unassigned'}`,
           // S152B WP3 / S153: canonical change_reason for owner reassignment.

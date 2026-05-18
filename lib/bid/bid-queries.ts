@@ -80,12 +80,8 @@ export async function fetchActiveBidsWithStats(
         total_questions: row.total_questions,
         drafted_count: row.drafted_count,
         complete_count: row.complete_count,
-        needs_sme_count: (row as Record<string, unknown>).needs_sme_count as
-          | number
-          | undefined,
-        no_content_count: (row as Record<string, unknown>).no_content_count as
-          | number
-          | undefined,
+        needs_sme_count: row.needs_sme_count,
+        no_content_count: row.no_content_count,
       });
     }
   }
