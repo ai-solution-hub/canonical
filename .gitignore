@@ -52,8 +52,10 @@ venv/
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/handoff/
+!.claude/skills/implement-subtask/
 !.claude/skills/review/
 !.claude/skills/session-driver-cmux/
+!.claude/skills/spec-driven-implementation/
 !.claude/skills/start-session/
 !.claude/skills/triage-finding/
 !.claude/skills/update-docs/
