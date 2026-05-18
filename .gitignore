@@ -145,6 +145,7 @@ output.jsonl
 *-session-output.jsonl
 *_session_output.json
 *-session-output.json
+main_session_output.md
 /docs/database/
 
 # Graphify baseline outputs — too big for git, regenerable from run_baseline.py

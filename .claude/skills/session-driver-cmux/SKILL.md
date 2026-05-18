@@ -10,14 +10,17 @@ Dispatch primitive that lets a Claude Code session act as an
 "orchestrator-of-orchestrators": spawn sub-Claude workers, each pinned to its
 own cmux terminal and git worktree, then converse with them programmatically.
 
-KH-adapted from upstream `superpowers/claude-session-driver` 1.0.1. The
-adaptation swaps tmux for cmux, moves events out of `/tmp/claude-workers/` into
-a per-worktree `.claude/cmux-events/<worker-id>/` directory (gitignored), and
-adds a `wait-for-fleet` primitive for multi-worker coordination.
+Hard-forked from `superpowers/claude-session-driver` 1.0.1 — swaps tmux for
+cmux, moves events out of `/tmp/claude-workers/` into a per-worktree
+`.claude/cmux-events/<worker-id>/` directory (gitignored), wraps every worker
+in its own git worktree, and adds a `wait-for-fleet` primitive for multi-worker
+coordination. No longer tracks upstream; see
+`docs/plans/phase-0-investigation/session-driver-cmux-divergence.md` for the
+divergence audit.
 
-This skill is **taxonomy-agnostic**: it does not know about Taskmaster, work
-packages, or KH-specific roles. Layer task-management concepts on top in a
-separate skill or workflow.
+This skill is **taxonomy-agnostic**: it does not know about Taskmaster, tasks,
+or KH-specific workflow roles. Layer task-management concepts on top in a
+separate skill (e.g. `workflow-orchestration`).
 
 ---
 
@@ -44,16 +47,17 @@ the orchestrator turn.
 
 - **cmux** CLI installed and a cmux daemon running. The launch script will
   refuse to run if `cmux list-workspaces` errors.
-- **jq** (system-wide; same dependency as upstream).
+- **jq** on `PATH` (event serialisation).
 - **claude** CLI on `PATH` (the worker process).
-- **Upstream session-driver plugin installed** at
-  `~/.claude/plugins/cache/superpowers-marketplace/claude-session-driver/1.0.1/`.
-  The KH skill reuses the upstream plugin directory (passed to `claude
-  --plugin-dir`) — only the orchestrator-side scripts are project-local.
 - **Project worktree writable**: the skill writes events to
   `<project-root>/.claude/cmux-events/<worker-id>/events.jsonl` and creates
-  worktrees under `<project-root>/.claude/worktrees/`. Both paths are
-  gitignored.
+  worktrees under `<project-root>/.claude/worktrees/`. Both paths **must** be
+  gitignored — `launch-worker.sh` enforces this with a `git check-ignore`
+  safety gate (matches the contract used by the `using-git-worktrees` skill).
+- **(Optional)** Upstream `read-turn.sh` for collecting a full worker turn as
+  markdown — see "Reading worker output" below. The other upstream scripts
+  (`read-events.sh`, `wait-for-event.sh`, controller-side `approve-tool.sh`)
+  read the wrong path under KH layout and are **not** usable here.
 
 ---
 
@@ -97,11 +101,12 @@ The script:
 5. Writes a `.meta` file to
    `.claude/cmux-events/<SESSION_ID>/meta.json` so the hooks can recognise this
    as a managed worker (analogous to upstream `/tmp/claude-workers/<id>.meta`).
-6. Launches `claude --session-id <id> --plugin-dir <upstream-plugin>
+6. Launches `claude --session-id <id> --plugin-dir <local skill dir>
    --dangerously-skip-permissions` inside the workspace, with
-   `KH_CMUX_EVENTS_DIR` exported so the upstream hooks emit into the correct
-   directory.
-7. Waits up to 30s for the `session_start` event.
+   `KH_CMUX_EVENTS_DIR` exported so the hooks (loaded from this skill's
+   `hooks/` directory) emit into the correct directory.
+7. Waits up to 30s for the `session_start` event by polling the KH events
+   file directly (upstream `wait-for-event.sh` polls the wrong path).
 
 Returns JSON: `{session_id, worker_name, cmux_workspace, worktree_path,
 events_file, branch}`.
@@ -117,7 +122,10 @@ RESPONSE=$("$SD_SCRIPTS/converse.sh" my-worker "$SESSION_ID" "Add the auth helpe
 Tracks `--after-line` automatically so multi-turn conversations work without
 extra bookkeeping.
 
-For finer control, call `send-prompt.sh` and `wait-for-event.sh` (upstream) directly.
+For finer control, call `send-prompt.sh` directly and poll
+`<events-dir>/<session-id>/events.jsonl` for the events you care about (see
+"Events emitted" below for the line shape). A KH-local `wait-for-event.sh`
+is a carry-forward (see "Known limitations").
 
 ### 3. Wait for a fleet
 
@@ -132,8 +140,8 @@ For multi-worker dispatch:
 - `--mode any` returns as soon as one does.
 - Exit 0 on success, 1 on timeout. Prints the matching session IDs on stdout.
 
-Internally calls upstream `wait-for-event.sh` per worker — cmux-events dir
-override is propagated via env.
+`wait-for-fleet.sh` polls the per-worker events files directly (it does not
+depend on upstream `wait-for-event.sh`).
 
 ### 4. Stop a worker
 
@@ -160,8 +168,8 @@ when you have already inspected and don't need the changes).
 
 ## Events emitted
 
-The upstream session-driver plugin's hooks emit JSONL events to
-`.claude/cmux-events/<SESSION_ID>/events.jsonl`:
+The local hooks (loaded into the worker via `--plugin-dir`) emit JSONL events
+to `.claude/cmux-events/<SESSION_ID>/events.jsonl`:
 
 | Event                | Source hook        | Extra fields           |
 | -------------------- | ------------------ | ---------------------- |
@@ -173,12 +181,14 @@ The upstream session-driver plugin's hooks emit JSONL events to
 
 The `PreToolUse` hook also blocks the worker for up to
 `CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT` seconds (default: 30) waiting for the
-orchestrator to write a decision to `<events-dir>/<SESSION_ID>/tool-decision`
-via `approve-tool.sh` (upstream). If no decision arrives, the tool call
-auto-approves.
+orchestrator to write a decision to `<events-dir>/<SESSION_ID>/tool-decision`.
+If no decision arrives, the tool call auto-approves.
 
-To actively gate tool calls, run a `read-events.sh --follow` loop in the
-background and respond to `pre_tool_use` events with `approve-tool.sh`.
+To actively gate tool calls, tail `<events-dir>/<SESSION_ID>/events.jsonl`
+for `pre_tool_use` events and write `allow` or `deny` to the
+`tool-decision` file directly. A controller-side `approve-tool.sh` helper is
+a carry-forward (see "Known limitations") — the upstream version reads
+`/tmp/claude-workers/<id>.tool-pending`, the wrong path under KH layout.
 
 ---
 
@@ -213,22 +223,36 @@ This skill is the dispatch primitive — it does not reimplement those rules.
 | `wait-for-fleet.sh`  | `--mode any\|all [--timeout S] <session-id>...`                    | Wait for any-of or all-of a set of workers to emit `stop`    |
 | `stop-worker.sh`     | `<worker-name> <session-id> [--force]`                             | /exit, close workspace, verify clean tree, remove worktree   |
 
-Upstream-provided (in `~/.claude/plugins/cache/.../1.0.1/scripts/`, no KH
-adaptation needed):
+### Reading worker output
 
-| Script               | Usage                                                              |
-| -------------------- | ------------------------------------------------------------------ |
-| `wait-for-event.sh`  | `<session-id> <event-type> [timeout] [--after-line N]`             |
-| `read-events.sh`     | `<session-id> [--last N] [--type T] [--follow]`                    |
-| `approve-tool.sh`    | `<session-id> <allow\|deny>`                                       |
-| `read-turn.sh`       | `<session-id> [--full]`                                            |
+`read-turn.sh` from the upstream session-driver plugin is the one upstream
+script that works under KH layout (it honours the events-dir env var). If you
+need to collect a full markdown turn:
 
-The KH scripts pass the events-dir override to upstream scripts via the
-`KH_CMUX_EVENTS_DIR` env var. Upstream scripts use `/tmp/claude-workers/` by
-default; the wrapper detects the env var and rebases paths accordingly. (If a
-future upstream version changes this contract, the KH wrappers will need
-updating — pin the upstream version we tested against in
-`docs/runbooks/`.)
+```bash
+KH_CMUX_EVENTS_DIR=".claude/cmux-events" \
+  bash ~/.claude/plugins/cache/superpowers-marketplace/claude-session-driver/1.0.1/scripts/read-turn.sh "$SESSION_ID"
+```
+
+Or read the events JSONL directly:
+
+```bash
+jq -c '.' .claude/cmux-events/"$SESSION_ID"/events.jsonl
+```
+
+### Known limitations
+
+The following helper scripts are **carry-forward** items — useful but not yet
+implemented under KH layout:
+
+| Helper                       | Status | Reason |
+|------------------------------|--------|--------|
+| `wait-for-event.sh`          | Missing locally | Upstream version polls `/tmp/claude-workers/<id>.events.jsonl`. KH path is `<project-root>/.claude/cmux-events/<id>/events.jsonl`. Workaround: poll the JSONL file directly. |
+| `read-events.sh` (orchestrator-side) | Missing locally | Same wrong-path issue. Workaround: `jq -c '.' <events-file>`. |
+| `approve-tool.sh` (orchestrator-side) | Missing locally | Upstream version writes to `/tmp/claude-workers/<id>.tool-decision`. Workaround: `echo allow > <events-dir>/<id>/tool-decision` (or `deny`). |
+
+These helpers would be small re-implementations of the upstream scripts
+against the KH path layout — author when the workflow actually needs them.
 
 ---
 
