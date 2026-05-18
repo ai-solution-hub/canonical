@@ -3,7 +3,10 @@ name: spec-driven-implementation
 description:
   Drive a spec-first workflow for substantial features by writing PRODUCT.md
   before implementation, writing TECH.md when warranted, and keeping both specs
-  updated as implementation evolves. Use when starting a significant feature,
+  updated as implementation evolves. Use when authoring a NEW Task ID-N with the
+  spec chain {N.1 RESEARCH} → {N.2 PRODUCT} → {N.3 TECH} → {N.4 PLAN}. For
+  per-Subtask implementation within an already-spec'd Task, use
+  `implement-subtask` skill instead. Use when starting a significant feature,
   planning agent-driven implementation, or when the user wants product and tech
   specs checked into source control.
 ---
