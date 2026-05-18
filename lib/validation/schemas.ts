@@ -103,7 +103,6 @@ export const SearchBodySchema = z.object({
     .int()
     .default(20)
     .transform((v) => Math.max(1, Math.min(100, v))),
-  layer: z.string().max(50).optional(),
 });
 
 /** POST /api/embed */

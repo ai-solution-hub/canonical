@@ -38,11 +38,7 @@ export const POST = withRequestContext(async (request: NextRequest) => {
     const raw = await request.json();
     const parsed = parseBody(SearchBodySchema, raw);
     if (!parsed.success) return parsed.response;
-    // TODO(backlog): `layer` filter is accepted by SearchBodySchema but
-    // `hybrid_search` RPC does not return a `layer` column, so the filter
-    // has never functioned. Either remove from the schema or extend the RPC
-    // to return + filter by `layer`. Tracked in product-backlog.json.
-    const { query, threshold, limit, layer: _layer } = parsed.data;
+    const { query, threshold, limit } = parsed.data;
 
     // 1. Generate embedding via shared helper (singleton OpenAI client)
     let embedding: number[];
@@ -82,10 +78,6 @@ export const POST = withRequestContext(async (request: NextRequest) => {
       );
     }
 
-    // Post-filter by content layer if specified.
-    // NOTE: hybrid_search does not return a `layer` column; this filter has
-    // no effect at present. The `layer` param is accepted for API stability
-    // but silently ignored until the RPC is updated to include the column.
     const filtered = results ?? [];
 
     return NextResponse.json({
