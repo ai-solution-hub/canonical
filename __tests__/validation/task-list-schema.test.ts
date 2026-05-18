@@ -17,6 +17,7 @@ import {
   TaskListSchema,
   TaskListStatus,
   TaskPriority,
+  parseTaskListWithWarnings,
 } from '@/lib/validation/task-list-schema';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -144,6 +145,22 @@ describe('TaskSchema shape', () => {
       status_note: null,
     });
     expect(result.success).toBe(true);
+  });
+
+  it('rejects a Task where KH-extension nullable field is absent — field must be present (N2)', () => {
+    // The four KH-extension nullable fields are REQUIRED (not .optional()).
+    // Explicit null is fine; absent is rejected. This verifies N2 fix.
+    const { effort_estimate: _e, ...withoutEffort } = VALID_TASK;
+    expect(TaskSchema.safeParse(withoutEffort).success, 'effort_estimate absent should fail').toBe(false);
+
+    const { owner: _o, ...withoutOwner } = VALID_TASK;
+    expect(TaskSchema.safeParse(withoutOwner).success, 'owner absent should fail').toBe(false);
+
+    const { priority_note: _p, ...withoutPriorityNote } = VALID_TASK;
+    expect(TaskSchema.safeParse(withoutPriorityNote).success, 'priority_note absent should fail').toBe(false);
+
+    const { status_note: _s, ...withoutStatusNote } = VALID_TASK;
+    expect(TaskSchema.safeParse(withoutStatusNote).success, 'status_note absent should fail').toBe(false);
   });
 
   it('accepts KH-extension array fields as empty arrays (inv 6)', () => {
@@ -358,5 +375,64 @@ describe('Sibling-only Subtask dependency enforcement (inv 14–16)', () => {
       subtasks: [{ ...VALID_SUBTASK, id: 1, dependencies: [] }],
     };
     expect(TaskSchema.safeParse(task).success).toBe(true);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// parseTaskListWithWarnings — PRODUCT inv 20 (25-Subtask soft ceiling)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Build a VALID_TASK_LIST fixture populated with `n` subtasks on Task id "1".
+ * Each subtask gets a unique integer id and empty dependencies[].
+ */
+function buildTaskListWithSubtaskCount(n: number) {
+  const subtasks = Array.from({ length: n }, (_, i) => ({
+    ...VALID_SUBTASK,
+    id: i + 1,
+    dependencies: [],
+  }));
+  return {
+    ...VALID_TASK_LIST,
+    tasks: [{ ...VALID_TASK, subtasks }],
+  };
+}
+
+describe('parseTaskListWithWarnings — PRODUCT inv 20', () => {
+  it('returns no warnings when a Task has exactly 25 subtasks (at ceiling)', () => {
+    const input = buildTaskListWithSubtaskCount(25);
+    const { value, warnings } = parseTaskListWithWarnings(input);
+    expect(warnings).toHaveLength(0);
+    expect(value.tasks[0].subtasks).toHaveLength(25);
+  });
+
+  it('returns one warning per offending Task when a Task has 26 subtasks (over ceiling)', () => {
+    const input = buildTaskListWithSubtaskCount(26);
+    const { warnings } = parseTaskListWithWarnings(input);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].taskId).toBe('1');
+    expect(warnings[0].message).toMatch(/26 subtasks/);
+    expect(warnings[0].message).toMatch(/PRODUCT inv 20/);
+  });
+
+  it('returns one warning entry (not per excess subtask) when a Task has 30 subtasks', () => {
+    const input = buildTaskListWithSubtaskCount(30);
+    const { warnings } = parseTaskListWithWarnings(input);
+    // One warning per Task, not one per subtask over the limit
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].taskId).toBe('1');
+    expect(warnings[0].message).toMatch(/30 subtasks/);
+  });
+
+  it('throws ZodError on hard validation failure (not warnings)', () => {
+    const invalid = { ...VALID_TASK_LIST, document_name: 'Wrong Name' };
+    expect(() => parseTaskListWithWarnings(invalid)).toThrow();
+  });
+
+  it('parses the value correctly and returns it alongside warnings', () => {
+    const input = buildTaskListWithSubtaskCount(26);
+    const { value } = parseTaskListWithWarnings(input);
+    expect(value.document_name).toBe('Knowledge Hub Task List');
+    expect(value.tasks[0].subtasks).toHaveLength(26);
   });
 });

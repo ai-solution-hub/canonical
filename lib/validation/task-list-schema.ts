@@ -113,10 +113,14 @@ export const TaskSchema = z
     updatedAt: z.string(),
 
     // ── KH-extension nullable fields (inv 6) ─────────────────────────────────
-    effort_estimate: z.string().nullable().optional(),
-    owner: z.string().nullable().optional(),
-    priority_note: z.string().nullable().optional(),
-    status_note: z.string().nullable().optional(),
+    // Required with explicit null — matches dogfood data convention where all
+    // four fields are always present (explicit null when unpopulated). Using
+    // .nullable() without .optional() means the field MUST be present; absent
+    // fields are rejected. Explicit null is still accepted.
+    effort_estimate: z.string().nullable(),
+    owner: z.string().nullable(),
+    priority_note: z.string().nullable(),
+    status_note: z.string().nullable(),
 
     // ── KH-extension array fields — always present, possibly empty (inv 6) ──
     cross_doc_links: z.array(DocLinkSchema),
@@ -170,3 +174,53 @@ export const TaskListSchema = z
   .strict();
 
 export type TaskList = z.infer<typeof TaskListSchema>;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// parseTaskListWithWarnings — PRODUCT inv 20 (25-Subtask soft ceiling)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A warning raised by `parseTaskListWithWarnings` when a Task exceeds the
+ * 25-Subtask soft ceiling defined in PRODUCT inv 20.
+ */
+export interface TaskListWarning {
+  taskId: string;
+  message: string;
+}
+
+/**
+ * Parse a TaskList and surface warnings for any Task that exceeds the
+ * 25-Subtask soft ceiling (PRODUCT inv 20).
+ *
+ * The soft ceiling is NOT enforced as a schema rejection — `TaskListSchema.parse()`
+ * continues to accept Tasks with >25 Subtasks because the invariant is a
+ * planning signal, not a hard constraint. Consumers that want to surface the
+ * warning (e.g. a Planner agent) call this helper; consumers that don't care
+ * continue using `TaskListSchema.parse()` directly.
+ *
+ * Throws `ZodError` on hard validation failure (same behaviour as
+ * `TaskListSchema.parse()`). On success, returns the parsed `TaskList` plus a
+ * `warnings` array — empty when all Tasks are within the ceiling.
+ *
+ * One warning entry per offending Task (not per excess Subtask).
+ */
+export function parseTaskListWithWarnings(input: unknown): {
+  value: TaskList;
+  warnings: TaskListWarning[];
+} {
+  // Hard-fail on schema violations — throws ZodError
+  const value = TaskListSchema.parse(input);
+
+  const warnings: TaskListWarning[] = [];
+  for (const task of value.tasks) {
+    if (task.subtasks.length > 25) {
+      warnings.push({
+        taskId: task.id,
+        message:
+          `Task "${task.id}" has ${task.subtasks.length} subtasks (>25). ` +
+          `Per PRODUCT inv 20, consider splitting into multiple Tasks linked by Task.dependencies[].`,
+      });
+    }
+  }
+  return { value, warnings };
+}
