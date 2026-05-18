@@ -409,6 +409,27 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
     to **sub-agents** juggling sub-agent worktrees: after Read of a worktree
     file, subsequent git commands silently run in the wrong tree — always
     `cd <main-repo-path> &&` before main-repo git operations.
+  - **`isolation: "worktree"` sub-agents can still commit to the parent
+    worktree** (kh-ast-S11 R-WP-S11-C evidence — commits `6dbf9da2` + `af9fe05c`
+    landed on `ast-dataflow-tooling` despite isolation flag). Mitigation: every
+    sub-agent must prefix `cd $(git rev-parse --show-toplevel) &&` after any
+    `Read` and verify `pwd` matches the dispatched worktree path before
+    `git commit`. Reference: `docs/specs/ast-dataflow-tool/HANDOVER.md` §8.
+  - **Reference-doc freshness guard fails on merge commits.**
+    `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts` uses
+    `git show --format= <sha> -- <file>` which returns combined-diff format on
+    merge commits — `+` regex won't register single-parent `last_updated`
+    additions. Workaround: follow-up single-parent commit that bumps
+    `last_updated` (kh-ast-S11 `744d9ef1` is the canonical example). Or include
+    `[skip-doc-freshness-guard]` in the merge commit message body if the bump is
+    intentional.
+  - **Concurrent commits on production-readiness during a cross-track merge are
+    non-fatal but add reconciliation rounds.** kh-ast-S11 saw three concurrent
+    commits (`b6f7d55f`, `80944a09`, `831d9e74`) land during R-WP-S11-D merge.
+    Working pattern: fresh worktree off production-readiness; merge cross-track
+    branch into it; pull-and-merge production-readiness back into the merge
+    worktree to reconcile; fast-forward production-readiness; push. Full
+    sequence: `docs/runbooks/ast-dataflow-merge-S11.md`.
 - **Sub-agents can blow their token budget before final `git commit`:** always
   check worktree `git status` before removing it, in case the agent exited
   mid-commit. (Prior "200K hard cap" claim was wrong — empirically agents run
