@@ -78,11 +78,11 @@ Backlog schema: documented inline in `docs/reference/product-backlog.json` `item
   "id": "string",
   "description": "string",
   "type": "feature | research | infra | tech-debt | ...",
-  "status": "needs_spec | needs_research | parked | ready | blocked",
+  "status": "spec_needed | needs_research | parked | ready | blocked",
   "effort_estimate": "string | null",
   "priority": "high | medium | low",
   "track": "string",
-  "depends_on": ["..."],
+  "dependencies": ["..."],
   "surfaced": "string",
   "notes": "string | null"
 }
@@ -128,11 +128,11 @@ Required fields per the schema implicit in `product-backlog.json`:
 | `id` | Allocate next free ID. Inspect existing IDs in the same `track` first; follow the convention (`C{n}-{shortcode}` pattern, e.g. `C1-T3-Settings-3`, or a new pattern if no convention applies). |
 | `description` | One-sentence description of the finding. UK English. |
 | `type` | From triage payload `backlog_slot.type`. |
-| `status` | From triage payload `backlog_slot.status`. Default `needs_spec`. |
+| `status` | From triage payload `backlog_slot.status`. Default `spec_needed`. |
 | `effort_estimate` | From triage payload, e.g. `"3-5h"` or `null` if unknown. |
 | `priority` | From triage payload `backlog_slot.priority`. Default `medium`. |
 | `track` | From triage payload `backlog_slot.track`. |
-| `depends_on` | [] unless triage identifies dependencies. |
+| `dependencies` | [] unless triage identifies dependencies. |
 | `surfaced` | Provenance string. Format: `"{source-agent} during {session-counter} ({source-task-id|source-commit-sha})"`. E.g. `"workflow-checker during kh-prod-readiness-s47 (WP1.2 / a1b2c3d)"`. |
 | `notes` | Free-text. Include the finding's evidence reference (`file:line`) if available. |
 
@@ -233,7 +233,7 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
 1. **Resolve target → file** (same mapping table as Step 1 of Create).
 2. **Read the file** and locate the item by `id`. If the ID does not exist, abort and report `UPDATE FAILED: item_id "{id}" not found in {file}`.
 3. **Validate the proposed edits:**
-   - For `status`: must be a value in the schema enum. Roadmap status enum (per `RoadmapItemSchema`): `pending | in-progress | done | blocked` (verify the live enum at edit time — schema is `.strict()`). Backlog status enum: `needs_spec | needs_research | parked | ready | blocked` (no `done` — done items follow Delete-or-retain rules below).
+   - For `status`: must be a value in the schema enum. Roadmap status enum (per `RoadmapItemSchema`): `pending | in-progress | done | blocked` (verify the live enum at edit time — schema is `.strict()`). Backlog status enum: `spec_needed | needs_research | parked | ready | blocked` (no `done` — done items follow Delete-or-retain rules below).
    - For `priority`: must be `high | medium | low` (or null for roadmap sections that don't carry priority).
    - For `notes`: free text. **Do not overwrite existing notes** — append with a session-counter prefix (e.g. `"[s52] Status moved to in-progress because …"`).
 4. **Apply the edit** with `Edit` (one targeted `old_string` / `new_string` pair per field). Preserve surrounding fields, indentation, and trailing-comma rules (JSON, not JSON5).
@@ -322,7 +322,7 @@ follow_up_create_required: true | false
 2. **`.strict()` schema for roadmap.** No new fields beyond what `RoadmapItemSchema` allows. Provenance lives in `session_refs` + `commit_refs`.
 3. **UK English throughout.** "colour", "organisation", "behaviour", DD/MM/YYYY dates.
 4. **Forward-looking only for roadmap.** Never add a SHIPPED marker or completed-status item to the roadmap. The roadmap is for active and ready-for-implementation only (per `update-docs` skill rules and the `forward_looking_only: true` schema literal).
-5. **No closure values in backlog status.** Backlog status enum is `needs_spec | needs_research | parked | ready | blocked`. Closed items are removed entirely, not status-flipped.
+5. **No closure values in backlog status.** Backlog status enum is `spec_needed | needs_research | parked | ready | blocked`. Closed items are removed entirely, not status-flipped.
 6. **Never `git commit` from this skill.** The curator returns to the orchestrator; the orchestrator's wave-close commit captures the JSON edits along with code changes.
 
 ---

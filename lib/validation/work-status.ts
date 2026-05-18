@@ -56,9 +56,8 @@ export type RoadmapStatus = z.infer<typeof RoadmapStatus>;
  * Accepted: spec_needed | needs_research | parked | ready | blocked  (5 values)
  * Excluded: pending | done | in_progress | cancelled | deferred | imp_deferred
  *
- * Note: canonical form is `spec_needed` (not legacy `needs_spec`). The 36
- * existing backlog items may carry `needs_spec` — that retrofit is deferred
- * to FU-NEW per TECH §1.0 dependency note.
+ * Note: canonical form is `spec_needed` (not legacy `needs_spec`). The
+ * legacy `needs_spec` form was retrofitted in S52 WP3 per FU-NEW.
  */
 export const BacklogStatus = WorkStatus.exclude([
   'pending',

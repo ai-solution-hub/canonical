@@ -13,7 +13,7 @@
  * What this guards against:
  *
  *   1. Any `status` field outside the canonical forward-only enum
- *      (`needs_spec`, `needs_research`, `parked`, `ready`, `blocked`).
+ *      (`spec_needed`, `needs_research`, `parked`, `ready`, `blocked`).
  *      Forbidden values: `closed`, `completed`, `done`, `shipped`,
  *      `wontfix`, `resolved`.
  *   2. A `notes` body whose first non-blank token is one of the closure
@@ -28,17 +28,10 @@ import { BacklogStatus } from '@/lib/validation/backlog-schema';
 const PROJECT_ROOT = join(__dirname, '../..');
 const BACKLOG_PATH = join(PROJECT_ROOT, 'docs/reference/product-backlog.json');
 
-// Transitional: canonical BacklogStatus values (spec_needed | needs_research |
-// parked | ready | blocked) plus the legacy `needs_spec` form still present in
-// the existing 36 items. The canonical `spec_needed` form is the schema truth;
-// `needs_spec` is a legacy alias that will be retrofitted in FU-NEW when items
-// are updated. This union allows the forward-discipline guard to continue
-// passing without modifying the live backlog data prematurely.
-// TODO(FU-NEW): remove 'needs_spec' from this set after the backlog retrofit.
-const ALLOWED_STATUSES = new Set([
-  ...BacklogStatus.options,
-  'needs_spec', // transitional: existing items use needs_spec; canonical is spec_needed; FU-NEW retrofits items
-]);
+// Canonical BacklogStatus values: spec_needed | needs_research | parked |
+// ready | blocked. The legacy `needs_spec` form was retrofitted in S52 WP3
+// per FU-NEW — the guard now accepts only the canonical schema enum.
+const ALLOWED_STATUSES = new Set([...BacklogStatus.options]);
 
 const FORBIDDEN_STATUS_TOKENS = new Set([
   'closed',

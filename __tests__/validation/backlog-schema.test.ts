@@ -4,10 +4,9 @@
  * Unit tests for `lib/validation/backlog-schema.ts`.
  *
  * Tests verify real behaviour against the spec (PRODUCT.md inv 36–40, 42 +
- * TECH §3). Fixtures are constructed manually — the live `product-backlog.json`
- * is NOT parsed here because the existing 36 items carry `needs_spec` (legacy
- * form) rather than the canonical `spec_needed`. The 36-item retrofit is
- * deferred to FU-NEW; this suite tests the SCHEMA, not the current data file.
+ * TECH §3). Fixtures are constructed manually using the canonical
+ * `spec_needed` form and the canonical `dependencies` field name (renamed
+ * from `needs_spec` / `depends_on` in S52 WP3 per FU-2 and FU-NEW).
  *
  * Test coverage:
  *   - Valid item per each BacklogStatus value (5 cases, one per subset value)
@@ -39,7 +38,7 @@ const VALID_ITEM_BASE = {
   effort_estimate: '3-5h',
   priority: 'medium' as const,
   track: 'onboarding',
-  depends_on: [],
+  dependencies: [],
   surfaced: 'Design critique audit',
   notes: null,
 };

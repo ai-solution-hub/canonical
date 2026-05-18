@@ -213,10 +213,9 @@ current label state of the file. The `update-roadmap-backlog` skill handles the
 write to the correct file under the correct (target) semantics.
 
 **Do not auto-correct the existing files.** The label reversal is a separate
-migration workpackage; the curator only flags it (you can include a "FLAG:
-target/label mismatch" note in your report when the current file convention
-contradicts your target classification). The orchestrator will track the
-migration separately.
+migration Task; the curator only flags it (you can include a "FLAG: target/label
+mismatch" note in your report when the current file convention contradicts your
+target classification). The orchestrator will track the migration separately.
 
 ## What you are NOT
 

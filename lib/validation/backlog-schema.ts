@@ -10,9 +10,9 @@
  * from `lib/validation/work-status.ts` (per TECH §1.0). Canonical values:
  * `spec_needed | needs_research | parked | ready | blocked`
  *
- * Note: the 36 existing backlog items carry `needs_spec` (legacy form). The
- * canonical form is `spec_needed`. The 1-row-per-item retrofit is deferred to
- * FU-NEW — the schema is correct first, data alignment follows later.
+ * Note: backlog items canonically use `spec_needed`. The legacy `needs_spec`
+ * form was retrofitted in S52 WP3 (FU-NEW); the schema only accepts the
+ * canonical form.
  *
  * Per PRODUCT.md inv 36–40, 42 + TECH §3 (kh-prod-readiness-S50 Wave A.1).
  */
@@ -52,7 +52,7 @@ export type BacklogItemType = z.infer<typeof BacklogItemType>;
 // promotion-compatible with the Task list surface without a content reshape.
 //
 // Field notes:
-// - `depends_on` retains its current name (rename to `dependencies` is FU-2).
+// - `dependencies` (renamed from `depends_on` in S52 WP3 per FU-2).
 // - `effort_estimate` is nullable — some items carry no estimate.
 // - `notes` is nullable — most items have null notes.
 // - `priority` uses the shared `Priority` master enum (all three Ranked values
@@ -74,7 +74,8 @@ export const BacklogItemSchema = z.object({
   /**
    * Forward-looking status from the Backlog subset of WorkStatus.
    * Canonical values: spec_needed | needs_research | parked | ready | blocked.
-   * The legacy `needs_spec` form is NOT accepted — retrofit deferred to FU-NEW.
+   * The legacy `needs_spec` form is NOT accepted (retrofitted in S52 WP3
+   * per FU-NEW).
    */
   status: BacklogStatus,
 
@@ -89,9 +90,10 @@ export const BacklogItemSchema = z.object({
 
   /**
    * Array of other backlog item ids this item depends on.
-   * Field name is `depends_on` — rename to `dependencies` is deferred to FU-2.
+   * Renamed from `depends_on` to `dependencies` in S52 WP3 per FU-2
+   * (aligns with the Taskmaster canonical field name).
    */
-  depends_on: z.array(z.string()),
+  dependencies: z.array(z.string()),
 
   /** How this item was surfaced (e.g. `"Design critique audit"`). */
   surfaced: z.string().min(1),

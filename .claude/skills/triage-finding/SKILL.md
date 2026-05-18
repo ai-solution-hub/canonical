@@ -161,7 +161,7 @@ backlog_slot:
   track: "{track-name}"
   type: "feature" | "research" | "infra" | "tech-debt"
   priority: "high" | "medium" | "low"  # default medium unless evidence supports otherwise
-  status: "needs_spec" | "needs_research" | "parked" | "ready"
+  status: "spec_needed" | "needs_research" | "parked" | "ready"
 ```
 
 ### Branch D — None of the above
