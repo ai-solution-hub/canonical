@@ -58,6 +58,7 @@ venv/
 !.claude/skills/triage-finding/
 !.claude/skills/update-docs/
 !.claude/skills/update-roadmap-backlog/
+!.claude/skills/workflow-orchestration/
 !.claude/skills/write-product-spec/
 !.claude/skills/write-tech-spec/
 
