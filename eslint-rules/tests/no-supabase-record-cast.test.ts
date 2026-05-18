@@ -179,5 +179,70 @@ ruleTester.run('no-supabase-record-cast', rule as never, {
       `,
       errors: [{ messageId: 'recordCast' }],
     },
+
+    // ---- Shape F1: for...of loop variable cast (lib/topic-inference.ts:177 pattern) ----
+    // `for (const item of items)` where items = data from Supabase; cast on the loop var
+    {
+      code: `
+        async function f(supabase: any) {
+          const { data: items } = await supabase.from('content_items').select('id, title, layer');
+          for (const item of items) {
+            const layer = (item as Record<string, unknown>).layer;
+          }
+        }
+      `,
+      errors: [{ messageId: 'recordCast' }],
+    },
+
+    // ---- Shape F1b: for...of with ?? [] guard on the array ----
+    {
+      code: `
+        async function f(supabase: any) {
+          const { data: items } = await supabase.from('content_items').select('id, layer');
+          for (const item of (items ?? [])) {
+            const layer = (item as Record<string, unknown>).layer;
+          }
+        }
+      `,
+      errors: [{ messageId: 'recordCast' }],
+    },
+
+    // ---- Shape F2: array callback parameter cast (.filter) (lib/topic-inference.ts:309 pattern) ----
+    {
+      code: `
+        async function f(supabase: any, domain: any) {
+          const { data: detailItems } = await supabase.from('content_items').select('id, primary_domain, layer');
+          const candidates = detailItems.filter((item) => {
+            const itemLayer = (item as Record<string, unknown>).layer;
+            return itemLayer !== domain;
+          });
+        }
+      `,
+      errors: [{ messageId: 'recordCast' }],
+    },
+
+    // ---- Shape F2b: array callback parameter cast (.map) ----
+    {
+      code: `
+        async function f(supabase: any) {
+          const { data: rows } = await supabase.from('content_items').select('id, layer');
+          const layers = rows.map((item) => (item as Record<string, unknown>).layer);
+        }
+      `,
+      errors: [{ messageId: 'recordCast' }],
+    },
+
+    // ---- Shape F3: candidate[0] direct element access cast (lib/topic-inference.ts:322 pattern) ----
+    {
+      code: `
+        async function f(supabase: any, domain: any) {
+          const { data: detailItems } = await supabase.from('content_items').select('id, layer');
+          const candidates = detailItems.filter((item) => item.id !== null);
+          const bestMatch = candidates[0];
+          const matchLayer = (bestMatch as Record<string, unknown>).layer;
+        }
+      `,
+      errors: [{ messageId: 'recordCast' }],
+    },
   ],
 });

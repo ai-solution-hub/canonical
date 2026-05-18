@@ -61,6 +61,31 @@ const SUPABASE_RECEIVER_NAMES = new Set([
   'mcpClient',
 ]);
 
+// Array method names whose callbacks receive individual elements (Shape F2).
+const ARRAY_ITERATOR_METHODS = new Set([
+  'filter',
+  'map',
+  'forEach',
+  'find',
+  'findIndex',
+  'some',
+  'every',
+  'reduce',
+  'flatMap',
+  'sort',
+]);
+
+// Array method names that produce a new array from an existing array (Shape F3).
+const ARRAY_TRANSFORM_METHODS = new Set([
+  'filter',
+  'map',
+  'flatMap',
+  'slice',
+  'concat',
+  'sort',
+  'reverse',
+]);
+
 // Supabase query chain method names that continue a chain
 const SUPABASE_CHAIN_METHODS = new Set([
   'select',
@@ -397,19 +422,281 @@ function isThirdPartyApiOrigin(expression) {
 }
 
 /**
+ * Given an identifier name that is a loop variable or callback parameter,
+ * walk the parent chain from `castNode` (the TSAsExpression) upward to find:
+ *
+ *   F1. A ForOfStatement whose right-hand side (the iterable) is Supabase-origin.
+ *       The loop variable name must match `varName`.
+ *
+ *   F2. An array-method CallExpression (e.g. `.filter(...)`, `.map(...)`) where
+ *       the receiver is Supabase-origin and `varName` is the callback parameter.
+ *
+ * Returns true if either pattern is found.
+ */
+function isArrayElementOfSupabaseOrigin(castNode, varName, enclosingBody) {
+  if (!castNode || !varName) return false;
+
+  let cursor = castNode.parent;
+  while (cursor) {
+    // ---- F1: ForOfStatement ----
+    // `for (const item of items) { ... (item as Record<...>) ... }`
+    if (cursor.type === 'ForOfStatement') {
+      const left = cursor.left;
+      // left must be a VariableDeclaration whose declared id matches varName
+      if (left && left.type === 'VariableDeclaration') {
+        const decl = left.declarations[0];
+        if (decl && decl.id && decl.id.type === 'Identifier' && decl.id.name === varName) {
+          // right is the iterable — unwrap `?? []` if present
+          let iterable = cursor.right;
+          if (
+            iterable &&
+            iterable.type === 'LogicalExpression' &&
+            iterable.operator === '??'
+          ) {
+            iterable = iterable.left;
+          }
+          // Check if iterable is an Identifier declared from Supabase
+          if (iterable && iterable.type === 'Identifier' && enclosingBody) {
+            if (declarationIsSupabaseOrigin(enclosingBody, iterable.name)) {
+              return true;
+            }
+          }
+          // Also handle direct chain: `for (const item of supabase.from(...).data)`
+          if (iterable && chainRootsAtSupabase(iterable)) return true;
+        }
+      }
+    }
+
+    // ---- F2: Array method callback ----
+    // `items.filter((item) => { ... (item as Record<...>) ... })`
+    // The cast node is inside a callback function, which is an argument to a
+    // CallExpression like `something.filter(callback)`.
+    if (
+      cursor.type === 'ArrowFunctionExpression' ||
+      cursor.type === 'FunctionExpression'
+    ) {
+      // Check if this function has varName as a parameter
+      const params = cursor.params ?? [];
+      const hasParam = params.some(
+        (p) =>
+          p.type === 'Identifier' && p.name === varName,
+      );
+
+      if (hasParam) {
+        // Check if the parent of this function is a CallExpression whose callee
+        // is an array method (e.g. `.filter(...)`)
+        const fnParent = cursor.parent;
+        if (
+          fnParent &&
+          fnParent.type === 'CallExpression' &&
+          fnParent.callee &&
+          fnParent.callee.type === 'MemberExpression' &&
+          fnParent.callee.property &&
+          fnParent.callee.property.type === 'Identifier' &&
+          ARRAY_ITERATOR_METHODS.has(fnParent.callee.property.name)
+        ) {
+          // The receiver of the method call is the array.
+          // Use the OUTER function's body for scope-walking the receiver name —
+          // the callback is a nested scope and `const { data: receiver }` is
+          // declared in the outer async function, not inside the callback.
+          const outerBody = findEnclosingBody(cursor);
+
+          // The receiver of the method call is the array
+          let receiver = fnParent.callee.object;
+          // Unwrap `?? []` on receiver
+          if (
+            receiver &&
+            receiver.type === 'LogicalExpression' &&
+            receiver.operator === '??'
+          ) {
+            receiver = receiver.left;
+          }
+          // Check if receiver is Supabase-origin using the OUTER scope
+          if (receiver && receiver.type === 'Identifier' && outerBody) {
+            if (declarationIsSupabaseOrigin(outerBody, receiver.name)) {
+              return true;
+            }
+          }
+          if (receiver && chainRootsAtSupabase(receiver)) return true;
+
+          // Also: receiver might itself be a chained call like
+          // `supabase.from('x').select(...).filter(callback)` —
+          // handle via chainRootsAtSupabase on the full CallExpression
+          if (receiver && receiver.type === 'CallExpression') {
+            if (chainRootsAtSupabase(receiver)) return true;
+          }
+        }
+      }
+    }
+
+    // Stop at top-level function declarations — those define a true new scope
+    // that the cast cannot reference. ArrowFunctionExpression and
+    // FunctionExpression are checked above (they may be the callback itself).
+    if (cursor.type === 'FunctionDeclaration') {
+      break;
+    }
+
+    cursor = cursor.parent;
+  }
+
+  return false;
+}
+
+/**
+ * Extend `declarationIsSupabaseOrigin` to handle element-of-array declarations:
+ *   `const bestMatch = candidates[0]` where `candidates` is Supabase-origin.
+ *
+ * This handles Shape F3: an identifier declared from a subscript access of a
+ * Supabase-origin array variable.
+ */
+function declarationIsArrayElementOfSupabaseOrigin(root, varName) {
+  if (!root) return false;
+
+  /**
+   * Return true if `arrayName` resolves to an array that is derived (directly
+   * or via array transform) from a Supabase query result.
+   */
+  function isArraySupabaseOrigin(arrayName) {
+    if (!arrayName) return false;
+    // Direct Supabase origin (data from query)
+    if (declarationIsSupabaseOrigin(root, arrayName)) return true;
+
+    // Indirect: `const arrayName = someOtherArray.filter(...)`
+    // Find the declaration of arrayName and check if its init is an array transform
+    // over a Supabase-origin array.
+    return isDerivedFromSupabaseArray(root, arrayName);
+  }
+
+  function isDerivedFromSupabaseArray(searchRoot, name) {
+    let found = false;
+
+    function visit2(node) {
+      if (!node || typeof node.type !== 'string') return;
+      if (found) return;
+
+      if (node.type === 'VariableDeclarator') {
+        const id = node.id;
+        const init = node.init;
+        if (
+          id &&
+          id.type === 'Identifier' &&
+          id.name === name &&
+          init &&
+          init.type === 'CallExpression' &&
+          init.callee &&
+          init.callee.type === 'MemberExpression' &&
+          init.callee.property &&
+          init.callee.property.type === 'Identifier' &&
+          ARRAY_TRANSFORM_METHODS.has(init.callee.property.name) &&
+          init.callee.object &&
+          init.callee.object.type === 'Identifier'
+        ) {
+          // `const name = someArray.filter(...)` — check if someArray is Supabase-origin
+          if (declarationIsSupabaseOrigin(searchRoot, init.callee.object.name)) {
+            found = true;
+          }
+        }
+        return;
+      }
+
+      if (
+        node.type === 'FunctionDeclaration' ||
+        node.type === 'FunctionExpression' ||
+        node.type === 'ArrowFunctionExpression'
+      ) {
+        return;
+      }
+
+      for (const key of Object.keys(node)) {
+        if (key === 'parent') continue;
+        const child = node[key];
+        if (!child) continue;
+        if (Array.isArray(child)) {
+          for (const c of child) {
+            if (c && typeof c.type === 'string') visit2(c);
+          }
+        } else if (typeof child === 'object' && typeof child.type === 'string') {
+          visit2(child);
+        }
+      }
+    }
+
+    visit2(searchRoot);
+    return found;
+  }
+
+  function visit(node) {
+    if (!node || typeof node.type !== 'string') return false;
+
+    if (node.type === 'VariableDeclarator') {
+      const id = node.id;
+      const init = node.init;
+
+      if (
+        id &&
+        id.type === 'Identifier' &&
+        id.name === varName &&
+        init &&
+        init.type === 'MemberExpression' &&
+        init.computed === true &&
+        init.object &&
+        init.object.type === 'Identifier'
+      ) {
+        // `const varName = someArray[index]` — check if someArray is Supabase-origin
+        // (directly or via array transforms like .filter())
+        return isArraySupabaseOrigin(init.object.name);
+      }
+
+      return false;
+    }
+
+    // Skip nested functions
+    if (
+      node.type === 'FunctionDeclaration' ||
+      node.type === 'FunctionExpression' ||
+      node.type === 'ArrowFunctionExpression'
+    ) {
+      return false;
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key === 'parent') continue;
+      const child = node[key];
+      if (!child) continue;
+      if (Array.isArray(child)) {
+        for (const c of child) {
+          if (c && typeof c.type === 'string') {
+            if (visit(c)) return true;
+          }
+        }
+      } else if (typeof child === 'object' && typeof child.type === 'string') {
+        if (visit(child)) return true;
+      }
+    }
+    return false;
+  }
+
+  return visit(root);
+}
+
+/**
  * Walk `expression` to determine if it originates from a Supabase chain.
- * Handles four shapes:
+ * Handles shapes:
  *
  *   A. Direct chain:      `supabase.from('x').select(...).data`
  *   B. RPC chain:         `supabase.rpc('fn').data`
  *   C. Null-coalesce:     `(rows ?? [])` where rows is declared from Supabase
  *   D. Identifier:        `rows` declared via `const { data: rows } = await supabase...`
  *   E. MemberExpression:  `result.data` where result was awaited from Supabase
+ *   F. Array element:     `item` from `for (const item of rows)` or `rows.map(item => ...)`
+ *                         or `const bestMatch = candidates[0]` (subscript access)
  *
  * Shapes A and B are detected by `chainRootsAtSupabase`.
  * Shapes C, D, E require scope walking via `declarationIsSupabaseOrigin`.
+ * Shape F requires parent-chain walking via `isArrayElementOfSupabaseOrigin`
+ * and scope walking via `declarationIsArrayElementOfSupabaseOrigin`.
  */
-function isSupabaseOriginExpression(expression, enclosingBody) {
+function isSupabaseOriginExpression(expression, enclosingBody, castNode) {
   if (!expression) return false;
 
   // ---- Shape A / B: inline chain expression ----
@@ -424,7 +711,7 @@ function isSupabaseOriginExpression(expression, enclosingBody) {
 
   // ---- Shape C: `(expr ?? [])` or `(expr ?? {})` ----
   if (expression.type === 'LogicalExpression' && expression.operator === '??') {
-    return isSupabaseOriginExpression(expression.left, enclosingBody);
+    return isSupabaseOriginExpression(expression.left, enclosingBody, castNode);
   }
 
   // ---- Shape D / E: identifier or member access ----
@@ -445,7 +732,19 @@ function isSupabaseOriginExpression(expression, enclosingBody) {
     }
 
     if (identName && enclosingBody) {
-      return declarationIsSupabaseOrigin(enclosingBody, identName);
+      if (declarationIsSupabaseOrigin(enclosingBody, identName)) return true;
+
+      // ---- Shape F: array element — loop var, callback param, subscript ----
+      if (
+        isArrayElementOfSupabaseOrigin(castNode, identName, enclosingBody)
+      ) {
+        return true;
+      }
+
+      // ---- Shape F3: subscript element `const x = arr[0]` ----
+      if (declarationIsArrayElementOfSupabaseOrigin(enclosingBody, identName)) {
+        return true;
+      }
     }
   }
 
@@ -497,7 +796,7 @@ module.exports = {
         const enclosingBody = findEnclosingBody(node);
 
         // Flag if expression originates from a Supabase chain
-        if (isSupabaseOriginExpression(expression, enclosingBody)) {
+        if (isSupabaseOriginExpression(expression, enclosingBody, node)) {
           context.report({ node, messageId: 'recordCast' });
         }
       },
