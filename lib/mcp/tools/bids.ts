@@ -247,7 +247,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
             if (qd) {
               qualityChecked++;
               // Prefer overall_score from dedicated column; fall back to metadata
-              const score = (resp?.overall_score ?? qd.overall_score) ?? 0;
+              const score = resp?.overall_score ?? qd.overall_score ?? 0;
               if (score >= QUALITY_THRESHOLD) passingQuality++;
             }
           }

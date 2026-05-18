@@ -18,7 +18,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { SearchResponseSchema, ChunkSearchResponseSchema } from '@/lib/mcp/formatters/search';
+import {
+  SearchResponseSchema,
+  ChunkSearchResponseSchema,
+} from '@/lib/mcp/formatters/search';
 import {
   GovernanceQueueResponseSchema,
   GovernanceReviewActionResultSchema,
@@ -29,7 +32,9 @@ import { ChangeReportDataSchema } from '@/lib/mcp/formatters/change-report';
 // Fixture factories — minimal valid objects for each schema
 // ---------------------------------------------------------------------------
 
-function makeSearchResponse(overrides: Partial<z.infer<typeof SearchResponseSchema>> = {}): z.infer<typeof SearchResponseSchema> {
+function makeSearchResponse(
+  overrides: Partial<z.infer<typeof SearchResponseSchema>> = {},
+): z.infer<typeof SearchResponseSchema> {
   return {
     query: 'ISO certification',
     offset: 0,
@@ -51,7 +56,9 @@ function makeSearchResponse(overrides: Partial<z.infer<typeof SearchResponseSche
   };
 }
 
-function makeChunkSearchResponse(overrides: Partial<z.infer<typeof ChunkSearchResponseSchema>> = {}): z.infer<typeof ChunkSearchResponseSchema> {
+function makeChunkSearchResponse(
+  overrides: Partial<z.infer<typeof ChunkSearchResponseSchema>> = {},
+): z.infer<typeof ChunkSearchResponseSchema> {
   return {
     query: 'risk assessment',
     count: 1,
@@ -82,7 +89,9 @@ function makeChunkSearchResponse(overrides: Partial<z.infer<typeof ChunkSearchRe
   };
 }
 
-function makeGovernanceQueueResponse(overrides: Partial<z.infer<typeof GovernanceQueueResponseSchema>> = {}): z.infer<typeof GovernanceQueueResponseSchema> {
+function makeGovernanceQueueResponse(
+  overrides: Partial<z.infer<typeof GovernanceQueueResponseSchema>> = {},
+): z.infer<typeof GovernanceQueueResponseSchema> {
   return {
     items: [
       {
@@ -107,7 +116,9 @@ function makeGovernanceQueueResponse(overrides: Partial<z.infer<typeof Governanc
   };
 }
 
-function makeGovernanceReviewResult(overrides: Partial<z.infer<typeof GovernanceReviewActionResultSchema>> = {}): z.infer<typeof GovernanceReviewActionResultSchema> {
+function makeGovernanceReviewResult(
+  overrides: Partial<z.infer<typeof GovernanceReviewActionResultSchema>> = {},
+): z.infer<typeof GovernanceReviewActionResultSchema> {
   return {
     item_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
     title: 'GDPR Data Retention Policy',
@@ -119,7 +130,9 @@ function makeGovernanceReviewResult(overrides: Partial<z.infer<typeof Governance
   };
 }
 
-function makeChangeReportData(overrides: Partial<z.infer<typeof ChangeReportDataSchema>> = {}): z.infer<typeof ChangeReportDataSchema> {
+function makeChangeReportData(
+  overrides: Partial<z.infer<typeof ChangeReportDataSchema>> = {},
+): z.infer<typeof ChangeReportDataSchema> {
   return {
     period_days: 7,
     start_date: '2026-05-11T00:00:00.000Z',
@@ -245,7 +258,9 @@ describe('SearchResponseSchema (search_knowledge_base outputSchema)', () => {
 
 describe('ChunkSearchResponseSchema (search_content_chunks outputSchema)', () => {
   it('accepts a valid chunk search response payload', () => {
-    const result = ChunkSearchResponseSchema.safeParse(makeChunkSearchResponse());
+    const result = ChunkSearchResponseSchema.safeParse(
+      makeChunkSearchResponse(),
+    );
     expect(result.success).toBe(true);
   });
 

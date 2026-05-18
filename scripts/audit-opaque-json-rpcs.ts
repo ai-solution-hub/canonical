@@ -82,7 +82,8 @@ function collectTsFiles(dir: string): string[] {
     return out;
   }
   for (const name of entries) {
-    if (name === 'node_modules' || name === '.next' || name === '.git') continue;
+    if (name === 'node_modules' || name === '.next' || name === '.git')
+      continue;
     const full = join(dir, name);
     let stat;
     try {
@@ -143,7 +144,11 @@ function findTsCallers(functionName: string): TsCaller[] {
 // Step 3 — Verdicts (hand-coded from investigation; re-run for verification)
 // ---------------------------------------------------------------------------
 
-type Verdict = 'convertible' | 'requires-design' | 'no-ts-callers' | 'leave-as-is';
+type Verdict =
+  | 'convertible'
+  | 'requires-design'
+  | 'no-ts-callers'
+  | 'leave-as-is';
 
 interface RpcEntry {
   function_name: string;
@@ -198,7 +203,7 @@ const VERDICTS: Record<
     migration_sketch: [
       '-- RETURNS TABLE with freshness columns flattened (Option A — recommended)',
       'CREATE OR REPLACE FUNCTION public.get_dashboard_attention_counts(',
-      "  p_user_id uuid,",
+      '  p_user_id uuid,',
       "  p_role text DEFAULT 'viewer'",
       ')',
       'RETURNS TABLE (',
@@ -217,7 +222,7 @@ const VERDICTS: Record<
       ')',
       'LANGUAGE plpgsql',
       'SECURITY INVOKER',
-      "SET search_path = public, extensions",
+      'SET search_path = public, extensions',
       'AS $$ ... $$;',
       '-- Caller: lib/dashboard.ts:287',
       '-- Cast at lib/dashboard.ts:374 removed; access columns directly.',
@@ -231,7 +236,7 @@ const VERDICTS: Record<
     arguments:
       'p_type text, p_search text, p_variants_only boolean, p_type_conflicts boolean, p_limit integer, p_offset integer',
     return_shape_summary:
-      "json_build_object with { entities: json_agg([per-entity objects]), total: integer }. The entities array contains objects with canonical_name, entity_type, mention_count, variant_count, variant_names (array), relationship_count, has_type_conflict, types_seen (array). Pagination envelope (data + total count) prevents a single RETURNS TABLE.",
+      'json_build_object with { entities: json_agg([per-entity objects]), total: integer }. The entities array contains objects with canonical_name, entity_type, mention_count, variant_count, variant_names (array), relationship_count, has_type_conflict, types_seen (array). Pagination envelope (data + total count) prevents a single RETURNS TABLE.',
     notes:
       'The { entities: [...], total: N } envelope is a deliberate pagination design that does not map to RETURNS TABLE without splitting into two RPCs (one for rows, one for count). App/api/entities/route.ts:56 passes data directly as NextResponse.json(data) — the client receives the full envelope. Splitting would require client changes. Requires design discussion.',
   },
@@ -250,7 +255,7 @@ const VERDICTS: Record<
       ')',
       'LANGUAGE plpgsql',
       'SECURITY INVOKER',
-      "SET search_path = public, extensions",
+      'SET search_path = public, extensions',
       'AS $$ ... $$;',
       '-- After: data is a single-row result; callers use data[0].domain, data[0].content_type etc.',
       '-- Both callers already use parseJsonb(FilterCountsSchema, data) for Zod validation.',
@@ -295,7 +300,7 @@ const VERDICTS: Record<
       'LANGUAGE sql',
       'STABLE',
       'SECURITY INVOKER',
-      "SET search_path = public, extensions",
+      'SET search_path = public, extensions',
       'AS $$',
       '  SELECT tag, COUNT(*) AS cnt',
       '  FROM content_items ci, unnest(ci.user_tags) AS tag',
@@ -331,7 +336,7 @@ const VERDICTS: Record<
       'LANGUAGE sql',
       'STABLE',
       'SECURITY INVOKER',
-      "SET search_path = public, extensions",
+      'SET search_path = public, extensions',
       'AS $$',
       '  SELECT w.name AS workspace_name, COUNT(*) AS item_count',
       '  FROM content_item_workspaces ciw',
@@ -352,7 +357,7 @@ const VERDICTS: Record<
     return_shape_summary:
       "Supabase Auth Hook. Accepts event jsonb; returns '{}' on allowed domain or jsonb_build_object('error', ...) with http_code on reject. Return shape is conditional (success vs rejection).",
     notes:
-      "This is a Supabase Auth Hook, not an application RPC. The function is registered as a hook via pg-functions://postgres/public/hook_restrict_signup_to_example-client_domain (see docs/audits/kh-production-readiness-phase-1). The JSONB input/output contract is defined by the Supabase Auth Hook protocol — converting to RETURNS TABLE would break the hook registration. Zero TS callers by design. Must remain RETURNS JSONB.",
+      'This is a Supabase Auth Hook, not an application RPC. The function is registered as a hook via pg-functions://postgres/public/hook_restrict_signup_to_example-client_domain (see docs/audits/kh-production-readiness-phase-1). The JSONB input/output contract is defined by the Supabase Auth Hook protocol — converting to RETURNS TABLE would break the hook registration. Zero TS callers by design. Must remain RETURNS JSONB.',
   },
   merge_entities: {
     verdict: 'convertible',
@@ -377,7 +382,7 @@ const VERDICTS: Record<
       ')',
       'LANGUAGE plpgsql',
       'SECURITY INVOKER',
-      "SET search_path = public, extensions",
+      'SET search_path = public, extensions',
       'AS $$ ... $$;',
       '-- Caller: app/api/entities/merge/route.ts:48-70',
       '-- Current: data cast as { merged: boolean; target: string; ... }',

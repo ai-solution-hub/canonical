@@ -253,8 +253,7 @@ function declarationIsSupabaseOrigin(root, varName) {
       if (!init) return false;
 
       // Unwrap await
-      const awaitArg =
-        init.type === 'AwaitExpression' ? init.argument : null;
+      const awaitArg = init.type === 'AwaitExpression' ? init.argument : null;
       const queryNode = awaitArg ?? init;
 
       if (!chainRootsAtSupabase(queryNode)) return false;
@@ -331,10 +330,7 @@ function declarationIsSupabaseOrigin(root, varName) {
  * Handles `(expr ?? default)` by returning `expr`.
  */
 function unwrapNullish(expression) {
-  if (
-    expression.type === 'LogicalExpression' &&
-    expression.operator === '??'
-  ) {
+  if (expression.type === 'LogicalExpression' && expression.operator === '??') {
     return expression.left;
   }
   return expression;
@@ -427,10 +423,7 @@ function isSupabaseOriginExpression(expression, enclosingBody) {
   }
 
   // ---- Shape C: `(expr ?? [])` or `(expr ?? {})` ----
-  if (
-    expression.type === 'LogicalExpression' &&
-    expression.operator === '??'
-  ) {
+  if (expression.type === 'LogicalExpression' && expression.operator === '??') {
     return isSupabaseOriginExpression(expression.left, enclosingBody);
   }
 
