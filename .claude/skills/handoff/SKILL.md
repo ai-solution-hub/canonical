@@ -75,31 +75,35 @@ If unsure on next-session focus, ask Liam.
 
 ### Structure (target: 200-250 lines total)
 
+`Section rules` section below outlines the required structure for `Completed work`, `What This Session Does`, and `Agent Allocation` sections of the prompt.
+
 ```markdown
-# {Purpose} — Knowledge Hub Session {NNN} Continuation Prompt
+# {Session Purpose} — Knowledge Hub Session {NNN} Continuation Prompt
 
 ## Context
 
-{5 lines — fixed boilerplate. Read first: CLAUDE.md. Codebase:
-.planning/codebase/.}
+Working directory: `{cwd}`
+Track: {track}
+Read first: `docs/plans/phase-0-investigation/architecture/01-vision.md`
 
 ## Completed work (recency-weighted)
 
-{See compression rules below.}
+{As per `Section rules`}
 
 ## Build status (end of S{NNN-1})
 
-- bun run test — {N} pass / {N} skip / 0 fail
-- bun lint — {N} errors / {N} warnings
-- Other relevant gates (tsc, build, MCP inventory).
+- `bun run test` — {N} pass / {N} skip / 0 fail
+- `bun lint` — {N} errors / {N} warnings
 
-## Session objectives
+## What This Session Does: {Session Purpose}
 
-{Numbered WPs. See WP structure below.}
+### WP{N}: {Title} (Must-Fix)
+
+{Numbered WPs. As per `Section rules`}
 
 ## Agent allocation
 
-{Table + file ownership boundaries. See below.}
+{Table + file ownership boundaries. As per `Section rules`.}
 
 ## Documents to read before starting
 
@@ -110,7 +114,7 @@ If unsure on next-session focus, ask Liam.
 {Only items needing Liam action before Wave 1 dispatches. Omit section if none.}
 ```
 
-### Section rules
+#### Section rules
 
 **Completed work — recency-weighted compression:**
 
@@ -158,6 +162,13 @@ git push
 ```
 
 If Liam edits, he creates a new commit (not amend).
+
+## Step 8 — Add MemPalace diary entry
+
+Mempalace MCP is the canonical memory system.
+
+- Call `mempalace_diary_write` using `wing: claude` and add a diary entry for the session just completed.
+    - Use AAAK format (entity codes + emotion markers + pipe-separated fields).
 
 ---
 
