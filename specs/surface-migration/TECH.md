@@ -16,10 +16,15 @@ The Knowledge Hub today has two structured-task surfaces:
   rendered MD's Status column). Bidirectional render pipeline:
   `scripts/roadmap-from-json.ts` (355 lines, JSON → MD) +
   `scripts/roadmap-to-json.ts` (739 lines, MD → JSON). Round-trip CI guard:
-  `__tests__/docs/roadmap-roundtrip.test.ts` (currently **2 failing tests** —
-  both `it()` blocks fail with token-count drift between JSON (`2967`
-  tokens) and on-disk MD (`4353` tokens), a `1,386`-token gap per
-  `bun run test __tests__/docs/roadmap-roundtrip.test.ts`).
+  `__tests__/docs/roadmap-roundtrip.test.ts` (currently **2 failing `it()`
+  blocks** — both fail with token-count drift between JSON (`2967` tokens)
+  and on-disk MD (`4353` tokens), a `1,386`-token gap per
+  `bun run test __tests__/docs/roadmap-roundtrip.test.ts`). The repo-wide
+  test baseline at S49 close is `3 fail / 12451 pass / 24 skip` because
+  `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts` also fails
+  on `docs/reference/data-entry-points.md` (a separate
+  `<!-- Last verified -->` header drift, not in scope for this WP — see
+  Follow-ups §FU-9).
 
 - **Backlog** — `docs/reference/product-backlog.json` (authoritative, no
   rendered MD). Flat `items[]`, 36 items currently. No formal Zod schema
@@ -362,7 +367,11 @@ steps below.
 
 **Full regression checkpoint.** Before any commit lands, run
 `bun run test` (full Vitest, not changed-only) and confirm the **2 known
-roadmap-roundtrip failures** (per S48 baseline) become **0 failures**.
+roadmap-roundtrip failures** (per S49 baseline) become **0 failures**.
+The pre-existing 3rd failure (`data-entry-points.md` freshness drift) may
+remain and is acknowledged as a separate carry-forward — landing at
+`2 fail / 12453 pass / 24 skip` is acceptable for this WP; landing at
+`1 fail` (data-entry-points-only) is success.
 Any other test regression is a blocker.
 
 ## Risks and mitigations
@@ -438,3 +447,8 @@ These are deferred items surfaced by this WP. They do **not** land here.
   `blocked`) is preserved as-is in this WP per §3 above. If FU-3 unifies
   status semantics across Roadmap/Backlog/Task list, this migration runs
   as part of that WP, not here.
+- **FU-9: `data-entry-points.md` freshness drift** — surfaced at S49
+  test baseline (`reference-doc-edit-coupled-freshness.test.ts` fails on
+  this one tracked doc). Out of scope for this surface migration but
+  worth resolving in the same close-out as WP5 if a hand is free —
+  one-line `<!-- Last verified: YYYY-MM-DD -->` header bump.

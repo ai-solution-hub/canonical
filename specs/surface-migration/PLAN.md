@@ -88,8 +88,10 @@ the same JSON file.
 - [ ] `reference-doc-edit-coupled-freshness.test.ts` passes (new docs have
       `<!-- Last verified: YYYY-MM-DD -->` headers; last_updated lines
       bumped).
-- [ ] Full Vitest suite green (no 3 pre-existing failures, no new
-      failures).
+- [ ] Full Vitest suite shows the 2 pre-existing roadmap-roundtrip
+      failures resolved; no new regressions; the 3rd pre-existing
+      failure (`data-entry-points.md` freshness drift) acceptable to
+      carry forward per FU-9.
 - [ ] `update-roadmap-backlog` skill dry-run against a synthetic finding
       succeeds end-to-end.
 - [ ] Liam has reviewed the deltas (cross-doc reference rewrites,
@@ -427,9 +429,12 @@ the surface evolution did not break the consumer.
       `<!-- Last verified: YYYY-MM-DD -->` header (JSON files: header
       lives in `document_purpose` or a leading comment — pattern
       consistent with other tracked JSON files).
-- [ ] `reference-doc-edit-coupled-freshness.test.ts` passes.
-- [ ] Full Vitest suite shows zero failures (pre-existing 2
-      roadmap-roundtrip failures resolved; no new regressions).
+- [ ] `reference-doc-edit-coupled-freshness.test.ts` passes for the two
+      newly-tracked docs (new headers bump cleanly).
+- [ ] Full Vitest suite shows pre-existing 2 roadmap-roundtrip failures
+      resolved; no new regressions; the separate pre-existing
+      `data-entry-points.md` freshness drift may remain (out of scope,
+      tracked as TECH §"Follow-ups" FU-9).
 - [ ] `update-roadmap-backlog` dry-run with a synthetic finding writes
       successfully to both `product-roadmap.json` and
       `product-backlog.json` shapes.
