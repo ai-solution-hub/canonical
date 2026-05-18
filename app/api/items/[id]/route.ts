@@ -28,6 +28,9 @@ import {
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import type { Database } from '@/supabase/types/database.types';
 
+type ContentItemUpdate =
+  Database['public']['Tables']['content_items']['Update'];
+
 export const maxDuration = 60;
 
 const UUID_RE =
@@ -298,7 +301,7 @@ async function patchHandler(
       // must distinguish the no-rows-matched race from genuine DB errors.
       const { data: updatedRow, error: updateError } = await supabase
         .from('content_items')
-        .update(updatePayload)
+        .update(updatePayload as ContentItemUpdate)
         .eq('id', id)
         .eq('publication_status', fromStatus)
         .select(
@@ -498,7 +501,7 @@ async function patchHandler(
     // Null/empty handling per §1.5 spec §4.1 H2:
     //   - empty question → omit the `Q: ` prefix entirely (no `Q: \n\n` stub)
     //   - empty standard, non-empty advanced → no leading blank line
-    const updateData: Record<string, unknown> = {
+    const updateData: ContentItemUpdate = {
       [field]: effectiveValue,
       updated_by: user.id,
     };

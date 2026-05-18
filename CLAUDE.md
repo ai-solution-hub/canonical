@@ -71,7 +71,7 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 ## Environment
 
 Env vars in `.env.local` — the single source of truth for both TS and Python
-pipelines. 
+pipelines.
 
 `.env.local` points at the persistent staging Supabase branch
 (`turayklvaunphgbgscat`). Prod-targeted CLI work opts in via `--env=prod` or
@@ -110,9 +110,9 @@ explicit env override. Full guidance: `docs/runbooks/local-development.md`.
 - **Platform:** Vercel (Next.js app) + Cloud Run (Python pipeline jobs)
 - **Production URL:** https://www.kh.client.example
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
-- **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`. Auth via WIF — no JSON keys. Deploy:
-  `.github/workflows/cloud-run-deploy.yml`. Runbook:
-  `docs/runbooks/cloud-run-phase-1-handover.md`.
+- **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`.
+  Auth via WIF — no JSON keys. Deploy: `.github/workflows/cloud-run-deploy.yml`.
+  Runbook: `docs/runbooks/cloud-run-phase-1-handover.md`.
 - **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
 - **Region:** eu-west-2 (London)
 - **GitHub Environments:** `Production` + `Staging` (case-sensitive). Setup:
@@ -155,12 +155,12 @@ Consult when adding or modifying UI elements.
 
 ## Key Reference Documents
 
-| Document               | Location                                                                   |
-| ---------------------- | -------------------------------------------------------------------------- |
-| State of the Product   | `docs/reference/state-of-the-product.md`                                   |
+| Document               | Location                                                                    |
+| ---------------------- | --------------------------------------------------------------------------- |
+| State of the Product   | `docs/reference/state-of-the-product.md`                                    |
 | Roadmap                | `docs/reference/product-roadmap.json`                                       |
-| Product backlog        | `docs/reference/product-backlog.json`                                      |
-| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                 |
+| Product backlog        | `docs/reference/product-backlog.json`                                       |
+| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                  |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
 | Session handoffs       | `docs/continuation-prompts/`                                                |
 | Codebase mapping       | `.planning/codebase/`                                                       |
@@ -405,15 +405,15 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
     gitignored except `knowledge-hub/`; agents needing other plugins must `cp`
     from parent repo after `git reset --hard main`.
   - **Bash CWD drifts into worktree dirs after `Read`:** prefix git operations
-    with `cd <main-repo-path> &&` after any Read on worktree files. Also
-    applies to **sub-agents** juggling sub-agent worktrees: after Read of a
-    worktree file, subsequent git commands silently run in the wrong tree —
-    always `cd <main-repo-path> &&` before main-repo git operations.
-- **Sub-agents can blow their token budget before final `git commit`:**
-  always check worktree `git status` before removing it, in case the agent
-  exited mid-commit. (Prior "200K hard cap" claim was wrong — empirically
-  agents run past 200K on Opus 4.7 1M-context. Budget is harness-configured,
-  not a fixed sub-agent ceiling.)
+    with `cd <main-repo-path> &&` after any Read on worktree files. Also applies
+    to **sub-agents** juggling sub-agent worktrees: after Read of a worktree
+    file, subsequent git commands silently run in the wrong tree — always
+    `cd <main-repo-path> &&` before main-repo git operations.
+- **Sub-agents can blow their token budget before final `git commit`:** always
+  check worktree `git status` before removing it, in case the agent exited
+  mid-commit. (Prior "200K hard cap" claim was wrong — empirically agents run
+  past 200K on Opus 4.7 1M-context. Budget is harness-configured, not a fixed
+  sub-agent ceiling.)
 - **"Build the thing, forget to turn it on":** Every fix must trace from the
   production entry point to the change. Run `bun run knip` for deterministic
   detection of unused files/exports.
@@ -424,3 +424,111 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
+
+<!-- gitnexus:start -->
+
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **knowledge-hub** (41078 symbols, 58867
+relationships, 300 execution flows). Use the GitNexus MCP tools to understand
+code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in
+> terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a
+  function, class, or method, run
+  `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report
+  the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your
+  changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before
+  proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to
+  find execution flows instead of grepping. It returns process-grouped results
+  ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which
+  execution flows it participates in — use
+  `gitnexus_context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running
+  `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which
+  understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check
+  affected scope.
+
+## Resources
+
+| Resource                                       | Use for                                  |
+| ---------------------------------------------- | ---------------------------------------- |
+| `gitnexus://repo/knowledge-hub/context`        | Codebase overview, check index freshness |
+| `gitnexus://repo/knowledge-hub/clusters`       | All functional areas                     |
+| `gitnexus://repo/knowledge-hub/processes`      | All execution flows                      |
+| `gitnexus://repo/knowledge-hub/process/{name}` | Step-by-step execution trace             |
+
+## CLI
+
+| Task                                         | Read this skill file                                        |
+| -------------------------------------------- | ----------------------------------------------------------- |
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md`       |
+| Blast radius / "What breaks if I change X?"  | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?"             | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md`       |
+| Rename / extract / split / refactor          | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md`     |
+| Tools, resources, schema reference           | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md`           |
+| Index, status, clean, wiki CLI commands      | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md`             |
+
+<!-- gitnexus:end -->
+
+<!-- ast-dataflow:start -->
+
+# ast-dataflow — TypeScript Symbol Analysis
+
+ast-dataflow provides type-checker-resolved static analysis via `ts-morph`. Use
+it for precise file-and-line answers that GitNexus (graph-level) and Knip
+(binary reachability) cannot give: exact call sites, column access sites,
+string-literal AST context, barrel-chain tracing, and type-position blast
+radius.
+
+**CLI:** `bun scripts/ast-dataflow-cli.ts <query> [args]`
+
+## Skill catalogue
+
+| Task                                             | Skill                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| Orient: which query to use, which pattern?       | `.claude/skills/ast-dataflow/SKILL.md`                             |
+| Verify a rename is complete post-gitnexus_rename | `.claude/skills/ast-dataflow/ast-dataflow-rename-sweep/SKILL.md`   |
+| Pin the exact call site passing a wrong argument | `.claude/skills/ast-dataflow/ast-dataflow-call-chain-pin/SKILL.md` |
+
+## When each skill applies
+
+- **Catalogue (`ast-dataflow`)** — start here. Covers all 12 queries (`callers`,
+  `references`, `importers`, `string-literal-uses`, `column-reads`,
+  `column-writes`, `dead-exports`, `reexport-chain`, `type-evolution`,
+  `enum-uses`, `flow-trace`, `type-drift-detect`) and all 9 cross-tool patterns
+  (Knip, gitnexus, ccc compositions).
+
+- **Rename-sweep (`ast-dataflow-rename-sweep`)** — after any `gitnexus_rename`
+  that produced `ast_search` edits marked "review carefully". Runs Q1
+  (string-literal sites), Q2 (import-path sweep), Q3 (new-symbol references) and
+  produces a categorised VERDICT report.
+
+- **Call-chain pin (`ast-dataflow-call-chain-pin`)** — when a
+  wrong-argument-value bug is suspected: wrong UUID shape, wrong string key,
+  missing required field, untyped Supabase client. Chains `gitnexus_context`
+  (flow context + direct callers) with `callers` (all indirect callers gitnexus
+  does not index) to pinpoint the exact file:line passing the wrong value.
+
+## Gotcha: ast-dataflow does not cover Python or SQL files
+
+`ts-morph` operates on the TypeScript corpus only. For string-literal searches
+that need to cover Python scripts (`scripts/kb_pipeline/*.py`) or raw SQL
+migration files (`supabase/migrations/*.sql`), run a `grep` sweep in addition to
+any ast-dataflow query.
+
+<!-- ast-dataflow:end -->

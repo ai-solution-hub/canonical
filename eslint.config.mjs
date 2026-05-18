@@ -96,6 +96,28 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // Supabase record-cast prevention — flags `as Record<string, unknown>`
+    // casts on structured Supabase RPC return values, which discard the typed
+    // row shape from database.types.ts.
+    // (spec: docs/specs/ast-dataflow-tool/type-safety-pipeline/TECH.md §ESLint
+    // rule design). JSONB columns, third-party API responses, and test files
+    // are exempt via the rule's built-in escape hatches.
+    files: ['lib/**/*.ts', 'app/api/**/*.ts'],
+    ignores: [
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      '__tests__/**',
+      'e2e/**',
+      'scripts/**',
+    ],
+    plugins: {
+      local: localRules,
+    },
+    rules: {
+      'local/no-supabase-record-cast': 'error',
+    },
+  },
+  {
     // D-9 console-to-logger migration regression guard
     // (spec: docs/specs/structured-logging-spec.md §5 Phase 4).
     // After the Phase 4 sweep closure (kh-prod-readiness-S34), zero

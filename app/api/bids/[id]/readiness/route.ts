@@ -158,6 +158,7 @@ export async function GET(
         response_text: string | null;
         review_status: string | null;
         metadata: unknown;
+        overall_score?: number | null;
       }
     >();
     for (const r of allResponses) {
@@ -200,8 +201,7 @@ export async function GET(
       const meta = (response?.metadata ?? {}) as BidResponseMetadata;
       const qualityDataFromMeta = meta.quality_data ?? null;
       // Merge column value into quality data for backward compat
-      const columnScore = (response as Record<string, unknown> | undefined)
-        ?.overall_score as number | null | undefined;
+      const columnScore = response?.overall_score;
       const qualityData = qualityDataFromMeta
         ? {
             ...qualityDataFromMeta,

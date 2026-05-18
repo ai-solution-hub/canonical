@@ -254,6 +254,14 @@ interface ScannedPath {
  */
 const SKIP_PATHS = new Set<string>(['.claude/worktrees/']);
 
+/**
+ * Path prefixes that are gitignored plugin-managed files — present in a
+ * developer's local checkout but absent in CI runners and fresh clones.
+ * Mirrors the `.claude/skills/*` and `.claude/plugins/*` entries in
+ * `.gitignore`.
+ */
+const SKIP_PATH_PREFIXES = ['.claude/skills/', '.claude/plugins/'];
+
 function extractAllBacktickedPaths(): ScannedPath[] {
   const seen = new Map<string, number>();
   const backtickPattern = /`([^`]+)`/g;
@@ -267,6 +275,8 @@ function extractAllBacktickedPaths(): ScannedPath[] {
       const tokens = extractPathTokens(match[1]);
       for (const token of tokens) {
         if (SKIP_PATHS.has(token)) continue;
+        if (SKIP_PATH_PREFIXES.some((prefix) => token.startsWith(prefix)))
+          continue;
         if (!seen.has(token)) {
           seen.set(token, i + 1);
         }

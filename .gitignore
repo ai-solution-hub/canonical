@@ -52,7 +52,7 @@ venv/
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/handoff/
-!.claude/skills/implement-subtask/
+!.claude/skills/implement-specs/
 !.claude/skills/review/
 !.claude/skills/session-driver-cmux/
 !.claude/skills/spec-driven-implementation/
@@ -60,9 +60,10 @@ venv/
 !.claude/skills/triage-finding/
 !.claude/skills/update-docs/
 !.claude/skills/update-roadmap-backlog/
-!.claude/skills/workflow-orchestration/
 !.claude/skills/write-product-spec/
 !.claude/skills/write-tech-spec/
+!.claude/skills/ast-dataflow/
+!.claude/skills/ast-dataflow/**
 
 # Session-driver-cmux runtime state (per-worker event streams + worktrees).
 # Both are blanket-ignored by .claude/* above; listing explicitly to document
@@ -144,6 +145,7 @@ output.jsonl
 *-session-output.jsonl
 *_session_output.json
 *-session-output.json
+main_session_output.md
 /docs/database/
 
 # Graphify baseline outputs — too big for git, regenerable from run_baseline.py
@@ -163,3 +165,6 @@ entities.json
 .spike-s10/
 .spike-s15/
 .venv-spike-s10/
+
+# AST dataflow tool — per-worktree cache (see docs/specs/ast-dataflow-tool/TECH.md)
+.ast-dataflow-cache/

@@ -1,6 +1,7 @@
 /**
  * Search result formatters for MCP tool responses.
  */
+import { z } from 'zod';
 import { formatContentType } from '@/lib/format';
 import { truncate } from './shared';
 
@@ -18,6 +19,33 @@ export interface SearchResult {
   summary: string | null;
   similarity: number;
 }
+
+/**
+ * Zod schema for `SearchResult` — mirrors the interface exactly for
+ * MCP `outputSchema` runtime validation.
+ */
+export const SearchResultSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  suggested_title: z.string().nullable(),
+  content_type: z.string().nullable(),
+  primary_domain: z.string().nullable(),
+  primary_subtopic: z.string().nullable(),
+  summary: z.string().nullable(),
+  similarity: z.number(),
+});
+
+/**
+ * Zod schema for the `search_knowledge_base` / `search_qa_library`
+ * structured response envelope.
+ */
+export const SearchResponseSchema = z.object({
+  query: z.string(),
+  offset: z.number(),
+  count: z.number(),
+  has_more: z.boolean(),
+  results: z.array(SearchResultSchema),
+});
 
 export function formatSearchResults(
   query: string,
@@ -129,6 +157,41 @@ export interface ChunkSearchResult {
   word_count: number;
   similarity: number;
 }
+
+/**
+ * Zod schema for `ChunkSearchResult` — mirrors the interface exactly for
+ * MCP `outputSchema` runtime validation.
+ */
+export const ChunkSearchResultSchema = z.object({
+  chunk_id: z.string(),
+  content_item_id: z.string(),
+  item_title: z.string().nullable(),
+  item_suggested_title: z.string().nullable(),
+  item_content_type: z.string().nullable(),
+  item_primary_domain: z.string().nullable(),
+  item_primary_subtopic: z.string().nullable(),
+  heading_text: z.string().nullable(),
+  heading_level: z.number().nullable(),
+  heading_path: z.array(z.string()).nullable(),
+  content: z.string(),
+  position: z.number(),
+  char_count: z.number(),
+  word_count: z.number(),
+  similarity: z.number(),
+});
+
+/**
+ * Zod schema for the `search_content_chunks` structured response envelope.
+ */
+export const ChunkSearchResponseSchema = z.object({
+  query: z.string(),
+  count: z.number(),
+  content_item_id: z.string().nullable(),
+  overdue_review_filter: z.boolean().nullable(),
+  review_due_within_days_filter: z.number().nullable(),
+  visibility_filter: z.string(),
+  results: z.array(ChunkSearchResultSchema),
+});
 
 export function formatChunkSearchResults(
   query: string,

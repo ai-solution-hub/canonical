@@ -10,8 +10,12 @@ import { ResponseUpdateBodySchema } from '@/lib/validation/schemas';
 import { countWords } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
+import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
+
+type BidResponseUpdate =
+  Database['public']['Tables']['bid_responses']['Update'];
 
 export const maxDuration = 30;
 
@@ -101,9 +105,7 @@ export async function GET(
 
     // Prefer overall_score from the dedicated column; fall back to metadata for pre-migration data
     const overallScore =
-      (response as Record<string, unknown>).overall_score ??
-      qualityCheck?.overall_score ??
-      null;
+      response.overall_score ?? qualityCheck?.overall_score ?? null;
 
     return NextResponse.json({
       id: response.id,
@@ -199,7 +201,7 @@ export async function PATCH(
     }
 
     // Build update payload
-    const updates: Record<string, unknown> = {
+    const updates: BidResponseUpdate = {
       last_edited_by: user.id,
       updated_at: new Date().toISOString(),
     };
@@ -239,7 +241,7 @@ export async function PATCH(
       updates.metadata = {
         ...existingMeta,
         quality_data: updatedQuality,
-      };
+      } as unknown as BidResponseUpdate['metadata'];
 
       // Also write overall_score to the dedicated column (backward compat: metadata still has it)
       updates.overall_score = updatedQuality.overall_score ?? null;

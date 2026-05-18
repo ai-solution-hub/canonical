@@ -50,7 +50,7 @@ import { logger } from '@/lib/logger';
 import { PermanentJobError } from '@/lib/queue/dispatch';
 import { createServiceClient } from '@/lib/supabase/server';
 import { normaliseTag } from '@/lib/validation/schemas';
-import type { Database } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 
 // ---------------------------------------------------------------------------
 // Types — verbatim from spec §3.1 (BatchReclassifyBody) + §4.1
@@ -923,19 +923,20 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
           title: item.title || item.suggested_title || '',
         });
 
-        const updateData: Record<string, unknown> = {
-          primary_domain: result.primary_domain,
-          primary_subtopic: result.primary_subtopic,
-          secondary_domain: result.secondary_domain ?? null,
-          secondary_subtopic: result.secondary_subtopic ?? null,
-          ai_keywords: uniqueKeywords,
-          summary: result.summary,
-          suggested_title: result.suggested_title,
-          classification_confidence: result.classification_confidence,
-          classification_reasoning: result.classification_reasoning,
-          classified_at: new Date(Date.now()).toISOString(),
-          layer: layerSuggestion.suggestedLayer,
-        };
+        const updateData: Database['public']['Tables']['content_items']['Update'] =
+          {
+            primary_domain: result.primary_domain,
+            primary_subtopic: result.primary_subtopic,
+            secondary_domain: result.secondary_domain ?? null,
+            secondary_subtopic: result.secondary_subtopic ?? null,
+            ai_keywords: uniqueKeywords,
+            summary: result.summary,
+            suggested_title: result.suggested_title,
+            classification_confidence: result.classification_confidence,
+            classification_reasoning: result.classification_reasoning,
+            classified_at: new Date(Date.now()).toISOString(),
+            layer: layerSuggestion.suggestedLayer,
+          };
 
         // Store temporal references in metadata.
         if (result.temporal_references?.length) {
@@ -944,7 +945,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
           updateData.metadata = {
             ...existingMetadata,
             ai_temporal_references: result.temporal_references,
-          };
+          } as unknown as Json;
         }
 
         // Regenerate embedding with updated title + content.

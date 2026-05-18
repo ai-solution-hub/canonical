@@ -7,6 +7,9 @@ import {
   WorkspaceDeleteParamsSchema,
 } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/supabase/types/database.types';
+
+type WorkspaceUpdate = Database['public']['Tables']['workspaces']['Update'];
 
 export const maxDuration = 30;
 
@@ -35,7 +38,7 @@ export async function PATCH(
     const parsed = parseBody(WorkspaceUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const updates: Record<string, unknown> = {
+    const updates: WorkspaceUpdate = {
       ...parsed.data,
       updated_at: new Date().toISOString(),
       updated_by: user.id,

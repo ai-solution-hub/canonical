@@ -3,8 +3,11 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { EntityMetadataUpdateSchema } from '@/lib/validation/schemas';
-import type { Json } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
+
+type ContentItemUpdate =
+  Database['public']['Tables']['content_items']['Update'];
 
 export const maxDuration = 30;
 
@@ -114,7 +117,7 @@ export async function PATCH(
             ];
 
             if (contentIds.length > 0) {
-              const updatePayload: Record<string, unknown> = {
+              const updatePayload: ContentItemUpdate = {
                 expiry_date: entityExpiry || null,
               };
               if (entityExpiry) {

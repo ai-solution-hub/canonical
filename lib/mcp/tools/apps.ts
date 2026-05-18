@@ -252,7 +252,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           supabase
             .from('ingestion_quality_log')
             .select('flag_type, severity')
-            .eq('status', 'open'),
+            .eq('resolved', false),
           'mcp.tools.apps.coverage.quality',
         );
 

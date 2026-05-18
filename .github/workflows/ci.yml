@@ -27,7 +27,10 @@ jobs:
     # Resolves ${{ secrets.X }} and ${{ vars.X }} from the Production
     # environment scope (per docs/runbooks/github-environments.md §4.1).
     # Case-sensitive — must exactly match `Production`.
-    environment: Production
+    # Dependabot PRs drop the environment binding so they pull from the
+    # repo-level Dependabot secret namespace + repo-level vars (which
+    # mirror staging values). See docs/runbooks/ci.md §4.4.
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Production' }}
     # 10 min headroom covers lint + format + knip + build + test:build + (gated)
     # Python pytest at ~3-4 min observed on push-to-main. Vitest now lives in
     # `quality-test`. Per spec D-CI.RES.1-3 + D-CI.RES.1-11.
@@ -59,6 +62,8 @@ jobs:
       # Vitest 4 + Next.js 16 tooling that does not run on Bun's Node-compat layer.
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -66,7 +71,12 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
 
       - name: Cache Next.js build cache
         uses: actions/cache@v4
@@ -98,14 +108,12 @@ jobs:
         run: bun run ci:knip-check
 
       - name: Build (Next.js)
-        # Dependabot PRs run with empty `secrets.*` (GitHub blocks repo +
-        # environment secrets from Dependabot-triggered workflows; only
-        # `vars.*` resolves). The Next.js build's env-client Zod schema
-        # requires NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY and fails closed
-        # otherwise. Skip on Dependabot — lint / format / knip above still
-        # run and gate the PR. See docs/runbooks/ci.md §"Dependabot CI signal"
-        # + memory feedback_gha_secrets_vs_vars_silent_empty.
-        if: github.actor != 'dependabot[bot]'
+        # Dependabot PRs now pull from the repo-level Dependabot secret
+        # namespace + repo-level vars (mirror of staging) instead of the
+        # Production env scope — see docs/runbooks/ci.md §4.4. The
+        # conditional `environment:` at the job level drops the env
+        # binding for Dependabot so `secrets.*` resolves from the
+        # Dependabot namespace, not empty.
         env:
           # WP1.5 parallel: quality-precheck runs solo but observed OOM on
           # ubuntu-latest (2 GB default) during post-compile TS phase when
@@ -143,36 +151,24 @@ jobs:
         # paint. See `__tests__/build/env-substitution.test.ts` + memory
         # `feedback_env_client_literal_substitution.md`. Reuses the build
         # artefacts from the previous step — no extra build cost.
-        # Dependabot-skip: depends on `.next/` artefacts produced by the
-        # previous step (skipped on Dependabot per env-secret blackout).
-        if: github.actor != 'dependabot[bot]'
         env:
           RUN_BUILD_TESTS: "1"
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
         run: bun run test:build
 
       - name: Setup Python
-        # Dependabot-skip: pytest needs `secrets.*` (Supabase / Anthropic /
-        # OpenAI) which resolve empty for Dependabot PRs. Setup + install
-        # also skipped to avoid wasted runner time when test step won't run.
-        if:
-          steps.changes.outputs.python == 'true' && github.actor !=
-          'dependabot[bot]'
+        if: steps.changes.outputs.python == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: "pip"
 
       - name: Install Python dependencies
-        if:
-          steps.changes.outputs.python == 'true' && github.actor !=
-          'dependabot[bot]'
+        if: steps.changes.outputs.python == 'true'
         run: pip install -r requirements.txt
 
       - name: Test (pytest)
-        if:
-          steps.changes.outputs.python == 'true' && github.actor !=
-          'dependabot[bot]'
+        if: steps.changes.outputs.python == 'true'
         env:
           # `kb_pipeline.config` calls `load_dotenv(.env.local)` at import; in
           # CI the file is absent so vars must come from process env. Without
@@ -205,9 +201,8 @@ jobs:
     # whole shard fails closed on empty `secrets.*`. See
     # docs/runbooks/ci.md §"Dependabot CI signal".
     name: Quality test (shard ${{ matrix.shard }}/4)
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
-    environment: Production
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Production' }}
     needs: quality-precheck
     # 10 min headroom covers slowest shard at ~2-3 min observed wall-clock
     # (~30-45 s bun install + ~2 min test step). Per spec D-CI.RES.1-3.
@@ -234,6 +229,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -241,7 +238,12 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
 
       - name: Test (Vitest, shard ${{ matrix.shard }}/4)
         env:
@@ -282,12 +284,13 @@ jobs:
     # Dependabot-skip: requires staging Supabase URL + service-role key +
     # TEST_USER_*_PASSWORD which resolve empty for Dependabot PRs.
     name: E2E smoke
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Staging env scope per docs/runbooks/github-environments.md §2 —
     # carries staging Supabase URL/keys + TEST_USER_1/2/3 credentials.
     # Case-sensitive: must exactly match `Staging`.
-    environment: Staging
+    # Dependabot drops env binding (no env-scoped secret access for
+    # bot-triggered runs) — uses repo Dependabot namespace instead.
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -301,6 +304,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -308,7 +313,12 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
 
       - name: Install Playwright browsers (chromium only)
         # Smoke project uses Desktop Chrome only (per playwright.config.ts).
@@ -382,9 +392,8 @@ jobs:
     # Dependabot-skip: Next.js build's env-client Zod schema requires
     # NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY which resolves empty for Dependabot.
     name: MCP staging build
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
-    environment: Staging
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -397,6 +406,8 @@ jobs:
           fetch-depth: 1
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -404,7 +415,12 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
 
       - name: Cache Next.js build cache
         uses: actions/cache@v4
@@ -463,9 +479,8 @@ jobs:
     # Dependabot-skip: needs SUPABASE_SERVICE_ROLE_KEY + Anthropic / OpenAI
     # keys to seed and verify rows.
     name: MCP eval seed
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
-    environment: Staging
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
     needs: mcp-build
     timeout-minutes: 10
     permissions:
@@ -480,6 +495,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -487,7 +504,12 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
 
       - name: Seed MCP eval Q&A fixtures
         env:
@@ -519,12 +541,11 @@ jobs:
     # Dependabot-skip: matrix expansion is gated upstream by mcp-build +
     # mcp-eval-seed (both also skipped on Dependabot). Adding the explicit
     # if: here keeps the policy obvious + matches the other 5 jobs.
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Staging-scoped: TEST_USER_1_* secrets only exist on Staging env scope
     # (per docs/runbooks/github-environments.md §3.1). Eval scripts authenticate
     # as TEST_USER_1 to obtain a Bearer token for the MCP server endpoint.
-    environment: Staging
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
     needs: [mcp-build, mcp-eval-seed]
     timeout-minutes: 15
     permissions:
@@ -557,6 +578,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -564,7 +587,12 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
       - name: Download MCP build artifact
         uses: actions/download-artifact@v4
         with:
@@ -707,12 +735,11 @@ jobs:
     # Dependabot-skip: hits real Supabase + Anthropic + OpenAI; all of these
     # come from `secrets.*` which are blocked for Dependabot PRs.
     name: Integration tests
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Staging-scoped: TEST_USER_{1,2,3}_* + staging Supabase secrets only
     # exist on Staging env scope (per docs/runbooks/github-environments.md
     # §3.1). Case-sensitive — must exactly match `Staging`.
-    environment: Staging
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
     # WP-CI.RES.7 Phase 2 cutover: continue-on-error dropped. Staging now
     # has reference data + deterministic fixtures via Path (ii). Phase 1
     # soft-fail lever no longer needed.
@@ -732,6 +759,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -739,7 +768,12 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
 
       - name: Run integration tests
         env:
@@ -809,6 +843,56 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  type-drift-parity:
+    # R-WP17 (S10 Wave-B / R-WP21 option c) — fetcher-only interface regression
+    # gate. Runs `bun run ast-dataflow type-drift-detect --ci`, which exits
+    # non-zero if any new fetcher-only interface is detected that is absent from
+    # the committed baseline (`docs/generated/type-drift-baseline.json`).
+    # The 37 existing gaps at S9 close-out are in the baseline (accepted debt);
+    # this gate prevents new drift from being introduced unreviewed.
+    #
+    # No secrets required — the CLI reads repo files + the committed baseline
+    # only. No Supabase, Anthropic, or OpenAI calls. `environment:` omitted
+    # intentionally so Dependabot PRs run the check without needing env-scoped
+    # secrets. Depends on `quality-precheck` so a lint/build failure doesn't
+    # also spin up this job unnecessarily.
+    #
+    # Spec: docs/specs/ast-dataflow-tool/type-safety-pipeline/PRODUCT.md D-19
+    # Decision: docs/specs/ast-dataflow-tool/type-safety-pipeline/decision-OPS-T1.md
+    name: Type-drift parity
+    runs-on: ubuntu-latest
+    needs: quality-precheck
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
+
+      - name: Type-drift parity check
+        run: bun run ast-dataflow type-drift-detect --ci
+
   ci-summary:
     # OPS-58 (S33 W1) — single fixed-name aggregator. Posts on every PR
     # (including Dependabot) regardless of which upstream jobs ran.
@@ -844,6 +928,7 @@ jobs:
       - mcp-eval-seed
       - mcp-eval
       - integration
+      - type-drift-parity
     runs-on: ubuntu-latest
     timeout-minutes: 1
     permissions:
@@ -864,6 +949,7 @@ jobs:
           MCP_EVAL_SEED: ${{ needs.mcp-eval-seed.result }}
           MCP_EVAL: ${{ needs.mcp-eval.result }}
           INTEGRATION: ${{ needs.integration.result }}
+          TYPE_DRIFT_PARITY: ${{ needs.type-drift-parity.result }}
         run: |
           set -euo pipefail
           fail=0
@@ -874,7 +960,8 @@ jobs:
             "mcp-build=$MCP_BUILD" \
             "mcp-eval-seed=$MCP_EVAL_SEED" \
             "mcp-eval=$MCP_EVAL" \
-            "integration=$INTEGRATION"; do
+            "integration=$INTEGRATION" \
+            "type-drift-parity=$TYPE_DRIFT_PARITY"; do
             name="${entry%%=*}"
             res="${entry##*=}"
             echo "  $name -> $res"

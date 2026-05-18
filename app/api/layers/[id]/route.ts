@@ -4,6 +4,10 @@ import { safeErrorMessage } from '@/lib/error';
 import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
 import { parseBody } from '@/lib/validation';
 import { LayerUpdateSchema } from '@/lib/validation/schemas';
+import type { Database } from '@/supabase/types/database.types';
+
+type LayerVocabularyUpdate =
+  Database['public']['Tables']['layer_vocabulary']['Update'];
 
 export const maxDuration = 30;
 
@@ -27,7 +31,7 @@ export async function PATCH(
     const parsed = parseBody(LayerUpdateSchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const updates: Record<string, unknown> = {};
+    const updates: LayerVocabularyUpdate = {};
     if (parsed.data.label !== undefined) updates.label = parsed.data.label;
     if (parsed.data.description !== undefined)
       updates.description = parsed.data.description;

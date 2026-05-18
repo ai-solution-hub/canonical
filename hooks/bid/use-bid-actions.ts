@@ -498,6 +498,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
       queryClient.invalidateQueries({
         queryKey: queryKeys.bids.questions(id),
       });
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing polling key in response to async terminal job status from useQuery
       setActiveJobId(null);
     } else if (status === 'failed' || status === 'dead_lettered') {
       toast.error(error_message ?? 'Drafting failed');

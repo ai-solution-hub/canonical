@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
             fromStatus,
             newStatus,
             user.id,
-          ),
+          ) as Database['public']['Tables']['content_items']['Update'],
         )
         .eq('id', id)
         .eq('publication_status', fromStatus)

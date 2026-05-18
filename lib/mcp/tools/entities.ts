@@ -81,20 +81,20 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
           };
         }
 
-        const summaries: EntitySummaryResult[] = (
-          (summaryRows ?? []) as Record<string, unknown>[]
-        ).map((row) => ({
-          canonical_name: row.canonical_name as string,
-          entity_type: row.entity_type as string,
-          mention_count: Number(row.mention_count),
-          content_item_ids: (row.content_item_ids as string[]) ?? [],
-          related_entities:
-            (row.related_entities as Array<{
-              relationship: string;
-              target?: string;
-              source?: string;
-            }>) ?? [],
-        }));
+        const summaries: EntitySummaryResult[] = (summaryRows ?? []).map(
+          (row) => ({
+            canonical_name: row.canonical_name,
+            entity_type: row.entity_type,
+            mention_count: Number(row.mention_count),
+            content_item_ids: (row.content_item_ids as string[]) ?? [],
+            related_entities:
+              (row.related_entities as Array<{
+                relationship: string;
+                target?: string;
+                source?: string;
+              }>) ?? [],
+          }),
+        );
 
         // If a specific entity_name was provided, also fetch relationship details
         let relationships: EntityRelationship[] = [];
@@ -105,15 +105,13 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
           );
 
           if (!relError && relRows) {
-            relationships = ((relRows ?? []) as Record<string, unknown>[]).map(
-              (row) => ({
-                source_entity: row.source_entity as string,
-                relationship_type: row.relationship_type as string,
-                target_entity: row.target_entity as string,
-                source_item_id: row.source_item_id as string,
-                confidence: Number(row.confidence),
-              }),
-            );
+            relationships = relRows.map((row) => ({
+              source_entity: row.source_entity,
+              relationship_type: row.relationship_type,
+              target_entity: row.target_entity,
+              source_item_id: row.source_item_id,
+              confidence: Number(row.confidence),
+            }));
           }
         }
 

@@ -12,7 +12,10 @@ import {
 } from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
+import type { Database } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
+
+type WorkspaceUpdate = Database['public']['Tables']['workspaces']['Update'];
 
 export const maxDuration = 30;
 
@@ -180,8 +183,8 @@ export async function PATCH(
     };
 
     // Build workspace-level updates
-    const workspaceUpdates: Record<string, unknown> = {
-      domain_metadata: updatedMetadata,
+    const workspaceUpdates: WorkspaceUpdate = {
+      domain_metadata: updatedMetadata as WorkspaceUpdate['domain_metadata'],
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     };

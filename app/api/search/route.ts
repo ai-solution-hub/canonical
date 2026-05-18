@@ -38,7 +38,7 @@ export const POST = withRequestContext(async (request: NextRequest) => {
     const raw = await request.json();
     const parsed = parseBody(SearchBodySchema, raw);
     if (!parsed.success) return parsed.response;
-    const { query, threshold, limit, layer } = parsed.data;
+    const { query, threshold, limit } = parsed.data;
 
     // 1. Generate embedding via shared helper (singleton OpenAI client)
     let embedding: number[];
@@ -78,13 +78,7 @@ export const POST = withRequestContext(async (request: NextRequest) => {
       );
     }
 
-    // Post-filter by content layer if specified
-    const allResults = results ?? [];
-    const filtered = layer
-      ? allResults.filter((r) => {
-          return (r as Record<string, unknown>).layer === layer;
-        })
-      : allResults;
+    const filtered = results ?? [];
 
     return NextResponse.json({
       results: filtered,

@@ -4,6 +4,10 @@ import { safeErrorMessage } from '@/lib/error';
 import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
 import { parseBody } from '@/lib/validation';
 import { TaxonomySubtopicUpdateSchema } from '@/lib/validation/schemas';
+import type { Database } from '@/supabase/types/database.types';
+
+type TaxonomySubtopicUpdate =
+  Database['public']['Tables']['taxonomy_subtopics']['Update'];
 
 export const maxDuration = 30;
 
@@ -37,7 +41,7 @@ export async function PATCH(
     const parsed = parseBody(TaxonomySubtopicUpdateSchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const updates: Record<string, unknown> = {};
+    const updates: TaxonomySubtopicUpdate = {};
     if (parsed.data.name !== undefined) updates.name = parsed.data.name;
     if (parsed.data.display_order !== undefined)
       updates.display_order = parsed.data.display_order;

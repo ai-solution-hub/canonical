@@ -4,6 +4,10 @@ import { safeErrorMessage } from '@/lib/error';
 import { OwnerAssignSchema } from '@/lib/validation/schemas';
 import { parseBody } from '@/lib/validation';
 import { logger } from '@/lib/logger';
+import type { Database, Json } from '@/supabase/types/database.types';
+
+type ContentHistoryInsert =
+  Database['public']['Tables']['content_history']['Insert'];
 
 export const maxDuration = 30;
 
@@ -59,8 +63,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    const currentData = current as Record<string, unknown>;
-    const previousOwnerId = currentData.content_owner_id;
+    const previousOwnerId = current.content_owner_id;
 
     // Update content_owner_id
     const updateData = {
@@ -114,24 +117,25 @@ export async function PATCH(
       } else {
         const nextVersion = ((maxVersionData?.version as number) ?? 0) + 1;
 
+        const historyInsert: ContentHistoryInsert = {
+          content_item_id: id,
+          version: nextVersion,
+          title: current.title ?? '',
+          content: current.content ?? '',
+          change_type: 'owner_change',
+          change_summary: `Content owner ${owner_id ? 'assigned' : 'unassigned'}`,
+          // S152B WP3 / S153: canonical change_reason for owner reassignment.
+          change_reason: 'owner_change',
+          metadata: {
+            field: 'content_owner_id',
+            old: previousOwnerId,
+            new: owner_id,
+          } as Json,
+          created_by: user.id,
+        };
         const { error: historyInsertError } = await supabase
           .from('content_history')
-          .insert({
-            content_item_id: id,
-            version: nextVersion,
-            title: (currentData.title as string) ?? '',
-            content: (currentData.content as string) ?? '',
-            change_type: 'owner_change',
-            change_summary: `Content owner ${owner_id ? 'assigned' : 'unassigned'}`,
-            // S152B WP3 / S153: canonical change_reason for owner reassignment.
-            change_reason: 'owner_change',
-            change_details: {
-              field: 'content_owner_id',
-              old: previousOwnerId,
-              new: owner_id,
-            },
-            changed_by: user.id,
-          });
+          .insert(historyInsert);
         if (historyInsertError) {
           logger.error(
             { err: historyInsertError },

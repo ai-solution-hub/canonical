@@ -75,14 +75,10 @@ async function fetchAndFormatContentItems(
     throw new Error(`Batch fetch failed: ${error.message}`);
   }
 
-  const foundIds = new Set(
-    (rows ?? []).map((r: Record<string, unknown>) => r.id as string),
-  );
+  const foundIds = new Set((rows ?? []).map((r) => r.id));
   const notFound = itemIds.filter((id) => !foundIds.has(id));
 
-  const items: ContentItemDetail[] = (
-    (rows ?? []) as Record<string, unknown>[]
-  ).map((item) => {
+  const items: ContentItemDetail[] = (rows ?? []).map((item) => {
     let content = item.content as string | null;
     if (typeof content === 'string' && content.length > CHARACTER_LIMIT) {
       content =
@@ -90,24 +86,22 @@ async function fetchAndFormatContentItems(
     }
 
     return {
-      id: item.id as string,
-      title: item.title as string | null,
-      suggested_title: item.suggested_title as string | null,
-      content_type: item.content_type as string | null,
-      primary_domain: item.primary_domain as string | null,
-      primary_subtopic: item.primary_subtopic as string | null,
-      summary: item.summary as string | null,
-      ai_keywords: item.ai_keywords as string[] | null,
-      freshness: item.freshness as string | null,
-      classification_confidence: item.classification_confidence as
-        | number
-        | null,
-      source_url: item.source_url as string | null,
+      id: item.id,
+      title: item.title,
+      suggested_title: item.suggested_title,
+      content_type: item.content_type,
+      primary_domain: item.primary_domain,
+      primary_subtopic: item.primary_subtopic,
+      summary: item.summary,
+      ai_keywords: item.ai_keywords,
+      freshness: item.freshness,
+      classification_confidence: item.classification_confidence,
+      source_url: item.source_url,
       content,
-      created_at: item.created_at as string | null,
-      updated_at: item.updated_at as string | null,
-      governance_review_status: item.governance_review_status as string | null,
-      priority: item.priority as string | null,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      governance_review_status: item.governance_review_status,
+      priority: item.priority,
     };
   });
 
@@ -608,10 +602,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             // Store the suggested layer in the dedicated column
             await supabase
               .from('content_items')
-              .update({ layer: suggestion.suggestedLayer } as Record<
-                string,
-                unknown
-              >)
+              .update({
+                layer: suggestion.suggestedLayer,
+              } as Database['public']['Tables']['content_items']['Update'])
               .eq('id', item.id);
           } catch (layerErr) {
             // Non-fatal — item is still usable without a layer
@@ -2163,9 +2156,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         // Determine overall diff mode from entries
         const entryDiffMode =
-          diffs.length > 0 && (diffs[0] as Record<string, unknown>).diff_mode
-            ? ((diffs[0] as Record<string, unknown>).diff_mode as string)
-            : 'qa';
+          diffs.length > 0 && diffs[0].diff_mode ? diffs[0].diff_mode : 'qa';
 
         const formatterData: import('@/lib/mcp/formatters').DocumentDiffData = {
           old_filename: oldDoc.filename,
@@ -2189,8 +2180,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               | 'removed'
               | 'modified'
               | 'unchanged',
-            diff_mode: (((d as Record<string, unknown>).diff_mode as string) ??
-              'qa') as 'qa' | 'full_text',
+            diff_mode: (d.diff_mode ?? 'qa') as 'qa' | 'full_text',
             old_question: d.old_question ?? undefined,
             new_question: d.new_question ?? undefined,
             old_content: d.old_content ?? undefined,
