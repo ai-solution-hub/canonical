@@ -157,10 +157,12 @@ export const BacklogStatus = WorkStatus.exclude([
 // Pre-work: pending | blocked | spec_needed | needs_research | parked | ready
 
 export const TaskListStatus = WorkStatus.exclude([
-  'spec_needed', 'imp_deferred', 'needs_research', 'parked', 'ready',
+  'needs_research', 'parked', 'ready',
 ]);
-// In-work (Task level): done | pending | in_progress | blocked | deferred | cancelled
-// Subtask level further excludes 'cancelled' — see §1 above.
+// In-work (Task level): done | pending | in_progress | blocked | deferred |
+//   cancelled | spec_needed | imp_deferred
+// Subtask level further excludes 'cancelled', 'spec_needed', 'imp_deferred'
+// — see §1 above.
 ```
 
 The same pattern applies to **Priority** (per PRODUCT inv 25):
