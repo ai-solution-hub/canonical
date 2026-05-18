@@ -843,6 +843,56 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  type-drift-parity:
+    # R-WP17 (S10 Wave-B / R-WP21 option c) — fetcher-only interface regression
+    # gate. Runs `bun run ast-dataflow type-drift-detect --ci`, which exits
+    # non-zero if any new fetcher-only interface is detected that is absent from
+    # the committed baseline (`docs/generated/type-drift-baseline.json`).
+    # The 37 existing gaps at S9 close-out are in the baseline (accepted debt);
+    # this gate prevents new drift from being introduced unreviewed.
+    #
+    # No secrets required — the CLI reads repo files + the committed baseline
+    # only. No Supabase, Anthropic, or OpenAI calls. `environment:` omitted
+    # intentionally so Dependabot PRs run the check without needing env-scoped
+    # secrets. Depends on `quality-precheck` so a lint/build failure doesn't
+    # also spin up this job unnecessarily.
+    #
+    # Spec: docs/specs/ast-dataflow-tool/type-safety-pipeline/PRODUCT.md D-19
+    # Decision: docs/specs/ast-dataflow-tool/type-safety-pipeline/decision-OPS-T1.md
+    name: Type-drift parity
+    runs-on: ubuntu-latest
+    needs: quality-precheck
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
+
+      - name: Type-drift parity check
+        run: bun run ast-dataflow type-drift-detect --ci
+
   ci-summary:
     # OPS-58 (S33 W1) — single fixed-name aggregator. Posts on every PR
     # (including Dependabot) regardless of which upstream jobs ran.
@@ -878,6 +928,7 @@ jobs:
       - mcp-eval-seed
       - mcp-eval
       - integration
+      - type-drift-parity
     runs-on: ubuntu-latest
     timeout-minutes: 1
     permissions:
@@ -898,6 +949,7 @@ jobs:
           MCP_EVAL_SEED: ${{ needs.mcp-eval-seed.result }}
           MCP_EVAL: ${{ needs.mcp-eval.result }}
           INTEGRATION: ${{ needs.integration.result }}
+          TYPE_DRIFT_PARITY: ${{ needs.type-drift-parity.result }}
         run: |
           set -euo pipefail
           fail=0
@@ -908,7 +960,8 @@ jobs:
             "mcp-build=$MCP_BUILD" \
             "mcp-eval-seed=$MCP_EVAL_SEED" \
             "mcp-eval=$MCP_EVAL" \
-            "integration=$INTEGRATION"; do
+            "integration=$INTEGRATION" \
+            "type-drift-parity=$TYPE_DRIFT_PARITY"; do
             name="${entry%%=*}"
             res="${entry##*=}"
             echo "  $name -> $res"
