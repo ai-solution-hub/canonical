@@ -52,7 +52,13 @@ describe('BacklogStatus re-export', () => {
   it('contains exactly the 5 pre-work values', () => {
     expect(BacklogStatus.options).toHaveLength(5);
     expect(BacklogStatus.options).toEqual(
-      expect.arrayContaining(['spec_needed', 'needs_research', 'parked', 'ready', 'blocked']),
+      expect.arrayContaining([
+        'spec_needed',
+        'needs_research',
+        'parked',
+        'ready',
+        'blocked',
+      ]),
     );
   });
 
@@ -175,7 +181,8 @@ describe('BacklogItemSchema — new optional fields (inv 38)', () => {
   it('accepts details: string (markdown brief)', () => {
     const result = BacklogItemSchema.safeParse({
       ...VALID_ITEM_BASE,
-      details: 'This item requires a spec to be authored first.\n\nSee `docs/specs/` for conventions.',
+      details:
+        'This item requires a spec to be authored first.\n\nSee `docs/specs/` for conventions.',
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -197,7 +204,8 @@ describe('BacklogItemSchema — new optional fields (inv 38)', () => {
   it('accepts testStrategy: string', () => {
     const result = BacklogItemSchema.safeParse({
       ...VALID_ITEM_BASE,
-      testStrategy: 'Render the onboarding overlay in Playwright; assert 3 steps visible.',
+      testStrategy:
+        'Render the onboarding overlay in Playwright; assert 3 steps visible.',
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -267,20 +275,30 @@ describe('BacklogItemSchema — required fields enforcement', () => {
 
 describe('BacklogItemSchema — priority field', () => {
   it('accepts high', () => {
-    expect(BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'high' }).success).toBe(true);
+    expect(
+      BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'high' })
+        .success,
+    ).toBe(true);
   });
 
   it('accepts medium', () => {
-    expect(BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'medium' }).success).toBe(true);
+    expect(
+      BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'medium' })
+        .success,
+    ).toBe(true);
   });
 
   it('accepts low', () => {
-    expect(BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'low' }).success).toBe(true);
+    expect(
+      BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'low' })
+        .success,
+    ).toBe(true);
   });
 
   it('rejects unknown priority value', () => {
     expect(
-      BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'critical' }).success,
+      BacklogItemSchema.safeParse({ ...VALID_ITEM_BASE, priority: 'critical' })
+        .success,
     ).toBe(false);
   });
 });
@@ -318,7 +336,12 @@ describe('BacklogSchema — root document', () => {
   it('validates a document with multiple items covering different statuses', () => {
     const items = [
       { ...VALID_ITEM_BASE, id: 'A1', status: 'spec_needed' as const },
-      { ...VALID_ITEM_BASE, id: 'A2', status: 'needs_research' as const, type: 'research' as const },
+      {
+        ...VALID_ITEM_BASE,
+        id: 'A2',
+        status: 'needs_research' as const,
+        type: 'research' as const,
+      },
       { ...VALID_ITEM_BASE, id: 'A3', status: 'parked' as const },
       { ...VALID_ITEM_BASE, id: 'A4', status: 'ready' as const },
       { ...VALID_ITEM_BASE, id: 'A5', status: 'blocked' as const },

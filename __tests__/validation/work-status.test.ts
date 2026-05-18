@@ -73,45 +73,80 @@ describe('RoadmapStatus subset', () => {
     'imp_deferred',
     'needs_research',
   ];
-  const excludedValues = ['done', 'in_progress', 'cancelled', 'parked', 'ready'];
+  const excludedValues = [
+    'done',
+    'in_progress',
+    'cancelled',
+    'parked',
+    'ready',
+  ];
 
   it('contains exactly the forward-looking thematic values', () => {
-    expect(RoadmapStatus.options).toEqual(expect.arrayContaining(expectedValues));
+    expect(RoadmapStatus.options).toEqual(
+      expect.arrayContaining(expectedValues),
+    );
     expect(RoadmapStatus.options).toHaveLength(expectedValues.length);
   });
 
   it('accepts each Roadmap-valid value', () => {
     for (const v of expectedValues) {
-      expect(RoadmapStatus.safeParse(v).success, `expected ${v} to be valid`).toBe(true);
+      expect(
+        RoadmapStatus.safeParse(v).success,
+        `expected ${v} to be valid`,
+      ).toBe(true);
     }
   });
 
   it('rejects values excluded from the Roadmap subset', () => {
     for (const v of excludedValues) {
-      expect(RoadmapStatus.safeParse(v).success, `expected ${v} to be rejected`).toBe(false);
+      expect(
+        RoadmapStatus.safeParse(v).success,
+        `expected ${v} to be rejected`,
+      ).toBe(false);
     }
   });
 });
 
 describe('BacklogStatus subset', () => {
   // Pre-work subset: spec_needed | needs_research | parked | ready | blocked
-  const expectedValues = ['spec_needed', 'needs_research', 'parked', 'ready', 'blocked'];
-  const excludedValues = ['pending', 'done', 'in_progress', 'cancelled', 'deferred', 'imp_deferred'];
+  const expectedValues = [
+    'spec_needed',
+    'needs_research',
+    'parked',
+    'ready',
+    'blocked',
+  ];
+  const excludedValues = [
+    'pending',
+    'done',
+    'in_progress',
+    'cancelled',
+    'deferred',
+    'imp_deferred',
+  ];
 
   it('contains exactly the pre-work values (5 values)', () => {
-    expect(BacklogStatus.options).toEqual(expect.arrayContaining(expectedValues));
+    expect(BacklogStatus.options).toEqual(
+      expect.arrayContaining(expectedValues),
+    );
     expect(BacklogStatus.options).toHaveLength(5);
   });
 
   it('accepts each Backlog-valid value', () => {
     for (const v of expectedValues) {
-      expect(BacklogStatus.safeParse(v).success, `expected ${v} to be valid`).toBe(true);
+      expect(
+        BacklogStatus.safeParse(v).success,
+        `expected ${v} to be valid`,
+      ).toBe(true);
     }
   });
 
   it('rejects values excluded from the Backlog subset', () => {
     for (const v of excludedValues) {
-      expect(BacklogStatus.safeParse(v).success, `expected ${v} to be rejected`).toBe(false);
+      expect(
+        BacklogStatus.safeParse(v).success,
+        `expected ${v} to be rejected`,
+      ).toBe(false);
     }
   });
 
@@ -136,19 +171,27 @@ describe('TaskListStatus subset', () => {
   const excludedValues = ['needs_research', 'parked', 'ready'];
 
   it('contains exactly the in-work Task-level values (8 values)', () => {
-    expect(TaskListStatus.options).toEqual(expect.arrayContaining(expectedValues));
+    expect(TaskListStatus.options).toEqual(
+      expect.arrayContaining(expectedValues),
+    );
     expect(TaskListStatus.options).toHaveLength(8);
   });
 
   it('accepts each Task-level value', () => {
     for (const v of expectedValues) {
-      expect(TaskListStatus.safeParse(v).success, `expected ${v} to be valid`).toBe(true);
+      expect(
+        TaskListStatus.safeParse(v).success,
+        `expected ${v} to be valid`,
+      ).toBe(true);
     }
   });
 
   it('rejects values excluded from the Task list subset', () => {
     for (const v of excludedValues) {
-      expect(TaskListStatus.safeParse(v).success, `expected ${v} to be rejected`).toBe(false);
+      expect(
+        TaskListStatus.safeParse(v).success,
+        `expected ${v} to be rejected`,
+      ).toBe(false);
     }
   });
 
@@ -158,7 +201,16 @@ describe('TaskListStatus subset', () => {
 });
 
 describe('Priority master enum', () => {
-  const allValues = ['must', 'should', 'could', 'future', 'high', 'medium', 'low', 'trigger'];
+  const allValues = [
+    'must',
+    'should',
+    'could',
+    'future',
+    'high',
+    'medium',
+    'low',
+    'trigger',
+  ];
 
   it('contains all eight canonical priority values', () => {
     expect(Priority.options).toEqual(expect.arrayContaining(allValues));
@@ -167,7 +219,9 @@ describe('Priority master enum', () => {
 
   it('accepts each canonical priority value', () => {
     for (const v of allValues) {
-      expect(Priority.safeParse(v).success, `expected ${v} to be valid`).toBe(true);
+      expect(Priority.safeParse(v).success, `expected ${v} to be valid`).toBe(
+        true,
+      );
     }
   });
 

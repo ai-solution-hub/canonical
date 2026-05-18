@@ -28,7 +28,8 @@ const VALID_SUBTASK = {
   id: 1,
   title: 'Write the failing test',
   description: 'Create a test file that imports the new schema and fails.',
-  details: 'File: __tests__/validation/task-list-schema.test.ts\nVerify import works.',
+  details:
+    'File: __tests__/validation/task-list-schema.test.ts\nVerify import works.',
   status: 'pending',
   dependencies: [],
   testStrategy: 'Run bun run test to see it fail.',
@@ -55,7 +56,8 @@ const VALID_TASK = {
 const VALID_TASK_LIST = {
   document_name: 'Knowledge Hub Task List',
   document_purpose: 'Active structured work following TM JSON shape.',
-  last_updated: 'kh-prod-readiness-S50 W1 close-out — surface migration creation',
+  last_updated:
+    'kh-prod-readiness-S50 W1 close-out — surface migration creation',
   related_documents: ['docs/reference/product-roadmap.json'],
   tasks: [],
 } as const;
@@ -122,17 +124,26 @@ describe('TaskSchema shape', () => {
   });
 
   it('rejects parentId field — not a valid Task field (inv 8)', () => {
-    const result = TaskSchema.safeParse({ ...VALID_TASK, parentId: 'undefined' });
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      parentId: 'undefined',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects details at Task level — only on Subtasks (inv 7)', () => {
-    const result = TaskSchema.safeParse({ ...VALID_TASK, details: 'some details' });
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      details: 'some details',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects testStrategy at Task level — only on Subtasks (inv 7)', () => {
-    const result = TaskSchema.safeParse({ ...VALID_TASK, testStrategy: 'some strategy' });
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      testStrategy: 'some strategy',
+    });
     expect(result.success).toBe(false);
   });
 
@@ -151,16 +162,28 @@ describe('TaskSchema shape', () => {
     // The four KH-extension nullable fields are REQUIRED (not .optional()).
     // Explicit null is fine; absent is rejected. This verifies N2 fix.
     const { effort_estimate: _e, ...withoutEffort } = VALID_TASK;
-    expect(TaskSchema.safeParse(withoutEffort).success, 'effort_estimate absent should fail').toBe(false);
+    expect(
+      TaskSchema.safeParse(withoutEffort).success,
+      'effort_estimate absent should fail',
+    ).toBe(false);
 
     const { owner: _o, ...withoutOwner } = VALID_TASK;
-    expect(TaskSchema.safeParse(withoutOwner).success, 'owner absent should fail').toBe(false);
+    expect(
+      TaskSchema.safeParse(withoutOwner).success,
+      'owner absent should fail',
+    ).toBe(false);
 
     const { priority_note: _p, ...withoutPriorityNote } = VALID_TASK;
-    expect(TaskSchema.safeParse(withoutPriorityNote).success, 'priority_note absent should fail').toBe(false);
+    expect(
+      TaskSchema.safeParse(withoutPriorityNote).success,
+      'priority_note absent should fail',
+    ).toBe(false);
 
     const { status_note: _s, ...withoutStatusNote } = VALID_TASK;
-    expect(TaskSchema.safeParse(withoutStatusNote).success, 'status_note absent should fail').toBe(false);
+    expect(
+      TaskSchema.safeParse(withoutStatusNote).success,
+      'status_note absent should fail',
+    ).toBe(false);
   });
 
   it('accepts KH-extension array fields as empty arrays (inv 6)', () => {
@@ -177,7 +200,11 @@ describe('TaskSchema shape', () => {
     const result = TaskSchema.safeParse({
       ...VALID_TASK,
       cross_doc_links: [
-        { path: 'specs/surface-migration/PLAN.md', anchor: '#task-1', raw: 'PLAN.md Task 1' },
+        {
+          path: 'specs/surface-migration/PLAN.md',
+          anchor: '#task-1',
+          raw: 'PLAN.md Task 1',
+        },
       ],
     });
     expect(result.success).toBe(true);
@@ -194,7 +221,10 @@ describe('SubtaskSchema shape', () => {
   });
 
   it('accepts a Subtask with null testStrategy (inv 9 — nullable)', () => {
-    const result = SubtaskSchema.safeParse({ ...VALID_SUBTASK, testStrategy: null });
+    const result = SubtaskSchema.safeParse({
+      ...VALID_SUBTASK,
+      testStrategy: null,
+    });
     expect(result.success).toBe(true);
   });
 
@@ -223,9 +253,15 @@ describe('SubtaskSchema shape', () => {
   });
 
   it('rejects a Subtask with non-integer id (inv 9 — must be integer >= 1)', () => {
-    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 0 }).success).toBe(false);
-    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 1.5 }).success).toBe(false);
-    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '1' }).success).toBe(false);
+    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 0 }).success).toBe(
+      false,
+    );
+    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 1.5 }).success).toBe(
+      false,
+    );
+    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '1' }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -235,14 +271,23 @@ describe('SubtaskSchema shape', () => {
 
 describe('TaskListStatus enum membership (inv 21, 22)', () => {
   const taskLevelValues = [
-    'done', 'pending', 'in_progress', 'blocked', 'deferred',
-    'cancelled', 'spec_needed', 'imp_deferred',
+    'done',
+    'pending',
+    'in_progress',
+    'blocked',
+    'deferred',
+    'cancelled',
+    'spec_needed',
+    'imp_deferred',
   ] as const;
 
   it('accepts all 8 Task-level status values', () => {
     for (const status of taskLevelValues) {
       const result = TaskSchema.safeParse({ ...VALID_TASK, status });
-      expect(result.success, `expected status "${status}" to be valid at Task level`).toBe(true);
+      expect(
+        result.success,
+        `expected status "${status}" to be valid at Task level`,
+      ).toBe(true);
     }
   });
 
@@ -252,30 +297,51 @@ describe('TaskListStatus enum membership (inv 21, 22)', () => {
   });
 
   it('rejects hyphenated in-progress at Task level (canonical is underscore — inv 22)', () => {
-    const result = TaskSchema.safeParse({ ...VALID_TASK, status: 'in-progress' });
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      status: 'in-progress',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects cancelled at Subtask level (Subtask subset excludes cancelled — inv 21)', () => {
-    const result = SubtaskSchema.safeParse({ ...VALID_SUBTASK, status: 'cancelled' });
+    const result = SubtaskSchema.safeParse({
+      ...VALID_SUBTASK,
+      status: 'cancelled',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects spec_needed at Subtask level (Subtask subset excludes spec_needed — inv 21)', () => {
-    const result = SubtaskSchema.safeParse({ ...VALID_SUBTASK, status: 'spec_needed' });
+    const result = SubtaskSchema.safeParse({
+      ...VALID_SUBTASK,
+      status: 'spec_needed',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects imp_deferred at Subtask level (Subtask subset excludes imp_deferred — inv 21)', () => {
-    const result = SubtaskSchema.safeParse({ ...VALID_SUBTASK, status: 'imp_deferred' });
+    const result = SubtaskSchema.safeParse({
+      ...VALID_SUBTASK,
+      status: 'imp_deferred',
+    });
     expect(result.success).toBe(false);
   });
 
   it('accepts done, pending, in_progress, blocked, deferred at Subtask level', () => {
-    const subtaskValues = ['done', 'pending', 'in_progress', 'blocked', 'deferred'] as const;
+    const subtaskValues = [
+      'done',
+      'pending',
+      'in_progress',
+      'blocked',
+      'deferred',
+    ] as const;
     for (const status of subtaskValues) {
       const result = SubtaskSchema.safeParse({ ...VALID_SUBTASK, status });
-      expect(result.success, `expected status "${status}" to be valid at Subtask level`).toBe(true);
+      expect(
+        result.success,
+        `expected status "${status}" to be valid at Subtask level`,
+      ).toBe(true);
     }
   });
 
@@ -294,14 +360,20 @@ describe('TaskPriority enum membership (inv 25)', () => {
   it('accepts must, should, could, future (MoSCoW values)', () => {
     for (const priority of ['must', 'should', 'could', 'future'] as const) {
       const result = TaskSchema.safeParse({ ...VALID_TASK, priority });
-      expect(result.success, `expected priority "${priority}" to be valid`).toBe(true);
+      expect(
+        result.success,
+        `expected priority "${priority}" to be valid`,
+      ).toBe(true);
     }
   });
 
   it('accepts high, medium, low (ranked values)', () => {
     for (const priority of ['high', 'medium', 'low'] as const) {
       const result = TaskSchema.safeParse({ ...VALID_TASK, priority });
-      expect(result.success, `expected priority "${priority}" to be valid`).toBe(true);
+      expect(
+        result.success,
+        `expected priority "${priority}" to be valid`,
+      ).toBe(true);
     }
   });
 
@@ -311,8 +383,12 @@ describe('TaskPriority enum membership (inv 25)', () => {
   });
 
   it('rejects unknown priority values', () => {
-    expect(TaskSchema.safeParse({ ...VALID_TASK, priority: 'critical' }).success).toBe(false);
-    expect(TaskSchema.safeParse({ ...VALID_TASK, priority: 'normal' }).success).toBe(false);
+    expect(
+      TaskSchema.safeParse({ ...VALID_TASK, priority: 'critical' }).success,
+    ).toBe(false);
+    expect(
+      TaskSchema.safeParse({ ...VALID_TASK, priority: 'normal' }).success,
+    ).toBe(false);
   });
 
   it('exports TaskPriority with all 8 canonical priority values', () => {
