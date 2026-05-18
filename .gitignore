@@ -44,26 +44,13 @@ venv/
 .claude/plugins/*
 !.claude/plugins/knowledge-hub/
 
-# Project-specific skills (tracked). Marketplace skills (frontend-design,
-# mcp-builder, ast-grep, context-engineering-collection, create-mcp-app,
-# llm-evaluation, markdown-converter, prompt-engineering-patterns,
-# supabase-postgres-best-practices, vercel-react-best-practices,
-# writing-skills) stay ignored.
+# Skills — track ALL `.claude/skills/` by default (S52 policy flip per S51
+# close-out — Liam ratification). Previous allowlist approach created friction
+# every time a new skill was created (each new skill needed an explicit
+# `!.claude/skills/<name>/` entry). New policy: skills are workflow-essential
+# and treated as project state.
 !.claude/skills/
-.claude/skills/*
-!.claude/skills/handoff/
-!.claude/skills/implement-specs/
-!.claude/skills/review/
-!.claude/skills/session-driver-cmux/
-!.claude/skills/spec-driven-implementation/
-!.claude/skills/start-session/
-!.claude/skills/triage-finding/
-!.claude/skills/update-docs/
-!.claude/skills/update-roadmap-backlog/
-!.claude/skills/write-product-spec/
-!.claude/skills/write-tech-spec/
-!.claude/skills/ast-dataflow/
-!.claude/skills/ast-dataflow/**
+!.claude/skills/**
 
 # Session-driver-cmux runtime state (per-worker event streams + worktrees).
 # Both are blanket-ignored by .claude/* above; listing explicitly to document
