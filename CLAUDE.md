@@ -414,6 +414,19 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   mid-commit. (Prior "200K hard cap" claim was wrong — empirically agents run
   past 200K on Opus 4.7 1M-context. Budget is harness-configured, not a fixed
   sub-agent ceiling.)
+- **Sub-agents dispatched via Agent tool lack the Agent tool themselves**
+  (verified S51 ID-7 via ToolSearch — only `EnterWorktree`, `TaskStop`, etc.
+  surfaced; no sub-agent spawn primitive). Recursive agent dispatch is blocked
+  by harness design. If an Orchestrator dispatches a worktree sub-agent that
+  needs to dispatch another agent (e.g. `agent-creator`), the sub-agent must
+  apply the relevant skill's methodology DIRECTLY (e.g. `agent-development`
+  skill) + reference the target agent's body as a write-pattern template.
+  Skills (Skill tool) remain accessible to sub-agents.
+- **`.claude/skills/` is now track-all by default** (S51 close-out gitignore
+  policy flip). New skills are automatically tracked — no allowlist additions
+  required. Runtime state (`.claude/cmux-events/`, `.claude/worktrees/`)
+  remains gitignored. Previous policy required an explicit
+  `!.claude/skills/<name>/` allowlist entry per skill — that friction is gone.
 - **"Build the thing, forget to turn it on":** Every fix must trace from the
   production entry point to the change. Run `bun run knip` for deterministic
   detection of unused files/exports.

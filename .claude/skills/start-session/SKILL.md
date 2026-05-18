@@ -88,21 +88,27 @@ should resolve on retry.
 
 ### 2c: Task-list state inspection
 
-Read `docs/reference/task-list.json` at session start. Per A6 task-list is
-forward-only — closed Tasks have been removed.
+Read `docs/reference/task-list.json` at session start. The task-list is the
+canonical **traceability + observability** surface — active AND recently-closed
+Tasks live here. Subtask state machine (per `kh-sdlc-workflow.md` §6.3) is the
+record of what shipped, NOT a per-session test/check artefact.
 
 - Identify Tasks with status `in_progress` (carry-forward from previous
-  session) and `pending` (Wave A candidates).
+  session) and `pending` (next-wave candidates).
+- Read Tasks with status `done` whose `session_refs[]` includes the previous
+  session — these are recently-closed records; their `<info added on …>`
+  journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
+  in-flight discoveries the previous Executor / Checker left behind that may
+  have been omitted from the continuation prompt.
 - Verify the `last_updated` field date aligns with the previous session's
   close-out.
-- Cross-check Subtask `details` field journal entries (`<info added on …>`
-  blocks per PRODUCT inv 13) — these surface in-flight discoveries the
-  previous Executor / Checker left behind that may have been omitted from
-  the continuation prompt.
+- Tasks are removed only when `cancelled` or reclassified (e.g. promoted to
+  backlog); `done` Tasks stay in place.
 
 Per Q3 ratification the previous STATUS-change-log workflow is retired — the
 canonical session-state recording mechanism is now `task-list.json` field
-updates + the mempalace diary entry. See "Mempalace diary entry shape" below.
+updates + Subtask journal blocks + the mempalace diary entry. See "Mempalace
+diary entry shape" below.
 
 ---
 
