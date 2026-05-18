@@ -62,6 +62,8 @@ venv/
 !.claude/skills/update-roadmap-backlog/
 !.claude/skills/write-product-spec/
 !.claude/skills/write-tech-spec/
+!.claude/skills/ast-dataflow/
+!.claude/skills/ast-dataflow/**
 
 # Session-driver-cmux runtime state (per-worker event streams + worktrees).
 # Both are blanket-ignored by .claude/* above; listing explicitly to document
