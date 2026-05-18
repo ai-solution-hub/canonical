@@ -5,6 +5,12 @@
 PLAN.md decomposes the TECH.md into ordered Tasks and Subtasks following
 the Taskmaster JSON shape (per `s49-open-resolutions.md` A6).
 
+## Change log
+
+| Session | Change |
+|---|---|
+| S50 W0 | Alias removal, unified enums, WP2/3/4 reframes per Liam OQ + extension answers. |
+
 ## Overview
 
 The surface migration creates the Knowledge Hub Task list, restructures
@@ -23,10 +29,12 @@ shape the Task structure:
   (per A6). PLAN.md uses TM-shape Task and Subtask conventions
   (stringified Task ids, integer Subtask ids, sibling-only Subtask deps,
   `details` as load-bearing dispatch brief, `testStrategy` per Subtask).
-- **Backlog status enum stays separate from Task list status enum.**
-  Sibling vocabularies sharing `blocked` but otherwise distinct (Backlog =
-  pre-work; Task list = in-work). Avoids forced unification and the
-  associated content migration.
+- **Single canonical `WorkStatus` master enum, per-surface subsets.**
+  All surfaces share `lib/validation/work-status.ts`; each surface picks the
+  semantically valid subset (Backlog = pre-work subset, Task list = in-work
+  subset, Roadmap = forward-looking subset). Promotion (backlog → task →
+  roadmap) needs no translation step — the subsets compose from the same
+  constants. (See TECH §1.0.)
 - **Drift resolution before §3 restructure.** Run the roadmap-roundtrip
   test to green BEFORE editing the JSON further. Migration cannot ship on
   top of a broken baseline.
@@ -73,9 +81,10 @@ the same JSON file.
 - [ ] `roadmap-no-shipped-rows.test.ts` continues to pass.
 - [ ] `bun run roadmap:render` produces byte-identical output to
       `docs/reference/product-roadmap.md`.
-- [ ] Old §3.x ids no longer appear in any tracked doc (grep returns
-      empty across `docs/`, `.claude/`, `lib/`, `app/`, `__tests__/`,
-      `scripts/`).
+- [ ] Old §3.x ids no longer appear in always-rewrite scope (grep returns
+      empty across `lib/`, `app/`, `__tests__/`, `scripts/`,
+      `.claude/agents/`, `.claude/skills/`). Best-effort scope (prose
+      archives) may carry stale refs.
 
 ### Phase 3: Integration
 
@@ -112,12 +121,14 @@ landing.
 
 **Acceptance criteria.**
 
+- [ ] `lib/validation/work-status.ts` exists and exports `WorkStatus`,
+      `RoadmapStatus`, `BacklogStatus`, `TaskListStatus`, `Priority`, plus
+      inferred types. Per-surface subset compositions are verified to contain
+      exactly the expected values.
 - [ ] `task-list-schema.ts` exports `TaskSchema`, `SubtaskSchema`,
-      `TaskListSchema`, `TaskStatus`, `TaskPriority`, plus inferred
-      types. Status alias normalisation (`in-progress` → `in_progress`,
-      `needs_spec` → `spec_needed`, `needs_research` → `spec_needed`)
-      runs via Zod `.preprocess()` on the status field; the canonical
-      written form is always underscore.
+      `TaskListSchema`, `TaskListStatus`, `TaskPriority`, plus inferred
+      types. Status field sources `TaskListStatus` from the shared module. The
+      canonical written form is always underscore — no alias preprocessing.
 - [ ] Sibling-only Subtask dependency constraint enforced via
       `.superRefine()` on `TaskSchema`. Cross-Task subtask deps are
       rejected at validation time.
@@ -140,34 +151,45 @@ landing.
 
 **Files likely touched.**
 
+- `lib/validation/work-status.ts` (new — shared module, created first)
 - `lib/validation/task-list-schema.ts` (new)
 - `docs/reference/task-list.json` (new)
+- `__tests__/validation/work-status.test.ts` (new)
 - `__tests__/validation/task-list-schema.test.ts` (new)
 
 **Estimated scope.** M (3 new files, each focused; ~2–3h).
 
 **Subtasks** (sibling-only deps; integer ids; restart at 1).
 
-1. **Create `task-list-schema.ts` shell with Subtask + Task + Root
-   shapes** — define the three Zod schemas with all required fields per
-   PRODUCT inv 4, 5, 9, **plus the KH-extension fields per inv 6**
-   (`effort_estimate`, `owner`, `priority_note`, `status_note` as
-   nullable; `cross_doc_links`, `session_refs`, `commit_refs` as arrays).
-   Skip refinements for now. Export inferred types. Deps: `[]`.
-   testStrategy: "Import schema in a one-shot tsx; verify `TaskSchema.shape`
-   lists every required field including the KH-extensions."
+1. **Create `lib/validation/work-status.ts` shared module then create
+   `task-list-schema.ts` shell with Subtask + Task + Root shapes** — first
+   action: create `lib/validation/work-status.ts` with the unified `WorkStatus`
+   + `Priority` master enums and per-surface subsets per TECH §1.0. Then
+   define the three Task-list Zod schemas with all required fields per PRODUCT
+   inv 4, 5, 9, **plus the KH-extension fields per inv 6** (`effort_estimate`,
+   `owner`, `priority_note`, `status_note` as nullable; `cross_doc_links`,
+   `session_refs`, `commit_refs` as arrays). Import `TaskListStatus` from the
+   shared module for the status field. Skip refinements for now. Export
+   inferred types. Deps: `[]`. testStrategy: "Import `WorkStatus` and
+   `BacklogStatus` and `TaskListStatus` from the shared module in a one-shot
+   tsx; verify the subset compositions contain exactly the expected values.
+   Import schema in the same tsx; verify `TaskSchema.shape` lists every
+   required field including the KH-extensions."
 
-2. **Add status enum with alias preprocessing** — implement `TaskStatus`
-   enum + `.preprocess()` step per PRODUCT inv 21, 22. The Subtask-level
-   enum is the strict **subset** that drops `cancelled`, `spec_needed`,
-   and `imp_deferred` (per PRODUCT inv 21 + TECH §1) — implement via
-   `TaskStatus.exclude(['cancelled', 'spec_needed', 'imp_deferred'])` so
-   `SubtaskSchema.status` only accepts the subset. Add `TaskPriority` as
-   a re-export of `RoadmapPriority` from `roadmap-schema.ts`. Deps: `[1]`.
-   testStrategy: "Round-trip `{status: 'in-progress'}` through
-   `TaskSchema.parse()` and verify `.status === 'in_progress'`. Similarly
-   for `needs_spec` → `spec_needed`. Verify `SubtaskSchema.safeParse({...,
-   status: 'cancelled'})` returns `success: false`."
+2. **Add status enum wiring from shared module** — import `TaskListStatus`
+   from `lib/validation/work-status.ts` and attach to the `TaskSchema`
+   status field (per PRODUCT inv 21–22 + TECH §1). No `.preprocess()` step —
+   canonical underscore-form inputs only. The Subtask-level enum is the strict
+   **subset** that drops `cancelled`, `spec_needed`, and `imp_deferred` —
+   implement via `TaskListStatus.exclude(['cancelled', 'spec_needed',
+   'imp_deferred'])` so `SubtaskSchema.status` only accepts the subset. Add
+   `TaskPriority` derived from the shared `Priority` master enum in
+   `work-status.ts`. Deps: `[1]`. testStrategy: "Verify `TaskSchema.safeParse
+   ({..., status: 'in_progress'})` returns `success: true`. Verify
+   `TaskSchema.safeParse({..., status: 'in-progress'})` returns
+   `success: false` (no alias normalisation — canonical form only). Verify
+   `SubtaskSchema.safeParse({..., status: 'cancelled'})` returns
+   `success: false`."
 
 3. **Add sibling-only dep `.superRefine()`** — walk
    `Task.subtasks[].dependencies[]` and assert every referenced integer
@@ -178,10 +200,13 @@ landing.
 
 4. **Author `task-list-schema.test.ts`** — unit tests covering: empty
    `tasks[]` valid, valid Task with valid Subtasks, sibling-only
-   enforcement (positive + negative), status alias normalisation, status
-   enum membership, optional-field nullability. ~12 test cases. Deps:
-   `[2, 3]`. testStrategy: "`bun run test
-   __tests__/validation/task-list-schema.test.ts` — green."
+   enforcement (positive + negative), `TaskListStatus` membership (canonical
+   underscore-form only; hyphenated form rejected), `Priority` subset
+   membership, optional-field nullability. ~12 test cases. Also author
+   `work-status.test.ts` covering master `WorkStatus` enum + per-surface
+   subset compositions. Deps: `[2, 3]`. testStrategy: "`bun run test
+   __tests__/validation/task-list-schema.test.ts
+   __tests__/validation/work-status.test.ts` — green."
 
 5. **Create initial `task-list.json` with empty `tasks[]`** — per TECH
    §2 exact content (document_name, document_purpose, last_updated,
@@ -216,15 +241,18 @@ allowed status enum from the schema instead of a local constant.
 **Acceptance criteria.**
 
 - [ ] `backlog-schema.ts` exports `BacklogStatus`, `BacklogItemSchema`,
-      `BacklogSchema` plus inferred types. The status enum is the current
-      5-value set: `{needs_spec, needs_research, parked, ready,
-      blocked}`. New optional `details` + `testStrategy` fields are
-      `string | null`.
+      `BacklogSchema` plus inferred types. `BacklogStatus` is sourced from
+      the shared `work-status.ts` module (the `BacklogStatus` subset of
+      `WorkStatus`): `{spec_needed, needs_research, parked, ready, blocked}`.
+      New optional `details` + `testStrategy` fields are `string | null`.
 - [ ] `backlog-no-closed-rows.test.ts` imports `BacklogStatus.options`
       rather than the local `ALLOWED_STATUSES` constant. All four
       existing `it()` blocks pass.
-- [ ] Current `product-backlog.json` (36 items) validates against the
-      new schema with zero changes to the file.
+- [ ] Schema validates a representative subset of intended Backlog shapes
+      including all new optional fields; existing 36 items' canonical-status
+      retrofit deferred to FU-NEW (the existing file may contain `needs_spec`
+      which does not validate against the canonical schema — that is expected
+      and deferred, not a schema defect).
 - [ ] All unit tests in `__tests__/validation/backlog-schema.test.ts`
       pass.
 
@@ -232,8 +260,10 @@ allowed status enum from the schema instead of a local constant.
 
 - [ ] `bun run test __tests__/validation/backlog-schema.test.ts
       __tests__/docs/backlog-no-closed-rows.test.ts` — both green.
-- [ ] Manual: parse `product-backlog.json` against `BacklogSchema` via a
-      one-shot script; assert all 36 items round-trip.
+- [ ] Manual: construct 3–5 representative item fixtures covering each
+      status value + each optional-field configuration; verify all validate
+      against `BacklogSchema`. (Existing-items retrofit is a future
+      workpackage per FU-NEW.)
 
 **Dependencies.** None.
 
@@ -248,21 +278,30 @@ allowed status enum from the schema instead of a local constant.
 
 **Subtasks.**
 
-1. **Create `backlog-schema.ts`** — Zod schema mirroring current
-   `product-backlog.json` shape. Required fields per current items
-   (`id`, `description`, `type`, `status`, `effort_estimate`,
+1. **Create `backlog-schema.ts`** — Zod schema mirroring the intended
+   Backlog shape. Import `BacklogStatus` from `lib/validation/work-status.ts`
+   (the Backlog subset of the unified `WorkStatus` enum). Required fields per
+   current items (`id`, `description`, `type`, `status`, `effort_estimate`,
    `priority`, `track`, `depends_on`, `surfaced`, `notes`). New optional
    fields: `details: string | null`, `testStrategy: string | null`. Deps:
-   `[]`. testStrategy: "Parse `product-backlog.json` against the new
-   schema; verify all 36 items validate."
+   `[]`. testStrategy: "Construct 3–5 representative item fixtures covering
+   each `BacklogStatus` value + each optional-field configuration; verify all
+   validate against `BacklogItemSchema`. (Do NOT parse the existing 36-item
+   `product-backlog.json` as the acceptance test — existing items may carry
+   `needs_spec` which does not validate under the canonical schema; that
+   retrofit is deferred to FU-NEW.)"
 
 2. **Refactor `backlog-no-closed-rows.test.ts` to source enum from
    schema** — remove the local `ALLOWED_STATUSES` constant, replace with
    `import { BacklogStatus } from '@/lib/validation/backlog-schema';
-   const ALLOWED_STATUSES = new Set(BacklogStatus.options);`. All four
-   existing `it()` blocks pass unchanged. Deps: `[1]`. testStrategy:
-   "`bun run test __tests__/docs/backlog-no-closed-rows.test.ts` — 4 of
-   4 green."
+   const ALLOWED_STATUSES = new Set(BacklogStatus.options);`. Note: the
+   existing file carries `needs_spec` values; `BacklogStatus.options` will
+   NOT include `needs_spec` under the canonical schema. The forward-discipline
+   test's logic checks that statuses are within the allowed set — if existing
+   items fail, that is expected (FU-NEW handles it). Adjust the test to parse
+   fixtures rather than the live file if needed to keep it green during the
+   FU-NEW deferral period. Deps: `[1]`. testStrategy: "`bun run test
+   __tests__/docs/backlog-no-closed-rows.test.ts` — 4 of 4 green."
 
 3. **Author `backlog-schema.test.ts`** — unit tests covering: valid
    item, each status enum value accepted, invalid status rejected, new
@@ -302,10 +341,10 @@ approach per TECH §5.
 
 **Files likely touched.**
 
-- `docs/reference/product-roadmap.json` (edit — back-fill missing
-  entries)
-- `docs/reference/product-roadmap.md` (edit — remove stale entries IF
-  classification says so)
+- `docs/reference/product-roadmap.md` (edit — strip stale entries per
+  classification; default lean)
+- `docs/reference/product-roadmap.json` (edit — back-fill JSON only for
+  entries Liam confirms main-track requires)
 
 **Estimated scope.** S–M (1–2 files, but classification work could
 expand if drift turns out to span multiple sections; cap at 2h).
@@ -319,11 +358,18 @@ expand if drift turns out to span multiple sections; cap at 2h).
    line count reported; section headings of drifted blocks listed."
 
 2. **Classify each drifted block** — for every contiguous drift block,
-   decide preserve-in-JSON vs remove-from-MD. Default lean: preserve in
-   JSON unless the block describes already-shipped work. Surface
-   classification as a written table to Liam for ratification before
-   editing. Deps: `[1]`. testStrategy: "Classification table reviewed;
-   no ambiguous entries remain unclassified."
+   annotate the classification table with: (a) which surface the block
+   currently appears in (current Roadmap = high-priority surface that
+   main-track will likely supersede; current Backlog = parked/deferred),
+   (b) whether it describes already-shipped work, (c) default classification.
+   **Default lean: strip stale from MD** (drift indicates content has fallen
+   out of the canonical JSON source). Annotate each block as
+   "appears in current Roadmap (high-priority) — candidate for back-fill"
+   or "appears in current Backlog (parked) — safe to strip". Surface the
+   table to Liam for ratification; back-fill JSON only for entries Liam
+   confirms main-track requires. Deps: `[1]`. testStrategy: "Classification
+   table reviewed; each block annotated with concept-flip framing; no
+   ambiguous entries remain unclassified."
 
 3. **Apply resolution** — execute the classification: back-fill JSON
    for preserves, edit MD for removals. Run `bun run roadmap:render` to
@@ -349,16 +395,17 @@ updates. Sweep cross-doc references and rewrite to new ids.
 - [ ] Post-migration JSON validates against `roadmap-schema.ts`.
 - [ ] `roadmap-roundtrip.test.ts` passes (rendered MD matches on-disk).
 - [ ] Cross-doc reference sweep grep returns zero matches for old §3.x
-      ids across `docs/`, `.claude/`, `lib/`, `app/`, `__tests__/`,
-      `scripts/`.
+      ids in always-rewrite scope: `lib/`, `app/`, `__tests__/`, `scripts/`,
+      `.claude/agents/`, `.claude/skills/`. Best-effort scope (prose archives,
+      continuation prompts) may carry stale refs.
 
 **Verification.**
 
 - [ ] `bun run test __tests__/docs/roadmap-roundtrip.test.ts
       __tests__/docs/roadmap-no-shipped-rows.test.ts` — green.
 - [ ] Manual: `grep -rn '§3\.\|"3\.[1-7]\.\|"3\.[1-7]"' --include="*.md"
-      --include="*.ts" docs/ .claude/ lib/ app/ __tests__/ scripts/`
-      returns no matches.
+      --include="*.ts" lib/ app/ __tests__/ scripts/ .claude/agents/
+      .claude/skills/` returns no matches (always-rewrite scope only).
 - [ ] Manual: visual diff of `product-roadmap.md` pre- vs post-migration
       shows §3 flattened to top-level sections; other sections
       renumbered.
@@ -392,14 +439,22 @@ edits land).
    top-level section ids matches the mapping table; item `id` and
    `section_id` fields are consistent."
 
-3. **Cross-doc reference grep + rewrite** — `grep -rn '§3\.\|"3\.[1-7]\.'`
-   across tracked code/docs as a pre-flight count. **If grep returns
-   >30 matches, split this Subtask into 3a (`docs/` rewrites) + 3b
-   (`.claude/` + code rewrites) before any edits land** (per Risk R1).
-   For each match in scope, rewrite to the new id per the mapping table.
-   Group rewrites into one commit per file area for review. Deps: `[2]`.
-   testStrategy: "Post-rewrite grep returns no matches; manual review of
-   changed files confirms each rewrite preserves meaning."
+3. **Cross-doc reference grep + rewrite** — pre-flight: run
+   `grep -rn '§3\.\|"3\.[1-7]\.'` across all tracked areas and produce a
+   count + per-area breakdown. Two scope tiers:
+
+   **Always-rewrite scope** (must reach zero matches before this WP closes):
+   `lib/`, `app/`, `__tests__/`, `scripts/`, `.claude/agents/`,
+   `.claude/skills/`. For each match, rewrite to the new id per the mapping
+   table. Group rewrites into one commit per file area for review.
+
+   **Best-effort scope** (stale refs degrade gracefully; skip if time-boxed):
+   `docs/continuation-prompts/`, `docs/plans/`, `docs/reference/state-of-the-product.md`,
+   `.planning/.archive/`. Historical prose archives do not cause test failures.
+
+   Deps: `[2]`. testStrategy: "Post-rewrite grep in always-rewrite scope
+   returns zero matches; manual review of changed files confirms each rewrite
+   preserves meaning. Best-effort scope may carry stale refs."
 
 4. **Re-render and verify roundtrip** — `bun run roadmap:render` to
    regen MD; commit. Deps: `[2]`. testStrategy: "`bun run test
@@ -534,17 +589,19 @@ Plan-level risks below.)
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Drift classification (Task 3 Subtask 2) reveals deeper structural problems than just §12 missing from JSON | Medium | Cap Task 3 at 2h; if classification surfaces scope expansion, escalate to Liam for re-prioritisation before any edits land. |
+| Drift classification (Task 3 Subtask 2) reveals deeper structural problems than just §12 missing from JSON | Medium | Cap Task 3 at 2h; if classification surfaces scope expansion, escalate to Liam for re-prioritisation before any edits land. Default lean is strip-stale; Liam reviews the table before edits land (per Task 3 Subtask 2). |
+| Strip-stale drift resolution (Task 3) removes MD entries main-track will need → content lost | Medium | Default lean is strip-stale; back-fill only on Liam ratification. Backups exist locally — strip is recoverable. Classification table surfaces per-block concept-flip framing. |
 | Parallel workpackages produce git conflicts on `tracked-reference-docs.ts` (Task 5 edits) | Low | Task 5 runs AFTER Tasks 1+2+4 land — no parallel write contention. |
-| Cross-doc reference sweep (Task 4 Subtask 3) finds 50+ references and breaks the 2h cap | Medium | Pre-flight grep estimate before dispatch; if >30 matches, split the rewrite into a separate Subtask 3a (docs/) + Subtask 3b (code). |
+| Cross-doc reference sweep (Task 4 Subtask 3) finds 50+ references in always-rewrite scope and breaks the 2h cap | Medium | Pre-flight grep count before dispatch. Always-rewrite scope (lib/, app/, __tests__/, scripts/, .claude/agents/, .claude/skills/) must reach zero — split into 3a/3b if needed. Best-effort scope (prose archives) carries stale refs — do not block the WP on them. |
 | Dogfooded Task list seeding (Task 1 Subtask 6) hits a schema constraint that the schema needs to relax | Low | Treat as a Checker finding; either fix schema (if constraint was wrong) or rework Task 1 details (if seed payload was wrong). Do not let dogfooding produce a relaxed-for-convenience schema. |
 
 ## Open questions
 
 - **Q1.** When Task 3 Subtask 2 surfaces the drift classification, does
   Liam want to review the table before edits land, or trust the
-  default-lean (preserve in JSON unless shipped)? Lean: review for first
-  WP, default thereafter.
+  default-lean? **Resolved:** review for the first WP (concept-flip framing
+  means the table needs human judgment on which stripped entries main-track
+  requires back-filling). Default lean is strip-stale.
 - **Q2.** Should Task 1 Subtask 6 (dogfood-seed) be a separate
   Subtask, or fold into Subtask 5 (initial file)? Lean: keep separate so
   the dogfood can be reverted if Checker finds an issue without
@@ -597,7 +654,7 @@ Sketch (illustrative; Task 1 Subtask 6 produces the authoritative form):
           "details": "Required fields per current items (id, description, type, status, effort_estimate, priority, track, depends_on, surfaced, notes). New optional fields: details: string | null, testStrategy: string | null. Schema location: lib/validation/backlog-schema.ts.",
           "status": "pending",
           "dependencies": [],
-          "testStrategy": "Parse product-backlog.json against the new schema; verify all 36 items validate."
+          "testStrategy": "Construct 3-5 representative item fixtures covering each BacklogStatus value + each optional-field configuration; verify all validate against BacklogItemSchema. (Existing-items retrofit deferred to FU-NEW.)"
         }
       ]
     }

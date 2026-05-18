@@ -1,5 +1,11 @@
 # Surface Migration — Roadmap, Backlog, Task List
 
+## Change log
+
+| Session | Change |
+|---|---|
+| S50 W0 | Alias removal, unified enums, WP2/3/4 reframes per Liam OQ + extension answers. |
+
 ## Summary
 
 Migrate Knowledge Hub's task surfaces to a Taskmaster-shaped (TM-shaped) JSON
@@ -186,26 +192,35 @@ perspective of those consumers.
 
 ### G. Status vocabulary
 
-21. The combined status enum spans Task-level and Subtask-level uses:
-    - At Task level: `done`, `pending`, `in_progress`, `blocked`, `deferred`,
-      `cancelled`, `spec_needed`, `imp_deferred`.
-    - At Subtask level: `done`, `pending`, `in_progress`, `blocked`,
-      `deferred`.
+21. A single canonical `WorkStatus` enum spans all surfaces; each surface
+    accepts a defined **subset** per its semantic role. See TECH.md §1.0 for
+    the shared module definition and subset compositions.
 
-    The Subtask set is a subset of the Task set; `cancelled`, `spec_needed`,
-    and `imp_deferred` are Task-level only.
+    - **Task list (in-work):** `done | pending | in_progress | blocked |
+      deferred | cancelled | spec_needed | imp_deferred` at Task level.
+      At Subtask level the set is further reduced to `done | pending |
+      in_progress | blocked | deferred` (drops `cancelled`, `spec_needed`,
+      `imp_deferred` — Subtask-level only in the in-work phase).
+    - **Roadmap (forward-looking thematic):** `pending | blocked |
+      spec_needed | deferred | imp_deferred | needs_research`.
+    - **Backlog (pre-work):** `spec_needed | needs_research | parked |
+      ready | blocked`.
 
-22. The status enum is a **superset** of (a) the observed TM enum
-    (`done`/`pending`/`deferred`/`cancelled`/`in-progress`/`blocked`/`review`)
-    and (b) the current Roadmap+Backlog enums (`pending`/`blocked`/
-    `spec_needed`/`in_progress`/`deferred`/`imp_deferred`/`needs_spec`/
-    `needs_research`). The KH canonical form uses **underscores**
-    (`in_progress`, `spec_needed`); the TM hyphenated form (`in-progress`)
-    is read-aliased on import to the underscore form. Other equivalences:
-    `needs_spec` aliases to `spec_needed`, `needs_research` aliases to
-    `spec_needed`. TM's `review` status is **not adopted** — the equivalent
-    state in KH is captured by the Checker's `quality-review` variant
-    interacting with a Subtask still in `in_progress`.
+    The Subtask status set is a strict subset of the Task list subset;
+    `cancelled`, `spec_needed`, and `imp_deferred` are Task-level-only values
+    within the Task list surface.
+
+22. The KH canonical form uses **underscores throughout** (`in_progress`,
+    `spec_needed`). This is the **only** accepted written form across all three
+    surfaces — there is no alias preprocessing on read. The Task list is NEW;
+    no legacy data exists that requires aliasing.
+
+    Note: the Backlog surface uses `spec_needed` and `needs_research` as valid
+    Backlog-specific status values in their own right (not aliases for anything
+    else — they are the canonical Backlog pre-work states). TM's `review`
+    status is **not adopted** — the equivalent state in KH is captured by the
+    Checker's `quality-review` variant interacting with a Subtask still in
+    `in_progress`. See TECH.md §1.0 for the full master enum definition.
 
 23. Status transitions are **consumer-side discipline**, not schema-enforced.
     The SDLC workflow doc owns the per-role transition rules (e.g. Executor
@@ -218,10 +233,12 @@ perspective of those consumers.
 
 ### H. Priority vocabulary
 
-25. The Task-level priority enum is the **union** of:
-    - MoSCoW values (`must`, `should`, `could`, `future`)
-    - Ranked values (`high`, `medium`, `low`)
-    - Trigger value (`trigger`).
+25. A single canonical `Priority` enum spans all surfaces; surfaces use
+    subsets per their semantic role. See TECH.md §1.0 for the shared module
+    definition and per-surface subset compositions. The master enum covers:
+    MoSCoW values (`must`, `should`, `could`, `future`), Ranked values
+    (`high`, `medium`, `low`), and the Trigger value (`trigger`). Each surface
+    accepts the subset semantically meaningful for its function.
 
 26. A `priority_note` freetext field is allowed at Task level for residual
     annotation beyond the canonical enum (e.g.
@@ -272,6 +289,13 @@ perspective of those consumers.
     as part of this migration**. The migration cannot ship on top of a
     broken round-trip baseline. The specific drift content and the
     JSON-vs-MD reconciliation strategy are TECH.md decisions.
+
+    Drift-resolution direction defaults to **strip stale from MD** (drift
+    indicates content that has fallen out of the canonical JSON source).
+    Back-fill JSON only for entries Liam confirms main-track requires
+    (review the classification table per Task 3 Subtask 2 default-lean
+    override). Liam holds local backups of current `product-roadmap.{json,md}`
+    and `product-backlog.json`; aggressive strip is recoverable.
 
 34. The render output is **deterministic** — the same input JSON produces
     byte-identical MD across runs and across machines. (This is the
@@ -412,14 +436,17 @@ perspective of those consumers.
     - The Roadmap JSON reflects the §3 restructure and the
       drift-resolution, validates against its (updated) schema, and
       round-trips with the on-disk MD.
-    - The Backlog JSON has the new optional fields available; existing
-      Backlog items are unchanged in content.
+    - The Backlog JSON has the new optional fields available and adopts
+      canonical status names (`spec_needed` not `needs_spec`). Existing
+      items may be retrofitted in a follow-up if main-track plans preserve
+      them, but the retrofit is not required for this migration (see TECH.md
+      FU-NEW: Backlog 36-item canonical status retrofit).
 
 57. Pre-migration, the Roadmap JSON↔MD round-trip is broken (3 test
     failures, ~1,400 token drift). Post-migration, the round-trip passes
-    cleanly. Whether the drift is resolved by editing the JSON to match
-    the MD, the MD to match the JSON, or some combination is a TECH.md
-    decision — but the post-state is unambiguous: zero round-trip
+    cleanly. The drift is resolved by stripping stale MD entries (default
+    lean per inv 33) or, for any entries Liam confirms main-track requires,
+    by back-filling JSON. The post-state is unambiguous: zero round-trip
     failures.
 
 ## Open questions
