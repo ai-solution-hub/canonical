@@ -41,8 +41,8 @@ conventions):
   `docs/specs/APP-1234/PRODUCT.md`)
 - a short kebab-case feature name (e.g.
   `docs/specs/q-a-workspace-scoping/PRODUCT.md`)
-- once Taskmaster is installed (S232 WP4+), align `<id>` with the Taskmaster
-  task ID for the feature so `docs/specs/<id>/` maps cleanly to the task tree.
+- align `<id>` with the Task ID from `docs/reference/task-list.json` (e.g.
+  `docs/specs/task-8/`) so `docs/specs/<id>/` maps cleanly to the task tree.
 
 `docs/specs/` should contain only id-named directories as direct children. Do
 not create engineer-named subdirectories or feature-slug-plus-suffix variants
