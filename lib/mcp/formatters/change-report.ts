@@ -44,7 +44,7 @@ export const ChangeReportItemSchema = z.object({
   date: z.string(),
 });
 
-const ChangeReportBucketSchema = z.object({
+export const ChangeReportBucketSchema = z.object({
   count: z.number(),
   items: z.array(ChangeReportItemSchema),
 });

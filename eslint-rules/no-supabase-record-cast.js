@@ -38,6 +38,10 @@ const JSONB_BARE_COLUMNS = new Set([
   'current_value',
   'proposed_value',
   'payload',
+  // ingestion_quality_log.details
+  'details',
+  // pipeline_runs.progress
+  'progress',
   // pipeline_runs.result / processing_queue.result
   // Note: only allowlisted when accessed as `.result` member; plain `result`
   // variables are NOT covered (too broad).
