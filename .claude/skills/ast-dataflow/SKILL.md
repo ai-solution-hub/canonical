@@ -13,7 +13,7 @@ allowed-tools:
 
 ast-dataflow is a type-checker-resolved static analysis library for the
 Knowledge Hub TypeScript codebase. It wraps `ts-morph` (the TypeScript
-compiler API) and exposes eleven queries as a CLI and as a programmatic
+compiler API) and exposes twelve queries as a CLI and as a programmatic
 module. Unlike `grep` or text search, every query resolves symbols through
 TypeScript's type system — aliases, re-exports, and indirect references are
 all tracked.
@@ -199,11 +199,11 @@ fix only). **Companion:** Pattern 6 (type-evolution agreement check).
 
 ---
 
-### enum-member-uses — "all reads of a specific enum member or `as const` property"
+### enum-uses — "all reads of a specific enum or `as const` member"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts enum-member-uses \
-  --member 'lib/validation/schemas.ts:BID_STATES.DRAFT'
+bun scripts/ast-dataflow-cli.ts enum-uses \
+  --enum BID_STATES [--member DRAFT]
 ```
 
 Returns every property-access read, type-position reference, and string-
@@ -268,7 +268,7 @@ gitnexus, Knip, and ccc. Full write-up:
 | 5 | Call-chain pin for wrong-argument bugs | `gitnexus_context` + `callers` | High |
 | 6 | Type-evolution agreement check | `gitnexus_impact` + `type-evolution` | Medium |
 | 7 | Architectural invariant verification | `ccc guide` + `callers` / `string-literal-uses` | Medium |
-| 8 | Knip enum-member confirmation | `knip --reporter json` + `enum-member-uses` | Medium |
+| 8 | Knip enum-member confirmation | `knip --reporter json` + `enum-uses` | Medium |
 | 9 | Concept-scoped dead-export audit | `ccc search` + `dead-exports --scope` | Low |
 
 ---

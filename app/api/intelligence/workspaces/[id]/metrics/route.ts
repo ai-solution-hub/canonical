@@ -141,6 +141,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         notes: f.notes,
         created_at: f.created_at,
         article_title:
+          // eslint-disable-next-line local/no-supabase-record-cast -- pre-existing cast; intelligence cluster typing deferred to OPS-T1 defineRoute() rollout per S10 R-WP21 ratification.
           (f.feed_articles as Record<string, unknown>)?.title ?? 'Unknown',
       })),
       period,

@@ -445,7 +445,12 @@ function isArrayElementOfSupabaseOrigin(castNode, varName, enclosingBody) {
       // left must be a VariableDeclaration whose declared id matches varName
       if (left && left.type === 'VariableDeclaration') {
         const decl = left.declarations[0];
-        if (decl && decl.id && decl.id.type === 'Identifier' && decl.id.name === varName) {
+        if (
+          decl &&
+          decl.id &&
+          decl.id.type === 'Identifier' &&
+          decl.id.name === varName
+        ) {
           // right is the iterable — unwrap `?? []` if present
           let iterable = cursor.right;
           if (
@@ -478,8 +483,7 @@ function isArrayElementOfSupabaseOrigin(castNode, varName, enclosingBody) {
       // Check if this function has varName as a parameter
       const params = cursor.params ?? [];
       const hasParam = params.some(
-        (p) =>
-          p.type === 'Identifier' && p.name === varName,
+        (p) => p.type === 'Identifier' && p.name === varName,
       );
 
       if (hasParam) {
@@ -592,7 +596,9 @@ function declarationIsArrayElementOfSupabaseOrigin(root, varName) {
           init.callee.object.type === 'Identifier'
         ) {
           // `const name = someArray.filter(...)` — check if someArray is Supabase-origin
-          if (declarationIsSupabaseOrigin(searchRoot, init.callee.object.name)) {
+          if (
+            declarationIsSupabaseOrigin(searchRoot, init.callee.object.name)
+          ) {
             found = true;
           }
         }
@@ -615,7 +621,10 @@ function declarationIsArrayElementOfSupabaseOrigin(root, varName) {
           for (const c of child) {
             if (c && typeof c.type === 'string') visit2(c);
           }
-        } else if (typeof child === 'object' && typeof child.type === 'string') {
+        } else if (
+          typeof child === 'object' &&
+          typeof child.type === 'string'
+        ) {
           visit2(child);
         }
       }
@@ -735,9 +744,7 @@ function isSupabaseOriginExpression(expression, enclosingBody, castNode) {
       if (declarationIsSupabaseOrigin(enclosingBody, identName)) return true;
 
       // ---- Shape F: array element — loop var, callback param, subscript ----
-      if (
-        isArrayElementOfSupabaseOrigin(castNode, identName, enclosingBody)
-      ) {
+      if (isArrayElementOfSupabaseOrigin(castNode, identName, enclosingBody)) {
         return true;
       }
 
