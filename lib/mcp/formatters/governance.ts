@@ -1,6 +1,7 @@
 /**
  * Governance and delete/archive formatters for MCP tool responses.
  */
+import { z } from 'zod';
 import { formatDateUK } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
@@ -124,6 +125,39 @@ export interface GovernanceQueueData {
   publication_status_filter?: string | null;
 }
 
+/**
+ * Zod schema for `GovernanceQueueItem` — mirrors the interface exactly for
+ * MCP `outputSchema` runtime validation.
+ */
+export const GovernanceQueueItemSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  suggested_title: z.string().nullable(),
+  primary_domain: z.string().nullable(),
+  governance_review_status: z.string().nullable(),
+  governance_review_due: z.string().nullable(),
+  governance_reviewer_id: z.string().nullable(),
+  updated_by: z.string().nullable(),
+  updated_at: z.string().nullable(),
+});
+
+/**
+ * Zod schema for the `get_governance_queue` structured response envelope.
+ *
+ * Note: the tool spreads `GovernanceQueueData` and appends `review_status_filter`
+ * (a string array surfacing the resolved status set). The schema includes it so
+ * validation covers the actual wire shape.
+ */
+export const GovernanceQueueResponseSchema = z.object({
+  items: z.array(GovernanceQueueItemSchema),
+  total: z.number(),
+  offset: z.number(),
+  limit: z.number(),
+  domain_filter: z.string().nullable(),
+  publication_status_filter: z.string().nullish(),
+  review_status_filter: z.array(z.string()),
+});
+
 export function formatGovernanceQueue(data: GovernanceQueueData): string {
   const { items, total, offset, domain_filter, publication_status_filter } =
     data;
@@ -187,6 +221,19 @@ export interface GovernanceReviewActionResult {
   reviewer_id: string;
   notes: string | null;
 }
+
+/**
+ * Zod schema for `GovernanceReviewActionResult` — mirrors the interface
+ * exactly for MCP `outputSchema` runtime validation.
+ */
+export const GovernanceReviewActionResultSchema = z.object({
+  item_id: z.string(),
+  title: z.string(),
+  action: z.enum(['approve', 'request_changes', 'revert']),
+  new_status: z.string(),
+  reviewer_id: z.string(),
+  notes: z.string().nullable(),
+});
 
 export function formatGovernanceReviewAction(
   result: GovernanceReviewActionResult,

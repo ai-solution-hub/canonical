@@ -11,6 +11,7 @@ import {
   type ChangeReportItem,
   type ChangeReportData,
 } from '@/lib/mcp/formatters';
+import { ChangeReportDataSchema } from '@/lib/mcp/formatters/change-report';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -29,6 +30,7 @@ export async function registerChangeReportTools(
     'get_change_report',
     {
       title: 'Get Change Report',
+      outputSchema: ChangeReportDataSchema,
       description:
         'Summarise content additions, updates, and removals over a recent period. ' +
         'Optionally filter by domain or keywords. Used by the daily-briefing and ' +

@@ -34,6 +34,10 @@ import type {
   PublicationStatusUpdateResult,
 } from '@/lib/mcp/formatters';
 import {
+  GovernanceQueueResponseSchema,
+  GovernanceReviewActionResultSchema,
+} from '@/lib/mcp/formatters/governance';
+import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
@@ -893,6 +897,7 @@ export async function registerGovernanceTools(
     'get_governance_queue',
     {
       title: 'Get Governance Queue',
+      outputSchema: GovernanceQueueResponseSchema,
       description:
         'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). By default the queue includes both `pending` (recent edits awaiting review) and `review_overdue` (cadence-elapsed items flagged by the §5.5 Phase 2 cron). Set `include_overdue=false` to restrict to `pending` only, or use `status_filter` for granular control (`pending`, `review_overdue`, or `all` for both). Optional `domain` filter restricts by `primary_domain`; optional `publication_status` filter restricts by publication lifecycle state (e.g. set `publication_status="in_review"` to surface items awaiting publication approval — a separate axis from change-management `governance_review_status`). All filters compose via AND. Editor or admin role required.',
       inputSchema: {
@@ -1066,6 +1071,7 @@ export async function registerGovernanceTools(
     'review_governance_item',
     {
       title: 'Process Governance Review Action',
+      outputSchema: GovernanceReviewActionResultSchema,
       description:
         'Process a governance review action on an item currently pending review. Actions: "approve" moves to approved, "request_changes" flags it back for editing, "revert" reverts the pending change. Does NOT handle publish/draft transitions — those live in `update_governance_status`. Editor or admin role required. Item must currently have `governance_review_status = "pending"`.',
       inputSchema: {
@@ -1228,20 +1234,18 @@ export async function registerGovernanceTools(
           const detailResult = await tryQuery(
             supabase
               .from('content_items')
-              .select('updated_by, content_owner_id' as 'updated_by')
+              .select('updated_by, content_owner_id')
               .eq('id', args.item_id)
               .maybeSingle(),
             'mcp.governance.review_governance_item.detail',
           );
-          const detail = isOk(detailResult)
-            ? (detailResult.data as Record<string, unknown> | null)
-            : null;
+          const detail = isOk(detailResult) ? detailResult.data : null;
           const targets = new Set<string>();
           if (detail?.content_owner_id && detail.content_owner_id !== userId) {
-            targets.add(detail.content_owner_id as string);
+            targets.add(detail.content_owner_id);
           }
           if (detail?.updated_by && detail.updated_by !== userId) {
-            targets.add(detail.updated_by as string);
+            targets.add(detail.updated_by);
           }
           for (const target of targets) {
             await supabase.from('notifications').insert({

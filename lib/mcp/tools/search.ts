@@ -24,6 +24,10 @@ import type {
   ChunkSearchResult,
 } from '@/lib/mcp/formatters';
 import {
+  SearchResponseSchema,
+  ChunkSearchResponseSchema,
+} from '@/lib/mcp/formatters/search';
+import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
@@ -69,6 +73,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     {
       title: 'Search Knowledge Base',
       description: `Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Supports optional domain and workspace_id filters (AND logic when both provided). Valid domains: ${domainList}. Use the kb://taxonomy resource for the full subtopic list.`,
+      outputSchema: SearchResponseSchema,
       inputSchema: {
         query: z
           .string()
@@ -295,9 +300,9 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
         }
 
         // Filter to Q&A pairs only, then apply pagination
-        const allQaResults = (
-          (results ?? []) as Record<string, unknown>[]
-        ).filter((r) => r.content_type === 'q_a_pair');
+        const allQaResults = (results ?? []).filter(
+          (r) => r.content_type === 'q_a_pair',
+        );
 
         const hasMore = allQaResults.length > searchOffset + searchLimit;
         const paged = allQaResults.slice(
@@ -306,14 +311,14 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
         );
 
         const qaResults: SearchResult[] = paged.map((r) => ({
-          id: r.id as string,
-          title: r.title as string | null,
-          suggested_title: r.suggested_title as string | null,
-          content_type: r.content_type as string | null,
-          primary_domain: r.primary_domain as string | null,
-          primary_subtopic: r.primary_subtopic as string | null,
-          summary: r.summary as string | null,
-          similarity: r.similarity as number,
+          id: r.id,
+          title: r.title,
+          suggested_title: r.suggested_title,
+          content_type: r.content_type,
+          primary_domain: r.primary_domain,
+          primary_subtopic: r.primary_subtopic,
+          summary: r.summary,
+          similarity: r.similarity,
         }));
 
         const markdown = formatQASearchResults(args.query, qaResults);
@@ -453,19 +458,17 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       }
 
       // Filter out the source item itself
-      const similar: SimilarItem[] = (
-        (results ?? []) as Record<string, unknown>[]
-      )
+      const similar: SimilarItem[] = (results ?? [])
         .filter((r) => r.id !== args.id)
         .slice(0, resultLimit)
         .map((r) => ({
-          id: r.id as string,
-          title: r.title as string | null,
-          suggested_title: r.suggested_title as string | null,
-          content_type: r.content_type as string | null,
-          primary_domain: r.primary_domain as string | null,
-          similarity: r.similarity as number,
-          likely_duplicate: (r.similarity as number) > 0.95,
+          id: r.id,
+          title: r.title,
+          suggested_title: r.suggested_title,
+          content_type: r.content_type,
+          primary_domain: r.primary_domain,
+          similarity: r.similarity,
+          likely_duplicate: r.similarity > 0.95,
         }));
 
       const sourceTitle =
@@ -576,6 +579,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     'search_content_chunks',
     {
       title: 'Search Content Chunks',
+      outputSchema: ChunkSearchResponseSchema,
       description:
         'Search within content at the section level using semantic search. Returns individual sections (chunks) of documents rather than whole items, enabling fine-grained retrieval. Each chunk includes its heading path (breadcrumb) showing where it sits in the document structure. Useful for finding specific sections within long documents — e.g. "the Risk Assessment section of a health and safety policy". Use search_knowledge_base for whole-document search, use this for section-level precision. Optional review-cadence filters (`overdue_review`, `review_due_within_days`) restrict results to chunks from items with active document-control review obligations.',
       inputSchema: {

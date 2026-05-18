@@ -5,6 +5,7 @@
  * as Markdown for human consumption, with structured data interfaces for
  * machine consumers.
  */
+import { z } from 'zod';
 import { formatDateUK } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,38 @@ export interface ChangeReportData {
   updates: { count: number; items: ChangeReportItem[] };
   removals: { count: number; items: ChangeReportItem[] };
 }
+
+/**
+ * Zod schema for `ChangeReportItem` — mirrors the interface exactly for
+ * MCP `outputSchema` runtime validation.
+ */
+export const ChangeReportItemSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  primary_domain: z.string().nullable(),
+  content_type: z.string().nullable(),
+  date: z.string(),
+});
+
+const ChangeReportBucketSchema = z.object({
+  count: z.number(),
+  items: z.array(ChangeReportItemSchema),
+});
+
+/**
+ * Zod schema for `ChangeReportData` — mirrors the interface exactly for
+ * MCP `outputSchema` runtime validation.
+ */
+export const ChangeReportDataSchema = z.object({
+  period_days: z.number(),
+  start_date: z.string(),
+  end_date: z.string(),
+  domain: z.string().nullable(),
+  keywords: z.array(z.string()).nullable(),
+  additions: ChangeReportBucketSchema,
+  updates: ChangeReportBucketSchema,
+  removals: ChangeReportBucketSchema,
+});
 
 // ---------------------------------------------------------------------------
 // Formatter
