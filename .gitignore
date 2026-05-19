@@ -19,38 +19,19 @@ __pycache__/
 venv/
 
 # Phase 0.9 spike scratch dirs (ephemeral; reports under docs/plans/phase-0-investigation/)
+.spike-s10/
 .spike-s14/
+.spike-s15/
+.venv-spike-s10/
 .venv-spike-s14/
-
-# Claude Code workspace — selective tracking (S157 WP4)
-# Blanket-ignore everything under .claude/ by default to protect per-machine
-# state (settings.local.json, worktree metadata) and prevent marketplace-
-# sourced skills/plugins from being pinned in git. Track explicit project-
-# specific paths via the `!` un-ignores below.
-# See docs/audits/s157-claude-dot-tracking-audit.md for the classification
-# of which subdirectories are project-specific vs marketplace-sourced.
-.claude/*
 
 # Project-specific files we want tracked
 !.claude/agents/
 !.claude/checks/
 !.claude/hooks/
-!.claude/settings.json
-
-# Local knowledge-hub plugin (tracked). Marketplace plugins
-# (customer-support, design, enterprise-search, operations,
-# product-management, productivity, sales) stay ignored.
-!.claude/plugins/
-.claude/plugins/*
-!.claude/plugins/knowledge-hub/
-
-# Skills — track ALL `.claude/skills/` by default (prod-readiness-S52 policy flip per S51
-# close-out — Liam ratification). Previous allowlist approach created friction
-# every time a new skill was created (each new skill needed an explicit
-# `!.claude/skills/<name>/` entry). New policy: skills are workflow-essential
-# and treated as project state.
 !.claude/skills/
-!.claude/skills/**
+!.claude/plugins/
+!.claude/settings.json
 
 # Session-driver-cmux runtime state (per-worker event streams + worktrees).
 # Both are blanket-ignored by .claude/* above; listing explicitly to document
@@ -73,9 +54,6 @@ Thumbs.db
 
 # Agent browser state
 .agent-browser/
-
-# TheHook knowledge capture
-.thehook/
 
 # Playwright MCP
 .playwright-mcp/
@@ -116,42 +94,23 @@ logs/
 # CSV data files
 *.csv
 !supabase/**/*.csv
-.firecrawl/
-
-# Database backups
-backups/
-test-data/
-
-# Quality protocol snapshots (large JSONL with 1024-dim embeddings)
-data/*
-# …except the example-client markdown corpus regenerated from production for re-ingestion.
-!data/example-client-markdown-reingest/
 
 # Session output dumps (Claude Code session exports)
 output.jsonl
+*-session-output.md
 *-session-output.jsonl
 *_session_output.json
 *-session-output.json
-main_session_output.md
 /docs/database/
 
-# Graphify baseline outputs — too big for git, regenerable from run_baseline.py
-.planning/codebase/graphify-baselines/*/graph.json
-.planning/codebase/graphify-baselines/*/graph.html
-.planning/codebase/graphify-baselines/*/graphify-out/
-
-# graphify-out from incidental graphify runs (project root + client-doc subdir)
-/graphify-out/
-docs/client-documentation/graphify-out/
-
-# MemPalace per-project files (issue #185)
+# MemPalace
 mempalace.yaml
 entities.json
 
-# Phase 0.9 spike artefacts (ephemeral)
-.spike-s10/
-.spike-s15/
-.venv-spike-s10/
+# GitNexus
+.gitnexus
+!.gitnexus/CLAUDE.md
 
-# AST dataflow tool — per-worktree cache (see docs/specs/ast-dataflow-tool/TECH.md)
-.ast-dataflow-cache/
+# AST Dataflow
+.ast-dataflow/
+!.ast-dataflow/CLAUDE.md
