@@ -5,8 +5,8 @@ repository.
 
 ## GitNexus - Code Intelligence
 
-**Import GitNexus and AST Dataflow development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
-@./.gitnexus/CLAUDE.md
+**Import GitNexus and AST Dataflow development workflow commands and guidelines, treat as
+if import is in the main CLAUDE.md file.** @./.gitnexus/CLAUDE.md
 @./.ast-dataflow/CLAUDE.md
 
 ## Project Overview
@@ -87,8 +87,8 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 - **Staging:** persistent branch `turayklvaunphgbgscat`. Refresh procedure:
   `docs/runbooks/staging-refresh.md`.
 - **CLI:** `/opt/homebrew/bin/supabase`
-- **DDL via CLI only** (`supabase migration new` + `db push`), never MCP `execute_sql` or `mcp__supabase__apply_migration`.
-  MCP tools for queries and quick DML only.
+- **DDL via CLI only** (`supabase migration new` + `db push`), never MCP `execute_sql` or
+  `mcp__supabase__apply_migration`. MCP tools for queries and quick DML only.
 - **Function search_path:** All new PL/pgSQL functions **MUST** include
   `SET search_path = public, extensions`
 - **Prefer proper schema** — tables and columns over JSONB for key data
@@ -176,7 +176,8 @@ point-in-time snapshots.
 
 Mempalace MCP server is the canonical memory system.
 
-**One wing per top-level worktree.** e.g., `knowledge-hub`, `knowledge-hub-production-readiness`
+**One wing per top-level worktree.** e.g., `knowledge-hub`,
+`knowledge-hub-production-readiness`
 
 **MCP tools:**
 
@@ -186,13 +187,15 @@ Mempalace MCP server is the canonical memory system.
 - `mempalace_diary_write` / `mempalace_diary_read` ✓ — works for default `wing_<agent>`;
   cross-project `wing` param errors. Use AAAK format (entity codes + emotion markers +
   pipe-separated fields).
-- `mempalace_search` **PARTIAL** — default (no `wing` param) works. Any `wing` filter errors
-  `Error executing plan: Internal error: Error finding id`. Workaround: search default, filter
-  results client-side by `wing` field.
+- `mempalace_search` **PARTIAL** — default (no `wing` param) works. Any `wing` filter
+  errors `Error executing plan: Internal error: Error finding id`. Workaround: search
+  default, filter results client-side by `wing` field.
 
 ## Implementation Workflow
 
-Workflow is loaded via `/start-session` skill at session start. Key rules: max 2h per agent, verification gates after every phase, fix ALL findings before merge, sequential merges only.
+Workflow is loaded via `/start-session` skill at session start. Key rules: max 2h per
+agent, verification gates after every phase, fix ALL findings before merge, sequential
+merges only.
 
 **Parallel agent isolation:** Use `isolation: "worktree"` on Agent tool calls for parallel
 implementation work. This auto-creates a git worktree, runs the agent there, and returns
@@ -207,7 +210,9 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 - **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
 - **production-readiness**
   (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`, branch
-  `production-readiness`) — CI/CD, staging DB, structured logging, handover infra. Currently implementing the new dev-workflow orchestration setup. Original Primer: `docs/tracks/production-readiness.md`.
+  `production-readiness`) — CI/CD, staging DB, structured logging, handover infra.
+  Currently implementing the new dev-workflow orchestration setup. Original Primer:
+  `docs/tracks/production-readiness.md`.
 - **kh-knowledge-platform** **(Being decommissioned)**
   (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`, branch
   `kh-knowledge-platform`). Primer: `docs/tracks/kh-knowledge-platform.md`.
@@ -308,15 +313,15 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 - **No barrel re-exports:** Always use direct file imports (`@/lib/bid/helpers`), never
   import from index files.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);
-  `lib/taxonomy/taxonomy.ts` is a 24-line re-export shim for content types and
-  platforms only — Python pipeline reads taxonomy from
+  `lib/taxonomy/taxonomy.ts` is a 24-line re-export shim for content types and platforms
+  only — Python pipeline reads taxonomy from
   `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports"; internal code
   still uses "digest".
-- **Entity classification: false positives, not type errors:** Source
-  of truth: `docs/reference/entity-type-taxonomy-spec.md`.
+- **Entity classification: false positives, not type errors:** Source of truth:
+  `docs/reference/entity-type-taxonomy-spec.md`.
 
 ### UI / Frontend
 
@@ -337,9 +342,9 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   a new reference every render, breaking downstream deps. Hoist a module-level
   `const EMPTY_X: T[] = [];` and wrap with
   `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
-- **Reset local state via `key` prop:** Add `key={propId}` at
-  the call site to force a clean remount — don't write a `useEffect` that calls `setState`
-  in response to prop changes.
+- **Reset local state via `key` prop:** Add `key={propId}` at the call site to force a
+  clean remount — don't write a `useEffect` that calls `setState` in response to prop
+  changes.
 
 ### General
 
@@ -371,8 +376,10 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
     **sub-agents** juggling sub-agent worktrees: after Read of a worktree file, subsequent
     git commands silently run in the wrong tree — always `cd <main-repo-path> &&` before
     main-repo git operations.
-- **Use General Purpose agents (unless otherwise specified):** These inherit the main sessions 1m token context window and avoids hitting token limits. 
-- **ALWAYS check worktree `git status` before removing it:** This covers any cases where an agent exited mid-commit.
+- **Use General Purpose agents (unless otherwise specified):** These inherit the main
+  sessions 1m token context window and avoids hitting token limits.
+- **ALWAYS check worktree `git status` before removing it:** This covers any cases where
+  an agent exited mid-commit.
 - **`classifyContent` userId must be a UUID:** Use pipeline service account UUID
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
