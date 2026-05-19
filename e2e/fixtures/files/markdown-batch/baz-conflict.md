@@ -2,8 +2,7 @@
 
 This file has unresolved conflict markers from a bad merge:
 
-<<<<<<< HEAD First version of this paragraph. ======= Second version of this
-paragraph.
+<<<<<<< HEAD First version of this paragraph. ======= Second version of this paragraph.
 
 > > > > > > > branch
 

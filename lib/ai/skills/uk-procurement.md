@@ -1,8 +1,7 @@
 # UK Procurement Skill
 
-You are drafting bid responses within the UK public procurement framework. This
-skill provides regulatory context, procedural knowledge, and SMB-relevant
-considerations.
+You are drafting bid responses within the UK public procurement framework. This skill
+provides regulatory context, procedural knowledge, and SMB-relevant considerations.
 
 ---
 
@@ -10,36 +9,33 @@ considerations.
 
 ### 1.1 Procurement Act 2023
 
-The **Procurement Act 2023** came into force on **28 October 2024**, replacing
-the Public Contracts Regulations 2015 (PCR 2015) and related legislation. Key
-changes include:
+The **Procurement Act 2023** came into force on **28 October 2024**, replacing the Public
+Contracts Regulations 2015 (PCR 2015) and related legislation. Key changes include:
 
-- **Single unified regime** replacing PCR 2015, Utilities Contracts Regulations
-  2016, Concession Contracts Regulations 2016, and Defence and Security Public
-  Contracts Regulations 2011 (defence has a separate carve-out)
+- **Single unified regime** replacing PCR 2015, Utilities Contracts Regulations 2016,
+  Concession Contracts Regulations 2016, and Defence and Security Public Contracts
+  Regulations 2011 (defence has a separate carve-out)
 - **Central Digital Platform** for all procurement notices and transparency data
 - **Simplified procedures** with greater flexibility for contracting authorities
 - **Enhanced SMB access** with specific measures to reduce barriers
-- **Covered procurement** threshold applies only to contracts above the relevant
-  threshold
-- **Transparency notices** required at multiple stages (pipeline, tender, award,
-  contract details, modifications)
+- **Covered procurement** threshold applies only to contracts above the relevant threshold
+- **Transparency notices** required at multiple stages (pipeline, tender, award, contract
+  details, modifications)
 
 ### 1.2 Key Principles
 
 The Procurement Act 2023 establishes five core principles:
 
-1. **Value for money** — Delivering the best mix of quality and effectiveness
-   for the least outlay over the period of use
-2. **Public benefit** — Procurement should promote the public good, including
-   social, economic, and environmental wellbeing
-3. **Transparency** — All procurement activities must be transparent, with
-   information published on the central platform
-4. **Integrity** — Procurement must be conducted with integrity, including
-   proper management of conflicts of interest
-5. **Equal treatment** — Suppliers must be treated equally, with no
-   discrimination based on nationality or geographic location (within scope of
-   trade agreements)
+1. **Value for money** — Delivering the best mix of quality and effectiveness for the
+   least outlay over the period of use
+2. **Public benefit** — Procurement should promote the public good, including social,
+   economic, and environmental wellbeing
+3. **Transparency** — All procurement activities must be transparent, with information
+   published on the central platform
+4. **Integrity** — Procurement must be conducted with integrity, including proper
+   management of conflicts of interest
+5. **Equal treatment** — Suppliers must be treated equally, with no discrimination based
+   on nationality or geographic location (within scope of trade agreements)
 
 ### 1.3 Procurement Thresholds (2024–2025)
 
@@ -55,9 +51,9 @@ Thresholds are updated biennially. Current thresholds:
 | Utilities (goods and services)                  | £427,012   |
 | Utilities (works)                               | £5,372,609 |
 
-Below-threshold procurement follows local standing orders and financial
-regulations but must still comply with the principles of transparency,
-proportionality, and equal treatment.
+Below-threshold procurement follows local standing orders and financial regulations but
+must still comply with the principles of transparency, proportionality, and equal
+treatment.
 
 ---
 
@@ -72,8 +68,8 @@ proportionality, and equal treatment.
 
 ### 2.2 Competitive Flexible Procedure
 
-- **New under the Procurement Act 2023** — replaces the restricted and
-  competitive procedures from PCR 2015
+- **New under the Procurement Act 2023** — replaces the restricted and competitive
+  procedures from PCR 2015
 - Contracting authorities have flexibility to design a multi-stage process
 - Can include pre-qualification, shortlisting, negotiation, and/or dialogue
 - Must comply with the core principles
@@ -81,24 +77,22 @@ proportionality, and equal treatment.
 
 ### 2.3 Competitive Dialogue
 
-- For complex requirements where the contracting authority cannot define
-  technical specifications or contract structure upfront
+- For complex requirements where the contracting authority cannot define technical
+  specifications or contract structure upfront
 - Structured dialogue phase with shortlisted candidates
 - Solutions developed collaboratively before final tender submission
 - Common for IT, construction, and complex service contracts
 
 ### 2.4 Innovation Partnership
 
-- For development of innovative products, services, or works not available on
-  the market
+- For development of innovative products, services, or works not available on the market
 - Combines a competitive procedure with a development phase
-- Partner(s) develop the solution and may be awarded the contract without a
-  further competition
+- Partner(s) develop the solution and may be awarded the contract without a further
+  competition
 
 ### 2.5 Direct Award
 
-Under the Procurement Act 2023, direct award is permitted in specific
-circumstances:
+Under the Procurement Act 2023, direct award is permitted in specific circumstances:
 
 - Below-threshold procurement
 - Single supplier due to exclusivity, urgency, or absence of competition
@@ -112,18 +106,17 @@ circumstances:
 ### 3.1 Framework Agreements
 
 - Pre-competed agreements establishing terms for future call-off contracts
-- Maximum duration: 4 years (extendable to 8 years in exceptional cases under
-  Procurement Act 2023)
+- Maximum duration: 4 years (extendable to 8 years in exceptional cases under Procurement
+  Act 2023)
 - Two call-off mechanisms:
   - **Direct award:** Based on the framework terms without further competition
   - **Mini-competition:** Further competition among framework suppliers
-- Common examples: Crown Commercial Service (CCS) frameworks, NHS Shared
-  Business Services
+- Common examples: Crown Commercial Service (CCS) frameworks, NHS Shared Business Services
 
 ### 3.2 Dynamic Markets (formerly Dynamic Purchasing Systems)
 
-- **Renamed under the Procurement Act 2023** from Dynamic Purchasing Systems
-  (DPS) to Dynamic Markets
+- **Renamed under the Procurement Act 2023** from Dynamic Purchasing Systems (DPS) to
+  Dynamic Markets
 - Open-access framework: new suppliers can join at any time during the period
 - Fully electronic process
 - No maximum number of suppliers
@@ -143,12 +136,11 @@ circumstances:
 
 The Act includes specific provisions to support SMB participation:
 
-- **30-day payment terms** mandatory throughout the supply chain (not just
-  tier 1)
-- **Proportionate requirements:** Contracting authorities must ensure selection
-  criteria and conditions are proportionate to the contract
-- **No unnecessary bundling:** Requirements should not be bundled in ways that
-  exclude smaller suppliers
+- **30-day payment terms** mandatory throughout the supply chain (not just tier 1)
+- **Proportionate requirements:** Contracting authorities must ensure selection criteria
+  and conditions are proportionate to the contract
+- **No unnecessary bundling:** Requirements should not be bundled in ways that exclude
+  smaller suppliers
 - **Pipeline notices:** Early visibility of upcoming procurement opportunities
 - **Simplified processes:** Reduced bureaucratic burden in tender submissions
 - **Preliminary market engagement:** Encouraged to help shape requirements
@@ -156,8 +148,8 @@ The Act includes specific provisions to support SMB participation:
 ### 4.2 Prompt Payment
 
 - **30-day payment terms** from receipt of a valid, undisputed invoice
-- Requirement flows down the supply chain — main contractors must pay
-  subcontractors within 30 days
+- Requirement flows down the supply chain — main contractors must pay subcontractors
+  within 30 days
 - Contracting authorities must report on payment performance
 - Late payment can be challenged through the Public Procurement Review Service
 
@@ -166,8 +158,7 @@ The Act includes specific provisions to support SMB participation:
 - Many large contracts include requirements for SMB subcontracting
 - Social value scoring often rewards supply chain diversity
 - Prime contractors may be required to advertise subcontracting opportunities
-- Subcontracting can be a route to building a track record for future prime
-  bidding
+- Subcontracting can be a route to building a track record for future prime bidding
 
 ### 4.4 Proportionality
 
@@ -199,17 +190,16 @@ The standard evaluation basis for UK public procurement:
 Common scoring approaches:
 
 **0–5 scale (most common):** | Score | Descriptor | |-------|-----------| | 0 |
-Unacceptable — no response or fundamentally fails to address the requirement | |
-1 | Poor — significant shortcomings, major concerns | | 2 | Acceptable — meets
-minimum requirements but limited evidence | | 3 | Good — meets requirements with
-reasonable evidence | | 4 | Very good — exceeds requirements with strong
-evidence | | 5 | Excellent — significantly exceeds requirements with
-comprehensive evidence |
+Unacceptable — no response or fundamentally fails to address the requirement | | 1 | Poor
+— significant shortcomings, major concerns | | 2 | Acceptable — meets minimum requirements
+but limited evidence | | 3 | Good — meets requirements with reasonable evidence | | 4 |
+Very good — exceeds requirements with strong evidence | | 5 | Excellent — significantly
+exceeds requirements with comprehensive evidence |
 
 **Pass/fail criteria:**
 
-- Some requirements are scored pass/fail (e.g., mandatory certifications,
-  insurance levels)
+- Some requirements are scored pass/fail (e.g., mandatory certifications, insurance
+  levels)
 - Failing any pass/fail criterion typically results in exclusion
 - These are not weighted — they are gatekeeping criteria
 
@@ -217,8 +207,7 @@ comprehensive evidence |
 
 Since **PPN 06/20** (January 2021):
 
-- Minimum **10% weighting** for social value in all central government
-  procurement
+- Minimum **10% weighting** for social value in all central government procurement
 - Many sub-central authorities adopt similar or higher weightings
 - Social value is evaluated against the **Social Value Model** themes:
   - Theme 1: COVID-19 recovery
@@ -226,8 +215,8 @@ Since **PPN 06/20** (January 2021):
   - Theme 3: Fighting climate change
   - Theme 4: Equal opportunity
   - Theme 5: Wellbeing
-- Under the Procurement Act 2023, public benefit (which subsumes social value)
-  is a core principle
+- Under the Procurement Act 2023, public benefit (which subsumes social value) is a core
+  principle
 
 ### 5.4 Moderation
 
@@ -242,8 +231,7 @@ Since **PPN 06/20** (January 2021):
 
 ### 6.1 Find a Tender
 
-- **UK's central procurement notice platform** (replaced OJEU/TED for UK after
-  Brexit)
+- **UK's central procurement notice platform** (replaced OJEU/TED for UK after Brexit)
 - All above-threshold opportunities must be advertised here
 - Free to access and search
 - URL: https://www.find-tender.service.gov.uk/
@@ -251,8 +239,8 @@ Since **PPN 06/20** (January 2021):
 ### 6.2 Contracts Finder
 
 - **Below-threshold and voluntary notices** for England
-- Contracting authorities should publish contracts over £12,000 (central
-  government) or £30,000 (sub-central)
+- Contracting authorities should publish contracts over £12,000 (central government) or
+  £30,000 (sub-central)
 - Free to access
 - URL: https://www.contractsfinder.service.gov.uk/
 
@@ -279,8 +267,8 @@ Since **PPN 06/20** (January 2021):
 - **Scotland:** Public Contracts Scotland (PCS) and PCS-Tender
 - **Wales:** Sell2Wales
 - **Northern Ireland:** eTendersNI
-- Each has its own procurement policy notes and procedures, though the
-  Procurement Act 2023 applies UK-wide (with some devolved modifications)
+- Each has its own procurement policy notes and procedures, though the Procurement Act
+  2023 applies UK-wide (with some devolved modifications)
 
 ---
 
@@ -329,7 +317,7 @@ When drafting responses, reference these where relevant:
 - **Environment Act 2021** — Environmental obligations
 - **Data Protection Act 2018 / UK GDPR** — Data handling requirements
 - **Health and Safety at Work etc. Act 1974** — Workplace safety
-- **Transfer of Undertakings (Protection of Employment) Regulations 2006
-  (TUPE)** — Staff transfer obligations
+- **Transfer of Undertakings (Protection of Employment) Regulations 2006 (TUPE)** — Staff
+  transfer obligations
 - **Freedom of Information Act 2000** — Transparency obligations
 - **Late Payment of Commercial Debts (Interest) Act 1998** — Payment terms

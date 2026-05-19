@@ -3,16 +3,5 @@
     "firecrawl@claude-plugins-official": false,
     "knowledge-hub@local": false,
     "sentry@claude-plugins-official": false
-  },
-  "permissions": {
-    "allow": [
-      "Bash(bun run test)",
-      "Bash(bun lint)",
-      "Bash(bun run format:check)",
-      "Bash(bun run tsc)",
-      "Bash(git check-ignore *)",
-      "Bash(cmux list-workspaces*)",
-      "mcp__plugin_mempalace_mempalace__mempalace_diary_read"
-    ]
   }
 }

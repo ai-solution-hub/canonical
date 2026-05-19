@@ -44,7 +44,7 @@ venv/
 .claude/plugins/*
 !.claude/plugins/knowledge-hub/
 
-# Skills — track ALL `.claude/skills/` by default (S52 policy flip per S51
+# Skills — track ALL `.claude/skills/` by default (prod-readiness-S52 policy flip per S51
 # close-out — Liam ratification). Previous allowlist approach created friction
 # every time a new skill was created (each new skill needed an explicit
 # `!.claude/skills/<name>/` entry). New policy: skills are workflow-essential
