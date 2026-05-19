@@ -3,6 +3,12 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this
 repository.
 
+## GitNexus - Code Intelligence
+
+**Import GitNexus and AST Dataflow development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
+@./.gitnexus/CLAUDE.md
+@./.ast-dataflow/CLAUDE.md
+
 ## Project Overview
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
@@ -81,7 +87,7 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 - **Staging:** persistent branch `turayklvaunphgbgscat`. Refresh procedure:
   `docs/runbooks/staging-refresh.md`.
 - **CLI:** `/opt/homebrew/bin/supabase`
-- **DDL via CLI only** (`supabase migration new` + `db push`), never MCP `execute_sql`.
+- **DDL via CLI only** (`supabase migration new` + `db push`), never MCP `execute_sql` or `mcp__supabase__apply_migration`.
   MCP tools for queries and quick DML only.
 - **Function search_path:** All new PL/pgSQL functions **MUST** include
   `SET search_path = public, extensions`
@@ -166,17 +172,11 @@ Historical planning: `.planning/.archive/{doc-type}` (`.specs/`, `.audits/`, `.r
 `.coninuation-prompts/` etc.) Grep explicitly when researching past decisions; treat as
 point-in-time snapshots.
 
-## Memory (Mempalace)
+## Memory (MemPalace)
 
-Mempalace MCP server is the canonical memory system (replaced auto-memory file system
-2026-05-10). Plugin `mempalace@mempalace` v3.3.5 enabled in `~/.claude/settings.json`
-`enabledPlugins`; Stop + PreCompact hooks fire automatically per session — no manual
-ingest needed.
+Mempalace MCP server is the canonical memory system.
 
-**One wing per worktree.** Drawer counts as of S43: `knowledge-hub` (75,878) ·
-`knowledge-hub-prod-readiness` (22,773) · `knowledge-hub-kpf` (7,342) ·
-`knowledge-hub-ui-ux` (15,299) · plus minor worktrees. Total ~128k drawers across 12
-wings.
+**One wing per top-level worktree.** e.g., `knowledge-hub`, `knowledge-hub-production-readiness`
 
 **MCP tools:**
 
@@ -186,25 +186,13 @@ wings.
 - `mempalace_diary_write` / `mempalace_diary_read` ✓ — works for default `wing_<agent>`;
   cross-project `wing` param errors. Use AAAK format (entity codes + emotion markers +
   pipe-separated fields).
-- `mempalace_search` ⚠ **PARTIAL** — default (no `wing` param) WORKS as of 3.3.5 (verified
-  S43 W1: returned 9 hits for "test-audit MCP factory"). Any `wing` filter still errors
-  `Error executing plan: Internal error: Error finding id` (verified `wing: knowledge-hub`
-  AND `wing: knowledge-hub-prod-readiness`). 3.3.5 PR #1396 fixed `tool_search` Chroma
-  transient retry, NOT wing-filter id resolution. Workaround: search default, filter
-  results client-side by `wing` field; or fall back to git log + grep for wing-scoped
-  recall.
-
-**Auto-memory file system phased out.** Do NOT author new `feedback_*.md` / `project_*.md`
-/ `reference_*.md` files in `~/.claude/projects/.../memory/`. New lessons either (a)
-graduate to a one-line CLAUDE.md Gotcha entry, (b) get recorded inline in the next
-continuation prompt's "Critical rules from recent sessions" section (max 5 items), or (c)
-wait for a more substantive memory-shape ratification.
+- `mempalace_search` **PARTIAL** — default (no `wing` param) works. Any `wing` filter errors
+  `Error executing plan: Internal error: Error finding id`. Workaround: search default, filter
+  results client-side by `wing` field.
 
 ## Implementation Workflow
 
-Spec-Code-Verify workflow is loaded via `/start-session` skill at session start. Key
-rules: max 2h per agent, verification gates after every phase, fix ALL findings before
-merge, sequential merges only.
+Workflow is loaded via `/start-session` skill at session start. Key rules: max 2h per agent, verification gates after every phase, fix ALL findings before merge, sequential merges only.
 
 **Parallel agent isolation:** Use `isolation: "worktree"` on Agent tool calls for parallel
 implementation work. This auto-creates a git worktree, runs the agent there, and returns
@@ -217,13 +205,12 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 `git worktree`):
 
 - **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
-- **kh-knowledge-platform**
-  (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`, branch
-  `kh-knowledge-platform`). Primer: `docs/tracks/kh-knowledge-platform.md`.
 - **production-readiness**
   (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`, branch
-  `production-readiness`) — CI/CD, staging DB, structured logging, handover infra. Primer:
-  `docs/tracks/production-readiness.md`.
+  `production-readiness`) — CI/CD, staging DB, structured logging, handover infra. Currently implementing the new dev-workflow orchestration setup. Original Primer: `docs/tracks/production-readiness.md`.
+- **kh-knowledge-platform** **(Being decommissioned)**
+  (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`, branch
+  `kh-knowledge-platform`). Primer: `docs/tracks/kh-knowledge-platform.md`.
 
 ## Gotchas
 
@@ -256,9 +243,6 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   Every new `public.*()` helper needs an explicit
   `REVOKE EXECUTE ON FUNCTION public.foo() FROM anon;` in its migration — per-tenant if
   SECURITY DEFINER.
-- **`mcp__supabase__apply_migration` auto-generates server-side timestamps** that diverge
-  from local file naming. Re-pull `supabase_migrations.schema_migrations` post-apply,
-  rename the local file to match, and `UPDATE` the staging row if it diverged.
 
 ### Testing
 
@@ -271,9 +255,6 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   like `00000000-...0001` fail — use v4-compliant values.
 - **Date-sensitive tests need pinned time:** Use `vi.spyOn(Date, 'now')` with a fixed
   timestamp — `setDate()` rounding causes midnight-boundary flakiness.
-- **Agent escalation rule:** Test agents encountering unexpected production behaviour
-  (wrong renders, dead code, tests that can only pass by not testing real logic) **MUST
-  escalate to the main session**.
 - **Verifier diff on long-lived branches:** use `git show --stat <commit>`, not
   `git diff main..<commit>` — the latter returns multi-session deltas and produces
   false-positive "commit contamination" reports.
@@ -327,15 +308,14 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 - **No barrel re-exports:** Always use direct file imports (`@/lib/bid/helpers`), never
   import from index files.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);
-  `lib/taxonomy/taxonomy.ts` is now a 24-line re-export shim for content types and
+  `lib/taxonomy/taxonomy.ts` is a 24-line re-export shim for content types and
   platforms only — Python pipeline reads taxonomy from
   `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports"; internal code
   still uses "digest".
-- **Entity classification: false positives, not type errors:** The problem is extracting
-  non-entities (policies, generic concepts, job titles), not mistyping real ones. Source
+- **Entity classification: false positives, not type errors:** Source
   of truth: `docs/reference/entity-type-taxonomy-spec.md`.
 
 ### UI / Frontend
@@ -357,7 +337,7 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   a new reference every render, breaking downstream deps. Hoist a module-level
   `const EMPTY_X: T[] = [];` and wrap with
   `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
-- **Reset local state via `key` prop, not `setState` in effect:** Add `key={propId}` at
+- **Reset local state via `key` prop:** Add `key={propId}` at
   the call site to force a clean remount — don't write a `useEffect` that calls `setState`
   in response to prop changes.
 
@@ -381,87 +361,19 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   - **Cherry-pick (not merge)** parallel agent branches — agents branch from main at
     launch time and go stale when earlier agents merge first.
   - **Worktree agents start stale:** `isolation: "worktree"` branches from a historical
-    commit. Agent's first action must be `git reset --hard main`.
+    commit. Agent's first action must be `git reset --hard {branch}`.
   - `hooks/` directory needs `dangerouslyDisableSandbox: true` for cherry-picks.
   - **Sub-agent instructions must always use relative paths** — absolute paths resolve to
     main repo, not the worktree. If rescuing, check `git status` in main first to detect
     leaked files.
-  - **Anthropic plugin files invisible to worktree agents:** `.claude/plugins/*`
-    gitignored except `knowledge-hub/`; agents needing other plugins must `cp` from parent
-    repo after `git reset --hard main`.
   - **Bash CWD drifts into worktree dirs after `Read`:** prefix git operations with
     `cd <main-repo-path> &&` after any Read on worktree files. Also applies to
     **sub-agents** juggling sub-agent worktrees: after Read of a worktree file, subsequent
     git commands silently run in the wrong tree — always `cd <main-repo-path> &&` before
     main-repo git operations.
-- **Sub-agents can blow their token budget before final `git commit`:** always check
-  worktree `git status` before removing it, in case the agent exited mid-commit. (Prior
-  "200K hard cap" claim was wrong — empirically agents run past 200K on Opus 4.7
-  1M-context. Budget is harness-configured, not a fixed sub-agent ceiling.)
-- **"Build the thing, forget to turn it on":** Every fix must trace from the production
-  entry point to the change. Run `bun run knip` for deterministic detection of unused
-  files/exports.
+- **Use General Purpose agents (unless otherwise specified):** These inherit the main sessions 1m token context window and avoids hitting token limits. 
+- **ALWAYS check worktree `git status` before removing it:** This covers any cases where an agent exited mid-commit.
 - **`classifyContent` userId must be a UUID:** Use pipeline service account UUID
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
-- **`content_items.summary` (not `ai_summary`):** `feed_articles.ai_summary` is
-  intentionally a separate column — do not "fix" the naming.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
-
-<!-- gitnexus:start -->
-
-# GitNexus — Code Intelligence
-
-This project is indexed by GitNexus as **knowledge-hub** (41078 symbols, 58867
-relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess
-impact, and navigate safely.
-
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal
-> first.
-
-## Always Do
-
-- **MUST run impact analysis before editing any symbol.** Before modifying a function,
-  class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})`
-  and report the blast radius (direct callers, affected processes, risk level) to the
-  user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only
-  affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before
-  proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find
-  execution flows instead of grepping. It returns process-grouped results ranked by
-  relevance.
-- When you need full context on a specific symbol — callers, callees, which execution
-  flows it participates in — use `gitnexus_context({name: "symbolName"})`.
-
-## Never Do
-
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the
-  call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected
-  scope.
-
-## Resources
-
-| Resource                                       | Use for                                  |
-| ---------------------------------------------- | ---------------------------------------- |
-| `gitnexus://repo/knowledge-hub/context`        | Codebase overview, check index freshness |
-| `gitnexus://repo/knowledge-hub/clusters`       | All functional areas                     |
-| `gitnexus://repo/knowledge-hub/processes`      | All execution flows                      |
-| `gitnexus://repo/knowledge-hub/process/{name}` | Step-by-step execution trace             |
-
-## CLI
-
-| Task                                         | Read this skill file                                        |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md`       |
-| Blast radius / "What breaks if I change X?"  | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?"             | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md`       |
-| Rename / extract / split / refactor          | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md`     |
-| Tools, resources, schema reference           | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md`           |
-| Index, status, clean, wiki CLI commands      | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md`             |
-
-<!-- gitnexus:end -->
