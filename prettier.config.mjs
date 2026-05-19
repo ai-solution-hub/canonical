@@ -38,8 +38,8 @@ const config = {
     {
       files: '*.md',
       options: {
-        proseWrap: 'always',
-        embeddedLanguageFormatting: 'auto',
+        printWidth: 90,
+        trailingComma: 'es5',
       },
     },
     {

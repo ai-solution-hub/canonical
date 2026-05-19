@@ -3,7 +3,10 @@ name: spec-driven-implementation
 description:
   Drive a spec-first workflow for substantial features by writing PRODUCT.md
   before implementation, writing TECH.md when warranted, and keeping both specs
-  updated as implementation evolves. Use when starting a significant feature,
+  updated as implementation evolves. Use when authoring a NEW Task ID-N with the
+  spec chain {N.1 RESEARCH} → {N.2 PRODUCT} → {N.3 TECH} → {N.4 PLAN}. For
+  per-Subtask implementation within an already-spec'd Task, use
+  `implement-subtask` skill instead. Use when starting a significant feature,
   planning agent-driven implementation, or when the user wants product and tech
   specs checked into source control.
 ---
@@ -18,6 +21,13 @@ Use this skill for significant features where a written spec will improve
 implementation quality, reduce ambiguity, or make review easier. Be pragmatic:
 not every change needs specs.
 
+This skill orchestrates the **spec-authoring chain** for a NEW Task ID-N —
+`{N.1}` RESEARCH (when warranted) → `{N.2}` PRODUCT → `{N.3}` TECH → `{N.4}`
+PLAN. Spec ratification is followed by per-Subtask dispatch via the
+`implement-subtask` skill, which carries each `ID-N.M` implementation Subtask.
+Use `implement-subtask` (not this skill) for per-Subtask implementation
+within an already-spec'd Task.
+
 Specs should usually live in:
 
 - `docs/specs/<id>/PRODUCT.md`
@@ -31,8 +41,8 @@ conventions):
   `docs/specs/APP-1234/PRODUCT.md`)
 - a short kebab-case feature name (e.g.
   `docs/specs/q-a-workspace-scoping/PRODUCT.md`)
-- once Taskmaster is installed (S232 WP4+), align `<id>` with the Taskmaster
-  task ID for the feature so `docs/specs/<id>/` maps cleanly to the task tree.
+- align `<id>` with the Task ID from `docs/reference/task-list.json` (e.g.
+  `docs/specs/task-8/`) so `docs/specs/<id>/` maps cleanly to the task tree.
 
 `docs/specs/` should contain only id-named directories as direct children. Do
 not create engineer-named subdirectories or feature-slug-plus-suffix variants
@@ -115,8 +125,16 @@ implementation details are still too uncertain.
 
 ### 4. Implement approved specs
 
-After the specs are approved, use the `implement-specs` skill to build from the
-approved `PRODUCT.md` and `TECH.md`.
+After the spec chain ratifies, the Planner decomposes the work into
+implementation Subtasks `{N.5+}` (via `planning-and-task-breakdown` when
+warranted). Each Subtask carries a dispatch brief in its `details` field,
+and the Orchestrator dispatches one Executor per Subtask group; each
+Executor invokes `implement-subtask` against the brief.
+
+The `implement-specs` skill remains available for whole-feature implementation
+when a Task is genuinely atomic (one Subtask) and the Planner has elected a
+single-Executor strategy. The KH-native default is per-Subtask via
+`implement-subtask`.
 
 The implementation can often be pushed in the same PR as the product and tech
 specs. As the engineer iterates, keep `PRODUCT.md`, `TECH.md`, code changes, and
@@ -187,8 +205,9 @@ See `docs/reference/test-philosophy.md` before writing or remediating tests.
 
 ## Related Skills
 
-- `implement-specs`
-- `write-product-spec`
-- `write-tech-spec`
-- `planning-and-task-breakdown`
+- `implement-subtask` — for `ID-N.M` Subtask execution after the spec chain
+  ratifies (the KH-native Executor entry point).
+- `write-product-spec` / `write-tech-spec` / `planning-and-task-breakdown` —
+  the spec authoring chain steps (`{N.2}` / `{N.3}` / `{N.4}` respectively).
+- `implement-specs` — atomic-Task whole-feature fallback (rare).
 - `test-driven-development`

@@ -4,24 +4,24 @@ set -euo pipefail
 # KH session-driver-cmux: launch a Claude Code worker.
 #
 # Creates a git worktree under <project-root>/.claude/worktrees/<worker-name>,
-# opens a cmux workspace, and launches claude inside it with the
-# upstream session-driver plugin loaded (for hook injection). Events are
-# emitted to <project-root>/.claude/cmux-events/<session-id>/events.jsonl.
+# opens a cmux workspace, and launches claude inside it loading this skill's
+# hooks. Events are emitted to
+# <project-root>/.claude/cmux-events/<session-id>/events.jsonl.
 #
-# Adapted from ~/.claude/session-driver-cmux/launch-worker.sh (Liam's
-# cmux adaptation of superpowers/claude-session-driver 1.0.1).
+# Hard-forked from superpowers/claude-session-driver 1.0.1 (cmux transport,
+# per-worktree event paths, git-worktree-per-worker). No longer tracks
+# upstream — see docs/plans/phase-0-investigation/session-driver-cmux-divergence.md.
 #
 # Usage:
 #   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra claude args...]
 #
 # Arguments:
-#   <worker-name>  Unique cmux workspace name (e.g. "worker-api").
-#   <base-dir>     Project root (use ".") — used to anchor worktree and
-#                  events directory paths.
-#   --branch <ref> Optional ref to branch from. Defaults to current HEAD.
+#   <worker-name>       Unique cmux workspace name (e.g. "worker-api").
+#   <base-dir>          Project root (use ".") — anchors worktree + events.
+#   --branch <ref>      Optional ref to branch from. Defaults to current HEAD.
 #
-# Exits non-zero with a message on cmux unavailability, name collision, or
-# session_start timeout.
+# Exits non-zero with a message on cmux unavailability, name collision,
+# safety-gate failure (worktree path not gitignored), or session_start timeout.
 
 WORKER_NAME="${1:?Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra args]}"
 BASE_DIR="${2:?Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra args]}"
@@ -66,14 +66,6 @@ if ! cmux list-workspaces >/dev/null 2>&1; then
   exit 1
 fi
 
-# Resolve the upstream plugin directory — Claude loads its hooks
-UPSTREAM_PLUGIN="${KH_CMUX_UPSTREAM_PLUGIN:-$HOME/.claude/plugins/cache/superpowers-marketplace/claude-session-driver/1.0.1}"
-if [ ! -d "$UPSTREAM_PLUGIN" ]; then
-  echo "Error: upstream session-driver plugin not found at $UPSTREAM_PLUGIN" >&2
-  echo "       Override with KH_CMUX_UPSTREAM_PLUGIN=<path>." >&2
-  exit 1
-fi
-
 # Resolve project root from base dir (absolute physical path)
 PROJECT_ROOT="$(cd "$BASE_DIR" && pwd -P)"
 
@@ -87,6 +79,23 @@ fi
 
 EVENTS_BASE="${PROJECT_ROOT}/.claude/cmux-events"
 WORKTREE_BASE="${PROJECT_ROOT}/.claude/worktrees"
+
+# --- Safety gate: verify worktree + events paths are gitignored ---
+#
+# Both paths must be gitignored to prevent accidental commits of worker state
+# or per-worker scratch into the parent branch. This matches the safety
+# contract used by the `using-git-worktrees` skill.
+
+if ! git -C "$PROJECT_ROOT" check-ignore -q "${WORKTREE_BASE}/sentinel" 2>/dev/null; then
+  echo "Error: ${WORKTREE_BASE}/ is not gitignored." >&2
+  echo "       Add '.claude/worktrees/' to .gitignore before launching workers." >&2
+  exit 1
+fi
+if ! git -C "$PROJECT_ROOT" check-ignore -q "${EVENTS_BASE}/sentinel" 2>/dev/null; then
+  echo "Error: ${EVENTS_BASE}/ is not gitignored." >&2
+  echo "       Add '.claude/cmux-events/' to .gitignore before launching workers." >&2
+  exit 1
+fi
 
 SESSION_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
 
@@ -187,10 +196,8 @@ cmux rename-workspace --workspace "$WS_REF" "$WORKER_NAME" >/dev/null 2>&1 || tr
 
 # --- Build the launch command ---
 
-# Note: --plugin-dir loads the upstream plugin, but our KH-adapted hooks live
-# beside this script. We export KH_CMUX_EVENTS_DIR so the upstream hooks (if
-# we ever swap back) read the right base; but we prefer our local hooks by
-# pointing --plugin-dir at the local skill dir.
+# --plugin-dir points at the local KH skill dir so workers load the local
+# (per-worktree event-path) hooks rather than the upstream tmux-targeted ones.
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
 
 CLAUDE_CMD="cd ${WORKTREE_PATH} && KH_CMUX_EVENTS_DIR=${EVENTS_BASE} CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT=${APPROVAL_TIMEOUT} claude --session-id ${SESSION_ID} --plugin-dir ${SKILL_DIR} --dangerously-skip-permissions"
@@ -214,12 +221,9 @@ cmux send-key --workspace "$WS_REF" enter >/dev/null 2>&1
 jq --arg ws_ref "$WS_REF" '. + {cmux_workspace: $ws_ref}' \
   "$META_FILE" > "${META_FILE}.tmp" && mv "${META_FILE}.tmp" "$META_FILE"
 
-# Wait for session_start event — use upstream wait-for-event.sh with KH dir override
-UPSTREAM_WAIT="${UPSTREAM_PLUGIN}/scripts/wait-for-event.sh"
-
-# Upstream wait-for-event.sh polls /tmp/claude-workers/<id>.events.jsonl. We
-# need it to poll <events-base>/<id>/events.jsonl. Cleanest fix: poll our
-# events file directly here without invoking the upstream script.
+# Wait for session_start event by polling the KH events file directly. The
+# upstream wait-for-event.sh helper polls /tmp/claude-workers/<id>.events.jsonl
+# which is the wrong path under KH layout.
 EVENT_FILE="${EVENTS_DIR}/events.jsonl"
 START_DEADLINE=$((SECONDS + 30))
 SESSION_STARTED=0
@@ -233,7 +237,6 @@ done
 
 if [ "$SESSION_STARTED" -ne 1 ]; then
   echo "Error: worker session failed to start within 30 seconds" >&2
-  echo "       (upstream wait helper: $UPSTREAM_WAIT)" >&2
   cmux close-workspace --workspace "$WS_REF" 2>/dev/null || true
   git -C "$PROJECT_ROOT" worktree remove --force "$WORKTREE_PATH" 2>/dev/null || true
   rm -rf "$EVENTS_DIR"

@@ -1,41 +1,36 @@
 # Multi-User Patterns
 
-**Purpose:** Enforce multi-user and role-based access control patterns specific
-to Knowledge Hub. Unlike IMS (single-user), Knowledge Hub is a multi-user system
-with admin/editor/viewer roles. These rules prevent accidental single-user
-assumptions.
+**Purpose:** Enforce multi-user and role-based access control patterns specific to
+Knowledge Hub. Unlike IMS (single-user), Knowledge Hub is a multi-user system with
+admin/editor/viewer roles. These rules prevent accidental single-user assumptions.
 
 **Severity:** error
 
 ## Rules
 
-1. **Never assume a single user.** [error] All data queries in API routes must
-   scope to the authenticated user where appropriate (e.g. `read_marks` are
-   per-user). Do not hardcode user IDs or assume there is only one user. The
-   `user_id` must come from `auth.user.id`.
+1. **Never assume a single user.** [error] All data queries in API routes must scope to
+   the authenticated user where appropriate (e.g. `read_marks` are per-user). Do not
+   hardcode user IDs or assume there is only one user. The `user_id` must come from
+   `auth.user.id`.
 
-2. **Write operations require role checks.** [error] Any API route that creates,
-   updates, or deletes content must verify the user has the appropriate role:
+2. **Write operations require role checks.** [error] Any API route that creates, updates,
+   or deletes content must verify the user has the appropriate role:
    - **Read (SELECT):** All authenticated users (viewer, editor, admin)
-   - **Write (INSERT/UPDATE):** Editor or admin only — use
-     `getAuthorisedClient('editor')`
-   - **Admin operations (DELETE, user management, taxonomy config):** Admin only
-     — use `getAuthorisedClient('admin')`
+   - **Write (INSERT/UPDATE):** Editor or admin only — use `getAuthorisedClient('editor')`
+   - **Admin operations (DELETE, user management, taxonomy config):** Admin only — use
+     `getAuthorisedClient('admin')`
 
-3. **Display names must use the `useDisplayNames` hook.** [warning] When
-   displaying user information (who created or modified content), use the
-   `hooks/use-display-names.ts` hook to resolve UUIDs to display names. Never
-   show raw UUIDs in the UI.
+3. **Display names must use the `useDisplayNames` hook.** [warning] When displaying user
+   information (who created or modified content), use the `hooks/use-display-names.ts`
+   hook to resolve UUIDs to display names. Never show raw UUIDs in the UI.
 
-4. **User-scoped data must use `user_id = auth.uid()` in queries.** [error]
-   Tables like `read_marks` are user-scoped via RLS. When querying these tables
-   in API routes, always include the user_id filter to match the RLS policy
-   expectations.
+4. **User-scoped data must use `user_id = auth.uid()` in queries.** [error] Tables like
+   `read_marks` are user-scoped via RLS. When querying these tables in API routes, always
+   include the user_id filter to match the RLS policy expectations.
 
-5. **New tables must have RLS policies.** [error] Every new table added to the
-   schema must include appropriate RLS policies matching the role-based model
-   (viewer SELECT, editor INSERT/UPDATE, admin DELETE). No tables should have
-   RLS disabled.
+5. **New tables must have RLS policies.** [error] Every new table added to the schema must
+   include appropriate RLS policies matching the role-based model (viewer SELECT, editor
+   INSERT/UPDATE, admin DELETE). No tables should have RLS disabled.
 
 ## Examples
 
