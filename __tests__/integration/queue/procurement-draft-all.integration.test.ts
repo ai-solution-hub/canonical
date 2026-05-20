@@ -194,11 +194,14 @@ function buildPostRequest(
   procurementId: string,
   body: { model_tier?: 'analysis' | 'drafting'; skip_existing?: boolean } = {},
 ): Request {
-  return new Request(`http://localhost/api/bids/${procurementId}/responses/draft-all`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  return new Request(
+    `http://localhost/api/bids/${procurementId}/responses/draft-all`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 function buildCronRequest(): Request {
@@ -309,7 +312,9 @@ describeIfEnv(
       const { POST } =
         await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
 
@@ -363,7 +368,9 @@ describeIfEnv(
       const { POST } =
         await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       const body = (await response.json()) as {
@@ -409,7 +416,9 @@ describeIfEnv(
       const { POST } =
         await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const first = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       expect(first.status).toBe(202);
@@ -428,7 +437,9 @@ describeIfEnv(
       _resetRateLimitStore();
 
       const second = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       expect(second.status).toBe(202);
@@ -486,7 +497,9 @@ describeIfEnv(
       vi.useFakeTimers({ shouldAdvanceTime: true });
       vi.setSystemTime(new Date('2026-05-05T12:00:00.000Z'));
       const first = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       expect(first.status).toBe(202);
@@ -506,7 +519,9 @@ describeIfEnv(
       _resetRateLimitStore();
 
       const second = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       expect(second.status).toBe(202);
@@ -620,7 +635,9 @@ describeIfEnv(
       const { POST } =
         await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       expect(response.status).toBe(202);
@@ -727,7 +744,9 @@ describeIfEnv(
       const { POST } =
         await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       const enqueueBody = (await response.json()) as {
@@ -793,7 +812,9 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
     const { POST } =
       await import('@/app/api/procurement/[id]/responses/draft-all/route');
     const response = await POST(
-      buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+      buildPostRequest(
+        procurementId,
+      ) as unknown as import('next/server').NextRequest,
       { params: Promise.resolve({ id: procurementId }) },
     );
     expect(response.status).toBe(400);
@@ -936,7 +957,9 @@ describeIfEnv('AC-8 — cancel pending (200) / processing (409)', () => {
     const { POST } =
       await import('@/app/api/procurement/[id]/responses/draft-all/route');
     const response = await POST(
-      buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+      buildPostRequest(
+        procurementId,
+      ) as unknown as import('next/server').NextRequest,
       { params: Promise.resolve({ id: procurementId }) },
     );
     const enqueueBody = (await response.json()) as {
@@ -980,7 +1003,9 @@ describeIfEnv('AC-8 — cancel pending (200) / processing (409)', () => {
     const { POST } =
       await import('@/app/api/procurement/[id]/responses/draft-all/route');
     const response = await POST(
-      buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+      buildPostRequest(
+        procurementId,
+      ) as unknown as import('next/server').NextRequest,
       { params: Promise.resolve({ id: procurementId }) },
     );
     const enqueueBody = (await response.json()) as {
@@ -1104,7 +1129,9 @@ describeIfEnv(
       const { POST } =
         await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
-        buildPostRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildPostRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: procurementId }) },
       );
       const enqueueBody = (await response.json()) as {

@@ -215,10 +215,10 @@ Two concurrent long-lived worktrees on this project (shared filesystem via
   Currently implementing the new dev-workflow orchestration setup. Original Primer:
   `docs/tracks/production-readiness.md`.
 
-Decommissioned (S57): **kh-knowledge-platform** worktree + branch removed.
-History preserved at tag `archive/kh-knowledge-platform` (commit `67cfb0a6`).
-Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
-`.continuation-prompts/`, `.audits/kh-knowledge-platform-phase-1/`.
+Decommissioned (S57): **kh-knowledge-platform** worktree + branch removed. History
+preserved at tag `archive/kh-knowledge-platform` (commit `67cfb0a6`). Archived artefacts
+under `.planning/.archive/.tracks/`, `.specs/`, `.continuation-prompts/`,
+`.audits/kh-knowledge-platform-phase-1/`.
 
 ## Gotchas
 
@@ -249,8 +249,8 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
   rows fired the trigger and tripped `NEW.type` post-column-drop (SQLSTATE 42703). Pre-
   apply checklist before any DROP COLUMN: query `pg_trigger` / `pg_proc` / `pg_policy` /
   `pg_views` for `relname = '<table>'` on **both** staging and prod, drop dead-code refs
-  inline in the migration (idempotent `DROP TRIGGER IF EXISTS` / `DROP FUNCTION IF
-  EXISTS`).
+  inline in the migration (idempotent `DROP TRIGGER IF EXISTS` /
+  `DROP FUNCTION IF EXISTS`).
 - **CLI `.temp/project-ref` can silently go stale post-env-flip:** `supabase db push` may
   push to the WRONG project (looks like silent-fail on intended project). Always
   `cat supabase/.temp/project-ref` before any push; relink via
@@ -330,15 +330,21 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
   `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
-- **"Change Reports" not "Digest" — code rename complete (S248 T5):** User-facing label is "Change Reports". DB table renamed `digests → change_reports` at T2 (S246). Code rename shipped S248: `lib/digest/* → lib/change-reports/*`; `lib/ai/digest.ts → lib/ai/change-reports.ts`; `lib/query/query-keys.ts` `digests` → `changeReports` namespace. Route paths (`app/api/digest/*`, `app/digest/`) and type file (`types/digest.ts`) kept as-is (URL-stable + type names unchanged). CI guard: `__tests__/validation/no-digest-import-regression.test.ts`.
+- **"Change Reports" not "Digest" — code rename complete (S248 T5):** User-facing label is
+  "Change Reports". DB table renamed `digests → change_reports` at T2 (S246). Code rename
+  shipped S248: `lib/digest/* → lib/change-reports/*`;
+  `lib/ai/digest.ts → lib/ai/change-reports.ts`; `lib/query/query-keys.ts` `digests` →
+  `changeReports` namespace. Route paths (`app/api/digest/*`, `app/digest/`) and type file
+  (`types/digest.ts`) kept as-is (URL-stable + type names unchanged). CI guard:
+  `__tests__/validation/no-digest-import-regression.test.ts`.
 - **Workspace discriminator is `application_type_id` FK, not text `type` column** (T2
   migration S246/S247): `workspaces.type` text col was DROPPED + replaced with
   `application_type_id uuid NOT NULL → application_types(id)`. Read via
   `.from('workspaces').select('application_types!inner(key)')` or compose with
   `lib/intelligence/workspace-context.ts` `INTELLIGENCE_WORKSPACE_SELECT` for intel reads.
-  Legacy `WHERE type = 'X'` filters now fail at runtime — use `application_types.key = 'X'`.
-  Six seed keys: `procurement` / `intelligence` / `sales_proposal` / `product_guide` /
-  `competitor_research` / `training_onboarding`.
+  Legacy `WHERE type = 'X'` filters now fail at runtime — use
+  `application_types.key = 'X'`. Six seed keys: `procurement` / `intelligence` /
+  `sales_proposal` / `product_guide` / `competitor_research` / `training_onboarding`.
 - **Entity classification: false positives, not type errors:** Source of truth:
   `docs/reference/entity-type-taxonomy-spec.md`.
 

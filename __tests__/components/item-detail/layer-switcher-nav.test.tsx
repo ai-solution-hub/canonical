@@ -155,7 +155,10 @@ describe('LayerSwitcherNav', () => {
       />,
     );
     const procurementDetail = screen.getByText('Procurement Detail');
-    expect(procurementDetail.closest('a')).toHaveAttribute('href', '/item/layer-1');
+    expect(procurementDetail.closest('a')).toHaveAttribute(
+      'href',
+      '/item/layer-1',
+    );
 
     const compRef = screen.getByText('Company Reference');
     expect(compRef.closest('a')).toHaveAttribute('href', '/item/layer-2');

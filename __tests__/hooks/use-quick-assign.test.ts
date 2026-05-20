@@ -272,7 +272,11 @@ describe('useQuickAssign', () => {
 
     // Toggle assignment — should optimistically update immediately
     act(() => {
-      result.current.toggleAssignment('item-1', 'ws-1', 'Active Procurement Alpha');
+      result.current.toggleAssignment(
+        'item-1',
+        'ws-1',
+        'Active Procurement Alpha',
+      );
     });
 
     // Optimistic: should appear assigned immediately

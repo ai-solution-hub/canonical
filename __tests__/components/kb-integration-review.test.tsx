@@ -109,7 +109,9 @@ describe('KBIntegrationReview', () => {
 
   it('shows the bid name in the description', () => {
     renderReview();
-    expect(screen.getByText('Council Services Procurement')).toBeInTheDocument();
+    expect(
+      screen.getByText('Council Services Procurement'),
+    ).toBeInTheDocument();
   });
 
   it('renders candidate question text', () => {

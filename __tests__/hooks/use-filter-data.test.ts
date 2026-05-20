@@ -363,7 +363,9 @@ describe('useFilterData', () => {
         if (url === '/api/workspaces') {
           return {
             ok: true,
-            json: async () => [{ id: 'ws-1', name: 'Procurement Alpha', type: 'bid' }],
+            json: async () => [
+              { id: 'ws-1', name: 'Procurement Alpha', type: 'bid' },
+            ],
           };
         }
         return { ok: false, json: async () => ({}) };

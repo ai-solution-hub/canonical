@@ -319,8 +319,16 @@ describe('produceBidDeadlineItems', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 1);
     const bids = [
-      makeBid({ id: 'bid-1', name: 'Procurement A', deadline: soonDate.toISOString() }),
-      makeBid({ id: 'bid-2', name: 'Procurement B', deadline: soonDate.toISOString() }),
+      makeBid({
+        id: 'bid-1',
+        name: 'Procurement A',
+        deadline: soonDate.toISOString(),
+      }),
+      makeBid({
+        id: 'bid-2',
+        name: 'Procurement B',
+        deadline: soonDate.toISOString(),
+      }),
     ];
     const items = produceBidDeadlineItems(bids);
     expect(items).toHaveLength(2);

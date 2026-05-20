@@ -138,7 +138,10 @@ describe('ProcurementExportMenu', () => {
       blob: () => Promise.resolve(mockBlob),
     });
 
-    renderMenu({ procurementId: 'bid-42', procurementName: 'Council Services Procurement' });
+    renderMenu({
+      procurementId: 'bid-42',
+      procurementName: 'Council Services Procurement',
+    });
     await user.click(
       screen.getByRole('button', { name: 'Export bid responses' }),
     );
@@ -176,7 +179,10 @@ describe('ProcurementExportMenu', () => {
       blob: () => Promise.resolve(mockBlob),
     });
 
-    renderMenu({ procurementId: 'bid-42', procurementName: 'Test Procurement' });
+    renderMenu({
+      procurementId: 'bid-42',
+      procurementName: 'Test Procurement',
+    });
     await user.click(
       screen.getByRole('button', { name: 'Export bid responses' }),
     );

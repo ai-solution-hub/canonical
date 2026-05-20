@@ -26,7 +26,12 @@ vi.mock('next/link', () => ({
 // ---------------------------------------------------------------------------
 
 const WORKSPACES: ActiveBidWorkspace[] = [
-  { id: 'ws-1', name: 'Procurement Alpha', color: '#ff0000', deadline: '2026-04-15' },
+  {
+    id: 'ws-1',
+    name: 'Procurement Alpha',
+    color: '#ff0000',
+    deadline: '2026-04-15',
+  },
   { id: 'ws-2', name: 'Procurement Beta', color: '#00ff00', deadline: null },
 ];
 
@@ -153,7 +158,11 @@ describe('QuickAssignButton', () => {
     const option = screen.getByRole('option', { name: /Procurement Alpha/ });
     await user.click(option);
 
-    expect(mockOnChange).toHaveBeenCalledWith(ITEM_ID, 'ws-1', 'Procurement Alpha');
+    expect(mockOnChange).toHaveBeenCalledWith(
+      ITEM_ID,
+      'ws-1',
+      'Procurement Alpha',
+    );
   });
 
   it('shows empty state when no active workspaces exist', async () => {
@@ -350,7 +359,11 @@ describe('QuickAssignButton', () => {
       });
       await user.click(shortcut);
 
-      expect(mockOnChange).toHaveBeenCalledWith(ITEM_ID, 'ws-1', 'Procurement Alpha');
+      expect(mockOnChange).toHaveBeenCalledWith(
+        ITEM_ID,
+        'ws-1',
+        'Procurement Alpha',
+      );
     });
 
     it('shows check mark on quick-add shortcut when already assigned', async () => {

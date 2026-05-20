@@ -180,7 +180,9 @@ test.describe('Procurement list page', () => {
       await filterGroup.getByRole('button', { name: 'Active' }).click();
 
       // Worker bid (drafting state = Active) should remain visible
-      const workerCard = page.locator(`a[href="/procurement/${workerData.procurementId}"]`);
+      const workerCard = page.locator(
+        `a[href="/procurement/${workerData.procurementId}"]`,
+      );
       await expect(workerCard).toBeVisible();
 
       // Draft bid should be hidden
@@ -215,7 +217,9 @@ test.describe('Procurement list page', () => {
   }) => {
     await page.goto('/procurement');
 
-    const bidCard = page.locator(`a[href="/procurement/${workerData.procurementId}"]`);
+    const bidCard = page.locator(
+      `a[href="/procurement/${workerData.procurementId}"]`,
+    );
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
     await bidCard.click();
@@ -463,19 +467,27 @@ test.describe('Procurement role gating', () => {
       timeout: 10000,
     });
 
-    await expect(page.getByRole('button', { name: 'New Procurement' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'New Procurement' }),
+    ).toBeVisible();
   });
 
-  test('New Procurement button visible for editor', async ({ editorPage: page }) => {
+  test('New Procurement button visible for editor', async ({
+    editorPage: page,
+  }) => {
     await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
-    await expect(page.getByRole('button', { name: 'New Procurement' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'New Procurement' }),
+    ).toBeVisible();
   });
 
-  test('New Procurement button hidden for viewer', async ({ viewerPage: page }) => {
+  test('New Procurement button hidden for viewer', async ({
+    viewerPage: page,
+  }) => {
     await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,

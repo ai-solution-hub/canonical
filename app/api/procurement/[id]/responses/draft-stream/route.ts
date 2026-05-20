@@ -80,7 +80,8 @@ export async function POST(
       });
     }
 
-    const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
+    const procurementStatus =
+      (bid.status as ProcurementWorkflowState) ?? 'draft';
     const draftableStates: ProcurementWorkflowState[] = [
       'drafting',
       'in_review',

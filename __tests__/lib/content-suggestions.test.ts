@@ -388,7 +388,9 @@ describe('generateContentSuggestions', () => {
   it('elevates empty subtopics to critical when active procurements exist', async () => {
     configureMock({
       contentItems: [],
-      activeBids: [{ id: 'bid-1', name: 'Active Procurement', domain_metadata: null }],
+      activeBids: [
+        { id: 'bid-1', name: 'Active Procurement', domain_metadata: null },
+      ],
     });
 
     const result = await generateContentSuggestions({

@@ -461,10 +461,13 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: { integrations: [] },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: { integrations: [] },
+      },
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -476,10 +479,13 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: { integrations: [] },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: { integrations: [] },
+      },
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -504,12 +510,15 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
   it('returns 400 for invalid integration action', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [{ question_id: QUESTION_ID, action: 'delete' }],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [{ question_id: QUESTION_ID, action: 'delete' }],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -527,12 +536,15 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [{ question_id: QUESTION_ID, action: 'skip' }],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [{ question_id: QUESTION_ID, action: 'skip' }],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -555,12 +567,15 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -589,15 +604,18 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [
-          { question_id: QUESTION_ID, action: 'skip' },
-          { question_id: QUESTION_ID_2, action: 'skip' },
-        ],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [
+            { question_id: QUESTION_ID, action: 'skip' },
+            { question_id: QUESTION_ID_2, action: 'skip' },
+          ],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -666,19 +684,22 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [
-          {
-            question_id: QUESTION_ID,
-            action: 'new_entry',
-            title: 'Security Approach',
-            content_type: 'capability',
-          },
-        ],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [
+            {
+              question_id: QUESTION_ID,
+              action: 'new_entry',
+              title: 'Security Approach',
+              content_type: 'capability',
+            },
+          ],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -749,18 +770,21 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       },
     );
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [
-          {
-            question_id: QUESTION_ID,
-            action: 'update_existing',
-            target_content_id: CONTENT_ID,
-          },
-        ],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [
+            {
+              question_id: QUESTION_ID,
+              action: 'update_existing',
+              target_content_id: CONTENT_ID,
+            },
+          ],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -810,12 +834,15 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       },
     );
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -887,12 +914,15 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -923,13 +953,16 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     // and role=admin. We don't queue a dedup response; any RPC call
     // would consume the unqueued default ({ data: null, error: null }).
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
-        skip_dedup: true,
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+          skip_dedup: true,
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
@@ -951,13 +984,16 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome/integrate`, {
-      method: 'POST',
-      body: {
-        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
-        skip_dedup: true,
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/outcome/integrate`,
+      {
+        method: 'POST',
+        body: {
+          integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+          skip_dedup: true,
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 

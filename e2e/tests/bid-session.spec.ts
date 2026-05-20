@@ -23,7 +23,9 @@ async function gotoSession(
   await page.goto(`/procurement/${procurementId}/session`);
   // Session page loads data CLIENT-SIDE and may need compilation on first hit.
   // Use a generous timeout to handle both cold starts and data fetching.
-  const sessionArea = page.locator('[aria-label="Procurement drafting session"]');
+  const sessionArea = page.locator(
+    '[aria-label="Procurement drafting session"]',
+  );
   await expect(sessionArea).toBeVisible({ timeout: 20000 });
 }
 
@@ -427,7 +429,9 @@ test.describe('from_bid URL parameter persistence', () => {
     // params (domain, q) should be gone — SD-5 from_bid persistence.
     await page.waitForURL(/from_bid=/, { timeout: 5000 });
     const postClearUrl = new URL(page.url());
-    expect(postClearUrl.searchParams.get('from_bid')).toBe(workerData.procurementId);
+    expect(postClearUrl.searchParams.get('from_bid')).toBe(
+      workerData.procurementId,
+    );
     expect(postClearUrl.searchParams.get('domain')).toBeNull();
     expect(postClearUrl.searchParams.get('q')).toBeNull();
   });

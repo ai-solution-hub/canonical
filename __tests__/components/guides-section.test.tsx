@@ -50,7 +50,12 @@ vi.mock('@/lib/client-config', () => ({
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
-      { key: 'bid_detail', label: 'Procurement Detail', description: '', order: 2 },
+      {
+        key: 'bid_detail',
+        label: 'Procurement Detail',
+        description: '',
+        order: 2,
+      },
       {
         key: 'company_reference',
         label: 'Company Reference',

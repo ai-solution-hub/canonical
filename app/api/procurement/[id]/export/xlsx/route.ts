@@ -35,7 +35,10 @@ export async function POST(
     const options = parsed.data;
 
     // Fetch and transform bid data
-    const result = await fetchProcurementExportData(auth.supabase, procurementId);
+    const result = await fetchProcurementExportData(
+      auth.supabase,
+      procurementId,
+    );
     if (result instanceof NextResponse) return result;
 
     // Generate spreadsheet

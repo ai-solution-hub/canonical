@@ -103,11 +103,14 @@ export function ProcurementOutcomeDialog({
         body.integrate_to_kb = true;
       }
 
-      const response = await fetch(`/api/procurement/${procurementId}/outcome`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const response = await fetch(
+        `/api/procurement/${procurementId}/outcome`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -151,9 +154,9 @@ export function ProcurementOutcomeDialog({
           <DialogTitle>Record Procurement Outcome</DialogTitle>
           <DialogDescription>
             Record the final outcome for{' '}
-            <span className="font-medium">{procurementName}</span>. This will update the
-            bid status and can optionally flag responses for knowledge base
-            integration.
+            <span className="font-medium">{procurementName}</span>. This will
+            update the bid status and can optionally flag responses for
+            knowledge base integration.
           </DialogDescription>
         </DialogHeader>
 

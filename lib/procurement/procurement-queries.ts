@@ -73,7 +73,9 @@ export async function fetchActiveProcurementWithStats(
 
   const procurementIds = workspaces.map((w) => w.id);
   const batchStats = await sb(
-    supabase.rpc('get_bid_question_stats_batch', { p_project_ids: procurementIds }),
+    supabase.rpc('get_bid_question_stats_batch', {
+      p_project_ids: procurementIds,
+    }),
     'rpc.bid_question_stats_batch',
   );
 

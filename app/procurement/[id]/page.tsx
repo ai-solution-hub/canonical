@@ -714,7 +714,9 @@ function OverviewTab({
   onSwitchTab: (tab: 'overview' | 'questions' | 'documents') => void;
   onShowOutcomeDialog: () => void;
   onShowKBReview: () => void;
-  readiness: import('@/hooks/procurement/use-procurement-readiness').ReadinessData | null;
+  readiness:
+    | import('@/hooks/procurement/use-procurement-readiness').ReadinessData
+    | null;
   readinessLoading: boolean;
   readinessError: string | null;
   onRefreshReadiness: () => void;
@@ -1068,7 +1070,10 @@ function DocumentsTab({
   return (
     <div className="space-y-6">
       {canEdit && (
-        <TenderUpload procurementId={procurementId} onUploadComplete={onUploadComplete} />
+        <TenderUpload
+          procurementId={procurementId}
+          onUploadComplete={onUploadComplete}
+        />
       )}
 
       {tenderDocuments.length > 0 ? (

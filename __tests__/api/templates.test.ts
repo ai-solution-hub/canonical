@@ -332,7 +332,9 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
   });
 
   it('returns 400 for invalid template UUID', async () => {
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates/bad-id`);
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/templates/bad-id`,
+    );
     const params = createTestParams({ id: BID_UUID, templateId: 'bad-id' });
     const res = await getTemplateDetail(req, { params });
 

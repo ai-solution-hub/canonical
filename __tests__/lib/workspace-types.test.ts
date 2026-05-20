@@ -135,11 +135,15 @@ describe('workspace-types registry', () => {
     });
 
     it('formats singular intelligence count', () => {
-      expect(formatTypeCount('intelligence', 1)).toBe('1 active intelligence stream');
+      expect(formatTypeCount('intelligence', 1)).toBe(
+        '1 active intelligence stream',
+      );
     });
 
     it('formats plural intelligence count', () => {
-      expect(formatTypeCount('intelligence', 3)).toBe('3 active intelligence streams');
+      expect(formatTypeCount('intelligence', 3)).toBe(
+        '3 active intelligence streams',
+      );
     });
 
     it('falls back to "workspace(s)" for unknown type', () => {

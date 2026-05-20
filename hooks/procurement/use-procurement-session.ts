@@ -19,9 +19,13 @@ const EMPTY_QUESTIONS: ProcurementQuestion[] = [];
 
 // ── Fetcher functions ──
 
-async function fetchProcurementSummary(procurementId: string): Promise<ProcurementSummary | null> {
+async function fetchProcurementSummary(
+  procurementId: string,
+): Promise<ProcurementSummary | null> {
   try {
-    return await fetchJson<ProcurementSummary>(`/api/procurement/${procurementId}`);
+    return await fetchJson<ProcurementSummary>(
+      `/api/procurement/${procurementId}`,
+    );
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       return null;
@@ -30,7 +34,9 @@ async function fetchProcurementSummary(procurementId: string): Promise<Procureme
   }
 }
 
-async function fetchProcurementQuestions(procurementId: string): Promise<ProcurementQuestion[]> {
+async function fetchProcurementQuestions(
+  procurementId: string,
+): Promise<ProcurementQuestion[]> {
   // S152B WP5 / Q-37: do NOT swallow fetch errors here. Returning `[]`
   // on failure made the caller render an empty-but-valid-looking state,
   // masking real connectivity / auth / server problems from TanStack
@@ -135,7 +141,10 @@ export function useBidSession(procurementId: string): UseBidSessionReturn {
   // and continue to work because TanStack Query matches by prefix.
   const responseQuery = useQuery({
     queryKey: [
-      ...queryKeys.bids.responseByQuestion(procurementId, currentQuestion?.id ?? ''),
+      ...queryKeys.bids.responseByQuestion(
+        procurementId,
+        currentQuestion?.id ?? '',
+      ),
       responseId ?? '',
     ] as const,
     queryFn: async () => {
@@ -187,7 +196,10 @@ export function useBidSession(procurementId: string): UseBidSessionReturn {
   const invalidateResponse = useCallback(async () => {
     if (!currentQuestion) return;
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.bids.responseByQuestion(procurementId, currentQuestion.id),
+      queryKey: queryKeys.bids.responseByQuestion(
+        procurementId,
+        currentQuestion.id,
+      ),
     });
   }, [queryClient, procurementId, currentQuestion]);
 

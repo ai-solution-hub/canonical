@@ -138,17 +138,20 @@ export function QuestionRow({
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/procurement/${procurementId}/questions/${question.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question_text: editValues.question_text.trim(),
-          section_name: editValues.section_name.trim() || null,
-          word_limit: editValues.word_limit
-            ? parseInt(editValues.word_limit, 10)
-            : null,
-        }),
-      });
+      const res = await fetch(
+        `/api/procurement/${procurementId}/questions/${question.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question_text: editValues.question_text.trim(),
+            section_name: editValues.section_name.trim() || null,
+            word_limit: editValues.word_limit
+              ? parseInt(editValues.word_limit, 10)
+              : null,
+          }),
+        },
+      );
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -170,9 +173,12 @@ export function QuestionRow({
   async function handleDelete() {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/procurement/${procurementId}/questions/${question.id}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(
+        `/api/procurement/${procurementId}/questions/${question.id}`,
+        {
+          method: 'DELETE',
+        },
+      );
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);

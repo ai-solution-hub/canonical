@@ -49,7 +49,9 @@ export function useDraftStream(procurementId: string) {
       queryClient.invalidateQueries({
         queryKey: queryKeys.bids.questions(procurementId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(procurementId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.detail(procurementId),
+      });
     }
   }, [state.phase, procurementId, queryClient]);
 

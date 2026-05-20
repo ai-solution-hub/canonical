@@ -240,10 +240,13 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
       id: 'not-a-uuid',
       templateId: VALID_UUID_2,
     });
-    const req = createTestRequest('/api/procurement/not-a-uuid/templates/y/auto-map', {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      '/api/procurement/not-a-uuid/templates/y/auto-map',
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await autoMapPost(req, { params: badParams });
     expect(res.status).toBe(400);

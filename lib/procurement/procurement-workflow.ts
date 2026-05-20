@@ -4,7 +4,10 @@ import { PROCUREMENT_WORKFLOW_STATES } from '@/types/procurement';
 export { PROCUREMENT_WORKFLOW_STATES };
 export type { ProcurementWorkflowState };
 
-export const PROCUREMENT_WORKFLOW_LABELS: Record<ProcurementWorkflowState, string> = {
+export const PROCUREMENT_WORKFLOW_LABELS: Record<
+  ProcurementWorkflowState,
+  string
+> = {
   draft: 'Draft',
   questions_extracted: 'Questions Extracted',
   matching: 'Matching',
@@ -18,7 +21,10 @@ export const PROCUREMENT_WORKFLOW_LABELS: Record<ProcurementWorkflowState, strin
 };
 
 /** Abbreviated labels for mobile stepper display */
-export const PROCUREMENT_WORKFLOW_SHORT_LABELS: Record<ProcurementWorkflowState, string> = {
+export const PROCUREMENT_WORKFLOW_SHORT_LABELS: Record<
+  ProcurementWorkflowState,
+  string
+> = {
   draft: 'Draft',
   questions_extracted: 'Extract',
   matching: 'Match',
@@ -32,7 +38,10 @@ export const PROCUREMENT_WORKFLOW_SHORT_LABELS: Record<ProcurementWorkflowState,
 };
 
 // Semantic token prefixes for bid state colours (map to --color-bid-* CSS tokens)
-export const PROCUREMENT_WORKFLOW_COLOURS: Record<ProcurementWorkflowState, string> = {
+export const PROCUREMENT_WORKFLOW_COLOURS: Record<
+  ProcurementWorkflowState,
+  string
+> = {
   draft: 'bid-draft',
   questions_extracted: 'bid-discovery',
   matching: 'bid-discovery',
@@ -45,7 +54,10 @@ export const PROCUREMENT_WORKFLOW_COLOURS: Record<ProcurementWorkflowState, stri
   withdrawn: 'bid-withdrawn',
 };
 
-const VALID_TRANSITIONS: Record<ProcurementWorkflowState, ProcurementWorkflowState[]> = {
+const VALID_TRANSITIONS: Record<
+  ProcurementWorkflowState,
+  ProcurementWorkflowState[]
+> = {
   draft: ['questions_extracted', 'withdrawn'],
   questions_extracted: ['matching', 'withdrawn'],
   matching: ['drafting', 'withdrawn'],
@@ -58,11 +70,16 @@ const VALID_TRANSITIONS: Record<ProcurementWorkflowState, ProcurementWorkflowSta
   withdrawn: [],
 };
 
-export function canTransition(from: ProcurementWorkflowState, to: ProcurementWorkflowState): boolean {
+export function canTransition(
+  from: ProcurementWorkflowState,
+  to: ProcurementWorkflowState,
+): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-export function getAvailableTransitions(current: ProcurementWorkflowState): ProcurementWorkflowState[] {
+export function getAvailableTransitions(
+  current: ProcurementWorkflowState,
+): ProcurementWorkflowState[] {
   return VALID_TRANSITIONS[current] ?? [];
 }
 

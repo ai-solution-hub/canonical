@@ -57,7 +57,10 @@ export async function fetchProcurementExportData(
     .single();
 
   if (procurementError || !bid) {
-    return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Procurement not found' },
+      { status: 404 },
+    );
   }
 
   // Fetch questions with responses
@@ -105,7 +108,10 @@ export async function fetchProcurementExportData(
   }
 
   // Transform to export types
-  const procurementMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
+  const procurementMetadata = (bid.domain_metadata ?? {}) as Record<
+    string,
+    unknown
+  >;
   const exportMetadata: ExportBidMetadata = {
     bid_name: bid.name,
     buyer: (procurementMetadata.buyer as string) || 'Unknown Buyer',

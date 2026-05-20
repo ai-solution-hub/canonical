@@ -324,7 +324,10 @@ async function main() {
           .delete()
           .eq('id', procurementId);
         if (procurementDelErr) {
-          console.error('Failed to delete test bid:', procurementDelErr.message);
+          console.error(
+            'Failed to delete test bid:',
+            procurementDelErr.message,
+          );
         }
 
         console.log('Cleaned up existing test bid.\n');
@@ -481,7 +484,9 @@ async function main() {
     console.log('\n[DRY RUN] No data was written. Remove --dry-run to seed.');
   } else {
     console.log(`\nTest bid seeded successfully. View at:`);
-    console.log(`  https://knowledge-hub-seven-kappa.vercel.app/bids/${procurementId}`);
+    console.log(
+      `  https://knowledge-hub-seven-kappa.vercel.app/bids/${procurementId}`,
+    );
   }
 }
 

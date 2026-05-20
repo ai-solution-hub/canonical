@@ -21,7 +21,10 @@ import type {
   AnySchema,
   ZodRawShapeCompat,
 } from '@modelcontextprotocol/sdk/server/zod-compat.js';
-import type { ProcurementQuestionSummary, ProcurementSection } from '@/lib/mcp/formatters';
+import type {
+  ProcurementQuestionSummary,
+  ProcurementSection,
+} from '@/lib/mcp/formatters';
 import { createMcpClient } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
 

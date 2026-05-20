@@ -109,7 +109,9 @@ describe('ProcurementWorkflowStepper', () => {
   });
 
   it('renders abbreviated mobile labels alongside full desktop labels', () => {
-    const { container } = render(<ProcurementWorkflowStepper state="in_review" />);
+    const { container } = render(
+      <ProcurementWorkflowStepper state="in_review" />,
+    );
 
     // Both abbreviated and full labels should be in the DOM
     // Full labels for progression steps (desktop visible)

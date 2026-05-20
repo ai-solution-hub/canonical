@@ -26,7 +26,10 @@ import type {
   CitationResult,
   ContentEffectiveness,
 } from '@/lib/mcp/formatters';
-import type { ProcurementResponseMetadata, QualityData } from '@/types/procurement-metadata';
+import type {
+  ProcurementResponseMetadata,
+  QualityData,
+} from '@/types/procurement-metadata';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 import {
   type ToolExtra,
@@ -67,7 +70,8 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const procurementLimit = Math.min(args.limit ?? 20, 50);
         const procurementOffset = args.offset ?? 0;
-        const { fetchActiveProcurementWithStats } = await getProcurementQueriesModule();
+        const { fetchActiveProcurementWithStats } =
+          await getProcurementQueriesModule();
         const { workspaces, statsMap } =
           await fetchActiveProcurementWithStats(supabase);
 
@@ -110,7 +114,10 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         // Apply pagination
         const totalCount = allBids.length;
         const hasMore = totalCount > procurementOffset + procurementLimit;
-        const bids = allBids.slice(procurementOffset, procurementOffset + procurementLimit);
+        const bids = allBids.slice(
+          procurementOffset,
+          procurementOffset + procurementLimit,
+        );
 
         const markdown = truncateResponse(formatActiveBids(bids));
 
@@ -172,7 +179,10 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         if (wsError || !workspace) {
           return {
             content: [
-              { type: 'text' as const, text: `Procurement not found: ${args.id}` },
+              {
+                type: 'text' as const,
+                text: `Procurement not found: ${args.id}`,
+              },
             ],
             isError: true,
           };

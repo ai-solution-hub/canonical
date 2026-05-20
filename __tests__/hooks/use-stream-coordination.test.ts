@@ -514,7 +514,9 @@ describe('useStreamCoordination', () => {
 
       expect(result.current.actionLoading).toBe(false);
       expect(patchTracker.length).toBeGreaterThanOrEqual(1);
-      expect(patchTracker[0].url).toContain('/api/procurement/bid-1/responses/r-1');
+      expect(patchTracker[0].url).toContain(
+        '/api/procurement/bid-1/responses/r-1',
+      );
       expect(patchTracker[0].body).toHaveProperty('response_text');
       expect(toast.success).toHaveBeenCalledWith('Response saved');
     });

@@ -228,7 +228,9 @@ describe('UploadReviewStep', () => {
         <UploadReviewStep {...defaultProps({ items: [itemWithWarnings] })} />,
       );
 
-      expect(screen.getByText('Existing Procurement Template')).toBeInTheDocument();
+      expect(
+        screen.getByText('Existing Procurement Template'),
+      ).toBeInTheDocument();
     });
 
     it('does not display warnings section when warnings array is empty', () => {
@@ -490,7 +492,9 @@ describe('UploadReviewStep', () => {
       );
 
       expect(screen.getByText('ISO 27001 Security Policy')).toBeInTheDocument();
-      expect(screen.getByText('Procurement Response Template')).toBeInTheDocument();
+      expect(
+        screen.getByText('Procurement Response Template'),
+      ).toBeInTheDocument();
       expect(screen.getByText('Meeting Notes Q4')).toBeInTheDocument();
       expect(screen.getByText('3 items')).toBeInTheDocument();
     });

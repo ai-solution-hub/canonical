@@ -281,8 +281,10 @@ export const queryKeys = {
     all: ['bids'] as const,
     list: ['bids', 'list'] as const,
     detail: (id: string) => ['bids', 'detail', id] as const,
-    questions: (procurementId: string) => ['bids', 'questions', procurementId] as const,
-    readiness: (procurementId: string) => ['bids', 'readiness', procurementId] as const,
+    questions: (procurementId: string) =>
+      ['bids', 'questions', procurementId] as const,
+    readiness: (procurementId: string) =>
+      ['bids', 'readiness', procurementId] as const,
     responseByQuestion: (procurementId: string, questionId: string) =>
       ['bids', 'response-by-question', procurementId, questionId] as const,
   },

@@ -126,7 +126,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
   });
 
   it('returns 400 for invalid response UUID', async () => {
-    const req = createTestRequest(`/api/procurement/${BID_ID}/responses/bad-id`);
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/responses/bad-id`,
+    );
     const params = createTestParams({ id: BID_ID, rId: 'bad-id' });
     const res = await GET(req, { params });
 

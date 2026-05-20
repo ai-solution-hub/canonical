@@ -149,9 +149,11 @@ export async function createTestResponse(
  *
  * The bid is advanced to `ready_for_export` state with all responses approved.
  */
-export async function createExportReadyBid(
-  prefix: string,
-): Promise<{ procurementId: string; questionIds: string[]; responseIds: string[] }> {
+export async function createExportReadyBid(prefix: string): Promise<{
+  procurementId: string;
+  questionIds: string[];
+  responseIds: string[];
+}> {
   const supabase = createServiceClient();
 
   // Create bid workspace

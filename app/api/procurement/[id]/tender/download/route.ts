@@ -55,7 +55,10 @@ export async function GET(
       .single();
 
     if (procurementError || !bid) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     // Generate signed URL (5-minute expiry) using service client

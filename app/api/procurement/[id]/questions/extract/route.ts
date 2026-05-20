@@ -15,7 +15,10 @@ import {
 } from '@/lib/ai/extract-questions';
 import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
-import { canTransition, type ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
+import {
+  canTransition,
+  type ProcurementWorkflowState,
+} from '@/lib/procurement/procurement-workflow';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
 
@@ -70,7 +73,10 @@ export async function POST(
       .single();
 
     if (procurementError || !bid) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     // Download file from Supabase Storage
@@ -227,7 +233,8 @@ export async function POST(
         'bids.questions.extract.workspace.read',
       );
 
-      const currentStatus = (currentBid?.status ?? 'draft') as ProcurementWorkflowState;
+      const currentStatus = (currentBid?.status ??
+        'draft') as ProcurementWorkflowState;
       if (canTransition(currentStatus, 'questions_extracted')) {
         await supabase
           .from('workspaces')

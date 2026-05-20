@@ -9,7 +9,11 @@ import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import type { Editor } from '@/components/procurement/response-editor';
 import type { ResponseAction } from '@/components/procurement/response-actions';
-import type { ProcurementQuestion, ProcurementMetadata, ConfidencePosture } from '@/types/procurement';
+import type {
+  ProcurementQuestion,
+  ProcurementMetadata,
+  ConfidencePosture,
+} from '@/types/procurement';
 import type { CitationEntry, QualityData } from '@/types/procurement-metadata';
 
 // ── Content comparison helper (exported for tests) ──
@@ -365,7 +369,13 @@ export function useStreamCoordination({
       });
       toast.success('Response drafted successfully');
     }
-  }, [stream.phase, stream.text, queryClient, procurementId, currentQuestion?.id]);
+  }, [
+    stream.phase,
+    stream.text,
+    queryClient,
+    procurementId,
+    currentQuestion?.id,
+  ]);
 
   // ── Stream error toast ──
   useEffect(() => {

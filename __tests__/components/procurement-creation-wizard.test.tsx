@@ -59,7 +59,12 @@ vi.mock('@/components/procurement/tender-upload', () => ({
 }));
 
 vi.mock('@/components/procurement/tender-metadata-prompt', () => ({
-  TenderMetadataPrompt: ({ procurementId }: { metadata: unknown; procurementId: string }) => (
+  TenderMetadataPrompt: ({
+    procurementId,
+  }: {
+    metadata: unknown;
+    procurementId: string;
+  }) => (
     <div data-testid="tender-metadata-prompt" data-bid-id={procurementId}>
       Metadata Prompt
     </div>
@@ -230,9 +235,14 @@ describe('ProcurementCreationWizard', () => {
 
     renderWizard();
 
-    await user.type(screen.getByLabelText(/Procurement Name/), 'Quick Procurement');
+    await user.type(
+      screen.getByLabelText(/Procurement Name/),
+      'Quick Procurement',
+    );
     await user.type(screen.getByLabelText(/Buyer/), 'HMRC');
-    await user.click(screen.getByRole('button', { name: /Start Blank Procurement/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Start Blank Procurement/ }),
+    );
 
     await waitFor(() => {
       expect(onCreated).toHaveBeenCalledWith(created);
@@ -252,7 +262,9 @@ describe('ProcurementCreationWizard', () => {
     await user.type(screen.getByLabelText(/Procurement Name/), 'Blank Path');
     await user.type(screen.getByLabelText(/Buyer/), 'MOD');
 
-    await user.click(screen.getByRole('button', { name: /Start Blank Procurement/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Start Blank Procurement/ }),
+    );
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledOnce();
@@ -277,7 +289,10 @@ describe('ProcurementCreationWizard', () => {
 
     renderWizard();
 
-    await user.type(screen.getByLabelText(/Procurement Name/), 'Test Procurement');
+    await user.type(
+      screen.getByLabelText(/Procurement Name/),
+      'Test Procurement',
+    );
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
@@ -484,7 +499,10 @@ describe('ProcurementCreationWizard', () => {
 
     renderWizard();
 
-    await user.type(screen.getByLabelText(/Procurement Name/), 'Full Procurement');
+    await user.type(
+      screen.getByLabelText(/Procurement Name/),
+      'Full Procurement',
+    );
     await user.type(screen.getByLabelText(/Buyer/), 'HMRC');
     await user.type(screen.getByLabelText(/Reference Number/), 'ITT-2026-042');
     await user.type(screen.getByLabelText(/Estimated Value/), '£50,000');

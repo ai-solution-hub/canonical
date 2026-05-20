@@ -53,7 +53,7 @@ describe('WorkspacesContent (launcher)', () => {
   it('shows correct count text for active procurements', () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
     render(<WorkspacesContent counts={{ procurement: 3 }} />);
-    expect(screen.getByText("3 active procurements")).toBeInTheDocument();
+    expect(screen.getByText('3 active procurements')).toBeInTheDocument();
   });
 
   it('shows singular count text for 1 active procurement', () => {

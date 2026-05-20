@@ -52,7 +52,10 @@ export async function GET(
       .single();
 
     if (error || !procurementRow) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     // Strip the joined projection — callers expect flat workspace fields.
@@ -159,7 +162,10 @@ export async function PATCH(
       .single();
 
     if (fetchError || !current) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     const currentMetadata =
@@ -170,7 +176,8 @@ export async function PATCH(
 
     // Validate state transition if status is being changed
     if (status) {
-      const currentStatus = (current.status as ProcurementWorkflowState) ?? 'draft';
+      const currentStatus =
+        (current.status as ProcurementWorkflowState) ?? 'draft';
       if (!canTransition(currentStatus, status as ProcurementWorkflowState)) {
         return NextResponse.json(
           {
@@ -227,7 +234,10 @@ export async function PATCH(
     }
 
     if (!updated) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json(updated);
@@ -267,7 +277,10 @@ export async function DELETE(
       .single();
 
     if (fetchError || !bid) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     // Clean up storage files before DB delete (best-effort).

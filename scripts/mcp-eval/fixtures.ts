@@ -544,7 +544,9 @@ export function getMinimalArgs(
     case 'get_reorientation':
       return {};
     case 'get_procurement_detail':
-      return { id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000' };
+      return {
+        id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
+      };
     case 'get_bid_question':
       return {
         question_id:

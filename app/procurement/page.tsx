@@ -31,7 +31,11 @@ import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
-import type { Procurement, ProcurementMetadata, ProcurementWorkflowState } from '@/types/procurement';
+import type {
+  Procurement,
+  ProcurementMetadata,
+  ProcurementWorkflowState,
+} from '@/types/procurement';
 import { logger } from '@/lib/logger/client';
 
 const BIDS_PER_PAGE = 20;
@@ -333,7 +337,8 @@ function EmptyState({
 
 function ProcurementListRow({ bid }: { bid: Procurement }) {
   const metadata = bid.domain_metadata as ProcurementMetadata;
-  const procurementStatus = bid.status as import('@/types/procurement').ProcurementWorkflowState;
+  const procurementStatus =
+    bid.status as import('@/types/procurement').ProcurementWorkflowState;
   const proximity = getDeadlineProximity(metadata.deadline);
 
   return (

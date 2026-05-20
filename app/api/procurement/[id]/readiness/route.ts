@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import type { ProcurementResponseMetadata, QualityData } from '@/types/procurement-metadata';
+import type {
+  ProcurementResponseMetadata,
+  QualityData,
+} from '@/types/procurement-metadata';
 
 export const maxDuration = 30;
 
@@ -105,7 +108,10 @@ export async function GET(
       .single();
 
     if (procurementError || !bid) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     // Fetch all questions for this bid.

@@ -73,7 +73,9 @@ describe('useDraftRecovery', () => {
   // ----------------------------------------------------------
 
   it('saves to localStorage with correct key format after debounce', () => {
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 3));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 3),
+    );
 
     act(() => {
       result.current.saveDraft('<p>Hello world</p>');
@@ -95,7 +97,9 @@ describe('useDraftRecovery', () => {
   });
 
   it('updates lastSavedAt after saving', () => {
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     expect(result.current.lastSavedAt).toBeNull();
 
@@ -111,7 +115,9 @@ describe('useDraftRecovery', () => {
   });
 
   it('debounces multiple rapid saves', () => {
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     act(() => {
       result.current.saveDraft('<p>First</p>');
@@ -152,7 +158,9 @@ describe('useDraftRecovery', () => {
       responseVersion: 1,
     });
 
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     expect(result.current.hasDraft).toBe(true);
 
@@ -167,7 +175,9 @@ describe('useDraftRecovery', () => {
   });
 
   it('cancels pending debounced write on clear', () => {
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     act(() => {
       result.current.saveDraft('<p>Pending save</p>');
@@ -197,7 +207,9 @@ describe('useDraftRecovery', () => {
       responseVersion: 1,
     });
 
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     expect(result.current.hasDraft).toBe(false);
     expect(result.current.draftContent).toBeNull();
@@ -210,7 +222,9 @@ describe('useDraftRecovery', () => {
   // ----------------------------------------------------------
 
   it('handles null questionId gracefully', () => {
-    const { result } = renderHook(() => useDraftRecovery(procurementId, null, null));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, null, null),
+    );
 
     expect(result.current.hasDraft).toBe(false);
     expect(result.current.draftContent).toBeNull();
@@ -248,7 +262,9 @@ describe('useDraftRecovery', () => {
       clear: vi.fn(),
     });
 
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     // Should not crash
     expect(result.current.hasDraft).toBe(false);
@@ -299,7 +315,9 @@ describe('useDraftRecovery', () => {
   // ----------------------------------------------------------
 
   it('auto-saves content periodically via 30-second interval', () => {
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     // Stage content in the ref via saveDraft (but don't wait for debounce)
     act(() => {
@@ -323,7 +341,9 @@ describe('useDraftRecovery', () => {
   it('ignores malformed JSON in localStorage', () => {
     storage[storageKey] = 'not valid json {{{';
 
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     expect(result.current.hasDraft).toBe(false);
     expect(result.current.draftContent).toBeNull();
@@ -335,7 +355,9 @@ describe('useDraftRecovery', () => {
       // Missing content field
     });
 
-    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
+    const { result } = renderHook(() =>
+      useDraftRecovery(procurementId, questionId, 1),
+    );
 
     expect(result.current.hasDraft).toBe(false);
   });

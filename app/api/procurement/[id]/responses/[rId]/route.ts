@@ -9,7 +9,10 @@ import { parseBody } from '@/lib/validation';
 import { ResponseUpdateBodySchema } from '@/lib/validation/schemas';
 import { countWords } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
-import type { ProcurementResponseMetadata, QualityData } from '@/types/procurement-metadata';
+import type {
+  ProcurementResponseMetadata,
+  QualityData,
+} from '@/types/procurement-metadata';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
@@ -220,7 +223,8 @@ export async function PATCH(
 
     // Recalculate word count in metadata if response text changed
     if (response_text !== undefined) {
-      const existingMeta = (existing.metadata ?? {}) as ProcurementResponseMetadata;
+      const existingMeta = (existing.metadata ??
+        {}) as ProcurementResponseMetadata;
       const wordCount = countWords(stripMarkdown(response_text));
       const wordLimitCompliance = question.word_limit
         ? wordCount <= question.word_limit

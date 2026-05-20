@@ -281,7 +281,9 @@ function makeDefaultHookReturn(overrides: Record<string, unknown> = {}) {
     overrides.progressPercent !== undefined ? overrides.progressPercent : 50
   ) as number;
   const procurementStatus = (
-    overrides.procurementStatus !== undefined ? overrides.procurementStatus : 'drafting'
+    overrides.procurementStatus !== undefined
+      ? overrides.procurementStatus
+      : 'drafting'
   ) as string | null;
 
   return {
@@ -709,7 +711,10 @@ describe('ProcurementDetailPage', () => {
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
     const sessionLinks = screen.getAllByText('Open Session');
     const sessionLink = sessionLinks[0].closest('a');
-    expect(sessionLink).toHaveAttribute('href', '/procurement/test-bid-1/session');
+    expect(sessionLink).toHaveAttribute(
+      'href',
+      '/procurement/test-bid-1/session',
+    );
   });
 
   // ---- Next action prompt ----
@@ -728,7 +733,8 @@ describe('ProcurementDetailPage', () => {
       const actionLinks = screen.getAllByRole('link', { name: /Open Session/ });
       expect(
         actionLinks.some(
-          (link) => link.getAttribute('href') === '/procurement/test-bid-1/session',
+          (link) =>
+            link.getAttribute('href') === '/procurement/test-bid-1/session',
         ),
       ).toBe(true);
     });
@@ -756,7 +762,10 @@ describe('ProcurementDetailPage', () => {
         screen.getByText('Review responses before submission'),
       ).toBeInTheDocument();
       const actionLink = screen.getByRole('link', { name: /Review Responses/ });
-      expect(actionLink).toHaveAttribute('href', '/procurement/test-bid-1/session');
+      expect(actionLink).toHaveAttribute(
+        'href',
+        '/procurement/test-bid-1/session',
+      );
     });
 
     it('shows "Record the outcome" for submitted bids', () => {

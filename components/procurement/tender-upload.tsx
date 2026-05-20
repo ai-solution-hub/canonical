@@ -32,7 +32,10 @@ function detectFormat(filename: string): 'docx' | 'pdf' {
   return filename.toLowerCase().endsWith('.pdf') ? 'pdf' : 'docx';
 }
 
-export function TenderUpload({ procurementId, onUploadComplete }: TenderUploadProps) {
+export function TenderUpload({
+  procurementId,
+  onUploadComplete,
+}: TenderUploadProps) {
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,10 +84,13 @@ export function TenderUpload({ procurementId, onUploadComplete }: TenderUploadPr
         const formData = new FormData();
         formData.append('file', file);
 
-        const uploadRes = await fetch(`/api/procurement/${procurementId}/tender`, {
-          method: 'POST',
-          body: formData,
-        });
+        const uploadRes = await fetch(
+          `/api/procurement/${procurementId}/tender`,
+          {
+            method: 'POST',
+            body: formData,
+          },
+        );
 
         if (!uploadRes.ok) {
           const body = await uploadRes.json().catch(() => null);
@@ -96,14 +102,17 @@ export function TenderUpload({ procurementId, onUploadComplete }: TenderUploadPr
         // Automatically extract questions
         setPhase('extracting');
 
-        const extractRes = await fetch(`/api/procurement/${procurementId}/questions/extract`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            document_path: uploadData.path,
-            format: detectFormat(file.name),
-          }),
-        });
+        const extractRes = await fetch(
+          `/api/procurement/${procurementId}/questions/extract`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              document_path: uploadData.path,
+              format: detectFormat(file.name),
+            }),
+          },
+        );
 
         if (!extractRes.ok) {
           const body = await extractRes.json().catch(() => null);

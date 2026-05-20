@@ -209,7 +209,11 @@ describe('GET /api/procurement', () => {
     // succeeds. The response must surface only the failing bid id under
     // `failed_bid_ids` while the successful bid still gets question_stats.
     const SECOND_UUID = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
-    const SECOND_BID = { ...MOCK_BID, id: SECOND_UUID, name: 'Second Procurement' };
+    const SECOND_BID = {
+      ...MOCK_BID,
+      id: SECOND_UUID,
+      name: 'Second Procurement',
+    };
 
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>

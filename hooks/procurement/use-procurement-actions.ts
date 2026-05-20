@@ -69,11 +69,20 @@ function useBidData(id: string) {
 
   // Redirect on confirmed 404 (queryFn returned null without throwing).
   useEffect(() => {
-    if (!procurementQuery.isLoading && procurementQuery.isSuccess && procurementQuery.data === null) {
+    if (
+      !procurementQuery.isLoading &&
+      procurementQuery.isSuccess &&
+      procurementQuery.data === null
+    ) {
       toast.error('Procurement not found');
       router.push('/procurement');
     }
-  }, [procurementQuery.isLoading, procurementQuery.isSuccess, procurementQuery.data, router]);
+  }, [
+    procurementQuery.isLoading,
+    procurementQuery.isSuccess,
+    procurementQuery.data,
+    router,
+  ]);
 
   const questionsQuery = useQuery({
     queryKey: queryKeys.bids.questions(id),
@@ -98,7 +107,10 @@ function useBidData(id: string) {
   return {
     bid: procurementQuery.data ?? null,
     questions: questionsQuery.data?.questions ?? [],
-    stats: questionsQuery.data?.stats ?? procurementQuery.data?.question_stats ?? null,
+    stats:
+      questionsQuery.data?.stats ??
+      procurementQuery.data?.question_stats ??
+      null,
     loading: procurementQuery.isLoading,
     fetchProcurement,
     fetchQuestions,
@@ -136,7 +148,9 @@ function useBidTransitions(
       return newStatus;
     },
     onSuccess: (newStatus: ProcurementWorkflowState) => {
-      toast.success(`Procurement moved to ${PROCUREMENT_WORKFLOW_LABELS[newStatus]}`);
+      toast.success(
+        `Procurement moved to ${PROCUREMENT_WORKFLOW_LABELS[newStatus]}`,
+      );
       queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
     },
     onError: (err: Error) => {
@@ -339,7 +353,9 @@ export function useBidActions({ id }: UseBidActionsParams) {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/procurement/${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/procurement/${id}`, {
+        method: 'DELETE',
+      });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to delete bid');
@@ -398,11 +414,14 @@ export function useBidActions({ id }: UseBidActionsParams) {
 
   const draftAllMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/procurement/${id}/responses/draft-all`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skip_existing: true }),
-      });
+      const response = await fetch(
+        `/api/procurement/${id}/responses/draft-all`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skip_existing: true }),
+        },
+      );
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -556,7 +575,9 @@ export function useBidActions({ id }: UseBidActionsParams) {
 
   // Computed values
   const metadata = bid ? (bid.domain_metadata as ProcurementMetadata) : null;
-  const procurementStatus = bid ? ((bid.status ?? 'draft') as ProcurementWorkflowState) : null;
+  const procurementStatus = bid
+    ? ((bid.status ?? 'draft') as ProcurementWorkflowState)
+    : null;
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount =
     (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);

@@ -340,7 +340,11 @@ export default function ProcurementSessionPage({
               Couldn&apos;t load the session
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-            <Button variant="outline" onClick={fetchProcurementData} className="mt-4">
+            <Button
+              variant="outline"
+              onClick={fetchProcurementData}
+              className="mt-4"
+            >
               Try again
             </Button>
           </div>

@@ -26,7 +26,9 @@ describe('QuestionRow', () => {
     vi.unstubAllGlobals();
   });
 
-  function makeQuestion(overrides: Partial<ProcurementQuestion> = {}): ProcurementQuestion {
+  function makeQuestion(
+    overrides: Partial<ProcurementQuestion> = {},
+  ): ProcurementQuestion {
     return {
       id: 'q-1',
       workspace_id: 'bid-1',

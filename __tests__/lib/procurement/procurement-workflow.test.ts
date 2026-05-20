@@ -32,7 +32,10 @@ describe('bid-state-machine', () => {
 
   describe('canTransition', () => {
     // Forward transitions (happy path)
-    const validForwardTransitions: [ProcurementWorkflowState, ProcurementWorkflowState][] = [
+    const validForwardTransitions: [
+      ProcurementWorkflowState,
+      ProcurementWorkflowState,
+    ][] = [
       ['draft', 'questions_extracted'],
       ['questions_extracted', 'matching'],
       ['matching', 'drafting'],
@@ -51,7 +54,10 @@ describe('bid-state-machine', () => {
     );
 
     // Backward transitions
-    const validBackwardTransitions: [ProcurementWorkflowState, ProcurementWorkflowState][] = [
+    const validBackwardTransitions: [
+      ProcurementWorkflowState,
+      ProcurementWorkflowState,
+    ][] = [
       ['in_review', 'drafting'],
       ['ready_for_export', 'in_review'],
       ['submitted', 'in_review'],
@@ -80,7 +86,10 @@ describe('bid-state-machine', () => {
     });
 
     // Invalid transitions
-    const invalidTransitions: [ProcurementWorkflowState, ProcurementWorkflowState][] = [
+    const invalidTransitions: [
+      ProcurementWorkflowState,
+      ProcurementWorkflowState,
+    ][] = [
       ['draft', 'drafting'], // Skipping states
       ['draft', 'submitted'], // Skipping many states
       ['won', 'draft'], // From terminal

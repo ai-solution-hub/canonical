@@ -108,7 +108,9 @@ describe('WorkspaceCard', () => {
 
     it('renders workspace description', () => {
       renderCard({ description: 'Procurement for council contract' });
-      expect(screen.getByText('Procurement for council contract')).toBeInTheDocument();
+      expect(
+        screen.getByText('Procurement for council contract'),
+      ).toBeInTheDocument();
     });
 
     it('shows badge label from registry for procurement type', () => {
@@ -129,7 +131,9 @@ describe('WorkspaceCard', () => {
 
     it('shows arrow icon for types with a route', () => {
       renderCard({ type: 'procurement' });
-      expect(screen.getByTitle('Opens procurement detail page')).toBeInTheDocument();
+      expect(
+        screen.getByTitle('Opens procurement detail page'),
+      ).toBeInTheDocument();
     });
 
     it('does not show arrow icon for types without a route', () => {

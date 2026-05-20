@@ -70,7 +70,9 @@ export function generateProcurementPrompt(bid: ActiveBidSummary): ClaudePrompt {
   };
 }
 
-export function generateProcurementDeadlinePrompt(bid: ActiveBidSummary): ClaudePrompt {
+export function generateProcurementDeadlinePrompt(
+  bid: ActiveBidSummary,
+): ClaudePrompt {
   const deadlineText =
     bid.days_until_deadline === 0
       ? 'today'

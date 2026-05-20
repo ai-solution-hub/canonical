@@ -84,7 +84,10 @@ const COLOUR_CLASSES: Record<
 /**
  * Badge showing the current bid state with colour + text (WCAG 2.1 AA).
  */
-export function ProcurementWorkflowBadge({ state, className }: ProcurementWorkflowIndicatorProps) {
+export function ProcurementWorkflowBadge({
+  state,
+  className,
+}: ProcurementWorkflowIndicatorProps) {
   const colours = COLOUR_CLASSES[state] ?? COLOUR_CLASSES.draft;
   const label = PROCUREMENT_WORKFLOW_LABELS[state] ?? 'Unknown';
 
@@ -110,7 +113,10 @@ export function ProcurementWorkflowBadge({ state, className }: ProcurementWorkfl
 /**
  * Horizontal stepper showing bid progress through lifecycle states.
  */
-export function ProcurementWorkflowStepper({ state, className }: ProcurementWorkflowIndicatorProps) {
+export function ProcurementWorkflowStepper({
+  state,
+  className,
+}: ProcurementWorkflowIndicatorProps) {
   const currentIndex = PROCUREMENT_WORKFLOW_PROGRESSION.indexOf(state);
   const terminal = isTerminal(state);
 

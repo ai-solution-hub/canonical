@@ -1195,9 +1195,12 @@ describe('useDraftStream', () => {
 
     it('startDraft changes when procurementId changes', () => {
       let procurementId = 'bid-1';
-      const { result, rerender } = renderHook(() => useDraftStream(procurementId), {
-        wrapper: Wrapper,
-      });
+      const { result, rerender } = renderHook(
+        () => useDraftStream(procurementId),
+        {
+          wrapper: Wrapper,
+        },
+      );
 
       const firstStartDraft = result.current.startDraft;
 

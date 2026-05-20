@@ -9,7 +9,10 @@ import {
   type ReactNode,
 } from 'react';
 import { parseProcurementMetadata } from '@/lib/validation/schemas';
-import type { ProcurementMetadata, ProcurementQuestion } from '@/types/procurement';
+import type {
+  ProcurementMetadata,
+  ProcurementQuestion,
+} from '@/types/procurement';
 
 // ────────────────────────────────────────────
 // Context value types
@@ -108,7 +111,10 @@ export function ProcurementContextProvider({
       });
     } catch (err) {
       // Non-critical — context degrades gracefully without bid data
-      console.warn('ProcurementContextProvider: failed to fetch bid summary:', err);
+      console.warn(
+        'ProcurementContextProvider: failed to fetch bid summary:',
+        err,
+      );
     }
   }, [procurementId]);
 
@@ -137,7 +143,10 @@ export function ProcurementContextProvider({
       setQuestions(mapped);
     } catch (err) {
       // Non-critical — context degrades gracefully without question data
-      console.warn('ProcurementContextProvider: failed to fetch questions:', err);
+      console.warn(
+        'ProcurementContextProvider: failed to fetch questions:',
+        err,
+      );
     }
   }, [procurementId]);
 
@@ -185,7 +194,10 @@ export function ProcurementContextProvider({
       });
     } catch (err) {
       // Non-critical — context degrades gracefully without response data
-      console.warn('ProcurementContextProvider: failed to fetch active response:', err);
+      console.warn(
+        'ProcurementContextProvider: failed to fetch active response:',
+        err,
+      );
       setActiveResponse(null);
     }
   }, [activeQuestionId, procurementId]);
@@ -216,6 +228,8 @@ export function ProcurementContextProvider({
   };
 
   return (
-    <ProcurementContext.Provider value={contextValue}>{children}</ProcurementContext.Provider>
+    <ProcurementContext.Provider value={contextValue}>
+      {children}
+    </ProcurementContext.Provider>
   );
 }

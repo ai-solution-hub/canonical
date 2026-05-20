@@ -314,7 +314,9 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
     {
       id: 'TE-04',
       tool: 'get_procurement_detail',
-      args: { id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000' },
+      args: {
+        id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
+      },
       expectedMin: 100,
       expectedMax: 8000,
       flagThreshold: 12000,

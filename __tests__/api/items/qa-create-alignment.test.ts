@@ -448,18 +448,21 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
         error: null,
       });
 
-      const req = createTestRequest(`/api/procurement/${BID_UUID}/outcome/integrate`, {
-        method: 'POST',
-        body: {
-          integrations: [
-            {
-              question_id: questionId,
-              action: 'new_entry',
-              content_type: 'q_a_pair',
-            },
-          ],
+      const req = createTestRequest(
+        `/api/procurement/${BID_UUID}/outcome/integrate`,
+        {
+          method: 'POST',
+          body: {
+            integrations: [
+              {
+                question_id: questionId,
+                action: 'new_entry',
+                content_type: 'q_a_pair',
+              },
+            ],
+          },
         },
-      });
+      );
 
       const res = await bidIntegrate(req, { params });
       expect(res.status).toBe(200);

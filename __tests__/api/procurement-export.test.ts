@@ -184,10 +184,13 @@ describe('Procurement Export API', () => {
     it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/docx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/docx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postDocxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -202,10 +205,13 @@ describe('Procurement Export API', () => {
         error: { message: 'Not found' },
       });
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/docx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/docx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postDocxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -217,10 +223,13 @@ describe('Procurement Export API', () => {
     });
 
     it('returns 400 for invalid bid ID', async () => {
-      const request = createTestRequest('/api/procurement/not-a-uuid/export/docx', {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        '/api/procurement/not-a-uuid/export/docx',
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postDocxExport(request, {
         params: createTestParams({ id: 'not-a-uuid' }),
@@ -246,10 +255,13 @@ describe('Procurement Export API', () => {
         (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/docx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/docx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postDocxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -263,10 +275,13 @@ describe('Procurement Export API', () => {
     it('returns 200 with correct Content-Type for DOCX', async () => {
       configureBidWithQuestions();
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/docx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/docx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postDocxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -281,10 +296,13 @@ describe('Procurement Export API', () => {
     it('returns correct Content-Disposition header for DOCX', async () => {
       configureBidWithQuestions('My Test Procurement!');
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/docx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/docx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postDocxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -307,10 +325,13 @@ describe('Procurement Export API', () => {
     it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/xlsx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/xlsx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postXlsxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -324,10 +345,13 @@ describe('Procurement Export API', () => {
         error: { message: 'Not found' },
       });
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/xlsx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/xlsx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postXlsxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -338,10 +362,13 @@ describe('Procurement Export API', () => {
     it('returns 200 with correct Content-Type for XLSX', async () => {
       configureBidWithQuestions();
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/xlsx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/xlsx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postXlsxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -356,10 +383,13 @@ describe('Procurement Export API', () => {
     it('returns correct Content-Disposition header for XLSX', async () => {
       configureBidWithQuestions('Budget Proposal 2026');
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/xlsx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/xlsx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postXlsxExport(request, {
         params: createTestParams({ id: BID_UUID }),
@@ -373,10 +403,13 @@ describe('Procurement Export API', () => {
     });
 
     it('returns 400 for invalid bid ID', async () => {
-      const request = createTestRequest('/api/procurement/bad-uuid/export/xlsx', {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        '/api/procurement/bad-uuid/export/xlsx',
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postXlsxExport(request, {
         params: createTestParams({ id: 'bad-uuid' }),
@@ -402,10 +435,13 @@ describe('Procurement Export API', () => {
         (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
-      const request = createTestRequest(`/api/procurement/${BID_UUID}/export/xlsx`, {
-        method: 'POST',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/procurement/${BID_UUID}/export/xlsx`,
+        {
+          method: 'POST',
+          body: {},
+        },
+      );
 
       const response = await postXlsxExport(request, {
         params: createTestParams({ id: BID_UUID }),

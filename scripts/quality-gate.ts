@@ -337,7 +337,10 @@ export function severityFor(
 // Supabase client
 // ---------------------------------------------------------------------------
 
-export function createSb(env = ''): { sb: SupabaseClient; workspaceId: string } {
+export function createSb(env = ''): {
+  sb: SupabaseClient;
+  workspaceId: string;
+} {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {

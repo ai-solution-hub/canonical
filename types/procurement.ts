@@ -13,7 +13,8 @@ export const PROCUREMENT_WORKFLOW_STATES = [
   'withdrawn',
 ] as const;
 
-export type ProcurementWorkflowState = (typeof PROCUREMENT_WORKFLOW_STATES)[number];
+export type ProcurementWorkflowState =
+  (typeof PROCUREMENT_WORKFLOW_STATES)[number];
 
 // ---- Procurement Container ----
 

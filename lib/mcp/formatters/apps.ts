@@ -124,7 +124,9 @@ export interface ProcurementDashboardData {
   focused_bid_detail?: Record<string, unknown>;
 }
 
-export function formatProcurementDashboard(data: ProcurementDashboardData): string {
+export function formatProcurementDashboard(
+  data: ProcurementDashboardData,
+): string {
   const lines: string[] = [
     '# Procurement Dashboard',
     '',

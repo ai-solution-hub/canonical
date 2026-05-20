@@ -50,7 +50,8 @@ export function useBidReadiness(procurementId: string): UseBidReadinessReturn {
 
   const query = useQuery<ReadinessData>({
     queryKey: queryKeys.bids.readiness(procurementId),
-    queryFn: () => fetchJson<ReadinessData>(`/api/procurement/${procurementId}/readiness`),
+    queryFn: () =>
+      fetchJson<ReadinessData>(`/api/procurement/${procurementId}/readiness`),
     enabled: !!procurementId,
     staleTime: 30_000,
   });

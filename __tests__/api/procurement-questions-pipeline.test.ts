@@ -461,10 +461,13 @@ describe('POST /api/bids/:id/questions/extract', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/extract`, {
-      method: 'POST',
-      body: { document_path: 'tender.pdf', format: 'pdf' },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { document_path: 'tender.pdf', format: 'pdf' },
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await extractQuestions(req, { params });
 
@@ -476,10 +479,13 @@ describe('POST /api/bids/:id/questions/extract', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/extract`, {
-      method: 'POST',
-      body: { document_path: 'tender.pdf', format: 'pdf' },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { document_path: 'tender.pdf', format: 'pdf' },
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await extractQuestions(req, { params });
 
@@ -502,10 +508,13 @@ describe('POST /api/bids/:id/questions/extract', () => {
   it('returns 400 for missing document_path', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/extract`, {
-      method: 'POST',
-      body: { format: 'pdf' },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { format: 'pdf' },
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await extractQuestions(req, { params });
 
@@ -523,10 +532,13 @@ describe('POST /api/bids/:id/questions/extract', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/extract`, {
-      method: 'POST',
-      body: { document_path: 'tender.pdf', format: 'pdf' },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { document_path: 'tender.pdf', format: 'pdf' },
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await extractQuestions(req, { params });
 
@@ -607,10 +619,13 @@ describe('POST /api/bids/:id/questions/extract', () => {
       },
     );
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/extract`, {
-      method: 'POST',
-      body: { document_path: 'tender.pdf', format: 'pdf' },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { document_path: 'tender.pdf', format: 'pdf' },
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await extractQuestions(req, { params });
 
@@ -667,10 +682,13 @@ describe('POST /api/bids/:id/questions/extract', () => {
       },
     );
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/extract`, {
-      method: 'POST',
-      body: { document_path: 'tender.pdf', format: 'pdf' },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { document_path: 'tender.pdf', format: 'pdf' },
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await extractQuestions(req, { params });
 
@@ -692,10 +710,13 @@ describe('POST /api/bids/:id/questions/match', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/match`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/match`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await matchQuestions(req, { params });
 
@@ -707,10 +728,13 @@ describe('POST /api/bids/:id/questions/match', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/match`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/match`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await matchQuestions(req, { params });
 
@@ -738,10 +762,13 @@ describe('POST /api/bids/:id/questions/match', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/match`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/match`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await matchQuestions(req, { params });
 
@@ -768,10 +795,13 @@ describe('POST /api/bids/:id/questions/match', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/match`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/match`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await matchQuestions(req, { params });
 
@@ -850,10 +880,13 @@ describe('POST /api/bids/:id/questions/match', () => {
         resolve({ data: null, error: null, count: 0 }),
     );
 
-    const req = createTestRequest(`/api/procurement/${BID_UUID}/questions/match`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/match`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
     const params = createTestParams({ id: BID_UUID });
     const res = await matchQuestions(req, { params });
 

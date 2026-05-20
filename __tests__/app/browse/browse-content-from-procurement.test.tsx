@@ -74,7 +74,12 @@ const mockFilterPresets = vi.hoisted(() => ({
 
 const mockQuickAssign = vi.hoisted(() => ({
   activeWorkspaces: [
-    { id: 'ws-1', name: 'Procurement Alpha', color: '#ff0000', deadline: '2026-04-15' },
+    {
+      id: 'ws-1',
+      name: 'Procurement Alpha',
+      color: '#ff0000',
+      deadline: '2026-04-15',
+    },
     { id: 'ws-2', name: 'Procurement Beta', color: '#00ff00', deadline: null },
   ],
   itemAssignments: new Map<string, Set<string>>(),

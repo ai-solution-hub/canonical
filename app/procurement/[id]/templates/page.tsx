@@ -37,7 +37,9 @@ export default function TemplateCompletionPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] =
     useState<TemplateWithDetail | null>(null);
-  const [procurementQuestions, setProcurementQuestions] = useState<ProcurementQuestion[]>([]);
+  const [procurementQuestions, setProcurementQuestions] = useState<
+    ProcurementQuestion[]
+  >([]);
   const [step, setStep] = useState<WorkflowStep>('upload');
   const [loading, setLoading] = useState(true);
   const [fillJobId, setFillJobId] = useState<string | null>(null);
@@ -92,7 +94,9 @@ export default function TemplateCompletionPage() {
     async (templateId: string) => {
       setLoadingTemplateId(templateId);
       try {
-        const res = await fetch(`/api/procurement/${procurementId}/templates/${templateId}`);
+        const res = await fetch(
+          `/api/procurement/${procurementId}/templates/${templateId}`,
+        );
         if (!res.ok) throw new Error('Failed to load template');
         const detail: TemplateWithDetail = await res.json();
         setSelectedTemplate(detail);

@@ -10,7 +10,11 @@ import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import { parseProcurementMetadata } from '@/lib/validation/schemas';
-import type { Procurement, ProcurementMetadata, ConfidencePosture } from '@/types/procurement';
+import type {
+  Procurement,
+  ProcurementMetadata,
+  ConfidencePosture,
+} from '@/types/procurement';
 import type { ProcurementWorkflowState } from '@/types/procurement';
 
 /**
@@ -98,7 +102,10 @@ export function ProcurementListCard({
               {bid.name}
             </Link>
           </h3>
-          <ProcurementWorkflowBadge state={procurementStatus} className="shrink-0" />
+          <ProcurementWorkflowBadge
+            state={procurementStatus}
+            className="shrink-0"
+          />
         </div>
 
         {/* Buyer and deadline */}

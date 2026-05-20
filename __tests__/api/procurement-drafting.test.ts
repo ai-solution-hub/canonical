@@ -111,7 +111,8 @@ const { POST: restorePost } =
   await import('@/app/api/procurement/[id]/responses/[rId]/restore/route');
 const { PATCH: questionPatch, DELETE: questionDelete } =
   await import('@/app/api/procurement/[id]/questions/[qId]/route');
-const { POST: tenderPost } = await import('@/app/api/procurement/[id]/tender/route');
+const { POST: tenderPost } =
+  await import('@/app/api/procurement/[id]/tender/route');
 const { GET: historyGet } =
   await import('@/app/api/procurement/[id]/responses/[rId]/history/route');
 
@@ -243,10 +244,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: { question_ids: [VALID_UUID_2] },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: { question_ids: [VALID_UUID_2] },
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(401);
@@ -255,10 +259,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: { question_ids: [VALID_UUID_2] },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: { question_ids: [VALID_UUID_2] },
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(403);
@@ -267,10 +274,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
   it('returns 400 for invalid UUID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/procurement/${INVALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${INVALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftPost(req, {
       params: createTestParams({ id: INVALID_UUID }),
@@ -285,10 +295,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
     mockCheckRateLimit.mockReturnValue({ allowed: false });
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(429);
@@ -303,10 +316,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(404);
@@ -323,10 +339,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(400);
@@ -350,10 +369,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(200);
@@ -388,10 +410,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
         }),
     );
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: { force: false },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: { force: false },
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(200);
@@ -433,10 +458,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: { force: false },
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: { force: false },
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(200);
@@ -484,10 +512,13 @@ describe('POST /api/bids/:id/responses/draft', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}/responses/draft`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftPost(req, { params });
     expect(res.status).toBe(200);
@@ -697,7 +728,10 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
     } else {
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: null,
-        error: opts.procurementError ?? { code: 'PGRST116', message: 'No rows found' },
+        error: opts.procurementError ?? {
+          code: 'PGRST116',
+          message: 'No rows found',
+        },
       });
     }
     // Envelope role lookup via maybeSingle().

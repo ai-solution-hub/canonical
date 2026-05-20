@@ -328,10 +328,12 @@ describe('generateBidXlsx', () => {
     const wbAdvanced = await loadWorkbook(bufferAdvanced);
 
     const standardResponse = String(
-      wbStandard.getWorksheet('Procurement Responses')!.getRow(2).getCell(4).value,
+      wbStandard.getWorksheet('Procurement Responses')!.getRow(2).getCell(4)
+        .value,
     );
     const advancedResponse = String(
-      wbAdvanced.getWorksheet('Procurement Responses')!.getRow(2).getCell(4).value,
+      wbAdvanced.getWorksheet('Procurement Responses')!.getRow(2).getCell(4)
+        .value,
     );
 
     expect(standardResponse).toContain('Standard version');

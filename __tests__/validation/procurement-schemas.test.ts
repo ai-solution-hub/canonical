@@ -102,12 +102,16 @@ describe('bid validation schemas', () => {
 
   describe('ProcurementUpdateBodySchema', () => {
     it('accepts partial update with name only', () => {
-      const result = ProcurementUpdateBodySchema.safeParse({ name: 'Updated Name' });
+      const result = ProcurementUpdateBodySchema.safeParse({
+        name: 'Updated Name',
+      });
       expect(result.success).toBe(true);
     });
 
     it('accepts status transition', () => {
-      const result = ProcurementUpdateBodySchema.safeParse({ status: 'drafting' });
+      const result = ProcurementUpdateBodySchema.safeParse({
+        status: 'drafting',
+      });
       expect(result.success).toBe(true);
     });
 

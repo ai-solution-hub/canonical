@@ -246,7 +246,8 @@ export async function fetchReorientData(
           action: 'updated',
           entity_type: 'bid_response',
           entity_id: row.response_id,
-          entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Procurement',
+          entity_title:
+            br?.bid_questions?.workspaces?.name ?? 'Untitled Procurement',
           domain: undefined,
           created_at: row.created_at,
           workspace_id: br?.bid_questions?.workspace_id,
@@ -315,7 +316,9 @@ export async function fetchReorientData(
               ? `${questionText.slice(0, 57)}...`
               : questionText,
           action: 'edited',
-          href: procurementId ? `/procurement/${procurementId}/session` : '/procurement',
+          href: procurementId
+            ? `/procurement/${procurementId}/session`
+            : '/procurement',
           created_at: row.created_at,
           workspace_id: procurementId,
           question_id: br?.question_id,

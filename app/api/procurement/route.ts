@@ -114,7 +114,8 @@ export async function GET(request: NextRequest) {
       return {
         ...wsRest,
         domain_metadata:
-          parseProcurementMetadata(wsRest.domain_metadata) ?? wsRest.domain_metadata,
+          parseProcurementMetadata(wsRest.domain_metadata) ??
+          wsRest.domain_metadata,
         question_stats: statsMap.get(wsRest.id) ?? null,
       };
     });

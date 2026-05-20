@@ -70,7 +70,10 @@ export async function GET(
       .single();
 
     if (procurementError || !bid) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     // Fetch questions ordered by section then question sequence.
@@ -211,7 +214,10 @@ export async function POST(
       .single();
 
     if (procurementError || !bid) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
     // Try batch format first (from QuestionReview component)

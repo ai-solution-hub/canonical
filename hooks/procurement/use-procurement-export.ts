@@ -37,11 +37,14 @@ export function useBidExport({
 
   const exportMutation = useMutation({
     mutationFn: async (format: ExportFormat) => {
-      const response = await fetch(`/api/procurement/${procurementId}/export/${format}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      const response = await fetch(
+        `/api/procurement/${procurementId}/export/${format}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);

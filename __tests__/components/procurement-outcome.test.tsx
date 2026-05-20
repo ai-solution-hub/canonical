@@ -85,7 +85,9 @@ describe('ProcurementOutcomeDialog', () => {
 
   it('does not render content when open is false', () => {
     renderDialog({ open: false });
-    expect(screen.queryByText('Record Procurement Outcome')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Record Procurement Outcome'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the bid name in the description', () => {
@@ -103,7 +105,9 @@ describe('ProcurementOutcomeDialog', () => {
   it('renders outcome descriptions', () => {
     renderDialog();
     expect(screen.getByText('Procurement was successful')).toBeInTheDocument();
-    expect(screen.getByText('Procurement was unsuccessful')).toBeInTheDocument();
+    expect(
+      screen.getByText('Procurement was unsuccessful'),
+    ).toBeInTheDocument();
     expect(
       screen.getByText('Procurement was withdrawn before decision'),
     ).toBeInTheDocument();

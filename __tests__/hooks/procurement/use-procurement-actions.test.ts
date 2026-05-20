@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ProcurementWorkflowState, ExtractionResult } from '@/types/procurement';
+import type {
+  ProcurementWorkflowState,
+  ExtractionResult,
+} from '@/types/procurement';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -177,7 +180,10 @@ function mockFetchSuccess(overrides?: {
       });
     }
     // DELETE
-    if (url === `/api/procurement/${TEST_BID_ID}` && init?.method === 'DELETE') {
+    if (
+      url === `/api/procurement/${TEST_BID_ID}` &&
+      init?.method === 'DELETE'
+    ) {
       return Promise.resolve({
         ok: true,
         json: async () => ({}),
@@ -361,7 +367,9 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await act(async () => {
-      result.current.handleStatusTransition('in_review' as ProcurementWorkflowState);
+      result.current.handleStatusTransition(
+        'in_review' as ProcurementWorkflowState,
+      );
     });
 
     await waitFor(() => {
@@ -375,7 +383,9 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Procurement moved to In Review');
+      expect(toast.success).toHaveBeenCalledWith(
+        'Procurement moved to In Review',
+      );
     });
   });
 
@@ -391,7 +401,9 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await act(async () => {
-      result.current.handleStatusTransition('submitted' as ProcurementWorkflowState);
+      result.current.handleStatusTransition(
+        'submitted' as ProcurementWorkflowState,
+      );
     });
 
     await waitFor(() => {
@@ -456,7 +468,9 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await act(async () => {
-      result.current.handleStatusTransition('in_review' as ProcurementWorkflowState);
+      result.current.handleStatusTransition(
+        'in_review' as ProcurementWorkflowState,
+      );
     });
 
     await waitFor(() => {
@@ -1304,7 +1318,10 @@ describe('useBidActions (TanStack Query)', () => {
   it('transitioning is true while transition mutation is pending', async () => {
     let resolveTransition: ((value: unknown) => void) | undefined;
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (url === `/api/procurement/${TEST_BID_ID}` && init?.method === 'PATCH') {
+      if (
+        url === `/api/procurement/${TEST_BID_ID}` &&
+        init?.method === 'PATCH'
+      ) {
         return new Promise((resolve) => {
           resolveTransition = resolve;
         });
@@ -1336,7 +1353,9 @@ describe('useBidActions (TanStack Query)', () => {
     expect(result.current.transitioning).toBe(false);
 
     act(() => {
-      result.current.handleStatusTransition('in_review' as ProcurementWorkflowState);
+      result.current.handleStatusTransition(
+        'in_review' as ProcurementWorkflowState,
+      );
     });
 
     await waitFor(() => {
@@ -1539,7 +1558,10 @@ describe('useBidActions (TanStack Query)', () => {
 
   it('shows error toast when delete mutation fails', async () => {
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (url === `/api/procurement/${TEST_BID_ID}` && init?.method === 'DELETE') {
+      if (
+        url === `/api/procurement/${TEST_BID_ID}` &&
+        init?.method === 'DELETE'
+      ) {
         return Promise.resolve({
           ok: false,
           json: async () => ({ error: 'Cannot delete active procurement' }),
@@ -1574,7 +1596,9 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Cannot delete active procurement');
+      expect(toast.error).toHaveBeenCalledWith(
+        'Cannot delete active procurement',
+      );
     });
   });
 

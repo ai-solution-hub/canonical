@@ -130,10 +130,13 @@ describe('Procurement Questions Create API', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: { question_text: 'Test question?' },
-    });
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: { question_text: 'Test question?' },
+      },
+    );
 
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
@@ -144,10 +147,13 @@ describe('Procurement Questions Create API', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: { question_text: 'Test question?' },
-    });
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: { question_text: 'Test question?' },
+      },
+    );
 
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
@@ -189,10 +195,13 @@ describe('Procurement Questions Create API', () => {
       error: null,
     });
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: { section_name: 'Technical' },
-    });
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: { section_name: 'Technical' },
+      },
+    );
 
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
@@ -209,10 +218,13 @@ describe('Procurement Questions Create API', () => {
       error: { message: 'Not found' },
     });
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: { question_text: 'Test question?' },
-    });
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: { question_text: 'Test question?' },
+      },
+    );
 
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
@@ -264,14 +276,17 @@ describe('Procurement Questions Create API', () => {
       error: null,
     });
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: {
-        question_text: 'What is your approach?',
-        section_name: 'Technical',
-        word_limit: 500,
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: {
+          question_text: 'What is your approach?',
+          section_name: 'Technical',
+          word_limit: 500,
+        },
       },
-    });
+    );
 
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
@@ -322,15 +337,18 @@ describe('Procurement Questions Create API', () => {
         }),
     );
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: {
-        questions: [
-          { question_text: 'Question 1?', section_name: 'General' },
-          { question_text: 'Question 2?', section_name: 'Technical' },
-        ],
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: {
+          questions: [
+            { question_text: 'Question 1?', section_name: 'General' },
+            { question_text: 'Question 2?', section_name: 'Technical' },
+          ],
+        },
       },
-    });
+    );
 
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
@@ -366,12 +384,15 @@ describe('Procurement Questions Create API', () => {
         }),
     );
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: {
-        questions: [{ question_text: 'Check workspace_id?' }],
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: {
+          questions: [{ question_text: 'Check workspace_id?' }],
+        },
       },
-    });
+    );
 
     await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
@@ -397,10 +418,13 @@ describe('Procurement Questions Create API', () => {
       error: null,
     });
 
-    const request = createTestRequest(`/api/procurement/${BID_UUID}/questions`, {
-      method: 'POST',
-      body: { questions: [] },
-    });
+    const request = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions`,
+      {
+        method: 'POST',
+        body: { questions: [] },
+      },
+    );
 
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),

@@ -80,10 +80,14 @@ export async function POST(
       .single();
 
     if (procurementError || !bid) {
-      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Procurement not found' },
+        { status: 404 },
+      );
     }
 
-    const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
+    const procurementStatus =
+      (bid.status as ProcurementWorkflowState) ?? 'draft';
     const draftableStates: ProcurementWorkflowState[] = [
       'drafting',
       'in_review',

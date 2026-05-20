@@ -190,11 +190,14 @@ export function KBIntegrationReview({
         };
       });
 
-      const res = await fetch(`/api/procurement/${procurementId}/outcome/integrate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ integrations }),
-      });
+      const res = await fetch(
+        `/api/procurement/${procurementId}/outcome/integrate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ integrations }),
+        },
+      );
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -238,8 +241,10 @@ export function KBIntegrationReview({
           </DialogTitle>
           <DialogDescription>
             Review winning responses from{' '}
-            <span className="font-medium text-foreground">{procurementName}</span> and
-            choose how to integrate them into the knowledge base.
+            <span className="font-medium text-foreground">
+              {procurementName}
+            </span>{' '}
+            and choose how to integrate them into the knowledge base.
           </DialogDescription>
         </DialogHeader>
 

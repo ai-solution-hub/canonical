@@ -2330,7 +2330,11 @@ async function runAppTemplateChecks(accessToken: string): Promise<void> {
 
   // FC-71: show_procurement_dashboard
   {
-    const result = await callTool('show_procurement_dashboard', {}, accessToken);
+    const result = await callTool(
+      'show_procurement_dashboard',
+      {},
+      accessToken,
+    );
     if (result.errorMessage) {
       record(
         'App/Template',
@@ -3036,7 +3040,9 @@ async function main(): Promise<void> {
   console.log(`  Content item: ${knownUUIDs.contentItemId}`);
   console.log(`  Procurement: ${knownUUIDs.procurementId ?? '(none)'}`);
   console.log(`  Question: ${knownUUIDs.questionId ?? '(none)'}`);
-  console.log(`  Procurement response: ${knownUUIDs.procurementResponseId ?? '(none)'}`);
+  console.log(
+    `  Procurement response: ${knownUUIDs.procurementResponseId ?? '(none)'}`,
+  );
 
   // Step 4: Create eval content item for write tool tests
   console.log('\nCreating eval content item...');

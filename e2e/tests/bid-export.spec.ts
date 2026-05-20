@@ -63,9 +63,9 @@ test.describe('Procurement export -- menu visibility', () => {
       await page.goto(`/procurement/${emptyBidId}`);
 
       // Wait for page to load
-      await expect(page.getByRole('heading', { name: /Temp Procurement/ })).toBeVisible(
-        { timeout: 10000 },
-      );
+      await expect(
+        page.getByRole('heading', { name: /Temp Procurement/ }),
+      ).toBeVisible({ timeout: 10000 });
 
       // Export button should be present but disabled
       const exportButton = page.getByRole('button', {
@@ -122,17 +122,16 @@ test.describe('Procurement export -- download triggers', () => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
     // Create an export-ready bid with approved responses
-    const { procurementId, questionIds, responseIds } = await createExportReadyBid(
-      workerData.prefix,
-    );
+    const { procurementId, questionIds, responseIds } =
+      await createExportReadyBid(workerData.prefix);
 
     try {
       await page.goto(`/procurement/${procurementId}`);
 
       // Wait for page to load — bid name includes "Temp Procurement" from the factory
-      await expect(page.getByRole('heading', { name: /Temp Procurement/ })).toBeVisible(
-        { timeout: 10000 },
-      );
+      await expect(
+        page.getByRole('heading', { name: /Temp Procurement/ }),
+      ).toBeVisible({ timeout: 10000 });
 
       // Click the Export button
       const exportButton = page.getByRole('button', {
@@ -170,17 +169,16 @@ test.describe('Procurement export -- download triggers', () => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
     // Create an export-ready bid with approved responses
-    const { procurementId, questionIds, responseIds } = await createExportReadyBid(
-      workerData.prefix,
-    );
+    const { procurementId, questionIds, responseIds } =
+      await createExportReadyBid(workerData.prefix);
 
     try {
       await page.goto(`/procurement/${procurementId}`);
 
       // Wait for page to load — bid name includes "Temp Procurement" from the factory
-      await expect(page.getByRole('heading', { name: /Temp Procurement/ })).toBeVisible(
-        { timeout: 10000 },
-      );
+      await expect(
+        page.getByRole('heading', { name: /Temp Procurement/ }),
+      ).toBeVisible({ timeout: 10000 });
 
       // Click the Export button
       const exportButton = page.getByRole('button', {
