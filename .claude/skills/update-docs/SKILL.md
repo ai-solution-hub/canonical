@@ -360,7 +360,7 @@ the row entirely instead.
 
 - **New item discovered in session** → append a new object to the `items[]`
   array (use Edit anchoring on the closing `]` of the last item). Pick the next
-  sequential ID (e.g. if the latest is `OPS-62`, the next is `OPS-63`).
+  sequential ID (e.g. if the latest bare-digit id is `65`, the next is `66`).
 - **Existing item progressed in session** → update the row's `status` /
   `effort_estimate` / `notes` via Edit anchoring on the unique `"id": "<ID>"`
   line.

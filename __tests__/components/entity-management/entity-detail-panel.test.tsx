@@ -1,5 +1,5 @@
 /**
- * EntityDetailPanel — CertificationMetadataForm holder tests (OPS-25)
+ * EntityDetailPanel — CertificationMetadataForm holder tests (59)
  *
  * Exercises the holder Select placeholder behaviour after the S193 fix
  * that replaced the silent default of 'self' with an explicit
@@ -100,7 +100,7 @@ function makeEntityDetail(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('EntityDetailPanel — holder placeholder (OPS-25)', () => {
+describe('EntityDetailPanel — holder placeholder (59)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

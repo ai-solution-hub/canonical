@@ -8,6 +8,11 @@
  * `spec_needed` form and the canonical `dependencies` field name (renamed
  * from `needs_spec` / `depends_on` in S52 WP3 per FU-2 and FU-NEW).
  *
+ * ID-15.4 (S58): `BacklogItem.id` schema tightened from `z.string().min(1)` to
+ * `z.string().regex(/^\d+$/)`. All legacy-format ids (OPS-*, AST-S*-O*, C*-*,
+ * RLS-P*, etc.) are now invalid; bare-digit ids only. Tests updated to use
+ * bare-digit fixtures; legacy rejection test added.
+ *
  * Test coverage:
  *   - Valid item per each BacklogStatus value (5 cases, one per subset value)
  *   - Invalid status rejected (legacy `needs_spec`, forbidden `done`, etc.)
@@ -16,6 +21,7 @@
  *   - Root BacklogSchema validates a minimal document
  *   - Root BacklogSchema validates a document with multiple items
  *   - Required fields — missing `id`, `description`, `status` each rejected
+ *   - Legacy-format ids rejected (ID-15.4 schema tighten)
  *   - Priority enum — valid subset values accepted, invalid value rejected
  */
 
@@ -31,7 +37,7 @@ import {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const VALID_ITEM_BASE = {
-  id: 'C1-T3-Settings-3',
+  id: '28',
   description: 'Getting Started checklist for first-time admins',
   type: 'feature' as const,
   status: 'spec_needed' as const,
@@ -82,7 +88,7 @@ describe('BacklogItemSchema — valid item per BacklogStatus value', () => {
   it('accepts status: needs_research', () => {
     const result = BacklogItemSchema.safeParse({
       ...VALID_ITEM_BASE,
-      id: 'C1-DT-Login-1',
+      id: '35',
       description: 'Session duration vs security research',
       type: 'research',
       status: 'needs_research',
@@ -95,7 +101,7 @@ describe('BacklogItemSchema — valid item per BacklogStatus value', () => {
   it('accepts status: parked', () => {
     const result = BacklogItemSchema.safeParse({
       ...VALID_ITEM_BASE,
-      id: 'OPS-99',
+      id: '99',
       description: 'Parked feature for future consideration',
       status: 'parked',
     });
@@ -105,7 +111,7 @@ describe('BacklogItemSchema — valid item per BacklogStatus value', () => {
   it('accepts status: ready', () => {
     const result = BacklogItemSchema.safeParse({
       ...VALID_ITEM_BASE,
-      id: 'OPS-100',
+      id: '100',
       description: 'Ready to be picked up',
       status: 'ready',
     });
@@ -115,7 +121,7 @@ describe('BacklogItemSchema — valid item per BacklogStatus value', () => {
   it('accepts status: blocked', () => {
     const result = BacklogItemSchema.safeParse({
       ...VALID_ITEM_BASE,
-      id: 'OPS-101',
+      id: '101',
       description: 'Blocked on external dependency',
       status: 'blocked',
     });
@@ -266,6 +272,18 @@ describe('BacklogItemSchema — required fields enforcement', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('rejects legacy-format ids (schema tightened to bare-digit in ID-15.4)', () => {
+    // After ID-15.4 migration all backlog items use bare-digit ids (e.g. "42").
+    // Legacy formats such as OPS-6, AST-S10-O1, C2-PA5 are no longer valid.
+    for (const legacyId of ['OPS-6', 'AST-S10-O1', 'C2-PA5', 'RLS-P8', 'ID-17']) {
+      const result = BacklogItemSchema.safeParse({
+        ...VALID_ITEM_BASE,
+        id: legacyId,
+      });
+      expect(result.success, `expected legacy id "${legacyId}" to be rejected`).toBe(false);
+    }
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -328,22 +346,22 @@ describe('BacklogSchema — root document', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.items).toHaveLength(1);
-      expect(result.data.items[0].id).toBe('C1-T3-Settings-3');
+      expect(result.data.items[0].id).toBe('28');
     }
   });
 
   it('validates a document with multiple items covering different statuses', () => {
     const items = [
-      { ...VALID_ITEM_BASE, id: 'A1', status: 'spec_needed' as const },
+      { ...VALID_ITEM_BASE, id: '91', status: 'spec_needed' as const },
       {
         ...VALID_ITEM_BASE,
-        id: 'A2',
+        id: '92',
         status: 'needs_research' as const,
         type: 'research' as const,
       },
-      { ...VALID_ITEM_BASE, id: 'A3', status: 'parked' as const },
-      { ...VALID_ITEM_BASE, id: 'A4', status: 'ready' as const },
-      { ...VALID_ITEM_BASE, id: 'A5', status: 'blocked' as const },
+      { ...VALID_ITEM_BASE, id: '93', status: 'parked' as const },
+      { ...VALID_ITEM_BASE, id: '94', status: 'ready' as const },
+      { ...VALID_ITEM_BASE, id: '95', status: 'blocked' as const },
     ];
     const result = BacklogSchema.safeParse({ ...VALID_ROOT, items });
     expect(result.success).toBe(true);

@@ -62,8 +62,8 @@ export type BacklogItemType = z.infer<typeof BacklogItemType>;
 // ──────────────────────────────────────────────────────────────────────────────
 
 export const BacklogItemSchema = z.object({
-  /** Item identifier — existing ids (e.g. `C2-PA5`) must not change (inv 37). */
-  id: z.string().min(1),
+  /** Item identifier — bare-digit canonical form after ID-15.4 migration (inv 37). */
+  id: z.string().regex(/^\d+$/, 'Backlog item id must be a bare digit string'),
 
   /** One-sentence summary of the work item. */
   description: z.string().min(1),

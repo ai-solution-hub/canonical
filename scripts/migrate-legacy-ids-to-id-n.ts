@@ -161,11 +161,20 @@ const LEGACY_ID_RE =
   /^(OPS-\d+(\.\d+)?(\s*\([^)]+\))?|AST-S\d+-O\d+|C\d+-(DT|T\d+|PA\d*|Mobile)-[A-Za-z0-9-]+|RLS-P\d+|ENG-TAX-SIMPLIFY|EVAL-\d+|PL-\d+)$/;
 
 /**
- * Returns true if the document contains no legacy-format ids — i.e. the
- * migration has already been applied or the document has no legacy ids at all.
+ * Regex matching prefixed canonical ids (e.g. `ID-17`, `ID-18`) that must have
+ * their `ID-` prefix stripped to produce bare-digit ids.
+ *
+ * Per brief: pre-existing canonical items using `ID-N` format are normalised
+ * to bare-digit `N` in the same migration pass.
+ */
+const ID_PREFIX_RE = /^ID-(\d+)$/;
+
+/**
+ * Returns true if the document contains no ids requiring migration:
+ * neither legacy-format ids nor `ID-N` prefixed ids.
  */
 export function isAlreadyMigrated(doc: BacklogDocument): boolean {
-  return doc.items.every((item) => !LEGACY_ID_RE.test(item.id));
+  return doc.items.every((item) => !LEGACY_ID_RE.test(item.id) && !ID_PREFIX_RE.test(item.id));
 }
 
 // ── Dependency rewriting ─────────────────────────────────────────────────────
@@ -235,6 +244,16 @@ export function applyMigration(doc: BacklogDocument): MigrationResult {
           `[WARN] Legacy id "${item.id}" matches legacy pattern but has no mapping entry — left unchanged.`,
         );
         skipped.push(item.id);
+      } else {
+        // Strip ID-N prefix form to bare digit (e.g. "ID-17" → "17").
+        const prefixMatch = ID_PREFIX_RE.exec(item.id);
+        if (prefixMatch) {
+          return {
+            ...item,
+            id: prefixMatch[1],
+            dependencies: rewriteDependencies(item.dependencies, mapping),
+          };
+        }
       }
       // Canonical or unknown ids pass through unchanged.
       return { ...item, dependencies: rewriteDependencies(item.dependencies, mapping) };

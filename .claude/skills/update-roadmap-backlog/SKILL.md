@@ -125,7 +125,7 @@ Required fields per the schema implicit in `product-backlog.json`:
 
 | Field | How to populate |
 |-------|-----------------|
-| `id` | Allocate next free ID. Inspect existing IDs in the same `track` first; follow the convention (`C{n}-{shortcode}` pattern, e.g. `C1-T3-Settings-3`, or a new pattern if no convention applies). |
+| `id` | Allocate next bare-digit integer above the current highest id in the file (post ID-15.4 migration all ids are bare digits, e.g. `66` if the current highest is `65`). |
 | `description` | One-sentence description of the finding. UK English. |
 | `type` | From triage payload `backlog_slot.type`. |
 | `status` | From triage payload `backlog_slot.status`. Default `spec_needed`. |
@@ -223,7 +223,7 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
 | Field | Description |
 |-------|-------------|
 | `target` | `roadmap` or `backlog` |
-| `item_id` | The ID of the existing item to edit (e.g. `"ID-11"`, `"9.15"`, `"C1-T3-Settings-3"`). |
+| `item_id` | The ID of the existing item to edit (e.g. `"ID-11"`, `"9.15"`, `"28"`). |
 | `field_edits` | Map of `{ status?, priority?, notes? }`. Only allowed fields are mutable via this skill. |
 | `provenance.session_counter` | Session ID for the `last_updated` stamp. |
 | `provenance.source_commit_sha` | Optional, appended to `commit_refs` (roadmap) or `notes` (backlog) if supplied. |

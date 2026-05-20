@@ -187,15 +187,17 @@ describe('applyMigration', () => {
     expect(warnings).toHaveLength(0);
   });
 
-  it('leaves already-canonical IDs (ID-17, ID-18) unchanged', () => {
+  it('strips ID-N prefix from pre-existing canonical items (ID-17→17, ID-18→18)', () => {
     const doc = makeDocument([
       makeItem({ id: 'ID-17' }),
       makeItem({ id: 'ID-18' }),
     ]);
     const { document: result } = applyMigration(doc);
-    // ID-17 and ID-18 are canonical names — NOT in mapping, left as-is
-    expect(result.items.some((i) => i.id === 'ID-17')).toBe(true);
-    expect(result.items.some((i) => i.id === 'ID-18')).toBe(true);
+    // ID-N prefix is normalised to bare digit in the same migration pass.
+    expect(result.items.some((i) => i.id === '17')).toBe(true);
+    expect(result.items.some((i) => i.id === '18')).toBe(true);
+    expect(result.items.some((i) => i.id === 'ID-17')).toBe(false);
+    expect(result.items.some((i) => i.id === 'ID-18')).toBe(false);
   });
 
   it('emits a [WARN] and populates skipped[] for a legacy-format id absent from inventory (drift)', () => {
