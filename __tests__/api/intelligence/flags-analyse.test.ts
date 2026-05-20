@@ -61,6 +61,13 @@ const PROFILE_UUID = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
 const FLAG_UUID_1 = 'c3d4e5f6-a7b8-4c9d-9e1f-2a3b4c5d6e7f';
 const FLAG_UUID_2 = 'd4e5f6a7-b8c9-4d0e-9f2a-3b4c5d6e7f8a';
 
+/**
+ * DB-row shape: the route loads `workspaces.id, domain_metadata` then
+ * passes the JSONB through `extractContextFromDomainMetadata()` (S245 WP2a
+ * helper). Pre-T2 the helper reads JSONB, so this mock keeps the JSONB
+ * shape. S246 WP2b swaps the helper internals to a satellite read without
+ * changing call sites.
+ */
 const WORKSPACE_ROW = {
   id: WORKSPACE_UUID,
   domain_metadata: { company_profile_id: PROFILE_UUID },

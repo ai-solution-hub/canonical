@@ -2,7 +2,8 @@
  * WorkspaceSettings Component Tests (SI-L5)
  *
  * Tests the relevance-threshold slider:
- *   - Loads persisted threshold from workspace.domain_metadata
+ *   - Loads persisted threshold from the typed top-level
+ *     `workspace.relevance_threshold` field (S245 WP2a API contract)
  *   - Defaults to 0.50 when unset
  *   - Save → mutation invocation with correct payload
  *   - Reset restores persisted value
@@ -54,17 +55,20 @@ import { WorkspaceSettings } from '@/components/intelligence/workspace-settings'
 const VALID_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 function buildWorkspace(thresholdValue?: number) {
+  // S245 WP2a: the API returns the three intelligence-context fields as
+  // typed top-level keys, not nested under `domain_metadata`. The hook
+  // type `IntelligenceWorkspace` declares `domain_metadata` as the loose
+  // `Json | null` carrier — production code reads `workspace.relevance_threshold`
+  // directly via `useIntelligenceWorkspace`. Tests must mirror that shape.
   return {
     id: VALID_UUID,
     name: 'Education Watch',
     description: null,
     type: 'intelligence' as const,
-    domain_metadata: {
-      company_profile_id: 'profile-1',
-      ...(thresholdValue !== undefined && {
-        relevance_threshold: thresholdValue,
-      }),
-    },
+    company_profile_id: 'profile-1',
+    guide_id: null,
+    relevance_threshold: thresholdValue ?? null,
+    domain_metadata: null,
     is_archived: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',

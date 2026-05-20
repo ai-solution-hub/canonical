@@ -51,6 +51,13 @@ import { POST as previewPOST } from '@/app/api/intelligence/workspaces/[id]/prom
 const WORKSPACE_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const PROFILE_UUID = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
 
+/**
+ * DB-row shape: the route loads `workspaces.id, domain_metadata` via
+ * `.maybeSingle()` then passes `domain_metadata` through
+ * `extractContextFromDomainMetadata()`. Pre-T2 the helper reads JSONB, so
+ * this mock keeps the JSONB shape. S246 WP2b swaps the helper internals to
+ * read the satellite without changing call sites.
+ */
 const MOCK_WORKSPACE = {
   id: WORKSPACE_UUID,
   domain_metadata: { company_profile_id: PROFILE_UUID },

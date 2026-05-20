@@ -53,6 +53,13 @@ import {
 const VALID_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const PROFILE_UUID = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
 
+/**
+ * DB-row shape: `domain_metadata` stays JSONB pre-T2. The route handler
+ * projects the 3 intelligence-context fields onto typed top-level keys via
+ * `extractContextFromDomainMetadata()` — these are what API consumers see.
+ * S246 WP2b will swap the helper internals to a satellite JOIN without
+ * changing the API response shape.
+ */
 const MOCK_WORKSPACE = {
   id: VALID_UUID,
   name: 'Education Watch',
@@ -466,12 +473,17 @@ describe('Intelligence Workspaces API', () => {
         const body = await response.json();
 
         expect(response.status).toBe(200);
-        expect(body.domain_metadata.relevance_threshold).toBe(0.7);
-        // Confirms existing JSONB keys preserved (company_profile_id, guide_id)
-        expect(body.domain_metadata.company_profile_id).toBe(PROFILE_UUID);
-        expect(body.domain_metadata.guide_id).toBe('guide-123');
+        // S245 WP2a API contract: typed top-level fields.
+        expect(body.relevance_threshold).toBe(0.7);
+        // Confirms the existing context fields are also surfaced typed-top-level
+        // (the helper preserves company_profile_id + guide_id during the
+        // JSONB → typed projection).
+        expect(body.company_profile_id).toBe(PROFILE_UUID);
+        expect(body.guide_id).toBe('guide-123');
 
-        // Verify update was called with the merged metadata payload
+        // Verify update was called with the merged metadata payload.
+        // The DB write still goes to `domain_metadata` JSONB pre-T2;
+        // S246 WP2b swaps this to a direct typed-column UPDATE.
         expect(mockSupabase._chain.update).toHaveBeenCalledWith(
           expect.objectContaining({
             domain_metadata: {
@@ -591,7 +603,10 @@ describe('Intelligence Workspaces API', () => {
 
         expect(response.status).toBe(200);
         expect(body.name).toBe('Combined');
-        expect(body.domain_metadata.relevance_threshold).toBe(0.65);
+        // S245 WP2a API contract: typed top-level field.
+        expect(body.relevance_threshold).toBe(0.65);
+        expect(body.company_profile_id).toBe(PROFILE_UUID);
+        // DB-side write still targets JSONB pre-T2.
         expect(mockSupabase._chain.update).toHaveBeenCalledWith(
           expect.objectContaining({
             name: 'Combined',
