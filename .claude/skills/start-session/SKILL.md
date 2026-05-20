@@ -1,15 +1,28 @@
 ---
 name: start-session
 description:
-  Run at the start of every new session. Cleans up git worktrees, reads critical
-  documents, then plans the session based on the continuation prompt and/or user feedback. Triggers on
-  "start session".
+  Bootstraps a Knowledge Hub session: cleans git worktrees, loads critical context
+  (CLAUDE.md, mempalace diary, task-list.json), presents the session plan from the
+  continuation prompt, then chains to `workflow-orchestration` for the canonical SDLC
+  flow (ID-N Task / ID-N.M Subtask lifecycle, dispatch, gating, merge cadence). Use at
+  the start of every new session. Triggers on "start session", "begin session", "session
+  bootstrap", "kick off the session".
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, MCP
 ---
 
 # start-session
 
-Ensures a clean working environment, loads critical context, and plans the session before any implementation work begins.
+Ensures a clean working environment, loads critical context, presents the session plan, then hands off to `workflow-orchestration` for SDLC execution.
+
+---
+
+## When to invoke
+
+- At the very start of every new session (chat-driven or scheduled). This is the bootstrap step — nothing else should run before it.
+- After a `/clear` or context reset when the session needs to re-bootstrap mid-conversation.
+- Trigger phrases: "start session", "begin session", "session bootstrap", "kick off the session".
+
+This skill runs the four bootstrap steps below and then **chains into `workflow-orchestration`** (Step 4). It does not own the SDLC body — that lives in `workflow-orchestration` and its `references/`.
 
 ---
 
@@ -69,8 +82,8 @@ Read file: CLAUDE.md
 ```
 
 This contains commands, architecture, schema, gotchas, and conventions. Pay
-special attention to the "Gotchas" section — the implementation workflow is
-covered in Step 4 below.
+special attention to the "Gotchas" section — the implementation workflow itself
+is owned by `workflow-orchestration` (chained from Step 4 below).
 
 ### 2b: Memory recall
 
@@ -141,58 +154,11 @@ ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -
 
 ---
 
-## Implementation Workflow (MUST FOLLOW)
+## Step 4: Chain to workflow-orchestration
 
-This is the core execution discipline for the project. Every implementation must
-follow this workflow.
+Once the session plan is presented (Step 3), invoke the `workflow-orchestration` skill via the Skill tool. That skill is the canonical SDLC workflow body — it covers the ID-N Task / ID-N.M Subtask lifecycle, the Planner / Executor / Checker / Curator dispatch protocol, sequential cherry-pick merge cadence, state machines, finding routing (in-scope fix-Executor vs out-of-scope Curator), quality gates, and failure handling. See `.claude/skills/workflow-orchestration/SKILL.md` plus its `references/` files (lifecycle-detail, dispatch-primitives, checker-output-schema, state-machines, failure-modes, skill-routing, external-references).
 
-### Agent Work Limits
-
-- **Max 2 hours of work per agent** — never let one agent complete an entire
-  multi-phase spec without a verification gate. If a spec/plan is estimated at
-  more than 2 hours, split it between sequential agents with verification
-  between each stage.
-
-### Agent Skills
-
-When deploying the agent make it clear which skill they should be invoking
-based on the task(s) they will be assigned.
-
-### Verification Gates
-
-After EVERY implementation and spec/plan-writing agent completes, deploy a
-**separate verification agent** before merging. This is not optional. The
-verification agent must:
-
-1. Read the spec/plan requirements for the implemented work
-2. Read the implementation code
-3. Check spec/plan compliance — are all requirements met?
-4. Review code quality — semantic tokens, UK English, auth patterns, error
-   handling
-5. Check test quality — tests MUST verify real behaviour, NOT test the implemenation
-6. Return a verdict: **PASS** / **PASS WITH NOTES** / **FAIL**
-
-**Fix ALL verification findings** (including minor/low severity) before merging.
-Deploy a fix agent for any findings, no matter the severity. Not integrating all
-findings creates unneccessary technical debt that can be easily avoided by doing
-things right the first time.
-
-### Wave Structure
-
-1. **Wave N implementation:** Launch parallel worktree agents (strict file
-   ownership, no overlap)
-2. **Wave N verification:** Deploy verification agents after all implementation
-   agents complete
-3. **Wave N fix:** Fix any findings from verification
-4. **Wave N merge:** Merge worktrees sequentially, run full test suite after
-   each merge
-5. Proceed to Wave N+1 only after current wave is merged and green
-
-### Documentation
-
-Documentation will be updated at the end of the session when `/update-docs` is
-invoked. There is no requirement to update reference documentation (roadmap,
-state-of-the-product, etc.) throughout the session.
+Documentation updates do not happen mid-session — `/update-docs` is invoked at session close (then chains to `/handoff`).
 
 ---
 
