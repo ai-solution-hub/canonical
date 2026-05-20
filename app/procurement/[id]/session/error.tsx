@@ -7,7 +7,7 @@ import { PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger/client';
 
-export default function BidSessionError({
+export default function ProcurementSessionError({
   error,
   reset,
 }: {
@@ -15,7 +15,7 @@ export default function BidSessionError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Bid session error');
+    logger.error({ err: error }, 'Procurement session error');
     Sentry.captureException(error);
   }, [error]);
 
@@ -39,7 +39,7 @@ export default function BidSessionError({
           Try again
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/bid">Back to Bids</Link>
+          <Link href="/procurement">Back to Bids</Link>
         </Button>
       </div>
     </div>

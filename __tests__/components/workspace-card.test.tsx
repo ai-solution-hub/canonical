@@ -29,7 +29,7 @@ function makeWorkspace(
     name: 'Test Workspace',
     description: 'A test workspace',
     // Post-T2: workspace.type is sourced from application_types.key via JOIN.
-    // Registry keys are 'procurement' (label 'Bid'), 'intelligence', 'proposal'.
+    // Registry keys are 'procurement' (label 'Procurement'), 'intelligence', 'proposal'.
     type: 'procurement',
     status: 'active',
     icon: 'folder',
@@ -95,25 +95,25 @@ describe('WorkspaceCard', () => {
 
   describe('accessibility', () => {
     it('has aria-label on the workspace open button', () => {
-      renderCard({ name: 'My Bid' });
-      expect(screen.getByLabelText('Open My Bid')).toBeInTheDocument();
+      renderCard({ name: 'My Procurement' });
+      expect(screen.getByLabelText('Open My Procurement')).toBeInTheDocument();
     });
   });
 
   describe('card structure', () => {
     it('renders workspace name', () => {
-      renderCard({ name: 'Alpha Bid' });
-      expect(screen.getByText('Alpha Bid')).toBeInTheDocument();
+      renderCard({ name: 'Alpha Procurement' });
+      expect(screen.getByText('Alpha Procurement')).toBeInTheDocument();
     });
 
     it('renders workspace description', () => {
-      renderCard({ description: 'Bid for council contract' });
-      expect(screen.getByText('Bid for council contract')).toBeInTheDocument();
+      renderCard({ description: 'Procurement for council contract' });
+      expect(screen.getByText('Procurement for council contract')).toBeInTheDocument();
     });
 
     it('shows badge label from registry for procurement type', () => {
       renderCard({ type: 'procurement' });
-      expect(screen.getByText('Bid')).toBeInTheDocument();
+      expect(screen.getByText('Procurement')).toBeInTheDocument();
     });
 
     it('shows badge label from registry for intelligence type', () => {
@@ -123,7 +123,7 @@ describe('WorkspaceCard', () => {
 
     it('shows no badge for unknown workspace type', () => {
       renderCard({ type: 'unknown_type' });
-      expect(screen.queryByText('Bid')).not.toBeInTheDocument();
+      expect(screen.queryByText('Procurement')).not.toBeInTheDocument();
       expect(screen.queryByText('Intelligence Stream')).not.toBeInTheDocument();
     });
 

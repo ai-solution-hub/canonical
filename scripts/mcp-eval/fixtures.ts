@@ -92,7 +92,7 @@ export const CANONICAL_TOOL_NAMES = [
   'get_reorientation', // 5
   'get_freshness_report', // 6
   'get_expiring_content', // 7
-  'list_active_bids', // 8
+  'list_active_procurement', // 8
   'get_bid_detail', // 9
   'get_bid_question', // 10
   'cite_content', // 11
@@ -165,7 +165,7 @@ export const READ_ONLY_TOOLS = new Set([
   'get_reorientation',
   'get_freshness_report',
   'get_expiring_content',
-  'list_active_bids',
+  'list_active_procurement',
   'get_bid_detail',
   'get_bid_question',
   'get_content_effectiveness',
@@ -316,9 +316,9 @@ export async function getAuthToken(): Promise<{
 
 export interface KnownUUIDs {
   contentItemId: string;
-  bidId: string | null;
+  procurementId: string | null;
   questionId: string | null;
-  bidResponseId: string | null;
+  procurementResponseId: string | null;
 }
 interface SeedContentItemRow {
   id: string;
@@ -400,7 +400,7 @@ export async function getKnownUUIDs(
     questionId = question?.id ?? null;
   }
 
-  let bidResponseId: string | null = null;
+  let procurementResponseId: string | null = null;
   if (questionId) {
     const { data: response } = await supabase
       .from('bid_responses')
@@ -408,14 +408,14 @@ export async function getKnownUUIDs(
       .eq('question_id', questionId)
       .limit(1)
       .single();
-    bidResponseId = response?.id ?? null;
+    procurementResponseId = response?.id ?? null;
   }
 
   return {
     contentItemId: contentItem.id,
-    bidId: bid?.id ?? null,
+    procurementId: bid?.id ?? null,
     questionId,
-    bidResponseId,
+    procurementResponseId,
   };
 }
 
@@ -537,14 +537,14 @@ export function getMinimalArgs(
       return { query: 'test' };
     case 'get_dashboard_summary':
       return {};
-    case 'list_active_bids':
+    case 'list_active_procurement':
       return {};
     case 'get_content_item':
       return { id: knownUUIDs.contentItemId };
     case 'get_reorientation':
       return {};
     case 'get_bid_detail':
-      return { id: knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000' };
+      return { id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000' };
     case 'get_bid_question':
       return {
         question_id:
@@ -575,7 +575,7 @@ export function getMinimalArgs(
     case 'get_workspace_items':
       return {
         workspace_id:
-          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+          knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
       };
     case 'show_coverage_matrix':
       return {};
@@ -586,12 +586,12 @@ export function getMinimalArgs(
     case 'show_intelligence_feed':
       return {
         workspace_id:
-          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+          knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
       };
     case 'get_intelligence_summary':
       return {
         workspace_id:
-          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+          knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
       };
     case 'find_all_duplicates':
       return {};

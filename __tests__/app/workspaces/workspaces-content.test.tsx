@@ -50,7 +50,7 @@ describe('WorkspacesContent', () => {
   it('links Bids card to /bid', () => {
     render(<WorkspacesContent counts={{ procurement: 1 }} />);
     const link = screen.getByRole('link', { name: /bids/i });
-    expect(link).toHaveAttribute('href', '/bid');
+    expect(link).toHaveAttribute('href', '/procurement');
   });
 
   it('marks coming soon cards as aria-disabled', () => {

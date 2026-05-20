@@ -20,7 +20,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
       {
         id: '2',
         key: 'bid_detail',
-        label: 'Bid Detail',
+        label: 'Procurement Detail',
         description: null,
         display_order: 2,
         is_active: true,
@@ -33,7 +33,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
       key === 'sales_brief'
         ? 'Sales Brief'
         : key === 'bid_detail'
-          ? 'Bid Detail'
+          ? 'Procurement Detail'
           : key,
     getLayerDescription: () => null,
     refresh: vi.fn(),

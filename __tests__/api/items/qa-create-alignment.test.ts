@@ -408,11 +408,11 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
 
       const params = createTestParams({ id: BID_UUID });
 
-      // Bid fetch — must be in "won" state
+      // Procurement fetch — must be in "won" state
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: {
           id: BID_UUID,
-          name: 'Test Bid',
+          name: 'Test Procurement',
           status: 'won',
           domain_metadata: { domain: 'waste-management' },
         },
@@ -448,7 +448,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
         error: null,
       });
 
-      const req = createTestRequest(`/api/bids/${BID_UUID}/outcome/integrate`, {
+      const req = createTestRequest(`/api/procurement/${BID_UUID}/outcome/integrate`, {
         method: 'POST',
         body: {
           integrations: [

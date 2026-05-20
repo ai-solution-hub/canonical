@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { BRANDING } from '@/lib/client-config';
 import { createClient } from '@/lib/supabase/server';
 import { SearchBar } from '@/components/browse/search-bar';
-import { ActiveBidsSection } from '@/components/dashboard/active-bids-section';
+import { ActiveBidsSection } from '@/components/dashboard/active-procurement-section';
 import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';
 import { UnifiedAttentionSection } from '@/components/dashboard/unified-attention-section';

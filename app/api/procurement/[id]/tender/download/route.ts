@@ -21,8 +21,8 @@ export async function GET(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { id: bidId } = await params;
-    if (!UUID_RE.test(bidId)) {
+    const { id: procurementId } = await params;
+    if (!UUID_RE.test(procurementId)) {
       return NextResponse.json(
         { error: 'Invalid bid ID -- must be a valid UUID' },
         { status: 400 },
@@ -38,7 +38,7 @@ export async function GET(
     const storagePath = parsed.data.path;
 
     // Validate path belongs to this bid (prevent path traversal)
-    if (!storagePath.startsWith(`${bidId}/`)) {
+    if (!storagePath.startsWith(`${procurementId}/`)) {
       return NextResponse.json(
         { error: 'Invalid document path for this bid' },
         { status: 403 },
@@ -47,15 +47,15 @@ export async function GET(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, application_types!inner(key)')
-      .eq('id', bidId)
+      .eq('id', procurementId)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Generate signed URL (5-minute expiry) using service client

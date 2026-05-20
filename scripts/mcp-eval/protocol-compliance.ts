@@ -732,7 +732,7 @@ async function main(): Promise<void> {
   console.log('\nFetching known UUIDs...');
   const knownUUIDs = await getKnownUUIDs(supabase);
   console.log(`  Content item: ${knownUUIDs.contentItemId}`);
-  console.log(`  Bid: ${knownUUIDs.bidId ?? '(none)'}`);
+  console.log(`  Procurement: ${knownUUIDs.procurementId ?? '(none)'}`);
   console.log(`  Question: ${knownUUIDs.questionId ?? '(none)'}`);
 
   // Step 4: Create eval content item for write tool tests

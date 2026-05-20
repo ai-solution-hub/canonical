@@ -1098,7 +1098,7 @@ describe('GET /api/items/[id]/workspaces', () => {
 
   it('returns workspace list on success', async () => {
     const workspaceData = [
-      { id: VALID_UUID_2, name: 'Bid A', color: '#6366f1' },
+      { id: VALID_UUID_2, name: 'Procurement A', color: '#6366f1' },
     ];
     mockSupabase.rpc.mockResolvedValueOnce({
       data: workspaceData,
@@ -1112,7 +1112,7 @@ describe('GET /api/items/[id]/workspaces', () => {
 
     const body = await res.json();
     expect(body).toHaveLength(1);
-    expect(body[0].name).toBe('Bid A');
+    expect(body[0].name).toBe('Procurement A');
   });
 
   it('returns 500 when RPC fails', async () => {

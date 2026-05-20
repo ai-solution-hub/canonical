@@ -6,7 +6,7 @@ import {
 } from '@/lib/auth';
 import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBidMetadata } from '@/lib/validation/schemas';
+import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
@@ -112,15 +112,15 @@ export async function POST(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Upload to Supabase Storage
@@ -172,7 +172,7 @@ export async function POST(
 
     // Update bid's domain_metadata.tender_document_ids array
     const currentMetadata =
-      parseBidMetadata(bid.domain_metadata) ??
+      parseProcurementMetadata(bid.domain_metadata) ??
       (bid.domain_metadata as Record<string, unknown>) ??
       {};
     const existingDocIds = Array.isArray(currentMetadata.tender_document_ids)

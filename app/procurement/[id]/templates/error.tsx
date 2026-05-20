@@ -39,7 +39,7 @@ export default function TemplateCompletionError({
           Try again
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/bid">Back to Bids</Link>
+          <Link href="/procurement">Back to Bids</Link>
         </Button>
       </div>
     </div>

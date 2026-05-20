@@ -176,7 +176,7 @@ export function CommandPalette() {
                   </Command.Item>
                   <Command.Item
                     value="Bids tender management"
-                    onSelect={() => runCommand(() => router.push('/bid'))}
+                    onSelect={() => runCommand(() => router.push('/procurement'))}
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
                     <Briefcase className="size-4 text-muted-foreground" />

@@ -1,4 +1,4 @@
-export default function BidLoading() {
+export default function ProcurementLoading() {
   return (
     <div
       role="status"
@@ -13,7 +13,7 @@ export default function BidLoading() {
         <div className="h-9 w-32 animate-pulse rounded-md bg-accent" />
       </div>
 
-      {/* Bid cards skeleton */}
+      {/* Procurement cards skeleton */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div

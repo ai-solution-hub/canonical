@@ -8,7 +8,7 @@ import {
   estimateBatchCost,
   type BatchCostEstimate,
 } from '@/lib/coverage/cost-estimation';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
@@ -42,28 +42,28 @@ export async function POST(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
-    const bidStatus = (bid.status as BidState) ?? 'draft';
-    const draftableStates: BidState[] = [
+    const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
+    const draftableStates: ProcurementWorkflowState[] = [
       'drafting',
       'in_review',
       'ready_for_export',
     ];
-    if (!draftableStates.includes(bidStatus)) {
+    if (!draftableStates.includes(procurementStatus)) {
       return NextResponse.json(
         {
-          error: `Bid is in "${bidStatus}" state -- must be in drafting or later to estimate costs`,
-          current_status: bidStatus,
+          error: `Procurement is in "${procurementStatus}" state -- must be in drafting or later to estimate costs`,
+          current_status: procurementStatus,
         },
         { status: 400 },
       );

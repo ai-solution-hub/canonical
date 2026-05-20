@@ -10,7 +10,7 @@ import { parseBody } from '@/lib/validation';
 import { ResponseDraftBodySchema } from '@/lib/validation/schemas';
 import { runDraftingPipeline } from '@/lib/ai/draft';
 import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import type { Json } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
@@ -50,28 +50,28 @@ export async function POST(
 
     // Verify bid exists and is in an appropriate state.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
-    const bidStatus = (bid.status as BidState) ?? 'draft';
-    const draftableStates: BidState[] = [
+    const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
+    const draftableStates: ProcurementWorkflowState[] = [
       'drafting',
       'in_review',
       'ready_for_export',
     ];
-    if (!draftableStates.includes(bidStatus)) {
+    if (!draftableStates.includes(procurementStatus)) {
       return NextResponse.json(
         {
-          error: `Bid is in "${bidStatus}" state -- must be in drafting or later to generate responses`,
-          current_status: bidStatus,
+          error: `Procurement is in "${procurementStatus}" state -- must be in drafting or later to generate responses`,
+          current_status: procurementStatus,
         },
         { status: 400 },
       );

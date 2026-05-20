@@ -120,7 +120,7 @@ const CONTENT_ITEM_2 = {
 
 const CONTENT_ITEM_3 = {
   id: 'c3c3c3c3-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
-  title: 'Unrelated Bid Document',
+  title: 'Unrelated Procurement Document',
   content_type: 'article',
   primary_domain: 'Corporate',
   primary_subtopic: 'Company Profile',

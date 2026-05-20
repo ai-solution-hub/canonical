@@ -21,7 +21,7 @@
  *           content item.
  *        b. `POST /api/bids` with a minimal valid body for creating a bid
  *           (e.g. `{ name: "viewer-attempt-<ts>", buyer: "x" }` — verify
- *           required fields against `BidCreateBodySchema` in
+ *           required fields against `ProcurementCreateBodySchema` in
  *           `lib/validation/schemas.ts` so the body passes validation
  *           and the test exercises the AUTH layer, not the validation
  *           layer).
@@ -30,9 +30,9 @@
  *           `app/api/upload/route.ts`).
  *   3. For at least one of those endpoints (the bid one), also issue a
  *      `PATCH` against an existing row owned by ANOTHER user (use
- *      worker-seeded `bidId`) to prove the role check holds even when
+ *      worker-seeded `procurementId`) to prove the role check holds even when
  *      the target row is real and the viewer might be expected to "see"
- *      it. The PATCH path is `/api/bids/<bidId>` — verify against
+ *      it. The PATCH path is `/api/procurement/<procurementId>` — verify against
  *      `app/api/bids/[id]/route.ts`.
  *   4. Capture pre-test state of the worker bid (`updated_at`, `name`,
  *     `domain_metadata`) via service-key SELECT BEFORE step 3, so the
@@ -62,7 +62,7 @@
  *     window (same pre/post pattern).
  *
  * FIXTURE DATA (pre-seeded before test runs):
- *   - Worker-scoped `workerData.bidId` from `test-data-fixture.ts` is
+ *   - Worker-scoped `workerData.procurementId` from `test-data-fixture.ts` is
  *     the target row for the cross-user PATCH attempt.
  *   - Viewer user from `viewerPage` fixture (TEST_USER_3).
  *
@@ -121,7 +121,7 @@
 // not schema drift: the `FeedSourceShape` in `e2e/fixtures/test-data.ts`
 // invented column names that never existed in the live schema. That was
 // fixed in commit `5fdb086`, so this spec now uses the standard
-// `workerData.bidId` and no longer inline-seeds a workspaces row.
+// `workerData.procurementId` and no longer inline-seeds a workspaces row.
 import { expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import type { BrowserContext, Page } from '@playwright/test';
@@ -212,7 +212,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     viewerPage,
     workerData,
   }) => {
-    const bidId = workerData.bidId;
+    const procurementId = workerData.procurementId;
     const svc = createServiceClient();
     const viewerId = await getViewerUserId();
 
@@ -224,7 +224,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const { data: preBid, error: preBidErr } = await svc
       .from('workspaces')
       .select('id, name, updated_at, domain_metadata')
-      .eq('id', bidId)
+      .eq('id', procurementId)
       .single();
     expect(preBidErr).toBeNull();
     expect(preBid).not.toBeNull();
@@ -266,7 +266,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     expect(itemsBody).toEqual({ error: 'Forbidden' });
 
     // ---- Endpoint B: POST /api/bids ----
-    const bidsRes = await viewerPage.request.post('/api/bids', {
+    const bidsRes = await viewerPage.request.post('/api/procurement', {
       data: {
         name: `viewer-attempt-bid-${Date.now()}`,
         buyer: 'Test Buyer',
@@ -301,7 +301,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     expect(uploadBody).toEqual({ error: 'Forbidden' });
 
     // ---- Endpoint D (cross-user PATCH): PATCH /api/bids/:id ----
-    const patchRes = await viewerPage.request.patch(`/api/bids/${bidId}`, {
+    const patchRes = await viewerPage.request.patch(`/api/procurement/${procurementId}`, {
       data: {
         name: `HACKED-${Date.now()}`,
         buyer: 'HACKED-BUYER',
@@ -318,7 +318,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const { data: postBid, error: postBidErr } = await svc
       .from('workspaces')
       .select('id, name, updated_at, domain_metadata')
-      .eq('id', bidId)
+      .eq('id', procurementId)
       .single();
     expect(postBidErr).toBeNull();
     expect(postBid).not.toBeNull();

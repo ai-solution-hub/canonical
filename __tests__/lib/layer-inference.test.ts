@@ -22,10 +22,10 @@ function baseInput(
 }
 
 // ---------------------------------------------------------------------------
-// Rule 1: Bid-discovered content
+// Rule 1: Procurement-discovered content
 // ---------------------------------------------------------------------------
 
-describe('inferLayer — Rule 1: Bid-discovered content', () => {
+describe('inferLayer — Rule 1: Procurement-discovered content', () => {
   it('returns bid_detail with high confidence when isBidDiscovered is true', () => {
     const result = inferLayer(baseInput({ isBidDiscovered: true }));
     expect(result.suggestedLayer).toBe('bid_detail');
@@ -49,10 +49,10 @@ describe('inferLayer — Rule 1: Bid-discovered content', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Rule 2: Bid library Q&A pairs
+// Rule 2: Procurement library Q&A pairs
 // ---------------------------------------------------------------------------
 
-describe('inferLayer — Rule 2: Bid library Q&A pairs', () => {
+describe('inferLayer — Rule 2: Procurement library Q&A pairs', () => {
   it('returns bid_detail with high confidence for bid library Q&A pairs', () => {
     const result = inferLayer(
       baseInput({ ingestionSource: 'bid_library', contentType: 'q_a_pair' }),

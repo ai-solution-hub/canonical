@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { ReadinessData } from '@/hooks/bid/use-bid-readiness';
+import type { ReadinessData } from '@/hooks/procurement/use-procurement-readiness';
 
 // ---------------------------------------------------------------------------
 // Props

@@ -8,14 +8,14 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import { parseBidMetadata } from '@/lib/validation/schemas';
-import type { BidMetadata, BidQuestion } from '@/types/procurement';
+import { parseProcurementMetadata } from '@/lib/validation/schemas';
+import type { ProcurementMetadata, ProcurementQuestion } from '@/types/procurement';
 
 // ────────────────────────────────────────────
 // Context value types
 // ────────────────────────────────────────────
 
-interface BidSummary {
+interface ProcurementSummary {
   id: string;
   name: string;
   buyer: string | null;
@@ -47,9 +47,9 @@ interface ResponseSummary {
   qualityScore: number | null;
 }
 
-interface BidContextValue {
-  bidId: string;
-  bid: BidSummary | null;
+interface ProcurementContextValue {
+  procurementId: string;
+  bid: ProcurementSummary | null;
   questions: QuestionSummary[];
   activeQuestionId: string | null;
   activeResponse: ResponseSummary | null;
@@ -59,25 +59,25 @@ interface BidContextValue {
   refreshQuestions: () => void;
 }
 
-const BidContext = createContext<BidContextValue | null>(null);
+const ProcurementContext = createContext<ProcurementContextValue | null>(null);
 
 // ────────────────────────────────────────────
 // Provider
 // ────────────────────────────────────────────
 
-interface BidContextProviderProps {
-  bidId: string;
+interface ProcurementContextProviderProps {
+  procurementId: string;
   children: ReactNode;
 }
 
-export function BidContextProvider({
-  bidId,
+export function ProcurementContextProvider({
+  procurementId,
   children,
-}: BidContextProviderProps) {
-  const [bid, setBid] = useState<BidSummary | null>(null);
+}: ProcurementContextProviderProps) {
+  const [bid, setProcurement] = useState<ProcurementSummary | null>(null);
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
   // Keep raw question data to avoid redundant API fetches for response IDs
-  const rawQuestionsRef = useRef<BidQuestion[]>([]);
+  const rawQuestionsRef = useRef<ProcurementQuestion[]>([]);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const [activeResponse, setActiveResponse] = useState<ResponseSummary | null>(
     null,
@@ -85,17 +85,17 @@ export function BidContextProvider({
   const editorRef = useRef<import('@tiptap/react').Editor | null>(null);
 
   // ── Fetch bid summary ──
-  const fetchBid = useCallback(async () => {
+  const fetchProcurement = useCallback(async () => {
     try {
-      const res = await fetch(`/api/bids/${bidId}`);
+      const res = await fetch(`/api/procurement/${procurementId}`);
       if (!res.ok) return;
       const data = await res.json();
-      const metadata = (parseBidMetadata(data.domain_metadata) ??
+      const metadata = (parseProcurementMetadata(data.domain_metadata) ??
         data.domain_metadata ??
-        {}) as BidMetadata;
+        {}) as ProcurementMetadata;
       const stats = data.question_stats;
 
-      setBid({
+      setProcurement({
         id: data.id,
         name: data.name,
         buyer: metadata.buyer ?? null,
@@ -108,22 +108,22 @@ export function BidContextProvider({
       });
     } catch (err) {
       // Non-critical — context degrades gracefully without bid data
-      console.warn('BidContextProvider: failed to fetch bid summary:', err);
+      console.warn('ProcurementContextProvider: failed to fetch bid summary:', err);
     }
-  }, [bidId]);
+  }, [procurementId]);
 
   // ── Fetch questions ──
   const fetchQuestions = useCallback(async () => {
     try {
-      const res = await fetch(`/api/bids/${bidId}/questions`);
+      const res = await fetch(`/api/procurement/${procurementId}/questions`);
       if (!res.ok) return;
       const data = await res.json();
 
-      const rawQuestions: BidQuestion[] = data.questions ?? [];
+      const rawQuestions: ProcurementQuestion[] = data.questions ?? [];
       rawQuestionsRef.current = rawQuestions;
 
       const mapped: QuestionSummary[] = rawQuestions.map(
-        (q: BidQuestion, idx: number) => ({
+        (q: ProcurementQuestion, idx: number) => ({
           id: q.id,
           questionNumber: idx + 1,
           questionText: q.question_text,
@@ -137,9 +137,9 @@ export function BidContextProvider({
       setQuestions(mapped);
     } catch (err) {
       // Non-critical — context degrades gracefully without question data
-      console.warn('BidContextProvider: failed to fetch questions:', err);
+      console.warn('ProcurementContextProvider: failed to fetch questions:', err);
     }
-  }, [bidId]);
+  }, [procurementId]);
 
   // ── Fetch active response when question changes ──
   const fetchActiveResponse = useCallback(async () => {
@@ -161,7 +161,7 @@ export function BidContextProvider({
       }
 
       const res = await fetch(
-        `/api/bids/${bidId}/responses/${fullQuestion.response.id}`,
+        `/api/procurement/${procurementId}/responses/${fullQuestion.response.id}`,
       );
       if (!res.ok) {
         setActiveResponse(null);
@@ -185,17 +185,17 @@ export function BidContextProvider({
       });
     } catch (err) {
       // Non-critical — context degrades gracefully without response data
-      console.warn('BidContextProvider: failed to fetch active response:', err);
+      console.warn('ProcurementContextProvider: failed to fetch active response:', err);
       setActiveResponse(null);
     }
-  }, [activeQuestionId, bidId]);
+  }, [activeQuestionId, procurementId]);
 
   // Initial data load
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount
-    fetchBid();
+    fetchProcurement();
     fetchQuestions();
-  }, [fetchBid, fetchQuestions]);
+  }, [fetchProcurement, fetchQuestions]);
 
   // Fetch response when active question changes
   useEffect(() => {
@@ -204,18 +204,18 @@ export function BidContextProvider({
   }, [fetchActiveResponse]);
 
   const contextValue = {
-    bidId,
+    procurementId,
     bid,
     questions,
     activeQuestionId,
     activeResponse,
     setActiveQuestionId,
     editorRef,
-    refreshBid: fetchBid,
+    refreshBid: fetchProcurement,
     refreshQuestions: fetchQuestions,
   };
 
   return (
-    <BidContext.Provider value={contextValue}>{children}</BidContext.Provider>
+    <ProcurementContext.Provider value={contextValue}>{children}</ProcurementContext.Provider>
   );
 }

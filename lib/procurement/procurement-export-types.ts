@@ -32,7 +32,7 @@ export interface ExportCitation {
   source_id: string;
 }
 
-/** Bid metadata for the cover page */
+/** Procurement metadata for the cover page */
 export interface ExportBidMetadata {
   bid_name: string;
   buyer: string;

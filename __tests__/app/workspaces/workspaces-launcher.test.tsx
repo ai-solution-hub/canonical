@@ -74,7 +74,7 @@ describe('WorkspacesContent (launcher)', () => {
     const bidLink = screen.getByRole('link', {
       name: /Bids/,
     });
-    expect(bidLink).toHaveAttribute('href', '/bid');
+    expect(bidLink).toHaveAttribute('href', '/procurement');
   });
 
   it('marks coming soon cards as aria-disabled', () => {

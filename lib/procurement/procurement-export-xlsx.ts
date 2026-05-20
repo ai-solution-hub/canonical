@@ -178,7 +178,7 @@ function getConfidenceFill(posture: string | null): ExcelJS.Fill {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the "Bid Responses" worksheet with all question data.
+ * Build the "Procurement Responses" worksheet with all question data.
  *
  * 10 columns: Section, Q#, Question, Response, Word Count, Word Limit,
  * Compliance, Status, Confidence, Weight (%).
@@ -188,7 +188,7 @@ function buildResponsesSheet(
   questions: ExportQuestion[],
   useAdvancedVariant: boolean,
 ): void {
-  const sheet = workbook.addWorksheet('Bid Responses');
+  const sheet = workbook.addWorksheet('Procurement Responses');
 
   // Column definitions
   sheet.columns = [
@@ -307,7 +307,7 @@ function buildSummarySheet(
   sheet.getColumn(2).width = 40;
 
   // Title row (row 1)
-  const titleRow = sheet.addRow(['Bid Export Summary']);
+  const titleRow = sheet.addRow(['Procurement Export Summary']);
   titleRow.getCell(1).font = {
     name: 'Calibri',
     size: 16,
@@ -319,9 +319,9 @@ function buildSummarySheet(
   // Spacer row (row 2)
   sheet.addRow([]);
 
-  // Bid metadata (rows 3–8)
+  // Procurement metadata (rows 3–8)
   const metaRows: [string, string][] = [
-    ['Bid Title', metadata.bid_name],
+    ['Procurement Title', metadata.bid_name],
     ['Buyer', metadata.buyer],
     ['Reference', metadata.reference_number || '--'],
     [
@@ -416,7 +416,7 @@ function buildSummarySheet(
 /**
  * Generate an Excel workbook Buffer from bid data.
  *
- * @param metadata - Bid metadata for summary sheet
+ * @param metadata - Procurement metadata for summary sheet
  * @param questions - Array of questions with responses
  * @param options - Export configuration
  * @returns Buffer containing the .xlsx file
@@ -440,7 +440,7 @@ export async function generateBidXlsx(
   workbook.creator = 'Knowledge Hub';
   workbook.created = new Date();
 
-  // Sheet 1: Bid Responses
+  // Sheet 1: Procurement Responses
   buildResponsesSheet(workbook, exportQuestions, useAdvancedVariant);
 
   // Sheet 2: Summary (optional)

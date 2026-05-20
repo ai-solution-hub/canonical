@@ -30,13 +30,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ConfidenceBadge } from '@/components/shared/confidence-badge';
 import { cn } from '@/lib/utils';
-import type { BidQuestion, QuestionStatus } from '@/types/procurement';
+import type { ProcurementQuestion, QuestionStatus } from '@/types/procurement';
 
 interface QuestionRowProps {
-  question: BidQuestion;
+  question: ProcurementQuestion;
   index: number;
   canEdit: boolean;
-  bidId: string;
+  procurementId: string;
   onUpdated: () => void;
   onDeleted: () => void;
 }
@@ -96,7 +96,7 @@ export function QuestionRow({
   question,
   index,
   canEdit,
-  bidId,
+  procurementId,
   onUpdated,
   onDeleted,
 }: QuestionRowProps) {
@@ -138,7 +138,7 @@ export function QuestionRow({
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/bids/${bidId}/questions/${question.id}`, {
+      const res = await fetch(`/api/procurement/${procurementId}/questions/${question.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -170,7 +170,7 @@ export function QuestionRow({
   async function handleDelete() {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/bids/${bidId}/questions/${question.id}`, {
+      const res = await fetch(`/api/procurement/${procurementId}/questions/${question.id}`, {
         method: 'DELETE',
       });
 

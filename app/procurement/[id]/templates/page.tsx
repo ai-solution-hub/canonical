@@ -19,7 +19,7 @@ import type {
 } from '@/types/template';
 import { logger } from '@/lib/logger/client';
 
-interface BidQuestion {
+interface ProcurementQuestion {
   id: string;
   question_text: string;
   status: string;
@@ -32,12 +32,12 @@ const MAX_POLL_RETRIES = 150;
 
 export default function TemplateCompletionPage() {
   const params = useParams<{ id: string }>();
-  const bidId = params.id;
+  const procurementId = params.id;
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] =
     useState<TemplateWithDetail | null>(null);
-  const [bidQuestions, setBidQuestions] = useState<BidQuestion[]>([]);
+  const [procurementQuestions, setProcurementQuestions] = useState<ProcurementQuestion[]>([]);
   const [step, setStep] = useState<WorkflowStep>('upload');
   const [loading, setLoading] = useState(true);
   const [fillJobId, setFillJobId] = useState<string | null>(null);
@@ -65,8 +65,8 @@ export default function TemplateCompletionPage() {
     async function load() {
       try {
         const [templatesRes, questionsRes] = await Promise.all([
-          fetch(`/api/bids/${bidId}/templates`),
-          fetch(`/api/bids/${bidId}/questions`),
+          fetch(`/api/procurement/${procurementId}/templates`),
+          fetch(`/api/procurement/${procurementId}/questions`),
         ]);
 
         if (templatesRes.ok) {
@@ -76,7 +76,7 @@ export default function TemplateCompletionPage() {
 
         if (questionsRes.ok) {
           const data = await questionsRes.json();
-          setBidQuestions(data.questions ?? []);
+          setProcurementQuestions(data.questions ?? []);
         }
       } catch (err) {
         logger.error({ err }, 'Failed to load template data');
@@ -86,13 +86,13 @@ export default function TemplateCompletionPage() {
       }
     }
     load();
-  }, [bidId]);
+  }, [procurementId]);
 
   const loadTemplateDetail = useCallback(
     async (templateId: string) => {
       setLoadingTemplateId(templateId);
       try {
-        const res = await fetch(`/api/bids/${bidId}/templates/${templateId}`);
+        const res = await fetch(`/api/procurement/${procurementId}/templates/${templateId}`);
         if (!res.ok) throw new Error('Failed to load template');
         const detail: TemplateWithDetail = await res.json();
         setSelectedTemplate(detail);
@@ -122,7 +122,7 @@ export default function TemplateCompletionPage() {
         setLoadingTemplateId(null);
       }
     },
-    [bidId],
+    [procurementId],
   );
 
   const handleUploadComplete = useCallback(
@@ -138,7 +138,7 @@ export default function TemplateCompletionPage() {
     setStep('analyse');
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/analyse`,
+        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/analyse`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -195,13 +195,13 @@ export default function TemplateCompletionPage() {
       toast.error(msg);
       await loadTemplateDetail(selectedTemplate.id);
     }
-  }, [bidId, selectedTemplate, loadTemplateDetail]);
+  }, [procurementId, selectedTemplate, loadTemplateDetail]);
 
   const handleAutoMap = useCallback(async () => {
     if (!selectedTemplate) return;
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/auto-map`,
+        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/auto-map`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -214,14 +214,14 @@ export default function TemplateCompletionPage() {
       logger.error({ err }, 'Failed to auto-map template fields');
       toast.error('Failed to auto-map template fields');
     }
-  }, [bidId, selectedTemplate, loadTemplateDetail]);
+  }, [procurementId, selectedTemplate, loadTemplateDetail]);
 
   const handleMappingUpdate = useCallback(
     async (fieldId: string, questionId: string | null, status: string) => {
       if (!selectedTemplate) return;
       try {
         const res = await fetch(
-          `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/${fieldId}`,
+          `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/fields/${fieldId}`,
           {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -238,7 +238,7 @@ export default function TemplateCompletionPage() {
         toast.error('Failed to update field mapping');
       }
     },
-    [bidId, selectedTemplate, loadTemplateDetail],
+    [procurementId, selectedTemplate, loadTemplateDetail],
   );
 
   const handleBulkAccept = useCallback(async () => {
@@ -255,7 +255,7 @@ export default function TemplateCompletionPage() {
 
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/fields/bulk-update`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -268,7 +268,7 @@ export default function TemplateCompletionPage() {
       logger.error({ err }, 'Failed to bulk accept mappings');
       toast.error('Failed to bulk accept mappings');
     }
-  }, [bidId, selectedTemplate, loadTemplateDetail]);
+  }, [procurementId, selectedTemplate, loadTemplateDetail]);
 
   const handleBulkReject = useCallback(
     async (fieldIds: string[]) => {
@@ -282,7 +282,7 @@ export default function TemplateCompletionPage() {
 
       try {
         const res = await fetch(
-          `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+          `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/fields/bulk-update`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -296,7 +296,7 @@ export default function TemplateCompletionPage() {
         toast.error('Failed to bulk reject mappings');
       }
     },
-    [bidId, selectedTemplate, loadTemplateDetail],
+    [procurementId, selectedTemplate, loadTemplateDetail],
   );
 
   const handleFill = useCallback(async () => {
@@ -304,7 +304,7 @@ export default function TemplateCompletionPage() {
     setStep('fill');
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/fill`,
+        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/fill`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -324,7 +324,7 @@ export default function TemplateCompletionPage() {
       toast.error(msg);
       setStep('review');
     }
-  }, [bidId, selectedTemplate]);
+  }, [procurementId, selectedTemplate]);
 
   const handleFillComplete = useCallback(
     async (result: Record<string, unknown>) => {
@@ -342,7 +342,7 @@ export default function TemplateCompletionPage() {
     if (!selectedTemplate || !latestCompletion) return;
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/completions/${latestCompletion.id}/download`,
+        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/completions/${latestCompletion.id}/download`,
       );
       if (!res.ok) throw new Error('Failed to get download link');
       const { download_url } = await res.json();
@@ -351,13 +351,13 @@ export default function TemplateCompletionPage() {
       logger.error({ err }, 'Failed to download completed template');
       toast.error('Failed to download completed template');
     }
-  }, [bidId, selectedTemplate, latestCompletion]);
+  }, [procurementId, selectedTemplate, latestCompletion]);
 
   const handleDownloadOriginal = useCallback(async () => {
     if (!selectedTemplate) return;
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/download`,
+        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/download`,
       );
       if (!res.ok) throw new Error('Failed to get download link');
       const { download_url } = await res.json();
@@ -366,7 +366,7 @@ export default function TemplateCompletionPage() {
       logger.error({ err }, 'Failed to download original template');
       toast.error('Failed to download original template');
     }
-  }, [bidId, selectedTemplate]);
+  }, [procurementId, selectedTemplate]);
 
   const handleRetry = useCallback(() => {
     setError(null);
@@ -399,10 +399,10 @@ export default function TemplateCompletionPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href={`/bid/${bidId}`}>
+            <Link href={`/procurement/${procurementId}`}>
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="mr-1 size-4" aria-hidden="true" />
-                Back to Bid
+                Back to Procurement
               </Button>
             </Link>
             <h1 className="text-lg font-semibold">Template Completion</h1>
@@ -473,7 +473,7 @@ export default function TemplateCompletionPage() {
         {/* Upload step */}
         {(!selectedTemplate || step === 'upload') && (
           <TemplateUpload
-            bidId={bidId}
+            procurementId={procurementId}
             onUploadComplete={handleUploadComplete}
           />
         )}
@@ -515,9 +515,9 @@ export default function TemplateCompletionPage() {
         {selectedTemplate && step === 'review' && selectedTemplate.fields && (
           <TemplateFieldReview
             templateId={selectedTemplate.id}
-            bidId={bidId}
+            procurementId={procurementId}
             fields={selectedTemplate.fields}
-            bidQuestions={bidQuestions}
+            procurementQuestions={procurementQuestions}
             summary={selectedTemplate.summary}
             onMappingUpdate={handleMappingUpdate}
             onAutoMap={handleAutoMap}

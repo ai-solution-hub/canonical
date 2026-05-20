@@ -1,10 +1,10 @@
-import type { BidState } from '@/types/procurement';
-import { BID_STATES } from '@/types/procurement';
+import type { ProcurementWorkflowState } from '@/types/procurement';
+import { PROCUREMENT_WORKFLOW_STATES } from '@/types/procurement';
 
-export { BID_STATES };
-export type { BidState };
+export { PROCUREMENT_WORKFLOW_STATES };
+export type { ProcurementWorkflowState };
 
-export const BID_STATE_LABELS: Record<BidState, string> = {
+export const BID_STATE_LABELS: Record<ProcurementWorkflowState, string> = {
   draft: 'Draft',
   questions_extracted: 'Questions Extracted',
   matching: 'Matching',
@@ -18,7 +18,7 @@ export const BID_STATE_LABELS: Record<BidState, string> = {
 };
 
 /** Abbreviated labels for mobile stepper display */
-export const BID_STATE_SHORT_LABELS: Record<BidState, string> = {
+export const BID_STATE_SHORT_LABELS: Record<ProcurementWorkflowState, string> = {
   draft: 'Draft',
   questions_extracted: 'Extract',
   matching: 'Match',
@@ -32,7 +32,7 @@ export const BID_STATE_SHORT_LABELS: Record<BidState, string> = {
 };
 
 // Semantic token prefixes for bid state colours (map to --color-bid-* CSS tokens)
-export const BID_STATE_COLOURS: Record<BidState, string> = {
+export const BID_STATE_COLOURS: Record<ProcurementWorkflowState, string> = {
   draft: 'bid-draft',
   questions_extracted: 'bid-discovery',
   matching: 'bid-discovery',
@@ -45,7 +45,7 @@ export const BID_STATE_COLOURS: Record<BidState, string> = {
   withdrawn: 'bid-withdrawn',
 };
 
-const VALID_TRANSITIONS: Record<BidState, BidState[]> = {
+const VALID_TRANSITIONS: Record<ProcurementWorkflowState, ProcurementWorkflowState[]> = {
   draft: ['questions_extracted', 'withdrawn'],
   questions_extracted: ['matching', 'withdrawn'],
   matching: ['drafting', 'withdrawn'],
@@ -58,24 +58,24 @@ const VALID_TRANSITIONS: Record<BidState, BidState[]> = {
   withdrawn: [],
 };
 
-export function canTransition(from: BidState, to: BidState): boolean {
+export function canTransition(from: ProcurementWorkflowState, to: ProcurementWorkflowState): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-export function getAvailableTransitions(current: BidState): BidState[] {
+export function getAvailableTransitions(current: ProcurementWorkflowState): ProcurementWorkflowState[] {
   return VALID_TRANSITIONS[current] ?? [];
 }
 
-export function isTerminal(state: BidState): boolean {
+export function isTerminal(state: ProcurementWorkflowState): boolean {
   return ['won', 'lost', 'withdrawn'].includes(state);
 }
 
-export function isActive(state: BidState): boolean {
+export function isActive(state: ProcurementWorkflowState): boolean {
   return !isTerminal(state);
 }
 
 // Linear progression states for the stepper display (excludes terminal branches)
-export const BID_STATE_PROGRESSION: BidState[] = [
+export const BID_STATE_PROGRESSION: ProcurementWorkflowState[] = [
   'draft',
   'questions_extracted',
   'matching',

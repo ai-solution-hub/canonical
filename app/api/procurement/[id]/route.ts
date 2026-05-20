@@ -7,11 +7,11 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import {
-  BidUpdateBodySchema,
-  parseBidMetadata,
+  ProcurementUpdateBodySchema,
+  parseProcurementMetadata,
 } from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/procurement/procurement-workflow';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import type { Database } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
 
@@ -42,7 +42,7 @@ export async function GET(
 
     // Fetch the bid (workspace with procurement application_type).
     // Post-T2: discriminator moved from `workspaces.type` to FK via application_types.
-    const { data: bidRow, error } = await supabase
+    const { data: procurementRow, error } = await supabase
       .from('workspaces')
       .select(
         'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by, application_types!inner(key)',
@@ -51,12 +51,12 @@ export async function GET(
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (error || !bidRow) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (error || !procurementRow) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Strip the joined projection — callers expect flat workspace fields.
-    const { application_types: _appTypes, ...bid } = bidRow;
+    const { application_types: _appTypes, ...bid } = procurementRow;
 
     // Composite view: question stats and tender documents are independent
     // enrichments of the bid detail page. A failure in either should not 500
@@ -109,7 +109,7 @@ export async function GET(
     const responseBody: Record<string, unknown> = {
       ...bid,
       domain_metadata:
-        parseBidMetadata(bid.domain_metadata) ?? bid.domain_metadata,
+        parseProcurementMetadata(bid.domain_metadata) ?? bid.domain_metadata,
       question_stats: stats?.[0] ?? null,
       tender_documents: tenderDocuments,
     };
@@ -144,7 +144,7 @@ export async function PATCH(
     }
 
     const raw = await request.json();
-    const parsed = parseBody(BidUpdateBodySchema, raw);
+    const parsed = parseBody(ProcurementUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
     // Fetch current bid to get existing domain_metadata.
@@ -159,19 +159,19 @@ export async function PATCH(
       .single();
 
     if (fetchError || !current) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     const currentMetadata =
-      parseBidMetadata(current.domain_metadata) ??
+      parseProcurementMetadata(current.domain_metadata) ??
       (current.domain_metadata as Record<string, unknown>) ??
       {};
     const { name, description, status, ...metadataUpdates } = parsed.data;
 
     // Validate state transition if status is being changed
     if (status) {
-      const currentStatus = (current.status as BidState) ?? 'draft';
-      if (!canTransition(currentStatus, status as BidState)) {
+      const currentStatus = (current.status as ProcurementWorkflowState) ?? 'draft';
+      if (!canTransition(currentStatus, status as ProcurementWorkflowState)) {
         return NextResponse.json(
           {
             error: `Cannot transition from "${currentStatus}" to "${status}"`,
@@ -227,7 +227,7 @@ export async function PATCH(
     }
 
     if (!updated) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     return NextResponse.json(updated);
@@ -267,7 +267,7 @@ export async function DELETE(
       .single();
 
     if (fetchError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Clean up storage files before DB delete (best-effort).
@@ -284,8 +284,8 @@ export async function DELETE(
           .list(id, { limit: 200 });
       if (tenderListError) {
         logger.error(
-          { bidId: id, error: tenderListError },
-          'Bid DELETE: failed to list tender documents for cleanup',
+          { procurementId: id, error: tenderListError },
+          'Procurement DELETE: failed to list tender documents for cleanup',
         );
       }
       if (tenderFiles?.length) {
@@ -294,8 +294,8 @@ export async function DELETE(
           .remove(tenderFiles.map((f) => `${id}/${f.name}`));
         if (tenderRemoveError) {
           logger.error(
-            { bidId: id, error: tenderRemoveError },
-            'Bid DELETE: failed to remove tender documents (orphaned)',
+            { procurementId: id, error: tenderRemoveError },
+            'Procurement DELETE: failed to remove tender documents (orphaned)',
           );
         }
       }
@@ -308,8 +308,8 @@ export async function DELETE(
         .eq('workspace_id', id);
       if (templatesError) {
         logger.error(
-          { bidId: id, error: templatesError },
-          'Bid DELETE: failed to list templates for cleanup (orphaned files possible)',
+          { procurementId: id, error: templatesError },
+          'Procurement DELETE: failed to list templates for cleanup (orphaned files possible)',
         );
       }
 
@@ -326,8 +326,8 @@ export async function DELETE(
           .in('template_id', templateIds);
         if (completionsError) {
           logger.error(
-            { bidId: id, error: completionsError },
-            'Bid DELETE: failed to list template completions for cleanup (orphaned files possible)',
+            { procurementId: id, error: completionsError },
+            'Procurement DELETE: failed to list template completions for cleanup (orphaned files possible)',
           );
         }
 
@@ -342,8 +342,8 @@ export async function DELETE(
             .remove(allPaths);
           if (templateRemoveError) {
             logger.error(
-              { bidId: id, error: templateRemoveError },
-              'Bid DELETE: failed to remove template files (orphaned)',
+              { procurementId: id, error: templateRemoveError },
+              'Procurement DELETE: failed to remove template files (orphaned)',
             );
           }
         }

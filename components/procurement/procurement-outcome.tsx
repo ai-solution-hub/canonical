@@ -19,10 +19,10 @@ import type { KBCandidate } from '@/types/procurement';
 
 // ---- Outcome configuration ----
 
-type BidOutcome = 'won' | 'lost' | 'withdrawn';
+type ProcurementOutcome = 'won' | 'lost' | 'withdrawn';
 
 const OUTCOME_OPTIONS: {
-  value: BidOutcome;
+  value: ProcurementOutcome;
   label: string;
   description: string;
   icon: typeof Trophy;
@@ -31,21 +31,21 @@ const OUTCOME_OPTIONS: {
   {
     value: 'won',
     label: 'Won',
-    description: 'Bid was successful',
+    description: 'Procurement was successful',
     icon: Trophy,
     colourClass: 'text-bid-won',
   },
   {
     value: 'lost',
     label: 'Lost',
-    description: 'Bid was unsuccessful',
+    description: 'Procurement was unsuccessful',
     icon: XCircle,
     colourClass: 'text-bid-lost',
   },
   {
     value: 'withdrawn',
     label: 'Withdrawn',
-    description: 'Bid was withdrawn before decision',
+    description: 'Procurement was withdrawn before decision',
     icon: MinusCircle,
     colourClass: 'text-bid-withdrawn',
   },
@@ -53,24 +53,24 @@ const OUTCOME_OPTIONS: {
 
 // ---- Props ----
 
-interface BidOutcomeProps {
+interface ProcurementOutcomeProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  bidId: string;
-  bidName: string;
+  procurementId: string;
+  procurementName: string;
   onOutcomeRecorded: (outcome: string, kbCandidates: KBCandidate[]) => void;
 }
 
 // ---- Component ----
 
-export function BidOutcomeDialog({
+export function ProcurementOutcomeDialog({
   open,
   onOpenChange,
-  bidId,
-  bidName,
+  procurementId,
+  procurementName,
   onOutcomeRecorded,
-}: BidOutcomeProps) {
-  const [outcome, setOutcome] = useState<BidOutcome | ''>('');
+}: ProcurementOutcomeProps) {
+  const [outcome, setOutcome] = useState<ProcurementOutcome | ''>('');
   const [notes, setNotes] = useState('');
   const [integrateToKb, setIntegrateToKb] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -103,7 +103,7 @@ export function BidOutcomeDialog({
         body.integrate_to_kb = true;
       }
 
-      const response = await fetch(`/api/bids/${bidId}/outcome`, {
+      const response = await fetch(`/api/procurement/${procurementId}/outcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -121,7 +121,7 @@ export function BidOutcomeDialog({
 
       const outcomeLabel =
         OUTCOME_OPTIONS.find((o) => o.value === outcome)?.label ?? outcome;
-      toast.success(`Bid outcome recorded: ${outcomeLabel}`, {
+      toast.success(`Procurement outcome recorded: ${outcomeLabel}`, {
         duration: 3000,
       });
 
@@ -148,10 +148,10 @@ export function BidOutcomeDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Record Bid Outcome</DialogTitle>
+          <DialogTitle>Record Procurement Outcome</DialogTitle>
           <DialogDescription>
             Record the final outcome for{' '}
-            <span className="font-medium">{bidName}</span>. This will update the
+            <span className="font-medium">{procurementName}</span>. This will update the
             bid status and can optionally flag responses for knowledge base
             integration.
           </DialogDescription>
@@ -166,7 +166,7 @@ export function BidOutcomeDialog({
             <RadioGroup
               value={outcome}
               onValueChange={(value) => {
-                setOutcome(value as BidOutcome);
+                setOutcome(value as ProcurementOutcome);
                 // Reset KB integration checkbox if not won
                 if (value !== 'won') {
                   setIntegrateToKb(false);

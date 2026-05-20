@@ -15,7 +15,7 @@
  *     by `runJobByType`'s 60s cap (spec §4.4 + D-3 ratification).
  *   - Per-question `try/catch` aggregation preserved (continue-with-partial,
  *     per spec D-2 ratified at authored default).
- *   - Bid-level fatal conditions (404 bid, non-draftable state, 0 questions,
+ *   - Procurement-level fatal conditions (404 bid, non-draftable state, 0 questions,
  *     workspaces SELECT error, bid_questions SELECT error) throw
  *     `PermanentJobError` so the worker dispatcher classifies them as
  *     permanent-failure (no retry).
@@ -31,7 +31,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { runDraftingPipeline } from '@/lib/ai/draft';
 import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
 import { canTransition } from '@/lib/procurement/procurement-workflow';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
 import { PermanentJobError } from '@/lib/queue/dispatch';
@@ -46,7 +46,7 @@ import type { Database, Json } from '@/supabase/types/database.types';
  * (`lib/validation/schemas.ts:840-843`) plus the path parameter `bid_id`
  * promoted from URL to body — per spec §3.1.
  */
-export interface BidDraftAllBody extends Record<string, unknown> {
+export interface ProcurementDraftAllBody extends Record<string, unknown> {
   /** UUID of the bid (workspace) being drafted. Validated against
    *  `workspaces` JOIN `application_types` where key='procurement' before
    *  the worker proceeds. */
@@ -64,7 +64,7 @@ export interface BidDraftAllBody extends Record<string, unknown> {
  * Per-question result entry — same shape as the pre-S224 sync route's
  * results array (`app/api/bids/[id]/responses/draft-all/route.ts:131-137`).
  */
-export interface BidDraftAllQuestionResult {
+export interface ProcurementDraftAllQuestionResult {
   question_id: string;
   status: 'drafted' | 'skipped' | 'failed';
   quality_score?: number;
@@ -81,7 +81,7 @@ export interface BidDraftAllQuestionResult {
  * handler upserted — passed to `pipeline_runs.items_created` per
  * feedback_record_pipeline_run_signature (`string[]` not `number`).
  */
-export interface BidDraftAllResult extends Record<string, unknown> {
+export interface ProcurementDraftAllResult extends Record<string, unknown> {
   /** Total number of questions in the bid. */
   total_questions: number;
   /** Count of questions where runDraftingPipeline succeeded. */
@@ -92,7 +92,7 @@ export interface BidDraftAllResult extends Record<string, unknown> {
   /** Count of questions where runDraftingPipeline threw. */
   failed: number;
   /** Per-question outcome — same shape as today's L131-137 results array. */
-  results: BidDraftAllQuestionResult[];
+  results: ProcurementDraftAllQuestionResult[];
   /** Sum of `runDraftingPipeline` cost across drafted questions (USD). */
   total_cost: number;
   /** Sum of token usage across drafted questions. */
@@ -109,7 +109,7 @@ export interface BidDraftAllResult extends Record<string, unknown> {
  * `QueueJobPayload<TBody>['auth_context']` from `lib/queue/envelope.ts`.
  * Used for `updated_by` on the bid transition (spec §4.4 step 4).
  */
-export interface BidDraftAllAuthContext {
+export interface ProcurementDraftAllAuthContext {
   user_id: string;
   role: 'admin' | 'editor' | 'viewer';
   workspace_id?: string;
@@ -132,10 +132,10 @@ export interface BidDraftAllAuthContext {
  * pipeline_runs) when at least one question succeeded.
  */
 export async function runBidDraftAllJob(
-  body: BidDraftAllBody,
+  body: ProcurementDraftAllBody,
   supabase: SupabaseClient<Database>,
-  authContext: BidDraftAllAuthContext,
-): Promise<BidDraftAllResult> {
+  authContext: ProcurementDraftAllAuthContext,
+): Promise<ProcurementDraftAllResult> {
   const { bid_id, model_tier, skip_existing } = body;
 
   // ------------------------------------------------------------------
@@ -145,25 +145,25 @@ export async function runBidDraftAllJob(
   // ------------------------------------------------------------------
   // Post-T2: discriminator is application_types.key via JOIN, not the dropped
   // workspaces.type col. 'bid' maps to 'procurement'.
-  const { data: bid, error: bidError } = await supabase
+  const { data: bid, error: procurementError } = await supabase
     .from('workspaces')
     .select('id, status, domain_metadata, application_types!inner(key)')
     .eq('id', bid_id)
     .eq('application_types.key', 'procurement')
     .single();
 
-  if (bidError || !bid) {
+  if (procurementError || !bid) {
     throw new PermanentJobError(`bid_not_found: ${bid_id}`);
   }
 
-  const bidStatus = (bid.status as BidState) ?? 'draft';
-  const draftableStates: BidState[] = [
+  const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
+  const draftableStates: ProcurementWorkflowState[] = [
     'drafting',
     'in_review',
     'ready_for_export',
   ];
-  if (!draftableStates.includes(bidStatus)) {
-    throw new PermanentJobError(`bid_not_draftable: ${bidStatus}`);
+  if (!draftableStates.includes(procurementStatus)) {
+    throw new PermanentJobError(`bid_not_draftable: ${procurementStatus}`);
   }
 
   // ------------------------------------------------------------------
@@ -216,7 +216,7 @@ export async function runBidDraftAllJob(
   // 4. Per-question loop — mirrors route.ts L130-261 verbatim, with
   //    NO time-budget guard (handler is bounded externally by 60s cap).
   // ------------------------------------------------------------------
-  const results: BidDraftAllQuestionResult[] = [];
+  const results: ProcurementDraftAllQuestionResult[] = [];
   const draftedResponseIds: string[] = [];
   let totalCost = 0;
   let totalTokens = 0;
@@ -352,13 +352,13 @@ export async function runBidDraftAllJob(
   // ------------------------------------------------------------------
   const draftedCount = results.filter((r) => r.status === 'drafted').length;
   const failedCount = results.filter((r) => r.status === 'failed').length;
-  let bidTransitioned = false;
+  let procurementTransitioned = false;
 
   if (
     draftedCount > 0 &&
     failedCount === 0 &&
-    bidStatus === 'drafting' &&
-    canTransition(bidStatus, 'in_review')
+    procurementStatus === 'drafting' &&
+    canTransition(procurementStatus, 'in_review')
   ) {
     // Check if there are any questions still without responses.
     const { count: undraftedCount } = await supabase
@@ -392,7 +392,7 @@ export async function runBidDraftAllJob(
           .eq('id', bid_id),
         'queue.bid_draft_all.transitionToInReview',
       );
-      bidTransitioned = true;
+      procurementTransitioned = true;
     }
   }
 
@@ -404,7 +404,7 @@ export async function runBidDraftAllJob(
     results,
     total_cost: totalCost,
     total_tokens: totalTokens,
-    bid_transitioned: bidTransitioned,
+    bid_transitioned: procurementTransitioned,
     drafted_response_ids: draftedResponseIds,
   };
 }

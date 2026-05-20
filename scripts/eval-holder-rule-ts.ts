@@ -536,7 +536,7 @@ async function resolveResidualItemIds(
  * SUPPLIER-held false-positive items that the skill-port must flip from
  * self -> supplier.  Per spec §12.3: "Positive control recall | 3/3 | all
  * 3 known false positives must flip."  The three known false positives
- * are the example-datacentre disclaimer items documented in spec §1.1 (example-client-Bid-
+ * are the example-datacentre disclaimer items documented in spec §1.1 (example-client-Procurement-
  * Library-2026-v4_4.md §1349: "Note: Certifications and security
  * measures below are held by example-datacentre, not example-client Design Ltd").
  *

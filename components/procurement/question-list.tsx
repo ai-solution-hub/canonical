@@ -24,11 +24,11 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { QuestionRow } from '@/components/procurement/question-row';
-import type { BidQuestion } from '@/types/procurement';
+import type { ProcurementQuestion } from '@/types/procurement';
 
 interface QuestionListProps {
-  bidId: string;
-  questions: BidQuestion[];
+  procurementId: string;
+  questions: ProcurementQuestion[];
   canEdit: boolean;
   onQuestionsChanged: () => void;
 }
@@ -36,10 +36,10 @@ interface QuestionListProps {
 interface GroupedSection {
   sectionName: string | null;
   sectionSequence: number;
-  questions: BidQuestion[];
+  questions: ProcurementQuestion[];
 }
 
-function groupBySections(questions: BidQuestion[]): GroupedSection[] {
+function groupBySections(questions: ProcurementQuestion[]): GroupedSection[] {
   const sectionMap = new Map<string, GroupedSection>();
 
   for (const question of questions) {
@@ -67,7 +67,7 @@ function groupBySections(questions: BidQuestion[]): GroupedSection[] {
 }
 
 export function QuestionList({
-  bidId,
+  procurementId,
   questions,
   canEdit,
   onQuestionsChanged,
@@ -105,7 +105,7 @@ export function QuestionList({
 
     setAdding(true);
     try {
-      const res = await fetch(`/api/bids/${bidId}/questions`, {
+      const res = await fetch(`/api/procurement/${procurementId}/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -325,7 +325,7 @@ export function QuestionList({
                     question={question}
                     index={index + 1}
                     canEdit={canEdit}
-                    bidId={bidId}
+                    procurementId={procurementId}
                     onUpdated={onQuestionsChanged}
                     onDeleted={onQuestionsChanged}
                   />

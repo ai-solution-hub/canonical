@@ -17,7 +17,7 @@ import { sb } from '@/lib/supabase/safe';
 // Types
 // ---------------------------------------------------------------------------
 
-export interface BidQuestionStats {
+export interface ProcurementQuestionStats {
   total_questions: number;
   drafted_count: number;
   complete_count: number;
@@ -25,7 +25,7 @@ export interface BidQuestionStats {
   no_content_count?: number;
 }
 
-export interface BidWorkspaceRow {
+export interface ProcurementWorkspaceRow {
   id: string;
   name: string | null;
   domain_metadata: Record<string, unknown> | null;
@@ -34,9 +34,9 @@ export interface BidWorkspaceRow {
   updated_at: string;
 }
 
-export interface ActiveBidsWithStats {
-  workspaces: BidWorkspaceRow[];
-  statsMap: Map<string, BidQuestionStats>;
+export interface ActiveProcurementWithStats {
+  workspaces: ProcurementWorkspaceRow[];
+  statsMap: Map<string, ProcurementQuestionStats>;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,9 +50,9 @@ export interface ActiveBidsWithStats {
  * Returns the raw workspace rows and a statsMap so each consumer can build
  * its own summary type without duplicating the Supabase query logic.
  */
-export async function fetchActiveBidsWithStats(
+export async function fetchActiveProcurementWithStats(
   supabase: SupabaseClient<Database>,
-): Promise<ActiveBidsWithStats> {
+): Promise<ActiveProcurementWithStats> {
   // Post-T2: discriminator is application_types.key via JOIN, not the dropped
   // workspaces.type col. 'bid' maps to 'procurement'.
   const { data: workspaces, error } = await supabase
@@ -66,18 +66,18 @@ export async function fetchActiveBidsWithStats(
 
   if (error || !workspaces || workspaces.length === 0) {
     return {
-      workspaces: (workspaces as unknown as BidWorkspaceRow[]) ?? [],
+      workspaces: (workspaces as unknown as ProcurementWorkspaceRow[]) ?? [],
       statsMap: new Map(),
     };
   }
 
-  const bidIds = workspaces.map((w) => w.id);
+  const procurementIds = workspaces.map((w) => w.id);
   const batchStats = await sb(
-    supabase.rpc('get_bid_question_stats_batch', { p_project_ids: bidIds }),
+    supabase.rpc('get_bid_question_stats_batch', { p_project_ids: procurementIds }),
     'rpc.bid_question_stats_batch',
   );
 
-  const statsMap = new Map<string, BidQuestionStats>();
+  const statsMap = new Map<string, ProcurementQuestionStats>();
   if (batchStats) {
     for (const row of batchStats) {
       statsMap.set(row.project_id, {
@@ -91,7 +91,7 @@ export async function fetchActiveBidsWithStats(
   }
 
   return {
-    workspaces: workspaces as unknown as BidWorkspaceRow[],
+    workspaces: workspaces as unknown as ProcurementWorkspaceRow[],
     statsMap,
   };
 }

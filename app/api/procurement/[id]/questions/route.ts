@@ -62,15 +62,15 @@ export async function GET(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Fetch questions ordered by section then question sequence.
@@ -203,15 +203,15 @@ export async function POST(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Try batch format first (from QuestionReview component)
@@ -287,13 +287,13 @@ export async function POST(
 /** Handle batch insert of questions from QuestionReview */
 async function handleBatchInsert(
   supabase: SupabaseClient<Database>,
-  bidId: string,
+  procurementId: string,
   userId: string,
   questions: z.infer<typeof BatchQuestionCreateSchema>['questions'],
 ) {
   // Post-T2: `bid_questions.project_id` → `workspace_id` on batch insert + select.
   const rows = questions.map((q) => ({
-    workspace_id: bidId,
+    workspace_id: procurementId,
     section_name: q.section_name ?? null,
     section_sequence: q.section_sequence ?? 0,
     question_sequence: q.question_sequence ?? 0,

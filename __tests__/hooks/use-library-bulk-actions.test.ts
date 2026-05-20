@@ -373,7 +373,7 @@ describe('useLibraryBulkActions', () => {
   it('handleBulkAssignOpen fetches workspaces and opens dialog', async () => {
     const workspacesData = [
       { id: 'ws-1', name: 'KB Section A', type: 'kb_section' },
-      { id: 'ws-2', name: 'Bid Workspace', type: 'bid' },
+      { id: 'ws-2', name: 'Procurement Workspace', type: 'bid' },
     ];
     mockFetch.mockResolvedValue({
       ok: true,

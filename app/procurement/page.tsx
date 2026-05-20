@@ -21,9 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BidListCard } from '@/components/procurement/procurement-list-card';
-import { BidStateBadge } from '@/components/procurement/procurement-workflow-indicator';
-import { BidCreationWizard } from '@/components/procurement/procurement-creation-wizard';
+import { ProcurementListCard } from '@/components/procurement/procurement-list-card';
+import { ProcurementWorkflowBadge } from '@/components/procurement/procurement-workflow-indicator';
+import { ProcurementCreationWizard } from '@/components/procurement/procurement-creation-wizard';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useViewMode } from '@/hooks/ui/use-view-mode';
 import { formatDateUK } from '@/lib/format';
@@ -31,7 +31,7 @@ import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
-import type { Bid, BidMetadata, BidState } from '@/types/procurement';
+import type { Procurement, ProcurementMetadata, ProcurementWorkflowState } from '@/types/procurement';
 import { logger } from '@/lib/logger/client';
 
 const BIDS_PER_PAGE = 20;
@@ -48,7 +48,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
 ];
 
 /** Maps each filter to the bid states it includes */
-const FILTER_STATES: Record<StatusFilter, BidState[] | null> = {
+const FILTER_STATES: Record<StatusFilter, ProcurementWorkflowState[] | null> = {
   all: null,
   draft: ['draft', 'questions_extracted'],
   active: ['matching', 'drafting', 'in_review', 'ready_for_export'],
@@ -59,7 +59,7 @@ const FILTER_STATES: Record<StatusFilter, BidState[] | null> = {
 export default function BidsPage() {
   const router = useRouter();
   const { canEdit } = useUserRole();
-  const [bids, setBids] = useState<Bid[]>([]);
+  const [bids, setProcurements] = useState<Procurement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -67,12 +67,12 @@ export default function BidsPage() {
   const { viewMode, setViewMode } = useViewMode('kb-bid-view', 'grid');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const fetchBids = useCallback(async () => {
+  const fetchProcurements = useCallback(async () => {
     try {
-      const response = await fetch('/api/bids');
+      const response = await fetch('/api/procurement');
       if (!response.ok) throw new Error('Failed to fetch bids');
       const data = await response.json();
-      setBids(data.bids ?? []);
+      setProcurements(data.bids ?? []);
     } catch (err) {
       logger.error({ err }, 'Failed to load bids');
       toast.error('Failed to load bids');
@@ -82,15 +82,15 @@ export default function BidsPage() {
   }, []);
 
   useEffect(() => {
-    fetchBids();
-  }, [fetchBids]);
+    fetchProcurements();
+  }, [fetchProcurements]);
 
   const filteredBids = useMemo(() => {
     const allowedStates = FILTER_STATES[statusFilter];
     const result = allowedStates
       ? bids.filter((bid) => {
-          const bidStatus = bid.status as BidState;
-          return allowedStates.includes(bidStatus);
+          const procurementStatus = bid.status as ProcurementWorkflowState;
+          return allowedStates.includes(procurementStatus);
         })
       : [...bids];
 
@@ -102,8 +102,8 @@ export default function BidsPage() {
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
           );
         case 'deadline': {
-          const deadlineA = (a.domain_metadata as BidMetadata).deadline;
-          const deadlineB = (b.domain_metadata as BidMetadata).deadline;
+          const deadlineA = (a.domain_metadata as ProcurementMetadata).deadline;
+          const deadlineB = (b.domain_metadata as ProcurementMetadata).deadline;
           // Bids without deadlines sort to the end
           if (!deadlineA && !deadlineB) return 0;
           if (!deadlineA) return 1;
@@ -136,8 +136,8 @@ export default function BidsPage() {
   }, [statusFilter, sortBy]);
 
   function handleBidCreated(bid: { id: string; name: string }) {
-    toast.success(`Bid "${bid.name}" created`);
-    router.push(`/bid/${bid.id}`);
+    toast.success(`Procurement "${bid.name}" created`);
+    router.push(`/procurement/${bid.id}`);
   }
 
   return (
@@ -154,7 +154,7 @@ export default function BidsPage() {
           {canEdit && (
             <Button onClick={() => setShowCreate(true)} className="gap-1.5">
               <Plus className="size-4" aria-hidden="true" />
-              New Bid
+              New Procurement
             </Button>
           )}
         </div>
@@ -234,7 +234,7 @@ export default function BidsPage() {
         {/* Content */}
         <div className="mt-6">
           {loading ? (
-            <BidListSkeleton viewMode={viewMode} />
+            <ProcurementListSkeleton viewMode={viewMode} />
           ) : bids.length === 0 ? (
             <EmptyState
               canEdit={canEdit}
@@ -250,13 +250,13 @@ export default function BidsPage() {
           ) : viewMode === 'grid' ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {paginatedBids.map((bid) => (
-                <BidListCard key={bid.id} bid={bid} />
+                <ProcurementListCard key={bid.id} bid={bid} />
               ))}
             </div>
           ) : (
             <div className="divide-y rounded-lg border">
               {paginatedBids.map((bid) => (
-                <BidListRow key={bid.id} bid={bid} />
+                <ProcurementListRow key={bid.id} bid={bid} />
               ))}
             </div>
           )}
@@ -294,7 +294,7 @@ export default function BidsPage() {
         )}
 
         {/* Create wizard */}
-        <BidCreationWizard
+        <ProcurementCreationWizard
           open={showCreate}
           onOpenChange={setShowCreate}
           onCreated={handleBidCreated}
@@ -324,21 +324,21 @@ function EmptyState({
       {canEdit && (
         <Button onClick={onCreateClick} className="mt-4 gap-1.5">
           <Plus className="size-4" aria-hidden="true" />
-          Create Bid
+          Create Procurement
         </Button>
       )}
     </div>
   );
 }
 
-function BidListRow({ bid }: { bid: Bid }) {
-  const metadata = bid.domain_metadata as BidMetadata;
-  const bidStatus = bid.status as import('@/types/procurement').BidState;
+function ProcurementListRow({ bid }: { bid: Procurement }) {
+  const metadata = bid.domain_metadata as ProcurementMetadata;
+  const procurementStatus = bid.status as import('@/types/procurement').ProcurementWorkflowState;
   const proximity = getDeadlineProximity(metadata.deadline);
 
   return (
     <Link
-      href={`/bid/${bid.id}`}
+      href={`/procurement/${bid.id}`}
       className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-accent/50"
     >
       <div className="min-w-0 flex-1">
@@ -372,12 +372,12 @@ function BidListRow({ bid }: { bid: Bid }) {
           )}
         </div>
       </div>
-      <BidStateBadge state={bidStatus} />
+      <ProcurementWorkflowBadge state={procurementStatus} />
     </Link>
   );
 }
 
-function BidListSkeleton({ viewMode }: { viewMode: 'grid' | 'list' }) {
+function ProcurementListSkeleton({ viewMode }: { viewMode: 'grid' | 'list' }) {
   if (viewMode === 'list') {
     return (
       <div className="divide-y rounded-lg border">

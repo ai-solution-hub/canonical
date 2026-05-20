@@ -42,7 +42,7 @@ const mockActiveBidsResult = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/procurement/procurement-queries', () => ({
-  fetchActiveBidsWithStats: vi.fn(() =>
+  fetchActiveProcurementWithStats: vi.fn(() =>
     Promise.resolve(mockActiveBidsResult.current),
   ),
 }));
@@ -76,7 +76,7 @@ const TEST_USER_ID = 'user-abc-123';
  *       [4] bid response team changes — from('bid_response_history')
  *       [5] bid response recent work — from('bid_response_history')
  *       [6] cert expiry — from('entity_mentions') or Promise.resolve
- *     fetchActiveBidsWithStats (mocked separately)
+ *     fetchActiveProcurementWithStats (mocked separately)
  *   auth.getUser() for display name
  */
 function setupDefaultMock(
@@ -461,7 +461,7 @@ describe('fetchUnifiedDashboardData', () => {
       workspaces: [
         {
           id: 'bid-1',
-          name: 'Normal Bid',
+          name: 'Normal Procurement',
           domain_metadata: {
             deadline: '2026-04-01T00:00:00Z',
             buyer: 'Acme',
@@ -473,7 +473,7 @@ describe('fetchUnifiedDashboardData', () => {
         },
         {
           id: 'bid-2',
-          name: 'Overdue Bid',
+          name: 'Overdue Procurement',
           domain_metadata: {
             deadline: '2026-03-01T00:00:00Z',
             buyer: 'Corp',
@@ -485,7 +485,7 @@ describe('fetchUnifiedDashboardData', () => {
         },
         {
           id: 'bid-3',
-          name: 'Urgent Bid',
+          name: 'Urgent Procurement',
           domain_metadata: {
             deadline: '2026-03-09T00:00:00Z',
             buyer: 'Ltd',
@@ -628,7 +628,7 @@ describe('fetchUnifiedDashboardData', () => {
             bid_questions: {
               project_id: 'bid-1',
               question_text: 'Latest answer',
-              workspaces: { id: 'bid-1', name: 'Bid' },
+              workspaces: { id: 'bid-1', name: 'Procurement' },
             },
           },
         },
@@ -642,7 +642,7 @@ describe('fetchUnifiedDashboardData', () => {
             bid_questions: {
               project_id: 'bid-1',
               question_text: 'Older answer',
-              workspaces: { id: 'bid-1', name: 'Bid' },
+              workspaces: { id: 'bid-1', name: 'Procurement' },
             },
           },
         },
@@ -777,7 +777,7 @@ describe('fetchUnifiedDashboardData', () => {
     expect(bid.answered_questions).toBe(9); // 6 drafted + 3 complete
     expect(bid.approved_questions).toBe(3);
     expect(bid.gap_count).toBe(3); // 2 needs_sme + 1 no_content
-    expect(bid.href).toBe('/bid/bid-x');
+    expect(bid.href).toBe('/procurement/bid-x');
   });
 
   it('returns empty arrays when no data exists', async () => {

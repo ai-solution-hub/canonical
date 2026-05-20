@@ -11,7 +11,7 @@
  *
  * USER FLOW:
  *   1. Authenticated as admin (worker fixture seeds bid in 'drafting' state).
- *   2. Navigate to /bid/<bidId>.
+ *   2. Navigate to /bid/<procurementId>.
  *   3. Click "Draft All" button → opens CostEstimateDialog.
  *   4. In the dialog, click "Proceed with Drafting" → fires POST
  *      /api/bids/:id/responses/draft-all → 202 + {job_id, ...}.
@@ -46,7 +46,7 @@ import { createServiceClient } from '../fixtures/supabase';
 
 const STATUS_URL_PATH_RE = /\/api\/jobs\/[0-9a-f-]{36}\/status$/;
 
-test.describe('Bid draft-all queued flow (S224 §5.4.1 AC-10)', () => {
+test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
   test.beforeEach(async ({ workerData }) => {
     // Defensive: clear any pending/processing/completed bid_draft_all
     // jobs for this bid so the dedup pre-check doesn't return a stale
@@ -55,7 +55,7 @@ test.describe('Bid draft-all queued flow (S224 §5.4.1 AC-10)', () => {
     await supabase
       .from('processing_queue')
       .delete()
-      .like('idempotency_key', `bid_draft_all:${workerData.bidId}:%`);
+      .like('idempotency_key', `bid_draft_all:${workerData.procurementId}:%`);
     // Also clear any pipeline_runs rows scoped to this bid to keep
     // post-test state clean (Pattern 2 caller-allocated rows linger
     // otherwise).
@@ -63,7 +63,7 @@ test.describe('Bid draft-all queued flow (S224 §5.4.1 AC-10)', () => {
       .from('pipeline_runs')
       .delete()
       .eq('pipeline_name', 'bid_draft_all')
-      .eq('workspace_id', workerData.bidId);
+      .eq('workspace_id', workerData.procurementId);
   });
 
   test.afterEach(async ({ workerData }) => {
@@ -75,12 +75,12 @@ test.describe('Bid draft-all queued flow (S224 §5.4.1 AC-10)', () => {
       await supabase
         .from('processing_queue')
         .delete()
-        .like('idempotency_key', `bid_draft_all:${workerData.bidId}:%`);
+        .like('idempotency_key', `bid_draft_all:${workerData.procurementId}:%`);
       await supabase
         .from('pipeline_runs')
         .delete()
         .eq('pipeline_name', 'bid_draft_all')
-        .eq('workspace_id', workerData.bidId);
+        .eq('workspace_id', workerData.procurementId);
     } catch (err) {
       console.error('bid-draft-all cleanup failed:', err);
     }
@@ -101,7 +101,7 @@ test.describe('Bid draft-all queued flow (S224 §5.4.1 AC-10)', () => {
     });
 
     // 1. Navigate to bid detail.
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     // 2. Locate "Draft All" button.
     const draftAllButton = page.getByRole('button', { name: /^Draft All$/ });

@@ -55,8 +55,8 @@ export async function POST(
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { id: bidId } = await params;
-    if (!UUID_RE.test(bidId)) {
+    const { id: procurementId } = await params;
+    if (!UUID_RE.test(procurementId)) {
       return NextResponse.json(
         { error: 'Invalid bid ID -- must be a valid UUID' },
         { status: 400 },
@@ -129,19 +129,19 @@ export async function POST(
 
     // Verify bid exists and is not in a terminal state.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, status, domain_metadata, application_types!inner(key)')
-      .eq('id', bidId)
+      .eq('id', procurementId)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
-    const bidStatus = bid.status as string | undefined;
-    if (bidStatus && TERMINAL_BID_STATUSES.has(bidStatus)) {
+    const procurementStatus = bid.status as string | undefined;
+    if (procurementStatus && TERMINAL_BID_STATUSES.has(procurementStatus)) {
       return NextResponse.json(
         { error: 'Cannot add templates to a completed bid.' },
         { status: 409 },
@@ -159,7 +159,7 @@ export async function POST(
 
     // Create template record with a pre-generated ID for storage path
     const templateId = crypto.randomUUID();
-    const storagePath = `${bidId}/${templateId}/original.docx`;
+    const storagePath = `${procurementId}/${templateId}/original.docx`;
 
     // Upload to Supabase Storage using service client (bypasses RLS for storage)
     const serviceClient = createServiceClient();
@@ -189,7 +189,7 @@ export async function POST(
       .from('form_templates')
       .insert({
         id: templateId,
-        workspace_id: bidId,
+        workspace_id: procurementId,
         name: templateName,
         description: description?.trim() || null,
         filename: file.name,
@@ -236,8 +236,8 @@ export async function GET(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { id: bidId } = await params;
-    if (!UUID_RE.test(bidId)) {
+    const { id: procurementId } = await params;
+    if (!UUID_RE.test(procurementId)) {
       return NextResponse.json(
         { error: 'Invalid bid ID -- must be a valid UUID' },
         { status: 400 },
@@ -246,15 +246,15 @@ export async function GET(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, application_types!inner(key)')
-      .eq('id', bidId)
+      .eq('id', procurementId)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Fetch templates with completion count.
@@ -264,7 +264,7 @@ export async function GET(
       .select(
         'id, name, filename, status, field_count, mapped_count, file_size, created_at, updated_at',
       )
-      .eq('workspace_id', bidId)
+      .eq('workspace_id', procurementId)
       .order('created_at', { ascending: false });
 
     if (error) {

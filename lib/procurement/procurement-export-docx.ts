@@ -354,7 +354,7 @@ function buildCoverSection(
     }),
   );
 
-  // Bid title
+  // Procurement title
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -688,7 +688,7 @@ function buildResponsesSection(
             alignment: AlignmentType.RIGHT,
             children: [
               new TextRun({
-                text: 'Bid Response Export',
+                text: 'Procurement Response Export',
                 font: 'Calibri',
                 size: 16, // 8pt
                 color: '9CA3AF',
@@ -809,7 +809,7 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
 /**
  * Generate a Word document Buffer from bid data.
  *
- * @param metadata - Bid metadata for cover page
+ * @param metadata - Procurement metadata for cover page
  * @param questions - Array of questions with responses
  * @param options - Export configuration
  * @returns Buffer containing the .docx file

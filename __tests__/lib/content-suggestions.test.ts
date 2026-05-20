@@ -272,7 +272,7 @@ describe('generateContentSuggestions', () => {
       ],
       activeBids: [
         // Active bid -> empty subtopics in bid domains become critical
-        { id: 'bid-1', name: 'Test Bid', domain_metadata: null },
+        { id: 'bid-1', name: 'Test Procurement', domain_metadata: null },
       ],
     });
 
@@ -388,7 +388,7 @@ describe('generateContentSuggestions', () => {
   it('elevates empty subtopics to critical when active bids exist', async () => {
     configureMock({
       contentItems: [],
-      activeBids: [{ id: 'bid-1', name: 'Active Bid', domain_metadata: null }],
+      activeBids: [{ id: 'bid-1', name: 'Active Procurement', domain_metadata: null }],
     });
 
     const result = await generateContentSuggestions({

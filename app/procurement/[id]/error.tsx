@@ -7,7 +7,7 @@ import { Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger/client';
 
-export default function BidDetailError({
+export default function ProcurementDetailError({
   error,
   reset,
 }: {
@@ -15,7 +15,7 @@ export default function BidDetailError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Bid detail error');
+    logger.error({ err: error }, 'Procurement detail error');
     Sentry.captureException(error);
   }, [error]);
 
@@ -39,7 +39,7 @@ export default function BidDetailError({
           Try again
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/bid">Back to Bids</Link>
+          <Link href="/procurement">Back to Bids</Link>
         </Button>
       </div>
     </div>

@@ -740,12 +740,12 @@ export const ExtractBodySchema = z.object({
 });
 
 // ──────────────────────────────────────────
-// Bid Infrastructure Schemas (Phase 6A)
+// Procurement Infrastructure Schemas (Phase 6A)
 // ──────────────────────────────────────────
 
 /** POST /api/bids */
-export const BidCreateBodySchema = z.object({
-  name: z.string().trim().min(1, 'Bid name is required').max(200),
+export const ProcurementCreateBodySchema = z.object({
+  name: z.string().trim().min(1, 'Procurement name is required').max(200),
   description: z.string().max(2000).optional(),
   buyer: z.string().trim().min(1, 'Buyer name is required').max(200),
   deadline: z.string().datetime({ offset: true }).optional(),
@@ -755,7 +755,7 @@ export const BidCreateBodySchema = z.object({
 });
 
 /** PATCH /api/bids/:id */
-export const BidUpdateBodySchema = z.object({
+export const ProcurementUpdateBodySchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
   buyer: z.string().trim().min(1).max(200).optional(),
@@ -820,7 +820,7 @@ export const QuestionMatchBodySchema = z.object({
 });
 
 // ──────────────────────────────────────────
-// Bid Response Schemas (Phase 6B)
+// Procurement Response Schemas (Phase 6B)
 // ──────────────────────────────────────────
 
 /** POST /api/bids/:id/responses/draft */
@@ -880,7 +880,7 @@ export const ResponseRegenerateBodySchema = z.object({
 });
 
 /** POST /api/bids/:id/outcome */
-export const BidOutcomeBodySchema = z.object({
+export const ProcurementOutcomeBodySchema = z.object({
   outcome: z.enum(['won', 'lost', 'withdrawn']),
   notes: z.string().max(5000).optional(),
   integrate_to_kb: z.boolean().default(false),
@@ -911,7 +911,7 @@ export const KBIntegrationBodySchema = z.object({
  * Runtime validation for workspaces.domain_metadata when type='bid'
  * @public
  */
-export const BidMetadataSchema = z
+export const ProcurementMetadataSchema = z
   .object({
     buyer: z.string(),
     status: z.enum([
@@ -941,10 +941,10 @@ export const BidMetadataSchema = z
   .passthrough();
 
 /** Parse and validate domain_metadata for bid workspaces */
-export function parseBidMetadata(
+export function parseProcurementMetadata(
   raw: unknown,
-): z.infer<typeof BidMetadataSchema> | null {
-  const result = BidMetadataSchema.safeParse(raw);
+): z.infer<typeof ProcurementMetadataSchema> | null {
+  const result = ProcurementMetadataSchema.safeParse(raw);
   if (!result.success) {
     logger.warn({ err: result.error.format() }, 'Invalid bid metadata');
     return null;
@@ -953,7 +953,7 @@ export function parseBidMetadata(
 }
 
 // ──────────────────────────────────────────
-// Bid Export Schemas (Phase 7A)
+// Procurement Export Schemas (Phase 7A)
 // ──────────────────────────────────────────
 
 /** POST /api/bids/:id/export/docx */
@@ -1903,7 +1903,7 @@ const VALID_BID_STATUSES = [
   'withdrawn',
 ] as const;
 
-export const BidListParamsSchema = z.object({
+export const ProcurementListParamsSchema = z.object({
   status: z.enum(VALID_BID_STATUSES).optional(),
   limit: z
     .number()

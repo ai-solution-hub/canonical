@@ -129,11 +129,11 @@ test.describe('Dashboard -- attention and bids sections', () => {
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
     // Click the bid card link
-    const bidLink = bidsSection.locator(`a[href="/bid/${workerData.bidId}"]`);
+    const bidLink = bidsSection.locator(`a[href="/procurement/${workerData.procurementId}"]`);
     await expect(bidLink).toBeVisible();
     await bidLink.click();
 
-    await expect(page).toHaveURL(`/bid/${workerData.bidId}`);
+    await expect(page).toHaveURL(`/procurement/${workerData.procurementId}`);
   });
 });
 

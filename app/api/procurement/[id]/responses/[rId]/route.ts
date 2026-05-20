@@ -9,12 +9,12 @@ import { parseBody } from '@/lib/validation';
 import { ResponseUpdateBodySchema } from '@/lib/validation/schemas';
 import { countWords } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
-import type { BidResponseMetadata, QualityData } from '@/types/procurement-metadata';
+import type { ProcurementResponseMetadata, QualityData } from '@/types/procurement-metadata';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
 
-type BidResponseUpdate =
+type ProcurementResponseUpdate =
   Database['public']['Tables']['bid_responses']['Update'];
 
 export const maxDuration = 30;
@@ -72,7 +72,7 @@ export async function GET(
     }
 
     // Parse metadata
-    const meta = (response.metadata ?? {}) as BidResponseMetadata;
+    const meta = (response.metadata ?? {}) as ProcurementResponseMetadata;
     const citations = meta.citations_data?.citations ?? [];
     const qualityCheck = meta.quality_data ?? null;
 
@@ -201,7 +201,7 @@ export async function PATCH(
     }
 
     // Build update payload
-    const updates: BidResponseUpdate = {
+    const updates: ProcurementResponseUpdate = {
       last_edited_by: user.id,
       updated_at: new Date().toISOString(),
     };
@@ -220,7 +220,7 @@ export async function PATCH(
 
     // Recalculate word count in metadata if response text changed
     if (response_text !== undefined) {
-      const existingMeta = (existing.metadata ?? {}) as BidResponseMetadata;
+      const existingMeta = (existing.metadata ?? {}) as ProcurementResponseMetadata;
       const wordCount = countWords(stripMarkdown(response_text));
       const wordLimitCompliance = question.word_limit
         ? wordCount <= question.word_limit
@@ -241,7 +241,7 @@ export async function PATCH(
       updates.metadata = {
         ...existingMeta,
         quality_data: updatedQuality,
-      } as unknown as BidResponseUpdate['metadata'];
+      } as unknown as ProcurementResponseUpdate['metadata'];
 
       // Also write overall_score to the dedicated column (backward compat: metadata still has it)
       updates.overall_score = updatedQuality.overall_score ?? null;

@@ -6,7 +6,7 @@
  *     `response_text_advanced`, and `version` columns (verified at
  *     `supabase/types/database.types.ts:92-130`). Spec table name is
  *     correct.
- *   - The bid session route `/bid/[id]/session` exists at
+ *   - The bid session route `/procurement/[id]/session` exists at
  *     `app/bid/[id]/session/page.tsx`.
  *   - Draft-stream endpoint exists at
  *     `app/api/bids/[id]/responses/draft-stream/route.ts`.
@@ -17,14 +17,14 @@
  *     forward-only revert).
  *
  * USER FLOW:
- *   1. Use the worker-seeded bid (`workerData.bidId`) and one of its
+ *   1. Use the worker-seeded bid (`workerData.procurementId`) and one of its
  *      questions (`workerData.questionIds[0]`). The worker fixture
  *      already advances the bid to the `drafting` state, so the editor
  *      view is reachable.
  *   2. `beforeEach`: defensive service-key delete of any pre-existing
  *      `bid_responses` AND `bid_response_history` rows for the chosen
  *      question id, so each test starts from a known empty state.
- *   3. As admin (authenticatedPage), navigate to `/bid/<bidId>/session`.
+ *   3. As admin (authenticatedPage), navigate to `/procurement/<procurementId>/session`.
  *   4. Locate the question card for `questionIds[0]`.
  *   5. Attach a `page.on('response', ...)` listener BEFORE clicking, to
  *      capture the SSE endpoint response object so we can later assert at
@@ -64,7 +64,7 @@
  *     EXACT count is what catches regressions in 8.0.8.
  *
  * FIXTURE DATA (pre-seeded before test runs):
- *   - `workerData.bidId` (advanced to drafting) and
+ *   - `workerData.procurementId` (advanced to drafting) and
  *     `workerData.questionIds` from `test-data-fixture.ts`.
  *
  * EXPECTED FAILURE MODES (production-code breakages this test must catch —
@@ -130,7 +130,7 @@
  *      service-key query BEFORE any UI action. Direct service-key seed
  *      is preferred over re-running 8.0.7 because it removes flakiness
  *      from upstream LLM calls.
- *   2. As admin (authenticatedPage), navigate to `/bid/<bidId>/session`.
+ *   2. As admin (authenticatedPage), navigate to `/procurement/<procurementId>/session`.
  *   3. Click the "Regenerate" / "Re-draft" control on the question card.
  *   4. Wait for the SSE stream to complete (same `waitForResponse`
  *      pattern as 8.0.7).
@@ -140,7 +140,7 @@
  *   7. Open the version history drawer / panel for that response.
  *   8. Click "Restore" on the v1 entry.
  *   9. Wait for the restore API call to complete (`waitForResponse` on
- *      `/api/bids/<id>/responses/<rId>/restore`).
+ *      `/api/procurement/<id>/responses/<rId>/restore`).
  *   10. Read the editor text again as `restoredText`.
  *   11. Service-key query `bid_responses` AND `bid_response_history`
  *       again to capture the post-restore state.
@@ -173,7 +173,7 @@
  *     equals `regeneratedText` (string equality).
  *
  * FIXTURE DATA (pre-seeded before test runs):
- *   - Same `workerData.bidId` + `workerData.questionIds[0]` as 8.0.7.
+ *   - Same `workerData.procurementId` + `workerData.questionIds[0]` as 8.0.7.
  *   - `beforeEach`: direct service-key insert into `bid_responses`
  *     with deterministic `response_text` (the `originalText` value),
  *     `version = 1`, and the question id. NO history row needs to be
@@ -211,7 +211,7 @@
  *   the empty state for the next test. Worker bid is preserved.
  *
  * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
- *   - DO NOT mock `/api/bids/.../regenerate` or `/api/bids/.../restore`.
+ *   - DO NOT mock `/api/procurement/.../regenerate` or `/api/procurement/.../restore`.
  *     The DB trigger behaviour is the load-bearing thing being tested.
  *   - DO NOT seed `bid_response_history` directly in `beforeEach`. The
  *     history rows MUST be produced by real UPDATEs through the route
@@ -284,7 +284,7 @@ async function clearResponsesForQuestion(questionId: string): Promise<void> {
 // 8.0.7 — bid draft-stream happy path
 // ---------------------------------------------------------------------------
 
-test.describe('Bid draft-stream happy path (8.0.7)', () => {
+test.describe('Procurement draft-stream happy path (8.0.7)', () => {
   test.beforeEach(async ({ workerData }) => {
     // Defensive: ensure questionIds[0] starts with NO bid_responses and NO
     // history rows. The worker fixture seeds responses for questions[0..1];
@@ -314,7 +314,7 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
     const questionId = workerData.questionIds[0];
 
     // 1. Open the bid session page (defaults to currentIndex = 0 → questionIds[0])
-    await page.goto(`/bid/${workerData.bidId}/session`);
+    await page.goto(`/procurement/${workerData.procurementId}/session`);
 
     // Wait for the response editor area to mount.
     await expect(
@@ -468,7 +468,7 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
 // 8.0.8 — bid regenerate + restore
 // ---------------------------------------------------------------------------
 
-test.describe('Bid regenerate + restore (8.0.8)', () => {
+test.describe('Procurement regenerate + restore (8.0.8)', () => {
   // Deterministic original text seeded directly into bid_responses.
   // Phrased so a re-draft against matched content WILL produce a different
   // string (catches the no-op regenerate failure mode).
@@ -524,7 +524,7 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
     const originalText = seedRows![0].response_text!;
 
     // 1. Open the session page.
-    await page.goto(`/bid/${workerData.bidId}/session`);
+    await page.goto(`/procurement/${workerData.procurementId}/session`);
     await expect(
       page
         .getByRole('region', { name: 'Response editor' })

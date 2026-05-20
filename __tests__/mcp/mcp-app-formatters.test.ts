@@ -4,8 +4,8 @@ import {
   formatBidDashboard,
   formatBidDetail,
   type CoverageMatrixData,
-  type BidDashboardData,
-  type BidDetail,
+  type ProcurementDashboardData,
+  type ProcurementDetail,
 } from '@/lib/mcp/formatters';
 
 // ──────────────────────────────────────────
@@ -103,7 +103,7 @@ const sampleCoverageMatrix: CoverageMatrixData = {
   ],
 };
 
-const sampleBidDashboard: BidDashboardData = {
+const sampleBidDashboard: ProcurementDashboardData = {
   offset: 0,
   count: 2,
   total_count: 2,
@@ -288,7 +288,7 @@ describe('formatBidDashboard', () => {
   it('returns Markdown with bid count', () => {
     const result = formatBidDashboard(sampleBidDashboard);
 
-    expect(result).toContain('# Bid Dashboard');
+    expect(result).toContain('# Procurement Dashboard');
     expect(result).toContain('**2 bids**');
   });
 
@@ -347,7 +347,7 @@ describe('formatBidDashboard', () => {
   });
 
   it('handles empty bids array', () => {
-    const noBids: BidDashboardData = {
+    const noBids: ProcurementDashboardData = {
       offset: 0,
       count: 0,
       total_count: 0,
@@ -356,12 +356,12 @@ describe('formatBidDashboard', () => {
     };
     const result = formatBidDashboard(noBids);
 
-    expect(result).toContain('# Bid Dashboard');
+    expect(result).toContain('# Procurement Dashboard');
     expect(result).toContain('No active bids found.');
   });
 
   it('handles singular bid count', () => {
-    const singleBid: BidDashboardData = {
+    const singleBid: ProcurementDashboardData = {
       offset: 0,
       count: 1,
       total_count: 1,
@@ -375,7 +375,7 @@ describe('formatBidDashboard', () => {
   });
 
   it('handles bid with no deadline', () => {
-    const noDeadline: BidDashboardData = {
+    const noDeadline: ProcurementDashboardData = {
       offset: 0,
       count: 1,
       total_count: 1,
@@ -400,7 +400,7 @@ describe('formatBidDashboard', () => {
   });
 
   it('handles bid with zero questions', () => {
-    const noQuestions: BidDashboardData = {
+    const noQuestions: ProcurementDashboardData = {
       offset: 0,
       count: 1,
       total_count: 1,
@@ -408,7 +408,7 @@ describe('formatBidDashboard', () => {
       bids: [
         {
           id: 'bid-004',
-          name: 'Empty Bid',
+          name: 'Empty Procurement',
           buyer: null,
           status: 'draft',
           deadline: null,
@@ -425,7 +425,7 @@ describe('formatBidDashboard', () => {
   });
 
   it('handles deadline with null days_until_deadline', () => {
-    const deadlineNoDays: BidDashboardData = {
+    const deadlineNoDays: ProcurementDashboardData = {
       offset: 0,
       count: 1,
       total_count: 1,
@@ -457,7 +457,7 @@ describe('formatBidDashboard', () => {
 // formatBidDetail (with sections and breakdowns)
 // ──────────────────────────────────────────
 
-const sampleBidDetail: BidDetail = {
+const sampleBidDetail: ProcurementDetail = {
   id: 'bid-001',
   name: 'NHS Digital Transformation',
   buyer: 'NHS England',
@@ -552,7 +552,7 @@ describe('formatBidDetail', () => {
   });
 
   it('handles empty sections array', () => {
-    const noSections: BidDetail = {
+    const noSections: ProcurementDetail = {
       ...sampleBidDetail,
       sections: [],
     };
@@ -597,7 +597,7 @@ describe('formatBidDetail', () => {
   });
 
   it('omits status breakdown when empty', () => {
-    const noBreakdown: BidDetail = {
+    const noBreakdown: ProcurementDetail = {
       ...sampleBidDetail,
       status_breakdown: {},
     };
@@ -615,7 +615,7 @@ describe('formatBidDetail', () => {
   });
 
   it('omits confidence breakdown when empty', () => {
-    const noBreakdown: BidDetail = {
+    const noBreakdown: ProcurementDetail = {
       ...sampleBidDetail,
       confidence_breakdown: {},
     };

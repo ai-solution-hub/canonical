@@ -56,7 +56,7 @@ export interface AIMetadata {
 }
 
 /** Top-level metadata structure stored in bid_responses.metadata JSONB */
-export interface BidResponseMetadata {
+export interface ProcurementResponseMetadata {
   citations_data?: CitationsData;
   quality_data?: QualityData;
   ai_metadata?: AIMetadata;

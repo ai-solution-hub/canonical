@@ -36,7 +36,7 @@ export interface WorkspaceTypeConfig {
   /** Whether this type is available for use (false = "Coming soon") */
   readonly available: boolean;
 
-  /** Whether this type has a dedicated creation flow (e.g. BidCreationWizard).
+  /** Whether this type has a dedicated creation flow (e.g. ProcurementCreationWizard).
    *  If true, the generic WorkspaceCreateDialog delegates to the type-specific
    *  creation flow. */
   readonly hasCustomCreation: boolean;
@@ -78,12 +78,12 @@ function registerType(config: WorkspaceTypeConfig): void {
 // PLAN §4.4.
 registerType({
   type: 'procurement',
-  label: 'Bid',
+  label: 'Procurement',
   labelPlural: 'Bids',
   description:
     'Manage bid responses and tender submissions using your knowledge base',
   icon: Briefcase,
-  route: '/bid',
+  route: '/procurement',
   available: true,
   hasCustomCreation: true,
   defaultColour: '#d4880f',

@@ -5,7 +5,7 @@ import { generateBidDocx } from '@/lib/procurement/procurement-export-docx';
 import { DocxExportBodySchema } from '@/lib/validation/schemas';
 import { parseBody } from '@/lib/validation';
 import {
-  fetchBidExportData,
+  fetchProcurementExportData,
   sanitiseFilename,
 } from '@/lib/procurement/procurement-export-data';
 
@@ -21,7 +21,7 @@ export async function POST(
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
 
-    const { id: bidId } = await params;
+    const { id: procurementId } = await params;
 
     // Parse body — empty body is fine, all fields have defaults
     let body = {};
@@ -35,7 +35,7 @@ export async function POST(
     const options = parsed.data;
 
     // Fetch and transform bid data
-    const result = await fetchBidExportData(auth.supabase, bidId);
+    const result = await fetchProcurementExportData(auth.supabase, procurementId);
     if (result instanceof NextResponse) return result;
 
     // Generate document
@@ -48,7 +48,7 @@ export async function POST(
       companyName: options.company_name,
     });
 
-    const safeName = sanitiseFilename(result.bidName);
+    const safeName = sanitiseFilename(result.procurementName);
     const bytes = new Uint8Array(buffer);
 
     return new NextResponse(bytes, {

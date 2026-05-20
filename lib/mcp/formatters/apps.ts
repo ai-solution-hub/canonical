@@ -102,10 +102,10 @@ export function formatCoverageMatrix(data: CoverageMatrixData): string {
 }
 
 // ---------------------------------------------------------------------------
-// Bid dashboard (MCP App)
+// Procurement dashboard (MCP App)
 // ---------------------------------------------------------------------------
 
-export interface BidDashboardData {
+export interface ProcurementDashboardData {
   offset: number;
   count: number;
   total_count: number;
@@ -124,9 +124,9 @@ export interface BidDashboardData {
   focused_bid_detail?: Record<string, unknown>;
 }
 
-export function formatBidDashboard(data: BidDashboardData): string {
+export function formatBidDashboard(data: ProcurementDashboardData): string {
   const lines: string[] = [
-    '# Bid Dashboard',
+    '# Procurement Dashboard',
     '',
     `**${data.total_count} bid${data.total_count === 1 ? '' : 's'}**`,
     '',

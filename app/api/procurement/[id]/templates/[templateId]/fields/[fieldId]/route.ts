@@ -21,9 +21,9 @@ export async function PATCH(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { id: bidId, templateId, fieldId } = await params;
+    const { id: procurementId, templateId, fieldId } = await params;
     if (
-      !UUID_RE.test(bidId) ||
+      !UUID_RE.test(procurementId) ||
       !UUID_RE.test(templateId) ||
       !UUID_RE.test(fieldId)
     ) {
@@ -43,7 +43,7 @@ export async function PATCH(
       .from('form_templates')
       .select('id')
       .eq('id', templateId)
-      .eq('workspace_id', bidId)
+      .eq('workspace_id', procurementId)
       .single();
 
     if (templateError || !template) {

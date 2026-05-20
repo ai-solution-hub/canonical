@@ -3,14 +3,14 @@
  *
  * Resources (12):
  *   - kb://items/{id}    — Full content item with metadata
- *   - kb://bids/{id}     — Bid with questions and responses
+ *   - kb://bids/{id}     — Procurement with questions and responses
  *   - kb://qa/{id}       — Q&A pair with standard/advanced answers
  *   - kb://coverage      — Current taxonomy coverage state
  *   - kb://dashboard     — Current dashboard state
  *   - kb://taxonomy      — Domains and subtopics
  *   - kb://entities      — Entity overview with types, counts, and top entities
  *   - ui://coverage-matrix/app.html   — Coverage Matrix MCP App (interactive UI)
- *   - ui://bid-dashboard/app.html     — Bid Dashboard MCP App (interactive UI)
+ *   - ui://bid-dashboard/app.html     — Procurement Dashboard MCP App (interactive UI)
  *   - ui://reorient-me/app.html       — Reorient Me MCP App (interactive UI)
  *   - ui://intelligence-feed/app.html — Intelligence Feed MCP App (interactive UI)
  *   - kb://quality-briefing           — Aggregated quality intelligence briefing
@@ -143,7 +143,7 @@ export async function registerResources(server: McpServer): Promise<void> {
     },
   );
 
-  // 2. kb://bids/{id} — Bid workspace
+  // 2. kb://bids/{id} — Procurement workspace
   server.registerResource(
     'bid_workspace',
     new ResourceTemplate('kb://bids/{id}', {
@@ -177,7 +177,7 @@ export async function registerResources(server: McpServer): Promise<void> {
                 const buyer = (meta?.buyer as string) ?? null;
                 return {
                   uri: `kb://bids/${ws.id}`,
-                  name: ws.name || 'Untitled Bid',
+                  name: ws.name || 'Untitled Procurement',
                   description: buyer ? `Buyer: ${buyer}` : undefined,
                   mimeType: 'application/json',
                 };
@@ -197,7 +197,7 @@ export async function registerResources(server: McpServer): Promise<void> {
     async (uri: URL, variables: Variables, extra: Extra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const bidId = Array.isArray(variables.id)
+        const procurementId = Array.isArray(variables.id)
           ? variables.id[0]
           : variables.id;
         const { data: workspace, error } = await supabase
@@ -205,7 +205,7 @@ export async function registerResources(server: McpServer): Promise<void> {
           .select(
             'id, name, description, domain_metadata, is_archived, application_types!inner(key)',
           )
-          .eq('id', bidId)
+          .eq('id', procurementId)
           .eq('application_types.key', 'procurement')
           .single();
 
@@ -215,7 +215,7 @@ export async function registerResources(server: McpServer): Promise<void> {
               {
                 uri: uri.href,
                 mimeType: 'text/plain',
-                text: `Bid not found: ${bidId}`,
+                text: `Procurement not found: ${procurementId}`,
               },
             ],
           };
@@ -227,7 +227,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             .select(
               'id, question_text, section_name, status, confidence_posture',
             )
-            .eq('workspace_id', bidId)
+            .eq('workspace_id', procurementId)
             .order('section_sequence')
             .order('question_sequence'),
           'mcp.resources.bid_workspace.questions',
@@ -655,10 +655,10 @@ export async function registerResources(server: McpServer): Promise<void> {
     },
   );
 
-  // 9. ui://bid-dashboard/app.html — Bid Dashboard MCP App
+  // 9. ui://bid-dashboard/app.html — Procurement Dashboard MCP App
   registerAppResource(
     server,
-    'Bid Dashboard App',
+    'Procurement Dashboard App',
     'ui://bid-dashboard/app.html',
     { mimeType: RESOURCE_MIME_TYPE },
     async () => {
@@ -669,7 +669,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             {
               uri: 'ui://bid-dashboard/app.html',
               mimeType: 'text/plain',
-              text: 'Bid Dashboard app not built.',
+              text: 'Procurement Dashboard app not built.',
             },
           ],
         };
@@ -834,7 +834,7 @@ export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
     'bid_briefing',
     {
-      title: 'Bid Briefing',
+      title: 'Procurement Briefing',
       description:
         'Get a comprehensive briefing on a specific bid including progress, gaps, and next steps.',
       argsSchema: {
@@ -849,7 +849,7 @@ export function registerPrompts(server: McpServer): void {
             type: 'text',
             text:
               KB_SYSTEM_CONTEXT +
-              `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_bid_detail. Use the list_active_bids and get_bid_detail tools.`,
+              `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_bid_detail. Use the list_active_procurement and get_bid_detail tools.`,
           },
         },
       ],
@@ -883,7 +883,7 @@ export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
     'draft_response',
     {
-      title: 'Draft Bid Response',
+      title: 'Draft Procurement Response',
       description:
         'Draft a response to a bid question using relevant knowledge base content.',
       argsSchema: {
@@ -1028,7 +1028,7 @@ export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
     'bid_pipeline_review',
     {
-      title: 'Bid Pipeline Review',
+      title: 'Procurement Pipeline Review',
       description:
         'Workflow-oriented review of the active bid pipeline: blockers, stalled drafts, and prioritised next actions.',
       argsSchema: {
@@ -1052,7 +1052,7 @@ export function registerPrompts(server: McpServer): void {
                 KB_SYSTEM_CONTEXT +
                 'Produce a pipeline-wide action review for all active bids. Focus on blockers, stalled drafts, and recent activity — NOT per-bid status (that lives in `/kb:bid-status`).\n\n' +
                 'Tool sequence:\n\n' +
-                '1. **Pipeline overview.** `list_active_bids(limit: 50)` — full list with deadlines and completion %.\n' +
+                '1. **Pipeline overview.** `list_active_procurement(limit: 50)` — full list with deadlines and completion %.\n' +
                 '2. **Per-bid detail.** For each active bid, `get_bid_detail(id: <bid_id>)` — extract:\n' +
                 '   - Unanswered questions (status: unanswered)\n' +
                 '   - Questions with confidence = "no_content" (hard blockers — need new KB material)\n' +
@@ -1060,13 +1060,13 @@ export function registerPrompts(server: McpServer): void {
                 `   - Questions with draft responses updated more than ${staleDays} days ago (stalled drafts)\n` +
                 '3. **Recent activity.** From the per-bid detail, pull response `updated_at` timestamps and identify which bids have seen edits in the last 7 days vs which have gone silent.\n\n' +
                 'Structure the output as:\n\n' +
-                '## Bid pipeline review — [DD/MM/YYYY]\n\n' +
+                '## Procurement pipeline review — [DD/MM/YYYY]\n\n' +
                 '### Critical blockers (action today)\n' +
-                '[Bulleted list: "BidName — Question N: no_content on topic X. Need KB item on X."]\n\n' +
+                '[Bulleted list: "ProcurementName — Question N: no_content on topic X. Need KB item on X."]\n\n' +
                 '### Stalled drafts (action this week)\n' +
-                `[Bulleted list: "BidName — Question N: last edit DD/MM/YYYY (N days ago, threshold ${staleDays}). Was in draft state."]\n\n` +
+                `[Bulleted list: "ProcurementName — Question N: last edit DD/MM/YYYY (N days ago, threshold ${staleDays}). Was in draft state."]\n\n` +
                 '### SME input needed\n' +
-                '[Bulleted list: "BidName — Question N: needs_sme on topic X."]\n\n' +
+                '[Bulleted list: "ProcurementName — Question N: needs_sme on topic X."]\n\n' +
                 '### Recent activity\n' +
                 '- Active (edited in last 7 days): [BidA, BidB]\n' +
                 '- Silent (no edits in 7+ days): [BidC, BidD]\n\n' +

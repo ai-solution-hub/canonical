@@ -588,9 +588,9 @@ export async function assembleAuditTrailBundle(
 ): Promise<AuditTrailBundle> {
   const [
     contentHistory,
-    bidRespHistory,
-    bidResponses,
-    bidQuestions,
+    procurementRespHistory,
+    procurementResponses,
+    procurementQuestions,
     verificationHistory,
     classificationDisputes,
     feedFlags,
@@ -684,9 +684,9 @@ export async function assembleAuditTrailBundle(
   ]);
   return {
     content_history: contentHistory,
-    bid_response_history: bidRespHistory,
-    bid_responses: bidResponses,
-    bid_questions: bidQuestions,
+    bid_response_history: procurementRespHistory,
+    bid_responses: procurementResponses,
+    bid_questions: procurementQuestions,
     verification_history: verificationHistory,
     classification_disputes: classificationDisputes,
     feed_flags: feedFlags,

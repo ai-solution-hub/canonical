@@ -60,7 +60,7 @@ import { toast } from 'sonner';
 import {
   useStreamCoordination,
   normaliseForComparison,
-  type BidResponse,
+  type ProcurementResponse,
 } from '@/hooks/streaming/use-stream-coordination';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
@@ -92,7 +92,7 @@ function mockBidResponse(bid = {}) {
     ok: true,
     json: async () => ({
       id: 'bid-1',
-      name: 'Test Bid',
+      name: 'Test Procurement',
       status: 'drafting',
       domain_metadata: { buyer: 'Acme Corp' },
       ...bid,
@@ -152,7 +152,7 @@ function mockQuestionsResponse(questions: unknown[] = []) {
 
 function mockResponseData(overrides = {}): {
   ok: boolean;
-  json: () => Promise<BidResponse>;
+  json: () => Promise<ProcurementResponse>;
 } {
   return {
     ok: true,
@@ -189,7 +189,7 @@ const mockEditorInstanceRef = { current: null } as React.RefObject<null>;
 
 function defaultParams() {
   return {
-    bidId: 'bid-1',
+    procurementId: 'bid-1',
     contentLibrary: mockContentLibrary,
     editorInstanceRef: mockEditorInstanceRef,
   };
@@ -335,7 +335,7 @@ describe('useStreamCoordination', () => {
   // =========================================================================
 
   describe('data fetching', () => {
-    it('fetchBidData fetches bid and questions on mount', async () => {
+    it('fetchProcurementData fetches bid and questions on mount', async () => {
       setupDefaultFetch();
       const { Wrapper } = createQueryWrapper();
       const { result } = renderHook(
@@ -350,8 +350,8 @@ describe('useStreamCoordination', () => {
       const fetchedUrls = mockFetch.mock.calls.map(
         (call: unknown[]) => call[0],
       );
-      expect(fetchedUrls).toContain('/api/bids/bid-1');
-      expect(fetchedUrls).toContain('/api/bids/bid-1/questions');
+      expect(fetchedUrls).toContain('/api/procurement/bid-1');
+      expect(fetchedUrls).toContain('/api/procurement/bid-1/questions');
     });
 
     it('sets bid data after successful fetch', async () => {
@@ -360,7 +360,7 @@ describe('useStreamCoordination', () => {
       expect(result.current.bid).toEqual(
         expect.objectContaining({
           id: 'bid-1',
-          name: 'Test Bid',
+          name: 'Test Procurement',
           status: 'drafting',
         }),
       );
@@ -382,9 +382,9 @@ describe('useStreamCoordination', () => {
       });
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith('/bid');
+        expect(mockPush).toHaveBeenCalledWith('/procurement');
       });
-      expect(toast.error).toHaveBeenCalledWith('Bid not found');
+      expect(toast.error).toHaveBeenCalledWith('Procurement not found');
     });
 
     it('shows error toast on fetch failure', async () => {
@@ -514,7 +514,7 @@ describe('useStreamCoordination', () => {
 
       expect(result.current.actionLoading).toBe(false);
       expect(patchTracker.length).toBeGreaterThanOrEqual(1);
-      expect(patchTracker[0].url).toContain('/api/bids/bid-1/responses/r-1');
+      expect(patchTracker[0].url).toContain('/api/procurement/bid-1/responses/r-1');
       expect(patchTracker[0].body).toHaveProperty('response_text');
       expect(toast.success).toHaveBeenCalledWith('Response saved');
     });
@@ -796,7 +796,7 @@ describe('useStreamCoordination', () => {
 
     // S152B WP5 / Q-37 regression — see docs/audits/s151-decision-responses.md
     // and docs/audits/s151-silent-failure-recheck.md §7 item 2. Before the fix,
-    // `fetchBidQuestions` and `fetchBidResponseData` silently swallowed fetch
+    // `fetchProcurementQuestions` and `fetchProcurementResponseData` silently swallowed fetch
     // errors and returned `[]` / `null`, masking real connectivity / auth
     // failures from TanStack Query's `isError` / `error` state. The fix
     // removes the catches so errors propagate, and combines all three query
@@ -825,7 +825,7 @@ describe('useStreamCoordination', () => {
 
       // The questions fetch failed — this should be observable via the
       // hook's `error` field. Before the Q-37 fix this was `null` because
-      // `fetchBidQuestions` caught and swallowed the error.
+      // `fetchProcurementQuestions` caught and swallowed the error.
       await waitFor(() => {
         expect(result.current.error).toBeTruthy();
       });
@@ -858,7 +858,7 @@ describe('useStreamCoordination', () => {
 
       // The response fetch failed — this should be observable via the
       // hook's `error` field. Before the Q-37 fix this was `null` because
-      // `fetchBidResponseData` caught and swallowed the error.
+      // `fetchProcurementResponseData` caught and swallowed the error.
       await waitFor(() => {
         expect(result.current.error).toBeTruthy();
       });
@@ -909,13 +909,13 @@ describe('useStreamCoordination', () => {
       expect(toast.error).toHaveBeenCalledWith('Failed to save response');
     });
 
-    it('fetchBidData wrapper invalidates correctly', async () => {
+    it('fetchProcurementData wrapper invalidates correctly', async () => {
       const { result } = await renderAndWaitForLoad();
 
       const fetchCountBefore = mockFetch.mock.calls.length;
 
       await act(async () => {
-        await result.current.fetchBidData();
+        await result.current.fetchProcurementData();
       });
 
       // Should have triggered additional fetches via invalidation
@@ -1501,7 +1501,7 @@ describe('useStreamCoordination', () => {
           'handleCitationClick',
           'navigatorQuestions',
           'currentQuestion',
-          'fetchBidData',
+          'fetchProcurementData',
           'fetchResponse',
         ]),
       );

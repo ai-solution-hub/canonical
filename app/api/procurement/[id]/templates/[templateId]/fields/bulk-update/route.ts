@@ -19,8 +19,8 @@ export async function POST(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { id: bidId, templateId } = await params;
-    if (!UUID_RE.test(bidId) || !UUID_RE.test(templateId)) {
+    const { id: procurementId, templateId } = await params;
+    if (!UUID_RE.test(procurementId) || !UUID_RE.test(templateId)) {
       return NextResponse.json(
         { error: 'Invalid ID format -- must be a valid UUID' },
         { status: 400 },
@@ -37,7 +37,7 @@ export async function POST(
       .from('form_templates')
       .select('id')
       .eq('id', templateId)
-      .eq('workspace_id', bidId)
+      .eq('workspace_id', procurementId)
       .single();
 
     if (templateError || !template) {

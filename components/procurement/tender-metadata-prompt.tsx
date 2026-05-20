@@ -17,7 +17,7 @@ import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 
 interface TenderMetadataPromptProps {
   metadata: TenderExtractedMetadata;
-  bidId: string;
+  procurementId: string;
   onUpdated?: () => void;
   className?: string;
 }
@@ -28,7 +28,7 @@ interface TenderMetadataPromptProps {
  */
 export function TenderMetadataPrompt({
   metadata,
-  bidId,
+  procurementId,
   onUpdated,
   className,
 }: TenderMetadataPromptProps) {
@@ -58,7 +58,7 @@ export function TenderMetadataPrompt({
         body.estimated_value = metadata.estimated_value;
       if (metadata.title) body.name = metadata.title;
 
-      const res = await fetch(`/api/bids/${bidId}`, {
+      const res = await fetch(`/api/procurement/${procurementId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -173,7 +173,7 @@ export function TenderMetadataPrompt({
             onClick={handleApply}
             disabled={applying}
           >
-            {applying ? 'Updating…' : 'Update Bid Details'}
+            {applying ? 'Updating…' : 'Update Procurement Details'}
           </Button>
         </div>
       </div>

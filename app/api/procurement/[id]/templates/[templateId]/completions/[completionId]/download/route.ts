@@ -27,9 +27,9 @@ export async function GET(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { id: bidId, templateId, completionId } = await params;
+    const { id: procurementId, templateId, completionId } = await params;
     if (
-      !UUID_RE.test(bidId) ||
+      !UUID_RE.test(procurementId) ||
       !UUID_RE.test(templateId) ||
       !UUID_RE.test(completionId)
     ) {
@@ -45,7 +45,7 @@ export async function GET(
       .from('form_templates')
       .select('id')
       .eq('id', templateId)
-      .eq('workspace_id', bidId)
+      .eq('workspace_id', procurementId)
       .single();
 
     if (templateError || !template) {

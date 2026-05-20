@@ -439,7 +439,7 @@ describe('Prompt extraction', () => {
       server.registerPrompt(
         'bid_briefing',
         {
-          title: 'Bid Briefing',
+          title: 'Procurement Briefing',
           description: 'Brief on a specific bid.',
           argsSchema: {
             bid_name: z.string().describe('Name of the bid'),

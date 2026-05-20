@@ -332,13 +332,13 @@ describe('matchFileGroup', () => {
   it('matches exact filenames from audit-content spec §2.1', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 Tender and Bid Library Template for example-client - FAQs - Copy (1).docx',
+        'DRAFT 2026 Tender and Procurement Library Template for example-client - FAQs - Copy (1).docx',
         GROUPS,
       ),
     ).toBe('faqs');
     expect(
       matchFileGroup(
-        '2026 Audit - Tender and Bid Library Template - FAQs .docx',
+        '2026 Audit - Tender and Procurement Library Template - FAQs .docx',
         GROUPS,
       ),
     ).toBe('faqs');
@@ -347,13 +347,13 @@ describe('matchFileGroup', () => {
   it('matches Security and Compliance via both needles', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 Tender and Bid Library Template for example-client - Security and Compliance  - Copy.docx',
+        'DRAFT 2026 Tender and Procurement Library Template for example-client - Security and Compliance  - Copy.docx',
         GROUPS,
       ),
     ).toBe('security_compliance');
     expect(
       matchFileGroup(
-        '2026 Audit - Tender and Bid Library Template - Security & Compliance.docx',
+        '2026 Audit - Tender and Procurement Library Template - Security & Compliance.docx',
         GROUPS,
       ),
     ).toBe('security_compliance');
@@ -362,7 +362,7 @@ describe('matchFileGroup', () => {
   it('matches Implementation & Support', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 example-client - Tender and Bid Library - Implementation & Support .docx',
+        'DRAFT 2026 example-client - Tender and Procurement Library - Implementation & Support .docx',
         GROUPS,
       ),
     ).toBe('implementation_support');
@@ -371,7 +371,7 @@ describe('matchFileGroup', () => {
   it('preserves the Funtionality source typo', () => {
     expect(
       matchFileGroup(
-        '2026 Audit - Tender and Bid Library Template - Funtionality.docx',
+        '2026 Audit - Tender and Procurement Library Template - Funtionality.docx',
         GROUPS,
       ),
     ).toBe('functionality');

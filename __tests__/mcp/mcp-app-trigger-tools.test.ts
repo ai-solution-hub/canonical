@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type {
   CoverageMatrixData,
-  BidDashboardData,
+  ProcurementDashboardData,
 } from '@/lib/mcp/formatters';
 import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
@@ -781,7 +781,7 @@ describe('MCP App trigger tools #22-23', () => {
       await registerAppTools(mockServer.server as never);
     });
 
-    it('returns structured BidDashboardData with correct shape', async () => {
+    it('returns structured ProcurementDashboardData with correct shape', async () => {
       const handler = mockServer.getHandler('show_bid_dashboard')!;
       expect(handler).toBeDefined();
 
@@ -792,11 +792,11 @@ describe('MCP App trigger tools #22-23', () => {
 
       const result = (await handler({}, extra)) as {
         content: Array<{ type: string; text: string }>;
-        structuredContent: BidDashboardData;
+        structuredContent: ProcurementDashboardData;
       };
 
       expect(result.content[0].type).toBe('text');
-      expect(result.content[0].text).toContain('# Bid Dashboard');
+      expect(result.content[0].text).toContain('# Procurement Dashboard');
 
       const data = result.structuredContent;
       expect(data).toHaveProperty('offset');
@@ -819,7 +819,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({}, extra)) as {
-        structuredContent: BidDashboardData;
+        structuredContent: ProcurementDashboardData;
       };
 
       const bids = result.structuredContent.bids;
@@ -850,7 +850,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       const result = (await handler({}, extra)) as {
         content: Array<{ text: string }>;
-        structuredContent: BidDashboardData;
+        structuredContent: ProcurementDashboardData;
       };
 
       expect(result.structuredContent.bids).toEqual([]);
@@ -911,7 +911,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
-        structuredContent: BidDashboardData & {
+        structuredContent: ProcurementDashboardData & {
           focused_bid_detail: Record<string, unknown>;
         };
       };
@@ -943,7 +943,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({}, extra)) as {
-        structuredContent: BidDashboardData;
+        structuredContent: ProcurementDashboardData;
       };
 
       expect(result.structuredContent.focused_bid_detail).toBeUndefined();
@@ -969,7 +969,7 @@ describe('MCP App trigger tools #22-23', () => {
       supabase.from.mockReturnValue(mockChain);
 
       const result = (await handler({ bid_id: 'nonexistent-id' }, extra)) as {
-        structuredContent: BidDashboardData;
+        structuredContent: ProcurementDashboardData;
       };
 
       // Should still return bids but no focused detail
@@ -991,7 +991,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe('text');
-      expect(result.content[0].text).toContain('# Bid Dashboard');
+      expect(result.content[0].text).toContain('# Procurement Dashboard');
       expect(result.content[0].text).toContain('NHS Digital Transformation');
     });
 
@@ -1008,7 +1008,7 @@ describe('MCP App trigger tools #22-23', () => {
       };
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Bid dashboard failed');
+      expect(result.content[0].text).toContain('Procurement dashboard failed');
       expect(result.content[0].text).toContain('Database timeout');
     });
 
@@ -1020,7 +1020,7 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: [
           {
             id: 'bid-003',
-            name: 'Unnamed Bid',
+            name: 'Unnamed Procurement',
             buyer: null,
             status: 'draft',
             deadline: null,
@@ -1033,7 +1033,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({}, extra)) as {
-        structuredContent: BidDashboardData;
+        structuredContent: ProcurementDashboardData;
       };
 
       expect(result.structuredContent.bids[0].buyer).toBeNull();
@@ -1092,7 +1092,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
-        structuredContent: BidDashboardData & {
+        structuredContent: ProcurementDashboardData & {
           focused_bid_detail: Record<string, unknown>;
         };
       };
@@ -1121,7 +1121,7 @@ describe('MCP App trigger tools #22-23', () => {
         maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
-            name: 'Test Bid',
+            name: 'Test Procurement',
             description: null,
             domain_metadata: makeBidMetadata(),
           },
@@ -1183,7 +1183,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
-        structuredContent: BidDashboardData & {
+        structuredContent: ProcurementDashboardData & {
           focused_bid_detail: Record<string, unknown>;
         };
       };
@@ -1211,7 +1211,7 @@ describe('MCP App trigger tools #22-23', () => {
         maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
-            name: 'Test Bid',
+            name: 'Test Procurement',
             description: null,
             domain_metadata: makeBidMetadata(),
           },
@@ -1273,7 +1273,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
-        structuredContent: BidDashboardData & {
+        structuredContent: ProcurementDashboardData & {
           focused_bid_detail: Record<string, unknown>;
         };
       };
@@ -1300,7 +1300,7 @@ describe('MCP App trigger tools #22-23', () => {
         maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
-            name: 'Empty Bid',
+            name: 'Empty Procurement',
             description: null,
             domain_metadata: makeBidMetadata(),
           },
@@ -1328,7 +1328,7 @@ describe('MCP App trigger tools #22-23', () => {
       });
 
       const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
-        structuredContent: BidDashboardData & {
+        structuredContent: ProcurementDashboardData & {
           focused_bid_detail: Record<string, unknown>;
         };
       };
@@ -1365,7 +1365,7 @@ describe('MCP App trigger tools #22-23', () => {
           single: vi.fn().mockResolvedValue({
             data: {
               id: 'bid-001',
-              name: 'Test Bid',
+              name: 'Test Procurement',
               description: null,
               domain_metadata: makeBidMetadata({
                 buyer: 'Test Corp',
@@ -1482,7 +1482,7 @@ describe('MCP App trigger tools #22-23', () => {
           single: vi.fn().mockResolvedValue({
             data: {
               id: 'bid-001',
-              name: 'Test Bid',
+              name: 'Test Procurement',
               description: null,
               domain_metadata: makeBidMetadata(),
               is_archived: false,
@@ -1585,7 +1585,7 @@ describe('MCP App trigger tools #22-23', () => {
           single: vi.fn().mockResolvedValue({
             data: {
               id: 'bid-001',
-              name: 'Test Bid',
+              name: 'Test Procurement',
               description: null,
               domain_metadata: makeBidMetadata(),
               is_archived: false,
@@ -1658,7 +1658,7 @@ describe('MCP App trigger tools #22-23', () => {
           single: vi.fn().mockResolvedValue({
             data: {
               id: 'bid-001',
-              name: 'Empty Bid',
+              name: 'Empty Procurement',
               description: null,
               domain_metadata: makeBidMetadata(),
               is_archived: false,
@@ -1714,7 +1714,7 @@ describe('MCP App trigger tools #22-23', () => {
           single: vi.fn().mockResolvedValue({
             data: {
               id: 'bid-001',
-              name: 'Test Bid',
+              name: 'Test Procurement',
               description: null,
               domain_metadata: makeBidMetadata(),
               is_archived: false,

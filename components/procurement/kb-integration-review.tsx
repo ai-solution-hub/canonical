@@ -46,8 +46,8 @@ interface KBCandidate {
 interface KBIntegrationReviewProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  bidId: string;
-  bidName: string;
+  procurementId: string;
+  procurementName: string;
   candidates: KBCandidate[];
   onIntegrationComplete: (result: {
     created: number;
@@ -84,8 +84,8 @@ function truncateText(text: string, maxLength: number): string {
 export function KBIntegrationReview({
   open,
   onOpenChange,
-  bidId,
-  bidName,
+  procurementId,
+  procurementName,
   candidates,
   onIntegrationComplete,
 }: KBIntegrationReviewProps) {
@@ -190,7 +190,7 @@ export function KBIntegrationReview({
         };
       });
 
-      const res = await fetch(`/api/bids/${bidId}/outcome/integrate`, {
+      const res = await fetch(`/api/procurement/${procurementId}/outcome/integrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ integrations }),
@@ -238,7 +238,7 @@ export function KBIntegrationReview({
           </DialogTitle>
           <DialogDescription>
             Review winning responses from{' '}
-            <span className="font-medium text-foreground">{bidName}</span> and
+            <span className="font-medium text-foreground">{procurementName}</span> and
             choose how to integrate them into the knowledge base.
           </DialogDescription>
         </DialogHeader>

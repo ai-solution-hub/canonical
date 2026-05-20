@@ -79,7 +79,7 @@ const BID_DETAIL_TYPES = new Set([
  * no asynchronous operations.
  */
 export function inferLayer(input: LayerInferenceInput): LayerSuggestion {
-  // Rule 1: Bid-discovered content
+  // Rule 1: Procurement-discovered content
   if (input.isBidDiscovered) {
     return {
       suggestedLayer: LAYER_BID_DETAIL,
@@ -89,7 +89,7 @@ export function inferLayer(input: LayerInferenceInput): LayerSuggestion {
     };
   }
 
-  // Rule 2: Bid library Q&A pairs
+  // Rule 2: Procurement library Q&A pairs
   if (
     input.ingestionSource === 'bid_library' &&
     input.contentType === 'q_a_pair'

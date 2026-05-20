@@ -182,7 +182,7 @@ const DEFAULT_FEATURES: Record<FeatureName, FeatureToggle> = {
   content_layers: { enabled: false, label: 'Content Layers', description: '' },
   draft_status: { enabled: true, label: 'Draft Status', description: '' },
   ai_integration: { enabled: true, label: 'AI Integration', description: '' },
-  bid_management: { enabled: true, label: 'Bid Management', description: '' },
+  bid_management: { enabled: true, label: 'Procurement Management', description: '' },
 };
 
 export function mockClientFeaturesContext(
@@ -222,7 +222,7 @@ const DEFAULT_LAYERS: LayerDefinition[] = [
   },
   {
     key: 'bid_detail',
-    label: 'Bid Detail',
+    label: 'Procurement Detail',
     description: 'Factual content for tender responses',
     order: 2,
   },

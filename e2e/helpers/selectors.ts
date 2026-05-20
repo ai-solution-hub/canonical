@@ -16,7 +16,7 @@ export const selectors = {
     browseLink: 'a[href="/browse"]',
     libraryLink: 'a[href="/library"]',
     coverageLink: 'a[href="/coverage"]',
-    bidsLink: 'a[href="/bid"]',
+    bidsLink: 'a[href="/procurement"]',
     reviewLink: 'a[href="/review"]',
     settingsButton: 'button[aria-label="Settings"]',
     searchButton: 'button[aria-label="Search"]',
@@ -59,13 +59,13 @@ export const selectors = {
     readerContent: '[data-testid="reader-content"]',
   },
 
-  /** Bid pages */
+  /** Procurement pages */
   bid: {
     bidList: '[data-testid="bid-list"]',
     bidCard: '[data-testid="bid-card"]',
-    newBidButton: 'button:has-text("New Bid")',
-    bidName: '[data-testid="bid-name"]',
-    bidStatus: '[data-testid="bid-status"]',
+    newBidButton: 'button:has-text("New Procurement")',
+    procurementName: '[data-testid="bid-name"]',
+    procurementStatus: '[data-testid="bid-status"]',
     questionsTab: '[data-testid="questions-tab"], button:has-text("Questions")',
     responsesTab: '[data-testid="responses-tab"], button:has-text("Responses")',
     documentsTab: '[data-testid="documents-tab"], button:has-text("Documents")',

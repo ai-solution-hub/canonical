@@ -26,8 +26,8 @@ vi.mock('next/link', () => ({
 // ---------------------------------------------------------------------------
 
 const WORKSPACES: ActiveBidWorkspace[] = [
-  { id: 'ws-1', name: 'Bid Alpha', color: '#ff0000', deadline: '2026-04-15' },
-  { id: 'ws-2', name: 'Bid Beta', color: '#00ff00', deadline: null },
+  { id: 'ws-1', name: 'Procurement Alpha', color: '#ff0000', deadline: '2026-04-15' },
+  { id: 'ws-2', name: 'Procurement Beta', color: '#00ff00', deadline: null },
 ];
 
 const ITEM_ID = 'item-001';
@@ -105,8 +105,8 @@ describe('QuickAssignButton', () => {
     await user.click(trigger);
 
     // Popover should show workspace names
-    expect(screen.getByText('Bid Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Bid Beta')).toBeInTheDocument();
+    expect(screen.getByText('Procurement Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Procurement Beta')).toBeInTheDocument();
   });
 
   it('shows check mark for assigned workspaces in popover', async () => {
@@ -127,11 +127,11 @@ describe('QuickAssignButton', () => {
     await user.click(trigger);
 
     // ws-1 option should be selected
-    const ws1Option = screen.getByRole('option', { name: /Bid Alpha/ });
+    const ws1Option = screen.getByRole('option', { name: /Procurement Alpha/ });
     expect(ws1Option).toHaveAttribute('aria-selected', 'true');
 
     // ws-2 option should not be selected
-    const ws2Option = screen.getByRole('option', { name: /Bid Beta/ });
+    const ws2Option = screen.getByRole('option', { name: /Procurement Beta/ });
     expect(ws2Option).toHaveAttribute('aria-selected', 'false');
   });
 
@@ -150,10 +150,10 @@ describe('QuickAssignButton', () => {
     const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
     await user.click(trigger);
 
-    const option = screen.getByRole('option', { name: /Bid Alpha/ });
+    const option = screen.getByRole('option', { name: /Procurement Alpha/ });
     await user.click(option);
 
-    expect(mockOnChange).toHaveBeenCalledWith(ITEM_ID, 'ws-1', 'Bid Alpha');
+    expect(mockOnChange).toHaveBeenCalledWith(ITEM_ID, 'ws-1', 'Procurement Alpha');
   });
 
   it('shows empty state when no active workspaces exist', async () => {
@@ -190,7 +190,7 @@ describe('QuickAssignButton', () => {
     const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
     await user.click(trigger);
 
-    // Should show formatted deadline for Bid Alpha (15 Apr)
+    // Should show formatted deadline for Procurement Alpha (15 Apr)
     expect(screen.getByText('15 Apr')).toBeInTheDocument();
   });
 
@@ -277,7 +277,7 @@ describe('QuickAssignButton', () => {
       await user.click(trigger);
 
       const shortcut = screen.getByRole('button', {
-        name: 'Quick add to Bid Alpha',
+        name: 'Quick add to Procurement Alpha',
       });
       expect(shortcut).toBeInTheDocument();
     });
@@ -346,11 +346,11 @@ describe('QuickAssignButton', () => {
       await user.click(trigger);
 
       const shortcut = screen.getByRole('button', {
-        name: 'Quick add to Bid Alpha',
+        name: 'Quick add to Procurement Alpha',
       });
       await user.click(shortcut);
 
-      expect(mockOnChange).toHaveBeenCalledWith(ITEM_ID, 'ws-1', 'Bid Alpha');
+      expect(mockOnChange).toHaveBeenCalledWith(ITEM_ID, 'ws-1', 'Procurement Alpha');
     });
 
     it('shows check mark on quick-add shortcut when already assigned', async () => {
@@ -372,7 +372,7 @@ describe('QuickAssignButton', () => {
       await user.click(trigger);
 
       const shortcut = screen.getByRole('button', {
-        name: 'Quick add to Bid Alpha',
+        name: 'Quick add to Procurement Alpha',
       });
       expect(shortcut).toBeInTheDocument();
 
@@ -401,7 +401,7 @@ describe('QuickAssignButton', () => {
       await user.click(trigger);
 
       const shortcut = screen.getByRole('button', {
-        name: 'Quick add to Bid Beta',
+        name: 'Quick add to Procurement Beta',
       });
       // Should have primary-coloured styling (bg-primary/10, text-primary)
       expect(shortcut.className).toContain('text-primary');

@@ -48,16 +48,16 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
-  BidStateBadge,
-  BidStateStepper,
+  ProcurementWorkflowBadge,
+  ProcurementWorkflowStepper,
 } from '@/components/procurement/procurement-workflow-indicator';
-import { BidExportMenu } from '@/components/procurement/procurement-export-menu';
+import { ProcurementExportMenu } from '@/components/procurement/procurement-export-menu';
 import {
   ReadinessChecklist,
   ReadinessBadge,
 } from '@/components/procurement/readiness-checklist';
 import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
-import { BidOutcomeDialog } from '@/components/procurement/procurement-outcome';
+import { ProcurementOutcomeDialog } from '@/components/procurement/procurement-outcome';
 import { KBIntegrationReview } from '@/components/procurement/kb-integration-review';
 import { ConfidenceDot } from '@/components/shared/confidence-badge';
 import { QuestionList } from '@/components/procurement/question-list';
@@ -65,24 +65,24 @@ import { QuestionReview } from '@/components/procurement/question-review';
 import { TenderUpload } from '@/components/procurement/tender-upload';
 import { TenderMetadataPrompt } from '@/components/procurement/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
-import { useBidActions } from '@/hooks/bid/use-bid-actions';
-import { useBidExport } from '@/hooks/bid/use-bid-export';
-import { useBidReadiness } from '@/hooks/bid/use-bid-readiness';
+import { useBidActions } from '@/hooks/procurement/use-procurement-actions';
+import { useBidExport } from '@/hooks/procurement/use-procurement-export';
+import { useBidReadiness } from '@/hooks/procurement/use-procurement-readiness';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
 import { BID_STATE_LABELS } from '@/lib/procurement/procurement-workflow';
 import { cn } from '@/lib/utils';
 import type {
-  Bid,
-  BidMetadata,
-  BidQuestionStats,
+  Procurement,
+  ProcurementMetadata,
+  ProcurementQuestionStats,
   TenderDocument,
   ConfidencePosture,
-  BidState,
+  ProcurementWorkflowState,
   ExtractionResult,
 } from '@/types/procurement';
 
-export default function BidDetailPage({
+export default function ProcurementDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -121,10 +121,10 @@ export default function BidDetailPage({
     deleteConfirmOpen,
     setDeleteConfirmOpen,
     handleDeleteConfirmed,
-    fetchBid,
+    fetchProcurement,
     fetchQuestions,
     metadata,
-    bidStatus,
+    procurementStatus,
     totalQuestions,
     completedCount,
     progressPercent,
@@ -143,16 +143,16 @@ export default function BidDetailPage({
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <BidDetailSkeleton />
+        <ProcurementDetailSkeleton />
       </div>
     );
   }
 
-  if (!bid || !bidStatus) {
+  if (!bid || !procurementStatus) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <Link
-          href="/bid"
+          href="/procurement"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
@@ -167,13 +167,13 @@ export default function BidDetailPage({
             aria-hidden="true"
           />
           <h2 className="mt-4 text-lg font-semibold text-foreground">
-            Bid not found
+            Procurement not found
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             This bid may have been deleted or you may not have access.
           </p>
           <Button asChild variant="outline" className="mt-4">
-            <Link href="/bid">Return to Bids</Link>
+            <Link href="/procurement">Return to Bids</Link>
           </Button>
         </div>
       </div>
@@ -184,7 +184,7 @@ export default function BidDetailPage({
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Back link */}
       <Link
-        href="/bid"
+        href="/procurement"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
@@ -198,7 +198,7 @@ export default function BidDetailPage({
             <h1 className="text-xl font-semibold text-foreground">
               {bid.name}
             </h1>
-            <BidStateBadge state={bidStatus} />
+            <ProcurementWorkflowBadge state={procurementStatus} />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {metadata?.buyer && (
@@ -281,13 +281,13 @@ export default function BidDetailPage({
                 readiness={readiness}
                 isLoading={readinessLoading}
               />
-              <BidExportMenu
-                bidId={id}
-                bidName={bid.name}
+              <ProcurementExportMenu
+                procurementId={id}
+                procurementName={bid.name}
                 hasQuestions={totalQuestions > 0}
               />
               <Button asChild variant="default" size="sm">
-                <Link href={`/bid/${id}/session`}>
+                <Link href={`/procurement/${id}/session`}>
                   <FileText className="mr-1.5 size-4" aria-hidden="true" />
                   Open Session
                 </Link>
@@ -316,7 +316,7 @@ export default function BidDetailPage({
             {/* Mobile actions — visible on mobile only */}
             <div className="flex items-center gap-2 sm:hidden">
               <Button asChild variant="default" size="sm">
-                <Link href={`/bid/${id}/session`}>
+                <Link href={`/procurement/${id}/session`}>
                   <FileText className="mr-1.5 size-4" aria-hidden="true" />
                   Open Session
                 </Link>
@@ -328,8 +328,8 @@ export default function BidDetailPage({
                 isSubmitted={isSubmitted}
                 totalQuestions={totalQuestions}
                 role={role}
-                bidId={id}
-                bidName={bid.name}
+                procurementId={id}
+                procurementName={bid.name}
                 onStatusTransition={handleStatusTransition}
                 onShowOutcomeDialog={() => setShowOutcomeDialog(true)}
                 onDelete={handleDelete}
@@ -344,7 +344,7 @@ export default function BidDetailPage({
         <div className="mt-4 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
           <TenderMetadataPrompt
             metadata={extractedMetadata}
-            bidId={id}
+            procurementId={id}
             onUpdated={clearExtractedMetadata}
           />
         </div>
@@ -352,7 +352,7 @@ export default function BidDetailPage({
 
       {/* State stepper */}
       <div className="mt-4">
-        <BidStateStepper state={bidStatus} />
+        <ProcurementWorkflowStepper state={procurementStatus} />
       </div>
 
       {/* Tabs */}
@@ -360,7 +360,7 @@ export default function BidDetailPage({
         <div
           className="flex gap-4"
           role="tablist"
-          aria-label="Bid sections"
+          aria-label="Procurement sections"
           onKeyDown={handleTablistKeyDown}
         >
           {tabs.map((tab) => (
@@ -408,8 +408,8 @@ export default function BidDetailPage({
         {activeTab === 'overview' && (
           <OverviewTab
             bid={bid}
-            bidId={id}
-            bidStatus={bidStatus}
+            procurementId={id}
+            procurementStatus={procurementStatus}
             stats={stats}
             progressPercent={progressPercent}
             completedCount={completedCount}
@@ -429,7 +429,7 @@ export default function BidDetailPage({
             {showQuestionReview && extractedQuestions.length > 0 && (
               <div className="mb-6 rounded-lg border bg-card p-4">
                 <QuestionReview
-                  bidId={id}
+                  procurementId={id}
                   questions={extractedQuestions}
                   onConfirmed={handleQuestionReviewConfirmed}
                   onCancelled={handleQuestionReviewCancelled}
@@ -450,7 +450,7 @@ export default function BidDetailPage({
                     Find answers for {stats.unmatched_count} questions
                   </Button>
                 )}
-                {['drafting', 'in_review'].includes(bidStatus) && (
+                {['drafting', 'in_review'].includes(procurementStatus) && (
                   <Button
                     variant="default"
                     size="sm"
@@ -472,25 +472,25 @@ export default function BidDetailPage({
                 <CostEstimateDialog
                   open={showCostEstimate}
                   onOpenChange={setShowCostEstimate}
-                  bidId={id}
+                  procurementId={id}
                   onProceed={handleDraftAll}
                 />
               </div>
             )}
             <QuestionList
-              bidId={id}
+              procurementId={id}
               questions={questions}
               canEdit={canEdit}
               onQuestionsChanged={() => {
                 fetchQuestions();
-                fetchBid();
+                fetchProcurement();
               }}
             />
           </>
         )}
         {activeTab === 'documents' && (
           <DocumentsTab
-            bidId={id}
+            procurementId={id}
             tenderDocuments={bid.tender_documents ?? []}
             canEdit={canEdit}
             onUploadComplete={handleUploadComplete}
@@ -499,11 +499,11 @@ export default function BidDetailPage({
       </div>
 
       {/* Outcome dialog (submitted bids) */}
-      <BidOutcomeDialog
+      <ProcurementOutcomeDialog
         open={showOutcomeDialog}
         onOpenChange={setShowOutcomeDialog}
-        bidId={id}
-        bidName={bid.name}
+        procurementId={id}
+        procurementName={bid.name}
         onOutcomeRecorded={handleOutcomeRecorded}
       />
 
@@ -511,8 +511,8 @@ export default function BidDetailPage({
       <KBIntegrationReview
         open={showKBReview}
         onOpenChange={setShowKBReview}
-        bidId={id}
-        bidName={bid.name}
+        procurementId={id}
+        procurementName={bid.name}
         candidates={kbCandidates}
         onIntegrationComplete={handleKBIntegrationComplete}
       />
@@ -548,26 +548,26 @@ function MobileActionMenu({
   isSubmitted,
   totalQuestions,
   role,
-  bidId,
-  bidName,
+  procurementId,
+  procurementName,
   onStatusTransition,
   onShowOutcomeDialog,
   onDelete,
 }: {
-  regularTransitions: BidState[];
+  regularTransitions: ProcurementWorkflowState[];
   transitioning: boolean;
   isSubmitted: boolean;
   totalQuestions: number;
   role: string | null;
-  bidId: string;
-  bidName: string;
-  onStatusTransition: (state: BidState) => void;
+  procurementId: string;
+  procurementName: string;
+  onStatusTransition: (state: ProcurementWorkflowState) => void;
   onShowOutcomeDialog: () => void;
   onDelete: () => void;
 }) {
   const { exporting, isExporting, handleExport, handlePrint } = useBidExport({
-    bidId,
-    bidName,
+    procurementId,
+    procurementName,
   });
 
   const filteredTransitions = regularTransitions.filter(
@@ -688,8 +688,8 @@ function MobileActionMenu({
 
 function OverviewTab({
   bid,
-  bidId,
-  bidStatus,
+  procurementId,
+  procurementStatus,
   stats,
   progressPercent,
   completedCount,
@@ -703,10 +703,10 @@ function OverviewTab({
   readinessError,
   onRefreshReadiness,
 }: {
-  bid: Bid;
-  bidId: string;
-  bidStatus: BidState;
-  stats: BidQuestionStats | null;
+  bid: Procurement;
+  procurementId: string;
+  procurementStatus: ProcurementWorkflowState;
+  stats: ProcurementQuestionStats | null;
   progressPercent: number;
   completedCount: number;
   totalQuestions: number;
@@ -714,12 +714,12 @@ function OverviewTab({
   onSwitchTab: (tab: 'overview' | 'questions' | 'documents') => void;
   onShowOutcomeDialog: () => void;
   onShowKBReview: () => void;
-  readiness: import('@/hooks/bid/use-bid-readiness').ReadinessData | null;
+  readiness: import('@/hooks/procurement/use-procurement-readiness').ReadinessData | null;
   readinessLoading: boolean;
   readinessError: string | null;
   onRefreshReadiness: () => void;
 }) {
-  const metadata = bid.domain_metadata as BidMetadata;
+  const metadata = bid.domain_metadata as ProcurementMetadata;
   const postureBreakdown = stats
     ? [
         {
@@ -745,8 +745,8 @@ function OverviewTab({
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Next action prompt — full width */}
       <NextActionCard
-        bidStatus={bidStatus}
-        bidId={bidId}
+        procurementStatus={procurementStatus}
+        procurementId={procurementId}
         canEdit={canEdit}
         onShowOutcomeDialog={onShowOutcomeDialog}
         onShowKBReview={onShowKBReview}
@@ -817,7 +817,7 @@ function OverviewTab({
         </div>
       )}
 
-      {/* Bid details — spans 2 columns when confidence card is absent to avoid grid asymmetry */}
+      {/* Procurement details — spans 2 columns when confidence card is absent to avoid grid asymmetry */}
       {(() => {
         const hasDetails =
           metadata.estimated_value ||
@@ -925,14 +925,14 @@ function OverviewTab({
 
 /** State-aware next-action prompt for the Overview tab */
 function NextActionCard({
-  bidStatus,
-  bidId,
+  procurementStatus,
+  procurementId,
   canEdit,
   onShowOutcomeDialog,
   onShowKBReview,
 }: {
-  bidStatus: BidState;
-  bidId: string;
+  procurementStatus: ProcurementWorkflowState;
+  procurementId: string;
   canEdit: boolean;
   onShowOutcomeDialog: () => void;
   onShowKBReview: () => void;
@@ -947,7 +947,7 @@ function NextActionCard({
   };
 
   function getNextAction(): NextAction | null {
-    switch (bidStatus) {
+    switch (procurementStatus) {
       case 'draft':
       case 'questions_extracted':
       case 'matching':
@@ -958,7 +958,7 @@ function NextActionCard({
             'Open the drafting session to work through your bid responses using the knowledge base.',
           action: {
             type: 'link',
-            href: `/bid/${bidId}/session`,
+            href: `/procurement/${procurementId}/session`,
             label: 'Open Session',
           },
           icon: <PenLine className="size-5 text-primary" aria-hidden="true" />,
@@ -971,7 +971,7 @@ function NextActionCard({
             'Check your drafted responses for quality and completeness before exporting or submitting.',
           action: {
             type: 'link',
-            href: `/bid/${bidId}/session`,
+            href: `/procurement/${procurementId}/session`,
             label: 'Review Responses',
           },
           icon: <Eye className="size-5 text-primary" aria-hidden="true" />,
@@ -1055,12 +1055,12 @@ function NextActionCard({
 }
 
 function DocumentsTab({
-  bidId,
+  procurementId,
   tenderDocuments,
   canEdit,
   onUploadComplete,
 }: {
-  bidId: string;
+  procurementId: string;
   tenderDocuments: TenderDocument[];
   canEdit: boolean;
   onUploadComplete: (result?: ExtractionResult) => void;
@@ -1068,7 +1068,7 @@ function DocumentsTab({
   return (
     <div className="space-y-6">
       {canEdit && (
-        <TenderUpload bidId={bidId} onUploadComplete={onUploadComplete} />
+        <TenderUpload procurementId={procurementId} onUploadComplete={onUploadComplete} />
       )}
 
       {tenderDocuments.length > 0 ? (
@@ -1093,7 +1093,7 @@ function DocumentsTab({
                       ` · Uploaded ${formatDateUK(doc.uploaded_at)}`}
                   </p>
                 </div>
-                <TenderDownloadLink bidId={bidId} doc={doc} />
+                <TenderDownloadLink procurementId={procurementId} doc={doc} />
               </div>
             ))}
           </div>
@@ -1114,10 +1114,10 @@ function DocumentsTab({
 }
 
 function TenderDownloadLink({
-  bidId,
+  procurementId,
   doc,
 }: {
-  bidId: string;
+  procurementId: string;
   doc: TenderDocument;
 }) {
   const [downloading, setDownloading] = useState(false);
@@ -1126,7 +1126,7 @@ function TenderDownloadLink({
     setDownloading(true);
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/tender/download?path=${encodeURIComponent(doc.path)}`,
+        `/api/procurement/${procurementId}/tender/download?path=${encodeURIComponent(doc.path)}`,
       );
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -1160,7 +1160,7 @@ function TenderDownloadLink({
   );
 }
 
-function BidDetailSkeleton() {
+function ProcurementDetailSkeleton() {
   return (
     <div className="animate-pulse">
       <div className="h-4 w-24 rounded bg-muted" />

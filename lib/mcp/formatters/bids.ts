@@ -1,16 +1,16 @@
 /**
- * Bid-related formatters for MCP tool responses.
+ * Procurement-related formatters for MCP tool responses.
  */
 import { formatDateUK } from '@/lib/format';
 import { htmlToMarkdown } from '@/lib/content/html-to-markdown';
 import { truncate, formatProgress } from './shared';
 
 // ---------------------------------------------------------------------------
-// Bid detail
+// Procurement detail
 // ---------------------------------------------------------------------------
 
 /** Individual question summary within a bid detail view */
-export interface BidQuestionSummary {
+export interface ProcurementQuestionSummary {
   id: string;
   question_text: string;
   status: string;
@@ -21,12 +21,12 @@ export interface BidQuestionSummary {
 }
 
 /** A section grouping questions within a bid */
-export interface BidSection {
+export interface ProcurementSection {
   name: string;
-  questions: BidQuestionSummary[];
+  questions: ProcurementQuestionSummary[];
 }
 
-export interface BidDetail {
+export interface ProcurementDetail {
   id: string;
   name: string;
   buyer: string | null;
@@ -44,12 +44,12 @@ export interface BidDetail {
     drafted_count: number;
     complete_count: number;
   } | null;
-  sections: BidSection[];
+  sections: ProcurementSection[];
   status_breakdown: Record<string, number>;
   confidence_breakdown: Record<string, number>;
 }
 
-export function formatBidDetail(bid: BidDetail): string {
+export function formatBidDetail(bid: ProcurementDetail): string {
   const lines: string[] = [`# ${bid.name}`, '', `**Status:** ${bid.status}`];
 
   if (bid.buyer) lines.push(`**Buyer:** ${bid.buyer}`);
@@ -120,10 +120,10 @@ export function formatBidDetail(bid: BidDetail): string {
 }
 
 // ---------------------------------------------------------------------------
-// Bid question
+// Procurement question
 // ---------------------------------------------------------------------------
 
-export interface BidQuestionDetail {
+export interface ProcurementQuestionDetail {
   id: string;
   question_text: string;
   section_name: string | null;
@@ -134,9 +134,9 @@ export interface BidQuestionDetail {
   review_status: string | null;
 }
 
-export function formatBidQuestion(q: BidQuestionDetail): string {
+export function formatBidQuestion(q: ProcurementQuestionDetail): string {
   const lines: string[] = [
-    '# Bid Question',
+    '# Procurement Question',
     '',
     `**Question:** ${q.question_text}`,
   ];
@@ -177,7 +177,7 @@ export function formatCitation(citation: CitationResult): string {
     '# Citation Recorded',
     '',
     `**Content item:** ${citation.content_item_id}`,
-    `**Bid response:** ${citation.bid_response_id}`,
+    `**Procurement response:** ${citation.bid_response_id}`,
     `**Type:** ${citation.citation_type}`,
     `**ID:** ${citation.id}`,
     '',

@@ -13,8 +13,8 @@ import { checkResponseQuality } from '@/lib/ai/quality-check';
 import { getModelForTier } from '@/lib/anthropic';
 import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
 import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
-import type { BidResponseMetadata } from '@/types/procurement-metadata';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementResponseMetadata } from '@/types/procurement-metadata';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import type { Json } from '@/supabase/types/database.types';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
@@ -66,30 +66,30 @@ export async function POST(
 
     // Verify bid exists and is in an appropriate state.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return new Response(JSON.stringify({ error: 'Bid not found' }), {
+    if (procurementError || !bid) {
+      return new Response(JSON.stringify({ error: 'Procurement not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const bidStatus = (bid.status as BidState) ?? 'draft';
-    const draftableStates: BidState[] = [
+    const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
+    const draftableStates: ProcurementWorkflowState[] = [
       'drafting',
       'in_review',
       'ready_for_export',
     ];
-    if (!draftableStates.includes(bidStatus)) {
+    if (!draftableStates.includes(procurementStatus)) {
       return new Response(
         JSON.stringify({
-          error: `Bid is in "${bidStatus}" state -- must be drafting or later`,
+          error: `Procurement is in "${procurementStatus}" state -- must be drafting or later`,
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
@@ -236,7 +236,7 @@ export async function POST(
           send('pass3_complete', { quality: qualityData });
 
           // Save the response
-          const responseMetadata: BidResponseMetadata = {
+          const responseMetadata: ProcurementResponseMetadata = {
             citations_data: {
               citations: pass2Result.citations,
               source_content_ids: matchedContent.map((c) => c.id),

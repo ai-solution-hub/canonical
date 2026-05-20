@@ -212,7 +212,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
       method: 'POST',
       body: {},
     });
@@ -224,7 +224,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
       method: 'POST',
       body: {},
     });
@@ -240,7 +240,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
       id: 'not-a-uuid',
       templateId: VALID_UUID_2,
     });
-    const req = createTestRequest('/api/bids/not-a-uuid/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/not-a-uuid/templates/y/auto-map', {
       method: 'POST',
       body: {},
     });
@@ -256,7 +256,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
     configureRole(mockSupabase, 'editor');
     mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0 });
 
-    const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
       method: 'POST',
       body: {},
     });
@@ -274,7 +274,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
       method: 'POST',
       body: {},
     });
@@ -294,7 +294,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
       method: 'POST',
       body: {},
     });
@@ -320,7 +320,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
       method: 'POST',
       body: {},
     });
@@ -351,7 +351,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
         }),
     );
 
-    // Bid questions
+    // Procurement questions
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -371,7 +371,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
         resolve({ data: null, error: null, count: 1 }),
     );
 
-    const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
       method: 'POST',
       body: { threshold: 0.7 },
     });
@@ -400,7 +400,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -412,7 +412,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -430,7 +430,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
       fieldId: VALID_UUID_3,
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -445,7 +445,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   it('returns 400 for invalid request body (FieldMappingUpdateSchema)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
       method: 'PATCH',
       body: { mapping_status: 'invalid_status' },
     });
@@ -467,7 +467,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -494,7 +494,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -532,7 +532,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
         resolve({ data: null, error: null, count: 5 }),
     );
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -567,7 +567,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(
-      '/api/bids/x/templates/y/fields/bulk-update',
+      '/api/procurement/x/templates/y/fields/bulk-update',
       {
         method: 'POST',
         body: validBody,
@@ -582,7 +582,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     configureRole(mockSupabase, 'viewer');
 
     const req = createTestRequest(
-      '/api/bids/x/templates/y/fields/bulk-update',
+      '/api/procurement/x/templates/y/fields/bulk-update',
       {
         method: 'POST',
         body: validBody,
@@ -599,7 +599,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     const badParams = createTestParams({ id: 'bad', templateId: VALID_UUID_2 });
 
     const req = createTestRequest(
-      '/api/bids/bad/templates/y/fields/bulk-update',
+      '/api/procurement/bad/templates/y/fields/bulk-update',
       {
         method: 'POST',
         body: validBody,
@@ -614,7 +614,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     configureRole(mockSupabase, 'editor');
 
     const req = createTestRequest(
-      '/api/bids/x/templates/y/fields/bulk-update',
+      '/api/procurement/x/templates/y/fields/bulk-update',
       {
         method: 'POST',
         body: { mappings: [] },
@@ -638,7 +638,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     });
 
     const req = createTestRequest(
-      '/api/bids/x/templates/y/fields/bulk-update',
+      '/api/procurement/x/templates/y/fields/bulk-update',
       {
         method: 'POST',
         body: validBody,
@@ -670,7 +670,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     );
 
     const req = createTestRequest(
-      '/api/bids/x/templates/y/fields/bulk-update',
+      '/api/procurement/x/templates/y/fields/bulk-update',
       {
         method: 'POST',
         body: validBody,
@@ -696,7 +696,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/bids/x/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
       method: 'POST',
       body: {},
     });
@@ -709,7 +709,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     configureRole(mockSupabase, 'editor');
     mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0 });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
       method: 'POST',
       body: {},
     });
@@ -723,7 +723,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
 
     const badParams = createTestParams({ id: 'bad', templateId: VALID_UUID_2 });
 
-    const req = createTestRequest('/api/bids/bad/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/bad/templates/y/fill', {
       method: 'POST',
       body: {},
     });
@@ -741,7 +741,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
       method: 'POST',
       body: {},
     });
@@ -763,7 +763,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
       method: 'POST',
       body: {},
     });
@@ -794,7 +794,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest('/api/bids/x/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
       method: 'POST',
       body: {},
     });
@@ -861,7 +861,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
       method: 'POST',
       body: {},
     });
@@ -930,7 +930,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       error: { message: 'Insert failed', code: '50000' },
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fill', {
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
       method: 'POST',
       body: {},
     });

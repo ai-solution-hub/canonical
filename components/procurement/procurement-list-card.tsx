@@ -3,21 +3,21 @@
 import Link from 'next/link';
 import { Calendar, Building2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { BidStateBadge } from '@/components/procurement/procurement-workflow-indicator';
+import { ProcurementWorkflowBadge } from '@/components/procurement/procurement-workflow-indicator';
 import { ConfidenceDot } from '@/components/shared/confidence-badge';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
-import { parseBidMetadata } from '@/lib/validation/schemas';
-import type { Bid, BidMetadata, ConfidencePosture } from '@/types/procurement';
-import type { BidState } from '@/types/procurement';
+import { parseProcurementMetadata } from '@/lib/validation/schemas';
+import type { Procurement, ProcurementMetadata, ConfidencePosture } from '@/types/procurement';
+import type { ProcurementWorkflowState } from '@/types/procurement';
 
 /**
- * Maps each BidState to a left-border accent class using semantic bid-* tokens.
+ * Maps each ProcurementWorkflowState to a left-border accent class using semantic bid-* tokens.
  * Classes must be written out fully for Tailwind's JIT scanner to detect them.
  */
-const STATUS_BORDER_CLASS: Record<BidState, string> = {
+const STATUS_BORDER_CLASS: Record<ProcurementWorkflowState, string> = {
   draft: 'border-l-bid-draft-border',
   questions_extracted: 'border-l-bid-discovery-border',
   matching: 'border-l-bid-discovery-border',
@@ -30,21 +30,21 @@ const STATUS_BORDER_CLASS: Record<BidState, string> = {
   withdrawn: 'border-l-bid-withdrawn-border',
 };
 
-interface BidListCardProps {
-  bid: Bid;
+interface ProcurementListCardProps {
+  bid: Procurement;
   className?: string;
   /** Optional Claude prompt to show a "Take action" button */
   claudePrompt?: string;
 }
 
-export function BidListCard({
+export function ProcurementListCard({
   bid,
   className,
   claudePrompt,
-}: BidListCardProps) {
-  const metadata = (parseBidMetadata(bid.domain_metadata) ??
-    bid.domain_metadata) as BidMetadata;
-  const bidStatus = bid.status as BidMetadata['status'];
+}: ProcurementListCardProps) {
+  const metadata = (parseProcurementMetadata(bid.domain_metadata) ??
+    bid.domain_metadata) as ProcurementMetadata;
+  const procurementStatus = bid.status as ProcurementMetadata['status'];
   const stats = bid.question_stats;
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount =
@@ -83,7 +83,7 @@ export function BidListCard({
       data-testid={`bid-card-${bid.id}`}
       className={cn(
         'group relative rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
-        STATUS_BORDER_CLASS[bidStatus] ?? 'border-l-bid-draft-border',
+        STATUS_BORDER_CLASS[procurementStatus] ?? 'border-l-bid-draft-border',
         className,
       )}
     >
@@ -92,13 +92,13 @@ export function BidListCard({
         <div className="flex items-start justify-between gap-2">
           <h3 className="truncate text-base font-semibold leading-tight">
             <Link
-              href={`/bid/${bid.id}`}
+              href={`/procurement/${bid.id}`}
               className="text-foreground transition-colors hover:underline decoration-muted-foreground/40 outline-none after:absolute after:inset-0 after:content-['']"
             >
               {bid.name}
             </Link>
           </h3>
-          <BidStateBadge state={bidStatus} className="shrink-0" />
+          <ProcurementWorkflowBadge state={procurementStatus} className="shrink-0" />
         </div>
 
         {/* Buyer and deadline */}

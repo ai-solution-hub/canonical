@@ -5,7 +5,7 @@ import { generateBidXlsx } from '@/lib/procurement/procurement-export-xlsx';
 import { XlsxExportBodySchema } from '@/lib/validation/schemas';
 import { parseBody } from '@/lib/validation';
 import {
-  fetchBidExportData,
+  fetchProcurementExportData,
   sanitiseFilename,
 } from '@/lib/procurement/procurement-export-data';
 
@@ -17,7 +17,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id: bidId } = await params;
+    const { id: procurementId } = await params;
 
     // Auth — all authenticated users can export (read-only operation)
     const auth = await getAuthenticatedClient();
@@ -35,7 +35,7 @@ export async function POST(
     const options = parsed.data;
 
     // Fetch and transform bid data
-    const result = await fetchBidExportData(auth.supabase, bidId);
+    const result = await fetchProcurementExportData(auth.supabase, procurementId);
     if (result instanceof NextResponse) return result;
 
     // Generate spreadsheet
@@ -45,7 +45,7 @@ export async function POST(
       useAdvancedVariant: options.use_advanced_variant,
     });
 
-    const safeName = sanitiseFilename(result.bidName);
+    const safeName = sanitiseFilename(result.procurementName);
     const bytes = new Uint8Array(buffer);
 
     return new NextResponse(bytes, {

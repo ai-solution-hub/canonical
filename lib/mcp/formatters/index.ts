@@ -40,11 +40,11 @@ export {
   formatExpiringContent,
 } from './dashboard';
 export {
-  type BidQuestionSummary,
-  type BidSection,
-  type BidDetail,
+  type ProcurementQuestionSummary,
+  type ProcurementSection,
+  type ProcurementDetail,
   formatBidDetail,
-  type BidQuestionDetail,
+  type ProcurementQuestionDetail,
   formatBidQuestion,
   type CitationResult,
   formatCitation,
@@ -110,7 +110,7 @@ export { formatClassification, formatSummaryResult } from './ai';
 export {
   type CoverageMatrixData,
   formatCoverageMatrix,
-  type BidDashboardData,
+  type ProcurementDashboardData,
   formatBidDashboard,
 } from './apps';
 export { type DocumentDiffData, formatDocumentDiff } from './documents';

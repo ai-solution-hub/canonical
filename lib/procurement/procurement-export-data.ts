@@ -17,16 +17,16 @@ import type {
   ExportBidMetadata,
   ExportCitation,
 } from '@/lib/procurement/procurement-export-types';
-import type { BidResponseMetadata } from '@/types/procurement-metadata';
+import type { ProcurementResponseMetadata } from '@/types/procurement-metadata';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** @public */
-export interface BidExportData {
+export interface ProcurementExportData {
   metadata: ExportBidMetadata;
   questions: ExportQuestion[];
-  bidName: string;
+  procurementName: string;
 }
 
 /**
@@ -35,12 +35,12 @@ export interface BidExportData {
  * Returns either the structured export data or a NextResponse error.
  * Callers should check: if result is a NextResponse, return it directly.
  */
-export async function fetchBidExportData(
+export async function fetchProcurementExportData(
   supabase: SupabaseClient<Database>,
-  bidId: string,
-): Promise<BidExportData | NextResponse> {
+  procurementId: string,
+): Promise<ProcurementExportData | NextResponse> {
   // Validate UUID
-  if (!UUID_RE.test(bidId)) {
+  if (!UUID_RE.test(procurementId)) {
     return NextResponse.json(
       { error: 'Invalid bid ID — must be a valid UUID' },
       { status: 400 },
@@ -49,15 +49,15 @@ export async function fetchBidExportData(
 
   // Fetch bid workspace (post-T2: discriminator is application_types.key via
   // JOIN, not the dropped workspaces.type col). 'bid' maps to 'procurement'.
-  const { data: bid, error: bidError } = await supabase
+  const { data: bid, error: procurementError } = await supabase
     .from('workspaces')
     .select('id, name, status, domain_metadata, application_types!inner(key)')
-    .eq('id', bidId)
+    .eq('id', procurementId)
     .eq('application_types.key', 'procurement')
     .single();
 
-  if (bidError || !bid) {
-    return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+  if (procurementError || !bid) {
+    return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
   }
 
   // Fetch questions with responses
@@ -84,7 +84,7 @@ export async function fetchBidExportData(
       )
     `,
     )
-    .eq('workspace_id', bidId)
+    .eq('workspace_id', procurementId)
     .order('section_sequence', { ascending: true })
     .order('question_sequence', { ascending: true });
 
@@ -105,15 +105,15 @@ export async function fetchBidExportData(
   }
 
   // Transform to export types
-  const bidMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
+  const procurementMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
   const exportMetadata: ExportBidMetadata = {
     bid_name: bid.name,
-    buyer: (bidMetadata.buyer as string) || 'Unknown Buyer',
-    reference_number: (bidMetadata.reference_number as string) || null,
-    deadline: (bidMetadata.deadline as string) || null,
+    buyer: (procurementMetadata.buyer as string) || 'Unknown Buyer',
+    reference_number: (procurementMetadata.reference_number as string) || null,
+    deadline: (procurementMetadata.deadline as string) || null,
     status: (bid.status as string) || 'draft',
-    estimated_value: (bidMetadata.estimated_value as string) || null,
-    notes: (bidMetadata.notes as string) || null,
+    estimated_value: (procurementMetadata.estimated_value as string) || null,
+    notes: (procurementMetadata.notes as string) || null,
   };
 
   const exportQuestions: ExportQuestion[] = questions.map((q) => {
@@ -121,7 +121,7 @@ export async function fetchBidExportData(
       ? q.bid_responses[0]
       : q.bid_responses;
 
-    const metadata = response?.metadata as BidResponseMetadata | null;
+    const metadata = response?.metadata as ProcurementResponseMetadata | null;
     const citations: ExportCitation[] = [];
 
     if (metadata?.citations_data?.citations) {
@@ -158,7 +158,7 @@ export async function fetchBidExportData(
   return {
     metadata: exportMetadata,
     questions: exportQuestions,
-    bidName: bid.name,
+    procurementName: bid.name,
   };
 }
 

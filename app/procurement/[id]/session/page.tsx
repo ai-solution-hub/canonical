@@ -22,7 +22,7 @@ import { ResponseActions } from '@/components/procurement/response-actions';
 import { StreamingPhaseIndicator } from '@/components/shared/streaming-phase-indicator';
 import { ContentLibraryDrawer } from '@/components/content/content-library-drawer';
 import { ResponseVersionHistory } from '@/components/procurement/response-version-history';
-import { BidContextProvider } from '@/components/procurement/procurement-context-provider';
+import { ProcurementContextProvider } from '@/components/procurement/procurement-context-provider';
 import { DraftRecoveryDialog } from '@/components/procurement/draft-recovery-dialog';
 import {
   Sheet,
@@ -39,10 +39,10 @@ import { useDraftRecovery } from '@/hooks/streaming/use-draft-recovery';
 import { useStreamCoordination } from '@/hooks/streaming/use-stream-coordination';
 import { cn } from '@/lib/utils';
 import type { Editor } from '@/components/procurement/response-editor';
-import type { BidState } from '@/types/procurement';
+import type { ProcurementWorkflowState } from '@/types/procurement';
 
-/** Bid states at or after review — used for citation panel default-expanded (P1-4). */
-const REVIEW_OR_LATER_STATES: BidState[] = [
+/** Procurement states at or after review — used for citation panel default-expanded (P1-4). */
+const REVIEW_OR_LATER_STATES: ProcurementWorkflowState[] = [
   'in_review',
   'ready_for_export',
   'submitted',
@@ -143,7 +143,7 @@ function CompactQuestionBar({
   );
 }
 
-export default function BidSessionPage({
+export default function ProcurementSessionPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -190,10 +190,10 @@ export default function BidSessionPage({
     handleCitationClick,
     navigatorQuestions,
     currentQuestion,
-    fetchBidData,
+    fetchProcurementData,
     fetchResponse,
   } = useStreamCoordination({
-    bidId: id,
+    procurementId: id,
     contentLibrary,
     editorInstanceRef,
   });
@@ -266,7 +266,7 @@ export default function BidSessionPage({
     (bid?.status != null &&
       (REVIEW_OR_LATER_STATES as readonly string[]).includes(bid.status));
 
-  const bidName = bid?.name;
+  const procurementName = bid?.name;
 
   // ── Next unanswered question index ──
   // A question is "unanswered" if it has no response (status is not_started)
@@ -315,18 +315,18 @@ export default function BidSessionPage({
   // ── Loading state ──
   if (loading) {
     return (
-      <BidContextProvider bidId={id}>
+      <ProcurementContextProvider procurementId={id}>
         <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
           <SessionSkeleton />
         </div>
-      </BidContextProvider>
+      </ProcurementContextProvider>
     );
   }
 
   // ── Error state ──
   if (error) {
     return (
-      <BidContextProvider bidId={id}>
+      <ProcurementContextProvider procurementId={id}>
         <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
           <div
             className="flex flex-col items-center justify-center py-20 text-center"
@@ -340,25 +340,25 @@ export default function BidSessionPage({
               Couldn&apos;t load the session
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-            <Button variant="outline" onClick={fetchBidData} className="mt-4">
+            <Button variant="outline" onClick={fetchProcurementData} className="mt-4">
               Try again
             </Button>
           </div>
         </div>
-      </BidContextProvider>
+      </ProcurementContextProvider>
     );
   }
 
   if (!bid || questions.length === 0) {
     return (
-      <BidContextProvider bidId={id}>
+      <ProcurementContextProvider procurementId={id}>
         <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
           <Link
-            href={`/bid/${id}`}
+            href={`/procurement/${id}`}
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Back to Bid
+            Back to Procurement
           </Link>
           <div className="mt-8 flex flex-col items-center justify-center py-20 text-center">
             <AlertCircle
@@ -371,11 +371,11 @@ export default function BidSessionPage({
               session.
             </p>
             <Button asChild variant="outline" className="mt-4">
-              <Link href={`/bid/${id}`}>Go to Bid Detail</Link>
+              <Link href={`/procurement/${id}`}>Go to Procurement Detail</Link>
             </Button>
           </div>
         </div>
-      </BidContextProvider>
+      </ProcurementContextProvider>
     );
   }
 
@@ -383,20 +383,20 @@ export default function BidSessionPage({
   const sessionContent = (
     <div
       className="mx-auto max-w-screen-2xl px-4 py-4 sm:px-6"
-      aria-label="Bid drafting session"
+      aria-label="Procurement drafting session"
     >
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Link
-            href={`/bid/${id}`}
+            href={`/procurement/${id}`}
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             <span>Back to bid</span>
           </Link>
           <h1 className="text-lg font-semibold text-foreground truncate">
-            {bidName}
+            {procurementName}
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -674,7 +674,7 @@ export default function BidSessionPage({
   );
 
   return (
-    <BidContextProvider bidId={id}>
+    <ProcurementContextProvider procurementId={id}>
       {sessionContent}
       <ContentLibraryDrawer
         open={contentLibrary.isOpen}
@@ -685,17 +685,17 @@ export default function BidSessionPage({
         onInsert={handleLibraryInsert}
       />
       <ResponseVersionHistory
-        bidId={id}
+        procurementId={id}
         responseId={response?.id ?? null}
         currentVersion={response?.version ?? 1}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
         onRestored={() => {
           void fetchResponse();
-          void fetchBidData();
+          void fetchProcurementData();
         }}
       />
-    </BidContextProvider>
+    </ProcurementContextProvider>
   );
 }
 

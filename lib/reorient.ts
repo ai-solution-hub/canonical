@@ -5,10 +5,10 @@ import type {
   UrgentItem,
   TeamChange,
   RecentWorkItem,
-  BidBriefing,
+  ProcurementBriefing,
 } from '@/types/reorient';
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
-import { fetchActiveBidsWithStats } from '@/lib/procurement/procurement-queries';
+import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/user/display-name';
 
@@ -172,7 +172,7 @@ export async function fetchReorientData(
         .is('read_at', null)
         .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
 
-      // 6: Bid response changes by others (team changes)
+      // 6: Procurement response changes by others (team changes)
       supabase
         .from('bid_response_history')
         .select(
@@ -193,7 +193,7 @@ export async function fetchReorientData(
         .order('created_at', { ascending: false })
         .limit(5),
     ]),
-    fetchActiveBidsWithStats(supabase),
+    fetchActiveProcurementWithStats(supabase),
   ]);
 
   // --- Extract team changes ---
@@ -246,7 +246,7 @@ export async function fetchReorientData(
           action: 'updated',
           entity_type: 'bid_response',
           entity_id: row.response_id,
-          entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Bid',
+          entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Procurement',
           domain: undefined,
           created_at: row.created_at,
           workspace_id: br?.bid_questions?.project_id,
@@ -306,7 +306,7 @@ export async function fetchReorientData(
         } | null;
         const questionText =
           br?.bid_questions?.question_text ?? 'Untitled question';
-        const bidId = br?.bid_questions?.workspaces?.id;
+        const procurementId = br?.bid_questions?.workspaces?.id;
         my_recent_work.push({
           entity_type: 'bid_response',
           entity_id: row.response_id,
@@ -315,9 +315,9 @@ export async function fetchReorientData(
               ? `${questionText.slice(0, 57)}...`
               : questionText,
           action: 'edited',
-          href: bidId ? `/bid/${bidId}/session` : '/bid',
+          href: procurementId ? `/procurement/${procurementId}/session` : '/procurement',
           created_at: row.created_at,
-          workspace_id: bidId,
+          workspace_id: procurementId,
           question_id: br?.question_id,
         });
       }
@@ -337,10 +337,10 @@ export async function fetchReorientData(
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
   // --- Extract active bids with question stats (from shared helper) ---
-  const { workspaces: bidWorkspaces, statsMap } = activeBidsResult;
-  const bid_summary: BidBriefing[] = [];
+  const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
+  const bid_summary: ProcurementBriefing[] = [];
 
-  for (const workspace of bidWorkspaces) {
+  for (const workspace of procurementWorkspaces) {
     const meta = workspace.domain_metadata as Record<string, unknown> | null;
     const stats = statsMap.get(workspace.id);
     const deadline = (meta?.deadline as string) ?? null;
@@ -351,7 +351,7 @@ export async function fetchReorientData(
 
     bid_summary.push({
       id: workspace.id,
-      name: workspace.name ?? 'Untitled Bid',
+      name: workspace.name ?? 'Untitled Procurement',
       buyer: (meta?.buyer as string) ?? null,
       status: (meta?.status as string) ?? 'draft',
       deadline,
@@ -361,7 +361,7 @@ export async function fetchReorientData(
       answered_questions: answeredQ,
       approved_questions: stats?.complete_count ?? 0,
       gap_count: (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
-      href: `/bid/${workspace.id}`,
+      href: `/procurement/${workspace.id}`,
     });
   }
 

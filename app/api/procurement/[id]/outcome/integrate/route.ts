@@ -10,7 +10,7 @@ import { parseBody } from '@/lib/validation';
 import { KBIntegrationBodySchema } from '@/lib/validation/schemas';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import type { Json } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
 
@@ -52,25 +52,25 @@ export async function POST(
 
     // Verify bid exists and is in won state.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, name, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
-    const bidMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
-    const bidStatus = (bid.status as BidState) ?? 'draft';
+    const procurementMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
+    const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
 
-    if (bidStatus !== 'won') {
+    if (procurementStatus !== 'won') {
       return NextResponse.json(
         {
-          error: `KB integration is only available for won bids (current status: "${bidStatus}")`,
-          current_status: bidStatus,
+          error: `KB integration is only available for won bids (current status: "${procurementStatus}")`,
+          current_status: procurementStatus,
         },
         { status: 400 },
       );
@@ -162,7 +162,7 @@ export async function POST(
 
       if (integration.action === 'new_entry') {
         // Dedup — spec §6 D1 variant for bid-outcome: exact-hash match
-        // is skip-and-log (not stamp). Bid-outcome is a post-won admin
+        // is skip-and-log (not stamp). Procurement-outcome is a post-won admin
         // workflow where duplicate content is almost certainly the
         // response already present in the KB. Skipping prevents double
         // entry; admin can review the log. Admins may `skip_dedup=true`
@@ -185,7 +185,7 @@ export async function POST(
           } catch (dedupErr) {
             logger.error(
               { err: dedupErr },
-              `Bid-outcome dedup check failed for question ${integration.question_id}`,
+              `Procurement-outcome dedup check failed for question ${integration.question_id}`,
             );
             // Non-fatal — proceed with insert as clean
           }
@@ -209,7 +209,7 @@ export async function POST(
             platform: 'extraction',
             source_url: null,
             embedding: JSON.stringify(embedding),
-            primary_domain: (bidMetadata.domain as string) ?? null,
+            primary_domain: (procurementMetadata.domain as string) ?? null,
             summary: `Response to bid question: ${questionText.slice(0, 200)}`,
             captured_date: new Date().toISOString(),
             created_by: user.id,

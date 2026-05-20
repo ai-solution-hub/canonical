@@ -1011,7 +1011,7 @@ async function runContentRetrievalChecks(
 }
 
 // ---------------------------------------------------------------------------
-// 4. Bid Tools (FC-30 to FC-32)
+// 4. Procurement Tools (FC-30 to FC-32)
 // ---------------------------------------------------------------------------
 
 async function runBidToolChecks(
@@ -1020,22 +1020,22 @@ async function runBidToolChecks(
 ): Promise<void> {
   console.log('\nBid Tools');
 
-  // FC-30: list_active_bids — returns bid content or "no active" message
+  // FC-30: list_active_procurement — returns bid content or "no active" message
   {
-    const result = await callTool('list_active_bids', {}, accessToken);
+    const result = await callTool('list_active_procurement', {}, accessToken);
     if (result.errorMessage) {
       record(
-        'Bid Tools',
+        'Procurement Tools',
         'FC-30',
-        'list_active_bids',
+        'list_active_procurement',
         'FAIL',
         result.errorMessage,
       );
     } else if (result.isError) {
       record(
-        'Bid Tools',
+        'Procurement Tools',
         'FC-30',
-        'list_active_bids',
+        'list_active_procurement',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -1048,25 +1048,25 @@ async function runBidToolChecks(
         textLower.includes('no active');
       if (hasKeyword) {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-30',
-          'list_active_bids',
+          'list_active_procurement',
           'PASS',
           `Response with bid keywords (${result.charCount} chars)`,
         );
       } else if (result.charCount > 0) {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-30',
-          'list_active_bids',
+          'list_active_procurement',
           'PASS',
           `Response present (${result.charCount} chars)`,
         );
       } else {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-30',
-          'list_active_bids',
+          'list_active_procurement',
           'FAIL',
           'No response content',
         );
@@ -1075,15 +1075,15 @@ async function runBidToolChecks(
   }
 
   // FC-31: get_bid_detail with known bid — keyword check
-  if (knownUUIDs.bidId) {
+  if (knownUUIDs.procurementId) {
     const result = await callTool(
       'get_bid_detail',
-      { id: knownUUIDs.bidId },
+      { id: knownUUIDs.procurementId },
       accessToken,
     );
     if (result.errorMessage) {
       record(
-        'Bid Tools',
+        'Procurement Tools',
         'FC-31',
         'get_bid_detail known bid',
         'FAIL',
@@ -1091,7 +1091,7 @@ async function runBidToolChecks(
       );
     } else if (result.isError) {
       record(
-        'Bid Tools',
+        'Procurement Tools',
         'FC-31',
         'get_bid_detail known bid',
         'FAIL',
@@ -1103,23 +1103,23 @@ async function runBidToolChecks(
         textLower.includes('question') || textLower.includes('q&a');
       if (result.text.trim().length > 50 && hasKeyword) {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-31',
           'get_bid_detail known bid',
           'PASS',
-          `Bid detail with question keywords (${result.charCount} chars)`,
+          `Procurement detail with question keywords (${result.charCount} chars)`,
         );
       } else if (result.text.trim().length > 50) {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-31',
           'get_bid_detail known bid',
           'PASS',
-          `Bid detail returned (${result.charCount} chars)`,
+          `Procurement detail returned (${result.charCount} chars)`,
         );
       } else {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-31',
           'get_bid_detail known bid',
           'FAIL',
@@ -1129,7 +1129,7 @@ async function runBidToolChecks(
     }
   } else {
     record(
-      'Bid Tools',
+      'Procurement Tools',
       'FC-31',
       'get_bid_detail known bid',
       'SKIP',
@@ -1146,7 +1146,7 @@ async function runBidToolChecks(
     );
     if (result.errorMessage) {
       record(
-        'Bid Tools',
+        'Procurement Tools',
         'FC-32',
         'get_bid_question known question',
         'FAIL',
@@ -1154,7 +1154,7 @@ async function runBidToolChecks(
       );
     } else if (result.isError) {
       record(
-        'Bid Tools',
+        'Procurement Tools',
         'FC-32',
         'get_bid_question known question',
         'FAIL',
@@ -1168,7 +1168,7 @@ async function runBidToolChecks(
         textLower.includes('status');
       if (result.text.trim().length > 50 && hasKeyword) {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-32',
           'get_bid_question known question',
           'PASS',
@@ -1176,7 +1176,7 @@ async function runBidToolChecks(
         );
       } else if (result.text.trim().length > 50) {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-32',
           'get_bid_question known question',
           'PASS',
@@ -1184,7 +1184,7 @@ async function runBidToolChecks(
         );
       } else {
         record(
-          'Bid Tools',
+          'Procurement Tools',
           'FC-32',
           'get_bid_question known question',
           'FAIL',
@@ -1194,7 +1194,7 @@ async function runBidToolChecks(
     }
   } else {
     record(
-      'Bid Tools',
+      'Procurement Tools',
       'FC-32',
       'get_bid_question known question',
       'SKIP',
@@ -2036,13 +2036,13 @@ async function runWriteToolChecks(
 
   // FC-64: cite_content — use real bid response UUID when available, else fake UUID
   {
-    if (knownUUIDs.bidResponseId) {
+    if (knownUUIDs.procurementResponseId) {
       // Real citation test with actual bid response
       const result = await callTool(
         'cite_content',
         {
           content_item_id: evalItem.id,
-          bid_response_id: knownUUIDs.bidResponseId,
+          bid_response_id: knownUUIDs.procurementResponseId,
         },
         accessToken,
       );
@@ -3034,9 +3034,9 @@ async function main(): Promise<void> {
   console.log('\nFetching known UUIDs...');
   const knownUUIDs = await getKnownUUIDs(supabase);
   console.log(`  Content item: ${knownUUIDs.contentItemId}`);
-  console.log(`  Bid: ${knownUUIDs.bidId ?? '(none)'}`);
+  console.log(`  Procurement: ${knownUUIDs.procurementId ?? '(none)'}`);
   console.log(`  Question: ${knownUUIDs.questionId ?? '(none)'}`);
-  console.log(`  Bid response: ${knownUUIDs.bidResponseId ?? '(none)'}`);
+  console.log(`  Procurement response: ${knownUUIDs.procurementResponseId ?? '(none)'}`);
 
   // Step 4: Create eval content item for write tool tests
   console.log('\nCreating eval content item...');
@@ -3053,7 +3053,7 @@ async function main(): Promise<void> {
     // Step 7: Content Retrieval
     await runContentRetrievalChecks(accessToken, knownUUIDs, evalItem);
 
-    // Step 8: Bid Tools
+    // Step 8: Procurement Tools
     await runBidToolChecks(accessToken, knownUUIDs);
 
     // Step 9: Coverage/Quality Tools

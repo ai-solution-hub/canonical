@@ -47,12 +47,12 @@ const singleItem: UploadReviewItem = {
 const itemWithWarnings: UploadReviewItem = {
   ...singleItem,
   id: 'item-2',
-  title: 'Bid Response Template',
+  title: 'Procurement Response Template',
   warnings: ['Embedding generation failed', 'Classification confidence low'],
   dedupMatches: [
     {
       id: 'dup-1',
-      title: 'Existing Bid Template',
+      title: 'Existing Procurement Template',
       similarity: 0.89,
       match_type: 'near_duplicate',
     },
@@ -228,7 +228,7 @@ describe('UploadReviewStep', () => {
         <UploadReviewStep {...defaultProps({ items: [itemWithWarnings] })} />,
       );
 
-      expect(screen.getByText('Existing Bid Template')).toBeInTheDocument();
+      expect(screen.getByText('Existing Procurement Template')).toBeInTheDocument();
     });
 
     it('does not display warnings section when warnings array is empty', () => {
@@ -490,7 +490,7 @@ describe('UploadReviewStep', () => {
       );
 
       expect(screen.getByText('ISO 27001 Security Policy')).toBeInTheDocument();
-      expect(screen.getByText('Bid Response Template')).toBeInTheDocument();
+      expect(screen.getByText('Procurement Response Template')).toBeInTheDocument();
       expect(screen.getByText('Meeting Notes Q4')).toBeInTheDocument();
       expect(screen.getByText('3 items')).toBeInTheDocument();
     });

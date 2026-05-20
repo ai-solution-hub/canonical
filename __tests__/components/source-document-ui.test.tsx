@@ -208,7 +208,7 @@ describe('SourceDocumentInfo', () => {
     const doc = {
       id: 'doc-1',
       filename: 'upload-xyz.docx',
-      original_filename: 'Bid-Response.docx',
+      original_filename: 'Procurement-Response.docx',
       mime_type:
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       file_size: 128_000,
@@ -237,7 +237,7 @@ describe('SourceDocumentInfo', () => {
 
     // Then document info appears
     await waitFor(() => {
-      expect(screen.getByText('Bid-Response.docx')).toBeInTheDocument();
+      expect(screen.getByText('Procurement-Response.docx')).toBeInTheDocument();
     });
 
     expect(screen.getByText('v3')).toBeInTheDocument();
@@ -247,7 +247,7 @@ describe('SourceDocumentInfo', () => {
     const doc = {
       id: 'doc-1',
       filename: 'upload-xyz.docx',
-      original_filename: 'Bid-Response.docx',
+      original_filename: 'Procurement-Response.docx',
       mime_type:
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       file_size: 128_000,
@@ -268,7 +268,7 @@ describe('SourceDocumentInfo', () => {
     render(<SourceDocumentInfo sourceDocumentId="doc-1" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Bid-Response.docx')).toBeInTheDocument();
+      expect(screen.getByText('Procurement-Response.docx')).toBeInTheDocument();
     });
 
     const toggleButton = screen.getByRole('button', {

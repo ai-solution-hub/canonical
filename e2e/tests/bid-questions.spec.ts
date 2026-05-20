@@ -3,7 +3,7 @@ import { isMobileViewport } from '../helpers/responsive';
 import { createServiceClient } from '../fixtures/supabase';
 
 /**
- * Flow: Bid Questions Tab
+ * Flow: Procurement Questions Tab
  *
  * Tests the Questions tab on the bid detail page (/bid/[id]) covering
  * question list rendering, section grouping, inline expansion, word
@@ -18,19 +18,19 @@ import { createServiceClient } from '../fixtures/supabase';
 // 1. Question List Rendering
 // ---------------------------------------------------------------------------
 
-test.describe('Bid questions list', () => {
+test.describe('Procurement questions list', () => {
   test('questions tab shows question count and sections', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Click the Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     // Question count heading
@@ -46,14 +46,14 @@ test.describe('Bid questions list', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -77,14 +77,14 @@ test.describe('Bid questions list', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -102,14 +102,14 @@ test.describe('Bid questions list', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     // First question text should be visible
@@ -127,14 +127,14 @@ test.describe('Bid questions list', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -154,19 +154,19 @@ test.describe('Bid questions list', () => {
 // 2. Question Row Expansion
 // ---------------------------------------------------------------------------
 
-test.describe('Bid question row expansion', () => {
+test.describe('Procurement question row expansion', () => {
   test('clicking question row expands inline with full details', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -194,14 +194,14 @@ test.describe('Bid question row expansion', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -224,14 +224,14 @@ test.describe('Bid question row expansion', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -255,19 +255,19 @@ test.describe('Bid question row expansion', () => {
 // 3. Add Question Dialog
 // ---------------------------------------------------------------------------
 
-test.describe('Bid add question dialog', () => {
+test.describe('Procurement add question dialog', () => {
   test('Add Question button opens dialog with form fields', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -301,14 +301,14 @@ test.describe('Bid add question dialog', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -356,7 +356,7 @@ test.describe('Bid add question dialog', () => {
       await supabase
         .from('bid_questions')
         .delete()
-        .eq('project_id', workerData.bidId)
+        .eq('project_id', workerData.procurementId)
         .like('question_text', `%${uniqueText}%`);
     }
   });
@@ -366,19 +366,19 @@ test.describe('Bid add question dialog', () => {
 // 4. Section Collapse/Expand
 // ---------------------------------------------------------------------------
 
-test.describe('Bid question sections', () => {
+test.describe('Procurement question sections', () => {
   test('section header can be collapsed and expanded', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -422,19 +422,19 @@ test.describe('Bid question sections', () => {
 // 5. Role Gating
 // ---------------------------------------------------------------------------
 
-test.describe('Bid questions role gating', () => {
+test.describe('Procurement questions role gating', () => {
   test('viewer cannot see Add Question button', async ({
     viewerPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     // Wait for questions to load
@@ -454,14 +454,14 @@ test.describe('Bid questions role gating', () => {
     viewerPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -492,14 +492,14 @@ test.describe('Bid questions role gating', () => {
     editorPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     // Questions should load
@@ -518,12 +518,12 @@ test.describe('Bid questions role gating', () => {
 // 6. Tab Badge and Bulk Actions
 // ---------------------------------------------------------------------------
 
-test.describe('Bid questions tab badge and bulk actions', () => {
+test.describe('Procurement questions tab badge and bulk actions', () => {
   test('Questions tab shows count badge with 4', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -531,7 +531,7 @@ test.describe('Bid questions tab badge and bulk actions', () => {
 
     // The Questions tab should show a count badge
     // Tab structure: <button role="tab">Questions <span>4</span></button>
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     const questionsTab = tabNav.getByRole('tab', { name: 'Questions' });
     await expect(questionsTab).toBeVisible();
 
@@ -545,14 +545,14 @@ test.describe('Bid questions tab badge and bulk actions', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
@@ -570,7 +570,7 @@ test.describe('Bid questions tab badge and bulk actions', () => {
 // 7. Mobile
 // ---------------------------------------------------------------------------
 
-test.describe('Bid questions mobile', () => {
+test.describe('Procurement questions mobile', () => {
   test('questions tab loads on mobile viewport without horizontal overflow', async ({
     authenticatedPage: page,
     workerData,
@@ -581,14 +581,14 @@ test.describe('Bid questions mobile', () => {
       return;
     }
 
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     // Questions should load

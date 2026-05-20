@@ -18,7 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { TemplateField, TemplateSummary } from '@/types/template';
 
-interface BidQuestion {
+interface ProcurementQuestion {
   id: string;
   question_text: string;
   status: string;
@@ -26,9 +26,9 @@ interface BidQuestion {
 
 interface TemplateFieldReviewProps {
   templateId: string;
-  bidId: string;
+  procurementId: string;
   fields: TemplateField[];
-  bidQuestions: BidQuestion[];
+  procurementQuestions: ProcurementQuestion[];
   summary: TemplateSummary;
   onMappingUpdate: (
     fieldId: string,
@@ -132,9 +132,9 @@ const STATUS_ORDER: Record<string, number> = {
 
 export function TemplateFieldReview({
   templateId,
-  bidId,
+  procurementId,
   fields,
-  bidQuestions,
+  procurementQuestions,
   summary,
   onMappingUpdate,
   onAutoMap,
@@ -142,9 +142,9 @@ export function TemplateFieldReview({
   onBulkAccept,
   onBulkReject,
 }: TemplateFieldReviewProps) {
-  // templateId and bidId are available for future use (e.g. direct API calls)
+  // templateId and procurementId are available for future use (e.g. direct API calls)
   void templateId;
-  void bidId;
+  void procurementId;
 
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
@@ -665,7 +665,7 @@ export function TemplateFieldReview({
                       aria-label={`Select a bid question to map to field ${field.sequence + 1}`}
                     >
                       <option value="">Select a question...</option>
-                      {bidQuestions.map((q) => (
+                      {procurementQuestions.map((q) => (
                         <option key={q.id} value={q.id}>
                           {q.question_text.substring(0, 80)}
                         </option>

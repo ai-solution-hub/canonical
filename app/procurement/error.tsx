@@ -7,7 +7,7 @@ import { Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger/client';
 
-export default function BidError({
+export default function ProcurementError({
   error,
   reset,
 }: {
@@ -15,7 +15,7 @@ export default function BidError({
   reset: () => void;
 }) {
   useEffect(() => {
-    logger.error({ err: error }, 'Bid error');
+    logger.error({ err: error }, 'Procurement error');
     Sentry.captureException(error);
   }, [error]);
 

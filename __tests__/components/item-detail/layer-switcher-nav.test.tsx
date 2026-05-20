@@ -24,7 +24,7 @@ vi.mock('@/lib/validation/layer-schemas', () => ({
   getLayerLabel: (key: string) => {
     const labels: Record<string, string> = {
       sales_brief: 'Sales Brief',
-      bid_detail: 'Bid Detail',
+      bid_detail: 'Procurement Detail',
       company_reference: 'Company Reference',
     };
     return labels[key] ?? key;
@@ -52,7 +52,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
       },
       {
         key: 'bid_detail',
-        label: 'Bid Detail',
+        label: 'Procurement Detail',
         description: '',
         display_order: 2,
         is_active: true,
@@ -73,7 +73,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
     getLayerLabel: (key: string) => {
       const labels: Record<string, string> = {
         sales_brief: 'Sales Brief',
-        bid_detail: 'Bid Detail',
+        bid_detail: 'Procurement Detail',
         company_reference: 'Company Reference',
       };
       return labels[key] ?? key;
@@ -154,8 +154,8 @@ describe('LayerSwitcherNav', () => {
         topicLayers={createLayers(3)}
       />,
     );
-    const bidDetail = screen.getByText('Bid Detail');
-    expect(bidDetail.closest('a')).toHaveAttribute('href', '/item/layer-1');
+    const procurementDetail = screen.getByText('Procurement Detail');
+    expect(procurementDetail.closest('a')).toHaveAttribute('href', '/item/layer-1');
 
     const compRef = screen.getByText('Company Reference');
     expect(compRef.closest('a')).toHaveAttribute('href', '/item/layer-2');
@@ -178,7 +178,7 @@ describe('LayerSwitcherNav', () => {
     const duplicated: TopicLayerItem[] = [
       { id: 'item-1', title: 'First sales brief', layer: 'sales_brief' },
       { id: 'item-2', title: 'Second sales brief', layer: 'sales_brief' },
-      { id: 'item-3', title: 'Bid detail', layer: 'bid_detail' },
+      { id: 'item-3', title: 'Procurement detail', layer: 'bid_detail' },
       { id: 'item-4', title: 'Another bid detail', layer: 'bid_detail' },
       { id: 'item-5', title: 'Company ref', layer: 'company_reference' },
     ];
@@ -187,7 +187,7 @@ describe('LayerSwitcherNav', () => {
     );
     // Should show exactly 3 badges (one per unique layer), not 5
     const badges = screen.getAllByText(
-      /Sales Brief|Bid Detail|Company Reference/,
+      /Sales Brief|Procurement Detail|Company Reference/,
     );
     expect(badges).toHaveLength(3);
   });
@@ -197,11 +197,11 @@ describe('LayerSwitcherNav', () => {
     const withNulls: TopicLayerItem[] = [
       { id: 'item-1', title: 'Sales brief', layer: 'sales_brief' },
       { id: 'item-2', title: 'No layer', layer: null },
-      { id: 'item-3', title: 'Bid detail', layer: 'bid_detail' },
+      { id: 'item-3', title: 'Procurement detail', layer: 'bid_detail' },
     ];
     render(<LayerSwitcherNav currentItemId="item-1" topicLayers={withNulls} />);
     // Only 2 unique layers (null excluded)
-    const badges = screen.getAllByText(/Sales Brief|Bid Detail/);
+    const badges = screen.getAllByText(/Sales Brief|Procurement Detail/);
     expect(badges).toHaveLength(2);
   });
 });

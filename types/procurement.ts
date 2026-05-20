@@ -1,6 +1,6 @@
 // ---- State Machine ----
 
-export const BID_STATES = [
+export const PROCUREMENT_WORKFLOW_STATES = [
   'draft',
   'questions_extracted',
   'matching',
@@ -13,19 +13,19 @@ export const BID_STATES = [
   'withdrawn',
 ] as const;
 
-export type BidState = (typeof BID_STATES)[number];
+export type ProcurementWorkflowState = (typeof PROCUREMENT_WORKFLOW_STATES)[number];
 
-// ---- Bid Container ----
+// ---- Procurement Container ----
 
-// NOTE: BidMetadata defines the TypeScript shape for domain_metadata JSONB.
+// NOTE: ProcurementMetadata defines the TypeScript shape for domain_metadata JSONB.
 // The `status` field is enforced at the database level via a dedicated `status`
 // column on `workspaces` with a CHECK constraint (synced to JSONB via trigger).
-// Other fields are validated at the API layer via `parseBidMetadata()` in
+// Other fields are validated at the API layer via `parseProcurementMetadata()` in
 // `lib/validation/schemas.ts`. Always validate domain_metadata at read boundaries.
 
-export interface BidMetadata {
+export interface ProcurementMetadata {
   buyer: string;
-  status: BidState;
+  status: ProcurementWorkflowState;
   deadline: string | null;
   reference_number: string | null;
   estimated_value: string | null;
@@ -39,13 +39,13 @@ export interface BidMetadata {
   outcome_recorded_by?: string;
 }
 
-export interface Bid {
+export interface Procurement {
   id: string;
   name: string;
   description: string | null;
-  status?: BidState;
-  domain_metadata: BidMetadata;
-  question_stats?: BidQuestionStats;
+  status?: ProcurementWorkflowState;
+  domain_metadata: ProcurementMetadata;
+  question_stats?: ProcurementQuestionStats;
   tender_documents?: TenderDocument[];
   created_by: string | null;
   created_by_name?: string;
@@ -53,7 +53,7 @@ export interface Bid {
   updated_at: string;
 }
 
-export interface BidQuestionStats {
+export interface ProcurementQuestionStats {
   total_questions: number;
   strong_match_count: number;
   partial_match_count: number;
@@ -72,7 +72,7 @@ export interface TenderDocument {
   uploaded_at: string;
 }
 
-// ---- Bid Questions ----
+// ---- Procurement Questions ----
 
 export type ConfidencePosture =
   | 'strong_match'
@@ -92,7 +92,7 @@ export type ResponseReviewStatus =
   | 'approved'
   | 'needs_review';
 
-export interface BidQuestion {
+export interface ProcurementQuestion {
   id: string;
   project_id: string;
   section_name: string | null;
@@ -109,10 +109,10 @@ export interface BidQuestion {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  response?: BidResponseSummary;
+  response?: ProcurementResponseSummary;
 }
 
-export interface BidResponseSummary {
+export interface ProcurementResponseSummary {
   id: string;
   review_status: ResponseReviewStatus;
   word_count: number;
@@ -191,7 +191,7 @@ export interface KBCandidate {
 
 // ---- Response Versioning ----
 
-export interface BidResponseVersion {
+export interface ProcurementResponseVersion {
   id: string;
   version: number;
   response_text: string | null;

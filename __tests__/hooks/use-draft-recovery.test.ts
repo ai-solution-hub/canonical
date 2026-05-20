@@ -3,9 +3,9 @@ import { renderHook, act } from '@testing-library/react';
 import { useDraftRecovery } from '@/hooks/streaming/use-draft-recovery';
 
 describe('useDraftRecovery', () => {
-  const bidId = 'bid-123';
+  const procurementId = 'bid-123';
   const questionId = 'q-456';
-  const storageKey = `kh-bid-draft-${bidId}-${questionId}`;
+  const storageKey = `kh-bid-draft-${procurementId}-${questionId}`;
 
   let storage: Record<string, string>;
 
@@ -43,7 +43,7 @@ describe('useDraftRecovery', () => {
 
   it('starts with no draft when localStorage is empty', () => {
     const { result } = renderHook(() =>
-      useDraftRecovery(bidId, questionId, null),
+      useDraftRecovery(procurementId, questionId, null),
     );
 
     expect(result.current.hasDraft).toBe(false);
@@ -60,7 +60,7 @@ describe('useDraftRecovery', () => {
     });
 
     const { result } = renderHook(() =>
-      useDraftRecovery(bidId, questionId, null),
+      useDraftRecovery(procurementId, questionId, null),
     );
 
     expect(result.current.hasDraft).toBe(true);
@@ -73,7 +73,7 @@ describe('useDraftRecovery', () => {
   // ----------------------------------------------------------
 
   it('saves to localStorage with correct key format after debounce', () => {
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 3));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 3));
 
     act(() => {
       result.current.saveDraft('<p>Hello world</p>');
@@ -95,7 +95,7 @@ describe('useDraftRecovery', () => {
   });
 
   it('updates lastSavedAt after saving', () => {
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     expect(result.current.lastSavedAt).toBeNull();
 
@@ -111,7 +111,7 @@ describe('useDraftRecovery', () => {
   });
 
   it('debounces multiple rapid saves', () => {
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     act(() => {
       result.current.saveDraft('<p>First</p>');
@@ -152,7 +152,7 @@ describe('useDraftRecovery', () => {
       responseVersion: 1,
     });
 
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     expect(result.current.hasDraft).toBe(true);
 
@@ -167,7 +167,7 @@ describe('useDraftRecovery', () => {
   });
 
   it('cancels pending debounced write on clear', () => {
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     act(() => {
       result.current.saveDraft('<p>Pending save</p>');
@@ -197,7 +197,7 @@ describe('useDraftRecovery', () => {
       responseVersion: 1,
     });
 
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     expect(result.current.hasDraft).toBe(false);
     expect(result.current.draftContent).toBeNull();
@@ -210,7 +210,7 @@ describe('useDraftRecovery', () => {
   // ----------------------------------------------------------
 
   it('handles null questionId gracefully', () => {
-    const { result } = renderHook(() => useDraftRecovery(bidId, null, null));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, null, null));
 
     expect(result.current.hasDraft).toBe(false);
     expect(result.current.draftContent).toBeNull();
@@ -248,7 +248,7 @@ describe('useDraftRecovery', () => {
       clear: vi.fn(),
     });
 
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     // Should not crash
     expect(result.current.hasDraft).toBe(false);
@@ -272,7 +272,7 @@ describe('useDraftRecovery', () => {
 
   it('re-checks localStorage when questionId changes', () => {
     const otherQuestionId = 'q-789';
-    const otherKey = `kh-bid-draft-${bidId}-${otherQuestionId}`;
+    const otherKey = `kh-bid-draft-${procurementId}-${otherQuestionId}`;
 
     storage[otherKey] = JSON.stringify({
       content: '<p>Other question draft</p>',
@@ -281,7 +281,7 @@ describe('useDraftRecovery', () => {
     });
 
     const { result, rerender } = renderHook(
-      ({ qId }) => useDraftRecovery(bidId, qId, null),
+      ({ qId }) => useDraftRecovery(procurementId, qId, null),
       { initialProps: { qId: questionId } },
     );
 
@@ -299,7 +299,7 @@ describe('useDraftRecovery', () => {
   // ----------------------------------------------------------
 
   it('auto-saves content periodically via 30-second interval', () => {
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     // Stage content in the ref via saveDraft (but don't wait for debounce)
     act(() => {
@@ -323,7 +323,7 @@ describe('useDraftRecovery', () => {
   it('ignores malformed JSON in localStorage', () => {
     storage[storageKey] = 'not valid json {{{';
 
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     expect(result.current.hasDraft).toBe(false);
     expect(result.current.draftContent).toBeNull();
@@ -335,7 +335,7 @@ describe('useDraftRecovery', () => {
       // Missing content field
     });
 
-    const { result } = renderHook(() => useDraftRecovery(bidId, questionId, 1));
+    const { result } = renderHook(() => useDraftRecovery(procurementId, questionId, 1));
 
     expect(result.current.hasDraft).toBe(false);
   });

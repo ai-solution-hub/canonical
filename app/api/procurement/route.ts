@@ -9,9 +9,9 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
-  BidCreateBodySchema,
-  BidListParamsSchema,
-  parseBidMetadata,
+  ProcurementCreateBodySchema,
+  ProcurementListParamsSchema,
+  parseProcurementMetadata,
 } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const { supabase } = auth;
 
     const parsed = parseSearchParams(
-      BidListParamsSchema,
+      ProcurementListParamsSchema,
       request.nextUrl.searchParams,
     );
     if (!parsed.success) return parsed.response;
@@ -59,17 +59,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Enrich each bid with question statistics (batch to avoid N+1)
-    const bidIds = (workspaces ?? []).map((p) => p.id);
+    const procurementIds = (workspaces ?? []).map((p) => p.id);
     const statsMap = new Map<string, Record<string, unknown>>();
     // Track per-bid stats failures so the response can surface them as a
     // sibling `failed_bid_ids` field. Mirrors the H13 pattern in
     // `app/api/freshness/calculate/route.ts` (S151 silent-failure remediation).
     const failedBidIds: string[] = [];
 
-    if (bidIds.length > 0) {
+    if (procurementIds.length > 0) {
       const { data: batchStats, error: batchError } = await supabase.rpc(
         'get_bid_question_stats_batch',
-        { p_project_ids: bidIds },
+        { p_project_ids: procurementIds },
       );
 
       if (batchError) {
@@ -79,26 +79,26 @@ export async function GET(request: NextRequest) {
           'Batch stats RPC unavailable, falling back to per-bid calls',
         );
         const fallbackResults = await Promise.all(
-          bidIds.map(async (bidId) => {
+          procurementIds.map(async (procurementId) => {
             const { data: stats, error: statsError } = await supabase.rpc(
               'get_bid_question_stats',
               {
-                p_project_id: bidId,
+                p_project_id: procurementId,
               },
             );
             if (statsError) {
               logger.error(
-                { err: statsError, bidId },
+                { err: statsError, procurementId },
                 'Per-bid stats RPC failed (fallback path) for bid',
               );
-              return { bidId, stats: null, failed: true };
+              return { procurementId, stats: null, failed: true };
             }
-            return { bidId, stats: stats?.[0] ?? null, failed: false };
+            return { procurementId, stats: stats?.[0] ?? null, failed: false };
           }),
         );
-        for (const { bidId, stats, failed } of fallbackResults) {
-          if (stats) statsMap.set(bidId, stats);
-          if (failed) failedBidIds.push(bidId);
+        for (const { procurementId, stats, failed } of fallbackResults) {
+          if (stats) statsMap.set(procurementId, stats);
+          if (failed) failedBidIds.push(procurementId);
         }
       } else if (batchStats) {
         for (const row of batchStats) {
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
       return {
         ...wsRest,
         domain_metadata:
-          parseBidMetadata(wsRest.domain_metadata) ?? wsRest.domain_metadata,
+          parseProcurementMetadata(wsRest.domain_metadata) ?? wsRest.domain_metadata,
         question_stats: statsMap.get(wsRest.id) ?? null,
       };
     });
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();
-    const parsed = parseBody(BidCreateBodySchema, raw);
+    const parsed = parseBody(ProcurementCreateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
     const {

@@ -308,7 +308,7 @@ export function buildCoreWorkspaces(bidDeadline: string): WorkspaceShape[] {
 }
 
 // ---------------------------------------------------------------------------
-// Bid question shapes (project_id is set at seed time)
+// Procurement question shapes (project_id is set at seed time)
 // ---------------------------------------------------------------------------
 
 export interface BidQuestionShape {
@@ -353,7 +353,7 @@ export const CORE_BID_QUESTIONS: BidQuestionShape[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Bid response shapes (question_id is set at seed time)
+// Procurement response shapes (question_id is set at seed time)
 // ---------------------------------------------------------------------------
 
 export interface BidResponseShape {
@@ -378,7 +378,7 @@ export const CORE_BID_RESPONSES: BidResponseShape[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Bid state transitions (from draft → drafting)
+// Procurement state transitions (from draft → drafting)
 // ---------------------------------------------------------------------------
 
 export const BID_STATE_TRANSITIONS = [

@@ -267,9 +267,9 @@ export function formatReorientation(data: ReorientData): string {
     lines.push('');
   }
 
-  // Bid summary
+  // Procurement summary
   if (data.bid_summary.length > 0) {
-    lines.push('## Bid Summary', '');
+    lines.push('## Procurement Summary', '');
     for (const bid of data.bid_summary) {
       const progress = formatProgress(
         bid.answered_questions,

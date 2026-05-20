@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import type { TeamChange, RecentWorkItem, BidBriefing } from '@/types/reorient';
-import { fetchActiveBidsWithStats } from '@/lib/procurement/procurement-queries';
+import type { TeamChange, RecentWorkItem, ProcurementBriefing } from '@/types/reorient';
+import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/user/display-name';
 
@@ -154,7 +154,7 @@ export interface UnifiedDashboardData {
     last_active_at: string | null;
     team_changes: TeamChange[];
     my_recent_work: RecentWorkItem[];
-    bid_summary: BidBriefing[];
+    bid_summary: ProcurementBriefing[];
   };
 
   /** Recent activity feed */
@@ -316,7 +316,7 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(5),
 
-      // 4: Bid response changes by others (team changes)
+      // 4: Procurement response changes by others (team changes)
       supabase
         .from('bid_response_history')
         .select(
@@ -352,7 +352,7 @@ export async function fetchUnifiedDashboardData(
             )
         : Promise.resolve({ data: [], error: null }),
     ]),
-    fetchActiveBidsWithStats(supabase),
+    fetchActiveProcurementWithStats(supabase),
   ]);
 
   // --- Extract attention counts from RPC (query 0) ---
@@ -517,7 +517,7 @@ export async function fetchUnifiedDashboardData(
           action: 'updated',
           entity_type: 'bid_response',
           entity_id: row.response_id,
-          entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Bid',
+          entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Procurement',
           domain: undefined,
           created_at: row.created_at,
           workspace_id: br?.bid_questions?.project_id,
@@ -552,7 +552,7 @@ export async function fetchUnifiedDashboardData(
         } | null;
         const questionText =
           br?.bid_questions?.question_text ?? 'Untitled question';
-        const bidId = br?.bid_questions?.workspaces?.id;
+        const procurementId = br?.bid_questions?.workspaces?.id;
         my_recent_work.push({
           entity_type: 'bid_response',
           entity_id: row.response_id,
@@ -561,9 +561,9 @@ export async function fetchUnifiedDashboardData(
               ? `${questionText.slice(0, 57)}...`
               : questionText,
           action: 'edited',
-          href: bidId ? `/bid/${bidId}/session` : '/bid',
+          href: procurementId ? `/procurement/${procurementId}/session` : '/procurement',
           created_at: row.created_at,
-          workspace_id: bidId,
+          workspace_id: procurementId,
           question_id: br?.question_id,
         });
       }
@@ -584,15 +584,15 @@ export async function fetchUnifiedDashboardData(
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
   // --- Build active bids (from shared helper — single query) ---
-  const { workspaces: bidWorkspaces, statsMap } = activeBidsResult;
-  const active_bids: ActiveBidSummary[] = bidWorkspaces.map((workspace) => {
+  const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
+  const active_bids: ActiveBidSummary[] = procurementWorkspaces.map((workspace) => {
     const meta = workspace.domain_metadata as Record<string, unknown> | null;
     const stats = statsMap.get(workspace.id);
     const deadline = (meta?.deadline as string) ?? null;
 
     return {
       id: workspace.id,
-      name: workspace.name ?? 'Untitled Bid',
+      name: workspace.name ?? 'Untitled Procurement',
       buyer: (meta?.buyer as string) ?? null,
       status: (meta?.status as string) ?? 'draft',
       deadline,
@@ -619,7 +619,7 @@ export async function fetchUnifiedDashboardData(
   });
 
   // --- Build bid_summary for reorient (from the same bid data) ---
-  const bid_summary: BidBriefing[] = bidWorkspaces.map((workspace) => {
+  const bid_summary: ProcurementBriefing[] = procurementWorkspaces.map((workspace) => {
     const meta = workspace.domain_metadata as Record<string, unknown> | null;
     const stats = statsMap.get(workspace.id);
     const deadline = (meta?.deadline as string) ?? null;
@@ -630,7 +630,7 @@ export async function fetchUnifiedDashboardData(
 
     return {
       id: workspace.id,
-      name: workspace.name ?? 'Untitled Bid',
+      name: workspace.name ?? 'Untitled Procurement',
       buyer: (meta?.buyer as string) ?? null,
       status: (meta?.status as string) ?? 'draft',
       deadline,
@@ -640,7 +640,7 @@ export async function fetchUnifiedDashboardData(
       answered_questions: answeredQ,
       approved_questions: stats?.complete_count ?? 0,
       gap_count: (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
-      href: `/bid/${workspace.id}`,
+      href: `/procurement/${workspace.id}`,
     };
   });
 

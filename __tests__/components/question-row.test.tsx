@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QuestionRow } from '@/components/procurement/question-row';
-import type { BidQuestion, QuestionStatus } from '@/types/procurement';
+import type { ProcurementQuestion, QuestionStatus } from '@/types/procurement';
 
 // Mock sonner toast (used by QuestionRow for save/delete feedback)
 vi.mock('sonner', () => ({
@@ -26,7 +26,7 @@ describe('QuestionRow', () => {
     vi.unstubAllGlobals();
   });
 
-  function makeQuestion(overrides: Partial<BidQuestion> = {}): BidQuestion {
+  function makeQuestion(overrides: Partial<ProcurementQuestion> = {}): ProcurementQuestion {
     return {
       id: 'q-1',
       project_id: 'bid-1',
@@ -49,7 +49,7 @@ describe('QuestionRow', () => {
   }
 
   function renderRow(
-    questionOverrides: Partial<BidQuestion> = {},
+    questionOverrides: Partial<ProcurementQuestion> = {},
     canEdit = false,
   ) {
     return render(
@@ -57,7 +57,7 @@ describe('QuestionRow', () => {
         question={makeQuestion(questionOverrides)}
         index={1}
         canEdit={canEdit}
-        bidId="bid-1"
+        procurementId="bid-1"
         onUpdated={onUpdated}
         onDeleted={onDeleted}
       />,

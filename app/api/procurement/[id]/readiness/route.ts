@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import type { BidResponseMetadata, QualityData } from '@/types/procurement-metadata';
+import type { ProcurementResponseMetadata, QualityData } from '@/types/procurement-metadata';
 
 export const maxDuration = 30;
 
@@ -97,15 +97,15 @@ export async function GET(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Fetch all questions for this bid.
@@ -200,7 +200,7 @@ export async function GET(
         );
 
       // Quality data assessment — prefer overall_score from dedicated column
-      const meta = (response?.metadata ?? {}) as BidResponseMetadata;
+      const meta = (response?.metadata ?? {}) as ProcurementResponseMetadata;
       const qualityDataFromMeta = meta.quality_data ?? null;
       // Merge column value into quality data for backward compat
       const columnScore = response?.overall_score;

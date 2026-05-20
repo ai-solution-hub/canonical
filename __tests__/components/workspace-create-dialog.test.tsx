@@ -4,7 +4,7 @@
  * Tests type-aware behaviour. Post-T2:
  * - `kb_section` was retired (no rows in either env). The registry's
  *   non-custom-creation type is now `proposal` (label "Sales Proposal").
- * - `bid` was renamed to `procurement` (label "Bid", hasCustomCreation: true).
+ * - `bid` was renamed to `procurement` (label "Procurement", hasCustomCreation: true).
  * Default prop is `procurement`, which delegates to the bid wizard.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';

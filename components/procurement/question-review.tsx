@@ -18,14 +18,14 @@ interface ExtractedQuestionEntry {
 }
 
 interface QuestionReviewProps {
-  bidId: string;
+  procurementId: string;
   questions: ExtractedQuestionEntry[];
   onConfirmed: () => void;
   onCancelled: () => void;
 }
 
 export function QuestionReview({
-  bidId,
+  procurementId,
   questions,
   onConfirmed,
   onCancelled,
@@ -75,7 +75,7 @@ export function QuestionReview({
         selectedIndices.has(i),
       );
 
-      const res = await fetch(`/api/bids/${bidId}/questions`, {
+      const res = await fetch(`/api/procurement/${procurementId}/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questions: selectedQuestions }),

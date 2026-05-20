@@ -7,16 +7,16 @@ import {
   BID_STATE_SHORT_LABELS,
   BID_STATE_PROGRESSION,
   isTerminal,
-  type BidState,
+  type ProcurementWorkflowState,
 } from '@/lib/procurement/procurement-workflow';
 
-interface BidStateIndicatorProps {
-  state: BidState;
+interface ProcurementWorkflowIndicatorProps {
+  state: ProcurementWorkflowState;
   className?: string;
 }
 
 const COLOUR_CLASSES: Record<
-  BidState,
+  ProcurementWorkflowState,
   { bg: string; text: string; border: string; dot: string }
 > = {
   draft: {
@@ -84,7 +84,7 @@ const COLOUR_CLASSES: Record<
 /**
  * Badge showing the current bid state with colour + text (WCAG 2.1 AA).
  */
-export function BidStateBadge({ state, className }: BidStateIndicatorProps) {
+export function ProcurementWorkflowBadge({ state, className }: ProcurementWorkflowIndicatorProps) {
   const colours = COLOUR_CLASSES[state] ?? COLOUR_CLASSES.draft;
   const label = BID_STATE_LABELS[state] ?? 'Unknown';
 
@@ -110,7 +110,7 @@ export function BidStateBadge({ state, className }: BidStateIndicatorProps) {
 /**
  * Horizontal stepper showing bid progress through lifecycle states.
  */
-export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
+export function ProcurementWorkflowStepper({ state, className }: ProcurementWorkflowIndicatorProps) {
   const currentIndex = BID_STATE_PROGRESSION.indexOf(state);
   const terminal = isTerminal(state);
 
@@ -118,7 +118,7 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
     <div
       className={cn('flex items-center gap-1', className)}
       role="list"
-      aria-label="Bid progress"
+      aria-label="Procurement progress"
     >
       {BID_STATE_PROGRESSION.map((step, index) => {
         const isCompleted = !terminal && currentIndex > index;

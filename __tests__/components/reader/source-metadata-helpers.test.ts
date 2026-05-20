@@ -21,8 +21,8 @@ describe('source-metadata-helpers', () => {
         upload: 'File upload',
         upload_autosplit: 'Auto-split upload',
         manual: 'Manual entry',
-        bid_library: 'Bid library import',
-        bid_library_import: 'Bid library import',
+        bid_library: 'Procurement library import',
+        bid_library_import: 'Procurement library import',
       });
     });
   });
@@ -70,15 +70,15 @@ describe('source-metadata-helpers', () => {
       expect(getIngestionSourceLabel('manual', false)).toBe('Manual entry');
     });
 
-    it('maps bid_library (raw enum) to Bid library import', () => {
+    it('maps bid_library (raw enum) to Procurement library import', () => {
       expect(getIngestionSourceLabel('bid_library', false)).toBe(
-        'Bid library import',
+        'Procurement library import',
       );
     });
 
-    it('maps bid_library_import to Bid library import', () => {
+    it('maps bid_library_import to Procurement library import', () => {
       expect(getIngestionSourceLabel('bid_library_import', false)).toBe(
-        'Bid library import',
+        'Procurement library import',
       );
     });
 

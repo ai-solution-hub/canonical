@@ -214,7 +214,7 @@ describe('MetadataUpdateBodySchema', () => {
 describe('getLayerLabel', () => {
   it('returns label for known layer keys', () => {
     expect(getLayerLabel('sales_brief')).toBe('Sales Brief');
-    expect(getLayerLabel('bid_detail')).toBe('Bid Detail');
+    expect(getLayerLabel('bid_detail')).toBe('Procurement Detail');
     expect(getLayerLabel('company_reference')).toBe('Company Reference');
     expect(getLayerLabel('research')).toBe('Research');
   });

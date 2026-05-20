@@ -10,7 +10,7 @@ import { formatFileSize } from '@/lib/format';
 import type { ExtractionResult } from '@/types/procurement';
 
 interface TenderUploadProps {
-  bidId: string;
+  procurementId: string;
   onUploadComplete: (result?: ExtractionResult) => void;
 }
 
@@ -32,7 +32,7 @@ function detectFormat(filename: string): 'docx' | 'pdf' {
   return filename.toLowerCase().endsWith('.pdf') ? 'pdf' : 'docx';
 }
 
-export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
+export function TenderUpload({ procurementId, onUploadComplete }: TenderUploadProps) {
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         const formData = new FormData();
         formData.append('file', file);
 
-        const uploadRes = await fetch(`/api/bids/${bidId}/tender`, {
+        const uploadRes = await fetch(`/api/procurement/${procurementId}/tender`, {
           method: 'POST',
           body: formData,
         });
@@ -96,7 +96,7 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         // Automatically extract questions
         setPhase('extracting');
 
-        const extractRes = await fetch(`/api/bids/${bidId}/questions/extract`, {
+        const extractRes = await fetch(`/api/procurement/${procurementId}/questions/extract`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -126,7 +126,7 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         toast.error(message);
       }
     },
-    [bidId, validateFile],
+    [procurementId, validateFile],
   );
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {

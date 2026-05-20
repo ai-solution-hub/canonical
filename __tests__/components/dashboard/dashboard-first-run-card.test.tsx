@@ -142,7 +142,7 @@ describe('DashboardFirstRunCard', () => {
     render(<DashboardFirstRunCard role="admin" />);
     expect(screen.getByText("I'm primarily here for:")).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Bid writing' }),
+      screen.getByRole('button', { name: 'Procurement writing' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Account management' }),
@@ -157,7 +157,7 @@ describe('DashboardFirstRunCard', () => {
     const user = userEvent.setup();
     render(<DashboardFirstRunCard role="editor" />);
 
-    await user.click(screen.getByRole('button', { name: 'Bid writing' }));
+    await user.click(screen.getByRole('button', { name: 'Procurement writing' }));
 
     await waitFor(() => {
       expect(mockUpdateUser).toHaveBeenCalledWith({
@@ -172,7 +172,7 @@ describe('DashboardFirstRunCard', () => {
     render(<DashboardFirstRunCard role="editor" />);
 
     // First click
-    await user.click(screen.getByRole('button', { name: 'Bid writing' }));
+    await user.click(screen.getByRole('button', { name: 'Procurement writing' }));
     await waitFor(() => {
       expect(mockUpdateUser).toHaveBeenCalledWith({
         data: { primary_focus: 'bid_writing' },
@@ -195,7 +195,7 @@ describe('DashboardFirstRunCard', () => {
     const user = userEvent.setup();
     render(<DashboardFirstRunCard role="editor" />);
 
-    const bidButton = screen.getByRole('button', { name: 'Bid writing' });
+    const bidButton = screen.getByRole('button', { name: 'Procurement writing' });
     await user.click(bidButton);
 
     await waitFor(() => {
@@ -290,7 +290,7 @@ describe('DashboardFirstRunCard', () => {
     const user = userEvent.setup();
     render(<DashboardFirstRunCard role="editor" />);
 
-    await user.click(screen.getByRole('button', { name: 'Bid writing' }));
+    await user.click(screen.getByRole('button', { name: 'Procurement writing' }));
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith('Network error');
@@ -319,7 +319,7 @@ describe('DashboardFirstRunCard', () => {
     await waitFor(() => {
       expect(marketing).toHaveAttribute('aria-pressed', 'true');
     });
-    expect(screen.getByRole('button', { name: 'Bid writing' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Procurement writing' })).toHaveAttribute(
       'aria-pressed',
       'false',
     );

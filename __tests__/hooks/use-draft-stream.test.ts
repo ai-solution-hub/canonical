@@ -163,7 +163,7 @@ describe('useDraftStream', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const [url, opts] = mockFetch.mock.calls[0];
-      expect(url).toBe('/api/bids/bid-1/responses/draft-stream');
+      expect(url).toBe('/api/procurement/bid-1/responses/draft-stream');
       expect(opts.method).toBe('POST');
       expect(opts.headers).toEqual({ 'Content-Type': 'application/json' });
 
@@ -632,7 +632,7 @@ describe('useDraftStream', () => {
     it('handles non-ok HTTP response with JSON error body', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
-        json: async () => ({ error: 'Bid not found' }),
+        json: async () => ({ error: 'Procurement not found' }),
       });
 
       const { result } = renderHook(() => useDraftStream('bid-1'), {
@@ -644,7 +644,7 @@ describe('useDraftStream', () => {
       });
 
       expect(result.current.phase).toBe('error');
-      expect(result.current.error).toBe('Bid not found');
+      expect(result.current.error).toBe('Procurement not found');
     });
 
     it('handles non-ok HTTP response with non-JSON body', async () => {
@@ -1068,7 +1068,7 @@ describe('useDraftStream', () => {
       expect(result.current.responseId).toBe('r-1');
     });
 
-    it('uses different bidId for different hook instances', async () => {
+    it('uses different procurementId for different hook instances', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),
@@ -1083,7 +1083,7 @@ describe('useDraftStream', () => {
       });
 
       const [url] = mockFetch.mock.calls[0];
-      expect(url).toBe('/api/bids/bid-42/responses/draft-stream');
+      expect(url).toBe('/api/procurement/bid-42/responses/draft-stream');
     });
 
     it('handles rapid successive startDraft calls', async () => {
@@ -1179,7 +1179,7 @@ describe('useDraftStream', () => {
   // =========================================================================
 
   describe('callback stability', () => {
-    it('startDraft is stable across re-renders with same bidId', () => {
+    it('startDraft is stable across re-renders with same procurementId', () => {
       const { result, rerender } = renderHook(() => useDraftStream('bid-1'), {
         wrapper: Wrapper,
       });
@@ -1193,15 +1193,15 @@ describe('useDraftStream', () => {
       expect(result.current.cancel).toBe(firstCancel);
     });
 
-    it('startDraft changes when bidId changes', () => {
-      let bidId = 'bid-1';
-      const { result, rerender } = renderHook(() => useDraftStream(bidId), {
+    it('startDraft changes when procurementId changes', () => {
+      let procurementId = 'bid-1';
+      const { result, rerender } = renderHook(() => useDraftStream(procurementId), {
         wrapper: Wrapper,
       });
 
       const firstStartDraft = result.current.startDraft;
 
-      bidId = 'bid-2';
+      procurementId = 'bid-2';
       rerender();
 
       expect(result.current.startDraft).not.toBe(firstStartDraft);
@@ -1294,7 +1294,7 @@ describe('useDraftStream', () => {
       expect(invalidateSpy).not.toHaveBeenCalled();
     });
 
-    it('invalidates with correct bidId when bidId differs', async () => {
+    it('invalidates with correct procurementId when procurementId differs', async () => {
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
       mockFetch.mockResolvedValue({

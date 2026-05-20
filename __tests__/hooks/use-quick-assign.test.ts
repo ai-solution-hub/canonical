@@ -45,7 +45,7 @@ function createWrapper() {
 
 const WS_ACTIVE_1 = {
   id: 'ws-1',
-  name: 'Active Bid Alpha',
+  name: 'Active Procurement Alpha',
   description: null,
   color: '#ff0000',
   icon: 'folder',
@@ -61,7 +61,7 @@ const WS_ACTIVE_1 = {
 
 const WS_ACTIVE_2 = {
   id: 'ws-2',
-  name: 'Active Bid Beta',
+  name: 'Active Procurement Beta',
   description: null,
   color: '#00ff00',
   icon: 'folder',
@@ -77,7 +77,7 @@ const WS_ACTIVE_2 = {
 
 const WS_WON = {
   id: 'ws-3',
-  name: 'Won Bid',
+  name: 'Won Procurement',
   description: null,
   color: '#0000ff',
   icon: 'folder',
@@ -272,7 +272,7 @@ describe('useQuickAssign', () => {
 
     // Toggle assignment — should optimistically update immediately
     act(() => {
-      result.current.toggleAssignment('item-1', 'ws-1', 'Active Bid Alpha');
+      result.current.toggleAssignment('item-1', 'ws-1', 'Active Procurement Alpha');
     });
 
     // Optimistic: should appear assigned immediately
@@ -402,7 +402,7 @@ describe('useQuickAssign', () => {
       await result.current.toggleAssignment(
         'item-1',
         'ws-1',
-        'Active Bid Alpha',
+        'Active Procurement Alpha',
       );
     });
 
@@ -475,7 +475,7 @@ describe('useQuickAssign', () => {
       togglePromise = result.current.toggleAssignment(
         'item-1',
         'ws-1',
-        'Active Bid Alpha',
+        'Active Procurement Alpha',
       );
     });
 

@@ -67,8 +67,8 @@ function makeCandidate(overrides: Partial<Candidate> = {}): Candidate {
 const defaultProps = {
   open: true,
   onOpenChange: vi.fn(),
-  bidId: 'bid-789',
-  bidName: 'Council Services Bid',
+  procurementId: 'bid-789',
+  procurementName: 'Council Services Procurement',
   candidates: [makeCandidate()],
   onIntegrationComplete: vi.fn(),
 };
@@ -109,7 +109,7 @@ describe('KBIntegrationReview', () => {
 
   it('shows the bid name in the description', () => {
     renderReview();
-    expect(screen.getByText('Council Services Bid')).toBeInTheDocument();
+    expect(screen.getByText('Council Services Procurement')).toBeInTheDocument();
   });
 
   it('renders candidate question text', () => {
@@ -302,7 +302,7 @@ describe('KBIntegrationReview', () => {
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        '/api/bids/bid-789/outcome/integrate',
+        '/api/procurement/bid-789/outcome/integrate',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({
@@ -349,7 +349,7 @@ describe('KBIntegrationReview', () => {
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        '/api/bids/bid-789/outcome/integrate',
+        '/api/procurement/bid-789/outcome/integrate',
         expect.objectContaining({
           body: JSON.stringify({
             integrations: [

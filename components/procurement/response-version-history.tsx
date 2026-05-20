@@ -30,10 +30,10 @@ import {
 import { toast } from 'sonner';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { htmlToMarkdown } from '@/lib/content/html-to-markdown';
-import type { BidResponseVersion } from '@/types/procurement';
+import type { ProcurementResponseVersion } from '@/types/procurement';
 
 interface ResponseVersionHistoryProps {
-  bidId: string;
+  procurementId: string;
   responseId: string | null;
   currentVersion: number;
   open: boolean;
@@ -63,25 +63,25 @@ function formatUKDateTime(isoString: string): string {
 }
 
 export function ResponseVersionHistory({
-  bidId,
+  procurementId,
   responseId,
   currentVersion,
   open,
   onOpenChange,
   onRestored,
 }: ResponseVersionHistoryProps) {
-  const [versions, setVersions] = useState<BidResponseVersion[]>([]);
+  const [versions, setVersions] = useState<ProcurementResponseVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
   const [restoreVersion, setRestoreVersion] = useState<number | null>(null);
   const [restoring, setRestoring] = useState(false);
 
   const fetchHistory = useCallback(async () => {
-    if (!responseId || !bidId) return;
+    if (!responseId || !procurementId) return;
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/responses/${responseId}/history`,
+        `/api/procurement/${procurementId}/responses/${responseId}/history`,
       );
       if (!res.ok) throw new Error('Failed to fetch history');
       const data = await res.json();
@@ -92,7 +92,7 @@ export function ResponseVersionHistory({
     } finally {
       setLoading(false);
     }
-  }, [bidId, responseId]);
+  }, [procurementId, responseId]);
 
   useEffect(() => {
     if (open && responseId) {
@@ -105,7 +105,7 @@ export function ResponseVersionHistory({
     setRestoring(true);
     try {
       const res = await fetch(
-        `/api/bids/${bidId}/responses/${responseId}/restore`,
+        `/api/procurement/${procurementId}/responses/${responseId}/restore`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

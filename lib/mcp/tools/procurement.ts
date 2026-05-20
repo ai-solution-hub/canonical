@@ -1,6 +1,6 @@
 /**
- * Bid tool registrations (5 tools):
- *   3. list_active_bids
+ * Procurement tool registrations (5 tools):
+ *   3. list_active_procurement
  *   6. get_bid_detail
  *   7. get_bid_question
  *  15. cite_content
@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
-import { parseBidMetadata } from '@/lib/validation/schemas';
+import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
 import {
   formatActiveBids,
@@ -21,19 +21,19 @@ import {
   truncateResponse,
 } from '@/lib/mcp/formatters';
 import type {
-  BidDetail,
-  BidQuestionDetail,
+  ProcurementDetail,
+  ProcurementQuestionDetail,
   CitationResult,
   ContentEffectiveness,
 } from '@/lib/mcp/formatters';
-import type { BidResponseMetadata, QualityData } from '@/types/procurement-metadata';
+import type { ProcurementResponseMetadata, QualityData } from '@/types/procurement-metadata';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 import {
   type ToolExtra,
   toStructuredContent,
   getDashboardModule,
-  getBidQueriesModule,
-  fetchBidSections,
+  getProcurementQueriesModule,
+  fetchProcurementSections,
   defineTool,
   READ_ONLY_ANNOTATIONS,
   SAFE_WRITE_ANNOTATIONS,
@@ -41,11 +41,11 @@ import {
 
 export async function registerBidTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
-  // 3. list_active_bids
+  // 3. list_active_procurement
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'list_active_bids',
+    'list_active_procurement',
     {
       title: 'List Active Bids',
       description:
@@ -65,23 +65,23 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const bidLimit = Math.min(args.limit ?? 20, 50);
-        const bidOffset = args.offset ?? 0;
-        const { fetchActiveBidsWithStats } = await getBidQueriesModule();
+        const procurementLimit = Math.min(args.limit ?? 20, 50);
+        const procurementOffset = args.offset ?? 0;
+        const { fetchActiveProcurementWithStats } = await getProcurementQueriesModule();
         const { workspaces, statsMap } =
-          await fetchActiveBidsWithStats(supabase);
+          await fetchActiveProcurementWithStats(supabase);
 
         // Map to ActiveBidSummary type
         const { getDeadlineUrgency, getDaysUntilDeadline } =
           await getDashboardModule();
         const allBids: ActiveBidSummary[] = workspaces.map((workspace) => {
-          const meta = parseBidMetadata(workspace.domain_metadata);
+          const meta = parseProcurementMetadata(workspace.domain_metadata);
           const stats = statsMap.get(workspace.id);
           const deadline = meta?.deadline ?? null;
 
           return {
             id: workspace.id,
-            name: workspace.name ?? 'Untitled Bid',
+            name: workspace.name ?? 'Untitled Procurement',
             buyer: meta?.buyer ?? null,
             status: meta?.status ?? 'draft',
             deadline,
@@ -109,15 +109,15 @@ export async function registerBidTools(server: McpServer): Promise<void> {
 
         // Apply pagination
         const totalCount = allBids.length;
-        const hasMore = totalCount > bidOffset + bidLimit;
-        const bids = allBids.slice(bidOffset, bidOffset + bidLimit);
+        const hasMore = totalCount > procurementOffset + procurementLimit;
+        const bids = allBids.slice(procurementOffset, procurementOffset + procurementLimit);
 
         const markdown = truncateResponse(formatActiveBids(bids));
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
-            offset: bidOffset,
+            offset: procurementOffset,
             count: bids.length,
             total_count: totalCount,
             has_more: hasMore,
@@ -146,7 +146,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     server,
     'get_bid_detail',
     {
-      title: 'Get Bid Detail',
+      title: 'Get Procurement Detail',
       description:
         'Get detailed information about a specific bid including buyer, deadline, status, and question completion progress. Use this after listing bids to drill into a specific one.',
       inputSchema: {
@@ -172,7 +172,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         if (wsError || !workspace) {
           return {
             content: [
-              { type: 'text' as const, text: `Bid not found: ${args.id}` },
+              { type: 'text' as const, text: `Procurement not found: ${args.id}` },
             ],
             isError: true,
           };
@@ -188,7 +188,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
 
         // Fetch individual questions grouped by section
         const { sections, status_breakdown, confidence_breakdown } =
-          await fetchBidSections(supabase, args.id);
+          await fetchProcurementSections(supabase, args.id);
 
         // Compute readiness summary from responses with metadata
         const allQuestionIds = sections.flatMap((s) =>
@@ -245,7 +245,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
             )
               approved++;
 
-            const meta2 = (resp?.metadata ?? {}) as BidResponseMetadata;
+            const meta2 = (resp?.metadata ?? {}) as ProcurementResponseMetadata;
             const qd: QualityData | null = meta2.quality_data ?? null;
             if (qd) {
               qualityChecked++;
@@ -271,10 +271,10 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           };
         }
 
-        const meta = parseBidMetadata(workspace.domain_metadata);
-        const bidDetail: BidDetail = {
+        const meta = parseProcurementMetadata(workspace.domain_metadata);
+        const procurementDetail: ProcurementDetail = {
           id: workspace.id,
-          name: workspace.name ?? 'Untitled Bid',
+          name: workspace.name ?? 'Untitled Procurement',
           buyer: meta?.buyer ?? null,
           status: meta?.status ?? 'draft',
           deadline: meta?.deadline ?? null,
@@ -290,12 +290,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           ? `\n\n**Readiness:** ${readinessSummary.ready ? 'Ready to export' : 'Not ready'} (${readinessSummary.summary.answered}/${readinessSummary.summary.total_questions} answered, ${readinessSummary.summary.approved}/${readinessSummary.summary.total_questions} approved)`
           : '';
         const markdown = truncateResponse(
-          formatBidDetail(bidDetail) + readinessLine,
+          formatBidDetail(procurementDetail) + readinessLine,
         );
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
-            ...bidDetail,
+            ...procurementDetail,
             readiness_summary: readinessSummary,
           }),
         };
@@ -321,7 +321,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     server,
     'get_bid_question',
     {
-      title: 'Get Bid Question',
+      title: 'Get Procurement Question',
       description:
         'Get a specific bid question with its response text, confidence posture, and review status. Use this to see the detail of a particular question within a bid.',
       inputSchema: {
@@ -364,7 +364,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           'mcp.bid.response_by_question',
         );
 
-        const detail: BidQuestionDetail = {
+        const detail: ProcurementQuestionDetail = {
           id: question.id,
           question_text: question.question_text,
           section_name: question.section_name,

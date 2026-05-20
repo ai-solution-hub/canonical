@@ -50,7 +50,7 @@ vi.mock('@/lib/client-config', () => ({
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
-      { key: 'bid_detail', label: 'Bid Detail', description: '', order: 2 },
+      { key: 'bid_detail', label: 'Procurement Detail', description: '', order: 2 },
       {
         key: 'company_reference',
         label: 'Company Reference',
@@ -63,7 +63,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
     getLayerKeys: () => ['bid_detail', 'company_reference'],
     getLayerLabel: (key: string) => {
       const map: Record<string, string> = {
-        bid_detail: 'Bid Detail',
+        bid_detail: 'Procurement Detail',
         company_reference: 'Company Reference',
       };
       return map[key] ?? key;

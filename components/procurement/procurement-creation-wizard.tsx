@@ -22,7 +22,7 @@ import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 
 type WizardStep = 1 | 2 | 3;
 
-interface BidCreationWizardProps {
+interface ProcurementCreationWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (bid: { id: string; name: string }) => void;
@@ -54,20 +54,20 @@ function flattenSections(
 }
 
 const STEP_LABELS = [
-  'Bid Details',
+  'Procurement Details',
   'Upload Document',
   'Review Questions',
 ] as const;
 
-export function BidCreationWizard({
+export function ProcurementCreationWizard({
   open,
   onOpenChange,
   onCreated,
-}: BidCreationWizardProps) {
+}: ProcurementCreationWizardProps) {
   // Step state
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
 
-  // Step 1: Bid details
+  // Step 1: Procurement details
   const [name, setName] = useState('');
   const [buyer, setBuyer] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -137,7 +137,7 @@ export function BidCreationWizard({
       if (estimatedValue.trim()) body.estimated_value = estimatedValue.trim();
       if (notes.trim()) body.notes = notes.trim();
 
-      const response = await fetch('/api/bids', {
+      const response = await fetch('/api/procurement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -221,7 +221,7 @@ export function BidCreationWizard({
       >
         <DialogHeader>
           <DialogTitle>
-            {currentStep === 1 && 'Create New Bid'}
+            {currentStep === 1 && 'Create New Procurement'}
             {currentStep === 2 && 'Upload Tender Document'}
             {currentStep === 3 && 'Review Extracted Questions'}
           </DialogTitle>
@@ -238,7 +238,7 @@ export function BidCreationWizard({
         {/* Step indicator */}
         <StepIndicator currentStep={currentStep} />
 
-        {/* Step 1: Bid details form */}
+        {/* Step 1: Procurement details form */}
         {currentStep === 1 && (
           <form
             onSubmit={(e) => handleCreateBid(e, true)}
@@ -246,7 +246,7 @@ export function BidCreationWizard({
           >
             <div className="space-y-1.5">
               <Label htmlFor="wizard-bid-name">
-                Bid Name <span className="text-destructive">*</span>
+                Procurement Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="wizard-bid-name"
@@ -374,7 +374,7 @@ export function BidCreationWizard({
                   ) : (
                     <>
                       <PenLine className="size-4" aria-hidden="true" />
-                      Start Blank Bid
+                      Start Blank Procurement
                     </>
                   )}
                 </Button>
@@ -401,7 +401,7 @@ export function BidCreationWizard({
         {currentStep === 2 && createdBid && (
           <div className="space-y-4">
             <TenderUpload
-              bidId={createdBid.id}
+              procurementId={createdBid.id}
               onUploadComplete={handleUploadComplete}
             />
             <div className="flex justify-end">
@@ -418,12 +418,12 @@ export function BidCreationWizard({
             {extractedMetadata && (
               <TenderMetadataPrompt
                 metadata={extractedMetadata}
-                bidId={createdBid.id}
+                procurementId={createdBid.id}
               />
             )}
             {flatQuestions.length > 0 && (
               <QuestionReview
-                bidId={createdBid.id}
+                procurementId={createdBid.id}
                 questions={flatQuestions}
                 onConfirmed={handleQuestionsConfirmed}
                 onCancelled={handleQuestionsCancelled}

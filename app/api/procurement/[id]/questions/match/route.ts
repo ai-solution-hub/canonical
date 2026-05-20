@@ -13,7 +13,7 @@ import { generateEmbedding } from '@/lib/ai/embed';
 import { deduplicateResults, assessConfidence } from '@/lib/ai/match';
 import type { MatchResult } from '@/lib/ai/match';
 import { canTransition } from '@/lib/procurement/procurement-workflow';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
@@ -58,15 +58,15 @@ export async function POST(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Fetch questions to match.
@@ -210,7 +210,7 @@ export async function POST(
     }
 
     // Check if bid should transition to 'drafting'
-    const currentStatus = (bid.status as BidState) ?? 'draft';
+    const currentStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
 
     if (
       currentStatus === 'matching' &&

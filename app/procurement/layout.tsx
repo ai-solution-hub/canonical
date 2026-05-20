@@ -1,3 +1,3 @@
-export default function BidLayout({ children }: { children: React.ReactNode }) {
+export default function ProcurementLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }

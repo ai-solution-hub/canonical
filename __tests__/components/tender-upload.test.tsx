@@ -125,7 +125,7 @@ function createMockFile(name: string, size: number, type: string): File {
 
 describe('TenderUpload', () => {
   const defaultProps = {
-    bidId: 'bid-1',
+    procurementId: 'bid-1',
     onUploadComplete: vi.fn(),
   };
 
@@ -235,7 +235,7 @@ describe('TenderUpload', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/bids/bid-1/tender',
+        '/api/procurement/bid-1/tender',
         expect.objectContaining({ method: 'POST' }),
       );
     });
@@ -267,7 +267,7 @@ describe('TenderUpload', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/bids/bid-1/tender',
+        '/api/procurement/bid-1/tender',
         expect.objectContaining({ method: 'POST' }),
       );
     });

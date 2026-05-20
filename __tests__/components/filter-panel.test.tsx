@@ -139,7 +139,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
       },
       {
         key: 'bid_detail',
-        label: 'Bid Detail',
+        label: 'Procurement Detail',
         description: '',
         display_order: 2,
         is_active: true,
@@ -481,7 +481,7 @@ describe('FilterPanel', () => {
       expect(screen.getByText('Content Layer')).toBeInTheDocument();
       // Layer chips should be visible without clicking Advanced
       expect(screen.getByText('Sales Brief')).toBeInTheDocument();
-      expect(screen.getByText('Bid Detail')).toBeInTheDocument();
+      expect(screen.getByText('Procurement Detail')).toBeInTheDocument();
       expect(screen.getByText('Company Reference')).toBeInTheDocument();
       // 'Research' appears as both the Research layer chip and in the
       // Keywords filter's exposed keyword chips (pre-existing mock data).

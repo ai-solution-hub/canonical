@@ -3,11 +3,11 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import {
-  BidOutcomeBodySchema,
-  parseBidMetadata,
+  ProcurementOutcomeBodySchema,
+  parseProcurementMetadata,
 } from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/procurement/procurement-workflow';
-import type { BidState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
@@ -34,31 +34,31 @@ export async function POST(
     }
 
     const raw = await request.json();
-    const parsed = parseBody(BidOutcomeBodySchema, raw);
+    const parsed = parseBody(ProcurementOutcomeBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
     const { outcome, notes, integrate_to_kb } = parsed.data;
 
     // Fetch the bid. Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
-    const bidMetadata =
-      parseBidMetadata(bid.domain_metadata) ??
+    const procurementMetadata =
+      parseProcurementMetadata(bid.domain_metadata) ??
       (bid.domain_metadata as Record<string, unknown>) ??
       {};
-    const currentStatus = (bid.status as BidState) ?? 'draft';
+    const currentStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
 
     // Validate state transition
-    if (!canTransition(currentStatus, outcome as BidState)) {
+    if (!canTransition(currentStatus, outcome as ProcurementWorkflowState)) {
       return NextResponse.json(
         {
           error: `Cannot transition from "${currentStatus}" to "${outcome}"`,
@@ -71,7 +71,7 @@ export async function POST(
 
     // Update bid with outcome
     const updatedMetadata = {
-      ...bidMetadata,
+      ...procurementMetadata,
       outcome,
       outcome_notes: notes ?? null,
       outcome_recorded_at: new Date().toISOString(),

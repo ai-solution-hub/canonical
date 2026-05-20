@@ -109,8 +109,8 @@ function setupDefaultMocks() {
       return {
         ok: true,
         json: async () => [
-          { id: 'ws-1', name: 'Bid Alpha', type: 'bid' },
-          { id: 'ws-2', name: 'Bid Beta', type: 'bid' },
+          { id: 'ws-1', name: 'Procurement Alpha', type: 'bid' },
+          { id: 'ws-2', name: 'Procurement Beta', type: 'bid' },
         ],
       };
     }
@@ -211,7 +211,7 @@ describe('useFilterData', () => {
       expect(result.current.allWorkspaces).toHaveLength(2);
     });
 
-    expect(result.current.allWorkspaces[0].name).toBe('Bid Alpha');
+    expect(result.current.allWorkspaces[0].name).toBe('Procurement Alpha');
   });
 
   it('fetches user tags when panel opens', async () => {
@@ -363,7 +363,7 @@ describe('useFilterData', () => {
         if (url === '/api/workspaces') {
           return {
             ok: true,
-            json: async () => [{ id: 'ws-1', name: 'Bid Alpha', type: 'bid' }],
+            json: async () => [{ id: 'ws-1', name: 'Procurement Alpha', type: 'bid' }],
           };
         }
         return { ok: false, json: async () => ({}) };

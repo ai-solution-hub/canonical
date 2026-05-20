@@ -2,21 +2,21 @@
  * WP2 Phase 1 spec — 8.0.3 bid create happy path submit
  *
  * USER FLOW:
- *   1. As admin (authenticatedPage), navigate to `/bid`.
- *   2. Click the "New Bid" / "Create Bid" trigger to open the create
+ *   1. As admin (authenticatedPage), navigate to `/procurement`.
+ *   2. Click the "New Procurement" / "Create Procurement" trigger to open the create
  *      dialog (the dialog is already covered by existing tests; we add
  *      the SUBMIT path here).
- *   3. Fill the Name field with `[E2E-WP2-8.0.3] Submit Path Bid <ts>`
+ *   3. Fill the Name field with `[E2E-WP2-8.0.3] Submit Path Procurement <ts>`
  *      and the Buyer field with `E2E Submit Buyer`.
- *   4. Click the "Create Bid" submit button inside the dialog.
- *   5. Wait for navigation to `/bid/<uuid>` (use `page.waitForURL` with a
+ *   4. Click the "Create Procurement" submit button inside the dialog.
+ *   5. Wait for navigation to `/procurement/<uuid>` (use `page.waitForURL` with a
  *      regex on the UUID segment, NOT a fixed timeout).
  *   6. Reload the page and assert the bid name still renders (proves the
  *      DB write persisted, not just an optimistic UI update).
  *
  * ASSERTIONS (each must be verifiable from browser state OR DB state — no
  * trivial "element exists" checks; every assertion must map to a failure mode):
- *   - URL after submit matches `/bid/[0-9a-f-]{36}` exactly.
+ *   - URL after submit matches `/procurement/[0-9a-f-]{36}` exactly.
  *   - A `workspaces` row with `type='bid'`, the typed Name, and the typed
  *     Buyer (from `domain_metadata->>buyer`) exists in DB. Verified via
  *     service-key query against the captured workspace id from the URL.
@@ -34,13 +34,13 @@
  * each must map to >= 1 assertion above):
  *   - `POST /api/bids` returns 200 without inserting into `workspaces` →
  *     caught by DB row existence assertion.
- *   - Submit handler navigates to `/bid` (list) instead of `/bid/<id>` →
+ *   - Submit handler navigates to `/procurement` (list) instead of `/procurement/<id>` →
  *     caught by URL regex assertion.
  *   - `created_by` left NULL because auth context not threaded through →
  *     caught by created_by match assertion.
  *   - Buyer field stored under wrong JSON key (e.g. typo in
  *     domain_metadata key) → caught by buyer DB assertion.
- *   - Bid persists only in client memory, not DB → caught by post-reload
+ *   - Procurement persists only in client memory, not DB → caught by post-reload
  *     name visibility assertion.
  *
  * ROLE SCOPING:
@@ -63,12 +63,12 @@
  *   - `created_by` is set to `user.id` from `getAuthorisedClient`
  *     (admin/editor), so the assertion on `created_by` is meaningful.
  *   - The handler returns the inserted row; the front-end then navigates
- *     to `/bid/<id>`. If the navigation step is intercepted by an
+ *     to `/procurement/<id>`. If the navigation step is intercepted by an
  *     intermediate page, the URL regex assertion still passes as long as
  *     the final URL matches.
  *
  * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
- *   - DO NOT mock `/api/bids` POST or stub the supabase client. The test
+ *   - DO NOT mock `/api/procurement` POST or stub the supabase client. The test
  *     must run against the real route handler with a real DB write.
  *   - DO NOT pre-seed a row with the same name in `beforeEach` — that
  *     would make the post-reload "name visible" assertion pass even if
@@ -88,9 +88,9 @@ import { createTestBid } from '../helpers/data-factory';
 import { createServiceClient } from '../fixtures/supabase';
 
 /**
- * Flow: Bid Pipeline
+ * Flow: Procurement Pipeline
  *
- * Tests for the Bid Pipeline pages covering the bid list (/bid),
+ * Tests for the Procurement Pipeline pages covering the bid list (/bid),
  * bid detail (/bid/[id]), status filters, role-based behaviour,
  * bid creation form, and mobile responsiveness.
  *
@@ -99,14 +99,14 @@ import { createServiceClient } from '../fixtures/supabase';
  */
 
 // ---------------------------------------------------------------------------
-// 1. Bid List Page (/bid)
+// 1. Procurement List Page (/bid)
 // ---------------------------------------------------------------------------
 
-test.describe('Bid list page', () => {
+test.describe('Procurement list page', () => {
   test('bid list page loads with heading', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
 
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
@@ -121,14 +121,14 @@ test.describe('Bid list page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
 
     // Wait for bid cards to load. Scope to the card root (data-testid)
-    // because the BidStateBadge is a sibling of the <Link>, not inside it.
-    const bidCard = page.getByTestId(`bid-card-${workerData.bidId}`);
+    // because the ProcurementWorkflowBadge is a sibling of the <Link>, not inside it.
+    const bidCard = page.getByTestId(`bid-card-${workerData.procurementId}`);
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
-    // Bid name (with prefix)
+    // Procurement name (with prefix)
     await expect(bidCard.getByText('IT Support Services')).toBeVisible();
 
     // Status badge — bid is in "drafting" state, label is "Drafting"
@@ -141,7 +141,7 @@ test.describe('Bid list page', () => {
   test('status filter buttons are displayed', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
 
     // Wait for content to load
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
@@ -171,7 +171,7 @@ test.describe('Bid list page', () => {
     });
 
     try {
-      await page.goto('/bid');
+      await page.goto('/procurement');
 
       const filterGroup = page.getByRole('group', { name: 'Filter by status' });
       await expect(filterGroup).toBeVisible({ timeout: 10000 });
@@ -180,11 +180,11 @@ test.describe('Bid list page', () => {
       await filterGroup.getByRole('button', { name: 'Active' }).click();
 
       // Worker bid (drafting state = Active) should remain visible
-      const workerCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+      const workerCard = page.locator(`a[href="/procurement/${workerData.procurementId}"]`);
       await expect(workerCard).toBeVisible();
 
       // Draft bid should be hidden
-      const draftCard = page.locator(`a[href="/bid/${draftBidId}"]`);
+      const draftCard = page.locator(`a[href="/procurement/${draftBidId}"]`);
       await expect(draftCard).not.toBeVisible();
     } finally {
       // Clean up the temporary bid
@@ -196,7 +196,7 @@ test.describe('Bid list page', () => {
   test('status filter: shows empty message when no matches', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
 
     const filterGroup = page.getByRole('group', { name: 'Filter by status' });
     await expect(filterGroup).toBeVisible({ timeout: 10000 });
@@ -213,54 +213,54 @@ test.describe('Bid list page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
 
-    const bidCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+    const bidCard = page.locator(`a[href="/procurement/${workerData.procurementId}"]`);
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
     await bidCard.click();
 
-    await expect(page).toHaveURL(`/bid/${workerData.bidId}`);
+    await expect(page).toHaveURL(`/procurement/${workerData.procurementId}`);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 2. Bid Creation Form
+// 2. Procurement Creation Form
 // ---------------------------------------------------------------------------
 
-test.describe('Bid creation form', () => {
-  test('create dialog opens on New Bid click', async ({
+test.describe('Procurement creation form', () => {
+  test('create dialog opens on New Procurement click', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
-    await page.getByRole('button', { name: 'New Bid' }).click();
+    await page.getByRole('button', { name: 'New Procurement' }).click();
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(
-      dialog.getByRole('heading', { name: 'Create New Bid' }),
+      dialog.getByRole('heading', { name: 'Create New Procurement' }),
     ).toBeVisible();
   });
 
   test('create dialog has required fields', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
-    await page.getByRole('button', { name: 'New Bid' }).click();
+    await page.getByRole('button', { name: 'New Procurement' }).click();
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
     // Required fields (marked with *)
-    await expect(dialog.getByLabel(/Bid Name/)).toBeVisible();
+    await expect(dialog.getByLabel(/Procurement Name/)).toBeVisible();
     await expect(dialog.getByLabel(/Buyer/)).toBeVisible();
 
     // Optional fields
@@ -273,17 +273,17 @@ test.describe('Bid creation form', () => {
   test('create button disabled without required fields', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
-    await page.getByRole('button', { name: 'New Bid' }).click();
+    await page.getByRole('button', { name: 'New Procurement' }).click();
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    // The in-use dialog is BidCreationWizard (3-step), which exposes two
+    // The in-use dialog is ProcurementCreationWizard (3-step), which exposes two
     // submit affordances on step 1: "Create Without Document" (link button,
     // create-only path) and "Next: Upload Tender" (form submit, advance path).
     // Both must be disabled until both required fields are filled.
@@ -297,7 +297,7 @@ test.describe('Bid creation form', () => {
     await expect(nextButton).toBeDisabled();
 
     // Fill only name — still disabled
-    await dialog.locator('#wizard-bid-name').fill('Test Bid');
+    await dialog.locator('#wizard-bid-name').fill('Test Procurement');
     await expect(createWithoutDocButton).toBeDisabled();
     await expect(nextButton).toBeDisabled();
 
@@ -309,22 +309,22 @@ test.describe('Bid creation form', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Bid Detail Page (/bid/[id])
+// 3. Procurement Detail Page (/bid/[id])
 // ---------------------------------------------------------------------------
 
-test.describe('Bid detail page', () => {
+test.describe('Procurement detail page', () => {
   test('detail page loads with bid name and status', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     // Heading with bid name
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // BidStateBadge with "Drafting" label (bid is in drafting state)
+    // ProcurementWorkflowBadge with "Drafting" label (bid is in drafting state)
     await expect(page.getByText('Drafting').first()).toBeVisible();
   });
 
@@ -332,7 +332,7 @@ test.describe('Bid detail page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -354,14 +354,14 @@ test.describe('Bid detail page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // BidStateStepper has role="list" with aria-label="Bid progress"
-    const stepper = page.getByRole('list', { name: 'Bid progress' });
+    // ProcurementWorkflowStepper has role="list" with aria-label="Procurement progress"
+    const stepper = page.getByRole('list', { name: 'Procurement progress' });
     await expect(stepper).toBeVisible();
 
     // Should have step indicators (listitems)
@@ -373,14 +373,14 @@ test.describe('Bid detail page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // Tab nav uses role="tablist" with aria-label "Bid sections"
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    // Tab nav uses role="tablist" with aria-label "Procurement sections"
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await expect(tabNav).toBeVisible();
 
     // Tab buttons (role="tab"). The Questions tab has a count badge so its
@@ -395,7 +395,7 @@ test.describe('Bid detail page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -412,14 +412,14 @@ test.describe('Bid detail page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
     // Click the Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await tabNav.getByRole('tab', { name: /^Questions/ }).click();
 
     // Verify one of the seeded questions is visible
@@ -434,7 +434,7 @@ test.describe('Bid detail page', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -446,7 +446,7 @@ test.describe('Bid detail page', () => {
 
     await backLink.click();
 
-    await expect(page).toHaveURL('/bid');
+    await expect(page).toHaveURL('/procurement');
   });
 });
 
@@ -454,35 +454,35 @@ test.describe('Bid detail page', () => {
 // 4. Role-Based Behaviour
 // ---------------------------------------------------------------------------
 
-test.describe('Bid role gating', () => {
-  test('New Bid button visible for admin', async ({
+test.describe('Procurement role gating', () => {
+  test('New Procurement button visible for admin', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/bid');
+    await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
-    await expect(page.getByRole('button', { name: 'New Bid' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New Procurement' })).toBeVisible();
   });
 
-  test('New Bid button visible for editor', async ({ editorPage: page }) => {
-    await page.goto('/bid');
+  test('New Procurement button visible for editor', async ({ editorPage: page }) => {
+    await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
-    await expect(page.getByRole('button', { name: 'New Bid' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New Procurement' })).toBeVisible();
   });
 
-  test('New Bid button hidden for viewer', async ({ viewerPage: page }) => {
-    await page.goto('/bid');
+  test('New Procurement button hidden for viewer', async ({ viewerPage: page }) => {
+    await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
     await expect(
-      page.getByRole('button', { name: 'New Bid' }),
+      page.getByRole('button', { name: 'New Procurement' }),
     ).not.toBeVisible();
   });
 
@@ -490,7 +490,7 @@ test.describe('Bid role gating', () => {
     viewerPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -512,7 +512,7 @@ test.describe('Bid role gating', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -539,7 +539,7 @@ test.describe('Bid role gating', () => {
 // 5. Mobile-Specific
 // ---------------------------------------------------------------------------
 
-test.describe('Bid mobile layout', () => {
+test.describe('Procurement mobile layout', () => {
   test('bid cards stack vertically on mobile', async ({
     authenticatedPage: page,
     workerData,
@@ -550,9 +550,9 @@ test.describe('Bid mobile layout', () => {
       return;
     }
 
-    await page.goto('/bid');
+    await page.goto('/procurement');
 
-    const bidCard = page.getByTestId(`bid-card-${workerData.bidId}`);
+    const bidCard = page.getByTestId(`bid-card-${workerData.procurementId}`);
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
     // On mobile, the grid should be single column (no sm:grid-cols-2).
@@ -573,7 +573,7 @@ test.describe('Bid mobile layout', () => {
 // 6. WP2 Phase 3 — 8.0.3 bid create happy path submit
 // ---------------------------------------------------------------------------
 
-test.describe('Bid create happy path submit (8.0.3)', () => {
+test.describe('Procurement create happy path submit (8.0.3)', () => {
   // Idempotent cleanup: delete any workspaces whose name carries the
   // 8.0.3 prefix from this or previous runs.
   const NAME_PREFIX = '[E2E-WP2-8.0.3]';
@@ -597,7 +597,7 @@ test.describe('Bid create happy path submit (8.0.3)', () => {
   }) => {
     // workerData fixture is referenced (even though unused) so the worker
     // seeds at least one bid before this test runs — the bid list page then
-    // shows the header "New Bid" button rather than the empty-state CTA.
+    // shows the header "New Procurement" button rather than the empty-state CTA.
     void _workerData;
     const supabase = createServiceClient();
 
@@ -628,29 +628,29 @@ test.describe('Bid create happy path submit (8.0.3)', () => {
     ).toBeTruthy();
 
     // Compose a unique name carrying the 8.0.3 prefix for safe cleanup.
-    const uniqueName = `${NAME_PREFIX} Submit Path Bid ${Date.now()}`;
+    const uniqueName = `${NAME_PREFIX} Submit Path Procurement ${Date.now()}`;
     const buyerName = 'E2E Submit Buyer';
 
     // 1. Navigate to /bid
-    await page.goto('/bid');
+    await page.goto('/procurement');
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });
 
-    // 2. Open the create dialog via the header "New Bid" button. The
+    // 2. Open the create dialog via the header "New Procurement" button. The
     //    workerData fixture above ensures at least one bid is seeded so
     //    this button is rendered (the empty-state CTA is hidden).
-    const newBidButton = page.getByRole('button', { name: 'New Bid' });
+    const newBidButton = page.getByRole('button', { name: 'New Procurement' });
     await expect(newBidButton).toBeVisible({ timeout: 10000 });
     await newBidButton.click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 10000 });
     await expect(
-      dialog.getByRole('heading', { name: 'Create New Bid' }),
+      dialog.getByRole('heading', { name: 'Create New Procurement' }),
     ).toBeVisible();
 
     // 3. Fill required fields. NOTE: the in-use dialog is the
-    //    `BidCreationWizard` (3-step), NOT the older `BidCreationForm`.
+    //    `ProcurementCreationWizard` (3-step), NOT the older `BidCreationForm`.
     //    Phase 2 verified the wrong component. The wizard renders inputs
     //    with `wizard-bid-name` / `wizard-bid-buyer` ids and submits the
     //    create-only path via the "Create Without Document" link button.

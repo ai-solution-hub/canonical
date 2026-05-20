@@ -9,7 +9,7 @@ const UUID_RE =
 // Types
 // ---------------------------------------------------------------------------
 
-interface BidCitation {
+interface ProcurementCitation {
   workspace_id: string;
   workspace_name: string;
   buyer: string | null;
@@ -24,7 +24,7 @@ interface EffectivenessResponse {
   losing_citations: number;
   pending_citations: number;
   win_rate: number;
-  bids: BidCitation[];
+  bids: ProcurementCitation[];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +126,7 @@ export async function GET(
 
     // Build the bid list, deduplicating by workspace_id
     const seenWorkspaces = new Set<string>();
-    const bids: BidCitation[] = [];
+    const bids: ProcurementCitation[] = [];
 
     for (const citation of citations ?? []) {
       const response = citation.bid_responses as unknown as {

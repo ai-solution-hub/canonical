@@ -138,7 +138,7 @@ describe('GET /api/bids/:id/templates', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates`);
+    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates`);
     const params = createTestParams({ id: BID_UUID });
     const res = await listTemplates(req, { params });
 
@@ -148,7 +148,7 @@ describe('GET /api/bids/:id/templates', () => {
   });
 
   it('returns 400 for invalid bid UUID', async () => {
-    const req = createTestRequest('/api/bids/not-a-uuid/templates');
+    const req = createTestRequest('/api/procurement/not-a-uuid/templates');
     const params = createTestParams({ id: 'not-a-uuid' });
     const res = await listTemplates(req, { params });
 
@@ -164,13 +164,13 @@ describe('GET /api/bids/:id/templates', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates`);
+    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates`);
     const params = createTestParams({ id: BID_UUID });
     const res = await listTemplates(req, { params });
 
     expect(res.status).toBe(404);
     const json = await res.json();
-    expect(json.error).toBe('Bid not found');
+    expect(json.error).toBe('Procurement not found');
   });
 
   it('returns 200 with templates list on success', async () => {
@@ -213,7 +213,7 @@ describe('GET /api/bids/:id/templates', () => {
       },
     );
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates`);
+    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates`);
     const params = createTestParams({ id: BID_UUID });
     const res = await listTemplates(req, { params });
 
@@ -226,7 +226,7 @@ describe('GET /api/bids/:id/templates', () => {
   });
 
   it('returns empty templates array when bid has no templates', async () => {
-    // Bid exists
+    // Procurement exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
@@ -236,7 +236,7 @@ describe('GET /api/bids/:id/templates', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates`);
+    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates`);
     const params = createTestParams({ id: BID_UUID });
     const res = await listTemplates(req, { params });
 
@@ -256,7 +256,7 @@ describe('POST /api/bids/:id/templates', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates`, {
+    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates`, {
       method: 'POST',
     });
     const params = createTestParams({ id: BID_UUID });
@@ -270,7 +270,7 @@ describe('POST /api/bids/:id/templates', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates`, {
+    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates`, {
       method: 'POST',
     });
     const params = createTestParams({ id: BID_UUID });
@@ -318,7 +318,7 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
     );
     const params = createTestParams({
       id: BID_UUID,
@@ -332,7 +332,7 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
   });
 
   it('returns 400 for invalid template UUID', async () => {
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/bad-id`);
+    const req = createTestRequest(`/api/procurement/${BID_UUID}/templates/bad-id`);
     const params = createTestParams({ id: BID_UUID, templateId: 'bad-id' });
     const res = await getTemplateDetail(req, { params });
 
@@ -348,7 +348,7 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
     });
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
     );
     const params = createTestParams({
       id: BID_UUID,
@@ -444,7 +444,7 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
     });
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
     );
     const params = createTestParams({
       id: BID_UUID,
@@ -476,7 +476,7 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
       {
         method: 'DELETE',
       },
@@ -496,7 +496,7 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
     configureRole(mockSupabase, 'editor');
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
       {
         method: 'DELETE',
       },
@@ -514,7 +514,7 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
     configureRole(mockSupabase, 'admin');
 
     const req = createTestRequest(
-      `/api/bids/bad-id/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/bad-id/templates/${TEMPLATE_UUID}`,
       {
         method: 'DELETE',
       },
@@ -540,7 +540,7 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
     });
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
       {
         method: 'DELETE',
       },
@@ -587,7 +587,7 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
     );
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
       {
         method: 'DELETE',
       },
@@ -639,7 +639,7 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
     );
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}`,
       {
         method: 'DELETE',
       },
@@ -667,7 +667,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
     const params = createTestParams({
@@ -685,7 +685,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     configureRole(mockSupabase, 'viewer');
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
     const params = createTestParams({
@@ -701,7 +701,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     configureRole(mockSupabase, 'editor');
 
     const req = createTestRequest(
-      `/api/bids/bad-id/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/bad-id/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
     const params = createTestParams({
@@ -724,7 +724,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     });
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
     const params = createTestParams({
@@ -753,7 +753,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     });
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
     const params = createTestParams({
@@ -794,7 +794,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     );
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
     const params = createTestParams({
@@ -836,7 +836,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     );
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: { force: true } },
     );
     const params = createTestParams({
@@ -881,7 +881,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     );
 
     const req = createTestRequest(
-      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
+      `/api/procurement/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
     const params = createTestParams({

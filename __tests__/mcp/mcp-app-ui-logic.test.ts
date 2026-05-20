@@ -1,7 +1,7 @@
 /**
  * UI logic tests for MCP Apps.
  *
- * These test the pure logic used by the Bid Dashboard and Coverage Matrix apps
+ * These test the pure logic used by the Procurement Dashboard and Coverage Matrix apps
  * without importing from the app source files (which depend on DOM and ext-apps
  * SDK). Instead, we reimplement the pure functions here and verify they match
  * the expected behaviour documented in the app code.
@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 
 type Urgency = 'overdue' | 'urgent' | 'approaching' | 'normal' | 'none';
 
-interface BidSummary {
+interface ProcurementSummary {
   id: string;
   name: string;
   buyer: string | null;
@@ -40,7 +40,7 @@ function getUrgency(daysUntil: number | null): Urgency {
 }
 
 /** Sort order for urgency (lower = higher priority) */
-function getUrgencyOrder(bid: BidSummary): number {
+function getUrgencyOrder(bid: ProcurementSummary): number {
   const urgency = getUrgency(bid.days_until_deadline);
   const order: Record<Urgency, number> = {
     overdue: 0,
@@ -175,7 +175,7 @@ function sortDomainsForDisplay(
 // Tests
 // ===========================================================================
 
-describe('Bid Dashboard: urgency calculation', () => {
+describe('Procurement Dashboard: urgency calculation', () => {
   it('returns "overdue" for negative days', () => {
     expect(getUrgency(-1)).toBe('overdue');
     expect(getUrgency(-30)).toBe('overdue');
@@ -202,8 +202,8 @@ describe('Bid Dashboard: urgency calculation', () => {
   });
 });
 
-describe('Bid Dashboard: bid sorting', () => {
-  const bids: BidSummary[] = [
+describe('Procurement Dashboard: bid sorting', () => {
+  const bids: ProcurementSummary[] = [
     {
       id: '1',
       name: 'Normal',
@@ -297,7 +297,7 @@ describe('Bid Dashboard: bid sorting', () => {
   });
 });
 
-describe('Bid Dashboard: date formatting (UK)', () => {
+describe('Procurement Dashboard: date formatting (UK)', () => {
   it('formats ISO date as DD/MM/YYYY', () => {
     expect(formatDateUK('2026-04-15')).toBe('15/04/2026');
   });
@@ -319,7 +319,7 @@ describe('Bid Dashboard: date formatting (UK)', () => {
   });
 });
 
-describe('Bid Dashboard: deadline text', () => {
+describe('Procurement Dashboard: deadline text', () => {
   it('returns "No deadline" when deadline is null', () => {
     expect(formatDeadlineText(null, null)).toBe('No deadline');
   });
@@ -349,7 +349,7 @@ describe('Bid Dashboard: deadline text', () => {
   });
 });
 
-describe('Bid Dashboard: progress calculation', () => {
+describe('Procurement Dashboard: progress calculation', () => {
   it('calculates correct percentage', () => {
     expect(calculateProgress(18, 25)).toBe(72);
   });
@@ -368,7 +368,7 @@ describe('Bid Dashboard: progress calculation', () => {
   });
 });
 
-describe('Bid Dashboard: status badge mapping', () => {
+describe('Procurement Dashboard: status badge mapping', () => {
   it('returns known status as-is', () => {
     expect(getStatusModifier('active')).toBe('active');
     expect(getStatusModifier('draft')).toBe('draft');
@@ -383,7 +383,7 @@ describe('Bid Dashboard: status badge mapping', () => {
   });
 });
 
-describe('Bid Dashboard: card class name building', () => {
+describe('Procurement Dashboard: card class name building', () => {
   it('includes urgency modifier for overdue', () => {
     expect(buildCardClassName('overdue', false)).toBe(
       'bid-card bid-card--overdue',

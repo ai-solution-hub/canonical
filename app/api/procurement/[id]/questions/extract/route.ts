@@ -15,7 +15,7 @@ import {
 } from '@/lib/ai/extract-questions';
 import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
-import { canTransition, type BidState } from '@/lib/procurement/procurement-workflow';
+import { canTransition, type ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
 
@@ -62,15 +62,15 @@ export async function POST(
 
     // Verify bid exists.
     // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: bidError } = await supabase
+    const { data: bid, error: procurementError } = await supabase
       .from('workspaces')
       .select('id, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();
 
-    if (bidError || !bid) {
-      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+    if (procurementError || !bid) {
+      return NextResponse.json({ error: 'Procurement not found' }, { status: 404 });
     }
 
     // Download file from Supabase Storage
@@ -227,7 +227,7 @@ export async function POST(
         'bids.questions.extract.workspace.read',
       );
 
-      const currentStatus = (currentBid?.status ?? 'draft') as BidState;
+      const currentStatus = (currentBid?.status ?? 'draft') as ProcurementWorkflowState;
       if (canTransition(currentStatus, 'questions_extracted')) {
         await supabase
           .from('workspaces')

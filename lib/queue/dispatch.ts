@@ -40,7 +40,7 @@ import {
 } from '@/lib/queue/envelope';
 import { reValidateAuthContext } from '@/lib/queue/auth';
 import { runBidDraftAllJob } from '@/lib/queue/handlers/procurement-draft-all';
-import type { BidDraftAllBody } from '@/lib/queue/handlers/procurement-draft-all';
+import type { ProcurementDraftAllBody } from '@/lib/queue/handlers/procurement-draft-all';
 import { runBatchReclassifyJob } from '@/lib/queue/handlers/batch-reclassify';
 import type { BatchReclassifyBody } from '@/lib/queue/handlers/batch-reclassify';
 import { runMarkdownBatchJob } from '@/lib/queue/handlers/markdown-batch';
@@ -90,7 +90,7 @@ export async function runJobByType(
           `invalid_envelope: ${parsed.error.message}`,
         );
       }
-      const payload = parsed.data as QueueJobPayload<BidDraftAllBody>;
+      const payload = parsed.data as QueueJobPayload<ProcurementDraftAllBody>;
 
       // -------------------------------------------------------------
       // 2. Re-validate auth context per spec §4.2 + PR-5 — required
@@ -191,7 +191,7 @@ export async function runJobByType(
       }
 
       // The worker writes `result` to `processing_queue.result`. Cast
-      // through `unknown` because BidDraftAllResult's typed shape is
+      // through `unknown` because ProcurementDraftAllResult's typed shape is
       // a stricter subset of `Record<string, unknown>` per the dispatch
       // return contract.
       return result as unknown as Record<string, unknown>;

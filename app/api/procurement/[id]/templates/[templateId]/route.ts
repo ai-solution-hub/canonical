@@ -26,8 +26,8 @@ export async function GET(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { id: bidId, templateId } = await params;
-    if (!UUID_RE.test(bidId) || !UUID_RE.test(templateId)) {
+    const { id: procurementId, templateId } = await params;
+    if (!UUID_RE.test(procurementId) || !UUID_RE.test(templateId)) {
       return NextResponse.json(
         { error: 'Invalid ID format -- must be a valid UUID' },
         { status: 400 },
@@ -42,7 +42,7 @@ export async function GET(
         'id, workspace_id, name, description, filename, storage_path, file_size, mime_type, status, field_count, mapped_count, structure_path, created_by, created_at, updated_at',
       )
       .eq('id', templateId)
-      .eq('workspace_id', bidId)
+      .eq('workspace_id', procurementId)
       .single();
 
     if (templateError || !template) {
@@ -241,8 +241,8 @@ export async function DELETE(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { id: bidId, templateId } = await params;
-    if (!UUID_RE.test(bidId) || !UUID_RE.test(templateId)) {
+    const { id: procurementId, templateId } = await params;
+    if (!UUID_RE.test(procurementId) || !UUID_RE.test(templateId)) {
       return NextResponse.json(
         { error: 'Invalid ID format -- must be a valid UUID' },
         { status: 400 },
@@ -255,7 +255,7 @@ export async function DELETE(
       .from('form_templates')
       .select('id, storage_path, structure_path')
       .eq('id', templateId)
-      .eq('workspace_id', bidId)
+      .eq('workspace_id', procurementId)
       .single();
 
     if (templateError || !template) {

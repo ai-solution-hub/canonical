@@ -18,7 +18,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 vi.mock('@/lib/procurement/procurement-queries', () => ({
-  fetchActiveBidsWithStats: vi.fn().mockResolvedValue({
+  fetchActiveProcurementWithStats: vi.fn().mockResolvedValue({
     workspaces: [],
     statsMap: new Map(),
   }),
