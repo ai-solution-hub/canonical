@@ -8,7 +8,7 @@
  * Acceptance: A-INV-1, A-INV-2 (dry-run output) — 15.3 scope.
  * A-INV-3..10 are verified in 15.4 (apply step).
  *
- * Test count: 29 (expanded from migrate-roadmap-section-3.ts precedent at 8983f991 for full per-function coverage + drift WARN + schema validation + RLS-P9 spec-mismatch sentinel).
+ * Test count: 26 (expanded from migrate-roadmap-section-3.ts precedent at 8983f991 for full per-function coverage + drift WARN + schema validation; RLS-P9 sentinel removed — ID-15.4 Liam ratification: RLS-P9 removed from backlog entirely).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -21,9 +21,7 @@ import {
   isAlreadyMigrated,
   rewriteDependencies,
   applyLineagePrefix,
-  applyStatusOverride,
   runMigration,
-  type MigrationEntry,
   type BacklogDocument,
   type BacklogItem,
 } from '../../scripts/migrate-legacy-ids-to-id-n';
@@ -58,9 +56,9 @@ function makeDocument(items: BacklogItem[]): BacklogDocument {
 // ── §1 buildMapping — mapping table construction ──────────────────────────
 
 describe('buildMapping', () => {
-  it('returns a Map with 43 entries (post-drift: AST-S3-O1/O2 absent)', () => {
+  it('returns a Map with 42 entries (post-drift: AST-S3-O1/O2 absent; RLS-P9 removed)', () => {
     const mapping = buildMapping();
-    expect(mapping.size).toBe(43);
+    expect(mapping.size).toBe(42);
   });
 
   it('maps AST-S10-O1 → "23" (Cluster 1 head after AST-S3 gap)', () => {
@@ -75,19 +73,15 @@ describe('buildMapping', () => {
     expect(entry?.lineagePrefix).toBe(true);
   });
 
-  it('maps RLS-P9 → "41" with status override to done', () => {
-    const mapping = buildMapping();
-    const entry = mapping.get('RLS-P9');
-    expect(entry?.target).toBe('41');
-    expect(entry?.statusOverride).toBe('done');
-    expect(entry?.statusNote).toBeTruthy();
-  });
-
-  it('maps RLS-P8 → "40" without status override', () => {
+  it('maps RLS-P8 → "40"', () => {
     const mapping = buildMapping();
     const entry = mapping.get('RLS-P8');
     expect(entry?.target).toBe('40');
-    expect(entry?.statusOverride).toBeUndefined();
+  });
+
+  it('does NOT contain RLS-P9 (removed — audit-confirmed-clean, Liam-ratified S58)', () => {
+    const mapping = buildMapping();
+    expect(mapping.has('RLS-P9')).toBe(false);
   });
 
   it('does NOT contain AST-S3-O1 (absent from live data — §A.0 drift)', () => {
@@ -178,27 +172,6 @@ describe('applyLineagePrefix', () => {
     const item = makeItem({ id: 'OPS-6', notes: null });
     const result = applyLineagePrefix(item, 'OPS-6');
     expect(result.notes).toBeNull();
-  });
-});
-
-// ── §5 applyStatusOverride — RLS-P9 status flip ──────────────────────────
-
-describe('applyStatusOverride', () => {
-  it('sets status to done and writes status_note for RLS-P9 mapping', () => {
-    const mapping = buildMapping();
-    const entry = mapping.get('RLS-P9') as MigrationEntry;
-    const item = makeItem({ id: 'RLS-P9', status: 'spec_needed' });
-    const result = applyStatusOverride(item, entry);
-    expect(result.status).toBe('done');
-    expect((result as unknown as Record<string, unknown>).status_note).toBeTruthy();
-  });
-
-  it('does not modify item without statusOverride in entry', () => {
-    const mapping = buildMapping();
-    const entry = mapping.get('RLS-P8') as MigrationEntry;
-    const item = makeItem({ id: 'RLS-P8', status: 'spec_needed' });
-    const result = applyStatusOverride(item, entry);
-    expect(result.status).toBe('spec_needed');
   });
 });
 
@@ -322,13 +295,7 @@ describe('schema validation post-migration', () => {
   // A-INV-2: BacklogSchema.parse() on migrated output succeeds (pre-tighten
   // form — id remains z.string().min(1); the regex tighten to /^\d+$/ lands
   // in 15.4 alongside the apply step).
-  //
-  // NB: RLS-P9 is excluded from this test because TECH §A.4's status override
-  // (`done`) is not a member of BacklogItemStatus enum (`blocked|spec_needed|
-  // needs_research|parked|ready`). Spec-vs-schema mismatch escalated to Liam
-  // for 15.4 ratification (extend enum vs change override status vs drop
-  // override). Once resolved, this test should re-include RLS-P9.
-  it('produces output that passes BacklogSchema.parse() (pre-tighten, excluding RLS-P9 status-override case)', async () => {
+  it('produces output that passes BacklogSchema.parse()', async () => {
     const { BacklogSchema } = await import('../../lib/validation/backlog-schema');
     const doc = makeDocument([
       makeItem({ id: 'OPS-6' }),
@@ -343,16 +310,5 @@ describe('schema validation post-migration', () => {
     expect(ids).toContain('42'); // OPS-6 → 42
     expect(ids).toContain('43'); // OPS-11 → 43
     expect(ids).toContain('45'); // OPS-43.1 → 45 with lineage prefix
-  });
-
-  it('surfaces RLS-P9 status-override schema mismatch (TECH §A.4 vs BacklogItemStatus enum)', async () => {
-    // Regression sentinel for the spec-vs-schema mismatch. When 15.4 resolves
-    // the discrepancy (e.g. extending BacklogItemStatus to include `done`),
-    // this test should be replaced with one that asserts the migrated doc
-    // passes BacklogSchema.parse() with RLS-P9 included.
-    const { BacklogSchema } = await import('../../lib/validation/backlog-schema');
-    const doc = makeDocument([makeItem({ id: 'RLS-P9' })]);
-    const { document: migrated } = applyMigration(doc);
-    expect(() => BacklogSchema.parse(migrated)).toThrow();
   });
 });

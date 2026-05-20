@@ -31,10 +31,6 @@ export interface MigrationEntry {
   target: string;
   /** If true, prepend OPS-X.Y lineage note to `notes` field per §A.3. */
   lineagePrefix?: true;
-  /** If set, override `status` to this value per §A.4. */
-  statusOverride?: string;
-  /** If statusOverride set, this is written to `status_note` field. */
-  statusNote?: string;
   /** Cluster or standalone description for inventory purposes. */
   cluster: string;
   /** Engineering track. */
@@ -79,10 +75,13 @@ export interface MigrationResult {
  *
  * Per TECH §A.0 drift rule: AST-S3-O1 and AST-S3-O2 are absent from live data
  * (shipped/closed between mapping-doc snapshot and this spec). The mapping table
- * reflects the 43-item live reality, starting Cluster 1 at id 23.
+ * reflects the 42-item live reality, starting Cluster 1 at id 23.
  *
- * Final post-migration backlog occupies: 17, 18, 23..65
- * (17 and 18 are existing canonical items; 23..65 are the 43 migrated items).
+ * RLS-P9 removed from the backlog entirely (audit-confirmed-clean S243+S56,
+ * Liam-ratified S58 ID-15.4) — slot 41 is vacated (non-compaction per OQ-A).
+ *
+ * Final post-migration backlog occupies: 17, 18, 23..40, 42..65
+ * (17 and 18 are existing canonical items; 23..40 + 42..65 are the 42 migrated items).
  */
 export function buildMapping(): ReadonlyMap<string, MigrationEntry> {
   const entries: MigrationEntry[] = [
@@ -114,18 +113,10 @@ export function buildMapping(): ReadonlyMap<string, MigrationEntry> {
     { legacyId: 'C3-DT-Digest-2', target: '38', cluster: 'C6', track: 'change-reporting' },
     { legacyId: 'C3-DT-Digest-3', target: '39', cluster: 'C6', track: 'change-reporting' },
 
-    // ── Cluster 7 — RLS-audit (2 items → 40..41) ──
-    // RLS-P8: spec_needed (unchanged); RLS-P9: status flip to done per §A.4
+    // ── Cluster 7 — RLS-audit (1 item → 40; slot 41 vacated) ──
+    // RLS-P8: spec_needed (unchanged). RLS-P9 removed — audit-confirmed-clean
+    // S243+S56, Liam-ratified S58 — not worth tracking.
     { legacyId: 'RLS-P8', target: '40', cluster: 'C7', track: 'database' },
-    {
-      legacyId: 'RLS-P9',
-      target: '41',
-      cluster: 'C7',
-      track: 'database',
-      statusOverride: 'done',
-      statusNote:
-        'Retroactive RLS audit completed S243-era. No issues found. Confirmed by Liam at S56 — findings not filed separately. Status flip applied during ID-15.4 migration.',
-    },
 
     // ── Standalone — 24 items (42..65) ──
     { legacyId: 'OPS-6', target: '42', cluster: 'standalone', track: 'database' },
@@ -212,26 +203,6 @@ export function applyLineagePrefix(item: BacklogItem, legacyId: string): Backlog
   return { ...item, notes: newNotes };
 }
 
-// ── Status override (§A.4) ───────────────────────────────────────────────────
-
-/**
- * Apply a status override to an item if the mapping entry specifies one.
- * Only RLS-P9 has a status override in the ratified mapping.
- */
-export function applyStatusOverride(
-  item: BacklogItem,
-  entry: MigrationEntry,
-): BacklogItem & { status_note?: string } {
-  if (!entry.statusOverride) {
-    return item;
-  }
-  return {
-    ...item,
-    status: entry.statusOverride,
-    status_note: entry.statusNote ?? null,
-  };
-}
-
 // ── Full document migration ──────────────────────────────────────────────────
 
 /**
@@ -278,11 +249,6 @@ export function applyMigration(doc: BacklogDocument): MigrationResult {
     // Apply OPS-X.Y lineage prefix per §A.3.
     if (entry.lineagePrefix) {
       migrated = applyLineagePrefix(migrated, item.id);
-    }
-
-    // Apply status override per §A.4.
-    if (entry.statusOverride) {
-      migrated = applyStatusOverride(migrated, entry) as BacklogItem;
     }
 
     return migrated;

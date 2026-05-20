@@ -1,11 +1,11 @@
 {
   "document_name": "Legacy ID Migration Inventory",
-  "document_purpose": "Companion inventory for scripts/migrate-legacy-ids-to-id-n.ts. Records all 43 legacy backlog id mappings (bare-digit targets per S56 OQ-2 ratification). Two items from the mapping doc snapshot (AST-S3-O1 → 21, AST-S3-O2 → 22) are absent from live data per TECH §A.0 drift rule — these slots are vacated (non-compaction choice). Post-migration backlog occupies ids: 17, 18, 23..65.",
+  "document_purpose": "Companion inventory for scripts/migrate-legacy-ids-to-id-n.ts. Records all 42 legacy backlog id mappings (bare-digit targets per S56 OQ-2 ratification). Two items from the mapping doc snapshot (AST-S3-O1 → 21, AST-S3-O2 → 22) are absent from live data per TECH §A.0 drift rule — these slots are vacated (non-compaction choice). RLS-P9 removed (audit-confirmed-clean S243+S56, Liam-ratified S58) — slot 41 vacated. Post-migration backlog occupies ids: 17, 18, 23..40, 42..65.",
   "generated_at": "2026-05-20T22:00:00.000Z",
   "tech_spec": "docs/specs/legacy-id-migration/TECH.md §A.0..A.7",
   "mapping_doc": "docs/research/legacy-id-migration-mapping.md §3.2",
-  "drift_note": "AST-S3-O1 (target 21) and AST-S3-O2 (target 22) are absent from live data — shipped/closed before this migration ran. Slots 21 and 22 are vacated (non-compaction per §A.0 OQ-A ratification). Final live ids: 17, 18, 23..65 (43 items).",
-  "total_entries": 43,
+  "drift_note": "AST-S3-O1 (target 21) and AST-S3-O2 (target 22) are absent from live data — shipped/closed before this migration ran. Slots 21 and 22 are vacated (non-compaction per §A.0 OQ-A ratification). RLS-P9 (target 41) removed from backlog entirely — audit-confirmed-clean, no tracking value, Liam-ratified S58. Final live ids: 17, 18, 23..40, 42..65 (42 items).",
+  "total_entries": 42,
   "clusters": {
     "C1_ast_dataflow": {
       "description": "ast-dataflow follow-ons (5 live items; AST-S3-O1/O2 absent per §A.0)",
@@ -28,8 +28,8 @@
       "targets": "37..39"
     },
     "C7_rls_audit": {
-      "description": "RLS-pattern audit follow-ups. RLS-P9 status → done (S243-era audit completed, Liam-confirmed S56).",
-      "targets": "40..41"
+      "description": "RLS-pattern audit follow-ups. RLS-P8 remains (spec_needed). RLS-P9 removed — audit-confirmed-clean S243+S56, Liam-ratified S58 — slot 41 vacated.",
+      "targets": "40"
     },
     "standalone": {
       "description": "Standalone items grouped by track",
@@ -42,12 +42,6 @@
       "type": "lineage_prefix",
       "note": "Sub-decimal OPS-43.1 → bare-digit 45. Lineage prefix prepended to notes field per TECH §A.3."
     },
-    "RLS-P9": {
-      "target": "41",
-      "type": "status_override",
-      "status": "done",
-      "status_note": "Retroactive RLS audit completed S243-era. No issues found. Confirmed by Liam at S56 — findings not filed separately. Status flip applied during ID-15.4 migration."
-    }
   },
   "entries": [
     { "legacy_id": "AST-S10-O1", "target": "23", "cluster": "C1", "track": "ast-dataflow" },
@@ -68,14 +62,6 @@
     { "legacy_id": "C3-DT-Digest-2", "target": "38", "cluster": "C6", "track": "change-reporting" },
     { "legacy_id": "C3-DT-Digest-3", "target": "39", "cluster": "C6", "track": "change-reporting" },
     { "legacy_id": "RLS-P8", "target": "40", "cluster": "C7", "track": "database" },
-    {
-      "legacy_id": "RLS-P9",
-      "target": "41",
-      "cluster": "C7",
-      "track": "database",
-      "status_override": "done",
-      "status_note": "Retroactive RLS audit completed S243-era. No issues found. Confirmed by Liam at S56 — findings not filed separately. Status flip applied during ID-15.4 migration."
-    },
     { "legacy_id": "OPS-6", "target": "42", "cluster": "standalone", "track": "database" },
     { "legacy_id": "OPS-11", "target": "43", "cluster": "standalone", "track": "database" },
     { "legacy_id": "OPS-13", "target": "44", "cluster": "standalone", "track": "database" },
