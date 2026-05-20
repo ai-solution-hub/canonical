@@ -10,6 +10,9 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
 // Mock auth — getAuthenticatedClient returns discriminated union { success, supabase, user }
+// Post-T2: workspace type discriminator is `application_types.key` via JOIN, not
+// the dropped `workspaces.type` text column. The mock returns the nested
+// `application_types!inner(key)` shape the page consumes.
 vi.mock('@/lib/auth', () => ({
   getAuthenticatedClient: vi.fn().mockResolvedValue({
     success: true,
@@ -19,7 +22,11 @@ vi.mock('@/lib/auth', () => ({
         select: () => ({
           eq: () =>
             Promise.resolve({
-              data: [{ type: 'bid' }, { type: 'bid' }, { type: 'bid' }],
+              data: [
+                { application_types: { key: 'procurement' } },
+                { application_types: { key: 'procurement' } },
+                { application_types: { key: 'procurement' } },
+              ],
               error: null,
             }),
         }),
@@ -62,6 +69,6 @@ describe('WorkspacesPage', () => {
     render(page);
     const el = screen.getByTestId('workspaces-content');
     const counts = JSON.parse(el.getAttribute('data-counts') ?? '{}');
-    expect(counts).toEqual({ bid: 3 });
+    expect(counts).toEqual({ procurement: 3 });
   });
 });

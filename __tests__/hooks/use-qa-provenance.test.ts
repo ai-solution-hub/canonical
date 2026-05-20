@@ -114,11 +114,17 @@ describe('useQAProvenance', () => {
     vi.clearAllMocks();
     mockIsFeatureEnabled.mockReturnValue(false);
 
-    // Default workspace query result
+    // Default workspace query result.
+    // Post-T2: hook reads `application_types.key` via nested JOIN and filters
+    // workspaces where key === 'procurement'.
     mockWorkspaceResult.data = [
       {
         workspace_id: 'ws-1',
-        workspaces: { id: 'ws-1', name: 'Bid Alpha', type: 'bid' },
+        workspaces: {
+          id: 'ws-1',
+          name: 'Bid Alpha',
+          application_types: { key: 'procurement' },
+        },
       },
     ];
     mockWorkspaceResult.error = null;
@@ -173,7 +179,7 @@ describe('useQAProvenance', () => {
     });
 
     expect(result.current.usedInWorkspaces[0].name).toBe('Bid Alpha');
-    expect(result.current.usedInWorkspaces[0].type).toBe('bid');
+    expect(result.current.usedInWorkspaces[0].type).toBe('procurement');
   });
 
   it('does not fetch workspaces when isQAPair is false', async () => {
@@ -186,15 +192,23 @@ describe('useQAProvenance', () => {
     expect(result.current.usedInWorkspaces).toEqual([]);
   });
 
-  it('filters out non-bid workspaces and null entries', async () => {
+  it('filters out non-procurement workspaces and null entries', async () => {
     mockWorkspaceResult.data = [
       {
         workspace_id: 'ws-1',
-        workspaces: { id: 'ws-1', name: 'Bid Alpha', type: 'bid' },
+        workspaces: {
+          id: 'ws-1',
+          name: 'Bid Alpha',
+          application_types: { key: 'procurement' },
+        },
       },
       {
         workspace_id: 'ws-2',
-        workspaces: { id: 'ws-2', name: 'Project X', type: 'project' },
+        workspaces: {
+          id: 'ws-2',
+          name: 'Intel Stream',
+          application_types: { key: 'intelligence' },
+        },
       },
       {
         workspace_id: 'ws-3',

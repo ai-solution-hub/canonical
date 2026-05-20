@@ -71,21 +71,25 @@ const MOCK_EXTRA = {
   sendElicitationRequest: vi.fn(),
 };
 
+// Post-T2: MCP tool selects `workspaces.id, name, application_types!inner(key)`
+// and projects the nested `application_types.key` as `type` in the response.
+// Fixtures here represent the *DB row* shape returned to the tool, not the
+// API-projected response.
 const WORKSPACE_FIXTURES = {
   intelligence: {
     id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
     name: 'UK Education Sector',
-    type: 'intelligence',
+    application_types: { key: 'intelligence' },
   },
   bid: {
     id: 'a1234567-89ab-4cde-8000-ffffffffffff',
     name: 'DfE Framework 2026',
-    type: 'bid',
+    application_types: { key: 'procurement' },
   },
   kbSection: {
     id: 'b2345678-90ab-4cde-8000-ffffffffffff',
     name: 'Safeguarding Library',
-    type: 'kb_section',
+    application_types: { key: 'kb_section' },
   },
 };
 
@@ -162,6 +166,7 @@ describe('list_user_workspaces MCP tool', () => {
     expect(structured[0]).toEqual({
       id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
       name: 'UK Education Sector',
+      // Projected from application_types.key
       type: 'intelligence',
     });
   });
@@ -215,14 +220,17 @@ describe('list_user_workspaces MCP tool', () => {
     const tool = getWorkspaceTool();
     await tool.handler({ type: 'intelligence' }, MOCK_EXTRA);
 
-    // Verify eq was called with both is_archived and type filter
+    // Post-T2: discriminator is `application_types.key` via JOIN, not the
+    // dropped `workspaces.type` text col. Verify both `is_archived` filter
+    // and the nested-key filter were applied.
     expect(eqCalls).toContainEqual(['is_archived', false]);
-    expect(eqCalls).toContainEqual(['type', 'intelligence']);
+    expect(eqCalls).toContainEqual(['application_types.key', 'intelligence']);
   });
 
-  it('remaps type: "content" to DB enum "kb_section" when filtering', async () => {
-    // The tool accepts 'content' as the user-facing type name but the DB enum
-    // is `kb_section` — mapping must happen in the query layer.
+  it('remaps type: "bid" to DB application_types.key "procurement" when filtering', async () => {
+    // The MCP tool accepts 'bid' as a legacy filter value, but post-T2 the DB
+    // application_types.key is `procurement` (per Q-OQR1-02). Mapping happens
+    // in the query layer.
     const eqCalls: Array<[string, unknown]> = [];
     const chainedQuery = {
       eq: vi.fn((...args: [string, unknown]) => {
@@ -230,7 +238,36 @@ describe('list_user_workspaces MCP tool', () => {
         return chainedQuery;
       }),
       order: vi.fn().mockResolvedValue({
-        data: [WORKSPACE_FIXTURES.kbSection],
+        data: [WORKSPACE_FIXTURES.bid],
+        error: null,
+      }),
+    };
+    mocks.fromReturn.select.mockReturnValue(chainedQuery);
+
+    const tool = getWorkspaceTool();
+    await tool.handler({ type: 'bid' }, MOCK_EXTRA);
+
+    // Post-T2 key is procurement (bid → procurement remap)
+    expect(eqCalls).toContainEqual([
+      'application_types.key',
+      'procurement',
+    ]);
+    expect(eqCalls).not.toContainEqual(['application_types.key', 'bid']);
+  });
+
+  it('remaps type: "content" to DB enum "kb_section" when filtering', async () => {
+    // The tool accepts 'content' as the user-facing type name but the DB
+    // application_types.key it maps to is `kb_section`. Even though no rows
+    // exist for that key (kb_section retired post-T2), the remap still runs
+    // in the query layer — we only assert the call, not row presence.
+    const eqCalls: Array<[string, unknown]> = [];
+    const chainedQuery = {
+      eq: vi.fn((...args: [string, unknown]) => {
+        eqCalls.push(args);
+        return chainedQuery;
+      }),
+      order: vi.fn().mockResolvedValue({
+        data: [],
         error: null,
       }),
     };
@@ -239,9 +276,9 @@ describe('list_user_workspaces MCP tool', () => {
     const tool = getWorkspaceTool();
     await tool.handler({ type: 'content' }, MOCK_EXTRA);
 
-    // DB enum is kb_section, not content
-    expect(eqCalls).toContainEqual(['type', 'kb_section']);
-    expect(eqCalls).not.toContainEqual(['type', 'content']);
+    // content remaps to kb_section against application_types.key
+    expect(eqCalls).toContainEqual(['application_types.key', 'kb_section']);
+    expect(eqCalls).not.toContainEqual(['application_types.key', 'content']);
   });
 
   it('denies access to unauthenticated users', async () => {

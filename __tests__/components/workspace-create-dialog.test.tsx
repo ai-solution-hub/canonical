@@ -1,7 +1,11 @@
 /**
  * WorkspaceCreateDialog Component Tests
  *
- * Tests type-aware behaviour: kb_section shows form, bid delegates to wizard.
+ * Tests type-aware behaviour. Post-T2:
+ * - `kb_section` was retired (no rows in either env). The registry's
+ *   non-custom-creation type is now `proposal` (label "Sales Proposal").
+ * - `bid` was renamed to `procurement` (label "Bid", hasCustomCreation: true).
+ * Default prop is `procurement`, which delegates to the bid wizard.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -44,44 +48,32 @@ describe('WorkspaceCreateDialog', () => {
     vi.clearAllMocks();
   });
 
-  describe('kb_section type (default)', () => {
-    it('shows registry-driven title when type is kb_section', () => {
+  describe('proposal type (no custom creation — shows form)', () => {
+    it('shows registry-driven title when type is proposal', () => {
       render(
         <WorkspaceCreateDialog
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-          type="kb_section"
+          type="proposal"
         />,
       );
 
-      expect(screen.getByText('New KB Section')).toBeInTheDocument();
+      expect(screen.getByText('New Sales Proposal')).toBeInTheDocument();
       expect(
         screen.getByText(
-          'Organise related content items into thematic sections',
+          'Draft and manage sales proposals drawing on your knowledge base',
         ),
       ).toBeInTheDocument();
     });
 
-    it('defaults to kb_section when no type is provided', () => {
+    it('shows the form with name input when type is proposal', () => {
       render(
         <WorkspaceCreateDialog
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-        />,
-      );
-
-      expect(screen.getByText('New KB Section')).toBeInTheDocument();
-    });
-
-    it('shows the form with name input when type is kb_section', () => {
-      render(
-        <WorkspaceCreateDialog
-          open={true}
-          onOpenChange={mockOnOpenChange}
-          onCreated={mockOnCreated}
-          type="kb_section"
+          type="proposal"
         />,
       );
 
@@ -97,22 +89,39 @@ describe('WorkspaceCreateDialog', () => {
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-          type="kb_section"
+          type="proposal"
         />,
       );
 
-      expect(screen.getByText('Create KB Section')).toBeInTheDocument();
+      expect(screen.getByText('Create Sales Proposal')).toBeInTheDocument();
     });
   });
 
-  describe('bid type (custom creation)', () => {
+  describe('procurement type (custom creation — default)', () => {
+    it('defaults to procurement when no type is provided (delegates to wizard)', async () => {
+      render(
+        <WorkspaceCreateDialog
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          onCreated={mockOnCreated}
+          onBidCreate={mockOnBidCreate}
+        />,
+      );
+
+      // procurement has hasCustomCreation: true — dialog closes and delegates.
+      await waitFor(() => {
+        expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+        expect(mockOnBidCreate).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('closes dialog and calls onBidCreate when type has custom creation', async () => {
       render(
         <WorkspaceCreateDialog
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-          type="bid"
+          type="procurement"
           onBidCreate={mockOnBidCreate}
         />,
       );
@@ -123,13 +132,13 @@ describe('WorkspaceCreateDialog', () => {
       });
     });
 
-    it('closes dialog without error when type is bid and no onBidCreate provided', async () => {
+    it('closes dialog without error when type is procurement and no onBidCreate provided', async () => {
       render(
         <WorkspaceCreateDialog
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-          type="bid"
+          type="procurement"
         />,
       );
 

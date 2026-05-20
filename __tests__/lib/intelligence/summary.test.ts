@@ -74,7 +74,7 @@ const WORKSPACE_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 function configureWorkspace(
   client: MockClient,
-  workspace: { id: string; name: string; type: string } | null,
+  workspace: { id: string; name: string } | null,
   error: unknown = null,
 ) {
   const chain = client._getChain('workspaces');
@@ -178,7 +178,6 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
     configureWorkspace(client, {
       id: WORKSPACE_ID,
       name: 'Cyber Intel',
-      type: 'intelligence',
     });
     configureArticles(client, []);
     configureSources(client, []);
@@ -194,19 +193,22 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
 
     await expect(
       fetchIntelligenceSummary(client as never, 'non-existent-id'),
-    ).rejects.toThrow('Workspace not found');
+    ).rejects.toThrow('Intelligence workspace not found');
   });
 
-  it('throws for non-intelligence workspace type', async () => {
-    configureWorkspace(client, {
-      id: WORKSPACE_ID,
-      name: 'General',
-      type: 'general',
+  it('throws for non-intelligence workspace (JOIN filter returns null)', async () => {
+    // Post-T2: discriminator is application_types.key via JOIN; the route
+    // filters with `.eq('application_types.key', 'intelligence')`. For a
+    // non-intelligence workspace the JOIN excludes the row and `.single()`
+    // returns `{ data: null, error: { ... } }`.
+    configureWorkspace(client, null, {
+      message: 'No rows returned',
+      code: 'PGRST116',
     });
 
     await expect(
       fetchIntelligenceSummary(client as never, WORKSPACE_ID),
-    ).rejects.toThrow('not "intelligence"');
+    ).rejects.toThrow('Intelligence workspace not found');
   });
 
   // -------------------------------------------------------------------------

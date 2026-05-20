@@ -28,7 +28,9 @@ function makeWorkspace(
     id: 'ws-1',
     name: 'Test Workspace',
     description: 'A test workspace',
-    type: 'bid',
+    // Post-T2: workspace.type is sourced from application_types.key via JOIN.
+    // Registry keys are 'procurement' (label 'Bid'), 'intelligence', 'proposal'.
+    type: 'procurement',
     status: 'active',
     icon: 'folder',
     color: '#3b82f6',
@@ -109,29 +111,30 @@ describe('WorkspaceCard', () => {
       expect(screen.getByText('Bid for council contract')).toBeInTheDocument();
     });
 
-    it('shows badge label from registry for bid type', () => {
-      renderCard({ type: 'bid' });
+    it('shows badge label from registry for procurement type', () => {
+      renderCard({ type: 'procurement' });
       expect(screen.getByText('Bid')).toBeInTheDocument();
     });
 
-    it('shows badge label from registry for kb_section type', () => {
-      renderCard({ type: 'kb_section' });
-      expect(screen.getByText('KB Section')).toBeInTheDocument();
+    it('shows badge label from registry for intelligence type', () => {
+      renderCard({ type: 'intelligence' });
+      expect(screen.getByText('Intelligence Stream')).toBeInTheDocument();
     });
 
     it('shows no badge for unknown workspace type', () => {
       renderCard({ type: 'unknown_type' });
       expect(screen.queryByText('Bid')).not.toBeInTheDocument();
-      expect(screen.queryByText('KB Section')).not.toBeInTheDocument();
+      expect(screen.queryByText('Intelligence Stream')).not.toBeInTheDocument();
     });
 
     it('shows arrow icon for types with a route', () => {
-      renderCard({ type: 'bid' });
+      renderCard({ type: 'procurement' });
       expect(screen.getByTitle('Opens bid detail page')).toBeInTheDocument();
     });
 
     it('does not show arrow icon for types without a route', () => {
-      renderCard({ type: 'kb_section' });
+      // 'proposal' is registered but has route: null (Coming Soon).
+      renderCard({ type: 'proposal' });
       expect(
         screen.queryByTitle(/Opens .* detail page/),
       ).not.toBeInTheDocument();
