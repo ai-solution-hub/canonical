@@ -51,22 +51,26 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('shows correct count text for active bids', () => {
-    render(<WorkspacesContent counts={{ bid: 3 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 3 }} />);
     expect(screen.getByText('3 active bids')).toBeInTheDocument();
   });
 
   it('shows singular count text for 1 active bid', () => {
-    render(<WorkspacesContent counts={{ bid: 1 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 1 }} />);
     expect(screen.getByText('1 active bid')).toBeInTheDocument();
   });
 
   it('does not show count text when count is zero', () => {
-    render(<WorkspacesContent counts={{ bid: 0 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 0 }} />);
     expect(screen.queryByText(/active bid/)).not.toBeInTheDocument();
   });
 
   it('links the bid card to /bid', () => {
-    render(<WorkspacesContent counts={{ bid: 5 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 5 }} />);
     const bidLink = screen.getByRole('link', {
       name: /Bids/,
     });

@@ -34,7 +34,8 @@ describe('WorkspacesContent', () => {
   });
 
   it('renders Bids type card with count', () => {
-    render(<WorkspacesContent counts={{ bid: 3 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 3 }} />);
     expect(screen.getByText('Bids')).toBeInTheDocument();
     expect(screen.getByText('3 active bids')).toBeInTheDocument();
   });
@@ -47,7 +48,7 @@ describe('WorkspacesContent', () => {
   });
 
   it('links Bids card to /bid', () => {
-    render(<WorkspacesContent counts={{ bid: 1 }} />);
+    render(<WorkspacesContent counts={{ procurement: 1 }} />);
     const link = screen.getByRole('link', { name: /bids/i });
     expect(link).toHaveAttribute('href', '/bid');
   });
@@ -61,12 +62,14 @@ describe('WorkspacesContent', () => {
   });
 
   it('shows singular "bid" for count of 1', () => {
-    render(<WorkspacesContent counts={{ bid: 1 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 1 }} />);
     expect(screen.getByText('1 active bid')).toBeInTheDocument();
   });
 
   it('hides count text when count is 0 but includes in aria-label', () => {
-    render(<WorkspacesContent counts={{ bid: 0 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 0 }} />);
     // Count text is not rendered visually when 0
     expect(screen.queryByText('0 active bids')).not.toBeInTheDocument();
     // But is present in the aria-label for accessibility

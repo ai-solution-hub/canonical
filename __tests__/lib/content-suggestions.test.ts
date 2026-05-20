@@ -88,12 +88,14 @@ function configureMock(options: {
   mockSupabase._chain.then.mockReset();
 
   // Build a table-based response system
+  // Post-T2 (S246): table renamed from 'template_requirements' to
+  // 'form_template_requirements' per the 3-tier form_type schema split.
   const tableResponses: Record<string, { data: unknown[]; error: null }> = {
     taxonomy_domains: { data: DOMAINS, error: null },
     taxonomy_subtopics: { data: SUBTOPICS, error: null },
     content_items: { data: contentItems, error: null },
     workspaces: { data: activeBids, error: null },
-    template_requirements: { data: templateGaps, error: null },
+    form_template_requirements: { data: templateGaps, error: null },
   };
 
   // Create per-table chains

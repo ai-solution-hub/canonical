@@ -15,10 +15,12 @@ import {
 
 describe('workspace-types registry', () => {
   describe('getWorkspaceType', () => {
-    it('returns config for "bid" type', () => {
-      const config = getWorkspaceType('bid');
+    // Post-T2 (S246): 'bid' renamed to 'procurement' per application_types.key
+    // mapping. Tests updated to match current registry shape (TODO(T4) shim).
+    it('returns config for "procurement" application type (bid management)', () => {
+      const config = getWorkspaceType('procurement');
       expect(config).toBeDefined();
-      expect(config!.type).toBe('bid');
+      expect(config!.type).toBe('procurement');
       expect(config!.label).toBe('Bid');
       expect(config!.labelPlural).toBe('Bids');
       expect(config!.route).toBe('/bid');
@@ -26,15 +28,10 @@ describe('workspace-types registry', () => {
       expect(config!.hasCustomCreation).toBe(true);
     });
 
-    it('returns config for "kb_section" type', () => {
-      const config = getWorkspaceType('kb_section');
-      expect(config).toBeDefined();
-      expect(config!.type).toBe('kb_section');
-      expect(config!.label).toBe('KB Section');
-      expect(config!.labelPlural).toBe('KB Sections');
-      expect(config!.route).toBeNull();
-      expect(config!.available).toBe(true);
-      expect(config!.hasCustomCreation).toBe(false);
+    // Post-T2: 'kb_section' retired (no prod rows, not in application_types).
+    // The type no longer exists in the registry.
+    it('returns undefined for retired "kb_section" type', () => {
+      expect(getWorkspaceType('kb_section')).toBeUndefined();
     });
 
     it('returns config for "proposal" type (unavailable placeholder)', () => {
@@ -66,8 +63,9 @@ describe('workspace-types registry', () => {
       const all = getAllWorkspaceTypes();
       expect(all.length).toBeGreaterThanOrEqual(3);
       const types = all.map((t) => t.type);
-      expect(types).toContain('bid');
-      expect(types).toContain('kb_section');
+      // Post-T2: 'bid' renamed to 'procurement'; 'kb_section' retired.
+      expect(types).toContain('procurement');
+      expect(types).toContain('intelligence');
       expect(types).toContain('proposal');
     });
 
@@ -78,10 +76,10 @@ describe('workspace-types registry', () => {
   });
 
   describe('getLauncherTypes', () => {
-    it('includes types with a route', () => {
+    it('includes bid management type (procurement) in the launcher', () => {
       const launcher = getLauncherTypes();
       const types = launcher.map((t) => t.type);
-      expect(types).toContain('bid');
+      expect(types).toContain('procurement');
     });
 
     it('includes unavailable types (shown as "coming soon")', () => {
@@ -90,10 +88,10 @@ describe('workspace-types registry', () => {
       expect(types).toContain('proposal');
     });
 
-    it('excludes available types with no route and no "coming soon" status', () => {
+    it('excludes retired kb_section type from the launcher', () => {
       const launcher = getLauncherTypes();
       const types = launcher.map((t) => t.type);
-      // kb_section has route=null and available=true, so it should be excluded
+      // kb_section retired post-T2 — must not appear
       expect(types).not.toContain('kb_section');
     });
   });
@@ -104,10 +102,11 @@ describe('workspace-types registry', () => {
       expect(values.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('includes bid and kb_section', () => {
+    it('includes procurement and intelligence (active DB application types)', () => {
+      // Post-T2: 'bid' renamed to 'procurement'; 'kb_section' retired.
       const values = getValidTypeValues();
-      expect(values).toContain('bid');
-      expect(values).toContain('kb_section');
+      expect(values).toContain('procurement');
+      expect(values).toContain('intelligence');
     });
 
     it('excludes unavailable types (not in DB CHECK constraint)', () => {
@@ -122,24 +121,25 @@ describe('workspace-types registry', () => {
   });
 
   describe('formatTypeCount', () => {
-    it('formats singular bid count', () => {
-      expect(formatTypeCount('bid', 1)).toBe('1 active bid');
+    it('formats singular procurement count using bid label', () => {
+      // The registry maps 'procurement' key to label 'Bid'
+      expect(formatTypeCount('procurement', 1)).toBe('1 active bid');
     });
 
-    it('formats plural bid count', () => {
-      expect(formatTypeCount('bid', 5)).toBe('5 active bids');
+    it('formats plural procurement count using bids label', () => {
+      expect(formatTypeCount('procurement', 5)).toBe('5 active bids');
     });
 
-    it('formats zero bid count as plural', () => {
-      expect(formatTypeCount('bid', 0)).toBe('0 active bids');
+    it('formats zero procurement count as plural', () => {
+      expect(formatTypeCount('procurement', 0)).toBe('0 active bids');
     });
 
-    it('formats singular kb_section count', () => {
-      expect(formatTypeCount('kb_section', 1)).toBe('1 active kb section');
+    it('formats singular intelligence count', () => {
+      expect(formatTypeCount('intelligence', 1)).toBe('1 active intelligence stream');
     });
 
-    it('formats plural kb_section count', () => {
-      expect(formatTypeCount('kb_section', 3)).toBe('3 active kb sections');
+    it('formats plural intelligence count', () => {
+      expect(formatTypeCount('intelligence', 3)).toBe('3 active intelligence streams');
     });
 
     it('falls back to "workspace(s)" for unknown type', () => {
