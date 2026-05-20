@@ -246,7 +246,7 @@ function setupDefaultFetch(
     if (
       opts.bidOverride &&
       typeof url === 'string' &&
-      url.match(/\/api\/bids\/[^/]+$/)
+      url.match(/\/api\/procurement\/[^/]+$/)
     ) {
       return opts.bidOverride();
     }
@@ -261,7 +261,7 @@ function setupDefaultFetch(
     }
     if (typeof url === 'string' && url.includes('/responses/'))
       return mockResponseData();
-    if (typeof url === 'string' && url.includes('/bids/'))
+    if (typeof url === 'string' && url.includes('/procurement/'))
       return mockBidResponse();
     return { ok: false, json: async () => ({}) };
   });
@@ -775,7 +775,7 @@ describe('useStreamCoordination', () => {
             ok: false,
             json: async () => ({ error: 'Questions failed' }),
           };
-        if (typeof url === 'string' && url.includes('/bids/'))
+        if (typeof url === 'string' && url.includes('/procurement/'))
           return mockBidResponse();
         return { ok: false, json: async () => ({}) };
       });
@@ -808,7 +808,7 @@ describe('useStreamCoordination', () => {
             ok: false,
             json: async () => ({ error: 'Questions failed' }),
           };
-        if (typeof url === 'string' && url.match(/\/api\/bids\/[^/]+$/))
+        if (typeof url === 'string' && url.match(/\/api\/procurement\/[^\/]+$/))
           return mockBidResponse();
         return { ok: false, json: async () => ({}) };
       });
@@ -841,7 +841,7 @@ describe('useStreamCoordination', () => {
           };
         if (typeof url === 'string' && url.includes('/questions'))
           return mockQuestionsResponse();
-        if (typeof url === 'string' && url.match(/\/api\/bids\/[^/]+$/))
+        if (typeof url === 'string' && url.match(/\/api\/procurement\/[^\/]+$/))
           return mockBidResponse();
         return { ok: false, json: async () => ({}) };
       });
@@ -1247,7 +1247,7 @@ describe('useStreamCoordination', () => {
         if (method === 'PATCH' || method === 'POST') {
           return { ok: true, json: async () => ({}) };
         }
-        if (url.match(/\/api\/bids\/[^/]+$/)) return mockBidResponse();
+        if (url.match(/\/api\/procurement\/[^\/]+$/)) return mockBidResponse();
         if (url.includes('/questions')) return mockQuestionsResponse();
         if (url.includes('/responses/')) {
           responseCallCount += 1;
@@ -1258,7 +1258,7 @@ describe('useStreamCoordination', () => {
             response_text: '<p>Regenerated draft</p>',
           });
         }
-        if (url.includes('/bids/')) return mockBidResponse();
+        if (url.includes('/procurement/')) return mockBidResponse();
         return { ok: false, json: async () => ({}) };
       });
 
@@ -1339,7 +1339,7 @@ describe('useStreamCoordination', () => {
         if (method === 'PATCH' || method === 'POST') {
           return { ok: true, json: async () => ({}) };
         }
-        if (url.match(/\/api\/bids\/[^/]+$/)) return mockBidResponse();
+        if (url.match(/\/api\/procurement\/[^\/]+$/)) return mockBidResponse();
         if (url.includes('/questions')) return mockQuestionsResponse();
         if (url.includes('/responses/')) {
           responseCallCount += 1;
@@ -1350,7 +1350,7 @@ describe('useStreamCoordination', () => {
             response_text: '<p>Server-side update</p>',
           });
         }
-        if (url.includes('/bids/')) return mockBidResponse();
+        if (url.includes('/procurement/')) return mockBidResponse();
         return { ok: false, json: async () => ({}) };
       });
 

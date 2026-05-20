@@ -81,7 +81,7 @@ function registerType(config: WorkspaceTypeConfig): void {
 registerType({
   type: 'procurement',
   label: 'Procurement',
-  labelPlural: 'Bids',
+  labelPlural: 'Procurements',
   description:
     'Manage bid responses and tender submissions using your knowledge base',
   icon: Briefcase,
@@ -182,7 +182,7 @@ export function getValidTypeValues(): [string, ...string[]] {
   return APPLICATION_TYPE_KEYS as unknown as [string, ...string[]];
 }
 
-/** Format a count string for a workspace type (e.g. "3 active bids") */
+/** Format a count string for a workspace type (e.g. "3 active procurements") */
 export function formatTypeCount(type: string, count: number): string {
   const config = getWorkspaceType(type);
   if (!config) return `${count} active workspace${count !== 1 ? 's' : ''}`;

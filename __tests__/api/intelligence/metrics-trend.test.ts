@@ -150,7 +150,7 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
 
     // Verify RPC was called with defaults
     expect(mockSupabase.rpc).toHaveBeenCalledWith('get_filter_ratio_trend', {
-      p_project_id: WORKSPACE_UUID,
+      p_workspace_id: WORKSPACE_UUID,
       p_granularity: 'daily',
       p_period_days: 90,
     });

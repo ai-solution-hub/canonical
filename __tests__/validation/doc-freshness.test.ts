@@ -67,7 +67,7 @@ describe('Doc Freshness: data-entry-points.md', () => {
       'scripts/batch-reclassify.ts',
       'scripts/import_bid_library.py',
       'lib/mcp/tools/content.ts',
-      'app/api/bids/[id]/outcome/integrate/route.ts',
+      'app/api/procurement/[id]/outcome/integrate/route.ts',
     ];
 
     it('all known entry point source files should be referenced', () => {
@@ -163,7 +163,7 @@ describe('Doc Freshness: data-entry-points.md', () => {
         'app/api/cron/freshness-transitions/route.ts', // freshness cron
         'app/api/items/[id]/rollback/route.ts', // rollback
         'app/api/cron/classification-quality/route.ts', // classification quality cron
-        'app/api/bids/[id]/responses/draft-stream/route.ts', // bid draft stream
+        'app/api/procurement/[id]/responses/draft-stream/route.ts', // bid draft stream
         // §1.7 admin dedup review — UPDATE content_items + INSERT content_history
         'app/api/admin/content-dedup/[id]/confirm-duplicate/route.ts',
         'app/api/admin/content-dedup/[id]/confirm-unique/route.ts',

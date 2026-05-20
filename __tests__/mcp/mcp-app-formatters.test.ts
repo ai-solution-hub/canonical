@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatCoverageMatrix,
-  formatBidDashboard,
+  formatProcurementDashboard,
   formatBidDetail,
   type CoverageMatrixData,
   type ProcurementDashboardData,
@@ -281,57 +281,57 @@ describe('formatCoverageMatrix', () => {
 });
 
 // ──────────────────────────────────────────
-// formatBidDashboard
+// formatProcurementDashboard
 // ──────────────────────────────────────────
 
-describe('formatBidDashboard', () => {
+describe('formatProcurementDashboard', () => {
   it('returns Markdown with bid count', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('# Procurement Dashboard');
-    expect(result).toContain('**2 bids**');
+    expect(result).toContain('**2 procurements**');
   });
 
   it('includes bid cards with names as headings', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('## NHS Digital Transformation');
     expect(result).toContain('## MoD Cyber Security Framework');
   });
 
   it('shows buyer name when present', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('**Buyer:** NHS England');
   });
 
   it('shows "Not specified" for null buyer', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('**Buyer:** Not specified');
   });
 
   it('shows status for each bid', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('**Status:** active');
     expect(result).toContain('**Status:** drafting');
   });
 
   it('shows deadline with days remaining', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('37 days remaining');
   });
 
   it('shows deadline with days overdue', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('8 days overdue');
   });
 
   it('shows progress percentage', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     // NHS: 18/25 = 72%
     expect(result).toContain('18/25 answered (72%)');
@@ -340,7 +340,7 @@ describe('formatBidDashboard', () => {
   });
 
   it('shows approved questions count', () => {
-    const result = formatBidDashboard(sampleBidDashboard);
+    const result = formatProcurementDashboard(sampleBidDashboard);
 
     expect(result).toContain('**Approved:** 12/25');
     expect(result).toContain('**Approved:** 5/40');
@@ -354,10 +354,10 @@ describe('formatBidDashboard', () => {
       has_more: false,
       bids: [],
     };
-    const result = formatBidDashboard(noBids);
+    const result = formatProcurementDashboard(noBids);
 
     expect(result).toContain('# Procurement Dashboard');
-    expect(result).toContain('No active bids found.');
+    expect(result).toContain('No active procurements found.');
   });
 
   it('handles singular bid count', () => {
@@ -368,10 +368,10 @@ describe('formatBidDashboard', () => {
       has_more: false,
       bids: [sampleBidDashboard.bids[0]],
     };
-    const result = formatBidDashboard(singleBid);
+    const result = formatProcurementDashboard(singleBid);
 
-    expect(result).toContain('**1 bid**');
-    expect(result).not.toContain('**1 bids**');
+    expect(result).toContain('**1 procurement**');
+    expect(result).not.toContain('**1 procurements**');
   });
 
   it('handles bid with no deadline', () => {
@@ -394,7 +394,7 @@ describe('formatBidDashboard', () => {
         },
       ],
     };
-    const result = formatBidDashboard(noDeadline);
+    const result = formatProcurementDashboard(noDeadline);
 
     expect(result).not.toContain('**Deadline:**');
   });
@@ -419,7 +419,7 @@ describe('formatBidDashboard', () => {
         },
       ],
     };
-    const result = formatBidDashboard(noQuestions);
+    const result = formatProcurementDashboard(noQuestions);
 
     expect(result).toContain('0/0 answered (0%)');
   });
@@ -444,7 +444,7 @@ describe('formatBidDashboard', () => {
         },
       ],
     };
-    const result = formatBidDashboard(deadlineNoDays);
+    const result = formatProcurementDashboard(deadlineNoDays);
 
     // Should show deadline without parenthetical days info
     expect(result).toContain('**Deadline:** 01/06/2026');

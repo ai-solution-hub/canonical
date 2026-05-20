@@ -144,7 +144,7 @@ function resetMocks() {
 }
 
 /**
- * Configure the `application_types` lookup that POST /api/bids and the bid
+ * Configure the `application_types` lookup that POST /api/procurement and the bid
  * sub-routes perform via `maybeSingle()`. Post-T2 the route resolves the
  * procurement application_type id (FK) before inserting/joining workspaces.
  */
@@ -159,7 +159,7 @@ function configureProcurementAppType() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('GET /api/bids', () => {
+describe('GET /api/procurement', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when unauthenticated', async () => {
@@ -179,7 +179,7 @@ describe('GET /api/bids', () => {
     );
 
     mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{ workspace_id: VALID_UUID, total: 5, answered: 3 }],
+      data: [{ project_id: VALID_UUID, total: 5, answered: 3 }],
       error: null,
     });
 
@@ -191,7 +191,7 @@ describe('GET /api/bids', () => {
     expect(body.bids).toHaveLength(1);
     expect(body.bids[0].id).toBe(VALID_UUID);
     expect(body.bids[0].question_stats).toEqual({
-      workspace_id: VALID_UUID,
+      project_id: VALID_UUID,
       total: 5,
       answered: 3,
     });
@@ -256,7 +256,7 @@ describe('GET /api/bids', () => {
   });
 });
 
-describe('POST /api/bids', () => {
+describe('POST /api/procurement', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when unauthenticated', async () => {
@@ -373,7 +373,7 @@ describe('POST /api/bids', () => {
   });
 });
 
-describe('GET /api/bids/[id]', () => {
+describe('GET /api/procurement/[id]', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when unauthenticated', async () => {
@@ -542,7 +542,7 @@ describe('GET /api/bids/[id]', () => {
   });
 });
 
-describe('PATCH /api/bids/[id]', () => {
+describe('PATCH /api/procurement/[id]', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when unauthenticated', async () => {
@@ -704,7 +704,7 @@ describe('PATCH /api/bids/[id]', () => {
   });
 });
 
-describe('DELETE /api/bids/[id]', () => {
+describe('DELETE /api/procurement/[id]', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when unauthenticated', async () => {

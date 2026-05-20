@@ -1542,7 +1542,7 @@ describe('useBidActions (TanStack Query)', () => {
       if (url === `/api/procurement/${TEST_BID_ID}` && init?.method === 'DELETE') {
         return Promise.resolve({
           ok: false,
-          json: async () => ({ error: 'Cannot delete active bid' }),
+          json: async () => ({ error: 'Cannot delete active procurement' }),
         });
       }
       if (
@@ -1574,7 +1574,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Cannot delete active bid');
+      expect(toast.error).toHaveBeenCalledWith('Cannot delete active procurement');
     });
   });
 

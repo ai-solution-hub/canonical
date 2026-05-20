@@ -93,7 +93,7 @@ export const CANONICAL_TOOL_NAMES = [
   'get_freshness_report', // 6
   'get_expiring_content', // 7
   'list_active_procurement', // 8
-  'get_bid_detail', // 9
+  'get_procurement_detail', // 9
   'get_bid_question', // 10
   'cite_content', // 11
   'get_content_effectiveness', // 12
@@ -121,7 +121,7 @@ export const CANONICAL_TOOL_NAMES = [
   'get_template_coverage', // 34
   'get_template_gaps', // 35
   'show_coverage_matrix', // 36
-  'show_bid_dashboard', // 37
+  'show_procurement_dashboard', // 37
   'show_reorient_me', // 38
   'show_intelligence_feed', // 39
   'delete_content_item', // 40
@@ -166,7 +166,7 @@ export const READ_ONLY_TOOLS = new Set([
   'get_freshness_report',
   'get_expiring_content',
   'list_active_procurement',
-  'get_bid_detail',
+  'get_procurement_detail',
   'get_bid_question',
   'get_content_effectiveness',
   'get_content_item',
@@ -185,7 +185,7 @@ export const READ_ONLY_TOOLS = new Set([
   'get_template_coverage',
   'get_template_gaps',
   'show_coverage_matrix',
-  'show_bid_dashboard',
+  'show_procurement_dashboard',
   'show_reorient_me',
   'show_intelligence_feed',
   'get_document_versions',
@@ -543,7 +543,7 @@ export function getMinimalArgs(
       return { id: knownUUIDs.contentItemId };
     case 'get_reorientation':
       return {};
-    case 'get_bid_detail':
+    case 'get_procurement_detail':
       return { id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000' };
     case 'get_bid_question':
       return {
@@ -579,7 +579,7 @@ export function getMinimalArgs(
       };
     case 'show_coverage_matrix':
       return {};
-    case 'show_bid_dashboard':
+    case 'show_procurement_dashboard':
       return {};
     case 'show_reorient_me':
       return {};

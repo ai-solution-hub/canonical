@@ -22,7 +22,7 @@ describe('workspace-types registry', () => {
       expect(config).toBeDefined();
       expect(config!.type).toBe('procurement');
       expect(config!.label).toBe('Procurement');
-      expect(config!.labelPlural).toBe('Bids');
+      expect(config!.labelPlural).toBe('Procurements');
       expect(config!.route).toBe('/procurement');
       expect(config!.available).toBe(true);
       expect(config!.hasCustomCreation).toBe(true);
@@ -123,15 +123,15 @@ describe('workspace-types registry', () => {
   describe('formatTypeCount', () => {
     it('formats singular procurement count using bid label', () => {
       // The registry maps 'procurement' key to label 'Procurement'
-      expect(formatTypeCount('procurement', 1)).toBe('1 active bid');
+      expect(formatTypeCount('procurement', 1)).toBe('1 active procurement');
     });
 
-    it('formats plural procurement count using bids label', () => {
-      expect(formatTypeCount('procurement', 5)).toBe('5 active bids');
+    it('formats plural procurement count using procurements label', () => {
+      expect(formatTypeCount('procurement', 5)).toBe('5 active procurements');
     });
 
     it('formats zero procurement count as plural', () => {
-      expect(formatTypeCount('procurement', 0)).toBe('0 active bids');
+      expect(formatTypeCount('procurement', 0)).toBe('0 active procurements');
     });
 
     it('formats singular intelligence count', () => {

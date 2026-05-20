@@ -111,7 +111,7 @@ export {
   type CoverageMatrixData,
   formatCoverageMatrix,
   type ProcurementDashboardData,
-  formatBidDashboard,
+  formatProcurementDashboard,
 } from './apps';
 export { type DocumentDiffData, formatDocumentDiff } from './documents';
 export { formatIntelligenceSummary } from './intelligence';

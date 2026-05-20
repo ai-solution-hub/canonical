@@ -121,7 +121,7 @@ export async function fetchReorientData(
   // Current time for notification expiry filter (separate from sinceDate which is last-active lookback)
   const nowIso = new Date().toISOString();
 
-  // Run remaining queries in parallel (active bids via shared helper)
+  // Run remaining queries in parallel (active procurements via shared helper)
   const [results, activeBidsResult] = await Promise.all([
     Promise.allSettled([
       // 0: Team changes since last active
@@ -336,7 +336,7 @@ export async function fetchReorientData(
   );
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
-  // --- Extract active bids with question stats (from shared helper) ---
+  // --- Extract active procurements with question stats (from shared helper) ---
   const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
   const bid_summary: ProcurementBriefing[] = [];
 

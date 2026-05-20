@@ -52,7 +52,7 @@ interface ActiveBidsSectionProps {
 export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
   return (
     <section
-      aria-label="Active bids"
+      aria-label="Active procurements"
       className="rounded-lg border bg-card p-4 shadow-sm"
     >
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -66,7 +66,7 @@ export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
             aria-hidden="true"
           />
           <p className="mt-3 text-sm font-medium text-foreground">
-            No active bids
+            No active procurements
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Create a new bid to start managing tender responses.

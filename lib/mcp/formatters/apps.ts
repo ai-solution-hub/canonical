@@ -124,16 +124,16 @@ export interface ProcurementDashboardData {
   focused_bid_detail?: Record<string, unknown>;
 }
 
-export function formatBidDashboard(data: ProcurementDashboardData): string {
+export function formatProcurementDashboard(data: ProcurementDashboardData): string {
   const lines: string[] = [
     '# Procurement Dashboard',
     '',
-    `**${data.total_count} bid${data.total_count === 1 ? '' : 's'}**`,
+    `**${data.total_count} procurement${data.total_count === 1 ? '' : 's'}**`,
     '',
   ];
 
   if (data.bids.length === 0) {
-    lines.push('No active bids found.');
+    lines.push('No active procurements found.');
     return lines.join('\n');
   }
 

@@ -38,8 +38,8 @@ describe('Eval fixture sync', () => {
     expect(items.length).toBeGreaterThanOrEqual(30);
   });
 
-  it('bid drafting eval gold standard has 20+ items', () => {
-    const path = resolve(fixtureDir, 'bid-drafting-eval-gold-standard.json');
+  it('procurement drafting eval gold standard has 20+ items', () => {
+    const path = resolve(fixtureDir, 'procurement-drafting-eval-gold-standard.json');
     expect(existsSync(path)).toBe(true);
     const data = JSON.parse(readFileSync(path, 'utf-8'));
     expect(data.length).toBeGreaterThanOrEqual(20);

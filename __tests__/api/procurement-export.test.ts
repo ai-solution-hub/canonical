@@ -295,7 +295,7 @@ describe('Procurement Export API', () => {
       expect(disposition).toContain('attachment');
       expect(disposition).toContain('.docx');
       // Sanitised filename: special characters removed
-      expect(disposition).toContain('my-test-bid');
+      expect(disposition).toContain('my-test-procurement');
     });
   });
 

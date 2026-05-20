@@ -243,7 +243,7 @@ describe('FilterBadges', () => {
 
       const layerIdx = removeButtons.findIndex(
         (btn) =>
-          btn.getAttribute('aria-label') === 'Remove Layer filter: Procurement Detail',
+          btn.getAttribute('aria-label') === 'Remove Layer filter: Bid Detail',
       );
       expect(layerIdx).toBe(0);
     });

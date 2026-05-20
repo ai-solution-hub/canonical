@@ -251,7 +251,7 @@ export async function getExtAppsServer() {
 // ---------------------------------------------------------------------------
 // Shared helper: fetch questions and responses for a bid, returning
 // sections grouped by section_name plus status/confidence breakdowns.
-// Used by both get_bid_detail and show_bid_dashboard.
+// Used by both get_procurement_detail and show_procurement_dashboard.
 // ---------------------------------------------------------------------------
 
 export async function fetchProcurementSections(

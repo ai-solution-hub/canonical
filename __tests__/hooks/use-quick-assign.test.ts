@@ -140,7 +140,7 @@ describe('useQuickAssign', () => {
     vi.restoreAllMocks();
   });
 
-  it('fetches and filters to active bid workspaces only', async () => {
+  it('fetches and filters to active procurement workspaces only', async () => {
     const { result } = renderHook(() => useQuickAssign(), {
       wrapper: createWrapper(),
     });

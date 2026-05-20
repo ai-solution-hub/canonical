@@ -3,7 +3,7 @@
  *
  * Tests the unified fetch that combines dashboard + reorient queries
  * into a single function, eliminating duplicate queries (freshness,
- * governance reviews, notifications, active bids).
+ * governance reviews, notifications, active procurements).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createMockSupabaseClient } from '../helpers/mock-supabase';
@@ -439,7 +439,7 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.attention_sources.governance_review_count).toBe(0);
   });
 
-  it('active bids sorted by deadline urgency (most urgent first)', async () => {
+  it('active procurements sorted by deadline urgency (most urgent first)', async () => {
     const statsMap = new Map();
     statsMap.set('bid-1', {
       total_questions: 10,
@@ -734,7 +734,7 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.reorient.has_display_name).toBe(false);
   });
 
-  it('reorient bid_summary is populated from active bids data', async () => {
+  it('reorient bid_summary is populated from active procurements data', async () => {
     const statsMap = new Map();
     statsMap.set('bid-x', {
       total_questions: 12,

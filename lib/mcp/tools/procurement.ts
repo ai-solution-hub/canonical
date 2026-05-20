@@ -1,7 +1,7 @@
 /**
  * Procurement tool registrations (5 tools):
  *   3. list_active_procurement
- *   6. get_bid_detail
+ *   6. get_procurement_detail
  *   7. get_bid_question
  *  15. cite_content
  *  16. get_content_effectiveness
@@ -140,11 +140,11 @@ export async function registerBidTools(server: McpServer): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 6. get_bid_detail
+  // 6. get_procurement_detail
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'get_bid_detail',
+    'get_procurement_detail',
     {
       title: 'Get Procurement Detail',
       description:

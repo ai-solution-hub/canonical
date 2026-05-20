@@ -199,7 +199,7 @@ describe('LayerSuggestionBanner', () => {
 
       expect(
         screen.getByRole('button', {
-          name: /accept suggested layer: bid detail/i,
+          name: /accept suggested layer: procurement detail/i,
         }),
       ).toBeInTheDocument();
     });

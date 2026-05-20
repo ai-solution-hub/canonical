@@ -135,7 +135,7 @@ export interface UnifiedDashboardData {
     coverage_gap_count: number;
   };
 
-  /** Active bids with stats */
+  /** Active procurements with stats */
   active_bids: ActiveBidSummary[];
 
   /** Freshness summary for QuickStatsStrip */
@@ -208,7 +208,7 @@ function dedupeRecentWorkByEntity(items: RecentWorkItem[]): RecentWorkItem[] {
 
 /**
  * Fetch all dashboard data in a single pass. Returns attention source counts,
- * active bids, freshness summary, reorient personal context, recent activity,
+ * active procurements, freshness summary, reorient personal context, recent activity,
  * and an error array tracking any partial failures.
  */
 export async function fetchUnifiedDashboardData(
@@ -583,7 +583,7 @@ export async function fetchUnifiedDashboardData(
   );
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
-  // --- Build active bids (from shared helper — single query) ---
+  // --- Build active procurements (from shared helper — single query) ---
   const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
   const active_bids: ActiveBidSummary[] = procurementWorkspaces.map((workspace) => {
     const meta = workspace.domain_metadata as Record<string, unknown> | null;

@@ -2,7 +2,7 @@
  * Verifies the MCP `bid_pipeline_review` prompt template.
  *
  * Asserts registration, args schema (stale_threshold_days optional),
- * tool-name references (list_active_procurement + get_bid_detail), the five
+ * tool-name references (list_active_procurement + get_procurement_detail), the five
  * output sections, the default stale threshold (5 days), and that it
  * coexists with the prior 6 prompts.
  */
@@ -50,7 +50,7 @@ describe('MCP bid_pipeline_review prompt', () => {
     const result = await prompt!.handler({});
     const text = result.messages[0]?.content.text ?? '';
     expect(text).toContain('list_active_procurement');
-    expect(text).toContain('get_bid_detail');
+    expect(text).toContain('get_procurement_detail');
   });
 
   it('frames output as cross-bid action review, not per-bid status', async () => {

@@ -31,7 +31,7 @@ vi.mock('@/lib/mcp/formatters', () => ({
   truncateResponse: vi.fn().mockImplementation((text: string) => text),
   formatReorientation: vi.fn().mockReturnValue('# Reorient Me Briefing'),
   toStructuredContent: vi.fn().mockImplementation((val: unknown) => val),
-  formatBidDashboard: vi.fn(),
+  formatProcurementDashboard: vi.fn(),
 }));
 
 vi.mock('@/lib/mcp/app-bundles', () => ({

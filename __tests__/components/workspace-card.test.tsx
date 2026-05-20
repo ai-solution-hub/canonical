@@ -129,7 +129,7 @@ describe('WorkspaceCard', () => {
 
     it('shows arrow icon for types with a route', () => {
       renderCard({ type: 'procurement' });
-      expect(screen.getByTitle('Opens bid detail page')).toBeInTheDocument();
+      expect(screen.getByTitle('Opens procurement detail page')).toBeInTheDocument();
     });
 
     it('does not show arrow icon for types without a route', () => {

@@ -1,7 +1,7 @@
 /**
  * MCP App trigger tool registrations (4 tools):
  *  22. show_coverage_matrix
- *  23. show_bid_dashboard
+ *  23. show_procurement_dashboard
  *  24. show_reorient_me
  *  25. show_intelligence_feed
  */
@@ -12,7 +12,7 @@ import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import { sb } from '@/lib/supabase/safe';
 import {
   formatCoverageMatrix,
-  formatBidDashboard,
+  formatProcurementDashboard,
   formatReorientation,
   truncateResponse,
 } from '@/lib/mcp/formatters';
@@ -430,17 +430,17 @@ export async function registerAppTools(server: McpServer): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 23. show_bid_dashboard (App trigger tool — renders Procurement Dashboard MCP App)
+  // 23. show_procurement_dashboard (App trigger tool — renders Procurement Dashboard MCP App)
   // -------------------------------------------------------------------------
   const procurementDashboardUri = 'ui://bid-dashboard/app.html';
   defineAppTool(
     registerAppTool,
     server,
-    'show_bid_dashboard',
+    'show_procurement_dashboard',
     {
       title: 'Show Procurement Dashboard',
       description:
-        'Display an interactive bid dashboard showing active bids with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about bid status, pipeline overview, or wants to see all active bids at a glance.',
+        'Display an interactive bid dashboard showing active procurements with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about bid status, pipeline overview, or wants to see all active procurements at a glance.',
       inputSchema: {
         bid_id: z
           .string()
@@ -460,7 +460,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
 
-        // Fetch active bids
+        // Fetch active procurements
         const { fetchUnifiedDashboardData } = await getDashboardModule();
         const dashData = await fetchUnifiedDashboardData(
           supabase,
@@ -531,7 +531,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           }
         }
 
-        const markdown = truncateResponse(formatBidDashboard(result));
+        const markdown = truncateResponse(formatProcurementDashboard(result));
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent(result),
@@ -562,7 +562,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
     {
       title: 'Show Reorient Me',
       description:
-        'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active bid status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
+        'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active procurement status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
       inputSchema: {},
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: reorientMeUri } },

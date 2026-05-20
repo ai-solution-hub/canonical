@@ -823,7 +823,7 @@ export function registerPrompts(server: McpServer): void {
             type: 'text',
             text:
               KB_SYSTEM_CONTEXT +
-              'What has changed in my knowledge base since I was last active? Give me a briefing covering urgent items, team activity, my recent work, and active bid status. Use the get_reorientation tool.',
+              'What has changed in my knowledge base since I was last active? Give me a briefing covering urgent items, team activity, my recent work, and active procurement status. Use the get_reorientation tool.',
           },
         },
       ],
@@ -849,7 +849,7 @@ export function registerPrompts(server: McpServer): void {
             type: 'text',
             text:
               KB_SYSTEM_CONTEXT +
-              `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_bid_detail. Use the list_active_procurement and get_bid_detail tools.`,
+              `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_procurement_detail. Use the list_active_procurement and get_procurement_detail tools.`,
           },
         },
       ],
@@ -1050,10 +1050,10 @@ export function registerPrompts(server: McpServer): void {
               type: 'text',
               text:
                 KB_SYSTEM_CONTEXT +
-                'Produce a pipeline-wide action review for all active bids. Focus on blockers, stalled drafts, and recent activity — NOT per-bid status (that lives in `/kb:bid-status`).\n\n' +
+                'Produce a pipeline-wide action review for all active procurements. Focus on blockers, stalled drafts, and recent activity — NOT per-bid status (that lives in `/kb:bid-status`).\n\n' +
                 'Tool sequence:\n\n' +
                 '1. **Pipeline overview.** `list_active_procurement(limit: 50)` — full list with deadlines and completion %.\n' +
-                '2. **Per-bid detail.** For each active bid, `get_bid_detail(id: <bid_id>)` — extract:\n' +
+                '2. **Per-bid detail.** For each active bid, `get_procurement_detail(id: <bid_id>)` — extract:\n' +
                 '   - Unanswered questions (status: unanswered)\n' +
                 '   - Questions with confidence = "no_content" (hard blockers — need new KB material)\n' +
                 '   - Questions with confidence = "needs_sme" (soft blockers — need expert input)\n' +

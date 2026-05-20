@@ -1,7 +1,7 @@
 /**
  * Tests for MCP App trigger tools #22-23:
  *   22. show_coverage_matrix — Aggregates coverage data for interactive matrix
- *   23. show_bid_dashboard — Aggregates bid data for interactive dashboard
+ *   23. show_procurement_dashboard — Aggregates bid data for interactive dashboard
  *
  * Strategy: Create a mock McpServer that captures registered tool handlers
  * via registerTool(), then call the handlers directly with mock auth and
@@ -748,10 +748,10 @@ describe('MCP App trigger tools #22-23', () => {
   });
 
   // ─────────────────────────────────────────
-  // 23. show_bid_dashboard
+  // 23. show_procurement_dashboard
   // ─────────────────────────────────────────
 
-  describe('show_bid_dashboard', () => {
+  describe('show_procurement_dashboard', () => {
     const sampleBids = [
       {
         id: 'bid-001',
@@ -782,7 +782,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('returns structured ProcurementDashboardData with correct shape', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
       expect(handler).toBeDefined();
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
@@ -811,7 +811,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('maps active_bids to bid list with correct fields', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -840,8 +840,8 @@ describe('MCP App trigger tools #22-23', () => {
       expect(bids[1].buyer).toBeNull();
     });
 
-    it('returns empty bids array when no active bids', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+    it('returns empty bids array when no active procurements', async () => {
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -856,11 +856,11 @@ describe('MCP App trigger tools #22-23', () => {
       expect(result.structuredContent.bids).toEqual([]);
       expect(result.structuredContent.count).toBe(0);
       expect(result.structuredContent.total_count).toBe(0);
-      expect(result.content[0].text).toContain('No active bids found');
+      expect(result.content[0].text).toContain('No active procurements found');
     });
 
     it('fetches focused bid detail when bid_id is provided', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -935,7 +935,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('does not include focused_bid_detail when bid_id is omitted', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -950,7 +950,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('handles focused bid not found gracefully', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -978,7 +978,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('returns Markdown text in content array', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -996,7 +996,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('returns error response when an exception occurs', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockRejectedValue(
         new Error('Database timeout'),
@@ -1013,7 +1013,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('preserves null buyer in bid data', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -1041,7 +1041,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should include sections in focused_bid_detail when bid_id provided', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -1106,7 +1106,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should compute status_breakdown from questions', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -1196,7 +1196,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should compute confidence_breakdown from questions', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -1285,7 +1285,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should handle bid with no questions gracefully', async () => {
-      const handler = mockServer.getHandler('show_bid_dashboard')!;
+      const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
@@ -1341,10 +1341,10 @@ describe('MCP App trigger tools #22-23', () => {
   });
 
   // ─────────────────────────────────────────
-  // 6. get_bid_detail (enhanced with sections)
+  // 6. get_procurement_detail (enhanced with sections)
   // ─────────────────────────────────────────
 
-  describe('get_bid_detail', () => {
+  describe('get_procurement_detail', () => {
     beforeAll(async () => {
       ({ registerBidTools } = await import('@/lib/mcp/tools/procurement'));
     }, MCP_TOOL_IMPORT_TIMEOUT_MS);
@@ -1352,7 +1352,7 @@ describe('MCP App trigger tools #22-23', () => {
       await registerBidTools(mockServer.server as never);
     });
     it('should return sections grouped by section_name', async () => {
-      const handler = mockServer.getHandler('get_bid_detail')!;
+      const handler = mockServer.getHandler('get_procurement_detail')!;
       expect(handler).toBeDefined();
 
       // Mock workspace lookup
@@ -1471,7 +1471,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should map responses to questions correctly', async () => {
-      const handler = mockServer.getHandler('get_bid_detail')!;
+      const handler = mockServer.getHandler('get_procurement_detail')!;
 
       supabase.from.mockImplementation((table: string) => {
         const chain = {
@@ -1574,7 +1574,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should put questions with null section_name into Ungrouped', async () => {
-      const handler = mockServer.getHandler('get_bid_detail')!;
+      const handler = mockServer.getHandler('get_procurement_detail')!;
 
       supabase.from.mockImplementation((table: string) => {
         const chain = {
@@ -1647,7 +1647,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should return empty sections array when no questions exist', async () => {
-      const handler = mockServer.getHandler('get_bid_detail')!;
+      const handler = mockServer.getHandler('get_procurement_detail')!;
 
       supabase.from.mockImplementation(() => {
         const chain = {
@@ -1703,7 +1703,7 @@ describe('MCP App trigger tools #22-23', () => {
     });
 
     it('should include status_breakdown and confidence_breakdown', async () => {
-      const handler = mockServer.getHandler('get_bid_detail')!;
+      const handler = mockServer.getHandler('get_procurement_detail')!;
 
       supabase.from.mockImplementation((table: string) => {
         const chain = {

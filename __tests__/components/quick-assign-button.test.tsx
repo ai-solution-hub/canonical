@@ -171,7 +171,7 @@ describe('QuickAssignButton', () => {
     const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
     await user.click(trigger);
 
-    expect(screen.getByText('No active bids.')).toBeInTheDocument();
+    expect(screen.getByText('No active procurements.')).toBeInTheDocument();
     expect(screen.getByText('Create one in Workspaces')).toBeInTheDocument();
   });
 

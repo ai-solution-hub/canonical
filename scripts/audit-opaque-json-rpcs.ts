@@ -179,7 +179,7 @@ const VERDICTS: Record<
     notes:
       'Top-level scalar fields are stable and individually convertible. Arrays require composite types or separate RPCs. Recommend split: one RPC for scalars, one or more for breakdowns. Route (app/api/insights/route.ts:71) passes data through without casting — client receives raw opaque Json.',
   },
-  get_bid_summary: {
+  get_procurement_summary: {
     verdict: 'no-ts-callers',
     arguments: 'bid_workspace_id uuid',
     return_shape_summary:

@@ -1074,10 +1074,10 @@ async function runBidToolChecks(
     }
   }
 
-  // FC-31: get_bid_detail with known bid — keyword check
+  // FC-31: get_procurement_detail with known bid — keyword check
   if (knownUUIDs.procurementId) {
     const result = await callTool(
-      'get_bid_detail',
+      'get_procurement_detail',
       { id: knownUUIDs.procurementId },
       accessToken,
     );
@@ -1085,7 +1085,7 @@ async function runBidToolChecks(
       record(
         'Procurement Tools',
         'FC-31',
-        'get_bid_detail known bid',
+        'get_procurement_detail known bid',
         'FAIL',
         result.errorMessage,
       );
@@ -1093,7 +1093,7 @@ async function runBidToolChecks(
       record(
         'Procurement Tools',
         'FC-31',
-        'get_bid_detail known bid',
+        'get_procurement_detail known bid',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -1105,7 +1105,7 @@ async function runBidToolChecks(
         record(
           'Procurement Tools',
           'FC-31',
-          'get_bid_detail known bid',
+          'get_procurement_detail known bid',
           'PASS',
           `Procurement detail with question keywords (${result.charCount} chars)`,
         );
@@ -1113,7 +1113,7 @@ async function runBidToolChecks(
         record(
           'Procurement Tools',
           'FC-31',
-          'get_bid_detail known bid',
+          'get_procurement_detail known bid',
           'PASS',
           `Procurement detail returned (${result.charCount} chars)`,
         );
@@ -1121,7 +1121,7 @@ async function runBidToolChecks(
         record(
           'Procurement Tools',
           'FC-31',
-          'get_bid_detail known bid',
+          'get_procurement_detail known bid',
           'FAIL',
           'No meaningful bid detail returned',
         );
@@ -1131,7 +1131,7 @@ async function runBidToolChecks(
     record(
       'Procurement Tools',
       'FC-31',
-      'get_bid_detail known bid',
+      'get_procurement_detail known bid',
       'SKIP',
       'No bid workspace found',
     );
@@ -2328,14 +2328,14 @@ async function runAppTemplateChecks(accessToken: string): Promise<void> {
     }
   }
 
-  // FC-71: show_bid_dashboard
+  // FC-71: show_procurement_dashboard
   {
-    const result = await callTool('show_bid_dashboard', {}, accessToken);
+    const result = await callTool('show_procurement_dashboard', {}, accessToken);
     if (result.errorMessage) {
       record(
         'App/Template',
         'FC-71',
-        'show_bid_dashboard',
+        'show_procurement_dashboard',
         'FAIL',
         result.errorMessage,
       );
@@ -2343,7 +2343,7 @@ async function runAppTemplateChecks(accessToken: string): Promise<void> {
       record(
         'App/Template',
         'FC-71',
-        'show_bid_dashboard',
+        'show_procurement_dashboard',
         'PASS',
         `Content returned (${result.charCount} chars)`,
       );
@@ -2351,7 +2351,7 @@ async function runAppTemplateChecks(accessToken: string): Promise<void> {
       record(
         'App/Template',
         'FC-71',
-        'show_bid_dashboard',
+        'show_procurement_dashboard',
         'FAIL',
         'No content returned',
       );

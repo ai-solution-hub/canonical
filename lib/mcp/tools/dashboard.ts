@@ -48,7 +48,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
     {
       title: 'Dashboard Summary',
       description:
-        'Get an overview of the knowledge base health including items needing attention, content freshness breakdown, active bids, and recent activity. Use this to understand the current state of the knowledge base at a glance.',
+        'Get an overview of the knowledge base health including items needing attention, content freshness breakdown, active procurements, and recent activity. Use this to understand the current state of the knowledge base at a glance.',
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (extra: ToolExtra) => {
@@ -96,7 +96,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
     {
       title: 'Reorientation Briefing',
       description:
-        'Get a personal briefing on what has changed in the knowledge base since your last visit. Includes urgent items needing attention, team activity, your recent work, and active bid status. Use this to quickly catch up on what happened while you were away.',
+        'Get a personal briefing on what has changed in the knowledge base since your last visit. Includes urgent items needing attention, team activity, your recent work, and active procurement status. Use this to quickly catch up on what happened while you were away.',
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (extra: ToolExtra) => {

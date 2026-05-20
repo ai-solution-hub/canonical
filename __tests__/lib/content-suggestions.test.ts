@@ -385,7 +385,7 @@ describe('generateContentSuggestions', () => {
     expect(certsSuggestions.length).toBe(0);
   });
 
-  it('elevates empty subtopics to critical when active bids exist', async () => {
+  it('elevates empty subtopics to critical when active procurements exist', async () => {
     configureMock({
       contentItems: [],
       activeBids: [{ id: 'bid-1', name: 'Active Procurement', domain_metadata: null }],
@@ -401,7 +401,7 @@ describe('generateContentSuggestions', () => {
     const emptySubtopics = result.filter(
       (s) => s.suggestion_type === 'empty_subtopic',
     );
-    // When there are active bids, empty subtopics should be critical
+    // When there are active procurements, empty subtopics should be critical
     for (const s of emptySubtopics) {
       expect(s.priority).toBe('critical');
     }
