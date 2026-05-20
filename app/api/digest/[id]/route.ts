@@ -32,7 +32,7 @@ export async function GET(
     }
 
     const { data, error } = await supabase
-      .from('digests')
+      .from('change_reports')
       .select(
         'id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, item_ids, created_at',
       )

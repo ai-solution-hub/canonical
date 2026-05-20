@@ -81,6 +81,38 @@ export async function POST(
       const parsed = parseBody(WorkspaceCreateBodySchema, raw);
       if (!parsed.success) return parsed.response;
 
+      // Post-T2 discriminator: application_type_id FK (legacy `type` text col
+      // dropped). Mirror the pattern from app/api/workspaces/route.ts POST.
+      const rawTypeKey = parsed.data.type ?? null;
+      if (rawTypeKey === 'kb_section' || rawTypeKey === null) {
+        return NextResponse.json(
+          {
+            error:
+              'Workspace `type` is required and must reference a seeded application_types key (procurement, intelligence, sales_proposal, product_guide, competitor_research, training_onboarding).',
+          },
+          { status: 400 },
+        );
+      }
+      const appTypeKey = rawTypeKey === 'bid' ? 'procurement' : rawTypeKey;
+
+      const { data: appType, error: appTypeError } = await supabase
+        .from('application_types')
+        .select('id')
+        .eq('key', appTypeKey)
+        .maybeSingle();
+      if (appTypeError || !appType) {
+        logger.error(
+          { err: appTypeError, appTypeKey },
+          'Failed to resolve application_type for workspace create',
+        );
+        return NextResponse.json(
+          {
+            error: `application_type "${appTypeKey}" not seeded — cannot create workspace`,
+          },
+          { status: 500 },
+        );
+      }
+
       // Create the workspace
       const { data: workspace, error: createError } = await supabase
         .from('workspaces')
@@ -89,6 +121,7 @@ export async function POST(
           description: parsed.data.description ?? null,
           color: parsed.data.color ?? '#6366f1',
           icon: parsed.data.icon ?? 'folder',
+          application_type_id: appType.id,
           created_by: user.id,
         })
         .select()

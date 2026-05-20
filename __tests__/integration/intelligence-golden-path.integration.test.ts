@@ -263,7 +263,19 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
     expect(workspaceId).toBeTruthy();
     expect(feedSourceId).toBeTruthy();
 
-    const articles = [
+    const articles: Array<{
+      workspace_id: string;
+      feed_source_id: string;
+      external_url: string;
+      title: string;
+      raw_content: string;
+      relevance_score: number;
+      relevance_category: string;
+      relevance_reasoning: string;
+      matched_categories: string[];
+      passed: boolean;
+      published_at: string;
+    }> = [
       {
         workspace_id: workspaceId!,
         feed_source_id: feedSourceId!,
@@ -274,7 +286,7 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
           'The strategy outlines new requirements for public sector organisations to achieve ' +
           'Cyber Essentials Plus certification by March 2027.',
         relevance_score: 0.85,
-        relevance_category: 'high' as const,
+        relevance_category: 'high',
         relevance_reasoning: 'Directly relevant to security sector',
         matched_categories: ['cyber security', 'government policy'],
         passed: true,
@@ -290,7 +302,7 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
           'The programme includes a focus on interoperability standards and data sharing agreements ' +
           'between trusts.',
         relevance_score: 0.62,
-        relevance_category: 'medium' as const,
+        relevance_category: 'medium',
         relevance_reasoning: 'Related to healthcare IT procurement',
         matched_categories: ['healthcare', 'procurement'],
         passed: true,
@@ -304,7 +316,7 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
         raw_content:
           'A new restaurant has opened in central London serving modern British cuisine.',
         relevance_score: 0.05,
-        relevance_category: 'irrelevant' as const,
+        relevance_category: 'irrelevant',
         relevance_reasoning: 'No connection to company interests',
         matched_categories: [],
         passed: false,

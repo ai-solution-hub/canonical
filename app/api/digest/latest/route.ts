@@ -19,7 +19,7 @@ export async function GET() {
     const { supabase } = auth;
 
     const { data, error } = await supabase
-      .from('digests')
+      .from('change_reports')
       .select(
         'id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at',
       )

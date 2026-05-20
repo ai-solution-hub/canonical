@@ -624,7 +624,7 @@ export async function generateDigest(
   };
 
   const { data: insertedDigest, error: insertError } = await supabase
-    .from('digests')
+    .from('change_reports')
     .insert(digestRow)
     .select()
     .single();
