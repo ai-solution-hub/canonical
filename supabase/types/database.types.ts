@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      application_types: {
+        Row: {
+          created_at: string
+          default_colour: string | null
+          default_icon: string | null
+          id: string
+          key: string
+          label: string
+          provenance: string
+          state_machine_config: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_colour?: string | null
+          default_icon?: string | null
+          id?: string
+          key: string
+          label: string
+          provenance?: string
+          state_machine_config?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_colour?: string | null
+          default_icon?: string | null
+          id?: string
+          key?: string
+          label?: string
+          provenance?: string
+          state_machine_config?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bid_questions: {
         Row: {
           assigned_to: string | null
@@ -24,7 +60,6 @@ export type Database = {
           has_variants: boolean | null
           id: string
           matched_content_ids: string[] | null
-          project_id: string
           question_sequence: number
           question_text: string
           section_name: string | null
@@ -33,6 +68,7 @@ export type Database = {
           template_requirement_id: string | null
           updated_at: string | null
           word_limit: number | null
+          workspace_id: string
         }
         Insert: {
           assigned_to?: string | null
@@ -43,7 +79,6 @@ export type Database = {
           has_variants?: boolean | null
           id?: string
           matched_content_ids?: string[] | null
-          project_id: string
           question_sequence: number
           question_text: string
           section_name?: string | null
@@ -52,6 +87,7 @@ export type Database = {
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
+          workspace_id: string
         }
         Update: {
           assigned_to?: string | null
@@ -62,7 +98,6 @@ export type Database = {
           has_variants?: boolean | null
           id?: string
           matched_content_ids?: string[] | null
-          project_id?: string
           question_sequence?: number
           question_text?: string
           section_name?: string | null
@@ -71,6 +106,7 @@ export type Database = {
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -88,17 +124,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bid_questions_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bid_questions_template_requirement_id_fkey"
             columns: ["template_requirement_id"]
             isOneToOne: false
-            referencedRelation: "template_requirements"
+            referencedRelation: "form_template_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_questions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -240,6 +276,60 @@ export type Database = {
           },
         ]
       }
+      change_reports: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          digest_type: string
+          domain_summaries: Json
+          generated_at: string
+          generated_by: string
+          id: string
+          item_count: number
+          item_ids: string[] | null
+          metadata: Json | null
+          narrative_summary: string | null
+          period_end: string
+          period_start: string
+          theme_clusters: Json
+          tokens_used: number | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          digest_type?: string
+          domain_summaries?: Json
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          item_count?: number
+          item_ids?: string[] | null
+          metadata?: Json | null
+          narrative_summary?: string | null
+          period_end: string
+          period_start: string
+          theme_clusters?: Json
+          tokens_used?: number | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          digest_type?: string
+          domain_summaries?: Json
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          item_count?: number
+          item_ids?: string[] | null
+          metadata?: Json | null
+          narrative_summary?: string | null
+          period_end?: string
+          period_start?: string
+          theme_clusters?: Json
+          tokens_used?: number | null
+        }
+        Relationships: []
+      }
       classification_disputes: {
         Row: {
           content_item_id: string
@@ -380,6 +470,35 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_research_workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_research_workspaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -978,84 +1097,30 @@ export type Database = {
           },
         ]
       }
-      digests: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          digest_type: string
-          domain_summaries: Json
-          generated_at: string
-          generated_by: string
-          id: string
-          item_count: number
-          item_ids: string[] | null
-          metadata: Json | null
-          narrative_summary: string | null
-          period_end: string
-          period_start: string
-          theme_clusters: Json
-          tokens_used: number | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          digest_type?: string
-          domain_summaries?: Json
-          generated_at?: string
-          generated_by?: string
-          id?: string
-          item_count?: number
-          item_ids?: string[] | null
-          metadata?: Json | null
-          narrative_summary?: string | null
-          period_end: string
-          period_start: string
-          theme_clusters?: Json
-          tokens_used?: number | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          digest_type?: string
-          domain_summaries?: Json
-          generated_at?: string
-          generated_by?: string
-          id?: string
-          item_count?: number
-          item_ids?: string[] | null
-          metadata?: Json | null
-          narrative_summary?: string | null
-          period_end?: string
-          period_start?: string
-          theme_clusters?: Json
-          tokens_used?: number | null
-        }
-        Relationships: []
-      }
       entity_aliases: {
         Row: {
           alias: string
           canonical: string
-          category: string
           created_at: string
           id: string
           is_active: boolean
+          provenance: string
         }
         Insert: {
           alias: string
           canonical: string
-          category?: string
           created_at?: string
           id?: string
           is_active?: boolean
+          provenance?: string
         }
         Update: {
           alias?: string
           canonical?: string
-          category?: string
           created_at?: string
           id?: string
           is_active?: boolean
+          provenance?: string
         }
         Relationships: []
       }
@@ -1445,6 +1510,266 @@ export type Database = {
           },
         ]
       }
+      form_template_fields: {
+        Row: {
+          col_index: number | null
+          created_at: string | null
+          field_type: string
+          fill_error: string | null
+          fill_status: string
+          id: string
+          mapping_confidence: number | null
+          mapping_status: string
+          placeholder_text: string | null
+          question_id: string | null
+          question_text: string | null
+          row_index: number | null
+          section_name: string | null
+          sequence: number
+          table_index: number | null
+          template_id: string
+          updated_at: string | null
+          word_limit: number | null
+        }
+        Insert: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type: string
+          fill_error?: string | null
+          fill_status?: string
+          id?: string
+          mapping_confidence?: number | null
+          mapping_status?: string
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number
+          table_index?: number | null
+          template_id: string
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Update: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type?: string
+          fill_error?: string | null
+          fill_status?: string
+          id?: string
+          mapping_confidence?: number | null
+          mapping_status?: string
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number
+          table_index?: number | null
+          template_id?: string
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_template_fields_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "bid_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_template_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_template_requirements: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number
+          id: string
+          is_current: boolean | null
+          is_mandatory: boolean | null
+          matching_guidance: string | null
+          matching_keywords: string[] | null
+          primary_domain: string | null
+          primary_subtopic: string | null
+          question_number: number | null
+          requirement_embedding: string | null
+          requirement_text: string
+          requirement_type: string
+          secondary_domain: string | null
+          secondary_subtopic: string | null
+          section_name: string
+          section_ref: string
+          sector_applicability: string[] | null
+          template_name: string
+          template_type: string
+          template_version: string | null
+          updated_at: string | null
+          word_limit_guidance: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_embedding?: string | null
+          requirement_text: string
+          requirement_type: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name: string
+          section_ref: string
+          sector_applicability?: string[] | null
+          template_name: string
+          template_type: string
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_embedding?: string | null
+          requirement_text?: string
+          requirement_type?: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name?: string
+          section_ref?: string
+          sector_applicability?: string[] | null
+          template_name?: string
+          template_type?: string
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_template_requirements_template_type_fkey"
+            columns: ["template_type"]
+            isOneToOne: false
+            referencedRelation: "form_types"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      form_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          field_count: number | null
+          file_size: number
+          filename: string
+          id: string
+          mapped_count: number | null
+          mime_type: string
+          name: string
+          status: string
+          storage_path: string
+          structure_path: string | null
+          updated_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          field_count?: number | null
+          file_size: number
+          filename: string
+          id?: string
+          mapped_count?: number | null
+          mime_type: string
+          name: string
+          status?: string
+          storage_path: string
+          structure_path?: string | null
+          updated_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          field_count?: number | null
+          file_size?: number
+          filename?: string
+          id?: string
+          mapped_count?: number | null
+          mime_type?: string
+          name?: string
+          status?: string
+          storage_path?: string
+          structure_path?: string | null
+          updated_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_types: {
+        Row: {
+          applicable_application_types: string[]
+          created_at: string
+          key: string
+          label: string
+          provenance: string
+        }
+        Insert: {
+          applicable_application_types?: string[]
+          created_at?: string
+          key: string
+          label: string
+          provenance?: string
+        }
+        Update: {
+          applicable_application_types?: string[]
+          created_at?: string
+          key?: string
+          label?: string
+          provenance?: string
+        }
+        Relationships: []
+      }
       governance_config: {
         Row: {
           auto_flag_cooldown_days: number | null
@@ -1690,6 +2015,58 @@ export type Database = {
           },
         ]
       }
+      intelligence_workspaces: {
+        Row: {
+          company_profile_id: string | null
+          created_at: string
+          guide_id: string | null
+          id: string
+          relevance_threshold: number | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          company_profile_id?: string | null
+          created_at?: string
+          guide_id?: string | null
+          id?: string
+          relevance_threshold?: number | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          company_profile_id?: string | null
+          created_at?: string
+          guide_id?: string | null
+          id?: string
+          relevance_threshold?: number | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_workspaces_company_profile_id_fkey"
+            columns: ["company_profile_id"]
+            isOneToOne: false
+            referencedRelation: "company_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intelligence_workspaces_guide_id_fkey"
+            columns: ["guide_id"]
+            isOneToOne: false
+            referencedRelation: "guides"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intelligence_workspaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       layer_vocabulary: {
         Row: {
           created_at: string
@@ -1894,6 +2271,183 @@ export type Database = {
         }
         Relationships: []
       }
+      procurement_vehicle_instances: {
+        Row: {
+          created_at: string
+          key: string
+          label: string
+          provenance: string
+          vehicle_key: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          label: string
+          provenance?: string
+          vehicle_key: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          label?: string
+          provenance?: string
+          vehicle_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_vehicle_instances_vehicle_key_fkey"
+            columns: ["vehicle_key"]
+            isOneToOne: false
+            referencedRelation: "procurement_vehicles"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      procurement_vehicles: {
+        Row: {
+          created_at: string
+          key: string
+          label: string
+          provenance: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          label: string
+          provenance?: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          label?: string
+          provenance?: string
+        }
+        Relationships: []
+      }
+      procurement_workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_workspaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_guide_workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_guide_workspaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      q_a_pairs: {
+        Row: {
+          answer_advanced: string | null
+          answer_standard: string | null
+          anti_scope_tag: string[]
+          created_at: string
+          id: string
+          origin_kind: string
+          publication_status: string
+          question_text: string
+          scope_tag: string[]
+          source_workspace_id: string | null
+          superseded_by: string | null
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          answer_advanced?: string | null
+          answer_standard?: string | null
+          anti_scope_tag?: string[]
+          created_at?: string
+          id?: string
+          origin_kind?: string
+          publication_status?: string
+          question_text: string
+          scope_tag?: string[]
+          source_workspace_id?: string | null
+          superseded_by?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          answer_advanced?: string | null
+          answer_standard?: string | null
+          anti_scope_tag?: string[]
+          created_at?: string
+          id?: string
+          origin_kind?: string
+          publication_status?: string
+          question_text?: string
+          scope_tag?: string[]
+          source_workspace_id?: string | null
+          superseded_by?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_pairs_source_workspace_id_fkey"
+            columns: ["source_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_pairs_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       read_marks: {
         Row: {
           content_item_id: string
@@ -1994,6 +2548,35 @@ export type Database = {
             columns: ["reviewer_id"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_proposal_workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_proposal_workspaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -2487,234 +3070,35 @@ export type Database = {
             foreignKeyName: "template_completions_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
-            referencedRelation: "templates"
+            referencedRelation: "form_templates"
             referencedColumns: ["id"]
           },
         ]
       }
-      template_fields: {
+      training_onboarding_workspaces: {
         Row: {
-          col_index: number | null
-          created_at: string | null
-          field_type: string
-          fill_error: string | null
-          fill_status: string
+          created_at: string
           id: string
-          mapping_confidence: number | null
-          mapping_status: string
-          placeholder_text: string | null
-          question_id: string | null
-          question_text: string | null
-          row_index: number | null
-          section_name: string | null
-          sequence: number
-          table_index: number | null
-          template_id: string
-          updated_at: string | null
-          word_limit: number | null
+          updated_at: string
+          workspace_id: string
         }
         Insert: {
-          col_index?: number | null
-          created_at?: string | null
-          field_type: string
-          fill_error?: string | null
-          fill_status?: string
+          created_at?: string
           id?: string
-          mapping_confidence?: number | null
-          mapping_status?: string
-          placeholder_text?: string | null
-          question_id?: string | null
-          question_text?: string | null
-          row_index?: number | null
-          section_name?: string | null
-          sequence?: number
-          table_index?: number | null
-          template_id: string
-          updated_at?: string | null
-          word_limit?: number | null
+          updated_at?: string
+          workspace_id: string
         }
         Update: {
-          col_index?: number | null
-          created_at?: string | null
-          field_type?: string
-          fill_error?: string | null
-          fill_status?: string
+          created_at?: string
           id?: string
-          mapping_confidence?: number | null
-          mapping_status?: string
-          placeholder_text?: string | null
-          question_id?: string | null
-          question_text?: string | null
-          row_index?: number | null
-          section_name?: string | null
-          sequence?: number
-          table_index?: number | null
-          template_id?: string
-          updated_at?: string | null
-          word_limit?: number | null
+          updated_at?: string
+          workspace_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "template_fields_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "bid_questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "template_fields_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      template_requirements: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          display_order: number
-          id: string
-          is_current: boolean | null
-          is_mandatory: boolean | null
-          matching_guidance: string | null
-          matching_keywords: string[] | null
-          primary_domain: string | null
-          primary_subtopic: string | null
-          question_number: number | null
-          requirement_embedding: string | null
-          requirement_text: string
-          requirement_type: string
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          section_name: string
-          section_ref: string
-          sector_applicability: string[] | null
-          template_name: string
-          template_type: string
-          template_version: string | null
-          updated_at: string | null
-          word_limit_guidance: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          display_order?: number
-          id?: string
-          is_current?: boolean | null
-          is_mandatory?: boolean | null
-          matching_guidance?: string | null
-          matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          question_number?: number | null
-          requirement_embedding?: string | null
-          requirement_text: string
-          requirement_type: string
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          section_name: string
-          section_ref: string
-          sector_applicability?: string[] | null
-          template_name: string
-          template_type: string
-          template_version?: string | null
-          updated_at?: string | null
-          word_limit_guidance?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          display_order?: number
-          id?: string
-          is_current?: boolean | null
-          is_mandatory?: boolean | null
-          matching_guidance?: string | null
-          matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          question_number?: number | null
-          requirement_embedding?: string | null
-          requirement_text?: string
-          requirement_type?: string
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          section_name?: string
-          section_ref?: string
-          sector_applicability?: string[] | null
-          template_name?: string
-          template_type?: string
-          template_version?: string | null
-          updated_at?: string | null
-          word_limit_guidance?: number | null
-        }
-        Relationships: []
-      }
-      templates: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          field_count: number | null
-          file_size: number
-          filename: string
-          id: string
-          mapped_count: number | null
-          mime_type: string
-          name: string
-          project_id: string
-          status: string
-          storage_path: string
-          structure_path: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          field_count?: number | null
-          file_size: number
-          filename: string
-          id?: string
-          mapped_count?: number | null
-          mime_type: string
-          name: string
-          project_id: string
-          status?: string
-          storage_path: string
-          structure_path?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          field_count?: number | null
-          file_size?: number
-          filename?: string
-          id?: string
-          mapped_count?: number | null
-          mime_type?: string
-          name?: string
-          project_id?: string
-          status?: string
-          storage_path?: string
-          structure_path?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "templates_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "templates_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
+            foreignKeyName: "training_onboarding_workspaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -2856,6 +3240,7 @@ export type Database = {
       }
       workspaces: {
         Row: {
+          application_type_id: string
           color: string | null
           created_at: string | null
           created_by: string | null
@@ -2866,11 +3251,11 @@ export type Database = {
           is_archived: boolean | null
           name: string
           status: string | null
-          type: string
           updated_at: string | null
           updated_by: string | null
         }
         Insert: {
+          application_type_id: string
           color?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -2881,11 +3266,11 @@ export type Database = {
           is_archived?: boolean | null
           name: string
           status?: string | null
-          type?: string
           updated_at?: string | null
           updated_by?: string | null
         }
         Update: {
+          application_type_id?: string
           color?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -2896,11 +3281,18 @@ export type Database = {
           is_archived?: boolean | null
           name?: string
           status?: string | null
-          type?: string
           updated_at?: string | null
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workspaces_application_type_id_fkey"
+            columns: ["application_type_id"]
+            isOneToOne: false
+            referencedRelation: "application_types"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -3493,6 +3885,7 @@ export type Database = {
       get_item_workspaces: {
         Args: { p_item_id: string }
         Returns: {
+          application_type_id: string
           color: string | null
           created_at: string | null
           created_by: string | null
@@ -3503,7 +3896,6 @@ export type Database = {
           is_archived: boolean | null
           name: string
           status: string | null
-          type: string
           updated_at: string | null
           updated_by: string | null
         }[]
@@ -3630,6 +4022,10 @@ export type Database = {
           last_activity: string
           workspace_id: string
         }[]
+      }
+      grant_standard_public_table_access: {
+        Args: { target_table: unknown }
+        Returns: undefined
       }
       hook_restrict_signup_to_example-client_domain: {
         Args: { event: Json }

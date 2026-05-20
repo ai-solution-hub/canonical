@@ -9,14 +9,13 @@ import type { Json } from '@/supabase/types/database.types';
 /**
  * API contract for intelligence workspaces.
  *
- * Per S244 Wave 0.5 ratification + S245 WP2a, the three intelligence-context
- * fields surface as **typed top-level** fields, not nested under
- * `domain_metadata`. The 5 `/api/intelligence/*` routes project them via
- * `extractContextFromDomainMetadata()` from `@/lib/intelligence/workspace-context`.
- *
- * Pre-T2 (S245 WP2a): the projection reads `workspaces.domain_metadata` JSONB.
- * Post-T2 (S246 WP2b): the projection reads the `intelligence_workspaces`
- * satellite via JOIN. API consumers see the same shape across the migration.
+ * Post-T2 (S246 WP2b): the 3 intelligence-context fields are typed top-level
+ * fields on the API response, fed from the `intelligence_workspaces` satellite
+ * via JOIN in the `/api/intelligence/*` routes. The pre-T2 `workspaces.type`
+ * text column is gone — the discriminator is `application_type_id` (FK to
+ * `application_types`), but API consumers should treat this hook's mere
+ * existence as evidence that the workspace IS an intelligence workspace; no
+ * client-side type-key check is required.
  *
  * `domain_metadata` stays as loose `Json | null` because non-intelligence
  * workspaces still use it for their own per-domain payloads.
@@ -25,7 +24,8 @@ export interface IntelligenceWorkspace {
   id: string;
   name: string;
   description: string | null;
-  type: 'intelligence';
+  /** FK to `application_types.id` (post-T2 discriminator). */
+  application_type_id: string;
   /** FK to `company_profiles.id`; null when no profile is bound. */
   company_profile_id: string | null;
   /** FK to `guides.id`; null when no guide is bound. */
@@ -58,8 +58,9 @@ export interface IntelligenceWorkspaceInput {
 
 /**
  * Update payload for PATCH /api/intelligence/workspaces/:id.
- * `relevance_threshold` is admin-only and is merged server-side into
- * the workspace's `domain_metadata` JSONB column.
+ * `relevance_threshold` is admin-only and is written server-side to the
+ * `intelligence_workspaces.relevance_threshold` typed satellite column
+ * (post-T2 — pre-T2 it was merged into `workspaces.domain_metadata` JSONB).
  */
 /** @public */
 export interface IntelligenceWorkspaceUpdateInput {

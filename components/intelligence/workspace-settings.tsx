@@ -21,11 +21,10 @@ import { Sliders } from 'lucide-react';
  * - Admin-only: write-path enforced server-side; UI hides for non-admin
  *
  * Read path: typed top-level `workspace.relevance_threshold` projected by
- * the 5 `/api/intelligence/*` routes via `extractContextFromDomainMetadata`.
- * Pre-T2 (S245 WP2a): projection reads `domain_metadata.relevance_threshold`
- * JSONB. Post-T2 (S246 WP2b): projection reads
- * `intelligence_workspaces.relevance_threshold` typed column. UI is
- * unaffected across the migration.
+ * the 5 `/api/intelligence/*` routes via `extractContextFromSatellite` from
+ * `@/lib/intelligence/workspace-context`, reading the
+ * `intelligence_workspaces.relevance_threshold` typed column via JOIN
+ * (post-T2 — pre-T2 the projection read `domain_metadata` JSONB).
  */
 const SLIDER_MIN = 0.1;
 const SLIDER_MAX = 1.0;

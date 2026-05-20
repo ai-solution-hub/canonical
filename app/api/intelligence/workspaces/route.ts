@@ -1,11 +1,15 @@
 // app/api/intelligence/workspaces/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { IntelligenceWorkspaceCreateSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
+import {
+  INTELLIGENCE_WORKSPACE_SELECT,
+  extractContextFromSatellite,
+} from '@/lib/intelligence/workspace-context';
 
 /** GET /api/intelligence/workspaces — list intelligence workspaces with profile info */
 export async function GET() {
@@ -14,11 +18,14 @@ export async function GET() {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    // Fetch intelligence workspaces
+    // Fetch intelligence workspaces via INNER JOIN through application_types
+    // (post-T2: workspaces.type column dropped; discriminator is the
+    // application_type_id FK). The satellite JOIN supplies the 3 typed
+    // context columns in the same round-trip.
     const { data: workspaces, error: wsError } = await supabase
       .from('workspaces')
-      .select('*')
-      .eq('type', 'intelligence')
+      .select(INTELLIGENCE_WORKSPACE_SELECT)
+      .eq('application_types.key', 'intelligence')
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
 
@@ -33,12 +40,10 @@ export async function GET() {
       return NextResponse.json([]);
     }
 
-    // Project the 3 intelligence-context fields onto each row via the
-    // canonical helper (workspace-context). Pre-T2 reads JSONB; post-T2
-    // (S246 WP2b) reads the typed satellite columns — call sites unchanged.
+    // Project the 3 intelligence-context fields onto each row from the satellite.
     const workspaceContexts = workspaces.map((ws) => ({
       ws,
-      context: extractContextFromDomainMetadata(ws.domain_metadata),
+      context: extractContextFromSatellite(ws.intelligence_workspaces),
     }));
 
     const profileIds = workspaceContexts
@@ -124,18 +129,27 @@ export async function GET() {
     }
 
     // Enrich workspaces with typed top-level context, profile name, and counts.
-    const enriched = workspaceContexts.map(({ ws, context }) => ({
-      ...ws,
-      company_profile_id: context.companyProfileId,
-      guide_id: context.guideId,
-      relevance_threshold: context.relevanceThreshold,
-      company_profile_name: context.companyProfileId
-        ? (profileMap[context.companyProfileId] ?? null)
-        : null,
-      source_count: sourceCountMap[ws.id] ?? 0,
-      article_count: articleCountMap[ws.id]?.total ?? 0,
-      passed_article_count: articleCountMap[ws.id]?.passed ?? 0,
-    }));
+    // Drop the joined `application_types` + `intelligence_workspaces` projections
+    // from the response shape — callers consume the flat typed fields below.
+    const enriched = workspaceContexts.map(({ ws, context }) => {
+      const {
+        application_types: _appTypes,
+        intelligence_workspaces: _intelSat,
+        ...wsRest
+      } = ws;
+      return {
+        ...wsRest,
+        company_profile_id: context.companyProfileId,
+        guide_id: context.guideId,
+        relevance_threshold: context.relevanceThreshold,
+        company_profile_name: context.companyProfileId
+          ? (profileMap[context.companyProfileId] ?? null)
+          : null,
+        source_count: sourceCountMap[ws.id] ?? 0,
+        article_count: articleCountMap[ws.id]?.total ?? 0,
+        passed_article_count: articleCountMap[ws.id]?.passed ?? 0,
+      };
+    });
 
     // Surface warnings via response header to preserve the existing
     // array contract consumed by hooks/intelligence/use-intelligence-workspaces.
@@ -180,19 +194,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create the workspace
+    // Resolve the intelligence application_type id (seeded as a `core` row in
+    // sub-task 1.2 of the T2 migration — should always resolve).
+    const appType = await sb(
+      supabase
+        .from('application_types')
+        .select('id')
+        .eq('key', 'intelligence')
+        .maybeSingle(),
+      'application_types.byKey',
+    );
+    if (!appType) {
+      return NextResponse.json(
+        { error: 'Intelligence application_type not seeded' },
+        { status: 500 },
+      );
+    }
+
+    // Create the workspace (post-T2: discriminator is application_type_id, not
+    // type text col; satellite carries the 3 typed context fields).
     const { data: workspace, error: wsError } = await supabase
       .from('workspaces')
       .insert({
         name: parsed.data.name,
         description: parsed.data.description ?? null,
-        type: 'intelligence',
+        application_type_id: appType.id,
         color: '#059669',
         icon: 'globe',
         created_by: user.id,
-        domain_metadata: {
-          company_profile_id: parsed.data.company_profile_id,
-        },
       })
       .select()
       .single();
@@ -200,6 +229,25 @@ export async function POST(request: NextRequest) {
     if (wsError || !workspace) {
       return NextResponse.json(
         { error: 'Failed to create workspace' },
+        { status: 500 },
+      );
+    }
+
+    // Create the intelligence_workspaces satellite row with the company profile
+    // binding. relevance_threshold is left NULL (admin sets via PATCH).
+    const { error: satelliteError } = await supabase
+      .from('intelligence_workspaces')
+      .insert({
+        workspace_id: workspace.id,
+        company_profile_id: parsed.data.company_profile_id,
+      });
+    if (satelliteError) {
+      logger.error(
+        { err: satelliteError, workspaceId: workspace.id },
+        'Failed to create intelligence_workspaces satellite row',
+      );
+      return NextResponse.json(
+        { error: 'Failed to bind workspace to company profile' },
         { status: 500 },
       );
     }
@@ -253,35 +301,25 @@ export async function POST(request: NextRequest) {
         guideCreated = true;
         guideId = guideResult.guideId;
 
-        // Store guide_id in workspace domain_metadata
+        // Bind the guide to the satellite (typed column, not JSONB).
         await supabase
-          .from('workspaces')
-          .update({
-            domain_metadata: {
-              company_profile_id: parsed.data.company_profile_id,
-              guide_id: guideResult.guideId,
-            },
-          })
-          .eq('id', workspace.id);
+          .from('intelligence_workspaces')
+          .update({ guide_id: guideResult.guideId })
+          .eq('workspace_id', workspace.id);
       }
     } catch {
       // Guide creation failed — workspace still succeeds
     }
 
-    // Project typed top-level context onto the response. Use the
-    // post-update JSONB shape (`company_profile_id` + optional `guide_id`)
-    // since the DB row's `domain_metadata` was updated above; the relevance
-    // threshold is always null at create-time.
-    const createContext = extractContextFromDomainMetadata({
-      company_profile_id: parsed.data.company_profile_id,
-      ...(guideId ? { guide_id: guideId } : {}),
-    });
+    // Project typed top-level context onto the response shape. company_profile_id
+    // is the create-time input; guide_id is conditional on guide-creation
+    // success; relevance_threshold is always null at create time.
     return NextResponse.json(
       {
         ...workspace,
-        company_profile_id: createContext.companyProfileId,
-        guide_id: createContext.guideId,
-        relevance_threshold: createContext.relevanceThreshold,
+        company_profile_id: parsed.data.company_profile_id,
+        guide_id: guideId,
+        relevance_threshold: null,
         guide_created: guideCreated,
       },
       { status: 201 },

@@ -42,8 +42,24 @@ const TEST_PREFIX = `[SI-GOLDEN-${Date.now()}]`;
 // (S186 WP-C — no more hardcoded OLD-project UUIDs).
 let TEST_USER_ID: string = '';
 
+// Intelligence application_type id — resolved at beforeAll from the seeded
+// `application_types` table (S246 WP2b T2 — discriminator is now
+// application_type_id FK, not workspaces.type text col).
+let INTELLIGENCE_APP_TYPE_ID: string = '';
+
 beforeAll(async () => {
   TEST_USER_ID = await getTestUserId('admin');
+  const { data: appType, error: appTypeErr } = await serviceClient
+    .from('application_types')
+    .select('id')
+    .eq('key', 'intelligence')
+    .single();
+  if (appTypeErr || !appType) {
+    throw new Error(
+      `application_types row for key='intelligence' not found — was the T2 seed step (sub-task 1.2) applied? Original error: ${appTypeErr?.message}`,
+    );
+  }
+  INTELLIGENCE_APP_TYPE_ID = appType.id;
 });
 
 // ---------------------------------------------------------------------------
@@ -182,8 +198,7 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
       .from('workspaces')
       .insert({
         name: `${TEST_PREFIX} Test Intelligence Workspace`,
-        type: 'intelligence',
-        domain_metadata: {},
+        application_type_id: INTELLIGENCE_APP_TYPE_ID,
       })
       .select('id')
       .single();
@@ -194,15 +209,17 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
 
     workspaceId = data!.id;
 
-    // Re-query to confirm workspace exists with correct type
+    // Re-query to confirm workspace exists and resolves as intelligence type
+    // via the application_types JOIN (post-T2 discriminator).
     const { data: verify, error: verifyErr } = await serviceClient
       .from('workspaces')
-      .select('id, name, type')
+      .select('id, name, application_types!inner(key)')
       .eq('id', workspaceId)
+      .eq('application_types.key', 'intelligence')
       .single();
 
     expect(verifyErr).toBeNull();
-    expect(verify?.type).toBe('intelligence');
+    expect(verify).toBeTruthy();
     expect(verify?.name).toContain(TEST_PREFIX);
   });
 
@@ -561,14 +578,15 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
   it('Step 10: Full chain verification', async () => {
     expect(workspaceId).toBeTruthy();
 
-    // Workspace exists with correct type
+    // Workspace exists and is an intelligence workspace (post-T2 discriminator
+    // is the application_types JOIN, not workspaces.type text col).
     const { data: ws } = await serviceClient
       .from('workspaces')
-      .select('id, type')
+      .select('id, application_types!inner(key)')
       .eq('id', workspaceId!)
+      .eq('application_types.key', 'intelligence')
       .single();
     expect(ws).toBeTruthy();
-    expect(ws!.type).toBe('intelligence');
 
     // Feed source linked to workspace
     const { data: source } = await serviceClient
@@ -656,8 +674,7 @@ describe.skipIf(!ENABLED)('SI Edge Cases', () => {
       .from('workspaces')
       .insert({
         name: `${TEST_PREFIX} Second Workspace`,
-        type: 'intelligence',
-        domain_metadata: {},
+        application_type_id: INTELLIGENCE_APP_TYPE_ID,
       })
       .select('id')
       .single();
@@ -733,8 +750,7 @@ describe.skipIf(!ENABLED)('SI Edge Cases', () => {
       .from('workspaces')
       .insert({
         name: `${TEST_PREFIX} Empty Workspace`,
-        type: 'intelligence',
-        domain_metadata: {},
+        application_type_id: INTELLIGENCE_APP_TYPE_ID,
       })
       .select('id')
       .single();
@@ -767,8 +783,7 @@ describe.skipIf(!ENABLED)('SI Edge Cases', () => {
       .from('workspaces')
       .insert({
         name: `${TEST_PREFIX} Cascade Test Workspace`,
-        type: 'intelligence',
-        domain_metadata: {},
+        application_type_id: INTELLIGENCE_APP_TYPE_ID,
       })
       .select('id')
       .single();

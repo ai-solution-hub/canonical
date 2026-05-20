@@ -14,6 +14,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { scoreRelevance } from '@/lib/intelligence/relevance-scorer';
 import type { CompanyContext } from '@/lib/intelligence/types';
+import { getIntelligenceWorkspaceContext } from '@/lib/intelligence/workspace-context';
 
 // ── Env loading ──
 
@@ -147,21 +148,13 @@ async function main() {
       return contextCache.get(workspaceId)!;
     }
 
-    // Load company context via workspace -> company_profiles.
-    // TODO(T2-followup): swap to `getIntelligenceWorkspaceContext()` from
-    // `@/lib/intelligence/workspace-context` after the S246 WP2b T2 migration
-    // applies + the helper internals swap to the typed satellite read. CLI
-    // batch tool — bounded silent-degradation surface (a rescore between T2
-    // apply and this swap returns "no profile" and no-ops the company filter).
-    // See docs/specs/intelligence-workspaces/TECH.md T-5.
-    const { data: workspace } = await supabase
-      .from('workspaces')
-      .select('domain_metadata')
-      .eq('id', workspaceId)
-      .single();
-
-    const profileId = (workspace?.domain_metadata as Record<string, unknown>)
-      ?.company_profile_id as string | undefined;
+    // Load company context via the canonical helper (post-T2: reads typed
+    // satellite columns on intelligence_workspaces by workspace_id JOIN).
+    const workspaceContext = await getIntelligenceWorkspaceContext(
+      supabase,
+      workspaceId,
+    );
+    const profileId = workspaceContext.companyProfileId ?? undefined;
 
     let company: CompanyContext | null = null;
     if (profileId) {

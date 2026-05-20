@@ -29,7 +29,11 @@ import {
   type FlagAnalysisFlag,
 } from '@/lib/intelligence/flag-analyser';
 import type { CompanyContext } from '@/lib/intelligence/types';
-import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
+import {
+  INTELLIGENCE_WORKSPACE_SELECT,
+  extractContextFromSatellite,
+  type IntelligenceWorkspaceSatelliteRow,
+} from '@/lib/intelligence/workspace-context';
 import type { Database } from '@/supabase/types/database.types';
 
 export const runtime = 'nodejs';
@@ -75,28 +79,41 @@ function errorEnvelope(message: string, status: number): NextResponse {
 // Context loaders
 // ─────────────────────────────────────────────────────────────────────────────
 
+interface AccessibleWorkspace {
+  id: string;
+  intelligence_workspaces:
+    | IntelligenceWorkspaceSatelliteRow
+    | IntelligenceWorkspaceSatelliteRow[]
+    | null;
+}
+
 /**
  * Confirm the caller has access to this intelligence workspace. One Supabase
  * project per client (see CLAUDE.md §Supabase) — "access" collapses to "the
  * workspace exists, is an intelligence workspace, and is not archived".
- * Returns the workspace row on success, `null` on forbidden.
+ * Returns the workspace row + satellite projection on success, `null` on forbidden.
  */
 async function loadAccessibleWorkspace(
   supabase: DbClient,
   workspaceId: string,
-): Promise<{ id: string; domain_metadata: unknown } | null> {
+): Promise<AccessibleWorkspace | null> {
   const { data, error } = await supabase
     .from('workspaces')
-    .select('id, domain_metadata')
+    .select(INTELLIGENCE_WORKSPACE_SELECT)
     .eq('id', workspaceId)
-    .eq('type', 'intelligence')
+    .eq('application_types.key', 'intelligence')
     .eq('is_archived', false)
     .maybeSingle();
 
   if (error) {
     throw error;
   }
-  return data ?? null;
+  if (!data) return null;
+  return {
+    id: data.id,
+    intelligence_workspaces:
+      data.intelligence_workspaces as AccessibleWorkspace['intelligence_workspaces'],
+  };
 }
 
 /** Load the currently-active scoring prompt text for a workspace. */
@@ -116,12 +133,12 @@ async function loadActivePromptText(
   return row?.prompt_text ?? null;
 }
 
-/** Load the company profile linked to the workspace (pre-T2: helper reads JSONB). */
+/** Load the company profile linked to the workspace (post-T2: typed satellite). */
 async function loadCompanyContext(
   supabase: DbClient,
-  domainMetadata: unknown,
+  workspace: AccessibleWorkspace,
 ): Promise<CompanyContext | null> {
-  const context = extractContextFromDomainMetadata(domainMetadata);
+  const context = extractContextFromSatellite(workspace.intelligence_workspaces);
   const profileId = context.companyProfileId;
   if (!profileId) return null;
 
@@ -254,7 +271,7 @@ export async function POST(
 
   // 3. Workspace access check — 403 if the caller cannot see this workspace
   //    or it does not exist as a non-archived intelligence workspace.
-  let workspace: { id: string; domain_metadata: unknown } | null;
+  let workspace: AccessibleWorkspace | null;
   try {
     workspace = await loadAccessibleWorkspace(supabase, workspaceId);
   } catch (err) {
@@ -275,7 +292,7 @@ export async function POST(
   try {
     const [promptText, companyContext, flags] = await Promise.all([
       loadActivePromptText(supabase, workspaceId),
-      loadCompanyContext(supabase, workspace.domain_metadata),
+      loadCompanyContext(supabase, workspace),
       loadFlags(supabase, workspaceId, body),
     ]);
 

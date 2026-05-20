@@ -38,20 +38,18 @@ export async function fetchIntelligenceSummary(
   period: string = '7d',
   articleLimit: number = 10,
 ): Promise<IntelligenceSummaryData> {
-  // 1. Verify workspace exists and is intelligence type
+  // 1. Verify workspace exists and is intelligence type (post-T2: discriminator
+  //    is application_types.key via JOIN, not workspaces.type text col).
   const { data: workspace, error: wsError } = await supabase
     .from('workspaces')
-    .select('id, name, type')
+    .select('id, name, application_types!inner(key)')
     .eq('id', workspaceId)
+    .eq('application_types.key', 'intelligence')
     .single();
 
   if (wsError || !workspace) {
-    throw new Error(`Workspace not found: ${workspaceId}`);
-  }
-
-  if (workspace.type !== 'intelligence') {
     throw new Error(
-      `Workspace "${workspace.name}" is type "${workspace.type}", not "intelligence". Only intelligence workspaces have feed data.`,
+      `Intelligence workspace not found: ${workspaceId}. Only intelligence workspaces have feed data.`,
     );
   }
 

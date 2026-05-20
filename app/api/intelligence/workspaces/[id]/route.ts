@@ -5,10 +5,10 @@ import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { IntelligenceWorkspaceUpdateSchema } from '@/lib/validation/schemas';
-import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
-import type { Database } from '@/supabase/types/database.types';
-
-type WorkspaceUpdate = Database['public']['Tables']['workspaces']['Update'];
+import {
+  INTELLIGENCE_WORKSPACE_SELECT,
+  extractContextFromSatellite,
+} from '@/lib/intelligence/workspace-context';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -22,9 +22,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     const { data: workspace, error } = await supabase
       .from('workspaces')
-      .select('*')
+      .select(INTELLIGENCE_WORKSPACE_SELECT)
       .eq('id', id)
-      .eq('type', 'intelligence')
+      .eq('application_types.key', 'intelligence')
       .eq('is_archived', false)
       .single();
 
@@ -35,9 +35,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Project typed top-level context (pre-T2: reads JSONB).
-    const workspaceContext = extractContextFromDomainMetadata(
-      workspace.domain_metadata,
+    // Project typed top-level context from the satellite JOIN result.
+    const workspaceContext = extractContextFromSatellite(
+      workspace.intelligence_workspaces,
     );
     let companyProfileName: string | null = null;
 
@@ -53,8 +53,16 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       companyProfileName = profile?.name ?? null;
     }
 
+    // Drop the joined projections from the response shape — callers consume
+    // the flat typed fields.
+    const {
+      application_types: _appTypes,
+      intelligence_workspaces: _intelSat,
+      ...wsRest
+    } = workspace;
+
     return NextResponse.json({
-      ...workspace,
+      ...wsRest,
       company_profile_id: workspaceContext.companyProfileId,
       guide_id: workspaceContext.guideId,
       relevance_threshold: workspaceContext.relevanceThreshold,
@@ -100,60 +108,77 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Build the database update payload. Direct columns are passed through;
-    // relevance_threshold is merged into the existing domain_metadata JSONB.
-    const updatePayload: WorkspaceUpdate = { ...directFields };
-
-    if (relevance_threshold !== undefined) {
-      // Fetch the current workspace to merge into existing domain_metadata
-      // (avoid clobbering company_profile_id, guide_id, etc.). Pre-T2:
-      // relevance_threshold still writes to JSONB. S246 WP2b swaps this to a
-      // direct typed-column UPDATE on the intelligence_workspaces satellite.
-      const { data: existing, error: fetchError } = await supabase
-        .from('workspaces')
-        .select('domain_metadata')
-        .eq('id', id)
-        .eq('type', 'intelligence')
-        .eq('is_archived', false)
-        .single();
-
-      if (fetchError || !existing) {
-        return NextResponse.json(
-          { error: 'Workspace not found' },
-          { status: 404 },
-        );
-      }
-
-      const currentMeta = (existing.domain_metadata ?? {}) as Record<
-        string,
-        unknown
-      >;
-      updatePayload.domain_metadata = {
-        ...currentMeta,
-        relevance_threshold,
-      };
-    }
-
-    const { data, error } = await supabase
+    // Workspace access check — must be an intelligence workspace, not archived.
+    // 404 on miss (signals access denied to non-admin/editor too; not leaking
+    // existence).
+    const { data: existingWorkspace, error: existingError } = await supabase
       .from('workspaces')
-      .update(updatePayload)
+      .select('id, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'intelligence')
+      .eq('application_types.key', 'intelligence')
       .eq('is_archived', false)
-      .select()
-      .single();
-
-    if (error || !data) {
+      .maybeSingle();
+    if (existingError || !existingWorkspace) {
       return NextResponse.json(
         { error: 'Workspace not found' },
         { status: 404 },
       );
     }
 
-    // Project typed top-level context onto the response.
-    const updatedContext = extractContextFromDomainMetadata(data.domain_metadata);
+    // Apply direct field changes to workspaces (name, description, etc.).
+    if (Object.keys(directFields).length > 0) {
+      const { error: directError } = await supabase
+        .from('workspaces')
+        .update(directFields)
+        .eq('id', id);
+      if (directError) {
+        return NextResponse.json(
+          { error: 'Failed to update workspace' },
+          { status: 500 },
+        );
+      }
+    }
+
+    // Apply relevance_threshold to the intelligence_workspaces satellite (typed
+    // column UPDATE — no JSONB merge needed post-T2).
+    if (relevance_threshold !== undefined) {
+      const { error: satelliteError } = await supabase
+        .from('intelligence_workspaces')
+        .update({ relevance_threshold })
+        .eq('workspace_id', id);
+      if (satelliteError) {
+        return NextResponse.json(
+          { error: 'Failed to update relevance threshold' },
+          { status: 500 },
+        );
+      }
+    }
+
+    // Re-fetch the workspace + satellite for the response shape.
+    const { data: refreshed, error: refreshError } = await supabase
+      .from('workspaces')
+      .select(INTELLIGENCE_WORKSPACE_SELECT)
+      .eq('id', id)
+      .single();
+    if (refreshError || !refreshed) {
+      return NextResponse.json(
+        { error: 'Failed to refresh workspace after update' },
+        { status: 500 },
+      );
+    }
+
+    const updatedContext = extractContextFromSatellite(
+      refreshed.intelligence_workspaces,
+    );
+
+    const {
+      application_types: _appTypes,
+      intelligence_workspaces: _intelSat,
+      ...refreshedRest
+    } = refreshed;
+
     return NextResponse.json({
-      ...data,
+      ...refreshedRest,
       company_profile_id: updatedContext.companyProfileId,
       guide_id: updatedContext.guideId,
       relevance_threshold: updatedContext.relevanceThreshold,

@@ -22,7 +22,10 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { scoreRelevance } from '@/lib/intelligence/relevance-scorer';
 import type { CompanyContext } from '@/lib/intelligence/types';
-import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
+import {
+  INTELLIGENCE_WORKSPACE_SELECT,
+  extractContextFromSatellite,
+} from '@/lib/intelligence/workspace-context';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -80,15 +83,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       include_scored: includeScored,
     } = parsed.data;
 
-    // 3. Workspace access check — must exist, be an intelligence workspace,
-    //    and not be archived. 403 rather than 404 to avoid leaking workspace
-    //    existence to a caller without access.
+    // 3. Workspace access check + satellite-projected context load — one
+    //    round-trip via JOIN through application_types + intelligence_workspaces.
+    //    403 rather than 404 to avoid leaking workspace existence.
     const workspaceResult = await tryQuery(
       supabase
         .from('workspaces')
-        .select('id, domain_metadata')
+        .select(INTELLIGENCE_WORKSPACE_SELECT)
         .eq('id', workspaceId)
-        .eq('type', 'intelligence')
+        .eq('application_types.key', 'intelligence')
         .eq('is_archived', false)
         .maybeSingle(),
       'workspaces.byId.preview',
@@ -100,9 +103,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // 4. Load company context (pre-T2: helper reads domain_metadata JSONB).
-    const workspaceContext = extractContextFromDomainMetadata(
-      workspaceResult.data.domain_metadata,
+    // 4. Load company context from the satellite.
+    const workspaceContext = extractContextFromSatellite(
+      workspaceResult.data.intelligence_workspaces,
     );
     const profileId = workspaceContext.companyProfileId;
     if (!profileId) {

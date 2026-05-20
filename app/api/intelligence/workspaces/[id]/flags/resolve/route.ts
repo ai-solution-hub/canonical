@@ -100,13 +100,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       resolved_notes: resolvedNotes,
     } = parsed.data;
 
-    // Verify the workspace exists and is an intelligence workspace.
+    // Verify the workspace exists and is an intelligence workspace (post-T2:
+    // discriminator is application_types.key via JOIN, not workspaces.type col).
     const workspace = await sb(
       supabase
         .from('workspaces')
-        .select('id, type, is_archived')
+        .select('id, is_archived, application_types!inner(key)')
         .eq('id', workspaceId)
-        .eq('type', 'intelligence')
+        .eq('application_types.key', 'intelligence')
         .eq('is_archived', false)
         .maybeSingle(),
       'workspaces.byId',

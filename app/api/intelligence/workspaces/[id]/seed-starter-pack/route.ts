@@ -52,13 +52,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Verify workspace exists and is intelligence type
+    // Verify workspace exists and is intelligence type (post-T2: JOIN via
+    // application_types.key instead of workspaces.type text col).
     const workspace = await sb(
       supabase
         .from('workspaces')
-        .select('id, type')
+        .select('id, application_types!inner(key)')
         .eq('id', workspaceId)
-        .eq('type', 'intelligence')
+        .eq('application_types.key', 'intelligence')
         .eq('is_archived', false)
         .maybeSingle(),
       'workspaces.verify',

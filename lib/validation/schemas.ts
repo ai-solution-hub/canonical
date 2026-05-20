@@ -1147,8 +1147,8 @@ export const IntelligenceWorkspaceUpdateSchema = z.object({
   description: z.string().max(2000).optional(),
   /**
    * SI-L5: Workspace-level relevance threshold for article scoring.
-   * Pre-T2 (S245): stored in `workspaces.domain_metadata.relevance_threshold` JSONB.
-   * Post-T2 (S246): stored on `intelligence_workspaces.relevance_threshold` typed column.
+   * Stored on `intelligence_workspaces.relevance_threshold` typed column
+   * (post-T2 / S246; pre-T2 was `workspaces.domain_metadata.relevance_threshold` JSONB).
    * Read path: `getIntelligenceWorkspaceContext()` in `@/lib/intelligence/workspace-context`.
    * Pipeline behaviour gate: `lib/intelligence/pipeline.ts` (DEFAULT_RELEVANCE_THRESHOLD = 0.5).
    * Admin-only — checked in the route handler.

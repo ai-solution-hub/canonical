@@ -53,12 +53,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const parsed = await parseBodyAsync(FeedSourceCreateSchema, raw);
     if (!parsed.success) return parsed.response;
 
-    // Verify workspace exists and is intelligence type
+    // Verify workspace exists and is intelligence type (post-T2: JOIN via
+    // application_types.key instead of workspaces.type text col).
     const { data: workspace, error: wsError } = await supabase
       .from('workspaces')
-      .select('id, type')
+      .select('id, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'intelligence')
+      .eq('application_types.key', 'intelligence')
       .eq('is_archived', false)
       .single();
 
