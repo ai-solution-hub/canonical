@@ -27,6 +27,14 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # @types/node major bumps must track the project's Node runtime
+    # (package.json engines: node >=22 <23). Re-enable when the project
+    # bumps to Node 24 LTS (~Q4 2026); accepting drift unbounded risks
+    # surface from newer @types/node introducing APIs that fail at runtime.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "pip"
     directory: "/"
