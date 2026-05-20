@@ -150,11 +150,15 @@ export async function registerResources(server: McpServer): Promise<void> {
       list: async (extra: Extra) => {
         try {
           const supabase = createMcpClient(extra.authInfo);
+          // Post-T2: discriminator is application_types.key via JOIN, not the
+          // dropped workspaces.type col. 'bid' maps to 'procurement'.
           const workspaces = await sb(
             supabase
               .from('workspaces')
-              .select('id, name, domain_metadata')
-              .eq('type', 'bid')
+              .select(
+                'id, name, domain_metadata, application_types!inner(key)',
+              )
+              .eq('application_types.key', 'procurement')
               .eq('is_archived', false)
               .order('updated_at', { ascending: false })
               .limit(10),
@@ -200,9 +204,11 @@ export async function registerResources(server: McpServer): Promise<void> {
           : variables.id;
         const { data: workspace, error } = await supabase
           .from('workspaces')
-          .select('id, name, description, domain_metadata, is_archived')
+          .select(
+            'id, name, description, domain_metadata, is_archived, application_types!inner(key)',
+          )
           .eq('id', bidId)
-          .eq('type', 'bid')
+          .eq('application_types.key', 'procurement')
           .single();
 
         if (error || !workspace) {
@@ -223,7 +229,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             .select(
               'id, question_text, section_name, status, confidence_posture',
             )
-            .eq('project_id', bidId)
+            .eq('workspace_id', bidId)
             .order('section_sequence')
             .order('question_sequence'),
           'mcp.resources.bid_workspace.questions',

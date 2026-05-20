@@ -2197,8 +2197,9 @@ async function main(): Promise<void> {
   // ── Check for existing rows (idempotency) ──
 
   console.log('Checking for existing requirements...');
+  // Post-T2: `template_requirements` renamed to `form_template_requirements`.
   const { data: existing, error: checkError } = await supabase
-    .from('template_requirements')
+    .from('form_template_requirements')
     .select('id, section_ref, question_number')
     .eq('template_name', TEMPLATE_NAME)
     .eq('template_version', TEMPLATE_VERSION);
@@ -2285,8 +2286,9 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
+    // Post-T2: `template_requirements` renamed to `form_template_requirements`.
     const { error: insertError } = await supabase
-      .from('template_requirements')
+      .from('form_template_requirements')
       .insert(batch);
 
     if (insertError) {

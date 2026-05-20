@@ -56,15 +56,27 @@ export async function registerWorkspaceTools(server: McpServer): Promise<void> {
 
         const supabase = createMcpClient(extra.authInfo);
 
+        // Post-T2: discriminator is application_types.key via JOIN, not the
+        // dropped workspaces.type col. Map legacy filter values to application
+        // type keys:
+        //   intelligence → 'intelligence'
+        //   bid          → 'procurement' (per Q-OQR1-02)
+        //   content      → 'kb_section' was retired; no longer maps
+        // TODO(T4): replace string filter with application_type_id once UI is
+        // updated.
         let query = supabase
           .from('workspaces')
-          .select('id, name, type')
+          .select('id, name, application_types!inner(key)')
           .eq('is_archived', false);
 
         if (args.type) {
-          // Map 'content' filter to the DB enum value 'kb_section'
-          const dbType = args.type === 'content' ? 'kb_section' : args.type;
-          query = query.eq('type', dbType);
+          const dbKey =
+            args.type === 'bid'
+              ? 'procurement'
+              : args.type === 'content'
+                ? 'kb_section'
+                : args.type;
+          query = query.eq('application_types.key', dbKey);
         }
 
         const workspaces = await sb(
@@ -72,13 +84,21 @@ export async function registerWorkspaceTools(server: McpServer): Promise<void> {
           'mcp.tools.list_user_workspaces',
         );
 
-        const result = workspaces.map(
-          (ws: { id: string; name: string; type: string }) => ({
+        type WorkspaceRow = {
+          id: string;
+          name: string;
+          application_types: { key: string } | { key: string }[] | null;
+        };
+        const result = (workspaces as unknown as WorkspaceRow[]).map((ws) => {
+          const appType = Array.isArray(ws.application_types)
+            ? (ws.application_types[0] ?? null)
+            : ws.application_types;
+          return {
             id: ws.id,
             name: ws.name,
-            type: ws.type,
-          }),
-        );
+            type: appType?.key ?? 'unknown',
+          };
+        });
 
         const markdown =
           result.length === 0

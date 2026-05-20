@@ -189,7 +189,7 @@ export async function getItemProvenance(
           question_id,
           drafted_by,
           updated_at,
-          bid_questions!inner(project_id, question_text)`,
+          bid_questions!inner(workspace_id, question_text)`,
         )
         .contains('source_content_ids', [itemId])
         .order('updated_at', { ascending: false })
@@ -215,22 +215,26 @@ export async function getItemProvenance(
       ? await resolveUserDisplayNames(supabase, draftUserIds)
       : new Map<string, { display_name: string }>();
 
-  // 7. Resolve bid workspace names
-  const projectIds = recentDraftsResult
+  // 7. Resolve bid workspace names (post-T2: bid_questions.project_id renamed
+  // to workspace_id).
+  const workspaceIds = recentDraftsResult
     .map((r) => {
       const bq = r.bid_questions;
       // bid_questions is a joined object (inner join, so always present)
-      if (Array.isArray(bq)) return bq[0]?.project_id as string | undefined;
-      return (bq as { project_id: string } | null)?.project_id;
+      if (Array.isArray(bq)) return bq[0]?.workspace_id as string | undefined;
+      return (bq as { workspace_id: string } | null)?.workspace_id;
     })
     .filter((id): id is string => id != null);
 
-  const uniqueProjectIds = [...new Set(projectIds)];
+  const uniqueWorkspaceIds = [...new Set(workspaceIds)];
   let bidNameMap = new Map<string, string | null>();
 
-  if (uniqueProjectIds.length > 0) {
+  if (uniqueWorkspaceIds.length > 0) {
     const workspaces = await sb(
-      supabase.from('workspaces').select('id, name').in('id', uniqueProjectIds),
+      supabase
+        .from('workspaces')
+        .select('id, name')
+        .in('id', uniqueWorkspaceIds),
       'provenance.item.bidNames',
     );
     bidNameMap = new Map(workspaces.map((w) => [w.id, w.name]));
@@ -241,11 +245,11 @@ export async function getItemProvenance(
     const bq = Array.isArray(r.bid_questions)
       ? r.bid_questions[0]
       : (r.bid_questions as {
-          project_id: string;
+          workspace_id: string;
           question_text: string;
         } | null);
 
-    const bidId = bq?.project_id ?? '';
+    const bidId = bq?.workspace_id ?? '';
 
     return {
       responseId: r.id,

@@ -1,6 +1,12 @@
-import { Briefcase, FileText, FileSignature, Newspaper } from 'lucide-react';
+import { Briefcase, FileSignature, Newspaper } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { logger } from '@/lib/logger/client';
+
+// TODO(T4): replace static registry with application_types TanStack Query per
+// PLAN §4.4. This module is logically wrong post-T2 (workspaces.type column
+// dropped; discriminator is now application_types.key via JOIN), but kept as
+// a minimal compile-fix shim so existing call sites still resolve while the
+// proper TanStack Query rollout lands.
 
 /**
  * Configuration for a workspace type. Each registered type provides the
@@ -8,7 +14,8 @@ import { logger } from '@/lib/logger/client';
  */
 /** @public */
 export interface WorkspaceTypeConfig {
-  /** Database type value (matches workspaces.type CHECK constraint) */
+  /** Application-type key (matches `application_types.key`) — used to be the
+   *  `workspaces.type` CHECK constraint value pre-T2. */
   readonly type: string;
 
   /** Human-readable label (singular) */
@@ -65,8 +72,12 @@ function registerType(config: WorkspaceTypeConfig): void {
 
 // ---- Built-in types ----
 
+// Post-T2: 'bid' renamed to 'procurement' per Q-OQR1-02 application_types.key
+// mapping. 'kb_section' was retired (no prod rows).
+// TODO(T4): replace static registry with application_types TanStack Query per
+// PLAN §4.4.
 registerType({
-  type: 'bid',
+  type: 'procurement',
   label: 'Bid',
   labelPlural: 'Bids',
   description:
@@ -81,24 +92,6 @@ registerType({
     hasStatus: true,
     hasContentAssignment: true,
     hasDomainMetadata: true,
-  },
-});
-
-registerType({
-  type: 'kb_section',
-  label: 'KB Section',
-  labelPlural: 'KB Sections',
-  description: 'Organise related content items into thematic sections',
-  icon: FileText,
-  route: null,
-  available: true,
-  hasCustomCreation: false,
-  defaultColour: '#6366f1',
-  defaultIcon: 'folder',
-  features: {
-    hasStatus: false,
-    hasContentAssignment: true,
-    hasDomainMetadata: false,
   },
 });
 

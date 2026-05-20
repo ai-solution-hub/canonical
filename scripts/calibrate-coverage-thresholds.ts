@@ -162,8 +162,9 @@ async function fetchRequirements(
   supabase: ReturnType<typeof createClient>,
   templateName: string,
 ): Promise<TemplateRequirement[]> {
+  // Post-T2: `template_requirements` renamed to `form_template_requirements`.
   const { data, error } = await supabase
-    .from('template_requirements')
+    .from('form_template_requirements')
     .select(
       'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order',
     )

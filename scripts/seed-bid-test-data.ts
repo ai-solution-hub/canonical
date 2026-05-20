@@ -271,12 +271,13 @@ async function main() {
     console.log('[DRY RUN] No data will be written.\n');
   }
 
-  // Check for existing test bid
+  // Check for existing test bid. Post-T2: discriminator is
+  // application_types.key via JOIN; 'bid' → 'procurement'.
   const { data: existing, error: checkError } = await supabase
     .from('workspaces')
-    .select('id, name')
+    .select('id, name, application_types!inner(key)')
     .eq('name', TEST_BID_NAME)
-    .eq('type', 'bid')
+    .eq('application_types.key', 'procurement')
     .limit(1);
 
   if (checkError) {
@@ -294,7 +295,7 @@ async function main() {
         const { data: questions } = await supabase
           .from('bid_questions')
           .select('id')
-          .eq('project_id', bidId);
+          .eq('workspace_id', bidId);
 
         if (questions && questions.length > 0) {
           const qIds = questions.map((q: { id: string }) => q.id);
@@ -313,7 +314,7 @@ async function main() {
         const { error: qDelErr } = await supabase
           .from('bid_questions')
           .delete()
-          .eq('project_id', bidId);
+          .eq('workspace_id', bidId);
         if (qDelErr) {
           console.error('Failed to delete test questions:', qDelErr.message);
         }
@@ -363,13 +364,29 @@ async function main() {
       notes: 'Seeded by seed-bid-test-data.ts for testing purposes.',
     };
 
+    // Post-T2: workspaces.type column dropped — resolve application_type_id
+    // via application_types.key='procurement' (per Q-OQR1-02 mapping).
+    const { data: appType, error: appTypeError } = await supabase
+      .from('application_types')
+      .select('id')
+      .eq('key', 'procurement')
+      .maybeSingle();
+
+    if (appTypeError || !appType) {
+      console.error(
+        'Failed to resolve application_type_id for procurement:',
+        appTypeError?.message ?? 'not found',
+      );
+      process.exit(1);
+    }
+
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
       .insert({
         name: TEST_BID_NAME,
         description:
           'Test bid for UAT scenarios. Seeded automatically by seed-bid-test-data.ts.',
-        type: 'bid',
+        application_type_id: appType.id,
         status: 'active',
         domain_metadata: domainMetadata,
       })
@@ -400,7 +417,7 @@ async function main() {
       const { data: created, error: qError } = await supabase
         .from('bid_questions')
         .insert({
-          project_id: bidId,
+          workspace_id: bidId,
           section_name: q.section_name,
           section_sequence: q.section_sequence,
           question_text: q.question_text,

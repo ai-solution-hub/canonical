@@ -269,7 +269,7 @@ export async function fetchBidSections(
       .select(
         'id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit',
       )
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .order('section_sequence')
       .order('question_sequence'),
     'mcp.tools.shared.bid.questions',

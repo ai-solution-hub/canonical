@@ -158,12 +158,15 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        // Fetch workspace
+        // Fetch workspace (post-T2: discriminator is application_types.key via
+        // JOIN, not the dropped workspaces.type col. 'bid' → 'procurement').
         const { data: workspace, error: wsError } = await supabase
           .from('workspaces')
-          .select('id, name, description, domain_metadata, is_archived')
+          .select(
+            'id, name, description, domain_metadata, is_archived, application_types!inner(key)',
+          )
           .eq('id', args.id)
-          .eq('type', 'bid')
+          .eq('application_types.key', 'procurement')
           .single();
 
         if (wsError || !workspace) {

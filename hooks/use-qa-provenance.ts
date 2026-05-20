@@ -40,7 +40,16 @@ export interface UseQAProvenanceReturn {
 
 interface WorkspaceJoinRow {
   workspace_id: string;
-  workspaces: { id: string; name: string; type: string } | null;
+  workspaces:
+    | {
+        id: string;
+        name: string;
+        application_types:
+          | { key: string }
+          | { key: string }[]
+          | null;
+      }
+    | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,17 +79,34 @@ export function useQAProvenance({
     queryKey: queryKeys.qaProvenance.workspaces(itemId),
     queryFn: async () => {
       const supabase = createClient();
+      // Post-T2: workspaces.type column dropped — read application_types.key
+      // via nested JOIN. 'bid' maps to 'procurement' per Q-OQR1-02.
       const { data } = await supabase
         .from('content_item_workspaces')
-        .select('workspace_id, workspaces:workspace_id(id, name, type)')
+        .select(
+          'workspace_id, workspaces:workspace_id(id, name, application_types(key))',
+        )
         .eq('content_item_id', itemId);
       if (!data) return [];
-      return (data as WorkspaceJoinRow[])
+      return (data as unknown as WorkspaceJoinRow[])
         .map((d) => d.workspaces)
-        .filter(
-          (w): w is { id: string; name: string; type: string } =>
-            w !== null && w.type === 'bid',
-        );
+        .filter((w): w is NonNullable<WorkspaceJoinRow['workspaces']> => {
+          if (!w) return false;
+          const appType = Array.isArray(w.application_types)
+            ? (w.application_types[0] ?? null)
+            : w.application_types;
+          return appType?.key === 'procurement';
+        })
+        .map((w) => {
+          const appType = Array.isArray(w.application_types)
+            ? (w.application_types[0] ?? null)
+            : w.application_types;
+          return {
+            id: w.id,
+            name: w.name,
+            type: appType?.key ?? 'procurement',
+          };
+        });
     },
     enabled: isQAPair,
     staleTime: 30_000,

@@ -490,12 +490,16 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
         // If a specific bid_id is requested, fetch detail
         if (args.bid_id) {
+          // Post-T2: discriminator is application_types.key via JOIN, not the
+          // dropped workspaces.type col. 'bid' maps to 'procurement'.
           const workspace = await sb(
             supabase
               .from('workspaces')
-              .select('id, name, description, domain_metadata')
+              .select(
+                'id, name, description, domain_metadata, application_types!inner(key)',
+              )
               .eq('id', args.bid_id)
-              .eq('type', 'bid')
+              .eq('application_types.key', 'procurement')
               .maybeSingle(),
             'mcp.tools.apps.workspace.load',
           );

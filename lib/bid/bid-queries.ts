@@ -53,16 +53,20 @@ export interface ActiveBidsWithStats {
 export async function fetchActiveBidsWithStats(
   supabase: SupabaseClient<Database>,
 ): Promise<ActiveBidsWithStats> {
+  // Post-T2: discriminator is application_types.key via JOIN, not the dropped
+  // workspaces.type col. 'bid' maps to 'procurement'.
   const { data: workspaces, error } = await supabase
     .from('workspaces')
-    .select('id, name, domain_metadata, is_archived, created_at, updated_at')
-    .eq('type', 'bid')
+    .select(
+      'id, name, domain_metadata, is_archived, created_at, updated_at, application_types!inner(key)',
+    )
+    .eq('application_types.key', 'procurement')
     .eq('is_archived', false)
     .order('updated_at', { ascending: false });
 
   if (error || !workspaces || workspaces.length === 0) {
     return {
-      workspaces: (workspaces as BidWorkspaceRow[]) ?? [],
+      workspaces: (workspaces as unknown as BidWorkspaceRow[]) ?? [],
       statsMap: new Map(),
     };
   }
@@ -87,7 +91,7 @@ export async function fetchActiveBidsWithStats(
   }
 
   return {
-    workspaces: workspaces as BidWorkspaceRow[],
+    workspaces: workspaces as unknown as BidWorkspaceRow[],
     statsMap,
   };
 }

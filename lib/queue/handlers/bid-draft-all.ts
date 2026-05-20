@@ -48,7 +48,8 @@ import type { Database, Json } from '@/supabase/types/database.types';
  */
 export interface BidDraftAllBody extends Record<string, unknown> {
   /** UUID of the bid (workspace) being drafted. Validated against
-   *  `workspaces` where `type='bid'` before the worker proceeds. */
+   *  `workspaces` JOIN `application_types` where key='procurement' before
+   *  the worker proceeds. */
   bid_id: string;
   /** Matches `lib/anthropic.ts` `ModelTier` — controls which model
    *  the drafting Pass 2 runs against. Default: 'drafting'. */
@@ -142,11 +143,13 @@ export async function runBidDraftAllJob(
   //    Mirrors route.ts L52-78 verbatim, but throws PermanentJobError
   //    instead of returning HTTP 4xx.
   // ------------------------------------------------------------------
+  // Post-T2: discriminator is application_types.key via JOIN, not the dropped
+  // workspaces.type col. 'bid' maps to 'procurement'.
   const { data: bid, error: bidError } = await supabase
     .from('workspaces')
-    .select('id, status, domain_metadata')
+    .select('id, status, domain_metadata, application_types!inner(key)')
     .eq('id', bid_id)
-    .eq('type', 'bid')
+    .eq('application_types.key', 'procurement')
     .single();
 
   if (bidError || !bid) {
@@ -172,7 +175,7 @@ export async function runBidDraftAllJob(
     .select(
       'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
     )
-    .eq('project_id', bid_id)
+    .eq('workspace_id', bid_id)
     .order('section_sequence', { ascending: true })
     .order('question_sequence', { ascending: true });
 
@@ -318,7 +321,7 @@ export async function runBidDraftAllJob(
           .from('bid_questions')
           .update({ status: 'ai_drafted' })
           .eq('id', question.id)
-          .eq('project_id', bid_id),
+          .eq('workspace_id', bid_id),
         'queue.bid_draft_all.updateQuestionStatus',
       );
 
@@ -361,7 +364,7 @@ export async function runBidDraftAllJob(
     const { count: undraftedCount } = await supabase
       .from('bid_questions')
       .select('id', { count: 'exact', head: true })
-      .eq('project_id', bid_id)
+      .eq('workspace_id', bid_id)
       .neq('confidence_posture', 'no_content')
       .not(
         'id',
@@ -374,6 +377,10 @@ export async function runBidDraftAllJob(
       .is('status', null);
 
     if (undraftedCount === null || undraftedCount === 0) {
+      // Post-T2: the application-type filter on the WHERE clause requires a
+      // JOIN through application_types. For a single-row update by `id` we
+      // skip the application-type recheck since the bid was already verified
+      // at the start of the handler.
       await sb(
         supabase
           .from('workspaces')
@@ -382,8 +389,7 @@ export async function runBidDraftAllJob(
             updated_by: authContext.user_id,
             updated_at: new Date(Date.now()).toISOString(),
           })
-          .eq('id', bid_id)
-          .eq('type', 'bid'),
+          .eq('id', bid_id),
         'queue.bid_draft_all.transitionToInReview',
       );
       bidTransitioned = true;

@@ -378,11 +378,12 @@ export async function getKnownUUIDs(
     );
   }
 
-  // Get a known bid workspace
+  // Get a known bid workspace. Post-T2: discriminator is application_types.key
+  // via JOIN; 'bid' maps to 'procurement'.
   const { data: bid } = await supabase
     .from('workspaces')
-    .select('id')
-    .eq('type', 'bid')
+    .select('id, application_types!inner(key)')
+    .eq('application_types.key', 'procurement')
     .eq('is_archived', false)
     .limit(1)
     .single();
@@ -393,7 +394,7 @@ export async function getKnownUUIDs(
     const { data: question } = await supabase
       .from('bid_questions')
       .select('id')
-      .eq('project_id', bid.id)
+      .eq('workspace_id', bid.id)
       .limit(1)
       .single();
     questionId = question?.id ?? null;

@@ -47,12 +47,13 @@ export async function fetchBidExportData(
     );
   }
 
-  // Fetch bid workspace
+  // Fetch bid workspace (post-T2: discriminator is application_types.key via
+  // JOIN, not the dropped workspaces.type col). 'bid' maps to 'procurement'.
   const { data: bid, error: bidError } = await supabase
     .from('workspaces')
-    .select('id, name, type, status, domain_metadata')
+    .select('id, name, status, domain_metadata, application_types!inner(key)')
     .eq('id', bidId)
-    .eq('type', 'bid')
+    .eq('application_types.key', 'procurement')
     .single();
 
   if (bidError || !bid) {
@@ -83,7 +84,7 @@ export async function fetchBidExportData(
       )
     `,
     )
-    .eq('project_id', bidId)
+    .eq('workspace_id', bidId)
     .order('section_sequence', { ascending: true })
     .order('question_sequence', { ascending: true });
 

@@ -213,12 +213,14 @@ export async function generateContentSuggestions(
   // 3. Fetch active bids (domains with active bids get priority boost)
   // -------------------------------------------------------------------------
 
+  // Post-T2: discriminator is application_types.key via JOIN, not the dropped
+  // workspaces.type col. 'bid' maps to 'procurement'.
   const activeBids = await sb(
     supabase
       .from('workspaces')
-      .select('id, name, domain_metadata')
-      .eq('type', 'bid')
-      .is('archived_at', null),
+      .select('id, name, domain_metadata, application_types!inner(key)')
+      .eq('application_types.key', 'procurement')
+      .eq('is_archived', false),
     'workspaces.activeBids',
   );
 
@@ -324,7 +326,7 @@ export async function generateContentSuggestions(
   if (includeTemplateGaps) {
     const templates = await sb(
       supabase
-        .from('template_requirements')
+        .from('form_template_requirements')
         .select(
           'template_name, section_name, requirement_text, primary_domain, primary_subtopic',
         )
@@ -335,7 +337,7 @@ export async function generateContentSuggestions(
         // compile time. Cast preserves behaviour pending a proper fix to
         // compute coverage in-memory before filtering.
         .eq('coverage_status' as never, 'gap'),
-      'template_requirements.gaps',
+      'form_template_requirements.gaps',
     );
 
     for (const req of templates ?? []) {
