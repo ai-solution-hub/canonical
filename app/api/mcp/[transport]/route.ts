@@ -20,10 +20,8 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { createMcpUserClient } from '@/lib/mcp/auth';
 import { registerTools } from '@/lib/mcp/tools';
 import { registerResources, registerPrompts } from '@/lib/mcp/resources';
-import { clientEnv } from '@/lib/env-client';
+import { resolveResourceUrl } from '@/lib/mcp/resource-url';
 import { logger } from '@/lib/logger';
-
-const RESOURCE_URL = clientEnv.NEXT_PUBLIC_APP_URL;
 
 // ---------------------------------------------------------------------------
 // Auth — verify Supabase OAuth bearer tokens
@@ -109,6 +107,7 @@ async function handleMcpRequest(request: Request): Promise<Response> {
   const authInfo = await verifyToken(bearerToken);
 
   if (!authInfo) {
+    const resourceUrl = resolveResourceUrl(request);
     return new Response(
       JSON.stringify({
         error: 'invalid_token',
@@ -118,7 +117,7 @@ async function handleMcpRequest(request: Request): Promise<Response> {
         status: 401,
         headers: {
           'Content-Type': 'application/json',
-          'WWW-Authenticate': `Bearer resource_metadata="${RESOURCE_URL}/.well-known/oauth-protected-resource"`,
+          'WWW-Authenticate': `Bearer resource_metadata="${resourceUrl}/.well-known/oauth-protected-resource"`,
         },
       },
     );
