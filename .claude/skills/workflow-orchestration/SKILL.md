@@ -471,13 +471,11 @@ itself, no per-Task selection required:
 
 **Task-specific skills added on demand by Liam (per Q-PLANNER-SKILLS-1
 ratification):** the Orchestrator does not pre-load every potentially-useful
-skill. When a Task lands that's AI-tilted, Liam adds `claude-api` to
-`.claude/skills/`; when CI-tilted, `diagnose-ci-failures`; when
-Supabase-tilted, `supabase-postgres-best-practices`; when frontend-tilted,
-`vercel-react-best-practices` / `web-design-guidelines` /
-`interaction-design` / `mobile-design`; etc. This stays user-driven for now
-— an automation opportunity may surface once enough orchestrated sessions
-exist (Workflow Evaluator role, deferred per §9.2 of the canonical doc).
+skill. Consult `docs/reference/skill-routing-map.md` to look up which skills
+fit the Task's tilt (AI, CI, Supabase, Frontend, Data-pipeline, etc.) —
+Required vs Conditional vs Anti-pattern columns tell you what to name in the
+dispatch brief. This stays user-driven — the map is a lookup, not a forcing
+function (Workflow Evaluator role deferred per §9.2 of the canonical doc).
 
 When dispatching a Planner, Executor, or Checker, the Orchestrator names
 the relevant skills in the dispatch brief. Sub-agents do not auto-discover

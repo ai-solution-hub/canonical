@@ -22,6 +22,7 @@ export const TRACKED_REFERENCE_DOCS = [
   'docs/reference/product-roadmap.json',
   'docs/reference/product-backlog.json',
   'docs/reference/task-list.json',
+  'docs/reference/skill-routing-map.md',
   'docs/reference/test-philosophy.md',
   'docs/runbooks/local-development.md',
   'docs/runbooks/staging-refresh.md',

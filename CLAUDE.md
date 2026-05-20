@@ -161,6 +161,7 @@ adding or modifying UI elements.
 | Roadmap                | `docs/reference/product-roadmap.json`                                       |
 | Product backlog        | `docs/reference/product-backlog.json`                                       |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                  |
+| Skill routing map      | `docs/reference/skill-routing-map.md`                                       |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
 | Session handoffs       | `docs/continuation-prompts/`                                                |
 | Codebase mapping       | `.planning/codebase/`                                                       |
