@@ -365,19 +365,22 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   - **Cherry-pick (not merge)** parallel agent branches — agents branch from main at
     launch time and go stale when earlier agents merge first.
   - **Worktree agents start stale:** `isolation: "worktree"` branches from a historical
-    commit. Agent's first action: `git fetch origin {branch} && git reset --hard origin/{branch}`
-    (no `cd` prefix — see below).
-  - **Bash shell state does NOT persist between Bash tool calls** — every Bash tool call runs in the harness's default cwd, which IS the worktree. The agent's branch never "jumps"; the cwd briefly moves to
-    the wrong tree for that one call, and that single `git commit` lands on the wrong
-    branch.
+    commit. Agent's first action:
+    `git fetch origin {branch} && git reset --hard origin/{branch}` (no `cd` prefix — see
+    below).
+  - **Bash shell state does NOT persist between Bash tool calls** — every Bash tool call
+    runs in the harness's default cwd, which IS the worktree. The agent's branch never
+    "jumps"; the cwd briefly moves to the wrong tree for that one call, and that single
+    `git commit` lands on the wrong branch.
   - **After cherry-picking worktree branches**, run `git status` on the main tree and
     clean with `git checkout -- .` and `git clean -fd` (merges occasionally leak files).
   - **`.claude/agents/` files need `dangerouslyDisableSandbox: true` on cherry-pick** —
     sandbox blocks unlink on those paths (same pattern as `hooks/`).
-  - **Reference-doc freshness guard edge case:** the `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`
-    test inspects single-parent commits; merge commits using combined-diff format don't
-    register single-parent `last_updated` additions. Workaround = follow-up single-parent
-    commit that bumps `last_updated` (precedent: commit `744d9ef1` + `6cad7d64`); or
+  - **Reference-doc freshness guard edge case:** the
+    `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts` test inspects
+    single-parent commits; merge commits using combined-diff format don't register
+    single-parent `last_updated` additions. Workaround = follow-up single-parent commit
+    that bumps `last_updated` (precedent: commit `744d9ef1` + `6cad7d64`); or
     `[skip-doc-freshness-guard]` body tag.
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
