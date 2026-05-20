@@ -29,6 +29,7 @@ import {
   type FlagAnalysisFlag,
 } from '@/lib/intelligence/flag-analyser';
 import type { CompanyContext } from '@/lib/intelligence/types';
+import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
 import type { Database } from '@/supabase/types/database.types';
 
 export const runtime = 'nodejs';
@@ -115,13 +116,13 @@ async function loadActivePromptText(
   return row?.prompt_text ?? null;
 }
 
-/** Load the company profile linked to the workspace via `domain_metadata`. */
+/** Load the company profile linked to the workspace (pre-T2: helper reads JSONB). */
 async function loadCompanyContext(
   supabase: DbClient,
   domainMetadata: unknown,
 ): Promise<CompanyContext | null> {
-  const meta = (domainMetadata ?? {}) as Record<string, unknown>;
-  const profileId = meta.company_profile_id as string | undefined;
+  const context = extractContextFromDomainMetadata(domainMetadata);
+  const profileId = context.companyProfileId;
   if (!profileId) return null;
 
   const profile = await sb(

@@ -4,18 +4,40 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
+import type { Json } from '@/supabase/types/database.types';
 
+/**
+ * API contract for intelligence workspaces.
+ *
+ * Per S244 Wave 0.5 ratification + S245 WP2a, the three intelligence-context
+ * fields surface as **typed top-level** fields, not nested under
+ * `domain_metadata`. The 5 `/api/intelligence/*` routes project them via
+ * `extractContextFromDomainMetadata()` from `@/lib/intelligence/workspace-context`.
+ *
+ * Pre-T2 (S245 WP2a): the projection reads `workspaces.domain_metadata` JSONB.
+ * Post-T2 (S246 WP2b): the projection reads the `intelligence_workspaces`
+ * satellite via JOIN. API consumers see the same shape across the migration.
+ *
+ * `domain_metadata` stays as loose `Json | null` because non-intelligence
+ * workspaces still use it for their own per-domain payloads.
+ */
 export interface IntelligenceWorkspace {
   id: string;
   name: string;
   description: string | null;
   type: 'intelligence';
-  domain_metadata: {
-    company_profile_id: string;
-    guide_id?: string;
-    /** SI-L5: workspace-level relevance threshold (0.1–1.0); falls back to DEFAULT_RELEVANCE_THRESHOLD */
-    relevance_threshold?: number;
-  };
+  /** FK to `company_profiles.id`; null when no profile is bound. */
+  company_profile_id: string | null;
+  /** FK to `guides.id`; null when no guide is bound. */
+  guide_id: string | null;
+  /** SI-L5: admin-only relevance cutoff (0.1–1.0); null when unset. */
+  relevance_threshold: number | null;
+  /**
+   * Loose JSONB carrier for non-intelligence-context payloads. The 3
+   * intelligence-context fields are surfaced as typed top-level fields
+   * (above) — do NOT read them from here.
+   */
+  domain_metadata: Json | null;
   is_archived: boolean;
   created_at: string;
   updated_at: string;

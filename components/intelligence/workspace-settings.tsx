@@ -20,8 +20,12 @@ import { Sliders } from 'lucide-react';
  * - Default: 0.50 (DEFAULT_RELEVANCE_THRESHOLD in lib/intelligence/types.ts)
  * - Admin-only: write-path enforced server-side; UI hides for non-admin
  *
- * Saved via PATCH /api/intelligence/workspaces/:id which merges into
- * `domain_metadata.relevance_threshold` JSONB.
+ * Read path: typed top-level `workspace.relevance_threshold` projected by
+ * the 5 `/api/intelligence/*` routes via `extractContextFromDomainMetadata`.
+ * Pre-T2 (S245 WP2a): projection reads `domain_metadata.relevance_threshold`
+ * JSONB. Post-T2 (S246 WP2b): projection reads
+ * `intelligence_workspaces.relevance_threshold` typed column. UI is
+ * unaffected across the migration.
  */
 const SLIDER_MIN = 0.1;
 const SLIDER_MAX = 1.0;
@@ -37,10 +41,7 @@ export function WorkspaceSettings({ workspaceId }: WorkspaceSettingsProps) {
   const updateMutation = useUpdateIntelligenceWorkspace(workspaceId);
   const { canAdmin, loading: roleLoading } = useUserRole();
 
-  const persistedThreshold =
-    typeof workspace?.domain_metadata?.relevance_threshold === 'number'
-      ? workspace.domain_metadata.relevance_threshold
-      : SLIDER_DEFAULT;
+  const persistedThreshold = workspace?.relevance_threshold ?? SLIDER_DEFAULT;
 
   const [thresholdValue, setThresholdValue] = useState<number>(SLIDER_DEFAULT);
 

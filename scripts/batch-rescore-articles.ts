@@ -147,7 +147,13 @@ async function main() {
       return contextCache.get(workspaceId)!;
     }
 
-    // Load company context via workspace -> company_profiles
+    // Load company context via workspace -> company_profiles.
+    // TODO(T2-followup): swap to `getIntelligenceWorkspaceContext()` from
+    // `@/lib/intelligence/workspace-context` after the S246 WP2b T2 migration
+    // applies + the helper internals swap to the typed satellite read. CLI
+    // batch tool — bounded silent-degradation surface (a rescore between T2
+    // apply and this swap returns "no profile" and no-ops the company filter).
+    // See docs/specs/intelligence-workspaces/TECH.md T-5.
     const { data: workspace } = await supabase
       .from('workspaces')
       .select('domain_metadata')

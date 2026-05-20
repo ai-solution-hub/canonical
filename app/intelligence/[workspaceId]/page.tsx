@@ -56,7 +56,7 @@ export default function WorkspaceOverviewPage() {
     '30d',
   );
   const { data: workspace } = useIntelligenceWorkspace(workspaceId);
-  const guideId = workspace?.domain_metadata?.guide_id;
+  const guideId = workspace?.guide_id;
 
   // Recent passed articles (last 5)
   const { data: passedData } = useFeedArticles(workspaceId, {

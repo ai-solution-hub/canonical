@@ -5,6 +5,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { IntelligenceWorkspaceCreateSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
 
 /** GET /api/intelligence/workspaces — list intelligence workspaces with profile info */
 export async function GET() {
@@ -32,13 +33,17 @@ export async function GET() {
       return NextResponse.json([]);
     }
 
-    // Collect profile IDs from domain_metadata
-    const profileIds = workspaces
-      .map((ws) => {
-        const meta = ws.domain_metadata as Record<string, unknown> | null;
-        return meta?.company_profile_id as string | undefined;
-      })
-      .filter(Boolean) as string[];
+    // Project the 3 intelligence-context fields onto each row via the
+    // canonical helper (workspace-context). Pre-T2 reads JSONB; post-T2
+    // (S246 WP2b) reads the typed satellite columns — call sites unchanged.
+    const workspaceContexts = workspaces.map((ws) => ({
+      ws,
+      context: extractContextFromDomainMetadata(ws.domain_metadata),
+    }));
+
+    const profileIds = workspaceContexts
+      .map(({ context }) => context.companyProfileId)
+      .filter((id): id is string => id !== null);
 
     // Fetch profile names in bulk
     const warnings: string[] = [];
@@ -118,20 +123,19 @@ export async function GET() {
       }
     }
 
-    // Enrich workspaces with profile name and counts
-    const enriched = workspaces.map((ws) => {
-      const meta = ws.domain_metadata as Record<string, unknown> | null;
-      const profileId = meta?.company_profile_id as string | undefined;
-      return {
-        ...ws,
-        company_profile_name: profileId
-          ? (profileMap[profileId] ?? null)
-          : null,
-        source_count: sourceCountMap[ws.id] ?? 0,
-        article_count: articleCountMap[ws.id]?.total ?? 0,
-        passed_article_count: articleCountMap[ws.id]?.passed ?? 0,
-      };
-    });
+    // Enrich workspaces with typed top-level context, profile name, and counts.
+    const enriched = workspaceContexts.map(({ ws, context }) => ({
+      ...ws,
+      company_profile_id: context.companyProfileId,
+      guide_id: context.guideId,
+      relevance_threshold: context.relevanceThreshold,
+      company_profile_name: context.companyProfileId
+        ? (profileMap[context.companyProfileId] ?? null)
+        : null,
+      source_count: sourceCountMap[ws.id] ?? 0,
+      article_count: articleCountMap[ws.id]?.total ?? 0,
+      passed_article_count: articleCountMap[ws.id]?.passed ?? 0,
+    }));
 
     // Surface warnings via response header to preserve the existing
     // array contract consumed by hooks/intelligence/use-intelligence-workspaces.
@@ -264,11 +268,21 @@ export async function POST(request: NextRequest) {
       // Guide creation failed — workspace still succeeds
     }
 
+    // Project typed top-level context onto the response. Use the
+    // post-update JSONB shape (`company_profile_id` + optional `guide_id`)
+    // since the DB row's `domain_metadata` was updated above; the relevance
+    // threshold is always null at create-time.
+    const createContext = extractContextFromDomainMetadata({
+      company_profile_id: parsed.data.company_profile_id,
+      ...(guideId ? { guide_id: guideId } : {}),
+    });
     return NextResponse.json(
       {
         ...workspace,
+        company_profile_id: createContext.companyProfileId,
+        guide_id: createContext.guideId,
+        relevance_threshold: createContext.relevanceThreshold,
         guide_created: guideCreated,
-        guide_id: guideId,
       },
       { status: 201 },
     );

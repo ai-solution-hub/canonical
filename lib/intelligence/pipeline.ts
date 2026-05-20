@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { getIntelligenceWorkspaceContext } from './workspace-context';
 import { pollFeed, pollWebSource } from './feed-poller';
 import {
   extractContent,
@@ -72,30 +73,17 @@ async function loadWorkspaceContext(
   supabase: Supabase,
   workspaceId: string,
 ): Promise<WorkspaceContext> {
-  // Get workspace domain_metadata which may link to a company profile
-  const workspace = await sb(
-    supabase
-      .from('workspaces')
-      .select('domain_metadata')
-      .eq('id', workspaceId)
-      .maybeSingle(),
-    'intelligence.pipeline.workspace.load',
-  );
+  // Canonical workspace context (pre-T2: helper reads JSONB; post-T2: reads
+  // intelligence_workspaces satellite via JOIN — pipeline does not change).
+  const context = await getIntelligenceWorkspaceContext(supabase, workspaceId);
 
-  const domainMetadata = (workspace?.domain_metadata ?? {}) as Record<
-    string,
-    unknown
-  >;
-
-  // SI-L5: Read workspace-level relevance threshold from domain_metadata
+  // SI-L5: pipeline behaviour gate — fall back to default when the
+  // workspace-level threshold is unset or out of range. The helper returns
+  // `null` for both cases.
   const relevanceThreshold =
-    typeof domainMetadata.relevance_threshold === 'number' &&
-    domainMetadata.relevance_threshold > 0 &&
-    domainMetadata.relevance_threshold <= 1
-      ? domainMetadata.relevance_threshold
-      : DEFAULT_RELEVANCE_THRESHOLD;
+    context.relevanceThreshold ?? DEFAULT_RELEVANCE_THRESHOLD;
 
-  const profileId = domainMetadata.company_profile_id as string | undefined;
+  const profileId = context.companyProfileId;
   if (!profileId)
     return { companyContext: null, relevanceThreshold, profileId: null };
 

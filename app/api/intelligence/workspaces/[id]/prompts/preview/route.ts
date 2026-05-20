@@ -22,6 +22,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { scoreRelevance } from '@/lib/intelligence/relevance-scorer';
 import type { CompanyContext } from '@/lib/intelligence/types';
+import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -99,12 +100,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // 4. Load company context via domain_metadata.company_profile_id.
-    const meta = workspaceResult.data.domain_metadata as Record<
-      string,
-      unknown
-    > | null;
-    const profileId = meta?.company_profile_id as string | undefined;
+    // 4. Load company context (pre-T2: helper reads domain_metadata JSONB).
+    const workspaceContext = extractContextFromDomainMetadata(
+      workspaceResult.data.domain_metadata,
+    );
+    const profileId = workspaceContext.companyProfileId;
     if (!profileId) {
       return NextResponse.json(
         {

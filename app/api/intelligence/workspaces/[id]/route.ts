@@ -5,6 +5,7 @@ import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { IntelligenceWorkspaceUpdateSchema } from '@/lib/validation/schemas';
+import { extractContextFromDomainMetadata } from '@/lib/intelligence/workspace-context';
 import type { Database } from '@/supabase/types/database.types';
 
 type WorkspaceUpdate = Database['public']['Tables']['workspaces']['Update'];
@@ -34,17 +35,18 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Fetch linked company profile name
-    const meta = workspace.domain_metadata as Record<string, unknown> | null;
-    const profileId = meta?.company_profile_id as string | undefined;
+    // Project typed top-level context (pre-T2: reads JSONB).
+    const workspaceContext = extractContextFromDomainMetadata(
+      workspace.domain_metadata,
+    );
     let companyProfileName: string | null = null;
 
-    if (profileId) {
+    if (workspaceContext.companyProfileId) {
       const profile = await sb(
         supabase
           .from('company_profiles')
           .select('name')
-          .eq('id', profileId)
+          .eq('id', workspaceContext.companyProfileId)
           .maybeSingle(),
         'company_profiles.byId',
       );
@@ -53,6 +55,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({
       ...workspace,
+      company_profile_id: workspaceContext.companyProfileId,
+      guide_id: workspaceContext.guideId,
+      relevance_threshold: workspaceContext.relevanceThreshold,
       company_profile_name: companyProfileName,
     });
   } catch (err) {
@@ -101,7 +106,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (relevance_threshold !== undefined) {
       // Fetch the current workspace to merge into existing domain_metadata
-      // (avoid clobbering company_profile_id, guide_id, etc.).
+      // (avoid clobbering company_profile_id, guide_id, etc.). Pre-T2:
+      // relevance_threshold still writes to JSONB. S246 WP2b swaps this to a
+      // direct typed-column UPDATE on the intelligence_workspaces satellite.
       const { data: existing, error: fetchError } = await supabase
         .from('workspaces')
         .select('domain_metadata')
@@ -143,7 +150,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
-    return NextResponse.json(data);
+    // Project typed top-level context onto the response.
+    const updatedContext = extractContextFromDomainMetadata(data.domain_metadata);
+    return NextResponse.json({
+      ...data,
+      company_profile_id: updatedContext.companyProfileId,
+      guide_id: updatedContext.guideId,
+      relevance_threshold: updatedContext.relevanceThreshold,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to update workspace') },
