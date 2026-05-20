@@ -360,10 +360,7 @@ export async function DELETE(
       .eq('workspace_id', id);
 
     // DELETE narrows on id only (prior fetchError gate enforces procurement-type).
-    const { error } = await supabase
-      .from('workspaces')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('workspaces').delete().eq('id', id);
 
     if (error) {
       logger.error({ err: error }, 'Failed to delete bid');

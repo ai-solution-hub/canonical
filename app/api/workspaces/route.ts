@@ -57,7 +57,10 @@ export async function GET(request: NextRequest) {
     // that shape so the UI does not need to be aware of the JOIN.
     const flattened = (data ?? []).map((ws) => {
       const { application_types, ...wsRest } = ws;
-      const appTypes = application_types as { key: string } | { key: string }[] | null;
+      const appTypes = application_types as
+        | { key: string }
+        | { key: string }[]
+        | null;
       const key = Array.isArray(appTypes)
         ? (appTypes[0]?.key ?? null)
         : (appTypes?.key ?? null);

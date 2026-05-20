@@ -248,10 +248,7 @@ describe('list_user_workspaces MCP tool', () => {
     await tool.handler({ type: 'bid' }, MOCK_EXTRA);
 
     // Post-T2 key is procurement (bid → procurement remap)
-    expect(eqCalls).toContainEqual([
-      'application_types.key',
-      'procurement',
-    ]);
+    expect(eqCalls).toContainEqual(['application_types.key', 'procurement']);
     expect(eqCalls).not.toContainEqual(['application_types.key', 'bid']);
   });
 

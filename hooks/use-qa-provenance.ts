@@ -40,16 +40,11 @@ export interface UseQAProvenanceReturn {
 
 interface WorkspaceJoinRow {
   workspace_id: string;
-  workspaces:
-    | {
-        id: string;
-        name: string;
-        application_types:
-          | { key: string }
-          | { key: string }[]
-          | null;
-      }
-    | null;
+  workspaces: {
+    id: string;
+    name: string;
+    application_types: { key: string } | { key: string }[] | null;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------

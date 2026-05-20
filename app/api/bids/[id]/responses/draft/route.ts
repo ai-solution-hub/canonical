@@ -52,9 +52,7 @@ export async function POST(
     // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select(
-        'id, status, domain_metadata, application_types!inner(key)',
-      )
+      .select('id, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
       .eq('application_types.key', 'procurement')
       .single();

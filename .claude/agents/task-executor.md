@@ -86,9 +86,14 @@ A **Subtask dispatch brief** drawn from `docs/reference/task-list.json`:
 - **Escalate, don't paper over.** If you encounter unexpected production behaviour (wrong
   renders, dead code, tests that only pass by not testing real logic, missing
   infrastructure the brief assumed) — STOP and escalate to the orchestrator with evidence.
-- **Commit before finishing.** Commit early; commit
-  often; never end a dispatch with uncommitted work in the worktree.
-- **NEVER `cd` to absolute knowledge-hub paths. NEVER use absolute repo paths in Edit/Write/Read.** Your CWD is your worktree — every Bash tool call runs in it. The bash shell state does NOT persist between calls. **All Edit / Read / Write / Bash operations use paths relative to your worktree root (or `pwd`-prefixed dynamic paths).** This rule is mechanically enforced by a PreToolUse hook in `.claude/settings.json` — if you see a `BLOCKED:` message from the hook, drop the `cd` and use relative paths.
+- **Commit before finishing.** Commit early; commit often; never end a dispatch with
+  uncommitted work in the worktree.
+- **NEVER `cd` to absolute knowledge-hub paths. NEVER use absolute repo paths in
+  Edit/Write/Read.** Your CWD is your worktree — every Bash tool call runs in it. The bash
+  shell state does NOT persist between calls. **All Edit / Read / Write / Bash operations
+  use paths relative to your worktree root (or `pwd`-prefixed dynamic paths).** This rule
+  is mechanically enforced by a PreToolUse hook in `.claude/settings.json` — if you see a
+  `BLOCKED:` message from the hook, drop the `cd` and use relative paths.
 
 ## Phase-by-phase workflow
 
@@ -105,7 +110,8 @@ The orchestrator will tell you which track branch (typically `main`,
 a historical commit — without this reset you start stale (CLAUDE.md "Worktree agents start
 stale").
 
-**If the second `git branch --show-current` returns anything OTHER than `worktree-agent-*` (e.g. `production-readiness`), STOP and escalate; do not proceed**.
+**If the second `git branch --show-current` returns anything OTHER than `worktree-agent-*`
+(e.g. `production-readiness`), STOP and escalate; do not proceed**.
 
 ### Step 2 — Read the Subtask brief (`details` field)
 
@@ -206,7 +212,9 @@ EOF
 )"
 ```
 
-**Never** `--amend`. **Never** `--no-verify`. If pre-commit hooks fail, fix the underlying issue and create a NEW commit — the failed commit didn't land, so amending would modify the wrong commit.
+**Never** `--amend`. **Never** `--no-verify`. If pre-commit hooks fail, fix the underlying
+issue and create a NEW commit — the failed commit didn't land, so amending would modify
+the wrong commit.
 
 **`git-workflow-and-versioning` is NOT in your skill set.** Merges to the track branch are
 the Orchestrator's responsibility. You commit on your worktree branch and stop.

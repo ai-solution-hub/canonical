@@ -138,7 +138,9 @@ async function loadCompanyContext(
   supabase: DbClient,
   workspace: AccessibleWorkspace,
 ): Promise<CompanyContext | null> {
-  const context = extractContextFromSatellite(workspace.intelligence_workspaces);
+  const context = extractContextFromSatellite(
+    workspace.intelligence_workspaces,
+  );
   const profileId = context.companyProfileId;
   if (!profileId) return null;
 

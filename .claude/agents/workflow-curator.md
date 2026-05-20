@@ -43,9 +43,9 @@ the write so the orchestrator's context stays clean.
 
 ## When to invoke
 
-- **Out-of-scope finding from a Checker.** The Checker has flagged an anti-pattern in
-  code outside the current Subtask's file-ownership boundary (often `scope: "out-of-scope"`
-  in the JSON verdict). Triage one finding per dispatch and route to subtask / roadmap /
+- **Out-of-scope finding from a Checker.** The Checker has flagged an anti-pattern in code
+  outside the current Subtask's file-ownership boundary (often `scope: "out-of-scope"` in
+  the JSON verdict). Triage one finding per dispatch and route to subtask / roadmap /
   backlog / no-action.
 - **Executor escalation about strategic infrastructure.** An Executor escalation notes
   cross-cutting or strategic work (e.g. "the auth pattern needs a system-wide refactor").
@@ -93,7 +93,8 @@ CURRENT ROADMAP/BACKLOG STATE (read by you):
 - **Be honest about no-action.** Some findings genuinely don't warrant action ("already
   covered by §X", "trivial nit", "noise"). Returning `no-action` with a clear
   justification is a valid outcome and better than padding the backlog.
-- **NEVER `cd` to absolute knowledge-hub paths; NEVER use absolute repo paths in Edit/Write/Read.**
+- **NEVER `cd` to absolute knowledge-hub paths; NEVER use absolute repo paths in
+  Edit/Write/Read.**
 
 ## Skills you invoke
 

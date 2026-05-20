@@ -121,19 +121,24 @@ export function extractContextFromSatellite(
     | null
     | undefined,
 ): IntelligenceWorkspaceContext {
-  const row = Array.isArray(satellite) ? (satellite[0] ?? null) : (satellite ?? null);
+  const row = Array.isArray(satellite)
+    ? (satellite[0] ?? null)
+    : (satellite ?? null);
 
   if (!row) {
     return { companyProfileId: null, guideId: null, relevanceThreshold: null };
   }
 
   const companyProfileId =
-    typeof row.company_profile_id === 'string' && row.company_profile_id.length > 0
+    typeof row.company_profile_id === 'string' &&
+    row.company_profile_id.length > 0
       ? row.company_profile_id
       : null;
 
   const guideId =
-    typeof row.guide_id === 'string' && row.guide_id.length > 0 ? row.guide_id : null;
+    typeof row.guide_id === 'string' && row.guide_id.length > 0
+      ? row.guide_id
+      : null;
 
   const relevanceThreshold =
     typeof row.relevance_threshold === 'number' &&

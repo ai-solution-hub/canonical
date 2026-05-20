@@ -222,8 +222,7 @@ describe('Intelligence Workspaces API', () => {
       });
       // Post-T2: intelligence_workspaces satellite row insert (awaited, no terminal).
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
       // Feed prompt insert (returns via then)
       mockSupabase._chain.then.mockImplementationOnce(
@@ -279,8 +278,7 @@ describe('Intelligence Workspaces API', () => {
       });
       // Post-T2: intelligence_workspaces satellite row insert.
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
       // Feed prompt insert (returns via then)
       mockSupabase._chain.then.mockImplementationOnce(

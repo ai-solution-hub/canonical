@@ -155,9 +155,7 @@ export async function registerResources(server: McpServer): Promise<void> {
           const workspaces = await sb(
             supabase
               .from('workspaces')
-              .select(
-                'id, name, domain_metadata, application_types!inner(key)',
-              )
+              .select('id, name, domain_metadata, application_types!inner(key)')
               .eq('application_types.key', 'procurement')
               .eq('is_archived', false)
               .order('updated_at', { ascending: false })
