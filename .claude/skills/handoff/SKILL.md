@@ -25,8 +25,13 @@ ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -
 git worktree list
 ```
 
-Read the most recent prompt for this track in full — gives the "Completed Work"
-section to compress + the prior objectives to confirm shipped.
+- Read the most recent prompt for this track in full — gives the "Completed
+  Work" section to compress + the prior objectives to confirm shipped.
+- Read `docs/reference/task-list.json` to identify Tasks closed this session
+  (status changes pending→done) and Subtasks that landed (status changes
+  pending→in_progress→done). Their `details` field `<info added on YYYY-MM-DD>`
+  journal blocks are the canonical record of what shipped — quote relevant
+  SHAs from there.
 
 If a top-level worktree exists outside `.claude/worktrees/`, this prompt is
 **for the active track only**. Use the track-suffixed filename below.
@@ -65,7 +70,9 @@ Confirm before drafting:
 3. What is the next session's purpose (3-4 areas max per session)?
 4. Any decisions made this session that aren't yet captured in roadmap /
    state-of-product?
-5. Any gotchas to flag that aren't yet in CLAUDE.md or memory?
+5. Any Task or Subtask status flips this session that should be summarised in
+   the continuation prompt's "Completed work" section?
+6. Any gotchas to flag that aren't yet in CLAUDE.md or memory?
 
 If unsure on next-session focus, ask Liam.
 
@@ -121,7 +128,10 @@ Read first: `docs/plans/phase-0-investigation/architecture/01-vision.md`
 - Sessions older than N-3: collapse to a single 1-2 line paragraph for the whole
   range.
 - N-3, N-2: one paragraph each, 3-4 lines, what shipped + key SHA.
-- N-1 (this session): one paragraph per WP, 1-3 lines each. No fluff.
+- N-1 (this session): one paragraph per WP, 1-3 lines each. No fluff. If the WP
+  closed a Subtask, reference its ID-N.M and quote the commit SHA from the
+  `<info added on …>` journal block in `task-list.json`. If the WP only made
+  progress (no state flip), say so.
 
 **Per-WP fields** (in this order, one block per WP):
 
@@ -165,10 +175,9 @@ If Liam edits, he creates a new commit (not amend).
 
 ## Step 8 — Add MemPalace diary entry
 
-Mempalace MCP is the canonical memory system.
-
-- Call `mempalace_diary_write` using `wing: claude` and add a diary entry for the session just completed.
-    - Use AAAK format (entity codes + emotion markers + pipe-separated fields).
+Per the AAAK format documented in `.claude/skills/start-session/SKILL.md`
+"Mempalace diary entry shape" section. Call `mempalace_diary_write` with
+`agent_name: claude` + the structured `content` field.
 
 ---
 

@@ -1,6 +1,34 @@
 ---
 name: task-planner
-description: Use this agent to author exactly one spec-authoring Subtask in the ID-N Task lifecycle — `{N.1}` RESEARCH.md, `{N.2}` PRODUCT.md, `{N.3}` TECH.md, or `{N.4}` PLAN.md (decomposition into implementation Subtasks `{N.5+}`). The planner is opus-4-7 with `thinking: 'max'`, per-spec / per-task-breakdown (NOT persistent across waves) — one Planner instance writes PRODUCT.md, a FRESH Planner instance reviews and writes TECH.md, and a SEPARATE Planner may run `planning-and-task-breakdown` for PLAN.md. The planner invokes `write-product-spec` / `write-tech-spec` / `planning-and-task-breakdown` directly, applies the sibling-only Subtask dependency constraint as a forcing function, and returns the spec artefact (or populated Subtask list) for the orchestrator to write into task-list.json. <example>Context: Orchestrator dispatches Planner for `{N.2}` PRODUCT.md authoring on a new Task. user: "Plan ID-15: author the PRODUCT.md spec — feature is the search filter rebuild" assistant: "Dispatching the task-planner with the {15.2} brief; it will invoke write-product-spec directly and return the PRODUCT.md path." <commentary>{N.2} PRODUCT.md authoring is a Planner Subtask — write-product-spec is the direct skill invocation, not via spec-driven-implementation.</commentary></example> <example>Context: PRODUCT.md ratified; Orchestrator dispatches a FRESH Planner instance for `{N.3}` TECH.md. user: "PRODUCT.md is ratified for ID-15 — dispatch a fresh Planner for the TECH.md" assistant: "Dispatching a fresh task-planner for ID-15.3 — fresh context per Q-PLANNER-2 ratification, invokes write-tech-spec, returns migration plan + Proposed changes." <commentary>{N.3} TECH.md is a fresh Planner, not the same instance that wrote {N.2} — this is a deliberate context-fresh-per-subtask constraint.</commentary></example> <example>Context: PRODUCT + TECH ratified; complex Task needs decomposition before implementation. user: "ID-15 spec pair is ratified, but the change touches 5 modules with chain-dependent slices — decompose into implementation Subtasks" assistant: "Dispatching the task-planner for ID-15.4 — it will invoke planning-and-task-breakdown against the ratified spec pair and return the populated Subtask records (with details + testStrategy) for me to append to task-list.json." <commentary>{N.4} PLAN.md is conditional on decomposition need (compound invariants / multi-module / chain-dependent slices / >2h effort). Sibling-only dep constraint applies to the populated Subtasks.</commentary></example>
+description: |
+  Use this agent when the orchestrator needs to author exactly one spec-authoring Subtask in the ID-N Task lifecycle — `{N.1}` RESEARCH.md, `{N.2}` PRODUCT.md, `{N.3}` TECH.md, or `{N.4}` PLAN.md (decomposition into implementation Subtasks `{N.5+}`). The planner is opus-4-7 with `thinking: 'max'`, per-spec / per-task-breakdown (NOT persistent across waves) — one Planner instance writes PRODUCT.md, a FRESH Planner instance reviews and writes TECH.md, and a SEPARATE Planner may run `planning-and-task-breakdown` for PLAN.md. The planner invokes `write-product-spec` / `write-tech-spec` / `planning-and-task-breakdown` directly, applies the sibling-only Subtask dependency constraint as a forcing function, and returns the spec artefact (or populated Subtask list) for the orchestrator to write into task-list.json. Examples:
+
+  <example>
+  Context: The orchestrator has just opened a new Task ID-N in `docs/reference/task-list.json` and needs the PRODUCT spec authored before any implementation Subtasks can be dispatched.
+  user: "Task ID-18 is ready — author the {18.2} PRODUCT.md for the source-document ownership feature."
+  assistant: "I'll dispatch the task-planner agent to invoke `write-product-spec` directly and produce PRODUCT.md with numbered, testable Behavior invariants at `docs/specs/source-document-ownership/PRODUCT.md`."
+  <commentary>
+  This is the canonical `{N.2}` PRODUCT.md authoring trigger on a new Task. The Planner invokes `write-product-spec` directly (not via `spec-driven-implementation`, which is the Orchestrator-level trigger) and returns the spec path with invariants the Checker can verify against acceptance criteria.
+  </commentary>
+  </example>
+
+  <example>
+  Context: PRODUCT.md for Task ID-N has just been ratified. Per Q-PLANNER-2, the Planner who wrote `{N.2}` must NOT be the same instance that writes `{N.3}` — a FRESH Planner brings a fresh review pass to TECH.md against PRODUCT.md.
+  user: "PRODUCT.md for ID-18 is ratified. Dispatch a fresh Planner for {18.3} TECH.md."
+  assistant: "I'll launch a fresh task-planner instance (deliberate context-fresh-per-Subtask constraint per Q-PLANNER-2) to read PRODUCT.md in full, invoke `write-tech-spec` directly, and return TECH.md with a one-to-one mapping of Proposed changes against PRODUCT.md's numbered invariants."
+  <commentary>
+  Fresh-instance dispatch is non-negotiable here: context-carry from the `{N.2}` Planner would defeat the design intent. The Planner reads the ratified predecessor spec in full and produces TECH.md with the migration plan and per-invariant proposed changes the Checker uses to verify spec compliance.
+  </commentary>
+  </example>
+
+  <example>
+  Context: The ratified PRODUCT+TECH pair for Task ID-N has compound invariants, multiple migrations, chain-dependent slices, and >2h estimated effort — implementation cannot be flat-dispatched and needs explicit decomposition into Subtasks `{N.5+}`.
+  user: "ID-22 PRODUCT and TECH are ratified — decompose into Subtasks for the Executor wave."
+  assistant: "I'll dispatch the task-planner agent to invoke `planning-and-task-breakdown` directly against the ratified spec pair and return TM-shape Subtask records with load-bearing `details`, one-line `testStrategy`, and sibling-only dependencies for the Orchestrator to append to task-list.json."
+  <commentary>
+  `{N.4}` PLAN.md decomposition is the conditional spec-authoring Subtask — only invoked when compound invariants / multiple migrations / chain-dependent slices / >2h effort are present. The sibling-only Subtask dependency constraint acts as a forcing function: if cross-Task deps surface, the Planner escalates (Task-split or Task-merge) rather than bending the constraint.
+  </commentary>
+  </example>
 model: opus
 color: green
 effort: max

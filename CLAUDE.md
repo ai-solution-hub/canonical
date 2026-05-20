@@ -161,6 +161,7 @@ adding or modifying UI elements.
 | Roadmap                | `docs/reference/product-roadmap.json`                                       |
 | Product backlog        | `docs/reference/product-backlog.json`                                       |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                  |
+| Skill routing map      | `docs/reference/skill-routing-map.md`                                       |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
 | Session handoffs       | `docs/continuation-prompts/`                                                |
 | Codebase mapping       | `.planning/codebase/`                                                       |
@@ -358,24 +359,29 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 - **cocoindex 1.0.3 requires `dangerouslyDisableSandbox: true`** for both PyPI install and
   Rust-engine LMDB startup in dev. `localfs.walk_dir` defaults `recursive=False` —
   explicit `recursive=True` needed for nested corpora.
-- **Worktree isolation rules:**
-  - Two sessions on same working tree destroy each other's files — use
-    `isolation: "worktree"` or `git worktree add` for parallel work.
-  - After merging worktree branches, run `git status` on main and clean with
-    `git checkout -- .` and `git clean -fd` (merges leak files).
+- **Worktree isolation rules (deterministic cause + mitigation):**
+  - **Two sessions on same working tree destroy each other's files** — use
+    `isolation: "worktree"` on Agent dispatch, or `git worktree add` for parallel work.
   - **Cherry-pick (not merge)** parallel agent branches — agents branch from main at
     launch time and go stale when earlier agents merge first.
   - **Worktree agents start stale:** `isolation: "worktree"` branches from a historical
-    commit. Agent's first action must be `git reset --hard {branch}`.
-  - `hooks/` directory needs `dangerouslyDisableSandbox: true` for cherry-picks.
-  - **Sub-agent instructions must always use relative paths** — absolute paths resolve to
-    main repo, not the worktree. If rescuing, check `git status` in main first to detect
-    leaked files.
-  - **Bash CWD drifts into worktree dirs after `Read`:** prefix git operations with
-    `cd <main-repo-path> &&` after any Read on worktree files. Also applies to
-    **sub-agents** juggling sub-agent worktrees: after Read of a worktree file, subsequent
-    git commands silently run in the wrong tree — always `cd <main-repo-path> &&` before
-    main-repo git operations.
+    commit. Agent's first action:
+    `git fetch origin {branch} && git reset --hard origin/{branch}` (no `cd` prefix — see
+    below).
+  - **Bash shell state does NOT persist between Bash tool calls** — every Bash tool call
+    runs in the harness's default cwd, which IS the worktree. The agent's branch never
+    "jumps"; the cwd briefly moves to the wrong tree for that one call, and that single
+    `git commit` lands on the wrong branch.
+  - **After cherry-picking worktree branches**, run `git status` on the main tree and
+    clean with `git checkout -- .` and `git clean -fd` (merges occasionally leak files).
+  - **`.claude/agents/` files need `dangerouslyDisableSandbox: true` on cherry-pick** —
+    sandbox blocks unlink on those paths (same pattern as `hooks/`).
+  - **Reference-doc freshness guard edge case:** the
+    `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts` test inspects
+    single-parent commits; merge commits using combined-diff format don't register
+    single-parent `last_updated` additions. Workaround = follow-up single-parent commit
+    that bumps `last_updated` (precedent: commit `744d9ef1` + `6cad7d64`); or
+    `[skip-doc-freshness-guard]` body tag.
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
 - **ALWAYS check worktree `git status` before removing it:** This covers any cases where

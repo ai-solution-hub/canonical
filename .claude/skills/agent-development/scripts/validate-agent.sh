@@ -2,7 +2,14 @@
 # Agent File Validator
 # Validates agent markdown files for correct structure and content
 
-set -euo pipefail
+# KH-local: dropped `-o pipefail` (upstream uses `set -euo pipefail`).
+# Reason: validator pipelines `grep '^tools:' | sed ...` against frontmatter
+# that frequently lacks a `tools:` field; pipefail propagates grep's exit 1
+# and aborts the script with no visible warning before the summary. Also
+# triggers SIGPIPE on `tail -n +2 file | grep -q '^---$'` against files >16KB.
+# Restored in S55 (was originally added in S52 WP2 chore, lost in S54
+# close-out b2aad153 canonical-restore overwrite). Upstream PR pending.
+set -eu
 
 # Usage
 if [ $# -eq 0 ]; then
