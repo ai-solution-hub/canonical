@@ -45,7 +45,7 @@ const RESOURCES_FILE = resolve(ROOT, 'lib/mcp/resources.ts');
 const CATEGORY_ORDER = [
   'search.ts',
   'dashboard.ts',
-  'bids.ts',
+  'procurement.ts',
   'content.ts',
   'quality.ts',
   'ai.ts',
@@ -439,7 +439,7 @@ describe('Prompt extraction', () => {
       server.registerPrompt(
         'bid_briefing',
         {
-          title: 'Bid Briefing',
+          title: 'Procurement Briefing',
           description: 'Brief on a specific bid.',
           argsSchema: {
             bid_name: z.string().describe('Name of the bid'),
@@ -562,9 +562,9 @@ describe('Integration: full codebase extraction', () => {
       const appTools = allTools.filter((t) => t.is_app_tool);
       expect(appTools.length).toBe(4);
       expect(appTools.map((t) => t.name).sort()).toEqual([
-        'show_bid_dashboard',
         'show_coverage_matrix',
         'show_intelligence_feed',
+        'show_procurement_dashboard',
         'show_reorient_me',
       ]);
     },

@@ -1213,15 +1213,18 @@ function buildRunPipelineMock(options: MockBuildOptions): {
           return Promise.resolve({ data: [], error: null });
         }),
         maybeSingle: vi.fn(() => {
-          if (table === 'workspaces') {
+          if (table === 'intelligence_workspaces') {
+            // Post-T2 (S246): pipeline calls getIntelligenceWorkspaceContext
+            // which reads the intelligence_workspaces satellite via workspace_id.
+            // This is the per-workspace context load tracked by the hoist tests.
             tracking.workspaceContextLoads++;
-            const workspaceId = eqFilters.id as string;
+            const workspaceId = eqFilters.workspace_id as string;
             const profileId = workspaceProfiles[workspaceId] ?? null;
             return Promise.resolve({
               data: {
-                domain_metadata: profileId
-                  ? { company_profile_id: profileId }
-                  : {},
+                company_profile_id: profileId,
+                guide_id: null,
+                relevance_threshold: null,
               },
               error: null,
             });

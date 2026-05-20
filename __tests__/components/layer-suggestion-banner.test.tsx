@@ -19,7 +19,7 @@ const mockLayers = [
   {
     id: '2',
     key: 'bid_detail',
-    label: 'Bid Detail',
+    label: 'Procurement Detail',
     description: null,
     display_order: 2,
     is_active: true,
@@ -97,7 +97,7 @@ describe('LayerSuggestionBanner', () => {
   it('renders the suggested layer name and reason', () => {
     render(<LayerSuggestionBanner {...defaultProps} />);
 
-    expect(screen.getByText('Bid Detail')).toBeInTheDocument();
+    expect(screen.getByText('Procurement Detail')).toBeInTheDocument();
     expect(
       screen.getByText('Content discovered through a bid workspace'),
     ).toBeInTheDocument();
@@ -158,7 +158,7 @@ describe('LayerSuggestionBanner', () => {
     await user.click(dismissButtons[0]);
 
     // The banner should be gone
-    expect(screen.queryByText('Bid Detail')).not.toBeInTheDocument();
+    expect(screen.queryByText('Procurement Detail')).not.toBeInTheDocument();
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
@@ -199,7 +199,7 @@ describe('LayerSuggestionBanner', () => {
 
       expect(
         screen.getByRole('button', {
-          name: /accept suggested layer: bid detail/i,
+          name: /accept suggested layer: procurement detail/i,
         }),
       ).toBeInTheDocument();
     });

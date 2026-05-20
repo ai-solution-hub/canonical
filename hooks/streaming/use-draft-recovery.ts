@@ -35,8 +35,8 @@ export interface DraftRecoveryState {
 
 // ── Helpers ──
 
-function buildKey(bidId: string, questionId: string): string {
-  return `${STORAGE_PREFIX}${bidId}-${questionId}`;
+function buildKey(procurementId: string, questionId: string): string {
+  return `${STORAGE_PREFIX}${procurementId}-${questionId}`;
 }
 
 function isLocalStorageAvailable(): boolean {
@@ -157,7 +157,7 @@ function pruneOldDrafts(): void {
  * handles real-time AI draft generation via SSE.
  */
 export function useDraftRecovery(
-  bidId: string,
+  procurementId: string,
   questionId: string | null,
   responseVersion: number | null,
 ): DraftRecoveryState {
@@ -176,7 +176,7 @@ export function useDraftRecovery(
     responseVersionRef.current = responseVersion;
   }, [responseVersion]);
 
-  const storageKey = questionId ? buildKey(bidId, questionId) : null;
+  const storageKey = questionId ? buildKey(procurementId, questionId) : null;
 
   // Derive draft state from localStorage synchronously (no setState in effects)
   // readVersion is incremented on clear to trigger re-computation

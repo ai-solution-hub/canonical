@@ -54,7 +54,7 @@ export function useDigestData() {
   // ─── Latest digest query ───
 
   const { data: latestDigest, isLoading: loading } = useQuery({
-    queryKey: queryKeys.digests.latest,
+    queryKey: queryKeys.changeReports.latest,
     queryFn: async () => {
       const data = await fetchJson<{ digest: Digest | null }>(
         '/api/digest/latest',
@@ -66,7 +66,7 @@ export function useDigestData() {
   // ─── Past digests list ───
 
   const { data: pastDigests = [], isLoading: loadingPastDigests } = useQuery({
-    queryKey: queryKeys.digests.list(10, 0),
+    queryKey: queryKeys.changeReports.list(10, 0),
     queryFn: async () => {
       const data = await fetchJson<{ digests: PastDigestEntry[] }>(
         '/api/digest/list?limit=10&offset=0',
@@ -91,10 +91,10 @@ export function useDigestData() {
     onSuccess: (data) => {
       abortRef.current = null;
       // Update the latest digest cache directly
-      queryClient.setQueryData(queryKeys.digests.latest, data.digest);
+      queryClient.setQueryData(queryKeys.changeReports.latest, data.digest);
       // Invalidate the list to pick up the new entry
       queryClient.invalidateQueries({
-        queryKey: queryKeys.digests.list(10, 0),
+        queryKey: queryKeys.changeReports.list(10, 0),
       });
       toast.success('Report generated successfully');
     },
@@ -133,7 +133,7 @@ export function useDigestData() {
     async (digestId: string) => {
       try {
         const digest = await queryClient.fetchQuery({
-          queryKey: queryKeys.digests.detail(digestId),
+          queryKey: queryKeys.changeReports.detail(digestId),
           queryFn: async () => {
             const data = await fetchJson<{ digest: Digest | null }>(
               `/api/digest/${digestId}`,
@@ -143,7 +143,7 @@ export function useDigestData() {
         });
 
         if (digest) {
-          queryClient.setQueryData(queryKeys.digests.latest, digest);
+          queryClient.setQueryData(queryKeys.changeReports.latest, digest);
         }
       } catch {
         toast.error('Failed to load report');

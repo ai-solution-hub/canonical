@@ -26,7 +26,7 @@ vi.mock('next/headers', () => ({
 
 // Mock the AI digest service
 const mockGenerateDigest = vi.fn();
-vi.mock('@/lib/ai/digest', () => ({
+vi.mock('@/lib/ai/change-reports', () => ({
   generateDigest: (...args: unknown[]) => mockGenerateDigest(...args),
 }));
 

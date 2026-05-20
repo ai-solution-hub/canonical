@@ -43,34 +43,38 @@ describe('WorkspacesContent (launcher)', () => {
   it('renders type cards for bid and proposal', () => {
     render(<WorkspacesContent counts={{}} />);
     expect(
-      screen.getByRole('heading', { level: 2, name: 'Bids' }),
+      screen.getByRole('heading', { level: 2, name: 'Procurements' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { level: 2, name: 'Sales Proposals' }),
     ).toBeInTheDocument();
   });
 
-  it('shows correct count text for active bids', () => {
-    render(<WorkspacesContent counts={{ bid: 3 }} />);
-    expect(screen.getByText('3 active bids')).toBeInTheDocument();
+  it('shows correct count text for active procurements', () => {
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 3 }} />);
+    expect(screen.getByText('3 active procurements')).toBeInTheDocument();
   });
 
-  it('shows singular count text for 1 active bid', () => {
-    render(<WorkspacesContent counts={{ bid: 1 }} />);
-    expect(screen.getByText('1 active bid')).toBeInTheDocument();
+  it('shows singular count text for 1 active procurement', () => {
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 1 }} />);
+    expect(screen.getByText('1 active procurement')).toBeInTheDocument();
   });
 
   it('does not show count text when count is zero', () => {
-    render(<WorkspacesContent counts={{ bid: 0 }} />);
-    expect(screen.queryByText(/active bid/)).not.toBeInTheDocument();
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 0 }} />);
+    expect(screen.queryByText(/active procurement/)).not.toBeInTheDocument();
   });
 
   it('links the bid card to /bid', () => {
-    render(<WorkspacesContent counts={{ bid: 5 }} />);
+    // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
+    render(<WorkspacesContent counts={{ procurement: 5 }} />);
     const bidLink = screen.getByRole('link', {
-      name: /Bids/,
+      name: /Procurements/,
     });
-    expect(bidLink).toHaveAttribute('href', '/bid');
+    expect(bidLink).toHaveAttribute('href', '/procurement');
   });
 
   it('marks coming soon cards as aria-disabled', () => {

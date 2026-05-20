@@ -8,7 +8,7 @@ import type {
   CitationEntry,
   QualityData,
   QualityIssueEntry,
-} from '@/types/bid-metadata';
+} from '@/types/procurement-metadata';
 import { countWords } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import {

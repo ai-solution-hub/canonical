@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { CitationEntry } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
 
 interface SourceContent {
   id: string;

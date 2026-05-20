@@ -76,6 +76,27 @@ describe('Company embedding caching', () => {
             }),
           };
         }
+        if (table === 'intelligence_workspaces') {
+          // Post-T2 (S246): pipeline calls getIntelligenceWorkspaceContext which
+          // reads the intelligence_workspaces satellite (not workspaces.domain_metadata).
+          const satelliteResult = {
+            data: hasProfile
+              ? {
+                  company_profile_id: 'profile-1',
+                  guide_id: null,
+                  relevance_threshold: null,
+                }
+              : null,
+            error: null,
+          };
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue(satelliteResult),
+              }),
+            }),
+          };
+        }
         if (table === 'workspaces') {
           const workspaceResult = {
             data: hasProfile

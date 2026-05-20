@@ -39,7 +39,10 @@ vi.mock('@/lib/supabase/telemetry', () => ({
 // Import under test (AFTER mocks)
 // ---------------------------------------------------------------------------
 
-import { generateDigest, DIGEST_AUTO_GEN_MAX_ITEMS } from '@/lib/ai/digest';
+import {
+  generateDigest,
+  DIGEST_AUTO_GEN_MAX_ITEMS,
+} from '@/lib/ai/change-reports';
 
 // ---------------------------------------------------------------------------
 // Helpers

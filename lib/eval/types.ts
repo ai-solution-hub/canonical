@@ -92,10 +92,10 @@ export interface SummarisationGoldItem extends GoldStandardBase {
 }
 
 /**
- * Bid drafting gold standard item
+ * Procurement drafting gold standard item
  * @public
  */
-export interface BidDraftingGoldItem {
+export interface ProcurementDraftingGoldItem {
   question_id: string;
   question_text: string;
   word_limit: number;

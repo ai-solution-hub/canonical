@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { digestToMarkdown } from '@/lib/digest/digest-export';
+import { digestToMarkdown } from '@/lib/change-reports/change-reports-export';
 import type { Digest } from '@/types/digest';
 
 // ---------------------------------------------------------------------------

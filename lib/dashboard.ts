@@ -1,7 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import type { TeamChange, RecentWorkItem, BidBriefing } from '@/types/reorient';
-import { fetchActiveBidsWithStats } from '@/lib/bid/bid-queries';
+import type {
+  TeamChange,
+  RecentWorkItem,
+  ProcurementBriefing,
+} from '@/types/reorient';
+import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/user/display-name';
 
@@ -135,7 +139,7 @@ export interface UnifiedDashboardData {
     coverage_gap_count: number;
   };
 
-  /** Active bids with stats */
+  /** Active procurements with stats */
   active_bids: ActiveBidSummary[];
 
   /** Freshness summary for QuickStatsStrip */
@@ -154,7 +158,7 @@ export interface UnifiedDashboardData {
     last_active_at: string | null;
     team_changes: TeamChange[];
     my_recent_work: RecentWorkItem[];
-    bid_summary: BidBriefing[];
+    bid_summary: ProcurementBriefing[];
   };
 
   /** Recent activity feed */
@@ -208,7 +212,7 @@ function dedupeRecentWorkByEntity(items: RecentWorkItem[]): RecentWorkItem[] {
 
 /**
  * Fetch all dashboard data in a single pass. Returns attention source counts,
- * active bids, freshness summary, reorient personal context, recent activity,
+ * active procurements, freshness summary, reorient personal context, recent activity,
  * and an error array tracking any partial failures.
  */
 export async function fetchUnifiedDashboardData(
@@ -316,11 +320,11 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(5),
 
-      // 4: Bid response changes by others (team changes)
+      // 4: Procurement response changes by others (team changes)
       supabase
         .from('bid_response_history')
         .select(
-          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))',
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(workspace_id, workspaces!inner(name)))',
         )
         .gt('created_at', sinceDate)
         .neq('edited_by', userId)
@@ -331,7 +335,7 @@ export async function fetchUnifiedDashboardData(
       supabase
         .from('bid_response_history')
         .select(
-          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))',
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(workspace_id, question_text, workspaces!inner(id, name)))',
         )
         .eq('edited_by', userId)
         .order('created_at', { ascending: false })
@@ -352,7 +356,7 @@ export async function fetchUnifiedDashboardData(
             )
         : Promise.resolve({ data: [], error: null }),
     ]),
-    fetchActiveBidsWithStats(supabase),
+    fetchActiveProcurementWithStats(supabase),
   ]);
 
   // --- Extract attention counts from RPC (query 0) ---
@@ -507,7 +511,7 @@ export async function fetchUnifiedDashboardData(
         const br = row.bid_responses as unknown as {
           question_id: string;
           bid_questions: {
-            project_id: string;
+            workspace_id: string;
             workspaces: { name: string };
           };
         } | null;
@@ -517,10 +521,11 @@ export async function fetchUnifiedDashboardData(
           action: 'updated',
           entity_type: 'bid_response',
           entity_id: row.response_id,
-          entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Bid',
+          entity_title:
+            br?.bid_questions?.workspaces?.name ?? 'Untitled Procurement',
           domain: undefined,
           created_at: row.created_at,
-          workspace_id: br?.bid_questions?.project_id,
+          workspace_id: br?.bid_questions?.workspace_id,
           question_id: br?.question_id,
         });
       }
@@ -545,14 +550,14 @@ export async function fetchUnifiedDashboardData(
         const br = row.bid_responses as unknown as {
           question_id: string;
           bid_questions: {
-            project_id: string;
+            workspace_id: string;
             question_text: string;
             workspaces: { id: string; name: string };
           };
         } | null;
         const questionText =
           br?.bid_questions?.question_text ?? 'Untitled question';
-        const bidId = br?.bid_questions?.workspaces?.id;
+        const procurementId = br?.bid_questions?.workspaces?.id;
         my_recent_work.push({
           entity_type: 'bid_response',
           entity_id: row.response_id,
@@ -561,9 +566,11 @@ export async function fetchUnifiedDashboardData(
               ? `${questionText.slice(0, 57)}...`
               : questionText,
           action: 'edited',
-          href: bidId ? `/bid/${bidId}/session` : '/bid',
+          href: procurementId
+            ? `/procurement/${procurementId}/session`
+            : '/procurement',
           created_at: row.created_at,
-          workspace_id: bidId,
+          workspace_id: procurementId,
           question_id: br?.question_id,
         });
       }
@@ -583,26 +590,28 @@ export async function fetchUnifiedDashboardData(
   );
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
-  // --- Build active bids (from shared helper — single query) ---
-  const { workspaces: bidWorkspaces, statsMap } = activeBidsResult;
-  const active_bids: ActiveBidSummary[] = bidWorkspaces.map((workspace) => {
-    const meta = workspace.domain_metadata as Record<string, unknown> | null;
-    const stats = statsMap.get(workspace.id);
-    const deadline = (meta?.deadline as string) ?? null;
+  // --- Build active procurements (from shared helper — single query) ---
+  const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
+  const active_bids: ActiveBidSummary[] = procurementWorkspaces.map(
+    (workspace) => {
+      const meta = workspace.domain_metadata as Record<string, unknown> | null;
+      const stats = statsMap.get(workspace.id);
+      const deadline = (meta?.deadline as string) ?? null;
 
-    return {
-      id: workspace.id,
-      name: workspace.name ?? 'Untitled Bid',
-      buyer: (meta?.buyer as string) ?? null,
-      status: (meta?.status as string) ?? 'draft',
-      deadline,
-      days_until_deadline: getDaysUntilDeadline(deadline),
-      total_questions: stats?.total_questions ?? 0,
-      answered_questions:
-        (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
-      approved_questions: stats?.complete_count ?? 0,
-    };
-  });
+      return {
+        id: workspace.id,
+        name: workspace.name ?? 'Untitled Procurement',
+        buyer: (meta?.buyer as string) ?? null,
+        status: (meta?.status as string) ?? 'draft',
+        deadline,
+        days_until_deadline: getDaysUntilDeadline(deadline),
+        total_questions: stats?.total_questions ?? 0,
+        answered_questions:
+          (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
+        approved_questions: stats?.complete_count ?? 0,
+      };
+    },
+  );
 
   // Sort by deadline urgency (most urgent first)
   active_bids.sort((a, b) => {
@@ -619,30 +628,33 @@ export async function fetchUnifiedDashboardData(
   });
 
   // --- Build bid_summary for reorient (from the same bid data) ---
-  const bid_summary: BidBriefing[] = bidWorkspaces.map((workspace) => {
-    const meta = workspace.domain_metadata as Record<string, unknown> | null;
-    const stats = statsMap.get(workspace.id);
-    const deadline = (meta?.deadline as string) ?? null;
-    const urgency = getDeadlineUrgency(deadline);
-    const totalQ = stats?.total_questions ?? 0;
-    const answeredQ =
-      (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
+  const bid_summary: ProcurementBriefing[] = procurementWorkspaces.map(
+    (workspace) => {
+      const meta = workspace.domain_metadata as Record<string, unknown> | null;
+      const stats = statsMap.get(workspace.id);
+      const deadline = (meta?.deadline as string) ?? null;
+      const urgency = getDeadlineUrgency(deadline);
+      const totalQ = stats?.total_questions ?? 0;
+      const answeredQ =
+        (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
 
-    return {
-      id: workspace.id,
-      name: workspace.name ?? 'Untitled Bid',
-      buyer: (meta?.buyer as string) ?? null,
-      status: (meta?.status as string) ?? 'draft',
-      deadline,
-      days_until_deadline: getDaysUntilDeadline(deadline),
-      urgency,
-      total_questions: totalQ,
-      answered_questions: answeredQ,
-      approved_questions: stats?.complete_count ?? 0,
-      gap_count: (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
-      href: `/bid/${workspace.id}`,
-    };
-  });
+      return {
+        id: workspace.id,
+        name: workspace.name ?? 'Untitled Procurement',
+        buyer: (meta?.buyer as string) ?? null,
+        status: (meta?.status as string) ?? 'draft',
+        deadline,
+        days_until_deadline: getDaysUntilDeadline(deadline),
+        urgency,
+        total_questions: totalQ,
+        answered_questions: answeredQ,
+        approved_questions: stats?.complete_count ?? 0,
+        gap_count:
+          (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
+        href: `/procurement/${workspace.id}`,
+      };
+    },
+  );
 
   // Sort bid_summary by deadline urgency
   const urgencyOrder: Record<string, number> = {

@@ -81,8 +81,8 @@ function buildFullData(): ItemProvenanceResponse {
       recentDrafts: [
         {
           responseId: 'resp-1',
-          bidId: 'bid-1',
-          bidName: 'Manchester Schools Refurb',
+          procurementId: 'bid-1',
+          procurementName: 'Manchester Schools Refurb',
           questionText: 'Describe your H&S policy',
           draftedAt: '2026-04-11T10:00:00Z',
           attribution: {

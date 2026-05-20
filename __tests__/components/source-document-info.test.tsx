@@ -200,13 +200,13 @@ describe('SourceDocumentInfo — successful display', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () =>
-        makeDocument({ original_filename: 'Bid-Response.docx' }),
+        makeDocument({ original_filename: 'Procurement-Response.docx' }),
     });
 
     render(<SourceDocumentInfo sourceDocumentId="doc-1" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Bid-Response.docx')).toBeInTheDocument();
+      expect(screen.getByText('Procurement-Response.docx')).toBeInTheDocument();
     });
   });
 

@@ -59,11 +59,11 @@ describe('QAUsedInBids', () => {
     render(<QAUsedInBids workspaces={workspaces} />);
     expect(screen.getByText('Project Alpha').closest('a')).toHaveAttribute(
       'href',
-      '/bid/w1',
+      '/procurement/w1',
     );
     expect(screen.getByText('Project Beta').closest('a')).toHaveAttribute(
       'href',
-      '/bid/w2',
+      '/procurement/w2',
     );
   });
 });

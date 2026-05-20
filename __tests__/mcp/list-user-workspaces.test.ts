@@ -227,10 +227,11 @@ describe('list_user_workspaces MCP tool', () => {
     expect(eqCalls).toContainEqual(['application_types.key', 'intelligence']);
   });
 
-  it('remaps type: "bid" to DB application_types.key "procurement" when filtering', async () => {
-    // The MCP tool accepts 'bid' as a legacy filter value, but post-T2 the DB
-    // application_types.key is `procurement` (per Q-OQR1-02). Mapping happens
-    // in the query layer.
+  it('passes type filter through to DB application_types.key (no remap)', async () => {
+    // S248 WP2 (T4): legacy 'bid' → 'procurement' + 'content' → 'kb_section'
+    // remap removed (dead code per Agent D S246 finding — Zod enum at the
+    // API boundary already excludes 'bid' / 'content'). The MCP tool handler
+    // passes the type value through verbatim to the query layer.
     const eqCalls: Array<[string, unknown]> = [];
     const chainedQuery = {
       eq: vi.fn((...args: [string, unknown]) => {
@@ -245,37 +246,9 @@ describe('list_user_workspaces MCP tool', () => {
     mocks.fromReturn.select.mockReturnValue(chainedQuery);
 
     const tool = getWorkspaceTool();
-    await tool.handler({ type: 'bid' }, MOCK_EXTRA);
+    await tool.handler({ type: 'procurement' }, MOCK_EXTRA);
 
-    // Post-T2 key is procurement (bid → procurement remap)
     expect(eqCalls).toContainEqual(['application_types.key', 'procurement']);
-    expect(eqCalls).not.toContainEqual(['application_types.key', 'bid']);
-  });
-
-  it('remaps type: "content" to DB enum "kb_section" when filtering', async () => {
-    // The tool accepts 'content' as the user-facing type name but the DB
-    // application_types.key it maps to is `kb_section`. Even though no rows
-    // exist for that key (kb_section retired post-T2), the remap still runs
-    // in the query layer — we only assert the call, not row presence.
-    const eqCalls: Array<[string, unknown]> = [];
-    const chainedQuery = {
-      eq: vi.fn((...args: [string, unknown]) => {
-        eqCalls.push(args);
-        return chainedQuery;
-      }),
-      order: vi.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      }),
-    };
-    mocks.fromReturn.select.mockReturnValue(chainedQuery);
-
-    const tool = getWorkspaceTool();
-    await tool.handler({ type: 'content' }, MOCK_EXTRA);
-
-    // content remaps to kb_section against application_types.key
-    expect(eqCalls).toContainEqual(['application_types.key', 'kb_section']);
-    expect(eqCalls).not.toContainEqual(['application_types.key', 'content']);
   });
 
   it('denies access to unauthenticated users', async () => {

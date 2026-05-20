@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CitationPanel } from '@/components/content/citation-panel';
-import type { CitationEntry } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
 
 // ---------------------------------------------------------------------------
 // Factories

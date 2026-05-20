@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
-import type { CitationEntry } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
 
 export type StreamPhase =
   | 'idle'
@@ -38,7 +38,7 @@ const INITIAL_STATE: StreamState = {
  * Hook for consuming the SSE draft-stream endpoint.
  * Shows response text appearing in real time as it's generated.
  */
-export function useDraftStream(bidId: string) {
+export function useDraftStream(procurementId: string) {
   const queryClient = useQueryClient();
   const [state, setState] = useState<StreamState>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
@@ -47,11 +47,13 @@ export function useDraftStream(bidId: string) {
   useEffect(() => {
     if (state.phase === 'done') {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.questions(bidId),
+        queryKey: queryKeys.bids.questions(procurementId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(bidId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.detail(procurementId),
+      });
     }
-  }, [state.phase, bidId, queryClient]);
+  }, [state.phase, procurementId, queryClient]);
 
   const startDraft = useCallback(
     async (questionId: string, modelTier?: 'analysis' | 'drafting') => {
@@ -64,7 +66,7 @@ export function useDraftStream(bidId: string) {
 
       try {
         const response = await fetch(
-          `/api/bids/${bidId}/responses/draft-stream`,
+          `/api/procurement/${procurementId}/responses/draft-stream`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -142,7 +144,7 @@ export function useDraftStream(bidId: string) {
         }
       }
     },
-    [bidId],
+    [procurementId],
   );
 
   const cancel = useCallback(() => {

@@ -7,7 +7,7 @@ import { isMobileViewport } from '../helpers/responsive';
  * Tests the /workspaces page showing workspace type cards (Bids active,
  * Sales Proposals coming soon) with counts and links.
  *
- * Worker-scoped data provides a bid workspace (workerData.bidId).
+ * Worker-scoped data provides a bid workspace (workerData.procurementId).
  */
 
 // ---------------------------------------------------------------------------
@@ -57,11 +57,11 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
     // Card contains description about bid responses
     await expect(bidsCard.getByText(/bid responses/)).toBeVisible();
 
-    // Card has href="/bid"
-    await expect(bidsCard).toHaveAttribute('href', '/bid');
+    // Card has href="/procurement"
+    await expect(bidsCard).toHaveAttribute('href', '/procurement');
 
     // Hard-expect the active bids count renders. The worker-scoped fixture
-    // (workerData.bidId) seeds at least one active bid, so the count text
+    // (workerData.procurementId) seeds at least one active bid, so the count text
     // must be visible; missing fixtures fail honestly.
     const countText = bidsCard.getByText(/\d+ active bids?/);
     await expect(countText).toBeVisible({ timeout: 2000 });
@@ -81,7 +81,7 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
 
     await bidsCard.click();
 
-    await expect(page).toHaveURL('/bid', { timeout: 10000 });
+    await expect(page).toHaveURL('/procurement', { timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
       timeout: 10000,
     });

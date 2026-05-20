@@ -18,7 +18,7 @@ import {
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { setSupersession, SupersessionError } from '@/lib/supersession/set';
 import { SupabaseError, sb, tryQuery, isOk } from '@/lib/supabase/safe';
-import { resolveQuestionForRebuild } from '@/lib/bid-library-ingest/resolve-question';
+import { resolveQuestionForRebuild } from '@/lib/procurement-library-ingest/resolve-question';
 import {
   computeAllowedTransitions,
   applyTransitionSideEffects,

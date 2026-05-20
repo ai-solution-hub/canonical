@@ -103,7 +103,7 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Import AFTER mocks
-import { TemplateFieldReview } from '@/components/bid/template-field-review';
+import { TemplateFieldReview } from '@/components/procurement/template-field-review';
 import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 import type { TemplateField, TemplateSummary } from '@/types/template';
 
@@ -161,7 +161,7 @@ function makeSummary(
 function defaultProps(overrides: Record<string, unknown> = {}) {
   return {
     templateId: 't-1',
-    bidId: 'bid-1',
+    procurementId: 'bid-1',
     fields: [
       makeField({
         id: 'f-1',
@@ -185,7 +185,7 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
         matched_question: undefined,
       }),
     ],
-    bidQuestions: [
+    procurementQuestions: [
       {
         id: 'q-1',
         question_text: 'Describe your technical approach',

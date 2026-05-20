@@ -28,7 +28,7 @@ import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
 const defaultProps = {
   open: true,
   onOpenChange: vi.fn(),
-  bidId: 'bid-456',
+  procurementId: 'bid-456',
   onProceed: vi.fn(),
 };
 
@@ -143,7 +143,7 @@ describe('CostEstimateDialog', () => {
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        '/api/bids/bid-456/responses/estimate',
+        '/api/procurement/bid-456/responses/estimate',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ skip_existing: true }),

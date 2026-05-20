@@ -296,7 +296,7 @@ describe('ProfileSection', () => {
     const trigger = await screen.findByLabelText('Primary Focus');
     // Radix Select renders the selected option's label inside the trigger.
     await waitFor(() => {
-      expect(trigger).toHaveTextContent('Bid writing');
+      expect(trigger).toHaveTextContent('Procurement writing');
     });
   });
 

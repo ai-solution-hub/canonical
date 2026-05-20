@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatBidQuestion,
-  type BidQuestionDetail,
+  type ProcurementQuestionDetail,
 } from '@/lib/mcp/formatters/bids';
 
-const base: BidQuestionDetail = {
+const base: ProcurementQuestionDetail = {
   id: 'q-1',
   question_text: 'Describe your approach to safeguarding.',
   section_name: 'Section A',

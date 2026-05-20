@@ -67,7 +67,7 @@ export default function AuditTab() {
             <SelectItem value="all">All events</SelectItem>
             <SelectItem value="content">Content</SelectItem>
             <SelectItem value="governance">Governance</SelectItem>
-            <SelectItem value="bid">Bid</SelectItem>
+            <SelectItem value="bid">Procurement</SelectItem>
             <SelectItem value="system">System</SelectItem>
           </SelectContent>
         </Select>

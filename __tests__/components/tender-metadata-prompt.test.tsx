@@ -106,8 +106,8 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Import AFTER mocks
-import { TenderMetadataPrompt } from '@/components/bid/tender-metadata-prompt';
-import type { TenderExtractedMetadata } from '@/types/bid-metadata';
+import { TenderMetadataPrompt } from '@/components/procurement/tender-metadata-prompt';
+import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -142,7 +142,7 @@ function mockFetchResponse(data: unknown, ok = true, status = 200) {
 describe('TenderMetadataPrompt', () => {
   const defaultProps = {
     metadata: makeMetadata(),
-    bidId: 'bid-1',
+    procurementId: 'bid-1',
     onUpdated: vi.fn(),
   };
 
@@ -285,22 +285,22 @@ describe('TenderMetadataPrompt', () => {
     ).not.toBeInTheDocument();
   });
 
-  // ---- Apply / Update Bid Details ----
+  // ---- Apply / Update Procurement Details ----
 
-  it('renders Update Bid Details button', () => {
+  it('renders Update Procurement Details button', () => {
     render(<TenderMetadataPrompt {...defaultProps} />);
-    expect(screen.getByText('Update Bid Details')).toBeInTheDocument();
+    expect(screen.getByText('Update Procurement Details')).toBeInTheDocument();
   });
 
-  it('calls PATCH API when Update Bid Details is clicked', async () => {
+  it('calls PATCH API when Update Procurement Details is clicked', async () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({ ok: true }));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/bids/bid-1',
+        '/api/procurement/bid-1',
         expect.objectContaining({
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -313,7 +313,7 @@ describe('TenderMetadataPrompt', () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({ ok: true }));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       const call = mockFetch.mock.calls[0];
@@ -338,7 +338,7 @@ describe('TenderMetadataPrompt', () => {
     });
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} metadata={metadata} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       const call = mockFetch.mock.calls[0];
@@ -353,7 +353,7 @@ describe('TenderMetadataPrompt', () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({ ok: true }));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
@@ -369,7 +369,7 @@ describe('TenderMetadataPrompt', () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({ ok: true }));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(defaultProps.onUpdated).toHaveBeenCalled();
@@ -380,7 +380,7 @@ describe('TenderMetadataPrompt', () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({}, false, 500));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith(
@@ -393,7 +393,7 @@ describe('TenderMetadataPrompt', () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({}, false, 500));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalled();
@@ -405,7 +405,7 @@ describe('TenderMetadataPrompt', () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith(
@@ -419,7 +419,7 @@ describe('TenderMetadataPrompt', () => {
     mockFetch.mockReturnValueOnce(new Promise(() => {}));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(screen.getByText('Updating\u2026')).toBeInTheDocument();
@@ -441,7 +441,7 @@ describe('TenderMetadataPrompt', () => {
     const user = userEvent.setup();
     const { onUpdated: _unused, ...propsNoCallback } = defaultProps;
     render(<TenderMetadataPrompt {...propsNoCallback} />);
-    await user.click(screen.getByText('Update Bid Details'));
+    await user.click(screen.getByText('Update Procurement Details'));
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalled();

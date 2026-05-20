@@ -21,6 +21,13 @@
 --   * cat supabase/.temp/project-ref before each push (CLAUDE.md project-ref drift gotcha)
 --   * supabase gen types typescript after apply (regenerates database.types.ts)
 --
+-- Apply log:
+--   * S246 (20/05/2026) staging-apply: commit `38242fef` — clean (greenfield 0/0/0/0).
+--   * S247 (20/05/2026) prod-apply: commit `2f98c8cf` — added sub-task 1.5b
+--     sync_bid_status trigger drop after first attempt failed (NEW.type
+--     dereference post-column-drop). Clean re-apply: 4/3/2/0 + 96/96 + 24/24 +
+--     6/6/8/3. Documented in SCHEMA-QUICK-REFERENCE.md §33.
+--
 -- Env-agnostic assertion design (Liam ratification S246 W1):
 --   Sub-task 8 (intelligence_workspaces backfill) captures pre-state counts INTO
 --   PL/pgSQL vars, runs the INSERT, then asserts post-state matches captured
@@ -114,6 +121,20 @@ BEGIN
     RAISE EXCEPTION 'Backfill incomplete: % rows have NULL application_type_id', v_unmapped;
   END IF;
 END $$;
+
+-- 1.5b sync_bid_status trigger retire (extracted from T4 procurement-rename scope)
+--      The legacy `sync_bid_status` trigger on public.workspaces fires BEFORE
+--      INSERT OR UPDATE and dereferences `NEW.type` (dropped in 1.6 below).
+--      Staging-apply (S246) did not exercise this path because greenfield (0
+--      intel rows w/ JSONB keys → sub-task 8.3 UPDATE matched 0 rows → trigger
+--      never fired). Prod has 3 intel rows w/ those keys; without this drop,
+--      sub-task 8.3 fails with `record "new" has no field "type"` (SQLSTATE 42703).
+--      Code audit S247: no production path writes `workspaces.status` column for
+--      bid workspaces — trigger is dead-code w.r.t. live writers. T4 was scoped to
+--      retire this; pulled forward as a single transactional drop here. Idempotent
+--      DROP IF EXISTS so applies cleanly to envs that already lack the trigger.
+DROP TRIGGER IF EXISTS sync_bid_status ON public.workspaces;
+DROP FUNCTION IF EXISTS public.sync_bid_status_to_jsonb();
 
 -- 1.6 Drop old discriminator (CHECK constraint + text column)
 ALTER TABLE public.workspaces DROP CONSTRAINT IF EXISTS workspaces_type_check;

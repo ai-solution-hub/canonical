@@ -44,7 +44,7 @@ describe('MCP review_item prompt — governance skill wiring', () => {
     expect(text).toContain('Evergreen');
     expect(text).toContain('Date-Bound');
     expect(text).toContain('Regulation');
-    expect(text).toContain('Bid-Discovered');
+    expect(text).toContain('Procurement-Discovered');
   });
 
   it('inlines the governance principles and review triggers', async () => {

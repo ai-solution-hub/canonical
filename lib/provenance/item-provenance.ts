@@ -22,10 +22,10 @@ export interface DraftAttribution {
   userId: string | null;
 }
 
-export interface BidDraftInfo {
+export interface ProcurementDraftInfo {
   responseId: string;
-  bidId: string;
-  bidName: string | null;
+  procurementId: string;
+  procurementName: string | null;
   questionText: string | null;
   draftedAt: string | null;
   attribution: DraftAttribution;
@@ -72,7 +72,7 @@ export interface ItemProvenanceResponse {
 
   // Drafting provenance
   drafting: {
-    recentDrafts: BidDraftInfo[];
+    recentDrafts: ProcurementDraftInfo[];
     totalDraftCount: number;
   };
 }
@@ -215,7 +215,7 @@ export async function getItemProvenance(
       ? await resolveUserDisplayNames(supabase, draftUserIds)
       : new Map<string, { display_name: string }>();
 
-  // 7. Resolve bid workspace names (post-T2: bid_questions.project_id renamed
+  // 7. Resolve bid workspace names (post-T2: bid_questions.workspace_id renamed
   // to workspace_id).
   const workspaceIds = recentDraftsResult
     .map((r) => {
@@ -227,7 +227,7 @@ export async function getItemProvenance(
     .filter((id): id is string => id != null);
 
   const uniqueWorkspaceIds = [...new Set(workspaceIds)];
-  let bidNameMap = new Map<string, string | null>();
+  let procurementNameMap = new Map<string, string | null>();
 
   if (uniqueWorkspaceIds.length > 0) {
     const workspaces = await sb(
@@ -235,13 +235,13 @@ export async function getItemProvenance(
         .from('workspaces')
         .select('id, name')
         .in('id', uniqueWorkspaceIds),
-      'provenance.item.bidNames',
+      'provenance.item.procurementNames',
     );
-    bidNameMap = new Map(workspaces.map((w) => [w.id, w.name]));
+    procurementNameMap = new Map(workspaces.map((w) => [w.id, w.name]));
   }
 
   // 8. Assemble recent drafts
-  const recentDrafts: BidDraftInfo[] = recentDraftsResult.map((r) => {
+  const recentDrafts: ProcurementDraftInfo[] = recentDraftsResult.map((r) => {
     const bq = Array.isArray(r.bid_questions)
       ? r.bid_questions[0]
       : (r.bid_questions as {
@@ -249,12 +249,12 @@ export async function getItemProvenance(
           question_text: string;
         } | null);
 
-    const bidId = bq?.workspace_id ?? '';
+    const procurementId = bq?.workspace_id ?? '';
 
     return {
       responseId: r.id,
-      bidId,
-      bidName: bidNameMap.get(bidId) ?? null,
+      procurementId,
+      procurementName: procurementNameMap.get(procurementId) ?? null,
       questionText: bq?.question_text ?? null,
       draftedAt: r.updated_at,
       attribution: resolveAttribution(r.drafted_by, displayNames),

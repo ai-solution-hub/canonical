@@ -13,8 +13,8 @@
 import { describe, it, expect } from 'vitest';
 import type {
   CoverageMatrixData as ServerCoverageMatrixData,
-  BidDashboardData as ServerBidDashboardData,
-  BidDetail as ServerBidDetail,
+  ProcurementDashboardData as ServerBidDashboardData,
+  ProcurementDetail as ServerBidDetail,
 } from '@/lib/mcp/formatters';
 import type {
   IntelligenceArticle as ServerIntelligenceArticle,
@@ -341,7 +341,7 @@ describe('MCP App contract: CoverageMatrixData', () => {
   });
 });
 
-describe('MCP App contract: BidDashboardData', () => {
+describe('MCP App contract: ProcurementDashboardData', () => {
   it('server shape satisfies client interface', () => {
     const data = makeBidDashboardData();
     expect(data.offset).toBe(0);
@@ -400,9 +400,9 @@ describe('MCP App contract: BidDashboardData', () => {
   it('focused_bid_detail can be set with full detail', () => {
     const data = makeBidDashboardData();
     const detail = makeBidDetail();
-    // The server type uses Record<string, unknown>, the client uses BidDetailData.
-    // The client app casts it: data.focused_bid_detail as unknown as BidDetailData
-    // So assigning a full BidDetailData must be valid through the Record type.
+    // The server type uses Record<string, unknown>, the client uses ProcurementDetailData.
+    // The client app casts it: data.focused_bid_detail as unknown as ProcurementDetailData
+    // So assigning a full ProcurementDetailData must be valid through the Record type.
     (data as ServerBidDashboardData).focused_bid_detail =
       detail as unknown as Record<string, unknown>;
     expect((data as ServerBidDashboardData).focused_bid_detail).toBeDefined();
@@ -416,8 +416,8 @@ describe('MCP App contract: BidDashboardData', () => {
   });
 });
 
-describe('MCP App contract: BidDetail / BidDetailData', () => {
-  it('server BidDetail satisfies client BidDetailData', () => {
+describe('MCP App contract: ProcurementDetail / ProcurementDetailData', () => {
+  it('server ProcurementDetail satisfies client ProcurementDetailData', () => {
     const detail = makeBidDetail();
     expect(detail.id).toBe('bid-001');
     expect(detail.name).toBe('NHS Digital Transformation');
@@ -431,7 +431,7 @@ describe('MCP App contract: BidDetail / BidDetailData', () => {
   it('question_stats can be null', () => {
     const detail: ServerBidDetail & ClientBidDetailData = {
       id: 'bid-002',
-      name: 'Draft Bid',
+      name: 'Draft Procurement',
       buyer: null,
       status: 'draft',
       deadline: null,
@@ -463,7 +463,7 @@ describe('MCP App contract: BidDetail / BidDetailData', () => {
   it('all nullable fields accept null', () => {
     const detail: ServerBidDetail & ClientBidDetailData = {
       id: 'bid-minimal',
-      name: 'Minimal Bid',
+      name: 'Minimal Procurement',
       buyer: null,
       status: 'draft',
       deadline: null,

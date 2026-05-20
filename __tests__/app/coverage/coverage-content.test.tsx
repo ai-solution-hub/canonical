@@ -135,7 +135,7 @@ vi.mock('@/components/browse/coverage-layer-filter', () => ({
       onChange={(e) => onLayerChange(e.target.value || null)}
     >
       <option value="">All layers</option>
-      <option value="bid_detail">Bid Detail</option>
+      <option value="bid_detail">Procurement Detail</option>
     </select>
   ),
 }));

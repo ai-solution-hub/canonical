@@ -35,7 +35,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { QuestionReview } from '@/components/bid/question-review';
+import { QuestionReview } from '@/components/procurement/question-review';
 
 // ---------------------------------------------------------------------------
 // Data factories
@@ -105,7 +105,7 @@ function defaultProps(
   overrides: Partial<Parameters<typeof QuestionReview>[0]> = {},
 ) {
   return {
-    bidId: 'bid-1',
+    procurementId: 'bid-1',
     questions: makeQuestions(),
     onConfirmed: vi.fn(),
     onCancelled: vi.fn(),
@@ -321,7 +321,7 @@ describe('QuestionReview', () => {
     );
 
     expect(mockFetch).toHaveBeenCalledWith(
-      '/api/bids/bid-1/questions',
+      '/api/procurement/bid-1/questions',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

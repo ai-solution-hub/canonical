@@ -9,8 +9,8 @@
  * so these MUST remain as separate API calls.
  */
 
-import type { CitationEntry } from '@/types/bid-metadata';
-import type { BidResponseMetadata } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
+import type { ProcurementResponseMetadata } from '@/types/procurement-metadata';
 import {
   getAnthropicClient,
   getModelForTier,
@@ -63,7 +63,7 @@ export interface DraftResult {
   citations: CitationEntry[];
   source_content_ids: string[];
   analysis: QuestionAnalysis;
-  metadata: BidResponseMetadata;
+  metadata: ProcurementResponseMetadata;
   total_tokens: number;
   total_cost: number;
 }
@@ -209,10 +209,10 @@ export async function draftResponse(
   const model = getModelForTier(modelTier);
 
   // Load skills for context
-  let bidWritingSkill = '';
+  let procurementWritingSkill = '';
   let ukProcurementSkill = '';
   try {
-    bidWritingSkill = await loadSkill('bid-writing');
+    procurementWritingSkill = await loadSkill('bid-writing');
   } catch {
     // Skill not available — proceed without it
   }
@@ -254,7 +254,7 @@ export async function draftResponse(
   const headings = analysis.response_structure.suggested_headings.join(' > ');
   const keyPoints = analysis.key_points_to_cover.join(', ');
 
-  let systemText = `${bidWritingSkill ? `${bidWritingSkill}\n\n` : ''}${ukProcurementSkill ? `${ukProcurementSkill}\n\n` : ''}You are a professional UK bid writer for a technology company.
+  let systemText = `${procurementWritingSkill ? `${procurementWritingSkill}\n\n` : ''}${ukProcurementSkill ? `${ukProcurementSkill}\n\n` : ''}You are a professional UK bid writer for a technology company.
 
 RULES:
 - Write in UK English throughout
@@ -342,10 +342,10 @@ export async function draftResponseStreaming(
   const model = getModelForTier(modelTier);
 
   // Load skills for context
-  let bidWritingSkill = '';
+  let procurementWritingSkill = '';
   let ukProcurementSkill = '';
   try {
-    bidWritingSkill = await loadSkill('bid-writing');
+    procurementWritingSkill = await loadSkill('bid-writing');
   } catch {
     // Skill not available — proceed without it
   }
@@ -386,7 +386,7 @@ export async function draftResponseStreaming(
   const headings = analysis.response_structure.suggested_headings.join(' > ');
   const keyPoints = analysis.key_points_to_cover.join(', ');
 
-  let systemText = `${bidWritingSkill ? `${bidWritingSkill}\n\n` : ''}${ukProcurementSkill ? `${ukProcurementSkill}\n\n` : ''}You are a professional UK bid writer for a technology company.
+  let systemText = `${procurementWritingSkill ? `${procurementWritingSkill}\n\n` : ''}${ukProcurementSkill ? `${ukProcurementSkill}\n\n` : ''}You are a professional UK bid writer for a technology company.
 
 RULES:
 - Write in UK English throughout
@@ -544,7 +544,7 @@ export async function runDraftingPipeline(
   totalCost += qualityCost;
 
   // Assemble metadata
-  const metadata: BidResponseMetadata = {
+  const metadata: ProcurementResponseMetadata = {
     citations_data: {
       citations,
       source_content_ids: matchedContent.map((c) => c.id),

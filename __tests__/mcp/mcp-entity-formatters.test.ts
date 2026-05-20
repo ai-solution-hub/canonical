@@ -353,7 +353,7 @@ describe('formatCitation', () => {
 
     expect(result).toContain('# Citation Recorded');
     expect(result).toContain('**Content item:** item-abc-123');
-    expect(result).toContain('**Bid response:** resp-xyz-456');
+    expect(result).toContain('**Procurement response:** resp-xyz-456');
     expect(result).toContain('**Type:** reference');
     expect(result).toContain('**ID:** cit-001');
     expect(result).toContain('The citation has been recorded successfully.');

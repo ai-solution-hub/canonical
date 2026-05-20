@@ -122,7 +122,7 @@ describe('useQAProvenance', () => {
         workspace_id: 'ws-1',
         workspaces: {
           id: 'ws-1',
-          name: 'Bid Alpha',
+          name: 'Procurement Alpha',
           application_types: { key: 'procurement' },
         },
       },
@@ -178,7 +178,7 @@ describe('useQAProvenance', () => {
       expect(result.current.usedInWorkspaces).toHaveLength(1);
     });
 
-    expect(result.current.usedInWorkspaces[0].name).toBe('Bid Alpha');
+    expect(result.current.usedInWorkspaces[0].name).toBe('Procurement Alpha');
     expect(result.current.usedInWorkspaces[0].type).toBe('procurement');
   });
 
@@ -198,7 +198,7 @@ describe('useQAProvenance', () => {
         workspace_id: 'ws-1',
         workspaces: {
           id: 'ws-1',
-          name: 'Bid Alpha',
+          name: 'Procurement Alpha',
           application_types: { key: 'procurement' },
         },
       },
@@ -224,7 +224,7 @@ describe('useQAProvenance', () => {
       expect(result.current.usedInWorkspaces).toHaveLength(1);
     });
 
-    expect(result.current.usedInWorkspaces[0].name).toBe('Bid Alpha');
+    expect(result.current.usedInWorkspaces[0].name).toBe('Procurement Alpha');
   });
 
   // -----------------------------------------------------------------------

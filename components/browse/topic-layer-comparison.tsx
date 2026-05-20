@@ -31,7 +31,7 @@ export interface TopicLayerComparisonProps {
 
 /**
  * Tabbed comparison view showing layer content side by side.
- * Users can toggle between layers (e.g. Sales Brief vs Bid Detail)
+ * Users can toggle between layers (e.g. Sales Brief vs Procurement Detail)
  * for the same topic without navigating away.
  */
 export function TopicLayerComparison({

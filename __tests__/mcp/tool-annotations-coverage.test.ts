@@ -49,7 +49,7 @@ vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 
 import { registerSearchTools } from '@/lib/mcp/tools/search';
 import { registerContentTools } from '@/lib/mcp/tools/content';
-import { registerBidTools } from '@/lib/mcp/tools/bids';
+import { registerBidTools } from '@/lib/mcp/tools/procurement';
 import { registerDashboardTools } from '@/lib/mcp/tools/dashboard';
 import { registerQualityTools } from '@/lib/mcp/tools/quality';
 import { registerAITools } from '@/lib/mcp/tools/ai';

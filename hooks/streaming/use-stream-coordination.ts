@@ -2,15 +2,19 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDraftStream } from '@/hooks/streaming/use-draft-stream';
-import { useBidSession } from '@/hooks/bid/use-bid-session';
-import { useBidResponseActions } from '@/hooks/bid/use-bid-response-actions';
+import { useBidSession } from '@/hooks/procurement/use-procurement-session';
+import { useBidResponseActions } from '@/hooks/procurement/use-procurement-response-actions';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
-import type { Editor } from '@/components/bid/response-editor';
-import type { ResponseAction } from '@/components/bid/response-actions';
-import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
-import type { CitationEntry, QualityData } from '@/types/bid-metadata';
+import type { Editor } from '@/components/procurement/response-editor';
+import type { ResponseAction } from '@/components/procurement/response-actions';
+import type {
+  ProcurementQuestion,
+  ProcurementMetadata,
+  ConfidencePosture,
+} from '@/types/procurement';
+import type { CitationEntry, QualityData } from '@/types/procurement-metadata';
 
 // ── Content comparison helper (exported for tests) ──
 
@@ -72,7 +76,7 @@ export interface NavigatorQuestion {
   status: string | null;
 }
 
-export interface BidResponse {
+export interface ProcurementResponse {
   id: string;
   question_id: string;
   response_text: string | null;
@@ -98,30 +102,30 @@ export interface BidResponse {
   };
 }
 
-export interface BidSummary {
+export interface ProcurementSummary {
   id: string;
   name: string;
   status?: string;
-  domain_metadata: BidMetadata;
+  domain_metadata: ProcurementMetadata;
 }
 
 // ── Hook parameters and return type ──
 
 interface UseStreamCoordinationParams {
-  bidId: string;
+  procurementId: string;
   contentLibrary: ReturnType<typeof useContentLibraryDrawer>;
   editorInstanceRef: React.RefObject<Editor | null>;
 }
 
 interface UseStreamCoordinationReturn {
-  // Bid data
-  bid: BidSummary | null;
-  questions: BidQuestion[];
+  // Procurement data
+  bid: ProcurementSummary | null;
+  questions: ProcurementQuestion[];
   currentIndex: number;
   loading: boolean;
   error: string | null;
   // Response data
-  response: BidResponse | null;
+  response: ProcurementResponse | null;
   responseLoading: boolean;
   editorContent: string;
   setEditorContent: (content: string) => void;
@@ -145,8 +149,8 @@ interface UseStreamCoordinationReturn {
   handleCitationClick: (contentId: string) => void;
   // Derived
   navigatorQuestions: NavigatorQuestion[];
-  currentQuestion: BidQuestion | null;
-  fetchBidData: () => Promise<void>;
+  currentQuestion: ProcurementQuestion | null;
+  fetchProcurementData: () => Promise<void>;
   fetchResponse: () => Promise<void>;
 }
 
@@ -163,7 +167,7 @@ interface UseStreamCoordinationReturn {
  * keyboard shortcuts, and navigation with stream cancellation.
  */
 export function useStreamCoordination({
-  bidId,
+  procurementId,
   contentLibrary,
   editorInstanceRef,
 }: UseStreamCoordinationParams): UseStreamCoordinationReturn {
@@ -182,10 +186,10 @@ export function useStreamCoordination({
     invalidateBidData,
     invalidateResponse,
     queryClient,
-  } = useBidSession(bidId);
+  } = useBidSession(procurementId);
 
   // ── Streaming (SSE) ──
-  const stream = useDraftStream(bidId);
+  const stream = useDraftStream(procurementId);
   const isStreaming =
     stream.phase !== 'idle' &&
     stream.phase !== 'done' &&
@@ -282,7 +286,7 @@ export function useStreamCoordination({
     actionLoading,
     loadingAction,
   } = useBidResponseActions({
-    bidId,
+    procurementId,
     response,
     currentQuestion,
     editorContent,
@@ -353,19 +357,25 @@ export function useStreamCoordination({
       // Invalidate cached data — TanStack refetches in the background
       queryClient.invalidateQueries({
         queryKey: queryKeys.bids.responseByQuestion(
-          bidId,
+          procurementId,
           currentQuestion?.id ?? '',
         ),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.detail(bidId),
+        queryKey: queryKeys.bids.detail(procurementId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.questions(bidId),
+        queryKey: queryKeys.bids.questions(procurementId),
       });
       toast.success('Response drafted successfully');
     }
-  }, [stream.phase, stream.text, queryClient, bidId, currentQuestion?.id]);
+  }, [
+    stream.phase,
+    stream.text,
+    queryClient,
+    procurementId,
+    currentQuestion?.id,
+  ]);
 
   // ── Stream error toast ──
   useEffect(() => {
@@ -400,7 +410,7 @@ export function useStreamCoordination({
   );
 
   // ── Imperative refetch wrappers (exposed for version history restore) ──
-  const fetchBidData = useCallback(async () => {
+  const fetchProcurementData = useCallback(async () => {
     await invalidateBidData();
   }, [invalidateBidData]);
 
@@ -428,7 +438,7 @@ export function useStreamCoordination({
     handleCitationClick,
     navigatorQuestions,
     currentQuestion,
-    fetchBidData,
+    fetchProcurementData,
     fetchResponse,
   };
 }

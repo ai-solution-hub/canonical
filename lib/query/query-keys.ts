@@ -63,13 +63,13 @@ export const queryKeys = {
     byDomain: ['tags', 'by-domain'] as const,
   },
 
-  // Digests (Change Reports)
-  digests: {
-    all: ['digests'] as const,
-    latest: ['digests', 'latest'] as const,
+  // Change Reports (formerly Digests — code rename T5, S248)
+  changeReports: {
+    all: ['change-reports'] as const,
+    latest: ['change-reports', 'latest'] as const,
     list: (limit: number, offset: number) =>
-      ['digests', 'list', { limit, offset }] as const,
-    detail: (id: string) => ['digests', 'detail', id] as const,
+      ['change-reports', 'list', { limit, offset }] as const,
+    detail: (id: string) => ['change-reports', 'detail', id] as const,
   },
 
   // Entities
@@ -281,10 +281,12 @@ export const queryKeys = {
     all: ['bids'] as const,
     list: ['bids', 'list'] as const,
     detail: (id: string) => ['bids', 'detail', id] as const,
-    questions: (bidId: string) => ['bids', 'questions', bidId] as const,
-    readiness: (bidId: string) => ['bids', 'readiness', bidId] as const,
-    responseByQuestion: (bidId: string, questionId: string) =>
-      ['bids', 'response-by-question', bidId, questionId] as const,
+    questions: (procurementId: string) =>
+      ['bids', 'questions', procurementId] as const,
+    readiness: (procurementId: string) =>
+      ['bids', 'readiness', procurementId] as const,
+    responseByQuestion: (procurementId: string, questionId: string) =>
+      ['bids', 'response-by-question', procurementId, questionId] as const,
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).

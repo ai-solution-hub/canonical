@@ -70,13 +70,7 @@ export async function registerWorkspaceTools(server: McpServer): Promise<void> {
           .eq('is_archived', false);
 
         if (args.type) {
-          const dbKey =
-            args.type === 'bid'
-              ? 'procurement'
-              : args.type === 'content'
-                ? 'kb_section'
-                : args.type;
-          query = query.eq('application_types.key', dbKey);
+          query = query.eq('application_types.key', args.type);
         }
 
         const workspaces = await sb(

@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BidQuestion } from '@/types/bid';
+import type { ProcurementQuestion } from '@/types/procurement';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -34,12 +34,12 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/components/bid/question-row', () => ({
+vi.mock('@/components/procurement/question-row', () => ({
   QuestionRow: ({
     question,
     index,
   }: {
-    question: BidQuestion;
+    question: ProcurementQuestion;
     index: number;
   }) => (
     <div data-testid={`question-row-${question.id}`} role="listitem">
@@ -49,16 +49,18 @@ vi.mock('@/components/bid/question-row', () => ({
 }));
 
 // Import AFTER mocks
-import { QuestionList } from '@/components/bid/question-list';
+import { QuestionList } from '@/components/procurement/question-list';
 
 // ---------------------------------------------------------------------------
 // Data factories
 // ---------------------------------------------------------------------------
 
-function makeQuestion(overrides: Partial<BidQuestion> = {}): BidQuestion {
+function makeQuestion(
+  overrides: Partial<ProcurementQuestion> = {},
+): ProcurementQuestion {
   return {
     id: 'q-1',
-    project_id: 'bid-1',
+    workspace_id: 'bid-1',
     section_name: 'Technical Approach',
     section_sequence: 1,
     question_sequence: 1,
@@ -77,7 +79,7 @@ function makeQuestion(overrides: Partial<BidQuestion> = {}): BidQuestion {
   };
 }
 
-function makeQuestions(): BidQuestion[] {
+function makeQuestions(): ProcurementQuestion[] {
   return [
     makeQuestion({
       id: 'q-1',
@@ -107,7 +109,7 @@ function defaultProps(
   overrides: Partial<Parameters<typeof QuestionList>[0]> = {},
 ) {
   return {
-    bidId: 'bid-1',
+    procurementId: 'bid-1',
     questions: makeQuestions(),
     canEdit: true,
     onQuestionsChanged: vi.fn(),
@@ -325,7 +327,7 @@ describe('QuestionList', () => {
     await user.click(submitButton);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      '/api/bids/bid-1/questions',
+      '/api/procurement/bid-1/questions',
       expect.objectContaining({
         method: 'POST',
         body: expect.stringContaining('How will you deliver?'),

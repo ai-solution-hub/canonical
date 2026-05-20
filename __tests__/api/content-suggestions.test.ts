@@ -53,7 +53,7 @@ const SAMPLE_SUGGESTIONS = [
     subtopic: 'Certifications',
     title: 'No content for Certifications',
     description:
-      'Security has an active bid but zero content for Certifications.',
+      'Security has an active procurement but zero content for Certifications.',
     suggested_content_type: 'policy',
     item_count: 0,
   },

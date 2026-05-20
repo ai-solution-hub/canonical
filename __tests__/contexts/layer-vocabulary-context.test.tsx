@@ -30,7 +30,7 @@ vi.mock('@/lib/client-config', () => ({
     },
     {
       key: 'bid_detail',
-      label: 'Bid Detail',
+      label: 'Procurement Detail',
       description: 'Factual content',
       order: 2,
     },
@@ -71,7 +71,7 @@ const DB_LAYERS = [
   {
     id: 'layer-2',
     key: 'bid_detail',
-    label: 'Bid Detail',
+    label: 'Procurement Detail',
     description: 'Factual content for tenders',
     display_order: 20,
     is_active: true,
@@ -174,7 +174,9 @@ describe('LayerVocabularyProvider', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.getLayerLabel('sales_brief')).toBe('Sales Brief');
-    expect(result.current.getLayerLabel('bid_detail')).toBe('Bid Detail');
+    expect(result.current.getLayerLabel('bid_detail')).toBe(
+      'Procurement Detail',
+    );
     expect(result.current.getLayerLabel('unknown_key')).toBe('unknown_key');
   });
 

@@ -12,7 +12,7 @@ import { formatFileSize } from '@/lib/format';
 import type { Template } from '@/types/template';
 
 interface TemplateUploadProps {
-  bidId: string;
+  procurementId: string;
   onUploadComplete: (template: Template) => void;
 }
 
@@ -22,7 +22,7 @@ const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 
 type UploadPhase = 'idle' | 'uploading' | 'complete' | 'error';
 
-export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps) {
+export function TemplateUpload({ procurementId, onUploadComplete }: TemplateUploadProps) {
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +88,7 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
         formData.append('description', description.trim());
       }
 
-      const res = await fetch(`/api/bids/${bidId}/templates`, {
+      const res = await fetch(`/api/procurement/${procurementId}/templates`, {
         method: 'POST',
         body: formData,
       });
@@ -108,7 +108,7 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
       setPhase('error');
       toast.error(message);
     }
-  }, [bidId, selectedFile, templateName, description]);
+  }, [procurementId, selectedFile, templateName, description]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();

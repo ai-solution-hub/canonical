@@ -335,9 +335,9 @@ export default function PerItemTab() {
                             </span>
                           )}
                         </div>
-                        {draft.bidName && (
+                        {draft.procurementName && (
                           <p className="mt-1 text-muted-foreground">
-                            Bid: {draft.bidName}
+                            Procurement: {draft.procurementName}
                           </p>
                         )}
                         {draft.questionText && (

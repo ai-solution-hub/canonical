@@ -21,7 +21,10 @@ import type {
   AnySchema,
   ZodRawShapeCompat,
 } from '@modelcontextprotocol/sdk/server/zod-compat.js';
-import type { BidQuestionSummary, BidSection } from '@/lib/mcp/formatters';
+import type {
+  ProcurementQuestionSummary,
+  ProcurementSection,
+} from '@/lib/mcp/formatters';
 import { createMcpClient } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
 
@@ -234,8 +237,8 @@ export async function getGenerateSummary() {
 export async function getDashboardModule() {
   return await import('@/lib/dashboard');
 }
-export async function getBidQueriesModule() {
-  return await import('@/lib/bid/bid-queries');
+export async function getProcurementQueriesModule() {
+  return await import('@/lib/procurement/procurement-queries');
 }
 export async function getReorientModule() {
   return await import('@/lib/reorient');
@@ -251,14 +254,14 @@ export async function getExtAppsServer() {
 // ---------------------------------------------------------------------------
 // Shared helper: fetch questions and responses for a bid, returning
 // sections grouped by section_name plus status/confidence breakdowns.
-// Used by both get_bid_detail and show_bid_dashboard.
+// Used by both get_procurement_detail and show_procurement_dashboard.
 // ---------------------------------------------------------------------------
 
-export async function fetchBidSections(
+export async function fetchProcurementSections(
   supabase: ReturnType<typeof createMcpClient>,
-  bidId: string,
+  procurementId: string,
 ): Promise<{
-  sections: BidSection[];
+  sections: ProcurementSection[];
   status_breakdown: Record<string, number>;
   confidence_breakdown: Record<string, number>;
 }> {
@@ -269,7 +272,7 @@ export async function fetchBidSections(
       .select(
         'id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit',
       )
-      .eq('workspace_id', bidId)
+      .eq('workspace_id', procurementId)
       .order('section_sequence')
       .order('question_sequence'),
     'mcp.tools.shared.bid.questions',
@@ -301,7 +304,7 @@ export async function fetchBidSections(
   }
 
   // Group questions into sections
-  const sectionMap = new Map<string, BidQuestionSummary[]>();
+  const sectionMap = new Map<string, ProcurementQuestionSummary[]>();
   for (const q of questions) {
     const sectionName = q.section_name ?? 'Ungrouped';
     if (!sectionMap.has(sectionName)) {
@@ -319,7 +322,7 @@ export async function fetchBidSections(
     });
   }
 
-  const sections: BidSection[] = [];
+  const sections: ProcurementSection[] = [];
   for (const [name, qs] of sectionMap) {
     sections.push({ name, questions: qs });
   }

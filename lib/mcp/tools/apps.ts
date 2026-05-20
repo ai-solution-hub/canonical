@@ -1,18 +1,18 @@
 /**
  * MCP App trigger tool registrations (4 tools):
  *  22. show_coverage_matrix
- *  23. show_bid_dashboard
+ *  23. show_procurement_dashboard
  *  24. show_reorient_me
  *  25. show_intelligence_feed
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
-import { parseBidMetadata } from '@/lib/validation/schemas';
+import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import { sb } from '@/lib/supabase/safe';
 import {
   formatCoverageMatrix,
-  formatBidDashboard,
+  formatProcurementDashboard,
   formatReorientation,
   truncateResponse,
 } from '@/lib/mcp/formatters';
@@ -20,7 +20,7 @@ import {
 // and to avoid breaking when lib/intelligence/summary.ts doesn't exist yet.
 import type {
   CoverageMatrixData,
-  BidDashboardData,
+  ProcurementDashboardData,
 } from '@/lib/mcp/formatters';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 import {
@@ -29,7 +29,7 @@ import {
   getDashboardModule,
   getReorientModule,
   getExtAppsServer,
-  fetchBidSections,
+  fetchProcurementSections,
   defineAppTool,
   READ_ONLY_ANNOTATIONS,
 } from './shared';
@@ -430,17 +430,17 @@ export async function registerAppTools(server: McpServer): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 23. show_bid_dashboard (App trigger tool — renders Bid Dashboard MCP App)
+  // 23. show_procurement_dashboard (App trigger tool — renders Procurement Dashboard MCP App)
   // -------------------------------------------------------------------------
-  const bidDashboardUri = 'ui://bid-dashboard/app.html';
+  const procurementDashboardUri = 'ui://bid-dashboard/app.html';
   defineAppTool(
     registerAppTool,
     server,
-    'show_bid_dashboard',
+    'show_procurement_dashboard',
     {
-      title: 'Show Bid Dashboard',
+      title: 'Show Procurement Dashboard',
       description:
-        'Display an interactive bid dashboard showing active bids with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about bid status, pipeline overview, or wants to see all active bids at a glance.',
+        'Display an interactive bid dashboard showing active procurements with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about bid status, pipeline overview, or wants to see all active procurements at a glance.',
       inputSchema: {
         bid_id: z
           .string()
@@ -451,7 +451,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
-      _meta: { ui: { resourceUri: bidDashboardUri } },
+      _meta: { ui: { resourceUri: procurementDashboardUri } },
     },
     async (args: { bid_id?: string }, extra: ToolExtra) => {
       try {
@@ -460,7 +460,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
 
-        // Fetch active bids
+        // Fetch active procurements
         const { fetchUnifiedDashboardData } = await getDashboardModule();
         const dashData = await fetchUnifiedDashboardData(
           supabase,
@@ -470,7 +470,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         );
         const bids = dashData.active_bids as ActiveBidSummary[];
 
-        const result: BidDashboardData = {
+        const result: ProcurementDashboardData = {
           offset: 0,
           count: bids.length,
           total_count: bids.length,
@@ -512,12 +512,12 @@ export async function registerAppTools(server: McpServer): Promise<void> {
               'mcp.tools.apps.workspace.stats',
             );
             const { sections, status_breakdown, confidence_breakdown } =
-              await fetchBidSections(supabase, args.bid_id);
-            const meta = parseBidMetadata(workspace.domain_metadata);
+              await fetchProcurementSections(supabase, args.bid_id);
+            const meta = parseProcurementMetadata(workspace.domain_metadata);
             (result as unknown as Record<string, unknown>).focused_bid_detail =
               {
                 id: workspace.id,
-                name: workspace.name ?? 'Untitled Bid',
+                name: workspace.name ?? 'Untitled Procurement',
                 buyer: meta?.buyer ?? null,
                 status: meta?.status ?? 'draft',
                 deadline: meta?.deadline ?? null,
@@ -531,7 +531,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           }
         }
 
-        const markdown = truncateResponse(formatBidDashboard(result));
+        const markdown = truncateResponse(formatProcurementDashboard(result));
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent(result),
@@ -542,7 +542,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           content: [
             {
               type: 'text' as const,
-              text: `Bid dashboard failed: ${message}.`,
+              text: `Procurement dashboard failed: ${message}.`,
             },
           ],
           isError: true,
@@ -562,7 +562,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
     {
       title: 'Show Reorient Me',
       description:
-        'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active bid status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
+        'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active procurement status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
       inputSchema: {},
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: reorientMeUri } },

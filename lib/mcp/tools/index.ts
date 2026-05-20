@@ -4,7 +4,7 @@
  * Registers 58 tools across 16 category files:
  *   - search.ts     (5): search_knowledge_base, search_qa_library, find_similar_items, find_duplicate_candidates, search_content_chunks
  *   - content.ts    (9): get_content_item, create_content_item, update_content_item, get_content_items, get_workspace_items, assign_content_owner, bulk_assign_owner, get_document_versions, get_document_diff
- *   - bids.ts       (5): list_active_bids, get_bid_detail, get_bid_question, cite_content, get_content_effectiveness
+ *   - bids.ts       (5): list_active_procurement, get_procurement_detail, get_bid_question, cite_content, get_content_effectiveness
  *   - dashboard.ts  (4): get_dashboard_summary, get_reorientation, get_freshness_report, get_expiring_content
  *   - quality.ts    (7): get_quality_summary, get_coverage_gaps, audit_content, find_all_duplicates, suggest_content_creation, get_quality_briefing, get_quality_actions
  *   - governance.ts (5): delete_content_item, update_governance_status, update_publication_status, get_governance_queue, review_governance_item
@@ -13,7 +13,7 @@
  *   - ai.ts         (2): classify_content, generate_summary
  *   - entities.ts   (2): get_entity_relationships, get_certification_status
  *   - templates.ts  (3): list_templates, get_template_coverage, get_template_gaps
- *   - apps.ts       (4): show_coverage_matrix, show_bid_dashboard, show_reorient_me, show_intelligence_feed
+ *   - apps.ts       (4): show_coverage_matrix, show_procurement_dashboard, show_reorient_me, show_intelligence_feed
  *   - intelligence.ts (2): get_intelligence_summary, trigger_intelligence_poll
  *   - guides.ts     (4): list_guides, get_guide, create_guide, update_guide
  *   - change-report.ts (1): get_change_report
@@ -30,7 +30,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerSearchTools } from './search';
 import { registerContentTools } from './content';
-import { registerBidTools } from './bids';
+import { registerBidTools } from './procurement';
 import { registerDashboardTools } from './dashboard';
 import { registerQualityTools } from './quality';
 import { registerAITools } from './ai';

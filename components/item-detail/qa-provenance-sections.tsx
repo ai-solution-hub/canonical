@@ -34,7 +34,7 @@ export function QAUsedInBids({ workspaces }: QAUsedInBidsProps) {
         {workspaces.map((w) => (
           <Link
             key={w.id}
-            href={`/bid/${w.id}`}
+            href={`/procurement/${w.id}`}
             className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground hover:bg-accent transition-colors"
           >
             {w.name}

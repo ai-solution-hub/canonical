@@ -51,9 +51,9 @@ const EXEMPT_ROUTE_PATTERNS = [
   '/api/certifications/', // Simple GET/POST using parseBody
   '/api/freshness/recalculate-all/', // Cron-like endpoint
   '/api/reorient/', // No user-supplied params
-  '/api/bids/[id]/readiness/', // No user-supplied params
-  '/api/bids/[id]/templates/', // Simple GET
-  '/api/bids/[id]/responses/[rId]/history/', // Simple GET
+  '/api/procurement/[id]/readiness/', // No user-supplied params
+  '/api/procurement/[id]/templates/', // Simple GET
+  '/api/procurement/[id]/responses/[rId]/history/', // Simple GET
   '/api/source-documents/[id]/versions/', // Simple GET
   '/api/source-documents/[id]/', // Uses parseBody already (check below catches it)
   '/api/items/[id]/files/', // File upload endpoint
@@ -61,9 +61,9 @@ const EXEMPT_ROUTE_PATTERNS = [
   '/api/items/[id]/history/[versionId]/', // Simple GET by ID
   '/api/items/[id]/layers/', // Uses parseBody
   '/api/notifications/', // Simple GET
-  '/api/bids/[id]/tender/', // File upload (POST), uses parseSearchParams (GET)
-  '/api/bids/[id]/templates/[templateId]/', // Simple GET/PATCH
-  '/api/bids/[id]/templates/[templateId]/completions/', // Download endpoint
+  '/api/procurement/[id]/tender/', // File upload (POST), uses parseSearchParams (GET)
+  '/api/procurement/[id]/templates/[templateId]/', // Simple GET/PATCH
+  '/api/procurement/[id]/templates/[templateId]/completions/', // Download endpoint
   '/api/review/cadence/', // No user-supplied params
 ];
 

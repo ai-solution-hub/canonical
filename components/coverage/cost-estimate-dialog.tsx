@@ -32,7 +32,7 @@ interface CostEstimateResponse {
 interface CostEstimateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  bidId: string;
+  procurementId: string;
   onProceed: () => void;
 }
 
@@ -43,7 +43,7 @@ interface CostEstimateDialogProps {
 export function CostEstimateDialog({
   open,
   onOpenChange,
-  bidId,
+  procurementId,
   onProceed,
 }: CostEstimateDialogProps) {
   const [estimate, setEstimate] = useState<CostEstimateResponse | null>(null);
@@ -56,7 +56,7 @@ export function CostEstimateDialog({
     setEstimate(null);
 
     try {
-      const response = await fetch(`/api/bids/${bidId}/responses/estimate`, {
+      const response = await fetch(`/api/procurement/${procurementId}/responses/estimate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skip_existing: true }),
@@ -74,7 +74,7 @@ export function CostEstimateDialog({
     } finally {
       setLoading(false);
     }
-  }, [bidId]);
+  }, [procurementId]);
 
   useEffect(() => {
     if (open) {

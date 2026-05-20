@@ -184,7 +184,7 @@ beforeEach(() => {
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
-describe('Bid Drafting Pipeline', () => {
+describe('Procurement Drafting Pipeline', () => {
   // ── Pass 1: analyseQuestion ─────────────────────────────────────────────
 
   describe('Pass 1: analyseQuestion', () => {
@@ -342,7 +342,7 @@ describe('Bid Drafting Pipeline', () => {
 
     it('loads bid-writing and uk-procurement skills when available', async () => {
       mockLoadSkill
-        .mockResolvedValueOnce('Bid writing skill content')
+        .mockResolvedValueOnce('Procurement writing skill content')
         .mockResolvedValueOnce('UK procurement skill content');
 
       mockCreate.mockResolvedValueOnce(mockCitedResponse('Response.', []));
@@ -354,7 +354,7 @@ describe('Bid Drafting Pipeline', () => {
 
       const call = mockCreate.mock.calls[0][0];
       const systemText = call.system[0].text;
-      expect(systemText).toContain('Bid writing skill content');
+      expect(systemText).toContain('Procurement writing skill content');
       expect(systemText).toContain('UK procurement skill content');
     });
 

@@ -88,12 +88,14 @@ function configureMock(options: {
   mockSupabase._chain.then.mockReset();
 
   // Build a table-based response system
+  // Post-T2 (S246): table renamed from 'template_requirements' to
+  // 'form_template_requirements' per the 3-tier form_type schema split.
   const tableResponses: Record<string, { data: unknown[]; error: null }> = {
     taxonomy_domains: { data: DOMAINS, error: null },
     taxonomy_subtopics: { data: SUBTOPICS, error: null },
     content_items: { data: contentItems, error: null },
     workspaces: { data: activeBids, error: null },
-    template_requirements: { data: templateGaps, error: null },
+    form_template_requirements: { data: templateGaps, error: null },
   };
 
   // Create per-table chains
@@ -270,7 +272,7 @@ describe('generateContentSuggestions', () => {
       ],
       activeBids: [
         // Active bid -> empty subtopics in bid domains become critical
-        { id: 'bid-1', name: 'Test Bid', domain_metadata: null },
+        { id: 'bid-1', name: 'Test Procurement', domain_metadata: null },
       ],
     });
 
@@ -383,10 +385,12 @@ describe('generateContentSuggestions', () => {
     expect(certsSuggestions.length).toBe(0);
   });
 
-  it('elevates empty subtopics to critical when active bids exist', async () => {
+  it('elevates empty subtopics to critical when active procurements exist', async () => {
     configureMock({
       contentItems: [],
-      activeBids: [{ id: 'bid-1', name: 'Active Bid', domain_metadata: null }],
+      activeBids: [
+        { id: 'bid-1', name: 'Active Procurement', domain_metadata: null },
+      ],
     });
 
     const result = await generateContentSuggestions({
@@ -399,7 +403,7 @@ describe('generateContentSuggestions', () => {
     const emptySubtopics = result.filter(
       (s) => s.suggestion_type === 'empty_subtopic',
     );
-    // When there are active bids, empty subtopics should be critical
+    // When there are active procurements, empty subtopics should be critical
     for (const s of emptySubtopics) {
       expect(s.priority).toBe('critical');
     }

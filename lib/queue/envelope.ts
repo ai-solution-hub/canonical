@@ -164,7 +164,7 @@ export interface QueueJobPayload<TBody extends Record<string, unknown>> {
  * could disagree on the bucket boundary near midnight).
  *
  * Examples (spec §5.5 lines 813-815):
- * - `bid_draft_all:${bidId}:${YYYY-MM-DD}:${requestHash}` ✓
+ * - `bid_draft_all:${procurementId}:${YYYY-MM-DD}:${requestHash}` ✓
  * - `batch_reclassify:${workspaceId}:${YYYY-MM-DD}:${optionsHash}` ✓
  * - `markdown_batch:${batchId}:${YYYY-MM-DD}:${fileSetHash}` ✓
  *

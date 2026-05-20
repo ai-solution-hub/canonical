@@ -4,17 +4,17 @@ import { createTestBid, createExportReadyBid } from '../helpers/data-factory';
 import { createServiceClient } from '../fixtures/supabase';
 
 /**
- * Flow: Bid Export
+ * Flow: Procurement Export
  *
- * Tests bid export functionality from the bid detail page (`/bid/[id]`).
- * The export menu is a dropdown (`BidExportMenu`) with options for
+ * Tests bid export functionality from the bid detail page (`/procurement/[id]`).
+ * The export menu is a dropdown (`ProcurementExportMenu`) with options for
  * Word (.docx), Excel (.xlsx), and Print/PDF. Export triggers a
- * download via the `/api/bids/{id}/export/{format}` endpoint.
+ * download via the `/api/procurement/{id}/export/{format}` endpoint.
  *
- * Worker-scoped data provides `workerData.bidId` (a bid in "drafting"
+ * Worker-scoped data provides `workerData.procurementId` (a bid in "drafting"
  * state with 4 questions and 2 responses).
  *
- * Note: `BidExportMenu` is inside a `{canEdit && ...}` block, so
+ * Note: `ProcurementExportMenu` is inside a `{canEdit && ...}` block, so
  * viewers cannot see the export button. Viewer export tests are not
  * needed — the existing `bid-pipeline.spec.ts` role-gating tests
  * cover viewer restrictions on the bid detail page.
@@ -24,7 +24,7 @@ import { createServiceClient } from '../fixtures/supabase';
 // 1. Menu Visibility
 // ---------------------------------------------------------------------------
 
-test.describe('Bid export -- menu visibility', () => {
+test.describe('Procurement export -- menu visibility', () => {
   test('export button is visible on bid detail page', async ({
     authenticatedPage: page,
     workerData,
@@ -34,13 +34,13 @@ test.describe('Bid export -- menu visibility', () => {
       'Desktop-only test — export button is in desktop actions container',
     );
 
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // BidExportMenu trigger has aria-label="Export bid responses"
+    // ProcurementExportMenu trigger has aria-label="Export bid responses"
     const exportButton = page.getByRole('button', {
       name: 'Export bid responses',
     });
@@ -60,12 +60,12 @@ test.describe('Bid export -- menu visibility', () => {
     const emptyBidId = await createTestBid(workerData.prefix);
 
     try {
-      await page.goto(`/bid/${emptyBidId}`);
+      await page.goto(`/procurement/${emptyBidId}`);
 
       // Wait for page to load
-      await expect(page.getByRole('heading', { name: /Temp Bid/ })).toBeVisible(
-        { timeout: 10000 },
-      );
+      await expect(
+        page.getByRole('heading', { name: /Temp Procurement/ }),
+      ).toBeVisible({ timeout: 10000 });
 
       // Export button should be present but disabled
       const exportButton = page.getByRole('button', {
@@ -85,7 +85,7 @@ test.describe('Bid export -- menu visibility', () => {
   }) => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -114,7 +114,7 @@ test.describe('Bid export -- menu visibility', () => {
 // 2. Download Triggers
 // ---------------------------------------------------------------------------
 
-test.describe('Bid export -- download triggers', () => {
+test.describe('Procurement export -- download triggers', () => {
   test('DOCX export triggers a download', async ({
     authenticatedPage: page,
     workerData,
@@ -122,17 +122,16 @@ test.describe('Bid export -- download triggers', () => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
     // Create an export-ready bid with approved responses
-    const { bidId, questionIds, responseIds } = await createExportReadyBid(
-      workerData.prefix,
-    );
+    const { procurementId, questionIds, responseIds } =
+      await createExportReadyBid(workerData.prefix);
 
     try {
-      await page.goto(`/bid/${bidId}`);
+      await page.goto(`/procurement/${procurementId}`);
 
-      // Wait for page to load — bid name includes "Temp Bid" from the factory
-      await expect(page.getByRole('heading', { name: /Temp Bid/ })).toBeVisible(
-        { timeout: 10000 },
-      );
+      // Wait for page to load — bid name includes "Temp Procurement" from the factory
+      await expect(
+        page.getByRole('heading', { name: /Temp Procurement/ }),
+      ).toBeVisible({ timeout: 10000 });
 
       // Click the Export button
       const exportButton = page.getByRole('button', {
@@ -159,7 +158,7 @@ test.describe('Bid export -- download triggers', () => {
       if (questionIds.length > 0) {
         await supabase.from('bid_questions').delete().in('id', questionIds);
       }
-      await supabase.from('workspaces').delete().eq('id', bidId);
+      await supabase.from('workspaces').delete().eq('id', procurementId);
     }
   });
 
@@ -170,17 +169,16 @@ test.describe('Bid export -- download triggers', () => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
     // Create an export-ready bid with approved responses
-    const { bidId, questionIds, responseIds } = await createExportReadyBid(
-      workerData.prefix,
-    );
+    const { procurementId, questionIds, responseIds } =
+      await createExportReadyBid(workerData.prefix);
 
     try {
-      await page.goto(`/bid/${bidId}`);
+      await page.goto(`/procurement/${procurementId}`);
 
-      // Wait for page to load — bid name includes "Temp Bid" from the factory
-      await expect(page.getByRole('heading', { name: /Temp Bid/ })).toBeVisible(
-        { timeout: 10000 },
-      );
+      // Wait for page to load — bid name includes "Temp Procurement" from the factory
+      await expect(
+        page.getByRole('heading', { name: /Temp Procurement/ }),
+      ).toBeVisible({ timeout: 10000 });
 
       // Click the Export button
       const exportButton = page.getByRole('button', {
@@ -206,7 +204,7 @@ test.describe('Bid export -- download triggers', () => {
       if (questionIds.length > 0) {
         await supabase.from('bid_questions').delete().in('id', questionIds);
       }
-      await supabase.from('workspaces').delete().eq('id', bidId);
+      await supabase.from('workspaces').delete().eq('id', procurementId);
     }
   });
 });
@@ -215,14 +213,14 @@ test.describe('Bid export -- download triggers', () => {
 // 3. Mobile Actions
 // ---------------------------------------------------------------------------
 
-test.describe('Bid export -- mobile actions', () => {
+test.describe('Procurement export -- mobile actions', () => {
   test('export is accessible via mobile action menu', async ({
     authenticatedPage: page,
     workerData,
   }) => {
     test.skip(!isMobileViewport(page), 'Mobile-only test');
 
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),
@@ -259,14 +257,14 @@ test.describe('Bid export -- mobile actions', () => {
 // 4. Keyboard Accessibility
 // ---------------------------------------------------------------------------
 
-test.describe('Bid export -- keyboard accessibility', () => {
+test.describe('Procurement export -- keyboard accessibility', () => {
   test('export menu is keyboard navigable', async ({
     authenticatedPage: page,
     workerData,
   }) => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
-    await page.goto(`/bid/${workerData.bidId}`);
+    await page.goto(`/procurement/${workerData.procurementId}`);
 
     await expect(
       page.getByRole('heading', { name: /IT Support Services/ }),

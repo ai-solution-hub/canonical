@@ -14,7 +14,7 @@ import {
   ActivityParamsSchema,
   QualityFlagsParamsSchema,
   PipelineRunsParamsSchema,
-  BidListParamsSchema,
+  ProcurementListParamsSchema,
   GovernanceReviewParamsSchema,
   CoverageGapsParamsSchema,
   ContentSuggestionsParamsSchema,
@@ -720,8 +720,8 @@ const LIMIT_CLAMPING_SCHEMAS = [
     max: 100,
   },
   {
-    name: 'BidListParamsSchema',
-    schema: BidListParamsSchema,
+    name: 'ProcurementListParamsSchema',
+    schema: ProcurementListParamsSchema,
     field: 'limit',
     defaultValue: 50,
     min: 1,
@@ -833,7 +833,7 @@ describe.each(LIMIT_CLAMPING_SCHEMAS)(
 
 const OFFSET_CLAMPING_SCHEMAS = [
   { name: 'QualityFlagsParamsSchema', schema: QualityFlagsParamsSchema },
-  { name: 'BidListParamsSchema', schema: BidListParamsSchema },
+  { name: 'ProcurementListParamsSchema', schema: ProcurementListParamsSchema },
   {
     name: 'GovernanceReviewParamsSchema',
     schema: GovernanceReviewParamsSchema,

@@ -2,7 +2,10 @@
 
 import { CheckCircle, AlertCircle, User, FileQuestion } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { CONFIDENCE_POSTURE_CONFIG, type ConfidencePosture } from '@/types/bid';
+import {
+  CONFIDENCE_POSTURE_CONFIG,
+  type ConfidencePosture,
+} from '@/types/procurement';
 
 interface ConfidenceBadgeProps {
   posture: ConfidencePosture;
