@@ -2382,15 +2382,133 @@ export type Database = {
           },
         ]
       }
+      q_a_extractions: {
+        Row: {
+          created_at: string
+          extracted_answer_text: string | null
+          extracted_question_text: string
+          extraction_metadata: Json
+          extractor_kind: string
+          id: string
+          invalidated_at: string | null
+          promoted_to_pair_id: string | null
+          source_content_item_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_answer_text?: string | null
+          extracted_question_text: string
+          extraction_metadata?: Json
+          extractor_kind: string
+          id?: string
+          invalidated_at?: string | null
+          promoted_to_pair_id?: string | null
+          source_content_item_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          extracted_answer_text?: string | null
+          extracted_question_text?: string
+          extraction_metadata?: Json
+          extractor_kind?: string
+          id?: string
+          invalidated_at?: string | null
+          promoted_to_pair_id?: string | null
+          source_content_item_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_extractions_promoted_to_pair_id_fkey"
+            columns: ["promoted_to_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_extractions_source_content_item_id_fkey"
+            columns: ["source_content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      q_a_pair_history: {
+        Row: {
+          alternate_question_phrasings: string[]
+          answer_advanced: string | null
+          answer_standard: string
+          anti_scope_tag: string[]
+          changed_at: string
+          changed_by: string | null
+          id: string
+          origin_kind: string
+          publication_status: string
+          q_a_pair_id: string
+          question_text: string
+          scope_tag: string[]
+          valid_from: string | null
+          valid_to: string | null
+          version: number
+        }
+        Insert: {
+          alternate_question_phrasings: string[]
+          answer_advanced?: string | null
+          answer_standard: string
+          anti_scope_tag: string[]
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          origin_kind: string
+          publication_status: string
+          q_a_pair_id: string
+          question_text: string
+          scope_tag: string[]
+          valid_from?: string | null
+          valid_to?: string | null
+          version: number
+        }
+        Update: {
+          alternate_question_phrasings?: string[]
+          answer_advanced?: string | null
+          answer_standard?: string
+          anti_scope_tag?: string[]
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          origin_kind?: string
+          publication_status?: string
+          q_a_pair_id?: string
+          question_text?: string
+          scope_tag?: string[]
+          valid_from?: string | null
+          valid_to?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_pair_history_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       q_a_pairs: {
         Row: {
+          alternate_question_phrasings: string[]
           answer_advanced: string | null
-          answer_standard: string | null
+          answer_standard: string
           anti_scope_tag: string[]
           created_at: string
           id: string
           origin_kind: string
           publication_status: string
+          question_embedding: string | null
           question_text: string
           scope_tag: string[]
           source_workspace_id: string | null
@@ -2400,13 +2518,15 @@ export type Database = {
           valid_to: string | null
         }
         Insert: {
+          alternate_question_phrasings?: string[]
           answer_advanced?: string | null
-          answer_standard?: string | null
+          answer_standard: string
           anti_scope_tag?: string[]
           created_at?: string
           id?: string
           origin_kind?: string
           publication_status?: string
+          question_embedding?: string | null
           question_text: string
           scope_tag?: string[]
           source_workspace_id?: string | null
@@ -2416,13 +2536,15 @@ export type Database = {
           valid_to?: string | null
         }
         Update: {
+          alternate_question_phrasings?: string[]
           answer_advanced?: string | null
-          answer_standard?: string | null
+          answer_standard?: string
           anti_scope_tag?: string[]
           created_at?: string
           id?: string
           origin_kind?: string
           publication_status?: string
+          question_embedding?: string | null
           question_text?: string
           scope_tag?: string[]
           source_workspace_id?: string | null
@@ -4366,3 +4488,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.100.1 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
