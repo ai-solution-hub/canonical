@@ -113,7 +113,7 @@ describe('ContentEffectivenessPanel', () => {
         bids: [
           {
             workspace_id: 'ws-1',
-            workspace_name: 'Test Bid',
+            workspace_name: 'Test Procurement',
             buyer: null,
             outcome: null,
             cited_at: '2026-03-01T09:00:00Z',
@@ -170,7 +170,7 @@ describe('ContentEffectivenessPanel', () => {
     render(<ContentEffectivenessPanel contentItemId={CONTENT_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Bid History')).toBeInTheDocument();
+      expect(screen.getByText('Procurement History')).toBeInTheDocument();
       expect(screen.getByText('NHS Digital Redesign')).toBeInTheDocument();
       expect(screen.getByText('Council Portal')).toBeInTheDocument();
       expect(screen.getByText('Transport App')).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe('ContentEffectivenessPanel', () => {
   it('truncates bid list to 5 items with "Show all" button', async () => {
     const manyBids = Array.from({ length: 7 }, (_, i) => ({
       workspace_id: `ws-${i}`,
-      workspace_name: `Bid ${i + 1}`,
+      workspace_name: `Procurement ${i + 1}`,
       buyer: null,
       outcome: i % 2 === 0 ? 'won' : 'lost',
       cited_at: `2026-01-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
@@ -196,13 +196,13 @@ describe('ContentEffectivenessPanel', () => {
     render(<ContentEffectivenessPanel contentItemId={CONTENT_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Bid 1')).toBeInTheDocument();
-      expect(screen.getByText('Bid 5')).toBeInTheDocument();
+      expect(screen.getByText('Procurement 1')).toBeInTheDocument();
+      expect(screen.getByText('Procurement 5')).toBeInTheDocument();
     });
 
-    // Bid 6 and 7 should NOT be visible initially
-    expect(screen.queryByText('Bid 6')).not.toBeInTheDocument();
-    expect(screen.queryByText('Bid 7')).not.toBeInTheDocument();
+    // Procurement 6 and 7 should NOT be visible initially
+    expect(screen.queryByText('Procurement 6')).not.toBeInTheDocument();
+    expect(screen.queryByText('Procurement 7')).not.toBeInTheDocument();
 
     // Should show "Show all" button
     const showAllBtn = screen.getByText(/Show all/);
@@ -212,8 +212,8 @@ describe('ContentEffectivenessPanel', () => {
     fireEvent.click(showAllBtn);
 
     // Now all bids should be visible
-    expect(screen.getByText('Bid 6')).toBeInTheDocument();
-    expect(screen.getByText('Bid 7')).toBeInTheDocument();
+    expect(screen.getByText('Procurement 6')).toBeInTheDocument();
+    expect(screen.getByText('Procurement 7')).toBeInTheDocument();
   });
 
   it('accessibility: meter role has correct aria attributes', async () => {
@@ -236,21 +236,21 @@ describe('ContentEffectivenessPanel', () => {
         bids: [
           {
             workspace_id: 'ws-1',
-            workspace_name: 'Won Bid',
+            workspace_name: 'Won Procurement',
             buyer: null,
             outcome: 'won',
             cited_at: '2026-01-01T10:00:00Z',
           },
           {
             workspace_id: 'ws-2',
-            workspace_name: 'Lost Bid',
+            workspace_name: 'Lost Procurement',
             buyer: null,
             outcome: 'lost',
             cited_at: '2026-01-02T10:00:00Z',
           },
           {
             workspace_id: 'ws-3',
-            workspace_name: 'Withdrawn Bid',
+            workspace_name: 'Withdrawn Procurement',
             buyer: null,
             outcome: 'withdrawn',
             cited_at: '2026-01-03T10:00:00Z',

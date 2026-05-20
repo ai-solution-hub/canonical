@@ -6,7 +6,7 @@ import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { safeErrorMessage } from '@/lib/error';
 import crypto from 'crypto';
 import type { Database, Json } from '@/supabase/types/database.types';
-import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
+import { extractAnswerFromContent } from '@/lib/procurement-library-ingest/extract-answer';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;

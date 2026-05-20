@@ -10,7 +10,7 @@ export interface ReorientData {
   /** The user's own recent work for context continuity */
   my_recent_work: RecentWorkItem[];
   /** Active bids with deadline proximity and completion gaps */
-  bid_summary: BidBriefing[];
+  bid_summary: ProcurementBriefing[];
   /** Aggregate counts */
   counts: {
     unread_notifications: number;
@@ -76,7 +76,7 @@ export interface RecentWorkItem {
   question_id?: string;
 }
 
-export interface BidBriefing {
+export interface ProcurementBriefing {
   id: string;
   name: string;
   buyer: string | null;

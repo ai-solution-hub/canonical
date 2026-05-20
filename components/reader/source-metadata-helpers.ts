@@ -15,8 +15,8 @@ export const INGESTION_SOURCE_LABELS = {
   upload: 'File upload',
   upload_autosplit: 'Auto-split upload',
   manual: 'Manual entry',
-  bid_library: 'Bid library import',
-  bid_library_import: 'Bid library import',
+  bid_library: 'Procurement library import',
+  bid_library_import: 'Procurement library import',
 } as const;
 
 /**

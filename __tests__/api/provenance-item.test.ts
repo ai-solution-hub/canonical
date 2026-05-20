@@ -83,8 +83,8 @@ function buildProvenanceResponse(overrides?: Record<string, unknown>) {
       recentDrafts: [
         {
           responseId: 'resp-1',
-          bidId: 'bid-1',
-          bidName: 'Manchester Schools Refurb',
+          procurementId: 'bid-1',
+          procurementName: 'Manchester Schools Refurb',
           questionText: 'Describe your H&S policy',
           draftedAt: '2026-04-11T10:00:00Z',
           attribution: {
@@ -248,8 +248,8 @@ describe('GET /api/provenance/item/[id]', () => {
           recentDrafts: [
             {
               responseId: 'resp-1',
-              bidId: 'bid-1',
-              bidName: 'Test Bid',
+              procurementId: 'bid-1',
+              procurementName: 'Test Procurement',
               questionText: 'Test question',
               draftedAt: '2026-04-11T10:00:00Z',
               attribution: {
@@ -283,8 +283,8 @@ describe('GET /api/provenance/item/[id]', () => {
           recentDrafts: [
             {
               responseId: 'resp-1',
-              bidId: 'bid-1',
-              bidName: 'Test Bid',
+              procurementId: 'bid-1',
+              procurementName: 'Test Procurement',
               questionText: 'Test question',
               draftedAt: '2026-04-11T10:00:00Z',
               attribution: {
@@ -318,8 +318,8 @@ describe('GET /api/provenance/item/[id]', () => {
           recentDrafts: [
             {
               responseId: 'resp-2',
-              bidId: 'bid-1',
-              bidName: 'Test Bid',
+              procurementId: 'bid-1',
+              procurementName: 'Test Procurement',
               questionText: 'Test question',
               draftedAt: '2026-04-11T10:00:00Z',
               attribution: {

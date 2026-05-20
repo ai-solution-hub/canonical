@@ -7,7 +7,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CitationEntry } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
 import { logger } from '@/lib/logger/client';
 
 /** Minimal content item shape needed for citation mapping */

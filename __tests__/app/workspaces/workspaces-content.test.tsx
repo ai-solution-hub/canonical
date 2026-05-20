@@ -36,8 +36,8 @@ describe('WorkspacesContent', () => {
   it('renders Bids type card with count', () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
     render(<WorkspacesContent counts={{ procurement: 3 }} />);
-    expect(screen.getByText('Bids')).toBeInTheDocument();
-    expect(screen.getByText('3 active bids')).toBeInTheDocument();
+    expect(screen.getByText('Procurements')).toBeInTheDocument();
+    expect(screen.getByText('3 active procurements')).toBeInTheDocument();
   });
 
   it('renders Sales Proposals as coming soon', () => {
@@ -49,8 +49,8 @@ describe('WorkspacesContent', () => {
 
   it('links Bids card to /bid', () => {
     render(<WorkspacesContent counts={{ procurement: 1 }} />);
-    const link = screen.getByRole('link', { name: /bids/i });
-    expect(link).toHaveAttribute('href', '/bid');
+    const link = screen.getByRole('link', { name: /procurements/i });
+    expect(link).toHaveAttribute('href', '/procurement');
   });
 
   it('marks coming soon cards as aria-disabled', () => {
@@ -64,16 +64,16 @@ describe('WorkspacesContent', () => {
   it('shows singular "bid" for count of 1', () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
     render(<WorkspacesContent counts={{ procurement: 1 }} />);
-    expect(screen.getByText('1 active bid')).toBeInTheDocument();
+    expect(screen.getByText('1 active procurement')).toBeInTheDocument();
   });
 
   it('hides count text when count is 0 but includes in aria-label', () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
     render(<WorkspacesContent counts={{ procurement: 0 }} />);
     // Count text is not rendered visually when 0
-    expect(screen.queryByText('0 active bids')).not.toBeInTheDocument();
+    expect(screen.queryByText('0 active procurements')).not.toBeInTheDocument();
     // But is present in the aria-label for accessibility
-    const link = screen.getByRole('link', { name: /0 active bids/i });
+    const link = screen.getByRole('link', { name: /0 active procurements/i });
     expect(link).toBeInTheDocument();
   });
 });

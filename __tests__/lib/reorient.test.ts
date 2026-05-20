@@ -60,8 +60,8 @@ const mockActiveBidsResult = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/lib/bid/bid-queries', () => ({
-  fetchActiveBidsWithStats: vi.fn(() =>
+vi.mock('@/lib/procurement/procurement-queries', () => ({
+  fetchActiveProcurementWithStats: vi.fn(() =>
     Promise.resolve(mockActiveBidsResult.current),
   ),
 }));
@@ -108,7 +108,7 @@ const TEST_USER_ID = 'user-abc-123';
  *         [5] from('notifications') — unread notifications
  *         [6] from('bid_response_history') — bid response team changes
  *         [7] from('bid_response_history') — bid response recent work
- *      b) fetchActiveBidsWithStats (mocked — returns workspaces + statsMap)
+ *      b) fetchActiveProcurementWithStats (mocked — returns workspaces + statsMap)
  *   Then auth.getUser() for display name
  */
 function setupDefaultMock(
@@ -282,7 +282,7 @@ function setupDefaultMock(
   });
 
   // Configure RPC — freshness breakdown and quality flags (for admin)
-  // (batch stats is handled by the mocked fetchActiveBidsWithStats)
+  // (batch stats is handled by the mocked fetchActiveProcurementWithStats)
   const qualityFlagUuids = Array.from(
     { length: overrides.qualityFlagsCount ?? 0 },
     (_, i) => `quality-flag-uuid-${i}`,
@@ -298,7 +298,7 @@ function setupDefaultMock(
     });
   });
 
-  // Configure the mocked fetchActiveBidsWithStats result
+  // Configure the mocked fetchActiveProcurementWithStats result
   const workspacesData = (overrides.workspacesData ?? []) as Array<
     Record<string, unknown>
   >;
@@ -307,7 +307,7 @@ function setupDefaultMock(
   >;
   const statsMap = new Map<string, unknown>();
   for (const row of batchStatsData) {
-    statsMap.set(row.project_id as string, row);
+    statsMap.set(row.workspace_id as string, row);
   }
   mockActiveBidsResult.current = {
     workspaces: workspacesData,
@@ -667,7 +667,7 @@ describe('fetchReorientData', () => {
         workspacesData: [
           {
             id: 'bid-1',
-            name: 'Overdue Bid',
+            name: 'Overdue Procurement',
             domain_metadata: {
               deadline: '2026-03-07T00:00:00Z',
               buyer: 'Corp A',
@@ -679,7 +679,7 @@ describe('fetchReorientData', () => {
         ],
         batchStatsData: [
           {
-            project_id: 'bid-1',
+            workspace_id: 'bid-1',
             total_questions: 10,
             drafted_count: 3,
             complete_count: 2,
@@ -851,7 +851,7 @@ describe('fetchReorientData', () => {
   });
 
   // =========================================================================
-  // Bid summary with gap_count
+  // Procurement summary with gap_count
   // =========================================================================
 
   describe('bid_summary', () => {
@@ -860,7 +860,7 @@ describe('fetchReorientData', () => {
         workspacesData: [
           {
             id: 'bid-2',
-            name: 'Test Bid',
+            name: 'Test Procurement',
             domain_metadata: {
               deadline: '2026-04-01T00:00:00Z',
               buyer: 'Buyer X',
@@ -872,7 +872,7 @@ describe('fetchReorientData', () => {
         ],
         batchStatsData: [
           {
-            project_id: 'bid-2',
+            workspace_id: 'bid-2',
             total_questions: 20,
             drafted_count: 8,
             complete_count: 5,
@@ -895,9 +895,9 @@ describe('fetchReorientData', () => {
       expect(bid.total_questions).toBe(20);
       expect(bid.answered_questions).toBe(13); // 8 + 5
       expect(bid.approved_questions).toBe(5);
-      expect(bid.name).toBe('Test Bid');
+      expect(bid.name).toBe('Test Procurement');
       expect(bid.buyer).toBe('Buyer X');
-      expect(bid.href).toBe('/bid/bid-2');
+      expect(bid.href).toBe('/procurement/bid-2');
     });
 
     it('calculates deadline urgency correctly', async () => {
@@ -905,7 +905,7 @@ describe('fetchReorientData', () => {
         workspacesData: [
           {
             id: 'bid-overdue',
-            name: 'Overdue Bid',
+            name: 'Overdue Procurement',
             domain_metadata: {
               deadline: '2026-03-07T00:00:00Z',
               status: 'active',
@@ -915,7 +915,7 @@ describe('fetchReorientData', () => {
           },
           {
             id: 'bid-urgent',
-            name: 'Urgent Bid',
+            name: 'Urgent Procurement',
             domain_metadata: {
               deadline: '2026-03-09T00:00:00Z',
               status: 'active',
@@ -925,7 +925,7 @@ describe('fetchReorientData', () => {
           },
           {
             id: 'bid-normal',
-            name: 'Normal Bid',
+            name: 'Normal Procurement',
             domain_metadata: {
               deadline: '2026-05-01T00:00:00Z',
               status: 'active',
@@ -936,7 +936,7 @@ describe('fetchReorientData', () => {
         ],
         batchStatsData: [
           {
-            project_id: 'bid-overdue',
+            workspace_id: 'bid-overdue',
             total_questions: 5,
             drafted_count: 1,
             complete_count: 0,
@@ -944,7 +944,7 @@ describe('fetchReorientData', () => {
             no_content_count: 0,
           },
           {
-            project_id: 'bid-urgent',
+            workspace_id: 'bid-urgent',
             total_questions: 10,
             drafted_count: 5,
             complete_count: 2,
@@ -952,7 +952,7 @@ describe('fetchReorientData', () => {
             no_content_count: 0,
           },
           {
-            project_id: 'bid-normal',
+            workspace_id: 'bid-normal',
             total_questions: 8,
             drafted_count: 3,
             complete_count: 1,
@@ -976,7 +976,7 @@ describe('fetchReorientData', () => {
       expect(result.bid_summary[2].urgency).toBe('normal');
     });
 
-    it('defaults bid name to "Untitled Bid" when name is null', async () => {
+    it('defaults bid name to "Untitled Procurement" when name is null', async () => {
       const mock = setupDefaultMock({
         workspacesData: [
           {
@@ -997,7 +997,7 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      expect(result.bid_summary[0].name).toBe('Untitled Bid');
+      expect(result.bid_summary[0].name).toBe('Untitled Procurement');
       expect(result.bid_summary[0].status).toBe('draft');
       expect(result.bid_summary[0].buyer).toBeNull();
     });
@@ -1253,7 +1253,7 @@ describe('fetchReorientData', () => {
   });
 
   // =========================================================================
-  // Bid response team changes
+  // Procurement response team changes
   // =========================================================================
 
   describe('bid response team changes', () => {
@@ -1282,8 +1282,8 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'bid-1',
-                workspaces: { name: 'NHS Digital Bid' },
+                workspace_id: 'bid-1',
+                workspaces: { name: 'NHS Digital Procurement' },
               },
             },
           },
@@ -1303,7 +1303,7 @@ describe('fetchReorientData', () => {
         (tc) => tc.entity_type === 'bid_response',
       );
       expect(bidChange).toBeDefined();
-      expect(bidChange!.entity_title).toBe('NHS Digital Bid');
+      expect(bidChange!.entity_title).toBe('NHS Digital Procurement');
       expect(bidChange!.action).toBe('updated');
       expect(bidChange!.user_id).toBe('other-user-2');
       expect(bidChange!.workspace_id).toBe('bid-1');
@@ -1332,8 +1332,8 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'bid-1',
-                workspaces: { name: 'Recent Bid' },
+                workspace_id: 'bid-1',
+                workspaces: { name: 'Recent Procurement' },
               },
             },
           },
@@ -1347,14 +1347,14 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      // Bid response (09:00) should come before content change (08:00)
+      // Procurement response (09:00) should come before content change (08:00)
       expect(result.team_changes[0].entity_type).toBe('bid_response');
       expect(result.team_changes[1].entity_type).toBe('content_item');
     });
   });
 
   // =========================================================================
-  // Bid response recent work
+  // Procurement response recent work
   // =========================================================================
 
   describe('bid response recent work', () => {
@@ -1370,9 +1370,9 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-2',
               bid_questions: {
-                project_id: 'bid-2',
+                workspace_id: 'bid-2',
                 question_text: 'Describe your security approach',
-                workspaces: { id: 'bid-2', name: 'Security Bid' },
+                workspaces: { id: 'bid-2', name: 'Security Procurement' },
               },
             },
           },
@@ -1391,7 +1391,7 @@ describe('fetchReorientData', () => {
       expect(result.my_recent_work[0].entity_title).toBe(
         'Describe your security approach',
       );
-      expect(result.my_recent_work[0].href).toBe('/bid/bid-2/session');
+      expect(result.my_recent_work[0].href).toBe('/procurement/bid-2/session');
       expect(result.my_recent_work[0].action).toBe('edited');
       expect(result.my_recent_work[0].workspace_id).toBe('bid-2');
       expect(result.my_recent_work[0].question_id).toBe('q-2');
@@ -1411,9 +1411,9 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-3',
               bid_questions: {
-                project_id: 'bid-3',
+                workspace_id: 'bid-3',
                 question_text: longQuestion,
-                workspaces: { id: 'bid-3', name: 'Long Q Bid' },
+                workspaces: { id: 'bid-3', name: 'Long Q Procurement' },
               },
             },
           },
@@ -1478,9 +1478,9 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Q1',
-                workspaces: { id: 'b-1', name: 'Bid' },
+                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1492,9 +1492,9 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-2',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Q2',
-                workspaces: { id: 'b-1', name: 'Bid' },
+                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1541,9 +1541,9 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Latest response',
-                workspaces: { id: 'b-1', name: 'Bid' },
+                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1555,9 +1555,9 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Older response',
-                workspaces: { id: 'b-1', name: 'Bid' },
+                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },

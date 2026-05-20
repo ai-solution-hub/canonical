@@ -43,7 +43,7 @@ const BaselineValueSchema = z.object({
 
 export const OntologyCVSchema = z
   .object({
-    // Accepts snake_case (canonical) AND UPPER_SNAKE (e.g. `BID_STATES` in
+    // Accepts snake_case (canonical) AND UPPER_SNAKE (e.g. `PROCUREMENT_WORKFLOW_STATES` in
     // `14-bid-states.md`). UPPER_SNAKE is allowed because A1 ships at least
     // one file using it; see TECH.md §11 for the long-term normalisation note.
     cv_name: z

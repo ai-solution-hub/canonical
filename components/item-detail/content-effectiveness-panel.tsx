@@ -10,7 +10,7 @@ import { formatDateUK } from '@/lib/format';
 // Types
 // ---------------------------------------------------------------------------
 
-interface BidCitation {
+interface ProcurementCitation {
   workspace_id: string;
   workspace_name: string;
   buyer: string | null;
@@ -25,7 +25,7 @@ interface EffectivenessData {
   losing_citations: number;
   pending_citations: number;
   win_rate: number;
-  bids: BidCitation[];
+  bids: ProcurementCitation[];
 }
 
 interface ContentEffectivenessPanelProps {
@@ -291,11 +291,11 @@ export function ContentEffectivenessPanel({
         </div>
       )}
 
-      {/* Bid history list */}
+      {/* Procurement history list */}
       {data.bids.length > 0 && (
         <div className="mt-4">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Bid History
+            Procurement History
           </h3>
           <ul className="divide-y divide-border" role="list">
             {visibleBids.map((bid) => (
@@ -305,7 +305,7 @@ export function ContentEffectivenessPanel({
               >
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/bid/${bid.workspace_id}`}
+                    href={`/procurement/${bid.workspace_id}`}
                     className="text-sm font-medium text-foreground hover:text-primary"
                   >
                     {bid.workspace_name}

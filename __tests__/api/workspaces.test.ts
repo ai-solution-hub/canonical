@@ -158,7 +158,7 @@ describe('GET /api/workspaces', () => {
       },
       {
         id: '00000000-0000-4000-8000-000000000002',
-        name: 'Bid Beta',
+        name: 'Procurement Beta',
         description: 'A bid',
         type: 'bid',
         is_archived: false,
@@ -177,7 +177,7 @@ describe('GET /api/workspaces', () => {
     const json = await res.json();
     expect(json).toHaveLength(2);
     expect(json[0].name).toBe('Project Alpha');
-    expect(json[1].name).toBe('Bid Beta');
+    expect(json[1].name).toBe('Procurement Beta');
 
     // Archived rows must not surface in the default response.
     expect(json.every((w: { is_archived: boolean }) => !w.is_archived)).toBe(
@@ -390,7 +390,7 @@ describe('POST /api/workspaces', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID,
-        name: 'My Bid',
+        name: 'My Procurement',
         application_type_id: PROCUREMENT_APP_TYPE_ID,
       },
       error: null,
@@ -398,7 +398,7 @@ describe('POST /api/workspaces', () => {
 
     const req = createTestRequest('/api/workspaces', {
       method: 'POST',
-      body: { name: 'My Bid', type: 'procurement' },
+      body: { name: 'My Procurement', type: 'procurement' },
     });
     const res = await createWorkspace(req);
 
@@ -409,7 +409,7 @@ describe('POST /api/workspaces', () => {
     // Content-of-write: the supplied procurement key maps to its FK row.
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     expect(insertArg).toMatchObject({
-      name: 'My Bid',
+      name: 'My Procurement',
       application_type_id: PROCUREMENT_APP_TYPE_ID,
     });
     expect(insertArg).not.toHaveProperty('type');

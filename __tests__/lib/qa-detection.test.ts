@@ -844,7 +844,7 @@ describe('detectQAPairs — real-world HTML patterns', () => {
 
   it('handles mammoth output with h2 sections and tables', () => {
     const html = `
-      <h1>Bid Library</h1>
+      <h1>Procurement Library</h1>
       <h2>Environmental Management</h2>
       <p>The following questions relate to environmental management practices.</p>
       <table>

@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DigestView } from '@/components/digest/digest-view';
 import { formatDate } from '@/lib/format';
-import { digestTypeLabel } from '@/lib/digest/digest-helpers';
+import { digestTypeLabel } from '@/lib/change-reports/change-reports-helpers';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useDigestData } from '@/hooks/use-digest-data';

@@ -18,7 +18,7 @@ const EDIT_URL = '/settings?section=organisation';
  * Consumers:
  * - Dashboard nudge (P1-15 Phase 1)
  * - P1-10 search cold-start (Phase 2)
- * - Bid creation wizard (Phase 2)
+ * - Procurement creation wizard (Phase 2)
  */
 export function useOrganisationProfile(): OrganisationProfileStatus {
   const { data, isLoading } = useQuery({

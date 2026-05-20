@@ -22,7 +22,7 @@ import precomputedEmbeddings from './embeddings.json';
  *
  * Phase 1 expansion (S75): full 12-item core dataset, 3 workspaces,
  * 4 bid questions, 2 bid responses, workspace-item assignments,
- * notifications, read marks. Bid advanced to drafting state.
+ * notifications, read marks. Procurement advanced to drafting state.
  *
  * Phase 3 (S75): pre-computed embeddings for 5 items (search tests).
  * Phase 5 (S75): data shapes centralised in test-data.ts.
@@ -64,7 +64,7 @@ export interface WorkerData {
   /** ID of the seeded kb_section workspace. */
   workspaceId: string;
   /** ID of the seeded bid workspace (advanced to drafting). */
-  bidId: string;
+  procurementId: string;
   /** ID of the seeded project workspace. */
   projectId: string;
   /** IDs of the 4 seeded bid questions (Technical, Experience, Social Value, Commercial). */
@@ -231,7 +231,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const workspaceIds = (workspaces ?? []).map((w) => w.id);
       const kbSectionId = workspaceIds[0];
-      const bidId = workspaceIds[1];
+      const procurementId = workspaceIds[1];
       const projectId = workspaceIds[2];
 
       // --- Workspace-item assignments: link items 0-3 to kb_section ---
@@ -245,10 +245,10 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .insert(junctionRecords)
         .throwOnError();
 
-      // --- Bid questions (from centralised shapes) ---
+      // --- Procurement questions (from centralised shapes) ---
       const questions = CORE_BID_QUESTIONS.map((q) => ({
         ...q,
-        project_id: bidId,
+        project_id: procurementId,
       }));
 
       const { data: qs } = await supabase
@@ -259,7 +259,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const questionIds = (qs ?? []).map((q) => q.id);
 
-      // --- Bid responses (from centralised shapes) ---
+      // --- Procurement responses (from centralised shapes) ---
       const responses = CORE_BID_RESPONSES.map((r, i) => ({
         ...r,
         question_id: questionIds[i],
@@ -303,7 +303,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
             status: state,
             domain_metadata: nextMetadata,
           })
-          .eq('id', bidId)
+          .eq('id', procurementId)
           .throwOnError();
         liveMetadata = nextMetadata;
       }
@@ -480,7 +480,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         peopleSkillsId: itemIds[10],
         environmentalId: itemIds[11],
         workspaceId: kbSectionId,
-        bidId,
+        procurementId,
         projectId,
         questionIds,
         responseIds,
@@ -524,7 +524,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase.from('notifications').delete().in('id', notificationIds);
       }
 
-      // 3. Bid responses (safety net — CASCADE from workspace should handle)
+      // 3. Procurement responses (safety net — CASCADE from workspace should handle)
       if (responseIds.length > 0) {
         await supabase.from('bid_responses').delete().in('id', responseIds);
       }

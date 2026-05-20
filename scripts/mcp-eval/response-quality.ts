@@ -313,12 +313,14 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
     },
     {
       id: 'TE-04',
-      tool: 'get_bid_detail',
-      args: { id: knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000' },
+      tool: 'get_procurement_detail',
+      args: {
+        id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
+      },
       expectedMin: 100,
       expectedMax: 8000,
       flagThreshold: 12000,
-      label: 'get_bid_detail',
+      label: 'get_procurement_detail',
     },
     {
       id: 'TE-05',
@@ -378,7 +380,7 @@ async function runTokenEfficiencyChecks(
 
   for (const check of checks) {
     // Skip bid detail if no bid exists
-    if (check.tool === 'get_bid_detail' && !knownUUIDs.bidId) {
+    if (check.tool === 'get_procurement_detail' && !knownUUIDs.procurementId) {
       record(
         'Token Efficiency',
         check.id,
@@ -1081,7 +1083,7 @@ async function main(): Promise<void> {
   console.log('\nFetching known UUIDs...');
   const knownUUIDs = await getKnownUUIDs(supabase);
   console.log(`  Content item: ${knownUUIDs.contentItemId}`);
-  console.log(`  Bid: ${knownUUIDs.bidId ?? '(none)'}`);
+  console.log(`  Procurement: ${knownUUIDs.procurementId ?? '(none)'}`);
 
   // Step 3: Token Efficiency
   await runTokenEfficiencyChecks(accessToken, knownUUIDs);

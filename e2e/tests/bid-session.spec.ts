@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures';
 import { isMobileViewport } from '../helpers/responsive';
 
 /**
- * Flow: Bid Session Page
+ * Flow: Procurement Session Page
  *
  * Tests the bid drafting session at /bid/[id]/session. Covers page load,
  * question navigation, response editor, content library drawer, role
@@ -18,12 +18,14 @@ import { isMobileViewport } from '../helpers/responsive';
  */
 async function gotoSession(
   page: import('@playwright/test').Page,
-  bidId: string,
+  procurementId: string,
 ) {
-  await page.goto(`/bid/${bidId}/session`);
+  await page.goto(`/procurement/${procurementId}/session`);
   // Session page loads data CLIENT-SIDE and may need compilation on first hit.
   // Use a generous timeout to handle both cold starts and data fetching.
-  const sessionArea = page.locator('[aria-label="Bid drafting session"]');
+  const sessionArea = page.locator(
+    '[aria-label="Procurement drafting session"]',
+  );
   await expect(sessionArea).toBeVisible({ timeout: 20000 });
 }
 
@@ -31,12 +33,12 @@ async function gotoSession(
 // 1. Session Page Load
 // ---------------------------------------------------------------------------
 
-test.describe('Bid session page load', () => {
+test.describe('Procurement session page load', () => {
   test('session page loads with bid name and back link', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Heading with bid name
     await expect(
@@ -52,7 +54,7 @@ test.describe('Bid session page load', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // On desktop, the question navigation aside is visible
     // On mobile, the compact question bar is shown instead
@@ -71,7 +73,7 @@ test.describe('Bid session page load', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Response editor area
     const editorArea = page.locator('main[aria-label="Response editor"]');
@@ -93,7 +95,7 @@ test.describe('Bid session page load', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // The first question text appears in the sidebar (desktop) or
     // compact bar details (mobile, collapsed by default)
@@ -124,7 +126,7 @@ test.describe('Bid session page load', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     if (!isMobileViewport(page)) {
       // Desktop: word count is in the question sidebar panel
@@ -155,7 +157,7 @@ test.describe('Bid session page load', () => {
 // 2. Question Navigation
 // ---------------------------------------------------------------------------
 
-test.describe('Bid session question navigation', () => {
+test.describe('Procurement session question navigation', () => {
   test('question navigator shows progress information', async ({
     authenticatedPage: page,
     workerData,
@@ -166,7 +168,7 @@ test.describe('Bid session question navigation', () => {
       return;
     }
 
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     const aside = page.locator('aside[aria-label="Question navigation"]');
 
@@ -194,7 +196,7 @@ test.describe('Bid session question navigation', () => {
       return;
     }
 
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     const aside = page.locator('aside[aria-label="Question navigation"]');
 
@@ -226,7 +228,7 @@ test.describe('Bid session question navigation', () => {
       return;
     }
 
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Compact bar shows "Q1/4"
     await expect(page.getByText('Q1/4')).toBeVisible();
@@ -242,7 +244,7 @@ test.describe('Bid session question navigation', () => {
       return;
     }
 
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Click the next question button
     const nextButton = page.getByRole('button', { name: 'Next question' });
@@ -262,7 +264,7 @@ test.describe('Bid session question navigation', () => {
       return;
     }
 
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Click the "All" button in the compact question bar
     const allButton = page.getByRole('button', { name: 'All' });
@@ -285,12 +287,12 @@ test.describe('Bid session question navigation', () => {
 // 3. Response Actions and Editor
 // ---------------------------------------------------------------------------
 
-test.describe('Bid session response actions', () => {
+test.describe('Procurement session response actions', () => {
   test('response actions toolbar is visible for admin', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // The ResponseActions component should render action buttons
     const editorArea = page.locator('main[aria-label="Response editor"]');
@@ -311,7 +313,7 @@ test.describe('Bid session response actions', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // "Browse for content" link
     const browseLink = page.getByRole('link', { name: /Browse for content/i });
@@ -320,7 +322,7 @@ test.describe('Bid session response actions', () => {
     // Verify it has the correct href
     await expect(browseLink).toHaveAttribute(
       'href',
-      new RegExp(`/browse\\?from_bid=${workerData.bidId}`),
+      new RegExp(`/browse\\?from_bid=${workerData.procurementId}`),
     );
   });
 
@@ -328,7 +330,7 @@ test.describe('Bid session response actions', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Click Library button
     const libraryButton = page.getByRole('button', { name: /Library/i });
@@ -345,12 +347,12 @@ test.describe('Bid session response actions', () => {
 // 4. Role-Based Behaviour
 // ---------------------------------------------------------------------------
 
-test.describe('Bid session role gating', () => {
+test.describe('Procurement session role gating', () => {
   test('viewer cannot see response action buttons', async ({
     viewerPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Viewer should not see the Library button (gated behind canEdit)
     await expect(
@@ -362,14 +364,14 @@ test.describe('Bid session role gating', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Click "Back to bid" link
     const backLink = page.getByRole('link', { name: /Back to bid/i });
     await expect(backLink).toBeVisible();
     await backLink.click();
 
-    await expect(page).toHaveURL(`/bid/${workerData.bidId}`, {
+    await expect(page).toHaveURL(`/procurement/${workerData.procurementId}`, {
       timeout: 10000,
     });
   });
@@ -384,7 +386,7 @@ test.describe('from_bid URL parameter persistence', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await gotoSession(page, workerData.bidId);
+    await gotoSession(page, workerData.procurementId);
 
     // Click "Browse for content" link
     const browseLink = page.getByRole('link', { name: /Browse for content/i });
@@ -393,13 +395,13 @@ test.describe('from_bid URL parameter persistence', () => {
 
     // Should navigate to /browse with from_bid param
     await expect(page).toHaveURL(
-      new RegExp(`/browse\\?from_bid=${workerData.bidId}`),
+      new RegExp(`/browse\\?from_bid=${workerData.procurementId}`),
       { timeout: 10000 },
     );
 
     // Verify from_bid is in the URL
     const url = new URL(page.url());
-    expect(url.searchParams.get('from_bid')).toBe(workerData.bidId);
+    expect(url.searchParams.get('from_bid')).toBe(workerData.procurementId);
   });
 
   test('from_bid survives filter apply then clear in /browse', async ({
@@ -408,10 +410,10 @@ test.describe('from_bid URL parameter persistence', () => {
   }) => {
     // Navigate directly to /browse with from_bid and an applied filter
     await page.goto(
-      `/browse?from_bid=${workerData.bidId}&domain=Corporate&q=test`,
+      `/browse?from_bid=${workerData.procurementId}&domain=Corporate&q=test`,
     );
     await expect(page).toHaveURL(
-      new RegExp(`from_bid=${workerData.bidId}.*domain=Corporate`),
+      new RegExp(`from_bid=${workerData.procurementId}.*domain=Corporate`),
       { timeout: 10000 },
     );
 
@@ -427,7 +429,9 @@ test.describe('from_bid URL parameter persistence', () => {
     // params (domain, q) should be gone — SD-5 from_bid persistence.
     await page.waitForURL(/from_bid=/, { timeout: 5000 });
     const postClearUrl = new URL(page.url());
-    expect(postClearUrl.searchParams.get('from_bid')).toBe(workerData.bidId);
+    expect(postClearUrl.searchParams.get('from_bid')).toBe(
+      workerData.procurementId,
+    );
     expect(postClearUrl.searchParams.get('domain')).toBeNull();
     expect(postClearUrl.searchParams.get('q')).toBeNull();
   });

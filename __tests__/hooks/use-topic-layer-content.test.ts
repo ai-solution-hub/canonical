@@ -62,8 +62,8 @@ describe('groupLayerContent', () => {
       {
         id: '2',
         layer: 'bid_detail',
-        title: 'SCP Bid',
-        brief: 'Bid version',
+        title: 'SCP Procurement',
+        brief: 'Procurement version',
         detail: 'Detailed bid content',
         content: 'Full bid content',
         content_type: 'article',
@@ -74,7 +74,7 @@ describe('groupLayerContent', () => {
     expect(grouped).toHaveProperty('sales_brief');
     expect(grouped).toHaveProperty('bid_detail');
     expect(grouped.sales_brief.title).toBe('SCP Sales');
-    expect(grouped.bid_detail.title).toBe('SCP Bid');
+    expect(grouped.bid_detail.title).toBe('SCP Procurement');
   });
 
   it('handles single item', () => {

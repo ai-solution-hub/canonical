@@ -2382,15 +2382,133 @@ export type Database = {
           },
         ]
       }
+      q_a_extractions: {
+        Row: {
+          created_at: string
+          extracted_answer_text: string | null
+          extracted_question_text: string
+          extraction_metadata: Json
+          extractor_kind: string
+          id: string
+          invalidated_at: string | null
+          promoted_to_pair_id: string | null
+          source_content_item_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_answer_text?: string | null
+          extracted_question_text: string
+          extraction_metadata?: Json
+          extractor_kind: string
+          id?: string
+          invalidated_at?: string | null
+          promoted_to_pair_id?: string | null
+          source_content_item_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          extracted_answer_text?: string | null
+          extracted_question_text?: string
+          extraction_metadata?: Json
+          extractor_kind?: string
+          id?: string
+          invalidated_at?: string | null
+          promoted_to_pair_id?: string | null
+          source_content_item_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_extractions_promoted_to_pair_id_fkey"
+            columns: ["promoted_to_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_extractions_source_content_item_id_fkey"
+            columns: ["source_content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      q_a_pair_history: {
+        Row: {
+          alternate_question_phrasings: string[]
+          answer_advanced: string | null
+          answer_standard: string
+          anti_scope_tag: string[]
+          changed_at: string
+          changed_by: string | null
+          id: string
+          origin_kind: string
+          publication_status: string
+          q_a_pair_id: string
+          question_text: string
+          scope_tag: string[]
+          valid_from: string | null
+          valid_to: string | null
+          version: number
+        }
+        Insert: {
+          alternate_question_phrasings: string[]
+          answer_advanced?: string | null
+          answer_standard: string
+          anti_scope_tag: string[]
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          origin_kind: string
+          publication_status: string
+          q_a_pair_id: string
+          question_text: string
+          scope_tag: string[]
+          valid_from?: string | null
+          valid_to?: string | null
+          version: number
+        }
+        Update: {
+          alternate_question_phrasings?: string[]
+          answer_advanced?: string | null
+          answer_standard?: string
+          anti_scope_tag?: string[]
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          origin_kind?: string
+          publication_status?: string
+          q_a_pair_id?: string
+          question_text?: string
+          scope_tag?: string[]
+          valid_from?: string | null
+          valid_to?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_pair_history_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       q_a_pairs: {
         Row: {
+          alternate_question_phrasings: string[]
           answer_advanced: string | null
-          answer_standard: string | null
+          answer_standard: string
           anti_scope_tag: string[]
           created_at: string
           id: string
           origin_kind: string
           publication_status: string
+          question_embedding: string | null
           question_text: string
           scope_tag: string[]
           source_workspace_id: string | null
@@ -2400,13 +2518,15 @@ export type Database = {
           valid_to: string | null
         }
         Insert: {
+          alternate_question_phrasings?: string[]
           answer_advanced?: string | null
-          answer_standard?: string | null
+          answer_standard: string
           anti_scope_tag?: string[]
           created_at?: string
           id?: string
           origin_kind?: string
           publication_status?: string
+          question_embedding?: string | null
           question_text: string
           scope_tag?: string[]
           source_workspace_id?: string | null
@@ -2416,13 +2536,15 @@ export type Database = {
           valid_to?: string | null
         }
         Update: {
+          alternate_question_phrasings?: string[]
           answer_advanced?: string | null
-          answer_standard?: string | null
+          answer_standard?: string
           anti_scope_tag?: string[]
           created_at?: string
           id?: string
           origin_kind?: string
           publication_status?: string
+          question_embedding?: string | null
           question_text?: string
           scope_tag?: string[]
           source_workspace_id?: string | null
@@ -4080,6 +4202,38 @@ export type Database = {
       merge_tags: {
         Args: { p_source: string; p_target: string; p_type: string }
         Returns: number
+      }
+      q_a_get_verbatim: {
+        Args: { p_pair_id: string }
+        Returns: {
+          alternate_question_phrasings: string[]
+          answer_advanced: string
+          answer_standard: string
+          anti_scope_tag: string[]
+          created_at: string
+          id: string
+          origin_kind: string
+          publication_status: string
+          question_text: string
+          scope_tag: string[]
+          source_workspace_id: string
+          superseded_by: string
+          updated_at: string
+          valid_from: string
+          valid_to: string
+        }[]
+      }
+      q_a_search: {
+        Args: { p_limit?: number; p_query: string; p_query_embedding: string }
+        Returns: {
+          answer_standard_preview: string
+          embedding_score: number
+          fulltext_score: number
+          pair_id: string
+          publication_status: string
+          question_text_preview: string
+          scope_tag: string[]
+        }[]
       }
       reap_stuck_jobs: { Args: { p_timeout_seconds: number }; Returns: number }
       recalculate_all_freshness: {

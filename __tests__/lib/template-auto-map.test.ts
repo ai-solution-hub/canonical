@@ -134,7 +134,7 @@ describe('similarity', () => {
 // ---------------------------------------------------------------------------
 
 describe('auto-map scenarios', () => {
-  const bidQuestions = [
+  const procurementQuestions = [
     {
       id: 'q1',
       text: 'Describe your approach to information security management',
@@ -154,7 +154,7 @@ describe('auto-map scenarios', () => {
   ): { questionId: string; confidence: number } | null {
     let best: { questionId: string; confidence: number } | null = null;
 
-    for (const q of bidQuestions) {
+    for (const q of procurementQuestions) {
       const score = similarity(fieldText, q.text);
       if (score >= threshold && (!best || score > best.confidence)) {
         best = { questionId: q.id, confidence: score };

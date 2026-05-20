@@ -1,4 +1,4 @@
-import type { ConfidencePosture } from '@/types/bid';
+import type { ConfidencePosture } from '@/types/procurement';
 
 // Configurable similarity thresholds
 export const MATCH_THRESHOLDS = {

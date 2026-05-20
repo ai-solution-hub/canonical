@@ -29,7 +29,7 @@ import type { ActiveBidSummary } from '@/lib/dashboard';
 function makeBid(overrides: Partial<ActiveBidSummary> = {}): ActiveBidSummary {
   return {
     id: 'bid-1',
-    name: 'Test Bid',
+    name: 'Test Procurement',
     buyer: 'Acme Corp',
     status: 'in_progress',
     deadline: null,
@@ -181,7 +181,7 @@ describe('produceUnverifiedItems', () => {
 describe('produceBidDeadlineItems', () => {
   const baseBid: ActiveBidSummary = {
     id: 'bid-1',
-    name: 'Test Bid',
+    name: 'Test Procurement',
     buyer: 'ACME',
     status: 'active',
     deadline: null,
@@ -262,13 +262,13 @@ describe('produceBidDeadlineItems', () => {
     soonDate.setDate(soonDate.getDate() + 2);
     const bids = [
       makeBid({
-        name: 'Acme Bid',
+        name: 'Acme Procurement',
         deadline: soonDate.toISOString(),
         days_until_deadline: 2,
       }),
     ];
     const items = produceBidDeadlineItems(bids);
-    expect(items[0].title).toContain('Acme Bid');
+    expect(items[0].title).toContain('Acme Procurement');
     expect(items[0].title).toContain('2 days remaining');
   });
 
@@ -319,8 +319,16 @@ describe('produceBidDeadlineItems', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 1);
     const bids = [
-      makeBid({ id: 'bid-1', name: 'Bid A', deadline: soonDate.toISOString() }),
-      makeBid({ id: 'bid-2', name: 'Bid B', deadline: soonDate.toISOString() }),
+      makeBid({
+        id: 'bid-1',
+        name: 'Procurement A',
+        deadline: soonDate.toISOString(),
+      }),
+      makeBid({
+        id: 'bid-2',
+        name: 'Procurement B',
+        deadline: soonDate.toISOString(),
+      }),
     ];
     const items = produceBidDeadlineItems(bids);
     expect(items).toHaveLength(2);
@@ -583,7 +591,7 @@ describe('buildAttentionItems', () => {
       active_bids: [
         {
           id: 'bid-1',
-          name: 'Overdue Bid',
+          name: 'Overdue Procurement',
           buyer: null,
           status: 'active',
           deadline: '2020-01-01',

@@ -883,7 +883,7 @@ async function captureDriftToSentry(rows: CronAuditRow[]): Promise<void> {
     );
     return;
   }
-  const [, publicKey, host, projectId] = dsnMatch;
+  const [, publicKey, host, workspaceId] = dsnMatch;
   const auditRunId = `revoke-guard-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
   for (const r of rows) {
@@ -903,7 +903,7 @@ async function captureDriftToSentry(rows: CronAuditRow[]): Promise<void> {
         function_args: r.function_args,
       },
     };
-    const ingestUrl = `https://${host}/api/${projectId}/store/`;
+    const ingestUrl = `https://${host}/api/${workspaceId}/store/`;
     try {
       const response = await fetch(ingestUrl, {
         method: 'POST',

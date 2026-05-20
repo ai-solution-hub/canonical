@@ -44,7 +44,7 @@ import { useUserRole } from '@/hooks/use-user-role';
 const CAPABILITIES = [
   { icon: Search, text: 'Search your knowledge base' },
   { icon: LayoutDashboard, text: 'Get a dashboard summary' },
-  { icon: Target, text: 'Check active bid status and deadlines' },
+  { icon: Target, text: 'Check active procurement status and deadlines' },
   { icon: Compass, text: 'Get a personal reorientation briefing' },
   { icon: FileText, text: 'Draft bid responses using KB content' },
   { icon: BarChart3, text: 'View quality and freshness reports' },
@@ -53,7 +53,7 @@ const CAPABILITIES = [
 const QUICK_START_PROMPTS = [
   'Search my knowledge base for health and safety policies',
   'Give me a briefing on what\u2019s changed since I was last active',
-  'What\u2019s the status of our active bids?',
+  'What\u2019s the status of our active procurements?',
   'Draft a response about our ISO 27001 certification',
 ];
 

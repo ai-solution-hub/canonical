@@ -35,10 +35,10 @@ export interface ClaudePrompt {
 }
 
 // ---------------------------------------------------------------------------
-// Bid prompts
+// Procurement prompts
 // ---------------------------------------------------------------------------
 
-export function generateBidPrompt(bid: ActiveBidSummary): ClaudePrompt {
+export function generateProcurementPrompt(bid: ActiveBidSummary): ClaudePrompt {
   const totalQ = bid.total_questions;
   const answeredQ = bid.answered_questions;
   const remainingQ = totalQ - answeredQ;
@@ -70,7 +70,9 @@ export function generateBidPrompt(bid: ActiveBidSummary): ClaudePrompt {
   };
 }
 
-export function generateBidDeadlinePrompt(bid: ActiveBidSummary): ClaudePrompt {
+export function generateProcurementDeadlinePrompt(
+  bid: ActiveBidSummary,
+): ClaudePrompt {
   const deadlineText =
     bid.days_until_deadline === 0
       ? 'today'

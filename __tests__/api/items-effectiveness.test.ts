@@ -248,7 +248,7 @@ describe('GET /api/items/[id]/effectiveness', () => {
               bid_responses: {
                 id: 'resp-1',
                 question: {
-                  project_id: WORKSPACE_ID,
+                  workspace_id: WORKSPACE_ID,
                   workspace: {
                     id: WORKSPACE_ID,
                     name: 'NHS Digital Redesign',
@@ -262,7 +262,7 @@ describe('GET /api/items/[id]/effectiveness', () => {
               bid_responses: {
                 id: 'resp-2',
                 question: {
-                  project_id: '00000000-0000-4000-8000-000000000011',
+                  workspace_id: '00000000-0000-4000-8000-000000000011',
                   workspace: {
                     id: '00000000-0000-4000-8000-000000000011',
                     name: 'Council Portal',

@@ -67,7 +67,7 @@ export async function createTestBid(
   const { data } = await supabase
     .from('workspaces')
     .insert({
-      name: `${prefix} Temp Bid ${Date.now()}`,
+      name: `${prefix} Temp Procurement ${Date.now()}`,
       description: 'Temporary test bid.',
       type: 'bid',
       domain_metadata: {
@@ -145,24 +145,26 @@ export async function createTestResponse(
 
 /**
  * Create a fully export-ready bid: workspace + questions + approved responses.
- * Returns { bidId, questionIds, responseIds }.
+ * Returns { procurementId, questionIds, responseIds }.
  *
  * The bid is advanced to `ready_for_export` state with all responses approved.
  */
-export async function createExportReadyBid(
-  prefix: string,
-): Promise<{ bidId: string; questionIds: string[]; responseIds: string[] }> {
+export async function createExportReadyBid(prefix: string): Promise<{
+  procurementId: string;
+  questionIds: string[];
+  responseIds: string[];
+}> {
   const supabase = createServiceClient();
 
   // Create bid workspace
-  const bidId = await createTestBid(prefix);
+  const procurementId = await createTestBid(prefix);
 
   // Create 2 questions
   const { data: qs } = await supabase
     .from('bid_questions')
     .insert([
       {
-        project_id: bidId,
+        project_id: procurementId,
         section_name: 'Technical',
         section_sequence: 1,
         question_sequence: 1,
@@ -170,7 +172,7 @@ export async function createExportReadyBid(
         word_limit: 500,
       },
       {
-        project_id: bidId,
+        project_id: procurementId,
         section_name: 'Experience',
         section_sequence: 2,
         question_sequence: 1,
@@ -200,9 +202,9 @@ export async function createExportReadyBid(
   const responseIds = (resps ?? []).map((r) => r.id);
 
   // Advance bid to ready_for_export
-  await advanceBidState(bidId, 'ready_for_export');
+  await advanceBidState(procurementId, 'ready_for_export');
 
-  return { bidId, questionIds, responseIds };
+  return { procurementId, questionIds, responseIds };
 }
 
 /**
@@ -293,9 +295,9 @@ export async function createBidWithState(
   targetState: string,
   overrides: Record<string, unknown> = {},
 ): Promise<string> {
-  const bidId = await createTestBid(prefix, overrides);
-  await advanceBidState(bidId, targetState);
-  return bidId;
+  const procurementId = await createTestBid(prefix, overrides);
+  await advanceBidState(procurementId, targetState);
+  return procurementId;
 }
 
 /**
@@ -305,12 +307,12 @@ export async function createBidWithQuestions(
   prefix: string,
   questionCount: number,
   overrides: Record<string, unknown> = {},
-): Promise<{ bidId: string; questionIds: string[] }> {
+): Promise<{ procurementId: string; questionIds: string[] }> {
   const supabase = createServiceClient();
-  const bidId = await createTestBid(prefix, overrides);
+  const procurementId = await createTestBid(prefix, overrides);
 
   const questions = Array.from({ length: questionCount }, (_, i) => ({
-    project_id: bidId,
+    project_id: procurementId,
     section_name: `Section ${i + 1}`,
     section_sequence: i + 1,
     question_sequence: 1,
@@ -324,7 +326,7 @@ export async function createBidWithQuestions(
     .select('id')
     .throwOnError();
 
-  return { bidId, questionIds: (qs ?? []).map((q) => q.id) };
+  return { procurementId, questionIds: (qs ?? []).map((q) => q.id) };
 }
 
 /**
@@ -336,7 +338,7 @@ export async function createBidWithQuestions(
  *   review → ready_for_export → exported → submitted
  */
 export async function advanceBidState(
-  bidId: string,
+  procurementId: string,
   targetState: string,
 ): Promise<void> {
   const stateOrder = [
@@ -359,7 +361,7 @@ export async function advanceBidState(
   const { data: current } = await supabase
     .from('workspaces')
     .select('status, domain_metadata')
-    .eq('id', bidId)
+    .eq('id', procurementId)
     .single()
     .throwOnError();
 
@@ -395,7 +397,7 @@ export async function advanceBidState(
         status: nextStatus,
         domain_metadata: nextMetadata,
       })
-      .eq('id', bidId)
+      .eq('id', procurementId)
       .throwOnError();
 
     liveMetadata = nextMetadata;

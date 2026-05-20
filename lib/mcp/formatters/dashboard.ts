@@ -103,7 +103,7 @@ export function formatDashboardSummary(data: DashboardData): string {
   );
   lines.push(`- **Total:** ${totalContent} items`);
 
-  // Active bids
+  // Active procurements
   if (data.active_bids.length > 0) {
     lines.push('', '## Active Bids', '');
     for (const bid of data.active_bids) {
@@ -122,7 +122,7 @@ export function formatDashboardSummary(data: DashboardData): string {
       lines.push('');
     }
   } else {
-    lines.push('', '## Active Bids', '', 'No active bids.');
+    lines.push('', '## Active Bids', '', 'No active procurements.');
   }
 
   // Recent activity
@@ -147,12 +147,12 @@ export function formatDashboardSummary(data: DashboardData): string {
 }
 
 // ---------------------------------------------------------------------------
-// Active bids list
+// Active procurements list
 // ---------------------------------------------------------------------------
 
 export function formatActiveBids(bids: ActiveBidSummary[]): string {
   if (bids.length === 0) {
-    return '# Active Bids\n\nNo active bids found.';
+    return '# Active Bids\n\nNo active procurements found.';
   }
 
   const lines: string[] = [
@@ -267,9 +267,9 @@ export function formatReorientation(data: ReorientData): string {
     lines.push('');
   }
 
-  // Bid summary
+  // Procurement summary
   if (data.bid_summary.length > 0) {
-    lines.push('## Bid Summary', '');
+    lines.push('## Procurement Summary', '');
     for (const bid of data.bid_summary) {
       const progress = formatProgress(
         bid.answered_questions,

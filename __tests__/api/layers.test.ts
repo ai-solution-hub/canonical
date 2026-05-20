@@ -102,7 +102,7 @@ const SAMPLE_LAYERS = [
   {
     id: 'layer-2',
     key: 'bid_detail',
-    label: 'Bid Detail',
+    label: 'Procurement Detail',
     description: 'Factual content for tenders',
     display_order: 20,
     is_active: true,

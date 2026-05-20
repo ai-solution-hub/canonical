@@ -141,7 +141,7 @@ export function QuickAssignButton({
 
         {activeWorkspaces.length === 0 ? (
           <div className="px-2 py-3 text-center text-sm text-muted-foreground">
-            <p>No active bids.</p>
+            <p>No active procurements.</p>
             <Link
               href="/workspaces"
               className="mt-1 inline-block text-primary hover:underline"

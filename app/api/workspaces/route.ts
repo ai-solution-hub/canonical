@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const appTypeKey = rawTypeKey === 'bid' ? 'procurement' : rawTypeKey;
+    const appTypeKey = rawTypeKey;
 
     const { data: appType, error: appTypeError } = await supabase
       .from('application_types')

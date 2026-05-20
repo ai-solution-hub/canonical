@@ -32,7 +32,7 @@ import { WorkspaceSelector } from '@/components/workspace/workspace-selector';
 const WORKSPACES = [
   {
     id: 'ws-1',
-    name: 'Bid Alpha',
+    name: 'Procurement Alpha',
     description: null,
     color: '#3b82f6',
     icon: 'folder',
@@ -43,7 +43,7 @@ const WORKSPACES = [
   },
   {
     id: 'ws-2',
-    name: 'Bid Beta',
+    name: 'Procurement Beta',
     description: null,
     color: '#ef4444',
     icon: 'folder',
@@ -109,15 +109,15 @@ describe('WorkspaceSelector', () => {
     await user.click(trigger);
 
     await waitFor(() => {
-      // Both the badge and the list entry show "Bid Alpha"
-      const matches = screen.getAllByText('Bid Alpha');
+      // Both the badge and the list entry show "Procurement Alpha"
+      const matches = screen.getAllByText('Procurement Alpha');
       expect(matches.length).toBeGreaterThanOrEqual(1);
     });
 
     // The remove badge button should be present
     await waitFor(() => {
       expect(
-        screen.getByLabelText('Remove from Bid Alpha'),
+        screen.getByLabelText('Remove from Procurement Alpha'),
       ).toBeInTheDocument();
     });
   });
@@ -155,15 +155,15 @@ describe('WorkspaceSelector', () => {
     await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Bid Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Procurement Alpha')).toBeInTheDocument();
     });
 
     const searchInput = screen.getByPlaceholderText(/search or create/i);
     await user.type(searchInput, 'Beta');
 
     // Alpha should be hidden, Beta visible
-    expect(screen.queryByText('Bid Alpha')).not.toBeInTheDocument();
-    expect(screen.getByText('Bid Beta')).toBeInTheDocument();
+    expect(screen.queryByText('Procurement Alpha')).not.toBeInTheDocument();
+    expect(screen.getByText('Procurement Beta')).toBeInTheDocument();
   });
 
   it('shows create option when search has no match', async () => {
@@ -173,7 +173,7 @@ describe('WorkspaceSelector', () => {
     await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Bid Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Procurement Alpha')).toBeInTheDocument();
     });
 
     const searchInput = screen.getByPlaceholderText(/search or create/i);
@@ -194,11 +194,11 @@ describe('WorkspaceSelector', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByLabelText('Remove from Bid Alpha'),
+        screen.getByLabelText('Remove from Procurement Alpha'),
       ).toBeInTheDocument();
     });
 
-    await user.click(screen.getByLabelText('Remove from Bid Alpha'));
+    await user.click(screen.getByLabelText('Remove from Procurement Alpha'));
 
     // Should call the toggle API
     expect(mockFetch).toHaveBeenCalledWith(
@@ -218,11 +218,11 @@ describe('WorkspaceSelector', () => {
     await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Bid Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Procurement Alpha')).toBeInTheDocument();
     });
 
     // Click on a workspace to assign it
-    await user.click(screen.getByText('Bid Alpha'));
+    await user.click(screen.getByText('Procurement Alpha'));
 
     expect(mockFetch).toHaveBeenCalledWith(
       '/api/items/item-1/workspaces',

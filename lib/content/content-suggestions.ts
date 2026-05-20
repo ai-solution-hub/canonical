@@ -5,11 +5,11 @@
  * creation. Data sources:
  *   - taxonomy_domains + taxonomy_subtopics (full taxonomy)
  *   - content_items (items grouped by domain/subtopic with freshness)
- *   - workspaces (active bids — used to elevate priority)
+ *   - workspaces (active procurements — used to elevate priority)
  *   - template_requirements (template gap analysis)
  *
  * Priority ranking:
- *   1. Critical — Empty subtopics in domains with active bids
+ *   1. Critical — Empty subtopics in domains with active procurements
  *   2. High    — Template gaps (requirements with no matching content)
  *   3. High    — Stale-only subtopics (all content expired/stale)
  *   4. Medium  — Thin coverage (< 3 items in a subtopic)
@@ -210,7 +210,7 @@ export async function generateContentSuggestions(
   }
 
   // -------------------------------------------------------------------------
-  // 3. Fetch active bids (domains with active bids get priority boost)
+  // 3. Fetch active procurements (domains with active procurements get priority boost)
   // -------------------------------------------------------------------------
 
   // Post-T2: discriminator is application_types.key via JOIN, not the dropped
@@ -238,7 +238,7 @@ export async function generateContentSuggestions(
       }
     }
   }
-  // If there are active bids, consider all domains as potentially bid-related
+  // If there are active procurements, consider all domains as potentially bid-related
   const hasActiveBids = (activeBids ?? []).length > 0;
 
   // -------------------------------------------------------------------------

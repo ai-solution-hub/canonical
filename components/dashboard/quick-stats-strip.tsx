@@ -93,7 +93,7 @@ export function QuickStatsStrip({
           aria-hidden="true"
         />
         <StatItem
-          label={activeBidCount === 1 ? 'Active bid' : 'Active bids'}
+          label={activeBidCount === 1 ? 'Active bid' : 'Active procurements'}
           value={activeBidCount}
         />
         <StatItem

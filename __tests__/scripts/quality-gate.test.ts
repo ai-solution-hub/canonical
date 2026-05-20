@@ -332,13 +332,13 @@ describe('matchFileGroup', () => {
   it('matches exact filenames from audit-content spec §2.1', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 Tender and Bid Library Template for example-client - FAQs - Copy (1).docx',
+        'DRAFT 2026 Tender and Procurement Library Template for example-client - FAQs - Copy (1).docx',
         GROUPS,
       ),
     ).toBe('faqs');
     expect(
       matchFileGroup(
-        '2026 Audit - Tender and Bid Library Template - FAQs .docx',
+        '2026 Audit - Tender and Procurement Library Template - FAQs .docx',
         GROUPS,
       ),
     ).toBe('faqs');
@@ -347,13 +347,13 @@ describe('matchFileGroup', () => {
   it('matches Security and Compliance via both needles', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 Tender and Bid Library Template for example-client - Security and Compliance  - Copy.docx',
+        'DRAFT 2026 Tender and Procurement Library Template for example-client - Security and Compliance  - Copy.docx',
         GROUPS,
       ),
     ).toBe('security_compliance');
     expect(
       matchFileGroup(
-        '2026 Audit - Tender and Bid Library Template - Security & Compliance.docx',
+        '2026 Audit - Tender and Procurement Library Template - Security & Compliance.docx',
         GROUPS,
       ),
     ).toBe('security_compliance');
@@ -362,7 +362,7 @@ describe('matchFileGroup', () => {
   it('matches Implementation & Support', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 example-client - Tender and Bid Library - Implementation & Support .docx',
+        'DRAFT 2026 example-client - Tender and Procurement Library - Implementation & Support .docx',
         GROUPS,
       ),
     ).toBe('implementation_support');
@@ -371,7 +371,7 @@ describe('matchFileGroup', () => {
   it('preserves the Funtionality source typo', () => {
     expect(
       matchFileGroup(
-        '2026 Audit - Tender and Bid Library Template - Funtionality.docx',
+        '2026 Audit - Tender and Procurement Library Template - Funtionality.docx',
         GROUPS,
       ),
     ).toBe('functionality');
@@ -482,7 +482,7 @@ const SAMPLE_ENVELOPE: GateEnvelope = {
   git_sha: 'deadbeef',
   timestamp: '2026-04-21T21:00:00.000Z',
   profile: 're-ingest',
-  project_id: 'mgrmucazfiibsomdmndh',
+  workspace_id: 'mgrmucazfiibsomdmndh',
   overall: 'fail',
   run_duration_ms: 2500,
   checks: [
@@ -559,7 +559,7 @@ describe('renderJson', () => {
     const parsed = JSON.parse(json);
     expect(parsed.run_id).toBe('abc-123');
     expect(parsed.profile).toBe('re-ingest');
-    expect(parsed.project_id).toBe('mgrmucazfiibsomdmndh');
+    expect(parsed.workspace_id).toBe('mgrmucazfiibsomdmndh');
     expect(parsed.overall).toBe('fail');
     expect(parsed.checks).toHaveLength(3);
     expect(parsed.checks[0].name).toBe('corpus_counts');

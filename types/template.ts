@@ -7,7 +7,7 @@ import type {
 
 export interface Template {
   id: string;
-  project_id: string;
+  workspace_id: string;
   name: string;
   description: string | null;
   filename: string;

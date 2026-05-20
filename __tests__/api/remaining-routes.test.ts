@@ -56,7 +56,7 @@ const { GET: coverageGuidesGet } =
 const { PATCH: guideSectionPatch, DELETE: guideSectionDelete } =
   await import('@/app/api/guides/[slug]/sections/[sectionId]/route');
 const { GET: completionDownloadGet } =
-  await import('@/app/api/bids/[id]/templates/[templateId]/completions/[completionId]/download/route');
+  await import('@/app/api/procurement/[id]/templates/[templateId]/completions/[completionId]/download/route');
 const { POST: oauthDecisionPost } =
   await import('@/app/api/oauth/decision/route');
 const { GET: oauthGrantsGet } = await import('@/app/api/oauth/grants/route');
@@ -983,7 +983,7 @@ describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/down
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(
-      `/api/bids/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
+      `/api/procurement/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
     );
 
     const res = await completionDownloadGet(req, { params });
@@ -998,7 +998,7 @@ describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/down
     });
 
     const req = createTestRequest(
-      `/api/bids/bad-id/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
+      `/api/procurement/bad-id/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
     );
 
     const res = await completionDownloadGet(req, { params: badParams });
@@ -1016,7 +1016,7 @@ describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/down
     });
 
     const req = createTestRequest(
-      `/api/bids/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
+      `/api/procurement/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
     );
 
     const res = await completionDownloadGet(req, { params });
@@ -1040,7 +1040,7 @@ describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/down
     });
 
     const req = createTestRequest(
-      `/api/bids/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
+      `/api/procurement/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
     );
 
     const res = await completionDownloadGet(req, { params });
@@ -1068,7 +1068,7 @@ describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/down
     });
 
     const req = createTestRequest(
-      `/api/bids/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
+      `/api/procurement/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
     );
 
     const res = await completionDownloadGet(req, { params });
@@ -1106,7 +1106,7 @@ describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/down
     mockSupabase.storage.from.mockReturnValue(failBucket);
 
     const req = createTestRequest(
-      `/api/bids/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
+      `/api/procurement/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
     );
 
     const res = await completionDownloadGet(req, { params });

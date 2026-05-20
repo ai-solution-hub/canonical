@@ -48,7 +48,7 @@ import {
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
 } from './shared';
 import { slugifyDomain } from '@/lib/ai/classify';
-import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
+import { extractAnswerFromContent } from '@/lib/procurement-library-ingest/extract-answer';
 import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
