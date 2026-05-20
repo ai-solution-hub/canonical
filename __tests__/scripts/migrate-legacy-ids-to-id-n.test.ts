@@ -8,7 +8,7 @@
  * Acceptance: A-INV-1, A-INV-2 (dry-run output) — 15.3 scope.
  * A-INV-3..10 are verified in 15.4 (apply step).
  *
- * Test count: 18 (matching migrate-roadmap-section-3.ts precedent at 8983f991).
+ * Test count: 29 (expanded from migrate-roadmap-section-3.ts precedent at 8983f991 for full per-function coverage + drift WARN + schema validation + RLS-P9 spec-mismatch sentinel).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -225,14 +225,16 @@ describe('applyMigration', () => {
     expect(result.items.some((i) => i.id === 'ID-18')).toBe(true);
   });
 
-  it('emits a SKIP warning for a legacy id absent from live data', () => {
-    // AST-S3-O1 is in the mapping doc but absent from live data per §A.0
-    // So it will be left as-is with a skip warning since it's not in the mapping
-    // Items with IDs not in mapping AND not matching legacy patterns are left alone
-    const doc = makeDocument([makeItem({ id: 'UNKNOWN-LEGACY-ID' })]);
-    const { skipped } = applyMigration(doc);
-    // UNKNOWN-LEGACY-ID is not in mapping, not already canonical — skip with warning
-    expect(skipped.length).toBeGreaterThanOrEqual(0); // unknown ids may or may not warn
+  it('emits a [WARN] and populates skipped[] for a legacy-format id absent from inventory (drift)', () => {
+    // AST-S3-O1 matches LEGACY_ID_RE but is absent from the 43-entry inventory
+    // (closed separately per Liam — TECH §A.0 drift rule). The migration script
+    // must skip + WARN, not silently drop or auto-compact.
+    const doc = makeDocument([makeItem({ id: 'AST-S3-O1' })]);
+    const { document: result, skipped, warnings } = applyMigration(doc);
+    expect(skipped).toEqual(['AST-S3-O1']);
+    expect(warnings.some((w) => w.includes('[WARN]') && w.includes('AST-S3-O1'))).toBe(true);
+    // Item retained with original id (no silent drop)
+    expect(result.items.some((i) => i.id === 'AST-S3-O1')).toBe(true);
   });
 
   it('is idempotent — running twice on already-migrated data is a no-op', () => {
@@ -313,5 +315,44 @@ describe('file I/O integration', () => {
 
     const after = fs.readFileSync(tmpBacklog, 'utf-8');
     expect(JSON.parse(after).items[0].id).toBe('42');
+  });
+});
+
+describe('schema validation post-migration', () => {
+  // A-INV-2: BacklogSchema.parse() on migrated output succeeds (pre-tighten
+  // form — id remains z.string().min(1); the regex tighten to /^\d+$/ lands
+  // in 15.4 alongside the apply step).
+  //
+  // NB: RLS-P9 is excluded from this test because TECH §A.4's status override
+  // (`done`) is not a member of BacklogItemStatus enum (`blocked|spec_needed|
+  // needs_research|parked|ready`). Spec-vs-schema mismatch escalated to Liam
+  // for 15.4 ratification (extend enum vs change override status vs drop
+  // override). Once resolved, this test should re-include RLS-P9.
+  it('produces output that passes BacklogSchema.parse() (pre-tighten, excluding RLS-P9 status-override case)', async () => {
+    const { BacklogSchema } = await import('../../lib/validation/backlog-schema');
+    const doc = makeDocument([
+      makeItem({ id: 'OPS-6' }),
+      makeItem({ id: 'OPS-11', dependencies: ['OPS-6'] }),
+      makeItem({ id: 'OPS-43.1' }),
+    ]);
+    const { document: migrated } = applyMigration(doc);
+    // Should not throw; if it does the test surfaces the parse error directly.
+    expect(() => BacklogSchema.parse(migrated)).not.toThrow();
+    // Sanity: ids are bare-digit post-migration
+    const ids = migrated.items.map((i) => i.id);
+    expect(ids).toContain('42'); // OPS-6 → 42
+    expect(ids).toContain('43'); // OPS-11 → 43
+    expect(ids).toContain('45'); // OPS-43.1 → 45 with lineage prefix
+  });
+
+  it('surfaces RLS-P9 status-override schema mismatch (TECH §A.4 vs BacklogItemStatus enum)', async () => {
+    // Regression sentinel for the spec-vs-schema mismatch. When 15.4 resolves
+    // the discrepancy (e.g. extending BacklogItemStatus to include `done`),
+    // this test should be replaced with one that asserts the migrated doc
+    // passes BacklogSchema.parse() with RLS-P9 included.
+    const { BacklogSchema } = await import('../../lib/validation/backlog-schema');
+    const doc = makeDocument([makeItem({ id: 'RLS-P9' })]);
+    const { document: migrated } = applyMigration(doc);
+    expect(() => BacklogSchema.parse(migrated)).toThrow();
   });
 });
