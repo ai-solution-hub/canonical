@@ -242,6 +242,15 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
 - **`content_items.content_text_hash` is `GENERATED ALWAYS`:** explicit insert or update
   value rejected with `cannot insert a non-DEFAULT value into column`. PG auto-computes
   via `md5(normalised content)`. Omit the field from any payload writing `content_items`.
+- **Column-drop migrations must audit triggers / policies / views ACROSS ALL ENVS, not
+  just current-env audit.** Staging-bypass via empty result sets can mask references that
+  fire on prod. S247 W1: `sync_bid_status` trigger on `workspaces.type` survived
+  staging-apply because greenfield 0 rows matched the UPDATE; prod-apply with 3 matching
+  rows fired the trigger and tripped `NEW.type` post-column-drop (SQLSTATE 42703). Pre-
+  apply checklist before any DROP COLUMN: query `pg_trigger` / `pg_proc` / `pg_policy` /
+  `pg_views` for `relname = '<table>'` on **both** staging and prod, drop dead-code refs
+  inline in the migration (idempotent `DROP TRIGGER IF EXISTS` / `DROP FUNCTION IF
+  EXISTS`).
 - **CLI `.temp/project-ref` can silently go stale post-env-flip:** `supabase db push` may
   push to the WRONG project (looks like silent-fail on intended project). Always
   `cat supabase/.temp/project-ref` before any push; relink via
