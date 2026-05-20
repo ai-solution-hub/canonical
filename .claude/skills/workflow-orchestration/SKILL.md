@@ -16,10 +16,7 @@ allowed-tools: Read, Bash, Grep, Glob, Edit, Write, Skill, Agent
 # workflow-orchestration
 
 The main session loads this skill at session start. The main session — Claude in
-conversation with Liam — **is** the Workflow Orchestrator (per
-`docs/plans/phase-0-investigation/kh-sdlc-workflow.md` §2 session-entry option
-ii). There is no separate `workflow-orchestrator` agent file; this skill body
-encodes everything that file used to.
+conversation with Liam — **is** the Workflow Orchestrator.
 
 The Orchestrator does not write production code, audit commits, or edit the
 roadmap/backlog. Its job is decomposition, dispatch, gating, merge sequencing,
@@ -259,26 +256,7 @@ apply throughout.
 
 ## Worktree isolation discipline
 
-Every parallel sub-agent dispatched with `isolation: "worktree"` (or via
-`session-driver-cmux`'s per-worker worktree) hits the same three traps. The
-Orchestrator's dispatch brief must encode each mitigation.
-
-### THE DETERMINISTIC LEAK CAUSE (read first)
-
-Per `docs/research/worktree-isolation-leak-investigation.md`: a worktree
-sub-agent leaks its commits to the parent track branch (typically
-`production-readiness`) **if and only if** it issues a bash command that
-either (a) `cd /Users/liamj/Documents/development/knowledge-hub*`, or
-(b) `git -C /Users/liamj/Documents/development/knowledge-hub*`, or (c)
-passes that absolute path as `file_path` to Edit/Write. Bash shell state
-does NOT persist between Bash tool calls — every call runs in the harness's
-default cwd, which IS the worktree. The agent's branch never "jumps"; the
-cwd briefly moves to the wrong tree for that one call, and that single
-`git commit` lands on the wrong branch.
-
-**Sub-agents that never `cd` and use only relative paths mechanically cannot leak.**
-
-### Critical first action — verification gate (no cd)
+### Critical first action — verification gate
 
 `isolation: "worktree"` branches from a historical commit, not the current
 track HEAD (CLAUDE.md "Worktree agents start stale"). The agent's worktree
@@ -298,44 +276,6 @@ For sub-agent briefs: name the branch explicitly so the sub-agent doesn't
 have to guess. The second `git branch --show-current` is the verification
 gate — if it returns the parent branch (e.g. `production-readiness`), the
 agent is leaking and must STOP and escalate.
-
-### Plugin invisibility
-
-`.claude/plugins/*` is gitignored except `knowledge-hub/`. Sub-agents
-running in worktrees cannot see plugins from the parent repo. If a dispatch
-needs a plugin (e.g. `mempalace`), the brief must include the copy step
-after the reset, using relative paths and the project structure:
-
-```bash
-cp -r ../../plugins/<plugin-dir> .claude/plugins/<plugin-dir>
-```
-
-The Orchestrator names the plugin explicitly in the brief — sub-agents
-should not be guessing what's missing.
-
-### Mechanical backstop — PreToolUse hooks
-
-`.claude/settings.json` carries PreToolUse hooks that block any Bash command
-containing `cd /Users/liamj/Documents/development/knowledge-hub*` or
-`git -C /Users/liamj/Documents/development/knowledge-hub*`. Exit code 2 with
-explicit error message. If a sub-agent sees a `BLOCKED:` message from the
-hook, the cause is the dispatch brief still containing the legacy `cd` pattern
-— the brief is wrong, not the agent. The Orchestrator's job is to write briefs
-that never trigger the hook.
-
-### Sub-agent token-budget rescue
-
-Sub-agents can blow their token budget before the final `git commit`
-(CLAUDE.md "Sub-agents can blow their token budget before final `git
-commit`"). The Orchestrator's rescue procedure: before tearing down a
-worker's worktree, run `git status` inside it (via relative path — `git
-status` from your CWD if you're not in the worktree, or `git -C
-.claude/worktrees/agent-<id> status` ONLY if .claude/worktrees is a
-relative path from your CWD). If uncommitted changes exist, manual-commit
-on the worker's branch and only then `git worktree remove`.
-
-The `session-driver-cmux` `stop-worker.sh` script enforces this by
-default — it refuses to remove a dirty worktree without `--force`.
 
 ---
 

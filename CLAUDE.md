@@ -367,27 +367,9 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   - **Worktree agents start stale:** `isolation: "worktree"` branches from a historical
     commit. Agent's first action: `git fetch origin {branch} && git reset --hard origin/{branch}`
     (no `cd` prefix — see below).
-  - **THE DETERMINISTIC LEAK CAUSE (per `docs/research/worktree-isolation-leak-investigation.md`):**
-    A worktree sub-agent leaks commits to the main-tree branch if and only if it issues a
-    bash command that contains `cd /Users/liamj/Documents/development/knowledge-hub*` (or
-    passes that absolute path to Edit/Write `file_path`). **Bash shell state does NOT
-    persist between Bash tool calls** — every Bash tool call runs in the harness's default
-    cwd, which IS the worktree. The agent's branch never "jumps"; the cwd briefly moves to
+  - **Bash shell state does NOT persist between Bash tool calls** — every Bash tool call runs in the harness's default cwd, which IS the worktree. The agent's branch never "jumps"; the cwd briefly moves to
     the wrong tree for that one call, and that single `git commit` lands on the wrong
-    branch. Sub-agents that NEVER `cd` and use only relative paths mechanically cannot
-    leak.
-  - **Never `cd` in a sub-agent dispatch.** The legacy `cd $(git rev-parse --show-toplevel)`
-    pattern in dispatch briefs is the LEAK VECTOR — task-executor agents internalise the
-    absolute path from `start-session/SKILL.md` and pre-substitute the `$(...)` token
-    before the shell sees it. Drop the `cd ...` prefix entirely from briefs.
-  - **Verification gate (verified clean in S53 WP3):** sub-agent first action is
-    `pwd && git branch --show-current && git fetch origin {branch} && git reset --hard origin/{branch} && git branch --show-current`
-    — the second `git branch --show-current` confirms the reset didn't switch branches.
-  - **Mechanical backstop:** `.claude/settings.json` PreToolUse hooks block any Bash
-    command containing `cd /Users/liamj/Documents/development/knowledge-hub*` or
-    `git -C /Users/liamj/Documents/development/knowledge-hub*`. Exit code 2 with explicit
-    error message. If the hook fires, the cause is a brief / agent-file that still
-    contains the legacy `cd` pattern — fix the source, don't override.
+    branch.
   - **After cherry-picking worktree branches**, run `git status` on the main tree and
     clean with `git checkout -- .` and `git clean -fd` (merges occasionally leak files).
   - **`.claude/agents/` files need `dangerouslyDisableSandbox: true` on cherry-pick** —
@@ -397,13 +379,6 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
     register single-parent `last_updated` additions. Workaround = follow-up single-parent
     commit that bumps `last_updated` (precedent: commit `744d9ef1` + `6cad7d64`); or
     `[skip-doc-freshness-guard]` body tag.
-  - **`isolation: "worktree"` sub-agents can still commit to parent worktree** if the
-    brief instructs them to `cd` (per the deterministic-cause section above). The
-    mitigation is the PreToolUse hook + brief discipline, not a post-commit check —
-    SubagentStop hooks fire after the commit lands.
-  - **Concurrent commits on production-readiness during cross-track merge:** pattern is
-    fresh worktree off `production-readiness` + reconcile-merge per
-    `docs/runbooks/ast-dataflow-merge-S11.md` (commits `b6f7d55f` + `80944a09` + `831d9e74`).
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
 - **ALWAYS check worktree `git status` before removing it:** This covers any cases where

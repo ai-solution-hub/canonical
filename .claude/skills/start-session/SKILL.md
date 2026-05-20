@@ -35,12 +35,6 @@ git status
 If unmerged branches exist, deploy an agent to investigate whether they should be merged or
 deleted.
 
-**Sub-agent guard (read first):** If you are a sub-agent dispatched by the
-Orchestrator (your CWD matches `*/worktrees/agent-*`), STOP reading this
-section — it is for the main session only. Do not `cd` anywhere, do not
-reference absolute paths. Your CWD is your worktree; use relative paths
-throughout. Skip to Step 2 and treat this skill as informational only.
-
 **Parallel track worktrees vs agent worktrees:** The project may have two types
 of worktrees:
 

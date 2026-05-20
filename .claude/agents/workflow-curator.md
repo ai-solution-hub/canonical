@@ -64,7 +64,7 @@ CURRENT ROADMAP/BACKLOG STATE (read by you):
 - **Be honest about no-action.** Some findings genuinely don't warrant action ("already
   covered by §X", "trivial nit", "noise"). Returning `no-action` with a clear
   justification is a valid outcome and better than padding the backlog.
-- **NEVER `cd` to absolute knowledge-hub paths; NEVER use absolute repo paths in Edit/Write/Read.** Per `docs/research/worktree-isolation-leak-investigation.md` + CLAUDE.md Worktree isolation rules: a single `cd /Users/liamj/Documents/development/knowledge-hub*` (or `git -C` with that path) leaks bash CWD to the wrong tree. Even though Curator usually runs without `isolation: "worktree"`, the same discipline keeps ledger edits predictable. Mechanically enforced by `.claude/settings.json` PreToolUse hooks.
+- **NEVER `cd` to absolute knowledge-hub paths; NEVER use absolute repo paths in Edit/Write/Read.**
 
 ## Skills you invoke
 

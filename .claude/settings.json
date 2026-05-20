@@ -19,11 +19,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/knowledge-hub'; then echo 'BLOCKED: bash command contains cd to /Users/liamj/Documents/development/knowledge-hub*. This is the worktree-isolation leak vector per CLAUDE.md Worktree isolation rules — sub-agents that cd to the main worktree leak commits to the wrong branch. Drop the cd prefix; use relative paths from your CWD (which is already the worktree).' >&2; exit 2; fi"
+            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/knowledge-hub'; then echo 'BLOCKED: bash command contains cd to /Users/liamj/Documents/development/knowledge-hub*. This causes commits to leak to the wrong branch. Drop the cd prefix; use relative paths from your CWD.' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE 'git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub'; then echo 'BLOCKED: bash command uses git -C with an absolute knowledge-hub path. This is the worktree-isolation leak vector — sub-agents must run git from their worktree CWD, not via -C to the main repo.' >&2; exit 2; fi"
+            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE 'git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub'; then echo 'BLOCKED: bash command uses git -C with an absolute knowledge-hub path. This causes commits to leak to the wrong branch — sub-agents must run git from their worktree CWD, not via -C to the main repo.' >&2; exit 2; fi"
           }
         ]
       }

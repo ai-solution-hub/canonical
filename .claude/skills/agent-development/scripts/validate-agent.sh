@@ -2,7 +2,7 @@
 # Agent File Validator
 # Validates agent markdown files for correct structure and content
 
-set -eu
+set -euo pipefail
 
 # Usage
 if [ $# -eq 0 ]; then

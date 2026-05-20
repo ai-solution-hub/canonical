@@ -24,19 +24,27 @@ Agents are autonomous subprocesses that handle complex, multi-step tasks indepen
 ```markdown
 ---
 name: agent-identifier
-description: Use this agent when [triggering conditions]. Typical triggers include [scenario 1 in prose], [scenario 2 in prose], and [scenario 3 in prose]. See "When to invoke" in the agent body for worked scenarios.
+description: Use this agent when [triggering conditions]. Examples:
+
+<example>
+Context: [Situation description]
+user: "[User request]"
+assistant: "[How assistant should respond and use this agent]"
+<commentary>
+[Why this agent should be triggered]
+</commentary>
+</example>
+
+<example>
+[Additional example...]
+</example>
+
 model: inherit
 color: blue
 tools: ["Read", "Write", "Grep"]
 ---
 
 You are [agent role description]...
-
-## When to invoke
-
-[Two to four representative scenarios written as prose, e.g.:]
-- **[Scenario name].** [What the situation looks like and what the agent should do.]
-- **[Scenario name].** [Same.]
 
 **Your Core Responsibilities:**
 1. [Responsibility 1]
@@ -73,24 +81,36 @@ Agent identifier used for namespacing and invocation.
 
 ### description (required)
 
-Defines when Claude should trigger this agent. **This is the most critical field** — it is loaded into context whenever the agent is registered, so the harness can decide when to dispatch.
+Defines when Claude should trigger this agent. **This is the most critical field.**
 
 **Must include:**
 1. Triggering conditions ("Use this agent when...")
-2. A short prose summary of the typical trigger scenarios
-3. A pointer to a "When to invoke" section in the agent body for the detailed worked scenarios
+2. Multiple `<example>` blocks showing usage
+3. Context, user request, and assistant response in each example
+4. `<commentary>` explaining why agent triggers
 
 **Format:**
 ```
-Use this agent when [conditions]. Typical triggers include [scenario 1 in prose], [scenario 2 in prose], and [scenario 3 in prose]. See "When to invoke" in the agent body for worked scenarios.
+Use this agent when [conditions]. Examples:
+
+<example>
+Context: [Scenario description]
+user: "[What user says]"
+assistant: "[How Claude should respond]"
+<commentary>
+[Why this agent is appropriate]
+</commentary>
+</example>
+
+[More examples...]
 ```
 
 **Best practices:**
-- Name 2-4 trigger scenarios in the prose summary
-- Cover both proactive (assistant invokes itself) and reactive (user requests) triggering
-- Cover different phrasings of the same intent
+- Include 2-4 concrete examples
+- Show proactive and reactive triggering
+- Cover different phrasings of same intent
+- Explain reasoning in commentary
 - Be specific about when NOT to use the agent
-- Put detailed scenarios in the body under "When to invoke" as a bullet list of prose descriptions
 
 ### model (required)
 
@@ -211,14 +231,14 @@ Requirements:
    - Specific methodologies
    - Edge case handling
    - Output format
-   - A "When to invoke" section listing 2-4 trigger scenarios as prose bullets
 4. Create identifier (lowercase, hyphens, 3-50 chars)
-5. Write description with triggering conditions and a short prose summary of trigger scenarios
+5. Write description with triggering conditions
+6. Include 2-3 <example> blocks showing when to use
 
 Return JSON with:
 {
   "identifier": "agent-name",
-  "whenToUse": "Use this agent when... Typical triggers include [...]. See \"When to invoke\" in the agent body.",
+  "whenToUse": "Use this agent when... Examples: <example>...</example>",
   "systemPrompt": "You are..."
 }
 ```
@@ -312,17 +332,12 @@ Ensure system prompt is complete:
 ```markdown
 ---
 name: simple-agent
-description: Use this agent when [condition]. Typical triggers include [trigger 1] and [trigger 2]. See "When to invoke" in the agent body.
+description: Use this agent when... Examples: <example>...</example>
 model: inherit
 color: blue
 ---
 
 You are an agent that [does X].
-
-## When to invoke
-
-- **[Scenario A].** [Description.]
-- **[Scenario B].** [Description.]
 
 Process:
 1. [Step 1]
@@ -336,7 +351,7 @@ Output: [What to provide]
 | Field | Required | Format | Example |
 |-------|----------|--------|---------|
 | name | Yes | lowercase-hyphens | code-reviewer |
-| description | Yes | Prose triggers | Use when... Typical triggers include... |
+| description | Yes | Text + examples | Use when... <example>... |
 | model | Yes | inherit/sonnet/opus/haiku | inherit |
 | color | Yes | Color name | blue |
 | tools | No | Array of tool names | ["Read", "Grep"] |
@@ -344,8 +359,7 @@ Output: [What to provide]
 ### Best Practices
 
 **DO:**
-- ✅ Name 2-4 trigger scenarios in the description (as prose)
-- ✅ Put detailed worked scenarios in a "When to invoke" body section, as prose bullets
+- ✅ Include 2-4 concrete examples in description
 - ✅ Write specific triggering conditions
 - ✅ Use `inherit` for model unless specific need
 - ✅ Choose appropriate tools (least privilege)
@@ -353,7 +367,7 @@ Output: [What to provide]
 - ✅ Test agent triggering thoroughly
 
 **DON'T:**
-- ❌ Use generic descriptions without trigger scenarios
+- ❌ Use generic descriptions without examples
 - ❌ Omit triggering conditions
 - ❌ Give all agents same color
 - ❌ Grant unnecessary tool access
@@ -393,7 +407,7 @@ To create an agent for a plugin:
 3. Create `agents/agent-name.md` file
 4. Write frontmatter with all required fields
 5. Write system prompt following best practices
-6. Name 2-4 trigger scenarios in description (prose) and detail them in a "When to invoke" body section
+6. Include 2-4 triggering examples in description
 7. Validate with `scripts/validate-agent.sh`
 8. Test triggering with real scenarios
 9. Document agent in plugin README
