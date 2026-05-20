@@ -1,6 +1,34 @@
 ---
 name: task-checker
-description: Use this agent when a task-executor (or wave of executors) has committed implementation work and spec compliance, code quality, and test quality need verification before the orchestrator merges. Two variants in one agent body: 'standard' for per-subtask gating (post-executor commit, spec compliance + KH conventions), and 'quality-review' for end-of-task gating (after code-simplification pass, broader quality including security/performance/type-design). The checker is read-only — it never edits files. Dispatch brief must specify which variant to run and the subtask ID (ID-N.M). Typical triggers include per-subtask gating immediately after a task-executor commits an ID-N.M Subtask, end-of-task quality review after the code-simplification pass and before Task close, and fix-Executor re-verification after a prior FAIL verdict has been remediated. See "When to invoke" in the agent body for worked scenarios.
+description: |
+  Use this agent when a task-executor (or wave of executors) has committed implementation work and spec compliance, code quality, and test quality need verification before the orchestrator merges. Two variants in one agent body — 'standard' for per-subtask gating (post-executor commit, spec compliance + KH conventions) and 'quality-review' for end-of-task gating (after code-simplification pass, broader quality including security/performance/type-design). The checker is read-only — it never edits files. Dispatch brief must specify which variant to run and the subtask ID (ID-N.M). Examples:
+
+  <example>
+  Context: A task-executor has just committed ID-7.3 on a worktree-agent branch and the orchestrator needs to gate the subtask before continuing the wave.
+  user: "Executor finished ID-7.3 on worktree-agent-abc123 (commit f4a2b91). Verify before I move to ID-7.4."
+  assistant: "I'll dispatch the task-checker agent with variant=standard against ID-7.3 to audit spec compliance and KH conventions before promoting the subtask to done."
+  <commentary>
+  Per-subtask gating immediately after a task-executor commits an ID-N.M Subtask — the standard variant scoped to the subtask's spec slice, testStrategy, and ALLOWED file set.
+  </commentary>
+  </example>
+
+  <example>
+  Context: All subtasks of ID-12 are committed, the code-simplification Executor pass is complete, and the orchestrator needs a broader quality pass over the full task before close.
+  user: "ID-12 simplification pass landed. Run end-of-task review before I close the task."
+  assistant: "I'll dispatch the task-checker agent with variant=quality-review against ID-12 — it will iterate the full commit set, invoke security-and-hardening / performance-optimization / type-design-analyzer based on findings and task kind, and return the JSON verdict."
+  <commentary>
+  End-of-task quality review after the code-simplification pass and before Task close — the quality-review variant has broader axes (type-design, security, performance) beyond the standard KH conventions pass.
+  </commentary>
+  </example>
+
+  <example>
+  Context: A prior task-checker run returned FAIL on ID-9.2 with two blocker findings; a fix-Executor has since committed remediation.
+  user: "Fix-Executor remediated the ID-9.2 blockers on commit 8c1d4ef. Re-verify."
+  assistant: "I'll dispatch the task-checker agent with variant=standard against ID-9.2 again to re-audit the remediation commit and re-issue the JSON verdict."
+  <commentary>
+  Fix-Executor re-verification after a prior FAIL verdict has been remediated — same standard variant, fresh dispatch against the new commit set, no carryover state.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 effort: max
