@@ -25,7 +25,11 @@ export function ReviewProgressBar({
   // Draft mode: show queue position instead of verified/total
   if (isDraft && queuePosition != null && queueLength != null) {
     const draftPercentage =
-      queueLength > 0 ? Math.round((queuePosition / queueLength) * 100) : 0;
+      queueLength > 0
+        ? queuePosition > 0
+          ? Math.max(1, Math.round((queuePosition / queueLength) * 100))
+          : 0
+        : 0;
 
     return (
       <div className={cn('flex flex-col gap-1.5', className)}>
@@ -61,9 +65,14 @@ export function ReviewProgressBar({
     );
   }
 
+  // Clamp to 1% when there's any progress so the bar + label don't show
+  // "0%" after the first verify in a large corpus (e.g. "12 of 2,819"
+  // would otherwise round to 0). Ported from IMS commit ec141a6.
   const percentage =
     progress.total > 0
-      ? Math.round((progress.verified / progress.total) * 100)
+      ? progress.verified > 0
+        ? Math.max(1, Math.round((progress.verified / progress.total) * 100))
+        : 0
       : 0;
 
   return (

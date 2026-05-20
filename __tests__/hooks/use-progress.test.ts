@@ -159,6 +159,32 @@ describe('useProgress', () => {
     expect(result.current.percentage).toBe(33); // 33.33... rounds to 33
   });
 
+  // IMS port (commit ec141a6): clamp to 1% when there's any progress so a
+  // small numerator vs a large denominator (e.g. 1 of 2,000) doesn't render
+  // "0%" after the first read. Pure rounding would return 0; clamp lifts it
+  // to 1 so progress is visible.
+  it('clamps percentage to 1 when readCount > 0 would round to 0', () => {
+    mockUseReadMarks.readCount = 1;
+    mockUseReadMarks.totalCount = 2000;
+    mockUseReadMarks.isLoaded = true;
+
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
+    expect(result.current.percentage).toBe(1); // 0.05 would round to 0
+  });
+
+  it('returns 0 percentage when readCount is 0 (no clamp lift)', () => {
+    mockUseReadMarks.readCount = 0;
+    mockUseReadMarks.totalCount = 2000;
+    mockUseReadMarks.isLoaded = true;
+
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
+    expect(result.current.percentage).toBe(0);
+  });
+
   // -----------------------------------------------------------------------
   // Streak calculation
   // -----------------------------------------------------------------------

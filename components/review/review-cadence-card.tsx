@@ -108,9 +108,14 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
     ([, a], [, b]) => b.overdue - a.overdue || b.total - a.total,
   );
 
+  // Clamp to 1% when there's any overdue work so the bar + label don't
+  // show "0%" when a small overdue count is dwarfed by a large total
+  // (e.g. 1 of 2,000 items). Ported from IMS commit ec141a6.
   const overduePercentage =
     summary.total_items > 0
-      ? Math.round((summary.overdue / summary.total_items) * 100)
+      ? summary.overdue > 0
+        ? Math.max(1, Math.round((summary.overdue / summary.total_items) * 100))
+        : 0
       : 0;
 
   return (

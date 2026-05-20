@@ -129,8 +129,15 @@ export function useProgress(): UseProgressReturn {
 
   // Derived values
   const unreadCount = totalCount - readCount;
+  // Clamp to 1% when there's any progress so the bar + label don't show
+  // "0%" after the first action in a large corpus (e.g. 1 of 2,000 reads
+  // would otherwise round to 0). Ported from IMS commit ec141a6.
   const percentage =
-    totalCount > 0 ? Math.round((readCount / totalCount) * 100) : 0;
+    totalCount > 0
+      ? readCount > 0
+        ? Math.max(1, Math.round((readCount / totalCount) * 100))
+        : 0
+      : 0;
 
   // Streak and items this week from read_marks — uses TanStack Query
   const { data: stats } = useQuery({
