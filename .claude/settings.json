@@ -26,6 +26,15 @@
             "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE 'git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub'; then echo 'BLOCKED: bash command uses git -C with an absolute knowledge-hub path. This causes commits to leak to the wrong branch — sub-agents must run git from their worktree CWD, not via -C to the main repo.' >&2; exit 2; fi"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FP=$(echo \"$INPUT\" | jq -r '.tool_input.file_path' 2>/dev/null); CWD=$(echo \"$INPUT\" | jq -r '.cwd' 2>/dev/null); if echo \"$FP\" | grep -qE '^/Users/liamj/Documents/development/knowledge-hub'; then case \"$FP\" in \"$CWD\"/*|\"$CWD\") exit 0;; esac; echo \"BLOCKED: Write/Edit/MultiEdit to absolute knowledge-hub path '$FP' from CWD '$CWD'. Sub-agents must write only within their worktree (use relative paths or the worktree-absolute prefix). Tier 2.2 hook (ID-19.3) — prevents cross-tree leak when CWD-correct agent emits wrong absolute path.\" >&2; exit 2; fi"
+          }
+        ]
       }
     ]
   }

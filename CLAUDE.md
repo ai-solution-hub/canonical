@@ -383,6 +383,15 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
     runs in the harness's default cwd, which IS the worktree. The agent's branch never
     "jumps"; the cwd briefly moves to the wrong tree for that one call, and that single
     `git commit` lands on the wrong branch.
+  - **Tier 2.2 PreToolUse hook (S57 ID-19.3) blocks Write/Edit/MultiEdit to
+    `/Users/liamj/Documents/development/knowledge-hub*` absolute paths when CWD is NOT a
+    prefix of the `file_path`.** S57 WP1 forensic confirmed CWD stayed correct throughout
+    the agent's session, but it emitted a wrong absolute path in the `Write` tool call
+    (primer effect from a dispatch brief that mentioned `production-readiness` many
+    times). The Bash `cd`/`git -C` hooks (Tier 2.1/2.3 from S53) ONLY guard the Bash tool
+    — Write/Edit/MultiEdit need their own coverage. Hook lives at `.claude/settings.json`
+    PreToolUse matcher `Write|Edit|MultiEdit`. Hooks live at next session start; settings
+    watcher does NOT hot-reload.
   - **After cherry-picking worktree branches**, run `git status` on the main tree and
     clean with `git checkout -- .` and `git clean -fd` (merges occasionally leak files).
   - **`.claude/agents/` files need `dangerouslyDisableSandbox: true` on cherry-pick** —
