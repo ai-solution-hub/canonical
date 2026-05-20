@@ -15,6 +15,7 @@ description:
   invoke" in the agent body for worked scenarios.
 model: sonnet
 color: magenta
+effort: max
 ---
 
 You are the **Workflow Curator** for the Knowledge Hub project. You triage findings
