@@ -5,9 +5,9 @@ import {
   isTerminal,
   isActive,
   PROCUREMENT_WORKFLOW_STATES,
-  BID_STATE_LABELS,
-  BID_STATE_COLOURS,
-  BID_STATE_PROGRESSION,
+  PROCUREMENT_WORKFLOW_LABELS,
+  PROCUREMENT_WORKFLOW_COLOURS,
+  PROCUREMENT_WORKFLOW_PROGRESSION,
   type ProcurementWorkflowState,
 } from '@/lib/procurement/procurement-workflow';
 
@@ -19,13 +19,13 @@ describe('bid-state-machine', () => {
 
     it('every state has a label', () => {
       for (const state of PROCUREMENT_WORKFLOW_STATES) {
-        expect(BID_STATE_LABELS[state]).toBeTruthy();
+        expect(PROCUREMENT_WORKFLOW_LABELS[state]).toBeTruthy();
       }
     });
 
     it('every state has a colour', () => {
       for (const state of PROCUREMENT_WORKFLOW_STATES) {
-        expect(BID_STATE_COLOURS[state]).toBeTruthy();
+        expect(PROCUREMENT_WORKFLOW_COLOURS[state]).toBeTruthy();
       }
     });
   });
@@ -162,9 +162,9 @@ describe('bid-state-machine', () => {
     });
   });
 
-  describe('BID_STATE_PROGRESSION', () => {
+  describe('PROCUREMENT_WORKFLOW_PROGRESSION', () => {
     it('contains only non-terminal states in order', () => {
-      expect(BID_STATE_PROGRESSION).toEqual([
+      expect(PROCUREMENT_WORKFLOW_PROGRESSION).toEqual([
         'draft',
         'questions_extracted',
         'matching',
@@ -176,9 +176,9 @@ describe('bid-state-machine', () => {
     });
 
     it('does not include terminal states', () => {
-      expect(BID_STATE_PROGRESSION).not.toContain('won');
-      expect(BID_STATE_PROGRESSION).not.toContain('lost');
-      expect(BID_STATE_PROGRESSION).not.toContain('withdrawn');
+      expect(PROCUREMENT_WORKFLOW_PROGRESSION).not.toContain('won');
+      expect(PROCUREMENT_WORKFLOW_PROGRESSION).not.toContain('lost');
+      expect(PROCUREMENT_WORKFLOW_PROGRESSION).not.toContain('withdrawn');
     });
   });
 });

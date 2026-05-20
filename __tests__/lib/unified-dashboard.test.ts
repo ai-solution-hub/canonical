@@ -626,7 +626,7 @@ describe('fetchUnifiedDashboardData', () => {
           bid_responses: {
             question_id: 'q-1',
             bid_questions: {
-              project_id: 'bid-1',
+              workspace_id: 'bid-1',
               question_text: 'Latest answer',
               workspaces: { id: 'bid-1', name: 'Procurement' },
             },
@@ -640,7 +640,7 @@ describe('fetchUnifiedDashboardData', () => {
           bid_responses: {
             question_id: 'q-1',
             bid_questions: {
-              project_id: 'bid-1',
+              workspace_id: 'bid-1',
               question_text: 'Older answer',
               workspaces: { id: 'bid-1', name: 'Procurement' },
             },

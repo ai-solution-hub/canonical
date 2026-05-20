@@ -147,7 +147,7 @@ const AUTH_CONTEXT = {
 // The handler's call sequence (per lib/queue/handlers/bid-draft-all.ts):
 //   1. workspaces.select(...).eq('id', bid_id).eq('type', 'bid').single()
 //        → { data: bid, error }
-//   2. bid_questions.select(...).eq('project_id', bid_id).order(...).order(...)
+//   2. bid_questions.select(...).eq('workspace_id', bid_id).order(...).order(...)
 //        → resolves via .then() with { data: questions, error }
 //   3. (if skip_existing) bid_responses.select('question_id').in(...)
 //        → resolves via .then() with { data: existing, error }
@@ -156,7 +156,7 @@ const AUTH_CONTEXT = {
 //           → resolves via .then() with { data, error }
 //        b. bid_responses.upsert(...).select('id').single()
 //           → returns { data: { id }, error }
-//        c. bid_questions.update({ status }).eq('id', qId).eq('project_id', ...)
+//        c. bid_questions.update({ status }).eq('id', qId).eq('workspace_id', ...)
 //           → returns { error: null } (no .single()/then call observed —
 //             update without .select() is fire-and-forget through `sb()`)
 //   5. (if all drafted, no failures, drafting state) workspaces.select count

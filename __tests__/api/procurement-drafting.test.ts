@@ -1550,7 +1550,7 @@ describe('PATCH /api/bids/:id/questions/:qId', () => {
 
     const updatedQuestion = {
       id: VALID_UUID_2,
-      project_id: VALID_UUID,
+      workspace_id: VALID_UUID,
       section_name: 'Section 1',
       question_text: 'Updated question text',
       word_limit: 300,

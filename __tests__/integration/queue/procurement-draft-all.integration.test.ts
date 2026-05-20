@@ -166,7 +166,7 @@ async function createTestBid(opts: {
     const { data: q, error: qErr } = await serviceClient
       .from('bid_questions')
       .insert({
-        // S246 WP2b T2 (P2): bid_questions.project_id → workspace_id.
+        // S246 WP2b T2 (P2): bid_questions.workspace_id → workspace_id.
         workspace_id: bid.id,
         question_text: `${TEST_PREFIX} question ${i + 1}`,
         word_limit: 200,

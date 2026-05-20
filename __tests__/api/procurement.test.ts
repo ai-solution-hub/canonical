@@ -179,7 +179,7 @@ describe('GET /api/bids', () => {
     );
 
     mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{ project_id: VALID_UUID, total: 5, answered: 3 }],
+      data: [{ workspace_id: VALID_UUID, total: 5, answered: 3 }],
       error: null,
     });
 
@@ -191,7 +191,7 @@ describe('GET /api/bids', () => {
     expect(body.bids).toHaveLength(1);
     expect(body.bids[0].id).toBe(VALID_UUID);
     expect(body.bids[0].question_stats).toEqual({
-      project_id: VALID_UUID,
+      workspace_id: VALID_UUID,
       total: 5,
       answered: 3,
     });
@@ -229,7 +229,7 @@ describe('GET /api/bids', () => {
       })
       // Second per-bid call succeeds.
       .mockResolvedValueOnce({
-        data: [{ project_id: SECOND_UUID, total: 4, answered: 2 }],
+        data: [{ workspace_id: SECOND_UUID, total: 4, answered: 2 }],
         error: null,
       });
 
@@ -246,7 +246,7 @@ describe('GET /api/bids', () => {
       (b: { id: string }) => b.id === SECOND_UUID,
     );
     expect(successful?.question_stats).toEqual({
-      project_id: SECOND_UUID,
+      workspace_id: SECOND_UUID,
       total: 4,
       answered: 2,
     });

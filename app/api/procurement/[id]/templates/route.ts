@@ -184,7 +184,7 @@ export async function POST(
     }
 
     // Insert template record.
-    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
     const { data: template, error: insertError } = await supabase
       .from('form_templates')
       .insert({
@@ -258,7 +258,7 @@ export async function GET(
     }
 
     // Fetch templates with completion count.
-    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
     const { data: templates, error } = await supabase
       .from('form_templates')
       .select(

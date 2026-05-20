@@ -56,7 +56,7 @@ vi.mock('@/lib/procurement/procurement-workflow', () => ({
   canTransition: (...args: unknown[]) => mockCanTransition(...args),
   getAvailableTransitions: (...args: unknown[]) =>
     mockGetAvailableTransitions(...args),
-  BID_STATE_LABELS: {
+  PROCUREMENT_WORKFLOW_LABELS: {
     draft: 'Draft',
     questions_extracted: 'Questions Extracted',
     matching: 'Matching',

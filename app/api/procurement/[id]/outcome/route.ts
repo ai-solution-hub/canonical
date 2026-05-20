@@ -108,7 +108,7 @@ export async function POST(
 
     if (outcome === 'won' && integrate_to_kb) {
       // Fetch all approved/edited responses for this bid.
-      // Post-T2: `bid_questions.project_id` → `workspace_id`.
+      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
       const { data: questions, error: questionsError } = await supabase
         .from('bid_questions')
         .select('id, question_text')

@@ -45,7 +45,7 @@ export async function POST(
     const { threshold } = parsed.data;
 
     // Verify template exists and is analysed.
-    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
       .from('form_templates')
       .select('id, status')
@@ -93,7 +93,7 @@ export async function POST(
     }
 
     // Fetch bid questions for this workspace.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text')

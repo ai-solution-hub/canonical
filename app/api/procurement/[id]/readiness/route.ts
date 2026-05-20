@@ -109,7 +109,7 @@ export async function GET(
     }
 
     // Fetch all questions for this bid.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text, question_sequence, section_name, word_limit')

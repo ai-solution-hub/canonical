@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
   canTransition,
   getAvailableTransitions,
-  BID_STATE_LABELS,
+  PROCUREMENT_WORKFLOW_LABELS,
 } from '@/lib/procurement/procurement-workflow';
 import type {
   Procurement,
@@ -136,7 +136,7 @@ function useBidTransitions(
       return newStatus;
     },
     onSuccess: (newStatus: ProcurementWorkflowState) => {
-      toast.success(`Procurement moved to ${BID_STATE_LABELS[newStatus]}`);
+      toast.success(`Procurement moved to ${PROCUREMENT_WORKFLOW_LABELS[newStatus]}`);
       queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
     },
     onError: (err: Error) => {
@@ -152,7 +152,7 @@ function useBidTransitions(
       const currentStatus = bid.status as ProcurementWorkflowState;
       if (!canTransition(currentStatus, newStatus)) {
         toast.error(
-          `Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`,
+          `Cannot transition from ${PROCUREMENT_WORKFLOW_LABELS[currentStatus]} to ${PROCUREMENT_WORKFLOW_LABELS[newStatus]}`,
         );
         return;
       }

@@ -486,7 +486,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     key: string;
     result: {
       keywordIds: string[] | null;
-      projectIds: string[] | null;
+      workspaceIds: string[] | null;
       qualityIds: string[] | null;
       entityIds: string[] | null;
       resolvedOwner: string | null;
@@ -528,7 +528,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       // Use cached resolver results if filter values haven't changed
       type ResolverResult = {
         keywordIds: string[] | null;
-        projectIds: string[] | null;
+        workspaceIds: string[] | null;
         qualityIds: string[] | null;
         entityIds: string[] | null;
         resolvedOwner: string | null;
@@ -537,7 +537,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       if (resolverCacheRef.current?.key === resolverCacheKey) {
         resolved = resolverCacheRef.current.result;
       } else {
-        const [keywordIds, projectIds, qualityIds, entityIds, resolvedOwner] =
+        const [keywordIds, workspaceIds, qualityIds, entityIds, resolvedOwner] =
           await Promise.all([
             resolveKeywordIds(supabase, filters),
             resolveWorkspaceIds(supabase, filters),
@@ -547,7 +547,7 @@ export function useBrowseData(): UseBrowseDataReturn {
           ]);
         resolved = {
           keywordIds,
-          projectIds,
+          workspaceIds,
           qualityIds,
           entityIds,
           resolvedOwner,
@@ -555,13 +555,13 @@ export function useBrowseData(): UseBrowseDataReturn {
         resolverCacheRef.current = { key: resolverCacheKey, result: resolved };
       }
 
-      const { keywordIds, projectIds, qualityIds, entityIds, resolvedOwner } =
+      const { keywordIds, workspaceIds, qualityIds, entityIds, resolvedOwner } =
         resolved;
 
       // Short-circuit if any required filter resolved to empty
       if (
         (keywordIds !== null && keywordIds.length === 0) ||
-        (projectIds !== null && projectIds.length === 0) ||
+        (workspaceIds !== null && workspaceIds.length === 0) ||
         (qualityIds !== null && qualityIds.length === 0) ||
         (entityIds !== null && entityIds.length === 0)
       ) {
@@ -578,7 +578,7 @@ export function useBrowseData(): UseBrowseDataReturn {
         cursorValue,
         isInitial,
         keywordIds,
-        projectIds,
+        workspaceIds,
         qualityIds,
         entityIds,
         resolvedOwner,

@@ -215,7 +215,7 @@ export async function getItemProvenance(
       ? await resolveUserDisplayNames(supabase, draftUserIds)
       : new Map<string, { display_name: string }>();
 
-  // 7. Resolve bid workspace names (post-T2: bid_questions.project_id renamed
+  // 7. Resolve bid workspace names (post-T2: bid_questions.workspace_id renamed
   // to workspace_id).
   const workspaceIds = recentDraftsResult
     .map((r) => {

@@ -35,7 +35,7 @@ export async function GET(
     }
 
     // Fetch template.
-    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
       .from('form_templates')
       .select(
@@ -250,7 +250,7 @@ export async function DELETE(
     }
 
     // Fetch template to get storage paths for cleanup.
-    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
       .from('form_templates')
       .select('id, storage_path, structure_path')

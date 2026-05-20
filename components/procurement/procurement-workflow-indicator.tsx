@@ -3,9 +3,9 @@
 import { Check, Circle, Clock, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  BID_STATE_LABELS,
-  BID_STATE_SHORT_LABELS,
-  BID_STATE_PROGRESSION,
+  PROCUREMENT_WORKFLOW_LABELS,
+  PROCUREMENT_WORKFLOW_SHORT_LABELS,
+  PROCUREMENT_WORKFLOW_PROGRESSION,
   isTerminal,
   type ProcurementWorkflowState,
 } from '@/lib/procurement/procurement-workflow';
@@ -86,7 +86,7 @@ const COLOUR_CLASSES: Record<
  */
 export function ProcurementWorkflowBadge({ state, className }: ProcurementWorkflowIndicatorProps) {
   const colours = COLOUR_CLASSES[state] ?? COLOUR_CLASSES.draft;
-  const label = BID_STATE_LABELS[state] ?? 'Unknown';
+  const label = PROCUREMENT_WORKFLOW_LABELS[state] ?? 'Unknown';
 
   return (
     <span
@@ -111,7 +111,7 @@ export function ProcurementWorkflowBadge({ state, className }: ProcurementWorkfl
  * Horizontal stepper showing bid progress through lifecycle states.
  */
 export function ProcurementWorkflowStepper({ state, className }: ProcurementWorkflowIndicatorProps) {
-  const currentIndex = BID_STATE_PROGRESSION.indexOf(state);
+  const currentIndex = PROCUREMENT_WORKFLOW_PROGRESSION.indexOf(state);
   const terminal = isTerminal(state);
 
   return (
@@ -120,7 +120,7 @@ export function ProcurementWorkflowStepper({ state, className }: ProcurementWork
       role="list"
       aria-label="Procurement progress"
     >
-      {BID_STATE_PROGRESSION.map((step, index) => {
+      {PROCUREMENT_WORKFLOW_PROGRESSION.map((step, index) => {
         const isCompleted = !terminal && currentIndex > index;
         const isCurrent = step === state;
         const isFuture = !terminal && currentIndex < index;
@@ -168,7 +168,7 @@ export function ProcurementWorkflowStepper({ state, className }: ProcurementWork
                 )}
                 aria-hidden="true"
               >
-                {BID_STATE_SHORT_LABELS[step]}
+                {PROCUREMENT_WORKFLOW_SHORT_LABELS[step]}
               </span>
               {/* Full label on desktop */}
               <span
@@ -179,7 +179,7 @@ export function ProcurementWorkflowStepper({ state, className }: ProcurementWork
                     : 'text-muted-foreground',
                 )}
               >
-                {BID_STATE_LABELS[step]}
+                {PROCUREMENT_WORKFLOW_LABELS[step]}
               </span>
             </div>
           </div>
@@ -219,11 +219,11 @@ export function ProcurementWorkflowStepper({ state, className }: ProcurementWork
               className="block text-[9px] font-medium leading-tight sm:hidden"
               aria-hidden="true"
             >
-              {BID_STATE_SHORT_LABELS[state]}
+              {PROCUREMENT_WORKFLOW_SHORT_LABELS[state]}
             </span>
             {/* Full label on desktop */}
             <span className="hidden text-[11px] font-medium leading-tight sm:block">
-              {BID_STATE_LABELS[state]}
+              {PROCUREMENT_WORKFLOW_LABELS[state]}
             </span>
           </div>
         </div>

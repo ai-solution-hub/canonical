@@ -70,7 +70,7 @@ export async function POST(
     }
 
     // Fetch questions to match.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     let questionsQuery = supabase
       .from('bid_questions')
       .select('id, question_text, confidence_posture')
@@ -158,7 +158,7 @@ export async function POST(
       const matchedIds = topMatches.map((m) => m.id);
 
       // Update the question.
-      // Post-T2: `bid_questions.project_id` → `workspace_id`.
+      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
       await supabase
         .from('bid_questions')
         .update({
@@ -217,7 +217,7 @@ export async function POST(
       canTransition(currentStatus, 'drafting')
     ) {
       // Check if all questions now have a confidence posture.
-      // Post-T2: `bid_questions.project_id` → `workspace_id`.
+      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
       const { count: unmatchedCount } = await supabase
         .from('bid_questions')
         .select('id', { count: 'exact', head: true })

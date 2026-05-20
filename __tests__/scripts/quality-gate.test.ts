@@ -482,7 +482,7 @@ const SAMPLE_ENVELOPE: GateEnvelope = {
   git_sha: 'deadbeef',
   timestamp: '2026-04-21T21:00:00.000Z',
   profile: 're-ingest',
-  project_id: 'mgrmucazfiibsomdmndh',
+  workspace_id: 'mgrmucazfiibsomdmndh',
   overall: 'fail',
   run_duration_ms: 2500,
   checks: [
@@ -559,7 +559,7 @@ describe('renderJson', () => {
     const parsed = JSON.parse(json);
     expect(parsed.run_id).toBe('abc-123');
     expect(parsed.profile).toBe('re-ingest');
-    expect(parsed.project_id).toBe('mgrmucazfiibsomdmndh');
+    expect(parsed.workspace_id).toBe('mgrmucazfiibsomdmndh');
     expect(parsed.overall).toBe('fail');
     expect(parsed.checks).toHaveLength(3);
     expect(parsed.checks[0].name).toBe('corpus_counts');

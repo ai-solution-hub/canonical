@@ -103,7 +103,7 @@ export async function GET(
         bid_responses!inner (
           id,
           question:bid_questions!inner (
-            project_id,
+            workspace_id,
             workspace:workspaces!inner (
               id,
               name,
@@ -132,7 +132,7 @@ export async function GET(
       const response = citation.bid_responses as unknown as {
         id: string;
         question: {
-          project_id: string;
+          workspace_id: string;
           workspace: {
             id: string;
             name: string;

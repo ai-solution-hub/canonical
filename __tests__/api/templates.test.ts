@@ -364,7 +364,7 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
   it('returns 200 with template detail, fields, summary, and completions', async () => {
     const mockTemplate = {
       id: TEMPLATE_UUID,
-      project_id: BID_UUID,
+      workspace_id: BID_UUID,
       name: 'Security Questionnaire',
       description: 'Annual security questionnaire',
       filename: 'security-q.docx',
@@ -745,7 +745,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: TEMPLATE_UUID,
-        project_id: BID_UUID,
+        workspace_id: BID_UUID,
         storage_path: `${BID_UUID}/${TEMPLATE_UUID}/original.docx`,
         status: 'analysed',
       },
@@ -776,7 +776,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       .mockResolvedValueOnce({
         data: {
           id: TEMPLATE_UUID,
-          project_id: BID_UUID,
+          workspace_id: BID_UUID,
           storage_path: `${BID_UUID}/${TEMPLATE_UUID}/original.docx`,
           status: 'uploaded',
         },
@@ -818,7 +818,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       .mockResolvedValueOnce({
         data: {
           id: TEMPLATE_UUID,
-          project_id: BID_UUID,
+          workspace_id: BID_UUID,
           storage_path: `${BID_UUID}/${TEMPLATE_UUID}/original.docx`,
           status: 'analysed',
         },
@@ -863,7 +863,7 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       .mockResolvedValueOnce({
         data: {
           id: TEMPLATE_UUID,
-          project_id: BID_UUID,
+          workspace_id: BID_UUID,
           storage_path: `${BID_UUID}/${TEMPLATE_UUID}/original.docx`,
           status: 'uploaded',
         },

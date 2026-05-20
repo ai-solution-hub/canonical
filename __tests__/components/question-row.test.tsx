@@ -29,7 +29,7 @@ describe('QuestionRow', () => {
   function makeQuestion(overrides: Partial<ProcurementQuestion> = {}): ProcurementQuestion {
     return {
       id: 'q-1',
-      project_id: 'bid-1',
+      workspace_id: 'bid-1',
       section_name: null,
       section_sequence: 1,
       question_sequence: 1,

@@ -756,7 +756,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
-        project_id: VALID_UUID,
+        workspace_id: VALID_UUID,
         storage_path: '/test.docx',
         status: 'uploaded',
       },
@@ -782,7 +782,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
-        project_id: VALID_UUID,
+        workspace_id: VALID_UUID,
         storage_path: '/test.docx',
         status: 'analysed',
       },
@@ -813,7 +813,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
-        project_id: VALID_UUID,
+        workspace_id: VALID_UUID,
         storage_path: '/test.docx',
         status: 'analysed',
       },
@@ -882,7 +882,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
-        project_id: VALID_UUID,
+        workspace_id: VALID_UUID,
         storage_path: '/test.docx',
         status: 'analysed',
       },

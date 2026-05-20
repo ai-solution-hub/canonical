@@ -45,7 +45,7 @@ export async function POST(
     const options = parsed.data;
 
     // Fetch template.
-    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
       .from('form_templates')
       .select('id, workspace_id, storage_path, status')
@@ -184,14 +184,14 @@ export async function POST(
       .eq('id', templateId);
 
     // Insert job into processing_queue.
-    // payload.project_id retained — JSONB blob shape, not a SQL column.
+    // payload.workspace_id retained — JSONB blob shape, not a SQL column.
     const { data: job, error: jobError } = await supabase
       .from('processing_queue')
       .insert({
         job_type: 'template_fill',
         payload: {
           template_id: templateId,
-          project_id: procurementId,
+          workspace_id: procurementId,
           storage_path: template.storage_path,
           field_mappings: fieldMappings,
           user_id: user.id,

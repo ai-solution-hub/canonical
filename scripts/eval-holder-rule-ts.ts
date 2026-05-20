@@ -629,12 +629,12 @@ async function runSnapshot(
   // Extract Supabase project ID from URL for provenance
   const supabaseUrl = process.env.SUPABASE_URL ?? '';
   const projectMatch = supabaseUrl.match(/([a-z]+)\.supabase/);
-  const projectId = projectMatch ? projectMatch[1] : supabaseUrl;
+  const workspaceId = projectMatch ? projectMatch[1] : supabaseUrl;
 
   const output: SnapshotOutput = {
     generated_at: new Date().toISOString(),
     mode: 'snapshot',
-    supabase_project: projectId,
+    supabase_project: workspaceId,
     client_org: CLIENT_ORG_LOWER,
     total_holds_relationships: allHolds.length,
     unique_content_items: holdsByItem.size,

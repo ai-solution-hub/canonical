@@ -307,7 +307,7 @@ function setupDefaultMock(
   >;
   const statsMap = new Map<string, unknown>();
   for (const row of batchStatsData) {
-    statsMap.set(row.project_id as string, row);
+    statsMap.set(row.workspace_id as string, row);
   }
   mockActiveBidsResult.current = {
     workspaces: workspacesData,
@@ -679,7 +679,7 @@ describe('fetchReorientData', () => {
         ],
         batchStatsData: [
           {
-            project_id: 'bid-1',
+            workspace_id: 'bid-1',
             total_questions: 10,
             drafted_count: 3,
             complete_count: 2,
@@ -872,7 +872,7 @@ describe('fetchReorientData', () => {
         ],
         batchStatsData: [
           {
-            project_id: 'bid-2',
+            workspace_id: 'bid-2',
             total_questions: 20,
             drafted_count: 8,
             complete_count: 5,
@@ -936,7 +936,7 @@ describe('fetchReorientData', () => {
         ],
         batchStatsData: [
           {
-            project_id: 'bid-overdue',
+            workspace_id: 'bid-overdue',
             total_questions: 5,
             drafted_count: 1,
             complete_count: 0,
@@ -944,7 +944,7 @@ describe('fetchReorientData', () => {
             no_content_count: 0,
           },
           {
-            project_id: 'bid-urgent',
+            workspace_id: 'bid-urgent',
             total_questions: 10,
             drafted_count: 5,
             complete_count: 2,
@@ -952,7 +952,7 @@ describe('fetchReorientData', () => {
             no_content_count: 0,
           },
           {
-            project_id: 'bid-normal',
+            workspace_id: 'bid-normal',
             total_questions: 8,
             drafted_count: 3,
             complete_count: 1,
@@ -1282,7 +1282,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'bid-1',
+                workspace_id: 'bid-1',
                 workspaces: { name: 'NHS Digital Procurement' },
               },
             },
@@ -1332,7 +1332,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'bid-1',
+                workspace_id: 'bid-1',
                 workspaces: { name: 'Recent Procurement' },
               },
             },
@@ -1370,7 +1370,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-2',
               bid_questions: {
-                project_id: 'bid-2',
+                workspace_id: 'bid-2',
                 question_text: 'Describe your security approach',
                 workspaces: { id: 'bid-2', name: 'Security Procurement' },
               },
@@ -1411,7 +1411,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-3',
               bid_questions: {
-                project_id: 'bid-3',
+                workspace_id: 'bid-3',
                 question_text: longQuestion,
                 workspaces: { id: 'bid-3', name: 'Long Q Procurement' },
               },
@@ -1478,7 +1478,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Q1',
                 workspaces: { id: 'b-1', name: 'Procurement' },
               },
@@ -1492,7 +1492,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-2',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Q2',
                 workspaces: { id: 'b-1', name: 'Procurement' },
               },
@@ -1541,7 +1541,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Latest response',
                 workspaces: { id: 'b-1', name: 'Procurement' },
               },
@@ -1555,7 +1555,7 @@ describe('fetchReorientData', () => {
             bid_responses: {
               question_id: 'q-1',
               bid_questions: {
-                project_id: 'b-1',
+                workspace_id: 'b-1',
                 question_text: 'Older response',
                 workspaces: { id: 'b-1', name: 'Procurement' },
               },

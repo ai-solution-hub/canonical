@@ -234,7 +234,7 @@ describe('GET /api/bids/:id/questions', () => {
     const mockQuestions = [
       {
         id: QUESTION_UUID,
-        project_id: BID_UUID,
+        workspace_id: BID_UUID,
         section_name: 'Technical',
         section_sequence: 1,
         question_text: 'Describe your approach',
@@ -388,7 +388,7 @@ describe('POST /api/bids/:id/questions', () => {
     // Insert returns the created question
     const mockCreated = {
       id: QUESTION_UUID,
-      project_id: BID_UUID,
+      workspace_id: BID_UUID,
       question_text: 'What is your methodology?',
       question_sequence: 1,
       section_sequence: 0,
@@ -585,7 +585,7 @@ describe('POST /api/bids/:id/questions/extract', () => {
             data: [
               {
                 id: QUESTION_UUID,
-                project_id: BID_UUID,
+                workspace_id: BID_UUID,
                 section_name: 'Technical Approach',
                 question_text: 'Describe your methodology',
                 question_sequence: 1,

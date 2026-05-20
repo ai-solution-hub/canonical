@@ -176,7 +176,7 @@ export async function fetchReorientData(
       supabase
         .from('bid_response_history')
         .select(
-          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))',
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(workspace_id, workspaces!inner(name)))',
         )
         .gt('created_at', sinceDate)
         .neq('edited_by', userId)
@@ -187,7 +187,7 @@ export async function fetchReorientData(
       supabase
         .from('bid_response_history')
         .select(
-          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))',
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(workspace_id, question_text, workspaces!inner(id, name)))',
         )
         .eq('edited_by', userId)
         .order('created_at', { ascending: false })
@@ -236,7 +236,7 @@ export async function fetchReorientData(
         const br = row.bid_responses as unknown as {
           question_id: string;
           bid_questions: {
-            project_id: string;
+            workspace_id: string;
             workspaces: { name: string };
           };
         } | null;
@@ -249,7 +249,7 @@ export async function fetchReorientData(
           entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Procurement',
           domain: undefined,
           created_at: row.created_at,
-          workspace_id: br?.bid_questions?.project_id,
+          workspace_id: br?.bid_questions?.workspace_id,
           question_id: br?.question_id,
         });
       }
@@ -299,7 +299,7 @@ export async function fetchReorientData(
         const br = row.bid_responses as unknown as {
           question_id: string;
           bid_questions: {
-            project_id: string;
+            workspace_id: string;
             question_text: string;
             workspaces: { id: string; name: string };
           };

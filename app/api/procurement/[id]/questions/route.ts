@@ -74,7 +74,7 @@ export async function GET(
     }
 
     // Fetch questions ordered by section then question sequence.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select(
@@ -230,7 +230,7 @@ export async function POST(
     if (!parsed.success) return parsed.response;
 
     // Get the max question_sequence for this bid to assign next sequence number.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     const maxSeqResult = await sb(
       supabase
         .from('bid_questions')
@@ -249,7 +249,7 @@ export async function POST(
     const { section_name, question_text, word_limit, evaluation_weight } =
       parsed.data;
 
-    // Post-T2: `bid_questions.project_id` → `workspace_id` on insert + select.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id` on insert + select.
     const { data: created, error: insertError } = await supabase
       .from('bid_questions')
       .insert({
@@ -291,7 +291,7 @@ async function handleBatchInsert(
   userId: string,
   questions: z.infer<typeof BatchQuestionCreateSchema>['questions'],
 ) {
-  // Post-T2: `bid_questions.project_id` → `workspace_id` on batch insert + select.
+  // Post-T2: `bid_questions.workspace_id` → `workspace_id` on batch insert + select.
   const rows = questions.map((q) => ({
     workspace_id: procurementId,
     section_name: q.section_name ?? null,

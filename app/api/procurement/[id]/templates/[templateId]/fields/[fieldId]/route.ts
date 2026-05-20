@@ -38,7 +38,7 @@ export async function PATCH(
     if (!parsed.success) return parsed.response;
 
     // Verify template exists and belongs to this bid.
-    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
       .from('form_templates')
       .select('id')

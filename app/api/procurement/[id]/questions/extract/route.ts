@@ -137,7 +137,7 @@ export async function POST(
     let duplicatesSkipped = 0;
 
     if (extractedQuestions.length > 0) {
-      // Post-T2: `bid_questions.project_id` → `workspace_id`.
+      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
       const { data: existingQuestions, error: existingError } = await supabase
         .from('bid_questions')
         .select('question_text')
@@ -183,7 +183,7 @@ export async function POST(
         });
       }
 
-      // Post-T2: `bid_questions.project_id` → `workspace_id`. The unique index
+      // Post-T2: `bid_questions.workspace_id` → `workspace_id`. The unique index
       // backing this onConflict was renamed in the migration too
       // (bid_questions_project_question_unique → bid_questions_workspace_question_unique)
       // but PostgREST resolves `onConflict` by column list, not constraint name.
@@ -265,7 +265,7 @@ export async function POST(
     }
 
     // Fetch the saved questions to return with IDs.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     const savedQuestions = await sb(
       supabase
         .from('bid_questions')

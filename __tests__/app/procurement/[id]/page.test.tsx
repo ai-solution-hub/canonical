@@ -114,8 +114,8 @@ vi.mock('@/lib/procurement/procurement-helpers', () => ({
 }));
 
 vi.mock('@/lib/procurement/procurement-workflow', () => ({
-  BID_STATE_LABELS: mockBidStateLabels,
-  BID_STATE_SHORT_LABELS: mockBidStateShortLabels,
+  PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
+  PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
 }));
 
 vi.mock('@/lib/utils', () => ({

@@ -77,7 +77,7 @@ export async function POST(
     }
 
     // Fetch the questions and responses for integration.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     const questionIds = integrations.map((i) => i.question_id);
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')

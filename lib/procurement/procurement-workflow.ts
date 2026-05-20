@@ -4,7 +4,7 @@ import { PROCUREMENT_WORKFLOW_STATES } from '@/types/procurement';
 export { PROCUREMENT_WORKFLOW_STATES };
 export type { ProcurementWorkflowState };
 
-export const BID_STATE_LABELS: Record<ProcurementWorkflowState, string> = {
+export const PROCUREMENT_WORKFLOW_LABELS: Record<ProcurementWorkflowState, string> = {
   draft: 'Draft',
   questions_extracted: 'Questions Extracted',
   matching: 'Matching',
@@ -18,7 +18,7 @@ export const BID_STATE_LABELS: Record<ProcurementWorkflowState, string> = {
 };
 
 /** Abbreviated labels for mobile stepper display */
-export const BID_STATE_SHORT_LABELS: Record<ProcurementWorkflowState, string> = {
+export const PROCUREMENT_WORKFLOW_SHORT_LABELS: Record<ProcurementWorkflowState, string> = {
   draft: 'Draft',
   questions_extracted: 'Extract',
   matching: 'Match',
@@ -32,7 +32,7 @@ export const BID_STATE_SHORT_LABELS: Record<ProcurementWorkflowState, string> = 
 };
 
 // Semantic token prefixes for bid state colours (map to --color-bid-* CSS tokens)
-export const BID_STATE_COLOURS: Record<ProcurementWorkflowState, string> = {
+export const PROCUREMENT_WORKFLOW_COLOURS: Record<ProcurementWorkflowState, string> = {
   draft: 'bid-draft',
   questions_extracted: 'bid-discovery',
   matching: 'bid-discovery',
@@ -75,7 +75,7 @@ export function isActive(state: ProcurementWorkflowState): boolean {
 }
 
 // Linear progression states for the stepper display (excludes terminal branches)
-export const BID_STATE_PROGRESSION: ProcurementWorkflowState[] = [
+export const PROCUREMENT_WORKFLOW_PROGRESSION: ProcurementWorkflowState[] = [
   'draft',
   'questions_extracted',
   'matching',

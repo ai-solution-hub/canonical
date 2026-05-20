@@ -94,7 +94,7 @@ export type ResponseReviewStatus =
 
 export interface ProcurementQuestion {
   id: string;
-  project_id: string;
+  workspace_id: string;
   section_name: string | null;
   section_sequence: number;
   question_sequence: number;

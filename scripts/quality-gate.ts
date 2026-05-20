@@ -133,7 +133,7 @@ export interface GateContext {
   relCov: RelationshipCoverageExpected;
   dedup: DedupExpected;
   auditContent?: AuditContentExpected;
-  projectId: string;
+  workspaceId: string;
   runId: string;
   gitSha: string;
   timestamp: string;
@@ -144,7 +144,7 @@ export interface GateEnvelope {
   git_sha: string;
   timestamp: string;
   profile: string;
-  project_id: string;
+  workspace_id: string;
   overall: 'pass' | 'fail' | 'warn';
   run_duration_ms: number;
   checks: CheckResult[];
@@ -337,7 +337,7 @@ export function severityFor(
 // Supabase client
 // ---------------------------------------------------------------------------
 
-export function createSb(env = ''): { sb: SupabaseClient; projectId: string } {
+export function createSb(env = ''): { sb: SupabaseClient; workspaceId: string } {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
@@ -348,11 +348,11 @@ export function createSb(env = ''): { sb: SupabaseClient; projectId: string } {
 
   assertEnvFlag(env, url);
 
-  const projectId = extractProjectId(url);
+  const workspaceId = extractProjectId(url);
   const sb = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  return { sb, projectId };
+  return { sb, workspaceId };
 }
 
 export function extractProjectId(url: string): string {
@@ -1790,7 +1790,7 @@ export function renderMarkdown(
   lines.push(`# Quality Gate Report — ${envelope.timestamp}`);
   lines.push('');
   lines.push(`**Profile:** ${profileName}`);
-  lines.push(`**Project:** ${envelope.project_id}`);
+  lines.push(`**Project:** ${envelope.workspace_id}`);
   lines.push(`**Run ID:** ${envelope.run_id}`);
   lines.push(`**Git SHA:** ${envelope.git_sha || '(not in git worktree)'}`);
   lines.push(`**Overall:** ${envelope.overall.toUpperCase()}`);
@@ -1912,7 +1912,7 @@ export async function runGate(
   const profileName = args.profile ?? args.threshold ?? 're-ingest';
   const profileDef = resolveProfile(profiles, profileName);
 
-  const { sb, projectId } = createSb(args.env);
+  const { sb, workspaceId } = createSb(args.env);
 
   let auditContent: AuditContentExpected | undefined;
   if (isAuditProfile) {
@@ -1943,7 +1943,7 @@ export async function runGate(
     relCov,
     dedup,
     auditContent,
-    projectId,
+    workspaceId,
     runId,
     gitSha,
     timestamp,
@@ -2001,7 +2001,7 @@ export async function runGate(
     git_sha: gitSha,
     timestamp,
     profile: profileName,
-    project_id: projectId,
+    workspace_id: workspaceId,
     overall,
     run_duration_ms: now() - t0,
     checks: allResults,

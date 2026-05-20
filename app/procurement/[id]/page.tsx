@@ -70,7 +70,7 @@ import { useBidExport } from '@/hooks/procurement/use-procurement-export';
 import { useBidReadiness } from '@/hooks/procurement/use-procurement-readiness';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
-import { BID_STATE_LABELS } from '@/lib/procurement/procurement-workflow';
+import { PROCUREMENT_WORKFLOW_LABELS } from '@/lib/procurement/procurement-workflow';
 import { cn } from '@/lib/utils';
 import type {
   Procurement,
@@ -255,7 +255,7 @@ export default function ProcurementDetailPage({
                         size="sm"
                         onClick={() => handleStatusTransition(transition)}
                         disabled={transitioning}
-                        aria-label={BID_STATE_LABELS[transition]}
+                        aria-label={PROCUREMENT_WORKFLOW_LABELS[transition]}
                       >
                         {transitioning ? (
                           <Loader2
@@ -263,7 +263,7 @@ export default function ProcurementDetailPage({
                             aria-hidden="true"
                           />
                         ) : null}
-                        {BID_STATE_LABELS[transition]}
+                        {PROCUREMENT_WORKFLOW_LABELS[transition]}
                       </Button>
                     ))}
                 </div>
@@ -602,7 +602,7 @@ function MobileActionMenu({
                 aria-hidden="true"
               />
             )}
-            {BID_STATE_LABELS[transition]}
+            {PROCUREMENT_WORKFLOW_LABELS[transition]}
           </DropdownMenuItem>
         ))}
 

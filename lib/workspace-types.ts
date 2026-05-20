@@ -2,11 +2,13 @@ import { Briefcase, FileSignature, Newspaper } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { logger } from '@/lib/logger/client';
 
-// TODO(T4): replace static registry with application_types TanStack Query per
-// PLAN §4.4. This module is logically wrong post-T2 (workspaces.type column
-// dropped; discriminator is now application_types.key via JOIN), but kept as
-// a minimal compile-fix shim so existing call sites still resolve while the
-// proper TanStack Query rollout lands.
+// Post-T4 (S248): `getValidTypeValues()` returns the 6 application_types
+// seed keys hardcoded (sync-callable at module-load for Zod). The static
+// `WORKSPACE_TYPE_REGISTRY` registry is retained as a UI metadata helper
+// for the 3 currently-rendered workspace types (procurement / intelligence
+// / proposal). Full TanStack Query migration of UI helpers against
+// application_types is a follow-up — tracked as a backlog item rather
+// than blocking T4 close.
 
 /**
  * Configuration for a workspace type. Each registered type provides the
@@ -155,18 +157,29 @@ export function getLauncherTypes(): WorkspaceTypeConfig[] {
 }
 
 /**
+ * Six application_types seed keys (matches `application_types.key` per T2
+ * migration S246/S247). Source of truth is the DB table; this constant is
+ * the sync-callable equivalent used by Zod schema construction at module
+ * load (`lib/validation/schemas.ts:535`). Update both lists in lockstep
+ * if a seed key is added or retired.
+ */
+export const APPLICATION_TYPE_KEYS = [
+  'procurement',
+  'intelligence',
+  'sales_proposal',
+  'product_guide',
+  'competitor_research',
+  'training_onboarding',
+] as const;
+
+/**
  * Get the valid type values for Zod validation.
- * Only includes types that exist in the database (available types and those
- * with backing schema). Excludes placeholder types like 'proposal' that have
- * no DB CHECK constraint entry.
+ * Returns the 6 application_types seed keys hardcoded — sync-callable
+ * equivalent of `SELECT key FROM application_types`. Async DB-driven
+ * validation belongs in route handlers, not module-load-time Zod.
  */
 export function getValidTypeValues(): [string, ...string[]] {
-  const values = Object.keys(WORKSPACE_TYPE_REGISTRY).filter((key) => {
-    const config = WORKSPACE_TYPE_REGISTRY[key];
-    return config.available;
-  });
-  if (values.length === 0) throw new Error('No workspace types registered');
-  return values as [string, ...string[]];
+  return APPLICATION_TYPE_KEYS as unknown as [string, ...string[]];
 }
 
 /** Format a count string for a workspace type (e.g. "3 active bids") */

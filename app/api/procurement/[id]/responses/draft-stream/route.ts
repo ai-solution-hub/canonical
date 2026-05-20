@@ -96,7 +96,7 @@ export async function POST(
     }
 
     // Fetch the question.
-    // Post-T2: `bid_questions.project_id` → `workspace_id`.
+    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
     const { data: question, error: qError } = await supabase
       .from('bid_questions')
       .select(
@@ -306,7 +306,7 @@ export async function POST(
           }
 
           // Update question status.
-          // Post-T2: `bid_questions.project_id` → `workspace_id`.
+          // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
           await supabase
             .from('bid_questions')
             .update({ status: 'ai_drafted' })

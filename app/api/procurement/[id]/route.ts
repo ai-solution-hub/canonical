@@ -301,7 +301,7 @@ export async function DELETE(
       }
 
       // Delete template files and completions.
-      // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
+      // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
       const { data: templates, error: templatesError } = await supabase
         .from('form_templates')
         .select('id, storage_path, structure_path')
