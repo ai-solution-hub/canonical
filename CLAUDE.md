@@ -59,11 +59,11 @@ Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/`        | Next.js 16 App Router — API routes, page routes                                                                                                                                                                                                 |
 | `mcp-apps/`   | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)                                                                                                                                                                              |
-| `components/` | 23 domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
+| `components/` | Domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
 | `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                        |
-| `hooks/`      | Custom React hooks — 7 domain subdirs (bid, browse, intelligence, provenance, review, streaming, ui) + general hooks at root                                                                                                                    |
-| `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
-| `types/`      | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                     |
+| `hooks/`      | Custom React hooks — domain subdirs (`browse`, `intelligence`, `procurement`, `provenance`, `review`, `streaming`, `ui`) + general hooks at root                                                                                                                    |
+| `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `procurement/`, `content/`, `coverage/`, `change-reports/`, `entities/`, `extraction/`, `governance/`, `intelligence/`, `ontology/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
+| `types/`      | TypeScript types (content, procurement, procurement-metadata, digest, intelligence-refinement, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                     |
 | `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                     |
 | `supabase/`   | Migrations + auto-generated types (`database.types.ts` — never edit manually)                                                                                                                                                                   |
 | `__tests__/`  | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation)                                                                                                                                  |
@@ -215,10 +215,8 @@ Two concurrent long-lived worktrees on this project (shared filesystem via
   Currently implementing the new dev-workflow orchestration setup. Original Primer:
   `docs/tracks/production-readiness.md`.
 
-Decommissioned (S57): **kh-knowledge-platform** worktree + branch removed.
-History preserved at tag `archive/kh-knowledge-platform` (commit `67cfb0a6`).
-Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
-`.continuation-prompts/`, `.audits/kh-knowledge-platform-phase-1/`.
+Short-lived investigation branches (e.g. `content-items-investigation`) cut from `main`
+without their own worktree are fine — work in the `main` worktree directly.
 
 ## Gotchas
 
@@ -242,6 +240,15 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
 - **`content_items.content_text_hash` is `GENERATED ALWAYS`:** explicit insert or update
   value rejected with `cannot insert a non-DEFAULT value into column`. PG auto-computes
   via `md5(normalised content)`. Omit the field from any payload writing `content_items`.
+- **Column-drop migrations must audit triggers / policies / views ACROSS ALL ENVS, not
+  just current-env audit.** Staging-bypass via empty result sets can mask references that
+  fire on prod. S247 W1: `sync_bid_status` trigger on `workspaces.type` survived
+  staging-apply because greenfield 0 rows matched the UPDATE; prod-apply with 3 matching
+  rows fired the trigger and tripped `NEW.type` post-column-drop (SQLSTATE 42703). Pre-
+  apply checklist before any DROP COLUMN: query `pg_trigger` / `pg_proc` / `pg_policy` /
+  `pg_views` for `relname = '<table>'` on **both** staging and prod, drop dead-code refs
+  inline in the migration (idempotent `DROP TRIGGER IF EXISTS` /
+  `DROP FUNCTION IF EXISTS`).
 - **CLI `.temp/project-ref` can silently go stale post-env-flip:** `supabase db push` may
   push to the WRONG project (looks like silent-fail on intended project). Always
   `cat supabase/.temp/project-ref` before any push; relink via
@@ -313,16 +320,21 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
   `auth.success` not `auth.authorised`. Three failure reasons: `unauthenticated` (→401),
   `forbidden` (→403), `role_lookup_failed` (→500). **Always** use
   `authFailureResponse(auth)` helper to route each reason to the correct HTTP status.
-- **No barrel re-exports:** Always use direct file imports (`@/lib/bid/helpers`), never
-  import from index files.
+- **No barrel re-exports:** Always use direct file imports (`@/lib/procurement/helpers`),
+  never import from index files.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);
   `lib/taxonomy/taxonomy.ts` is a 24-line re-export shim for content types and platforms
   only — Python pipeline reads taxonomy from
   `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
-- **"Change Reports" not "Digest":** User-facing label is "Change Reports"; internal code
-  still uses "digest".
+- **"Change Reports" not "Digest" — code rename complete (S248 T5):** User-facing label is
+  "Change Reports". DB table renamed `digests → change_reports` at T2 (S246). Code rename
+  shipped S248: `lib/digest/* → lib/change-reports/*`;
+  `lib/ai/digest.ts → lib/ai/change-reports.ts`; `lib/query/query-keys.ts` `digests` →
+  `changeReports` namespace. Route paths (`app/api/digest/*`, `app/digest/`) and type file
+  (`types/digest.ts`) kept as-is (URL-stable + type names unchanged). CI guard:
+  `__tests__/validation/no-digest-import-regression.test.ts`.
 - **Entity classification: false positives, not type errors:** Source of truth:
   `docs/reference/entity-type-taxonomy-spec.md`.
 
@@ -361,29 +373,14 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
 - **cocoindex 1.0.3 requires `dangerouslyDisableSandbox: true`** for both PyPI install and
   Rust-engine LMDB startup in dev. `localfs.walk_dir` defaults `recursive=False` —
   explicit `recursive=True` needed for nested corpora.
-- **Worktree isolation rules (deterministic cause + mitigation):**
-  - **Two sessions on same working tree destroy each other's files** — use
-    `isolation: "worktree"` on Agent dispatch, or `git worktree add` for parallel work.
-  - **Cherry-pick (not merge)** parallel agent branches — agents branch from main at
-    launch time and go stale when earlier agents merge first.
-  - **Worktree agents start stale:** `isolation: "worktree"` branches from a historical
-    commit. Agent's first action:
-    `git fetch origin {branch} && git reset --hard origin/{branch}` (no `cd` prefix — see
-    below).
-  - **Bash shell state does NOT persist between Bash tool calls** — every Bash tool call
-    runs in the harness's default cwd, which IS the worktree. The agent's branch never
-    "jumps"; the cwd briefly moves to the wrong tree for that one call, and that single
-    `git commit` lands on the wrong branch.
-  - **After cherry-picking worktree branches**, run `git status` on the main tree and
-    clean with `git checkout -- .` and `git clean -fd` (merges occasionally leak files).
-  - **`.claude/agents/` files need `dangerouslyDisableSandbox: true` on cherry-pick** —
-    sandbox blocks unlink on those paths (same pattern as `hooks/`).
-  - **Reference-doc freshness guard edge case:** the
-    `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts` test inspects
-    single-parent commits; merge commits using combined-diff format don't register
-    single-parent `last_updated` additions. Workaround = follow-up single-parent commit
-    that bumps `last_updated` (precedent: commit `744d9ef1` + `6cad7d64`); or
-    `[skip-doc-freshness-guard]` body tag.
+- **Worktree isolation:** Use `isolation: "worktree"` on parallel Agent dispatch.
+  PreToolUse hooks (`.claude/settings.json`, `Bash|Write|Edit|MultiEdit` matchers) enforce
+  CWD-vs-path containment — trust the hooks, don't reinvent. Cherry-pick (not merge)
+  parallel branches; agents start stale, so first action is
+  `git fetch origin {branch} && git reset --hard origin/{branch}`.
+- **Reference-doc freshness guard:** merge commits using combined-diff format don't
+  register single-parent `last_updated` additions. Workaround = follow-up single-parent
+  commit bumping `last_updated`, or `[skip-doc-freshness-guard]` body tag.
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
 - **ALWAYS check worktree `git status` before removing it:** This covers any cases where
@@ -392,3 +389,10 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
+- **cmux Bash calls need `dangerouslyDisableSandbox: true`:** cmux daemon (Mac app at
+  `/Applications/cmux.app`) communicates via `/tmp/cmux.sock`, which is outside the
+  sandbox `write.allowOnly` allowlist. Without sandbox-disable every `cmux *` call fails
+  with `Failed to connect to socket at /tmp/cmux.sock` even when the app is running.
+  Permissions in `.claude/settings.json` cover `Bash(cmux *)` for auto-approval, but the
+  sandbox flag is still required for socket access. Pattern matches the Supabase CLI
+  gotcha. Verify daemon is running with `cmux ping` (returns `PONG`) before fan-out.
