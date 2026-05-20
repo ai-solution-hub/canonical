@@ -502,7 +502,7 @@ export interface AuditTrailBundle {
   taxonomy_domains: Record<string, unknown>[];
   taxonomy_subtopics: Record<string, unknown>[];
   taxonomy_sync_state: Record<string, unknown>[];
-  digests: Record<string, unknown>[];
+  change_reports: Record<string, unknown>[];
   processing_queue: Record<string, unknown>[];
   pipeline_runs: Record<string, unknown>[];
   ingestion_quality_log: Record<string, unknown>[];
@@ -601,7 +601,7 @@ export async function assembleAuditTrailBundle(
     taxonomyDomains,
     taxonomySubtopics,
     taxonomySyncState,
-    digests,
+    changeReports,
     processingQueue,
     pipelineRuns,
     ingestionQualityLog,
@@ -663,7 +663,7 @@ export async function assembleAuditTrailBundle(
     fetchByColumn(client, 'taxonomy_sync_state', 'synced_by', subjectUuid),
     fetchByAnyColumn(
       client,
-      'digests',
+      'change_reports',
       ['created_by', 'generated_by'],
       subjectUuid,
     ),
@@ -697,7 +697,7 @@ export async function assembleAuditTrailBundle(
     taxonomy_domains: taxonomyDomains,
     taxonomy_subtopics: taxonomySubtopics,
     taxonomy_sync_state: taxonomySyncState,
-    digests,
+    change_reports: changeReports,
     processing_queue: processingQueue,
     pipeline_runs: pipelineRuns,
     ingestion_quality_log: ingestionQualityLog,

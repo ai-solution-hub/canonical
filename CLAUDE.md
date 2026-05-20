@@ -330,9 +330,7 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
   `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
-- **"Change Reports" not "Digest":** User-facing label is "Change Reports"; internal code
-  still uses "digest". DB table renamed `digests → change_reports` at T2 (S246); code
-  rename (`lib/digest/* → lib/change-reports/*`) is T5 scope.
+- **"Change Reports" not "Digest" — code rename complete (S248 T5):** User-facing label is "Change Reports". DB table renamed `digests → change_reports` at T2 (S246). Code rename shipped S248: `lib/digest/* → lib/change-reports/*`; `lib/ai/digest.ts → lib/ai/change-reports.ts`; `lib/query/query-keys.ts` `digests` → `changeReports` namespace. Route paths (`app/api/digest/*`, `app/digest/`) and type file (`types/digest.ts`) kept as-is (URL-stable + type names unchanged). CI guard: `__tests__/validation/no-digest-import-regression.test.ts`.
 - **Workspace discriminator is `application_type_id` FK, not text `type` column** (T2
   migration S246/S247): `workspaces.type` text col was DROPPED + replaced with
   `application_type_id uuid NOT NULL → application_types(id)`. Read via

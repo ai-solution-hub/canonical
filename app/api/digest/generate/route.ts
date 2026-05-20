@@ -8,7 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { DigestGenerateBodySchema } from '@/lib/validation/schemas';
-import { generateDigest } from '@/lib/ai/digest';
+import { generateDigest } from '@/lib/ai/change-reports';
 import { AIServiceError } from '@/lib/ai/errors';
 
 export const maxDuration = 60;

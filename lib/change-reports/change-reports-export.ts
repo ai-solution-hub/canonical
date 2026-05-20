@@ -9,7 +9,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { formatDate } from '@/lib/format';
-import { digestTypeLabel } from '@/lib/digest/digest-helpers';
+import { digestTypeLabel } from '@/lib/change-reports/change-reports-helpers';
 import type { Digest } from '@/types/digest';
 
 /** Format a date string for filenames (e.g. "25-jan-2026") */

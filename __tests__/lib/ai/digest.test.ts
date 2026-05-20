@@ -81,7 +81,7 @@ vi.spyOn(console, 'warn').mockImplementation(() => {});
 // Import under test AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { generateDigest } from '@/lib/ai/digest';
+import { generateDigest } from '@/lib/ai/change-reports';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
