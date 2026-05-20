@@ -307,7 +307,7 @@ describeIfEnv(
       const { bidId } = await createTestBid({ status: 'drafting' });
 
       const { POST } =
-        await import('@/app/api/bids/[id]/responses/draft-all/route');
+        await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },
@@ -361,7 +361,7 @@ describeIfEnv(
       const { bidId } = await createTestBid({ status: 'drafting' });
 
       const { POST } =
-        await import('@/app/api/bids/[id]/responses/draft-all/route');
+        await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },
@@ -407,7 +407,7 @@ describeIfEnv(
       const { bidId } = await createTestBid({ status: 'drafting' });
 
       const { POST } =
-        await import('@/app/api/bids/[id]/responses/draft-all/route');
+        await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const first = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },
@@ -480,7 +480,7 @@ describeIfEnv(
       const { bidId } = await createTestBid({ status: 'drafting' });
 
       const { POST } =
-        await import('@/app/api/bids/[id]/responses/draft-all/route');
+        await import('@/app/api/procurement/[id]/responses/draft-all/route');
 
       // Pin "today" to a fixed UTC date.
       vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -618,7 +618,7 @@ describeIfEnv(
         });
 
       const { POST } =
-        await import('@/app/api/bids/[id]/responses/draft-all/route');
+        await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },
@@ -725,7 +725,7 @@ describeIfEnv(
         });
 
       const { POST } =
-        await import('@/app/api/bids/[id]/responses/draft-all/route');
+        await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },
@@ -791,7 +791,7 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
     const { bidId } = await createTestBid({ status: 'matching' });
 
     const { POST } =
-      await import('@/app/api/bids/[id]/responses/draft-all/route');
+      await import('@/app/api/procurement/[id]/responses/draft-all/route');
     const response = await POST(
       buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
       { params: Promise.resolve({ id: bidId }) },
@@ -934,7 +934,7 @@ describeIfEnv('AC-8 — cancel pending (200) / processing (409)', () => {
     const { bidId } = await createTestBid({ status: 'drafting' });
 
     const { POST } =
-      await import('@/app/api/bids/[id]/responses/draft-all/route');
+      await import('@/app/api/procurement/[id]/responses/draft-all/route');
     const response = await POST(
       buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
       { params: Promise.resolve({ id: bidId }) },
@@ -978,7 +978,7 @@ describeIfEnv('AC-8 — cancel pending (200) / processing (409)', () => {
     const { bidId } = await createTestBid({ status: 'drafting' });
 
     const { POST } =
-      await import('@/app/api/bids/[id]/responses/draft-all/route');
+      await import('@/app/api/procurement/[id]/responses/draft-all/route');
     const response = await POST(
       buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
       { params: Promise.resolve({ id: bidId }) },
@@ -1102,7 +1102,7 @@ describeIfEnv(
         });
 
       const { POST } =
-        await import('@/app/api/bids/[id]/responses/draft-all/route');
+        await import('@/app/api/procurement/[id]/responses/draft-all/route');
       const response = await POST(
         buildPostRequest(bidId) as unknown as import('next/server').NextRequest,
         { params: Promise.resolve({ id: bidId }) },

@@ -36,11 +36,11 @@ vi.mock('next/headers', () => ({
 }));
 
 // Mock the export generation libraries — they produce binary output we don't need
-vi.mock('@/lib/bid/bid-export-docx', () => ({
+vi.mock('@/lib/procurement/procurement-export-docx', () => ({
   generateBidDocx: vi.fn().mockResolvedValue(Buffer.from('mock-docx-content')),
 }));
 
-vi.mock('@/lib/bid/bid-export-xlsx', () => ({
+vi.mock('@/lib/procurement/procurement-export-xlsx', () => ({
   generateBidXlsx: vi.fn().mockResolvedValue(Buffer.from('mock-xlsx-content')),
 }));
 
@@ -51,8 +51,8 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import route handlers AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { POST as postDocxExport } from '@/app/api/bids/[id]/export/docx/route';
-import { POST as postXlsxExport } from '@/app/api/bids/[id]/export/xlsx/route';
+import { POST as postDocxExport } from '@/app/api/procurement/[id]/export/docx/route';
+import { POST as postXlsxExport } from '@/app/api/procurement/[id]/export/xlsx/route';
 
 // ---------------------------------------------------------------------------
 // Constants

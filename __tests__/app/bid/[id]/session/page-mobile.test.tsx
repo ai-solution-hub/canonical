@@ -117,7 +117,7 @@ vi.mock('@/components/ui/separator', () => ({
 }));
 
 // Stub child components to isolate session page tests
-vi.mock('@/components/bid/question-navigator', () => ({
+vi.mock('@/components/procurement/question-navigator', () => ({
   QuestionNavigator: ({
     questions,
     currentIndex,
@@ -137,7 +137,7 @@ vi.mock('@/components/bid/question-navigator', () => ({
   ),
 }));
 
-vi.mock('@/components/bid/response-editor', () => ({
+vi.mock('@/components/procurement/response-editor', () => ({
   ResponseEditor: ({
     content,
     placeholder,
@@ -159,7 +159,7 @@ vi.mock('@/components/shared/quality-score', () => ({
   QualityScore: () => <div data-testid="quality-score">Quality</div>,
 }));
 
-vi.mock('@/components/bid/response-actions', () => ({
+vi.mock('@/components/procurement/response-actions', () => ({
   ResponseActions: ({
     nextUnansweredIndex,
     onNextUnanswered,
@@ -198,13 +198,13 @@ vi.mock('@/components/content/content-library-drawer', () => ({
   ),
 }));
 
-vi.mock('@/components/bid/response-version-history', () => ({
+vi.mock('@/components/procurement/response-version-history', () => ({
   ResponseVersionHistory: () => (
     <div data-testid="response-version-history">History</div>
   ),
 }));
 
-vi.mock('@/components/bid/bid-context-provider', () => ({
+vi.mock('@/components/procurement/procurement-context-provider', () => ({
   BidContextProvider: ({
     children,
     bidId,
@@ -219,7 +219,7 @@ vi.mock('@/components/bid/bid-context-provider', () => ({
 }));
 
 // Import AFTER mocks
-import BidSessionPage from '@/app/bid/[id]/session/page';
+import BidSessionPage from '@/app/procurement/[id]/session/page';
 
 // ---------------------------------------------------------------------------
 // Data factories

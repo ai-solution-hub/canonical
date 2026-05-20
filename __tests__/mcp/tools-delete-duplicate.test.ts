@@ -62,7 +62,7 @@ vi.mock('@/lib/reorient', () => ({
   fetchReorientData: vi.fn(),
   resolveDisplayNames: vi.fn(),
 }));
-vi.mock('@/lib/bid/bid-queries', () => ({ fetchBidSections: vi.fn() }));
+vi.mock('@/lib/procurement/procurement-queries', () => ({ fetchBidSections: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // Mock McpServer

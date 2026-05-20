@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
-import { DraftRecoveryDialog } from '@/components/bid/draft-recovery-dialog';
+import { DraftRecoveryDialog } from '@/components/procurement/draft-recovery-dialog';
 
 describe('DraftRecoveryDialog', () => {
   const onRestore = vi.fn();

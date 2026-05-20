@@ -6,9 +6,9 @@ import { queryKeys } from '@/lib/query/query-keys';
 import { mutationFetchJson } from '@/lib/query/fetchers';
 import { insertLibraryContent } from '@/lib/drawer-insert';
 import { toast } from 'sonner';
-import type { BidQuestion } from '@/types/bid';
-import type { Editor } from '@/components/bid/response-editor';
-import type { ResponseAction } from '@/components/bid/response-actions';
+import type { BidQuestion } from '@/types/procurement';
+import type { Editor } from '@/components/procurement/response-editor';
+import type { ResponseAction } from '@/components/procurement/response-actions';
 import type { BidResponse } from '@/hooks/streaming/use-stream-coordination';
 import type { useDraftStream } from '@/hooks/streaming/use-draft-stream';
 

@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   generateBidDocx,
   markdownToDocxParagraphs,
-} from '@/lib/bid/bid-export-docx';
+} from '@/lib/procurement/procurement-export-docx';
 import type {
   ExportQuestion,
   ExportBidMetadata,
-} from '@/lib/bid/bid-export-types';
+} from '@/lib/procurement/procurement-export-types';
 
 // ---------------------------------------------------------------------------
 // Test fixtures

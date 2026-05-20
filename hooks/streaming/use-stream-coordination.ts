@@ -7,10 +7,10 @@ import { useBidResponseActions } from '@/hooks/bid/use-bid-response-actions';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
-import type { Editor } from '@/components/bid/response-editor';
-import type { ResponseAction } from '@/components/bid/response-actions';
-import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
-import type { CitationEntry, QualityData } from '@/types/bid-metadata';
+import type { Editor } from '@/components/procurement/response-editor';
+import type { ResponseAction } from '@/components/procurement/response-actions';
+import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/procurement';
+import type { CitationEntry, QualityData } from '@/types/procurement-metadata';
 
 // ── Content comparison helper (exported for tests) ──
 

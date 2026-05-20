@@ -106,8 +106,8 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Import AFTER mocks
-import { TenderMetadataPrompt } from '@/components/bid/tender-metadata-prompt';
-import type { TenderExtractedMetadata } from '@/types/bid-metadata';
+import { TenderMetadataPrompt } from '@/components/procurement/tender-metadata-prompt';
+import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 
 // ---------------------------------------------------------------------------
 // Helpers

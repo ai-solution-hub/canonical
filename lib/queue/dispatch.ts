@@ -39,8 +39,8 @@ import {
   type QueueJobPayload,
 } from '@/lib/queue/envelope';
 import { reValidateAuthContext } from '@/lib/queue/auth';
-import { runBidDraftAllJob } from '@/lib/queue/handlers/bid-draft-all';
-import type { BidDraftAllBody } from '@/lib/queue/handlers/bid-draft-all';
+import { runBidDraftAllJob } from '@/lib/queue/handlers/procurement-draft-all';
+import type { BidDraftAllBody } from '@/lib/queue/handlers/procurement-draft-all';
 import { runBatchReclassifyJob } from '@/lib/queue/handlers/batch-reclassify';
 import type { BatchReclassifyBody } from '@/lib/queue/handlers/batch-reclassify';
 import { runMarkdownBatchJob } from '@/lib/queue/handlers/markdown-batch';

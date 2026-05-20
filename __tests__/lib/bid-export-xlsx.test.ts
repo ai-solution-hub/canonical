@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
-import { generateBidXlsx } from '@/lib/bid/bid-export-xlsx';
+import { generateBidXlsx } from '@/lib/procurement/procurement-export-xlsx';
 import type {
   ExportBidMetadata,
   ExportQuestion,
-} from '@/lib/bid/bid-export-types';
+} from '@/lib/procurement/procurement-export-types';
 
 // ---------------------------------------------------------------------------
 // Test fixtures

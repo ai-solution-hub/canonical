@@ -24,7 +24,7 @@ import {
   checkOrphanedSourceIds,
 } from '@/lib/citations';
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CitationEntry } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
 import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 beforeEach(() => {

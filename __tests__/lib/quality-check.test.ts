@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { runDeterministicChecks } from '@/lib/ai/quality-check';
-import type { CitationEntry } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
 
 /**
  * Tests for the deterministic quality checks only.

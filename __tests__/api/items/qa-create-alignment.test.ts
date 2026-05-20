@@ -111,8 +111,8 @@ vi.mock('@/lib/editor-utils', () => ({
 // Import route handlers AFTER mocks are registered
 import { POST as createItem } from '@/app/api/items/route';
 import { POST as batchCreate } from '@/app/api/items/batch/route';
-import { POST as bidIntegrate } from '@/app/api/bids/[id]/outcome/integrate/route';
-import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
+import { POST as bidIntegrate } from '@/app/api/procurement/[id]/outcome/integrate/route';
+import { extractAnswerFromContent } from '@/lib/procurement-library-ingest/extract-answer';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -512,7 +512,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
     it('emits content that aligns with PATCH rebuild shape', async () => {
       const { splitIntoQAPairs } = await import('@/lib/quality/qa-detection');
       const { resolveQuestionForRebuild } =
-        await import('@/lib/bid-library-ingest/resolve-question');
+        await import('@/lib/procurement-library-ingest/resolve-question');
 
       const pairs = [
         {

@@ -16,7 +16,7 @@ import userEvent from '@testing-library/user-event';
 import {
   ReadinessChecklist,
   ReadinessBadge,
-} from '@/components/bid/readiness-checklist';
+} from '@/components/procurement/readiness-checklist';
 import type { ReadinessData } from '@/hooks/bid/use-bid-readiness';
 
 // ---------------------------------------------------------------------------

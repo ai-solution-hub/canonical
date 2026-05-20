@@ -35,7 +35,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { QuestionReview } from '@/components/bid/question-review';
+import { QuestionReview } from '@/components/procurement/question-review';
 
 // ---------------------------------------------------------------------------
 // Data factories

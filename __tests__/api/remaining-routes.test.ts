@@ -56,7 +56,7 @@ const { GET: coverageGuidesGet } =
 const { PATCH: guideSectionPatch, DELETE: guideSectionDelete } =
   await import('@/app/api/guides/[slug]/sections/[sectionId]/route');
 const { GET: completionDownloadGet } =
-  await import('@/app/api/bids/[id]/templates/[templateId]/completions/[completionId]/download/route');
+  await import('@/app/api/procurement/[id]/templates/[templateId]/completions/[completionId]/download/route');
 const { POST: oauthDecisionPost } =
   await import('@/app/api/oauth/decision/route');
 const { GET: oauthGrantsGet } = await import('@/app/api/oauth/grants/route');

@@ -18,14 +18,14 @@ vi.mock('@/lib/logger/client', () => ({
   logger: loggerMocks,
 }));
 
-import BidError from '@/app/bid/error';
-import BidLoading from '@/app/bid/loading';
-import BidDetailError from '@/app/bid/[id]/error';
-import BidDetailLoading from '@/app/bid/[id]/loading';
-import BidSessionError from '@/app/bid/[id]/session/error';
-import BidSessionLoading from '@/app/bid/[id]/session/loading';
-import TemplateCompletionError from '@/app/bid/[id]/templates/error';
-import TemplateCompletionLoading from '@/app/bid/[id]/templates/loading';
+import BidError from '@/app/procurement/error';
+import BidLoading from '@/app/procurement/loading';
+import BidDetailError from '@/app/procurement/[id]/error';
+import BidDetailLoading from '@/app/procurement/[id]/loading';
+import BidSessionError from '@/app/procurement/[id]/session/error';
+import BidSessionLoading from '@/app/procurement/[id]/session/loading';
+import TemplateCompletionError from '@/app/procurement/[id]/templates/error';
+import TemplateCompletionLoading from '@/app/procurement/[id]/templates/loading';
 
 // Mock next/link
 vi.mock('next/link', () => ({

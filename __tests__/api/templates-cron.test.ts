@@ -77,13 +77,13 @@ vi.mock('@/lib/templates/template-coverage', () => ({
 
 // Import route handlers AFTER all vi.mock() calls
 const { POST: autoMapPost } =
-  await import('@/app/api/bids/[id]/templates/[templateId]/auto-map/route');
+  await import('@/app/api/procurement/[id]/templates/[templateId]/auto-map/route');
 const { PATCH: fieldPatch } =
-  await import('@/app/api/bids/[id]/templates/[templateId]/fields/[fieldId]/route');
+  await import('@/app/api/procurement/[id]/templates/[templateId]/fields/[fieldId]/route');
 const { POST: bulkUpdatePost } =
-  await import('@/app/api/bids/[id]/templates/[templateId]/fields/bulk-update/route');
+  await import('@/app/api/procurement/[id]/templates/[templateId]/fields/bulk-update/route');
 const { POST: fillPost } =
-  await import('@/app/api/bids/[id]/templates/[templateId]/fill/route');
+  await import('@/app/api/procurement/[id]/templates/[templateId]/fill/route');
 const { PATCH: subtopicPatch } =
   await import('@/app/api/taxonomy/subtopics/[id]/route');
 const { GET: freshnessGet } =

@@ -5,8 +5,8 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
-import { isActive } from '@/lib/bid/bid-state-machine';
-import type { BidState } from '@/types/bid';
+import { isActive } from '@/lib/procurement/procurement-workflow';
+import type { BidState } from '@/types/procurement';
 import type { Workspace } from '@/types/content';
 
 export interface ActiveBidWorkspace {

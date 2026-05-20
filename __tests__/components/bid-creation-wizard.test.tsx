@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BidCreationWizard } from '@/components/bid/bid-creation-wizard';
+import { BidCreationWizard } from '@/components/procurement/procurement-creation-wizard';
 
 // Mock next/navigation
 const mockPush = vi.fn();
@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Mock child components that are reused (not owned by this wizard)
-vi.mock('@/components/bid/tender-upload', () => ({
+vi.mock('@/components/procurement/tender-upload', () => ({
   TenderUpload: ({
     bidId,
     onUploadComplete,
@@ -58,7 +58,7 @@ vi.mock('@/components/bid/tender-upload', () => ({
   ),
 }));
 
-vi.mock('@/components/bid/tender-metadata-prompt', () => ({
+vi.mock('@/components/procurement/tender-metadata-prompt', () => ({
   TenderMetadataPrompt: ({ bidId }: { metadata: unknown; bidId: string }) => (
     <div data-testid="tender-metadata-prompt" data-bid-id={bidId}>
       Metadata Prompt
@@ -66,7 +66,7 @@ vi.mock('@/components/bid/tender-metadata-prompt', () => ({
   ),
 }));
 
-vi.mock('@/components/bid/question-review', () => ({
+vi.mock('@/components/procurement/question-review', () => ({
   QuestionReview: ({
     bidId,
     questions,

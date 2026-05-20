@@ -65,7 +65,7 @@ vi.mock('@/lib/dashboard', () => ({
   fetchUnifiedDashboardData: vi.fn(),
   unifiedToDashboardData: vi.fn((d: unknown) => d),
 }));
-vi.mock('@/lib/bid/bid-queries', () => ({
+vi.mock('@/lib/procurement/procurement-queries', () => ({
   getBidDetail: vi.fn(),
   getBidQuestion: vi.fn(),
 }));
@@ -109,7 +109,7 @@ describe('MCP tools #14-16', () => {
     // Register only the categories under test: entity relationships plus
     // citation/effectiveness bid tools.
     const { registerEntityTools } = await import('@/lib/mcp/tools/entities');
-    const { registerBidTools } = await import('@/lib/mcp/tools/bids');
+    const { registerBidTools } = await import('@/lib/mcp/tools/procurement');
     await registerEntityTools(mockServer.server as never);
     await registerBidTools(mockServer.server as never);
   });

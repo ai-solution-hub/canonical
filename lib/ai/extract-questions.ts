@@ -1,7 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import { TenderExtractedMetadataSchema } from '@/lib/validation/schemas';
-import type { TenderExtractedMetadata } from '@/types/bid-metadata';
+import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 import mammoth from 'mammoth';
 import { logger } from '@/lib/logger';
 

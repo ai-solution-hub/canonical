@@ -21,12 +21,12 @@ import {
   detectTableFormat,
   extractQaPairs,
   type QaPair,
-} from '@/lib/bid-library-ingest/extract-qa-pairs';
+} from '@/lib/procurement-library-ingest/extract-qa-pairs';
 import {
   htmlToMarkdown,
   docxBufferToMarkdown,
   docxBufferToHtml,
-} from '@/lib/bid-library-ingest/docx-to-markdown';
+} from '@/lib/procurement-library-ingest/docx-to-markdown';
 
 // ── normaliseHeader ─────────────────────────────────────────────────────
 

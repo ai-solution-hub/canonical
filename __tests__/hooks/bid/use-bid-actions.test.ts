@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { BidState, ExtractionResult } from '@/types/bid';
+import type { BidState, ExtractionResult } from '@/types/procurement';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -52,7 +52,7 @@ const mockGetAvailableTransitions = vi.fn((..._args: unknown[]) => [
   'submitted',
 ]);
 
-vi.mock('@/lib/bid/bid-state-machine', () => ({
+vi.mock('@/lib/procurement/procurement-workflow', () => ({
   canTransition: (...args: unknown[]) => mockCanTransition(...args),
   getAvailableTransitions: (...args: unknown[]) =>
     mockGetAvailableTransitions(...args),

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import type { CitationEntry, QualityData } from '@/types/bid-metadata';
+import type { CitationEntry, QualityData } from '@/types/procurement-metadata';
 import type {
   DraftableQuestion,
   DraftableContent,

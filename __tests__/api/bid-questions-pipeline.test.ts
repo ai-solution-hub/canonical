@@ -86,9 +86,9 @@ vi.spyOn(console, 'warn').mockImplementation(() => {});
 import {
   GET as getQuestions,
   POST as postQuestion,
-} from '@/app/api/bids/[id]/questions/route';
-import { POST as extractQuestions } from '@/app/api/bids/[id]/questions/extract/route';
-import { POST as matchQuestions } from '@/app/api/bids/[id]/questions/match/route';
+} from '@/app/api/procurement/[id]/questions/route';
+import { POST as extractQuestions } from '@/app/api/procurement/[id]/questions/extract/route';
+import { POST as matchQuestions } from '@/app/api/procurement/[id]/questions/match/route';
 
 // ---------------------------------------------------------------------------
 // Helpers

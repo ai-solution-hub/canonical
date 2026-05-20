@@ -30,7 +30,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import handlers under test (AFTER mocks)
 // ---------------------------------------------------------------------------
 
-import { GET, PATCH } from '@/app/api/bids/[id]/responses/[rId]/route';
+import { GET, PATCH } from '@/app/api/procurement/[id]/responses/[rId]/route';
 
 // ---------------------------------------------------------------------------
 // Helpers

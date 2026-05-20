@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import type { TeamChange, RecentWorkItem, BidBriefing } from '@/types/reorient';
-import { fetchActiveBidsWithStats } from '@/lib/bid/bid-queries';
+import { fetchActiveBidsWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/user/display-name';
 

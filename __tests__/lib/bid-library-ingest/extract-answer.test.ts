@@ -7,7 +7,7 @@
  * Spec: docs/specs/p0-bm-phase3-qa-library-importer-markdown-spec.md ss4.6.
  */
 import { describe, it, expect } from 'vitest';
-import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
+import { extractAnswerFromContent } from '@/lib/procurement-library-ingest/extract-answer';
 
 describe('extractAnswerFromContent', () => {
   it('extracts answer from composite "Q: {question}\\n\\n{answer}" content', () => {

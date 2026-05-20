@@ -30,7 +30,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerSearchTools } from './search';
 import { registerContentTools } from './content';
-import { registerBidTools } from './bids';
+import { registerBidTools } from './procurement';
 import { registerDashboardTools } from './dashboard';
 import { registerQualityTools } from './quality';
 import { registerAITools } from './ai';

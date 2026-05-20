@@ -15,7 +15,7 @@ vi.mock('@/lib/utils', () => ({
 import {
   BidStateBadge,
   BidStateStepper,
-} from '@/components/bid/bid-state-indicator';
+} from '@/components/procurement/procurement-workflow-indicator';
 
 // ---------------------------------------------------------------------------
 // Tests

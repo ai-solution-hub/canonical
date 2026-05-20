@@ -46,7 +46,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import route handler AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { GET } from '@/app/api/bids/[id]/readiness/route';
+import { GET } from '@/app/api/procurement/[id]/readiness/route';
 
 // ---------------------------------------------------------------------------
 // Constants

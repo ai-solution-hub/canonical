@@ -34,7 +34,7 @@ vi.mock('next/headers', () => ({
 // Import AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { PATCH } from '@/app/api/bids/[id]/route';
+import { PATCH } from '@/app/api/procurement/[id]/route';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -89,7 +89,7 @@ vi.mock('@/lib/ai/errors', () => ({
 vi.mock('@/lib/dashboard', () => ({
   fetchUnifiedDashboardData: mocks.fetchUnifiedDashboardData,
 }));
-vi.mock('@/lib/bid/bid-queries', () => ({
+vi.mock('@/lib/procurement/procurement-queries', () => ({
   getBidDetail: vi.fn(),
   getBidQuestion: vi.fn(),
 }));
@@ -218,7 +218,7 @@ describe('MCP App trigger tools #22-23', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   let supabase: typeof mocks.mockSupabaseClient;
   let registerAppTools: typeof import('@/lib/mcp/tools/apps').registerAppTools;
-  let registerBidTools: typeof import('@/lib/mcp/tools/bids').registerBidTools;
+  let registerBidTools: typeof import('@/lib/mcp/tools/procurement').registerBidTools;
   const extra = makeAuthExtra();
   beforeAll(async () => {
     ({ registerAppTools } = await import('@/lib/mcp/tools/apps'));
@@ -1346,7 +1346,7 @@ describe('MCP App trigger tools #22-23', () => {
 
   describe('get_bid_detail', () => {
     beforeAll(async () => {
-      ({ registerBidTools } = await import('@/lib/mcp/tools/bids'));
+      ({ registerBidTools } = await import('@/lib/mcp/tools/procurement'));
     }, MCP_TOOL_IMPORT_TIMEOUT_MS);
     beforeEach(async () => {
       await registerBidTools(mockServer.server as never);

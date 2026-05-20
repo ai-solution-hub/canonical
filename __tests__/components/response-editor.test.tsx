@@ -96,7 +96,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { ResponseEditor } from '@/components/bid/response-editor';
+import { ResponseEditor } from '@/components/procurement/response-editor';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -103,7 +103,7 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Import AFTER mocks
-import { TemplateFieldReview } from '@/components/bid/template-field-review';
+import { TemplateFieldReview } from '@/components/procurement/template-field-review';
 import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 import type { TemplateField, TemplateSummary } from '@/types/template';
 

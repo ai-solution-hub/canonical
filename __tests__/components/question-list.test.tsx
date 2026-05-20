@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BidQuestion } from '@/types/bid';
+import type { BidQuestion } from '@/types/procurement';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -34,7 +34,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/components/bid/question-row', () => ({
+vi.mock('@/components/procurement/question-row', () => ({
   QuestionRow: ({
     question,
     index,
@@ -49,7 +49,7 @@ vi.mock('@/components/bid/question-row', () => ({
 }));
 
 // Import AFTER mocks
-import { QuestionList } from '@/components/bid/question-list';
+import { QuestionList } from '@/components/procurement/question-list';
 
 // ---------------------------------------------------------------------------
 // Data factories

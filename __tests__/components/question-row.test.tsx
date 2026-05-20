@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QuestionRow } from '@/components/bid/question-row';
-import type { BidQuestion, QuestionStatus } from '@/types/bid';
+import { QuestionRow } from '@/components/procurement/question-row';
+import type { BidQuestion, QuestionStatus } from '@/types/procurement';
 
 // Mock sonner toast (used by QuestionRow for save/delete feedback)
 vi.mock('sonner', () => ({

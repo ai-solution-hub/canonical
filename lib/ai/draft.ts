@@ -9,8 +9,8 @@
  * so these MUST remain as separate API calls.
  */
 
-import type { CitationEntry } from '@/types/bid-metadata';
-import type { BidResponseMetadata } from '@/types/bid-metadata';
+import type { CitationEntry } from '@/types/procurement-metadata';
+import type { BidResponseMetadata } from '@/types/procurement-metadata';
 import {
   getAnthropicClient,
   getModelForTier,

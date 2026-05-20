@@ -41,7 +41,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import route handlers AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { POST as postQuestions } from '@/app/api/bids/[id]/questions/route';
+import { POST as postQuestions } from '@/app/api/procurement/[id]/questions/route';
 
 // ---------------------------------------------------------------------------
 // Constants

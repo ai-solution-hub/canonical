@@ -9,15 +9,15 @@ import {
   canTransition,
   getAvailableTransitions,
   BID_STATE_LABELS,
-} from '@/lib/bid/bid-state-machine';
+} from '@/lib/procurement/procurement-workflow';
 import type {
   Bid,
   BidMetadata,
   BidState,
   ExtractionResult,
   KBCandidate,
-} from '@/types/bid';
-import type { TenderExtractedMetadata } from '@/types/bid-metadata';
+} from '@/types/procurement';
+import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 
 type Tab = 'overview' | 'questions' | 'documents';
 

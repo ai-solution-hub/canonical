@@ -58,7 +58,7 @@ vi.mock('@/lib/ai/draft', () => ({
 // Import the handler AFTER vi.mock declaration so the mocked draft module
 // is in place when the handler module's import resolves.
 const { runBidDraftAllJob } =
-  await import('@/lib/queue/handlers/bid-draft-all');
+  await import('@/lib/queue/handlers/procurement-draft-all');
 const { PIPELINE_SYSTEM_USER_ID } = await import('@/lib/intelligence/types');
 
 // ---------------------------------------------------------------------------

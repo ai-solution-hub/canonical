@@ -30,7 +30,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractQaPairs,
   type QaPair,
-} from '@/lib/bid-library-ingest/extract-qa-pairs';
+} from '@/lib/procurement-library-ingest/extract-qa-pairs';
 
 const execFileAsync = promisify(execFile);
 

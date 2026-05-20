@@ -8,7 +8,7 @@ import type {
   BidBriefing,
 } from '@/types/reorient';
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
-import { fetchActiveBidsWithStats } from '@/lib/bid/bid-queries';
+import { fetchActiveBidsWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/user/display-name';
 

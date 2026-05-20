@@ -53,7 +53,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 import {
   GET as getResponse,
   PATCH as patchResponse,
-} from '@/app/api/bids/[id]/responses/[rId]/route';
+} from '@/app/api/procurement/[id]/responses/[rId]/route';
 
 // ---------------------------------------------------------------------------
 // Constants

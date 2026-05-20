@@ -25,8 +25,8 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import AFTER mocks
-import { GET, POST } from '@/app/api/bids/route';
-import { GET as getBid, PATCH, DELETE } from '@/app/api/bids/[id]/route';
+import { GET, POST } from '@/app/api/procurement/route';
+import { GET as getBid, PATCH, DELETE } from '@/app/api/procurement/[id]/route';
 
 // ---------------------------------------------------------------------------
 // Fixtures

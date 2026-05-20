@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, ApiError } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
-import type { BidQuestion } from '@/types/bid';
+import type { BidQuestion } from '@/types/procurement';
 import type {
   BidSummary,
   BidResponse,

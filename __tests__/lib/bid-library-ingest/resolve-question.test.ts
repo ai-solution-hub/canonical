@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveQuestionForRebuild } from '@/lib/bid-library-ingest/resolve-question';
+import { resolveQuestionForRebuild } from '@/lib/procurement-library-ingest/resolve-question';
 
 describe('resolveQuestionForRebuild', () => {
   it('extracts the full question from content with Q: prefix', () => {

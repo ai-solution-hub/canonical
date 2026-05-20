@@ -44,12 +44,12 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 import {
   GET as listTemplates,
   POST as uploadTemplate,
-} from '@/app/api/bids/[id]/templates/route';
+} from '@/app/api/procurement/[id]/templates/route';
 import {
   GET as getTemplateDetail,
   DELETE as deleteTemplate,
-} from '@/app/api/bids/[id]/templates/[templateId]/route';
-import { POST as analyseTemplate } from '@/app/api/bids/[id]/templates/[templateId]/analyse/route';
+} from '@/app/api/procurement/[id]/templates/[templateId]/route';
+import { POST as analyseTemplate } from '@/app/api/procurement/[id]/templates/[templateId]/analyse/route';
 
 // ---------------------------------------------------------------------------
 // Helpers

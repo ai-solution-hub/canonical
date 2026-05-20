@@ -34,7 +34,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { BidExportMenu } from '@/components/bid/bid-export-menu';
+import { BidExportMenu } from '@/components/procurement/procurement-export-menu';
 
 // ---------------------------------------------------------------------------
 // Helpers

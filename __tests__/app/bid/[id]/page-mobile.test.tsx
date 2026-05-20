@@ -114,12 +114,12 @@ vi.mock('@/lib/format', () => ({
   formatDateUK: (d: string) => mockFormatDateUK(d),
 }));
 
-vi.mock('@/lib/bid/bid-helpers', () => ({
+vi.mock('@/lib/procurement/procurement-helpers', () => ({
   getDeadlineProximity: (d: string | null | undefined) =>
     mockGetDeadlineProximity(d),
 }));
 
-vi.mock('@/lib/bid/bid-state-machine', () => ({
+vi.mock('@/lib/procurement/procurement-workflow', () => ({
   BID_STATE_LABELS: mockBidStateLabels,
   BID_STATE_SHORT_LABELS: mockBidStateShortLabels,
 }));
@@ -147,7 +147,7 @@ vi.mock('react', async (importOriginal) => {
 });
 
 // Stub child components
-vi.mock('@/components/bid/bid-state-indicator', () => ({
+vi.mock('@/components/procurement/procurement-workflow-indicator', () => ({
   BidStateBadge: ({ state }: { state: string }) => (
     <span data-testid="bid-state-badge">{state}</span>
   ),
@@ -156,7 +156,7 @@ vi.mock('@/components/bid/bid-state-indicator', () => ({
   ),
 }));
 
-vi.mock('@/components/bid/bid-export-menu', () => ({
+vi.mock('@/components/procurement/procurement-export-menu', () => ({
   BidExportMenu: () => <div data-testid="bid-export-menu">Export</div>,
 }));
 
@@ -165,12 +165,12 @@ vi.mock('@/components/coverage/cost-estimate-dialog', () => ({
     open ? <div data-testid="cost-estimate-dialog">Cost Estimate</div> : null,
 }));
 
-vi.mock('@/components/bid/bid-outcome', () => ({
+vi.mock('@/components/procurement/procurement-outcome', () => ({
   BidOutcomeDialog: ({ open }: { open: boolean }) =>
     open ? <div data-testid="bid-outcome-dialog">Outcome</div> : null,
 }));
 
-vi.mock('@/components/bid/kb-integration-review', () => ({
+vi.mock('@/components/procurement/kb-integration-review', () => ({
   KBIntegrationReview: ({ open }: { open: boolean }) =>
     open ? <div data-testid="kb-integration-review">KB Review</div> : null,
 }));
@@ -181,26 +181,26 @@ vi.mock('@/components/shared/confidence-badge', () => ({
   ),
 }));
 
-vi.mock('@/components/bid/question-list', () => ({
+vi.mock('@/components/procurement/question-list', () => ({
   QuestionList: () => <div data-testid="question-list">QuestionList</div>,
 }));
 
-vi.mock('@/components/bid/question-review', () => ({
+vi.mock('@/components/procurement/question-review', () => ({
   QuestionReview: () => <div data-testid="question-review">QuestionReview</div>,
 }));
 
-vi.mock('@/components/bid/tender-upload', () => ({
+vi.mock('@/components/procurement/tender-upload', () => ({
   TenderUpload: () => <div data-testid="tender-upload">TenderUpload</div>,
 }));
 
-vi.mock('@/components/bid/tender-metadata-prompt', () => ({
+vi.mock('@/components/procurement/tender-metadata-prompt', () => ({
   TenderMetadataPrompt: () => (
     <div data-testid="tender-metadata-prompt">MetadataPrompt</div>
   ),
 }));
 
 // Import AFTER mocks
-import BidDetailPage from '@/app/bid/[id]/page';
+import BidDetailPage from '@/app/procurement/[id]/page';
 
 // ---------------------------------------------------------------------------
 // QueryClient wrapper for tests

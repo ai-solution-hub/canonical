@@ -81,7 +81,7 @@ vi.mock('@/lib/anthropic', () => ({
   getModelForTier: mockGetModelForTier,
 }));
 
-vi.mock('@/lib/bid/bid-state-machine', () => ({
+vi.mock('@/lib/procurement/procurement-workflow', () => ({
   canTransition: mockCanTransition,
 }));
 
@@ -98,22 +98,22 @@ vi.mock('@/lib/queue/enqueue', () => ({
 
 // Import route handlers AFTER mocks
 const { POST: draftPost } =
-  await import('@/app/api/bids/[id]/responses/draft/route');
+  await import('@/app/api/procurement/[id]/responses/draft/route');
 const { POST: draftStreamPost } =
-  await import('@/app/api/bids/[id]/responses/draft-stream/route');
+  await import('@/app/api/procurement/[id]/responses/draft-stream/route');
 const { POST: draftAllPost } =
-  await import('@/app/api/bids/[id]/responses/draft-all/route');
+  await import('@/app/api/procurement/[id]/responses/draft-all/route');
 const { POST: estimatePost } =
-  await import('@/app/api/bids/[id]/responses/estimate/route');
+  await import('@/app/api/procurement/[id]/responses/estimate/route');
 const { POST: regeneratePost } =
-  await import('@/app/api/bids/[id]/responses/[rId]/regenerate/route');
+  await import('@/app/api/procurement/[id]/responses/[rId]/regenerate/route');
 const { POST: restorePost } =
-  await import('@/app/api/bids/[id]/responses/[rId]/restore/route');
+  await import('@/app/api/procurement/[id]/responses/[rId]/restore/route');
 const { PATCH: questionPatch, DELETE: questionDelete } =
-  await import('@/app/api/bids/[id]/questions/[qId]/route');
-const { POST: tenderPost } = await import('@/app/api/bids/[id]/tender/route');
+  await import('@/app/api/procurement/[id]/questions/[qId]/route');
+const { POST: tenderPost } = await import('@/app/api/procurement/[id]/tender/route');
 const { GET: historyGet } =
-  await import('@/app/api/bids/[id]/responses/[rId]/history/route');
+  await import('@/app/api/procurement/[id]/responses/[rId]/history/route');
 
 // ---------------------------------------------------------------------------
 // Fixtures

@@ -9,7 +9,7 @@ import {
   BID_STATE_COLOURS,
   BID_STATE_PROGRESSION,
   type BidState,
-} from '@/lib/bid/bid-state-machine';
+} from '@/lib/procurement/procurement-workflow';
 
 describe('bid-state-machine', () => {
   describe('BID_STATES', () => {

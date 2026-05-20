@@ -48,8 +48,8 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import handlers under test (AFTER mocks)
 // ---------------------------------------------------------------------------
 
-import { POST as postOutcome } from '@/app/api/bids/[id]/outcome/route';
-import { POST as postIntegrate } from '@/app/api/bids/[id]/outcome/integrate/route';
+import { POST as postOutcome } from '@/app/api/procurement/[id]/outcome/route';
+import { POST as postIntegrate } from '@/app/api/procurement/[id]/outcome/integrate/route';
 
 // ---------------------------------------------------------------------------
 // Helpers

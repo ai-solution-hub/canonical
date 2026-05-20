@@ -39,7 +39,7 @@ vi.mock('@/lib/content/strip-markdown', () => ({
 }));
 
 // Import AFTER mocks
-import { KBIntegrationReview } from '@/components/bid/kb-integration-review';
+import { KBIntegrationReview } from '@/components/procurement/kb-integration-review';
 
 // ---------------------------------------------------------------------------
 // Helpers

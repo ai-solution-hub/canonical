@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { QualityData, QualityIssueEntry } from '@/types/bid-metadata';
+import type { QualityData, QualityIssueEntry } from '@/types/procurement-metadata';
 
 interface QualityScoreProps {
   quality: QualityData;
