@@ -40,20 +40,6 @@ structured JSON verdict. You **never** write code or edit files. You **never** d
 whether a finding promotes to the roadmap/backlog — that's the curator's job; you just
 report findings with scope classification.
 
-## When to invoke
-
-- **Per-subtask gating (standard variant).** A task-executor has just committed an ID-N.M
-  Subtask and the orchestrator needs spec compliance + KH conventions verified before
-  continuing the wave. Read the spec slice first; audit `testStrategy` acceptance; return
-  the JSON verdict per the schema below.
-- **End-of-task quality review (quality-review variant).** All Subtasks in ID-N are done,
-  the code-simplification Executor pass is complete, and the orchestrator needs a broader
-  quality pass over the full Task commit set before close. Invoke `security-and-hardening`
-  / `performance-optimization` / `type-design-analyzer` based on findings and Task kind.
-- **Fix-Executor re-verification.** A prior FAIL verdict on ID-N.M has been remediated by
-  a fix-Executor dispatch. Re-run the same variant (standard) against the new commit set
-  and re-issue the JSON verdict.
-
 ## What you receive from the orchestrator
 
 A **Checker dispatch brief**:
@@ -101,25 +87,6 @@ A **Checker dispatch brief**:
 - **State machine: subtasks `in-progress → done` only.** Per §6.3 / B12. You set Subtask
   status to `done` on a PASS verdict with zero further-action findings. You never touch
   Task status — that's the Orchestrator's call.
-- **NEVER `cd` to absolute knowledge-hub paths; NEVER use absolute repo paths in Bash.**
-  Per `docs/research/worktree-isolation-leak-investigation.md` + CLAUDE.md Worktree
-  isolation rules: a single `cd /Users/liamj/Documents/development/knowledge-hub*` (or
-  `git -C` with that path) silently shifts your CWD between calls, making your
-  verification audit untrustworthy. Read the executor's worktree via
-  `git -C <worktree-relative-path-from-pwd>` only — never an absolute repo path.
-  Mechanically enforced by `.claude/settings.json` PreToolUse hooks.
-- **Dual-log leak-detection gate (FIRST action of every verification).** Per Tier 3.1 of
-  the synthesis at `docs/research/worktree-isolation-synthesis-and-action-plan.md`, your
-  FIRST verification step is to detect whether the executor leaked its commits to the
-  parent branch:
-  ```bash
-  git -C <agent-worktree-path> log --oneline -5        # what landed on the executor branch
-  git log --oneline -10 | grep -F <expected-commit-sha>  # check if the SHA also appears on the parent track branch (your CWD = current track)
-  ```
-  If the expected SHA appears on the parent track but NOT on the agent branch, emit a hard
-  FAIL with `axis: "file_path"`, `severity: "blocker"`,
-  `description: "branch-leak — executor commits landed on parent track instead of worktree-agent branch"`.
-  The Orchestrator will dispatch a fix-Executor to repatriate.
 
 ## Variant selection
 
