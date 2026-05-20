@@ -9,7 +9,9 @@
       "Bash(supabase *)",
       "Bash(/opt/homebrew/bin/supabase *)",
       "Bash(python3 -m pytest *)",
-      "Bash(python3 -m playwright *)"
+      "Bash(python3 -m playwright *)",
+      "Bash(cmux *)",
+      "Bash(/Applications/cmux.app/Contents/Resources/bin/cmux *)"
     ]
   },
   "hooks": {

@@ -410,3 +410,10 @@ under `.planning/.archive/.tracks/`, `.specs/`, `.continuation-prompts/`,
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
+- **cmux Bash calls need `dangerouslyDisableSandbox: true`:** cmux daemon (Mac app at
+  `/Applications/cmux.app`) communicates via `/tmp/cmux.sock`, which is outside the
+  sandbox `write.allowOnly` allowlist. Without sandbox-disable every `cmux *` call fails
+  with `Failed to connect to socket at /tmp/cmux.sock` even when the app is running.
+  Permissions in `.claude/settings.json` cover `Bash(cmux *)` for auto-approval, but the
+  sandbox flag is still required for socket access. Pattern matches the Supabase CLI
+  gotcha. Verify daemon is running with `cmux ping` (returns `PONG`) before fan-out.
