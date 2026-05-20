@@ -54,21 +54,28 @@ const VALID_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const PROFILE_UUID = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
 
 /**
- * DB-row shape: `domain_metadata` stays JSONB pre-T2. The route handler
- * projects the 3 intelligence-context fields onto typed top-level keys via
- * `extractContextFromDomainMetadata()` — these are what API consumers see.
- * S246 WP2b will swap the helper internals to a satellite JOIN without
- * changing the API response shape.
+ * DB-row shape post-T2 (S246 WP2b): the 3 typed intelligence-context fields
+ * (`company_profile_id`, `guide_id`, `relevance_threshold`) live on the
+ * `intelligence_workspaces` satellite table, not in `workspaces.domain_metadata`
+ * JSONB. The route SELECTs the satellite via JOIN — mocks must mirror that
+ * nested shape so `extractContextFromSatellite()` can project the typed
+ * top-level fields onto the API response. `application_types!inner(key)` is
+ * the INNER JOIN that gates intelligence-only rows.
  */
 const MOCK_WORKSPACE = {
   id: VALID_UUID,
   name: 'Education Watch',
   description: 'Monitoring education sector',
-  type: 'intelligence',
   colour: '#059669',
   icon: 'globe',
   is_archived: false,
-  domain_metadata: { company_profile_id: PROFILE_UUID },
+  domain_metadata: {},
+  application_types: { key: 'intelligence' },
+  intelligence_workspaces: {
+    company_profile_id: PROFILE_UUID,
+    guide_id: null,
+    relevance_threshold: null,
+  },
   created_by: 'test-user-id',
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
@@ -90,6 +97,15 @@ const VALID_WORKSPACE_INPUT = {
 };
 
 function resetMocks() {
+  // `vi.clearAllMocks()` clears `mock.calls` but NOT the
+  // `mockResolvedValueOnce` queue. Reset terminal methods to drop the queue
+  // so leaks from prior tests don't impersonate the next test's role lookup.
+  mockSupabase._chain.single.mockReset();
+  mockSupabase._chain.maybeSingle.mockReset();
+  mockSupabase._chain.then.mockReset();
+  mockSupabase.auth.getUser.mockReset();
+  mockSupabase.rpc.mockReset();
+
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
     error: null,
@@ -99,9 +115,14 @@ function resetMocks() {
     data: null,
     error: null,
   });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
+  mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 }
 
 // ---------------------------------------------------------------------------
@@ -188,11 +209,22 @@ describe('Intelligence Workspaces API', () => {
         data: MOCK_PROFILE,
         error: null,
       });
+      // Post-T2: route resolves the intelligence application_type FK via
+      // maybeSingle() between the profile fetch and the workspace insert.
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { id: 'aaaaaaaa-0000-4000-8000-000000000003' },
+        error: null,
+      });
       // Workspace insert
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: MOCK_WORKSPACE,
         error: null,
       });
+      // Post-T2: intelligence_workspaces satellite row insert (awaited, no terminal).
+      mockSupabase._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: null }),
+      );
       // Feed prompt insert (returns via then)
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) =>
@@ -207,7 +239,7 @@ describe('Intelligence Workspaces API', () => {
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
-      // Workspace domain_metadata update (returns via then)
+      // Post-T2: satellite guide_id update (awaited, no terminal).
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
@@ -235,11 +267,21 @@ describe('Intelligence Workspaces API', () => {
         data: MOCK_PROFILE,
         error: null,
       });
+      // Post-T2: application_types FK lookup.
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { id: 'aaaaaaaa-0000-4000-8000-000000000003' },
+        error: null,
+      });
       // Workspace insert
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: MOCK_WORKSPACE,
         error: null,
       });
+      // Post-T2: intelligence_workspaces satellite row insert.
+      mockSupabase._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: null }),
+      );
       // Feed prompt insert (returns via then)
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) =>
@@ -374,6 +416,14 @@ describe('Intelligence Workspaces API', () => {
   describe('PATCH /api/intelligence/workspaces/:id', () => {
     it('updates workspace name', async () => {
       configureRole(mockSupabase, 'editor');
+      // Post-T2: PATCH route does:
+      //   1. existing workspace .maybeSingle() (access check)
+      //   2. workspaces.update (awaited, no terminal)
+      //   3. refreshed workspace .single() (post-update read)
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { id: VALID_UUID, application_types: { key: 'intelligence' } },
+        error: null,
+      });
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: { ...MOCK_WORKSPACE, name: 'Updated Name' },
         error: null,
@@ -412,7 +462,8 @@ describe('Intelligence Workspaces API', () => {
 
     it('returns 404 for non-existent workspace', async () => {
       configureRole(mockSupabase, 'admin');
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // Post-T2: existing-workspace access check now uses .maybeSingle().
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: null,
         error: null,
       });
@@ -433,24 +484,22 @@ describe('Intelligence Workspaces API', () => {
     // ─── SI-L5: relevance_threshold write-path ───
 
     describe('SI-L5 relevance_threshold', () => {
-      it('admin can update relevance_threshold (merges into domain_metadata)', async () => {
+      it('admin can update relevance_threshold (typed satellite column UPDATE)', async () => {
         configureRole(mockSupabase, 'admin');
 
-        // 1. Initial fetch of existing workspace (for domain_metadata merge)
-        mockSupabase._chain.single.mockResolvedValueOnce({
-          data: {
-            domain_metadata: {
-              company_profile_id: PROFILE_UUID,
-              guide_id: 'guide-123',
-            },
-          },
+        // Post-T2 PATCH route sequence:
+        //   1. existing workspace access check via .maybeSingle()
+        //   2. intelligence_workspaces.update({ relevance_threshold }) (no terminal)
+        //   3. refreshed workspace .single() with satellite JOIN
+        mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+          data: { id: VALID_UUID, application_types: { key: 'intelligence' } },
           error: null,
         });
 
-        // 2. Final updated workspace returned
+        // Refreshed workspace returned with updated satellite values.
         const updatedWorkspace = {
           ...MOCK_WORKSPACE,
-          domain_metadata: {
+          intelligence_workspaces: {
             company_profile_id: PROFILE_UUID,
             guide_id: 'guide-123',
             relevance_threshold: 0.7,
@@ -473,26 +522,18 @@ describe('Intelligence Workspaces API', () => {
         const body = await response.json();
 
         expect(response.status).toBe(200);
-        // S245 WP2a API contract: typed top-level fields.
+        // S245 WP2a API contract: typed top-level fields (preserved post-T2).
         expect(body.relevance_threshold).toBe(0.7);
-        // Confirms the existing context fields are also surfaced typed-top-level
-        // (the helper preserves company_profile_id + guide_id during the
-        // JSONB → typed projection).
+        // Confirms the satellite-projected fields are surfaced typed-top-level.
         expect(body.company_profile_id).toBe(PROFILE_UUID);
         expect(body.guide_id).toBe('guide-123');
 
-        // Verify update was called with the merged metadata payload.
-        // The DB write still goes to `domain_metadata` JSONB pre-T2;
-        // S246 WP2b swaps this to a direct typed-column UPDATE.
-        expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-          expect.objectContaining({
-            domain_metadata: {
-              company_profile_id: PROFILE_UUID,
-              guide_id: 'guide-123',
-              relevance_threshold: 0.7,
-            },
-          }),
-        );
+        // Post-T2 the DB write targets the satellite's typed column directly
+        // (no JSONB merge). The route issues a single-field UPDATE on
+        // `intelligence_workspaces`.
+        expect(mockSupabase._chain.update).toHaveBeenCalledWith({
+          relevance_threshold: 0.7,
+        });
       });
 
       it('editor cannot change relevance_threshold (returns 403)', async () => {
@@ -547,11 +588,11 @@ describe('Intelligence Workspaces API', () => {
         expect(response.status).toBe(400);
       });
 
-      it('returns 404 if workspace not found during merge fetch', async () => {
+      it('returns 404 if workspace not found during access check', async () => {
         configureRole(mockSupabase, 'admin');
 
-        // Initial fetch returns nothing
-        mockSupabase._chain.single.mockResolvedValueOnce({
+        // Post-T2: access check uses .maybeSingle() before any UPDATE.
+        mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
           data: null,
           error: { message: 'not found' },
         });
@@ -572,18 +613,20 @@ describe('Intelligence Workspaces API', () => {
       it('admin can update name and threshold together', async () => {
         configureRole(mockSupabase, 'admin');
 
-        mockSupabase._chain.single.mockResolvedValueOnce({
-          data: {
-            domain_metadata: { company_profile_id: PROFILE_UUID },
-          },
+        // Post-T2: access check via .maybeSingle().
+        mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+          data: { id: VALID_UUID, application_types: { key: 'intelligence' } },
           error: null,
         });
+        // Refreshed workspace after both UPDATEs (workspaces direct field +
+        // intelligence_workspaces satellite).
         mockSupabase._chain.single.mockResolvedValueOnce({
           data: {
             ...MOCK_WORKSPACE,
             name: 'Combined',
-            domain_metadata: {
+            intelligence_workspaces: {
               company_profile_id: PROFILE_UUID,
+              guide_id: null,
               relevance_threshold: 0.65,
             },
           },
@@ -603,33 +646,37 @@ describe('Intelligence Workspaces API', () => {
 
         expect(response.status).toBe(200);
         expect(body.name).toBe('Combined');
-        // S245 WP2a API contract: typed top-level field.
+        // S245 WP2a API contract: typed top-level field (preserved post-T2).
         expect(body.relevance_threshold).toBe(0.65);
         expect(body.company_profile_id).toBe(PROFILE_UUID);
-        // DB-side write still targets JSONB pre-T2.
-        expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-          expect.objectContaining({
-            name: 'Combined',
-            domain_metadata: {
-              company_profile_id: PROFILE_UUID,
-              relevance_threshold: 0.65,
-            },
-          }),
+        // Post-T2: TWO separate UPDATE calls — one on `workspaces` for direct
+        // fields, one on `intelligence_workspaces` for the satellite column.
+        const updateCalls = mockSupabase._chain.update.mock.calls.map(
+          (call) => call[0],
         );
+        expect(updateCalls).toContainEqual({ name: 'Combined' });
+        expect(updateCalls).toContainEqual({ relevance_threshold: 0.65 });
       });
 
-      it('handles missing existing domain_metadata gracefully', async () => {
+      it('handles missing existing satellite row gracefully', async () => {
         configureRole(mockSupabase, 'admin');
 
-        // Initial fetch returns workspace with null metadata
-        mockSupabase._chain.single.mockResolvedValueOnce({
-          data: { domain_metadata: null },
+        // Post-T2: access check via .maybeSingle().
+        mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+          data: { id: VALID_UUID, application_types: { key: 'intelligence' } },
           error: null,
         });
+        // Refreshed workspace returned — the satellite UPDATE writes through
+        // even when the prior satellite row carried no context (a no-op
+        // company_profile_id/guide_id is acceptable here).
         mockSupabase._chain.single.mockResolvedValueOnce({
           data: {
             ...MOCK_WORKSPACE,
-            domain_metadata: { relevance_threshold: 0.4 },
+            intelligence_workspaces: {
+              company_profile_id: null,
+              guide_id: null,
+              relevance_threshold: 0.4,
+            },
           },
           error: null,
         });
@@ -645,11 +692,10 @@ describe('Intelligence Workspaces API', () => {
         const response = await detailPATCH(request, { params });
 
         expect(response.status).toBe(200);
-        expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-          expect.objectContaining({
-            domain_metadata: { relevance_threshold: 0.4 },
-          }),
-        );
+        // Post-T2 the DB write targets the typed satellite column directly.
+        expect(mockSupabase._chain.update).toHaveBeenCalledWith({
+          relevance_threshold: 0.4,
+        });
       });
     });
   });

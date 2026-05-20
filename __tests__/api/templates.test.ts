@@ -849,8 +849,9 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     const json = await res.json();
     expect(json.job_id).toBe(JOB_UUID);
 
-    // Verify existing fields were deleted before re-analysis
-    expect(mockSupabase.from).toHaveBeenCalledWith('template_fields');
+    // Verify existing fields were deleted before re-analysis.
+    // Post-T2: `template_fields` → `form_template_fields`.
+    expect(mockSupabase.from).toHaveBeenCalledWith('form_template_fields');
     expect(mockSupabase._chain.delete).toHaveBeenCalled();
   });
 

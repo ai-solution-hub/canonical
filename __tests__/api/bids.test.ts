@@ -69,7 +69,19 @@ const VALID_CREATE_BODY = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Application-type seed UUID. The POST/INSERT path now does a separate
+// `application_types.select('id').eq('key', 'procurement').maybeSingle()`
+// lookup (T2 schema migration) before the workspace insert. Tests mock that
+// lookup with this canonical fixture id.
+const PROCUREMENT_APP_TYPE_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
+
 function resetMocks() {
+  // NB: `vi.clearAllMocks()` clears `mock.calls` but does NOT drain the
+  // `mockResolvedValueOnce` queue. Unconsumed once-mocks from a prior test
+  // would otherwise leak into the next test's first `.single()` call. We
+  // therefore `mockReset()` the terminal methods (`single`, `maybeSingle`,
+  // `then`) explicitly to drop their once-queues, then re-establish the
+  // baseline defaults.
   vi.clearAllMocks();
 
   const chain = mockSupabase._chain;
@@ -96,19 +108,25 @@ function resetMocks() {
     'range',
   ] as const;
   for (const method of chainableMethods) {
+    chain[method].mockReset();
     chain[method].mockReturnValue(chain);
   }
+  chain.single.mockReset();
+  chain.maybeSingle.mockReset();
+  chain.then.mockReset();
   chain.single.mockResolvedValue({ data: null, error: null, count: null });
   chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
   chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
 
+  mockSupabase.auth.getUser.mockReset();
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
     error: null,
   });
   mockSupabase.from.mockReturnValue(chain);
+  mockSupabase.rpc.mockReset();
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const storageBucket = {
@@ -123,6 +141,18 @@ function resetMocks() {
       .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
   mockSupabase.storage.from.mockReturnValue(storageBucket);
+}
+
+/**
+ * Configure the `application_types` lookup that POST /api/bids and the bid
+ * sub-routes perform via `maybeSingle()`. Post-T2 the route resolves the
+ * procurement application_type id (FK) before inserting/joining workspaces.
+ */
+function configureProcurementAppType() {
+  mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+    data: { id: PROCUREMENT_APP_TYPE_ID },
+    error: null,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -286,6 +316,8 @@ describe('POST /api/bids', () => {
 
   it('returns 201 on successful creation', async () => {
     configureRole(mockSupabase, 'editor');
+    // Post-T2: route resolves procurement app_type FK before workspace insert.
+    configureProcurementAppType();
 
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: MOCK_BID,
@@ -304,21 +336,25 @@ describe('POST /api/bids', () => {
     expect(body.name).toBe('Test Bid');
 
     // Content-of-write: the new bid row carries the caller-supplied name +
-    // buyer, defaults the status to draft, and stamps the actor.
+    // buyer, points at the procurement application_type FK, defaults the
+    // status to draft, and stamps the actor. Post-T2 the discriminator is
+    // `application_type_id` (UUID), not `type` ('bid').
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     expect(insertArg).toMatchObject({
       name: 'New Bid',
-      type: 'bid',
+      application_type_id: PROCUREMENT_APP_TYPE_ID,
       created_by: 'test-user-id',
       domain_metadata: expect.objectContaining({
         buyer: 'Test Buyer',
         status: 'draft',
       }),
     });
+    expect(insertArg).not.toHaveProperty('type');
   });
 
   it('returns 409 on duplicate name (Postgres 23505)', async () => {
     configureRole(mockSupabase, 'editor');
+    configureProcurementAppType();
 
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,

@@ -47,19 +47,18 @@ import { GET as getWorkspaceItems } from '@/app/api/workspaces/[id]/items/route'
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 
+// Application-type seed UUIDs. The POST /api/workspaces route now resolves a
+// FK via `application_types.select('id').eq('key',...).maybeSingle()` before
+// the workspace insert. Tests mock that lookup with these canonical fixtures.
+const PROCUREMENT_APP_TYPE_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
+const INTELLIGENCE_APP_TYPE_ID = 'aaaaaaaa-0000-4000-8000-000000000003';
+
 /** Reset mock state and restore default authenticated user. */
 function resetMocks() {
+  // NB: `vi.clearAllMocks()` clears `mock.calls` but does NOT drain the
+  // `mockResolvedValueOnce` queue. We `mockReset()` every mock to drop
+  // both call history AND once-queues so prior tests can't leak.
   vi.clearAllMocks();
-
-  // Reset single/maybeSingle/then to clear any leaked mockResolvedValueOnce queues
-  mockSupabase._chain.single.mockReset();
-  mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.then.mockReset();
-
-  mockSupabase.auth.getUser.mockResolvedValue({
-    data: { user: { id: 'test-user-id', email: 'test@example.com' } },
-    error: null,
-  });
 
   const chainableMethods = [
     'select',
@@ -84,8 +83,20 @@ function resetMocks() {
     'range',
   ] as const;
   for (const method of chainableMethods) {
+    mockSupabase._chain[method].mockReset();
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
+
+  // Reset single/maybeSingle/then to clear any leaked mockResolvedValueOnce queues
+  mockSupabase._chain.single.mockReset();
+  mockSupabase._chain.maybeSingle.mockReset();
+  mockSupabase._chain.then.mockReset();
+
+  mockSupabase.auth.getUser.mockReset();
+  mockSupabase.auth.getUser.mockResolvedValue({
+    data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+    error: null,
+  });
 
   mockSupabase._chain.single.mockResolvedValue({
     data: null,
@@ -102,7 +113,20 @@ function resetMocks() {
   );
 
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
+  mockSupabase.rpc.mockReset();
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+}
+
+/**
+ * Configure the `application_types` lookup that the POST route does via
+ * `maybeSingle()`. Post-T2 the route resolves an application_type id (FK)
+ * by `key` before inserting the workspace.
+ */
+function configureAppTypeLookup(id: string) {
+  mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+    data: { id },
+    error: null,
+  });
 }
 
 // ===========================================================================
@@ -273,6 +297,8 @@ describe('POST /api/workspaces', () => {
 
   it('returns 201 on successful creation', async () => {
     configureRole(mockSupabase, 'editor');
+    // Post-T2: type is REQUIRED and routes resolve the app_type FK first.
+    configureAppTypeLookup(INTELLIGENCE_APP_TYPE_ID);
 
     const mockCreated = {
       id: VALID_UUID,
@@ -280,7 +306,7 @@ describe('POST /api/workspaces', () => {
       description: null,
       color: '#6366f1',
       icon: 'folder',
-      type: 'project',
+      application_type_id: INTELLIGENCE_APP_TYPE_ID,
       is_archived: false,
       created_by: 'test-user-id',
     };
@@ -294,7 +320,7 @@ describe('POST /api/workspaces', () => {
 
     const req = createTestRequest('/api/workspaces', {
       method: 'POST',
-      body: { name: 'New Workspace' },
+      body: { name: 'New Workspace', type: 'intelligence' },
     });
     const res = await createWorkspace(req);
 
@@ -304,16 +330,21 @@ describe('POST /api/workspaces', () => {
     expect(json.id).toBe(VALID_UUID);
 
     // Content-of-write is observable: the new workspace must carry the
-    // caller's name + stamp the actor onto created_by.
+    // caller's name + stamp the actor onto created_by. Post-T2 the
+    // discriminator is `application_type_id` (UUID), not the dropped
+    // `type` text column.
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     expect(insertArg).toMatchObject({
       name: 'New Workspace',
+      application_type_id: INTELLIGENCE_APP_TYPE_ID,
       created_by: 'test-user-id',
     });
+    expect(insertArg).not.toHaveProperty('type');
   });
 
   it('returns 409 for duplicate workspace name', async () => {
     configureRole(mockSupabase, 'editor');
+    configureAppTypeLookup(INTELLIGENCE_APP_TYPE_ID);
 
     // The route's insert().select().single() returns a duplicate key error.
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -323,7 +354,7 @@ describe('POST /api/workspaces', () => {
 
     const req = createTestRequest('/api/workspaces', {
       method: 'POST',
-      body: { name: 'Existing Workspace' },
+      body: { name: 'Existing Workspace', type: 'intelligence' },
     });
     const res = await createWorkspace(req);
 
@@ -332,17 +363,12 @@ describe('POST /api/workspaces', () => {
     expect(json.error).toContain('already exists');
   });
 
-  it('defaults to kb_section when no type is provided', async () => {
+  it('rejects requests with no type (post-T2 type is required)', async () => {
+    // Post-T2 the `workspaces.type` text column is dropped. The route now
+    // rejects `null`/`'kb_section'` outright — there is no replacement
+    // application_type for the legacy 'kb_section' default, so silently
+    // dropping the request is safer than inserting a NULL FK.
     configureRole(mockSupabase, 'editor');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: VALID_UUID,
-        name: 'KB Section',
-        type: 'kb_section',
-      },
-      error: null,
-    });
 
     const req = createTestRequest('/api/workspaces', {
       method: 'POST',
@@ -350,40 +376,43 @@ describe('POST /api/workspaces', () => {
     });
     const res = await createWorkspace(req);
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.type).toBe('kb_section');
-
-    // Content-of-write: kb_section is the default the route applies.
-    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertArg).toMatchObject({ name: 'KB Section', type: 'kb_section' });
+    expect(json.error).toContain('Workspace `type` is required');
   });
 
-  it('accepts and passes through type when provided', async () => {
+  it('passes type through to application_types FK lookup', async () => {
+    // Q-OQR1-02: `procurement` workspaces (formerly 'bid' pre-T2) resolve
+    // via the application_types FK. The route looks up the FK by `key`.
     configureRole(mockSupabase, 'editor');
+    configureAppTypeLookup(PROCUREMENT_APP_TYPE_ID);
 
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID,
         name: 'My Bid',
-        type: 'bid',
+        application_type_id: PROCUREMENT_APP_TYPE_ID,
       },
       error: null,
     });
 
     const req = createTestRequest('/api/workspaces', {
       method: 'POST',
-      body: { name: 'My Bid', type: 'bid' },
+      body: { name: 'My Bid', type: 'procurement' },
     });
     const res = await createWorkspace(req);
 
     expect(res.status).toBe(201);
     const json = await res.json();
-    expect(json.type).toBe('bid');
+    expect(json.id).toBe(VALID_UUID);
 
-    // Content-of-write: the supplied type is honoured by the insert.
+    // Content-of-write: the supplied procurement key maps to its FK row.
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertArg).toMatchObject({ name: 'My Bid', type: 'bid' });
+    expect(insertArg).toMatchObject({
+      name: 'My Bid',
+      application_type_id: PROCUREMENT_APP_TYPE_ID,
+    });
+    expect(insertArg).not.toHaveProperty('type');
   });
 });
 

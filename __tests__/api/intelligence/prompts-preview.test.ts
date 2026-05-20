@@ -52,15 +52,21 @@ const WORKSPACE_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const PROFILE_UUID = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
 
 /**
- * DB-row shape: the route loads `workspaces.id, domain_metadata` via
- * `.maybeSingle()` then passes `domain_metadata` through
- * `extractContextFromDomainMetadata()`. Pre-T2 the helper reads JSONB, so
- * this mock keeps the JSONB shape. S246 WP2b swaps the helper internals to
- * read the satellite without changing call sites.
+ * DB-row shape post-T2 (S246 WP2b): the route uses
+ * `INTELLIGENCE_WORKSPACE_SELECT` which INNER-JOINs through `application_types`
+ * (gating to intelligence-only) and projects the `intelligence_workspaces`
+ * satellite nested data. `extractContextFromSatellite()` reads from there —
+ * `domain_metadata` JSONB is no longer the source of truth for the 3 typed
+ * context fields.
  */
 const MOCK_WORKSPACE = {
   id: WORKSPACE_UUID,
-  domain_metadata: { company_profile_id: PROFILE_UUID },
+  application_types: { key: 'intelligence' },
+  intelligence_workspaces: {
+    company_profile_id: PROFILE_UUID,
+    guide_id: null,
+    relevance_threshold: null,
+  },
 };
 
 const MOCK_PROFILE = {
@@ -116,6 +122,14 @@ function configureSuccessfulPreviewChain(
 }
 
 function resetMocks() {
+  // `vi.clearAllMocks()` (via beforeEach) clears `mock.calls` but NOT the
+  // `mockResolvedValueOnce` queue. Reset terminal methods to drop leftover
+  // once-mocks so they don't impersonate the next test's role lookup.
+  mockSupabase._chain.single.mockReset();
+  mockSupabase._chain.maybeSingle.mockReset();
+  mockSupabase._chain.then.mockReset();
+  mockSupabase.auth.getUser.mockReset();
+
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
     error: null,

@@ -54,8 +54,12 @@ const BID_UUID = '00000000-0000-4000-8000-000000000001';
 // ---------------------------------------------------------------------------
 
 function resetMocks() {
+  // NB: `vi.clearAllMocks()` clears `mock.calls` but does NOT drain the
+  // `mockResolvedValueOnce` queue. We `mockReset()` terminal methods to
+  // drop their queues so leftover once-mocks don't leak into the next test.
   vi.clearAllMocks();
 
+  mockSupabase.auth.getUser.mockReset();
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
     error: null,
@@ -84,9 +88,13 @@ function resetMocks() {
     'range',
   ] as const;
   for (const method of chainableMethods) {
+    mockSupabase._chain[method].mockReset();
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
+  mockSupabase._chain.single.mockReset();
+  mockSupabase._chain.maybeSingle.mockReset();
+  mockSupabase._chain.then.mockReset();
   mockSupabase._chain.single.mockResolvedValue({
     data: null,
     error: null,
@@ -102,6 +110,7 @@ function resetMocks() {
   );
 
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
+  mockSupabase.rpc.mockReset();
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 }
 
@@ -233,11 +242,12 @@ describe('Bid Questions Create API', () => {
         resolve({ data: [{ question_sequence: 5 }], error: null }),
     );
 
-    // Second .single(): insert result
+    // Second .single(): insert result.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: '00000000-0000-4000-8000-000000000099',
-        project_id: BID_UUID,
+        workspace_id: BID_UUID,
         section_name: 'Technical',
         section_sequence: 0,
         question_text: 'What is your approach?',
@@ -269,7 +279,7 @@ describe('Bid Questions Create API', () => {
     expect(response.status).toBe(201);
 
     const body = await response.json();
-    expect(body.project_id).toBe(BID_UUID);
+    expect(body.workspace_id).toBe(BID_UUID);
     expect(body.question_text).toBe('What is your approach?');
     expect(body.created_by).toBe('test-user-id');
   });
@@ -287,21 +297,22 @@ describe('Bid Questions Create API', () => {
       error: null,
     });
 
-    // .then(): batch insert result
+    // .then(): batch insert result.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
               id: '00000000-0000-4000-8000-000000000010',
-              project_id: BID_UUID,
+              workspace_id: BID_UUID,
               question_text: 'Question 1?',
               question_sequence: 0,
               created_by: 'test-user-id',
             },
             {
               id: '00000000-0000-4000-8000-000000000011',
-              project_id: BID_UUID,
+              workspace_id: BID_UUID,
               question_text: 'Question 2?',
               question_sequence: 1,
               created_by: 'test-user-id',
@@ -331,7 +342,7 @@ describe('Bid Questions Create API', () => {
     expect(body.count).toBe(2);
   });
 
-  it('verifies questions are inserted with correct project_id', async () => {
+  it('verifies questions are inserted with correct workspace_id', async () => {
     configureRole(mockSupabase, 'editor');
 
     // First .single(): bid exists
@@ -340,14 +351,15 @@ describe('Bid Questions Create API', () => {
       error: null,
     });
 
-    // .then(): batch insert result
+    // .then(): batch insert result.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
               id: '00000000-0000-4000-8000-000000000010',
-              project_id: BID_UUID,
+              workspace_id: BID_UUID,
             },
           ],
           error: null,
@@ -357,7 +369,7 @@ describe('Bid Questions Create API', () => {
     const request = createTestRequest(`/api/bids/${BID_UUID}/questions`, {
       method: 'POST',
       body: {
-        questions: [{ question_text: 'Check project_id?' }],
+        questions: [{ question_text: 'Check workspace_id?' }],
       },
     });
 
@@ -365,13 +377,14 @@ describe('Bid Questions Create API', () => {
       params: createTestParams({ id: BID_UUID }),
     });
 
-    // Verify .insert() was called and rows had correct project_id
+    // Verify .insert() was called and rows had correct workspace_id.
+    // Post-T2: `bid_questions` keys workspace not legacy project.
     expect(mockSupabase._chain.insert).toHaveBeenCalled();
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     // Could be a single row or array
     const rows = Array.isArray(insertArg) ? insertArg : [insertArg];
     for (const row of rows) {
-      expect(row.project_id).toBe(BID_UUID);
+      expect(row.workspace_id).toBe(BID_UUID);
     }
   });
 

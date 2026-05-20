@@ -1240,6 +1240,13 @@ describe('POST /api/items/[id]/workspaces', () => {
   it('creates and assigns a new workspace via create path', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // Post-T2: route resolves application_type FK via maybeSingle() before
+    // the workspace insert. Mock the lookup so the procurement seed resolves.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'aaaaaaaa-0000-4000-8000-000000000001' },
+      error: null,
+    });
+
     // Workspace creation (insert().select().single())
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: VALID_UUID_2, name: 'New Workspace', color: '#6366f1' },
@@ -1253,7 +1260,7 @@ describe('POST /api/items/[id]/workspaces', () => {
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/workspaces`, {
       method: 'POST',
-      body: { create: true, name: 'New Workspace' },
+      body: { create: true, name: 'New Workspace', type: 'procurement' },
     });
 
     const res = await workspacesPost(req, { params });
@@ -1266,6 +1273,13 @@ describe('POST /api/items/[id]/workspaces', () => {
   it('returns 409 when create workspace name already exists', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // Application_type lookup must succeed before the duplicate-name error
+    // surfaces on the workspace insert.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'aaaaaaaa-0000-4000-8000-000000000001' },
+      error: null,
+    });
+
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'Unique violation', code: '23505' },
@@ -1273,7 +1287,7 @@ describe('POST /api/items/[id]/workspaces', () => {
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/workspaces`, {
       method: 'POST',
-      body: { create: true, name: 'Existing Workspace' },
+      body: { create: true, name: 'Existing Workspace', type: 'procurement' },
     });
 
     const res = await workspacesPost(req, { params });

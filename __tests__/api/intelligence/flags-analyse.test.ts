@@ -62,15 +62,21 @@ const FLAG_UUID_1 = 'c3d4e5f6-a7b8-4c9d-9e1f-2a3b4c5d6e7f';
 const FLAG_UUID_2 = 'd4e5f6a7-b8c9-4d0e-9f2a-3b4c5d6e7f8a';
 
 /**
- * DB-row shape: the route loads `workspaces.id, domain_metadata` then
- * passes the JSONB through `extractContextFromDomainMetadata()` (S245 WP2a
- * helper). Pre-T2 the helper reads JSONB, so this mock keeps the JSONB
- * shape. S246 WP2b swaps the helper internals to a satellite read without
- * changing call sites.
+ * DB-row shape post-T2 (S246 WP2b): the route loads the workspace via
+ * `INTELLIGENCE_WORKSPACE_SELECT` which JOINs through `application_types`
+ * (INNER, intelligence-only) and projects the `intelligence_workspaces`
+ * satellite (company_profile_id, guide_id, relevance_threshold) as nested
+ * data. `extractContextFromSatellite()` reads from that nested shape — the
+ * pre-T2 `domain_metadata` JSONB path is dead.
  */
 const WORKSPACE_ROW = {
   id: WORKSPACE_UUID,
-  domain_metadata: { company_profile_id: PROFILE_UUID },
+  application_types: { key: 'intelligence' },
+  intelligence_workspaces: {
+    company_profile_id: PROFILE_UUID,
+    guide_id: null,
+    relevance_threshold: null,
+  },
 };
 
 const PROMPT_ROW = {
@@ -135,6 +141,14 @@ const ANALYSIS_RESULT = {
 // ---------------------------------------------------------------------------
 
 function resetMocks() {
+  // `vi.clearAllMocks()` (called via beforeEach) clears `mock.calls` but NOT
+  // the `mockResolvedValueOnce` queue. Reset terminal methods so prior
+  // tests' leftover once-mocks can't impersonate the next test's role lookup.
+  mockSupabase._chain.single.mockReset();
+  mockSupabase._chain.maybeSingle.mockReset();
+  mockSupabase._chain.then.mockReset();
+  mockSupabase.auth.getUser.mockReset();
+
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
     error: null,
