@@ -226,15 +226,11 @@ function stubGlobalFetchForGoogleNewsRedirect() {
       // real fetch implementation.
       if (url.startsWith('https://news.google.com/')) {
         return {
-          MAX_EMBEDDING_CHARS: 24_000,
-          getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),
-          getEmbeddingDimensions: vi.fn(() => 1024),
-
           url: CANONICAL_ARTICLE_URL,
           ok: true,
           status: 200,
           headers: new Headers(),
-        } as Response;
+        } as unknown as Response;
       }
       return realFetch(input, init);
     },
@@ -282,6 +278,20 @@ async function cleanup() {
 beforeAll(async () => {
   if (!ENABLED) return;
 
+  // S246 WP2b T2 (P1): workspace discriminator is now application_type_id
+  // FK, not `workspaces.type` text col. Look up the intelligence app type.
+  const { data: appType, error: appTypeErr } = await serviceClient
+    .from('application_types')
+    .select('id')
+    .eq('key', 'intelligence')
+    .single();
+  if (appTypeErr || !appType) {
+    throw new Error(
+      `application_types row for key='intelligence' not found — was the T2 seed step applied? Original error: ${appTypeErr?.message}`,
+    );
+  }
+  const INTELLIGENCE_APP_TYPE_ID = appType.id;
+
   // 1. Intelligence workspace (use sb() so any failure surfaces loudly
   //    rather than silently producing a null id).
   const ws = await sb(
@@ -289,8 +299,7 @@ beforeAll(async () => {
       .from('workspaces')
       .insert({
         name: `${TEST_PREFIX} GNews Dedup Workspace`,
-        type: 'intelligence',
-        domain_metadata: {},
+        application_type_id: INTELLIGENCE_APP_TYPE_ID,
       })
       .select('id')
       .single(),

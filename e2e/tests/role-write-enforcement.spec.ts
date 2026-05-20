@@ -183,6 +183,30 @@ async function getViewerUserId(): Promise<string> {
   return data.user.id;
 }
 
+/**
+ * Resolve the `application_types.id` for a given key.
+ *
+ * S246 WP2b T2: `workspaces.type` text column dropped. The discriminator
+ * is now `workspaces.application_type_id` FK → `application_types(id)`.
+ * 'bid' → 'procurement' per Q-OQR1-02.
+ */
+async function getApplicationTypeId(
+  svc: ReturnType<typeof createServiceClient>,
+  key: 'procurement' | 'intelligence' | 'content',
+): Promise<string> {
+  const { data, error } = await svc
+    .from('application_types')
+    .select('id')
+    .eq('key', key)
+    .single();
+  if (error || !data) {
+    throw new Error(
+      `application_types row for key='${key}' not found — was the T2 seed step applied? Original error: ${error?.message}`,
+    );
+  }
+  return data.id;
+}
+
 test.describe('8.0.6 viewer write enforcement (server-side)', () => {
   test('viewer POSTs to write endpoints all return 403 and leave the DB untouched', async ({
     viewerPage,
@@ -191,6 +215,10 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const bidId = workerData.bidId;
     const svc = createServiceClient();
     const viewerId = await getViewerUserId();
+
+    // S246 WP2b T2: resolve procurement application_type_id once for the
+    // workspaces discriminator filter (replaces .eq('type', 'bid')).
+    const procurementAppTypeId = await getApplicationTypeId(svc, 'procurement');
 
     // ---- Pre-test snapshot: bid row ----
     const { data: preBid, error: preBidErr } = await svc
@@ -216,7 +244,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
       .from('workspaces')
       .select('id', { count: 'exact', head: true })
       .eq('created_by', viewerId)
-      .eq('type', 'bid');
+      .eq('application_type_id', procurementAppTypeId);
     expect(preBidsErr).toBeNull();
 
     // ---- Endpoint A: POST /api/items ----
@@ -311,7 +339,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
       .from('workspaces')
       .select('id', { count: 'exact', head: true })
       .eq('created_by', viewerId)
-      .eq('type', 'bid');
+      .eq('application_type_id', procurementAppTypeId);
     expect(postBidsCount).toBe(preBidsCount);
   });
 
@@ -327,12 +355,18 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
       const svc = createServiceClient();
       if (VIEWER_EMAIL) {
         const viewerId = await getViewerUserId();
+        // S246 WP2b T2: filter by application_type_id, not the dropped
+        // `workspaces.type` text column.
+        const procurementAppTypeId = await getApplicationTypeId(
+          svc,
+          'procurement',
+        );
         await svc.from('content_items').delete().eq('created_by', viewerId);
         await svc
           .from('workspaces')
           .delete()
           .eq('created_by', viewerId)
-          .eq('type', 'bid');
+          .eq('application_type_id', procurementAppTypeId);
       }
     } catch (err) {
       console.error('[8.0.6 cleanup] sweep failed:', err);

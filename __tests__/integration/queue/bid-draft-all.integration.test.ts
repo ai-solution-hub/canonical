@@ -87,6 +87,12 @@ const TEST_PREFIX = `[S224-W4C-BIDDRAFTALL-${Date.now()}-${Math.random()
 let ADMIN_USER_ID = '';
 let EDITOR_USER_ID = '';
 
+// Procurement application_type id — resolved at beforeAll from the seeded
+// `application_types` table (S246 WP2b T2 — workspaces discriminator is now
+// application_type_id FK, not `workspaces.type` text col). 'bid' → 'procurement'
+// per Q-OQR1-02.
+let PROCUREMENT_APP_TYPE_ID = '';
+
 // Track every seeded row so afterAll can scrub.
 const seededBidIds = new Set<string>();
 const seededQuestionIds = new Set<string>();
@@ -135,16 +141,14 @@ async function createTestBid(opts: {
   const questionCount = opts.zeroQuestions ? 0 : (opts.questionCount ?? 3);
 
   // Insert workspace (bid). Schema: workspaces.name (not title).
+  // S246 WP2b T2: workspace discriminator is application_type_id FK, not
+  // `type` text col. `domain_metadata` JSONB column dropped (P1).
   const { data: bid, error: bidErr } = await serviceClient
     .from('workspaces')
     .insert({
-      type: 'bid',
+      application_type_id: PROCUREMENT_APP_TYPE_ID,
       name: `${TEST_PREFIX} test bid`,
       status,
-      domain_metadata: {
-        client_name: 'Test Client',
-        opportunity_name: `${TEST_PREFIX} opportunity`,
-      },
       created_by: ADMIN_USER_ID,
       updated_by: ADMIN_USER_ID,
     })
@@ -162,7 +166,8 @@ async function createTestBid(opts: {
     const { data: q, error: qErr } = await serviceClient
       .from('bid_questions')
       .insert({
-        project_id: bid.id,
+        // S246 WP2b T2 (P2): bid_questions.project_id → workspace_id.
+        workspace_id: bid.id,
         question_text: `${TEST_PREFIX} question ${i + 1}`,
         word_limit: 200,
         section_name: 'Test Section',
@@ -218,6 +223,19 @@ beforeAll(async () => {
   expect(EDITOR_USER_ID).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
+
+  // S246 WP2b T2: discriminator FK lookup.
+  const { data: appType, error: appTypeErr } = await serviceClient
+    .from('application_types')
+    .select('id')
+    .eq('key', 'procurement')
+    .single();
+  if (appTypeErr || !appType) {
+    throw new Error(
+      `application_types row for key='procurement' not found — was the T2 seed step applied? Original error: ${appTypeErr?.message}`,
+    );
+  }
+  PROCUREMENT_APP_TYPE_ID = appType.id;
 }, 30_000);
 
 afterAll(async () => {

@@ -99,12 +99,13 @@ def extract_docx_questions(supabase: Client, payload: dict) -> dict:
         extraction = json.loads(result.stdout)
 
         # Insert questions into bid_questions
+        # S246 WP2b T2 (P2): bid_questions.project_id renamed to workspace_id.
         questions_to_insert = []
         for section in extraction["sections"]:
             for question in section["questions"]:
                 questions_to_insert.append(
                     {
-                        "project_id": bid_id,
+                        "workspace_id": bid_id,
                         "section_name": section["section_name"],
                         "section_sequence": section["section_sequence"],
                         "question_sequence": question["question_sequence"],
@@ -197,7 +198,8 @@ def analyse_template_job(supabase: Client, payload: dict) -> dict:
     try:
         result = analyse_template(tmp_path)
 
-        # Insert fields into template_fields
+        # Insert fields into form_template_fields
+        # S246 WP2b T2 (P4): template_fields renamed to form_template_fields.
         fields_to_insert = []
         for field in result["fields"]:
             fields_to_insert.append({
@@ -206,7 +208,7 @@ def analyse_template_job(supabase: Client, payload: dict) -> dict:
             })
 
         if fields_to_insert:
-            supabase.from_("template_fields").insert(fields_to_insert).execute()
+            supabase.from_("form_template_fields").insert(fields_to_insert).execute()
 
         # Upload structure.json
         structure_path = f"{project_id}/{template_id}/structure.json"
@@ -223,7 +225,8 @@ def analyse_template_job(supabase: Client, payload: dict) -> dict:
         )
 
         # Update template record
-        supabase.from_("templates").update({
+        # S246 WP2b T2 (P4): templates renamed to form_templates.
+        supabase.from_("form_templates").update({
             "status": "analysed",
             "field_count": result["total_fields"],
             "structure_path": structure_path,
@@ -236,7 +239,7 @@ def analyse_template_job(supabase: Client, payload: dict) -> dict:
         }
 
     except Exception as e:
-        supabase.from_("templates").update({
+        supabase.from_("form_templates").update({
             "status": "analysis_failed",
         }).eq("id", template_id).execute()
         raise
@@ -306,13 +309,15 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
                         error_msg = err["error"]
                         break
 
-                supabase.from_("template_fields").update({
+                # S246 WP2b T2 (P4): template_fields → form_template_fields.
+                supabase.from_("form_template_fields").update({
                     "fill_status": status,
                     "fill_error": error_msg,
                 }).eq("id", field_id).execute()
 
         # Update template status
-        supabase.from_("templates").update({
+        # S246 WP2b T2 (P4): templates → form_templates.
+        supabase.from_("form_templates").update({
             "status": "completed",
         }).eq("id", template_id).execute()
 
@@ -323,7 +328,8 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
         }
 
     except Exception as e:
-        supabase.from_("templates").update({
+        # S246 WP2b T2 (P4): templates → form_templates.
+        supabase.from_("form_templates").update({
             "status": "fill_failed",
         }).eq("id", template_id).execute()
         raise

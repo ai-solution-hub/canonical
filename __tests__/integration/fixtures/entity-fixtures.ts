@@ -56,14 +56,15 @@ export async function seedEntityFixtures(
   }
 
   // Fetch entity_aliases for realistic entity types.
+  // S246 WP2b T2 (P5): column `category` renamed to `provenance`.
   const { data: aliases } = await client
     .from('entity_aliases')
-    .select('canonical, category')
+    .select('canonical, provenance')
     .limit(20);
 
   const entityTypes =
     aliases && aliases.length >= 5
-      ? [...new Set(aliases.map((a) => a.category))].slice(0, 5)
+      ? [...new Set(aliases.map((a) => a.provenance))].slice(0, 5)
       : FALLBACK_ENTITY_TYPES;
 
   const canonicalNames =

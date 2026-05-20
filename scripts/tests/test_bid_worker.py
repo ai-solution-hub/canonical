@@ -281,7 +281,8 @@ class TestAnalyseTemplateJob:
 
         mock_sb = _make_mock_supabase()
         _mock_storage_download(mock_sb, "templates", b"fake-docx-bytes")
-        _mock_table_insert(mock_sb, "template_fields")
+        # S246 WP2b T2 (P4): template_fields renamed to form_template_fields.
+        _mock_table_insert(mock_sb, "form_template_fields")
         _mock_table_update(mock_sb)
         mock_sb.storage.from_.return_value.upload.return_value = None
 
@@ -347,7 +348,9 @@ class TestFillTemplateJob:
         completion_result.data = [{"id": "completion-1"}]
         mock_sb.from_.return_value.insert.return_value.execute.return_value = completion_result
 
-        # Mock update for template_fields and templates
+        # Mock update for form_template_fields and form_templates
+        # S246 WP2b T2 (P4): templates → form_templates;
+        # template_fields → form_template_fields.
         _mock_table_update(mock_sb)
 
         mock_fill.return_value = {
