@@ -215,10 +215,10 @@ Two concurrent long-lived worktrees on this project (shared filesystem via
   Currently implementing the new dev-workflow orchestration setup. Original Primer:
   `docs/tracks/production-readiness.md`.
 
-Decommissioned (S57): **kh-knowledge-platform** worktree + branch removed.
-History preserved at tag `archive/kh-knowledge-platform` (commit `67cfb0a6`).
-Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
-`.continuation-prompts/`, `.audits/kh-knowledge-platform-phase-1/`.
+Decommissioned (S57): **kh-knowledge-platform** worktree + branch removed. History
+preserved at tag `archive/kh-knowledge-platform` (commit `67cfb0a6`). Archived artefacts
+under `.planning/.archive/.tracks/`, `.specs/`, `.continuation-prompts/`,
+`.audits/kh-knowledge-platform-phase-1/`.
 
 ## Gotchas
 
@@ -329,9 +329,9 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
   `application_type_id uuid NOT NULL → application_types(id)`. Read via
   `.from('workspaces').select('application_types!inner(key)')` or compose with
   `lib/intelligence/workspace-context.ts` `INTELLIGENCE_WORKSPACE_SELECT` for intel reads.
-  Legacy `WHERE type = 'X'` filters now fail at runtime — use `application_types.key = 'X'`.
-  Six seed keys: `procurement` / `intelligence` / `sales_proposal` / `product_guide` /
-  `competitor_research` / `training_onboarding`.
+  Legacy `WHERE type = 'X'` filters now fail at runtime — use
+  `application_types.key = 'X'`. Six seed keys: `procurement` / `intelligence` /
+  `sales_proposal` / `product_guide` / `competitor_research` / `training_onboarding`.
 - **Entity classification: false positives, not type errors:** Source of truth:
   `docs/reference/entity-type-taxonomy-spec.md`.
 
