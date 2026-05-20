@@ -359,24 +359,51 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 - **cocoindex 1.0.3 requires `dangerouslyDisableSandbox: true`** for both PyPI install and
   Rust-engine LMDB startup in dev. `localfs.walk_dir` defaults `recursive=False` —
   explicit `recursive=True` needed for nested corpora.
-- **Worktree isolation rules:**
-  - Two sessions on same working tree destroy each other's files — use
-    `isolation: "worktree"` or `git worktree add` for parallel work.
-  - After merging worktree branches, run `git status` on main and clean with
-    `git checkout -- .` and `git clean -fd` (merges leak files).
+- **Worktree isolation rules (deterministic cause + mitigation):**
+  - **Two sessions on same working tree destroy each other's files** — use
+    `isolation: "worktree"` on Agent dispatch, or `git worktree add` for parallel work.
   - **Cherry-pick (not merge)** parallel agent branches — agents branch from main at
     launch time and go stale when earlier agents merge first.
   - **Worktree agents start stale:** `isolation: "worktree"` branches from a historical
-    commit. Agent's first action must be `git reset --hard {branch}`.
-  - `hooks/` directory needs `dangerouslyDisableSandbox: true` for cherry-picks.
-  - **Sub-agent instructions must always use relative paths** — absolute paths resolve to
-    main repo, not the worktree. If rescuing, check `git status` in main first to detect
-    leaked files.
-  - **Bash CWD drifts into worktree dirs after `Read`:** prefix git operations with
-    `cd <main-repo-path> &&` after any Read on worktree files. Also applies to
-    **sub-agents** juggling sub-agent worktrees: after Read of a worktree file, subsequent
-    git commands silently run in the wrong tree — always `cd <main-repo-path> &&` before
-    main-repo git operations.
+    commit. Agent's first action: `git fetch origin {branch} && git reset --hard origin/{branch}`
+    (no `cd` prefix — see below).
+  - **THE DETERMINISTIC LEAK CAUSE (per `docs/research/worktree-isolation-leak-investigation.md`):**
+    A worktree sub-agent leaks commits to the main-tree branch if and only if it issues a
+    bash command that contains `cd /Users/liamj/Documents/development/knowledge-hub*` (or
+    passes that absolute path to Edit/Write `file_path`). **Bash shell state does NOT
+    persist between Bash tool calls** — every Bash tool call runs in the harness's default
+    cwd, which IS the worktree. The agent's branch never "jumps"; the cwd briefly moves to
+    the wrong tree for that one call, and that single `git commit` lands on the wrong
+    branch. Sub-agents that NEVER `cd` and use only relative paths mechanically cannot
+    leak.
+  - **Never `cd` in a sub-agent dispatch.** The legacy `cd $(git rev-parse --show-toplevel)`
+    pattern in dispatch briefs is the LEAK VECTOR — task-executor agents internalise the
+    absolute path from `start-session/SKILL.md` and pre-substitute the `$(...)` token
+    before the shell sees it. Drop the `cd ...` prefix entirely from briefs.
+  - **Verification gate (verified clean in S53 WP3):** sub-agent first action is
+    `pwd && git branch --show-current && git fetch origin {branch} && git reset --hard origin/{branch} && git branch --show-current`
+    — the second `git branch --show-current` confirms the reset didn't switch branches.
+  - **Mechanical backstop:** `.claude/settings.json` PreToolUse hooks block any Bash
+    command containing `cd /Users/liamj/Documents/development/knowledge-hub*` or
+    `git -C /Users/liamj/Documents/development/knowledge-hub*`. Exit code 2 with explicit
+    error message. If the hook fires, the cause is a brief / agent-file that still
+    contains the legacy `cd` pattern — fix the source, don't override.
+  - **After cherry-picking worktree branches**, run `git status` on the main tree and
+    clean with `git checkout -- .` and `git clean -fd` (merges occasionally leak files).
+  - **`.claude/agents/` files need `dangerouslyDisableSandbox: true` on cherry-pick** —
+    sandbox blocks unlink on those paths (same pattern as `hooks/`).
+  - **Reference-doc freshness guard edge case:** the `__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`
+    test inspects single-parent commits; merge commits using combined-diff format don't
+    register single-parent `last_updated` additions. Workaround = follow-up single-parent
+    commit that bumps `last_updated` (precedent: commit `744d9ef1` + `6cad7d64`); or
+    `[skip-doc-freshness-guard]` body tag.
+  - **`isolation: "worktree"` sub-agents can still commit to parent worktree** if the
+    brief instructs them to `cd` (per the deterministic-cause section above). The
+    mitigation is the PreToolUse hook + brief discipline, not a post-commit check —
+    SubagentStop hooks fire after the commit lands.
+  - **Concurrent commits on production-readiness during cross-track merge:** pattern is
+    fresh worktree off `production-readiness` + reconcile-merge per
+    `docs/runbooks/ast-dataflow-merge-S11.md` (commits `b6f7d55f` + `80944a09` + `831d9e74`).
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
 - **ALWAYS check worktree `git status` before removing it:** This covers any cases where

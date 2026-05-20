@@ -216,8 +216,7 @@ prompt. The brief carries:
   may touch. Everything else is off-limits.
 - **Skills to invoke** — list specific KH skills (e.g.
   `test-driven-development`, `incremental-implementation`).
-- **Worktree directive** — `git reset --hard <track-branch>` as first
-  action; use relative paths; commit before finishing.
+- **Worktree directive** — verification gate as first action (`pwd && git branch --show-current && git fetch origin <track> && git reset --hard origin/<track> && git branch --show-current` — verbatim, no `cd` prefix). Use relative paths throughout. Commit before finishing. **Never `cd` to absolute knowledge-hub paths** — PreToolUse hook blocks this mechanically; if briefs contain the legacy `cd $(git rev-parse --show-toplevel)` pattern they must be rewritten before dispatch.
 - **Relevant gotchas** — copy specific CLAUDE.md bullets that apply; don't
   expect the sub-agent to re-read CLAUDE.md from scratch.
 - **Escalation rule** — if the sub-agent finds unexpected production
@@ -264,58 +263,76 @@ Every parallel sub-agent dispatched with `isolation: "worktree"` (or via
 `session-driver-cmux`'s per-worker worktree) hits the same three traps. The
 Orchestrator's dispatch brief must encode each mitigation.
 
-### Critical first action — `git reset --hard <track-branch>`
+### THE DETERMINISTIC LEAK CAUSE (read first)
+
+Per `docs/research/worktree-isolation-leak-investigation.md`: a worktree
+sub-agent leaks its commits to the parent track branch (typically
+`production-readiness`) **if and only if** it issues a bash command that
+either (a) `cd /Users/liamj/Documents/development/knowledge-hub*`, or
+(b) `git -C /Users/liamj/Documents/development/knowledge-hub*`, or (c)
+passes that absolute path as `file_path` to Edit/Write. Bash shell state
+does NOT persist between Bash tool calls — every call runs in the harness's
+default cwd, which IS the worktree. The agent's branch never "jumps"; the
+cwd briefly moves to the wrong tree for that one call, and that single
+`git commit` lands on the wrong branch.
+
+**Sub-agents that never `cd` and use only relative paths mechanically cannot leak.**
+
+### Critical first action — verification gate (no cd)
 
 `isolation: "worktree"` branches from a historical commit, not the current
 track HEAD (CLAUDE.md "Worktree agents start stale"). The agent's worktree
 HEAD may be hours or days behind. Every dispatch brief's first instruction
-must be:
+must be (verbatim — do NOT prefix with `cd`):
 
 ```bash
-git reset --hard <track-branch>   # e.g. production-readiness, or main, or kh-knowledge-platform
+pwd
+git branch --show-current
+git fetch origin <track-branch>
+git reset --hard origin/<track-branch>
+git branch --show-current   # MUST still equal worktree-agent-<id>
+git status
 ```
 
-For the Orchestrator's own use: substitute the current track branch. For
-sub-agent briefs: name the branch explicitly so the sub-agent doesn't have
-to guess.
+For sub-agent briefs: name the branch explicitly so the sub-agent doesn't
+have to guess. The second `git branch --show-current` is the verification
+gate — if it returns the parent branch (e.g. `production-readiness`), the
+agent is leaking and must STOP and escalate.
 
 ### Plugin invisibility
 
 `.claude/plugins/*` is gitignored except `knowledge-hub/`. Sub-agents
 running in worktrees cannot see plugins from the parent repo. If a dispatch
 needs a plugin (e.g. `mempalace`), the brief must include the copy step
-after the reset:
+after the reset, using relative paths and the project structure:
 
 ```bash
-cp -r <main-repo>/.claude/plugins/<plugin-dir> .claude/plugins/<plugin-dir>
+cp -r ../../plugins/<plugin-dir> .claude/plugins/<plugin-dir>
 ```
 
 The Orchestrator names the plugin explicitly in the brief — sub-agents
 should not be guessing what's missing.
 
-### Worktree CWD drift
+### Mechanical backstop — PreToolUse hooks
 
-Sub-agents (and the Orchestrator itself) experience CWD drift after a
-`Read` on a worktree file: subsequent Bash `git` commands silently run in
-the wrong tree (CLAUDE.md "Bash CWD drifts into worktree dirs after
-`Read`"). The mitigation is the same for everyone:
-
-```bash
-cd <main-repo-path> && <git command>
-```
-
-Apply this prefix after **any** worktree Read. The Orchestrator passes this
-rule into sub-agent briefs verbatim because the sub-agent has no other way
-to know it.
+`.claude/settings.json` carries PreToolUse hooks that block any Bash command
+containing `cd /Users/liamj/Documents/development/knowledge-hub*` or
+`git -C /Users/liamj/Documents/development/knowledge-hub*`. Exit code 2 with
+explicit error message. If a sub-agent sees a `BLOCKED:` message from the
+hook, the cause is the dispatch brief still containing the legacy `cd` pattern
+— the brief is wrong, not the agent. The Orchestrator's job is to write briefs
+that never trigger the hook.
 
 ### Sub-agent token-budget rescue
 
 Sub-agents can blow their token budget before the final `git commit`
 (CLAUDE.md "Sub-agents can blow their token budget before final `git
 commit`"). The Orchestrator's rescue procedure: before tearing down a
-worker's worktree, run `git status` inside it. If uncommitted changes
-exist, manual-commit on the worker's branch and only then `git worktree
-remove`.
+worker's worktree, run `git status` inside it (via relative path — `git
+status` from your CWD if you're not in the worktree, or `git -C
+.claude/worktrees/agent-<id> status` ONLY if .claude/worktrees is a
+relative path from your CWD). If uncommitted changes exist, manual-commit
+on the worker's branch and only then `git worktree remove`.
 
 The `session-driver-cmux` `stop-worker.sh` script enforces this by
 default — it refuses to remove a dirty worktree without `--force`.
@@ -524,12 +541,17 @@ discovery requires spec amendment, re-engage a Planner. If the discovery
 reveals a pre-existing bug unrelated to the current Task, dispatch the
 Curator — the bug becomes a backlog item, not a current-Task fix.
 
-### Worktree-CWD drift in the Orchestrator
+### Worktree-CWD drift in the Orchestrator (and sub-agents)
 
-After any `Read` on a worktree file from the Orchestrator's own session,
-prefix subsequent main-repo git ops with `cd <main-repo-path> &&`. This
-applies recursively — sub-agents juggling sub-agent worktrees hit the same
-trap (CLAUDE.md "Bash CWD drifts into worktree dirs after `Read`").
+The previous mitigation (`cd <main-repo-path> &&`) was the LEAK VECTOR
+itself per `docs/research/worktree-isolation-leak-investigation.md`. Bash
+shell state does not persist between Bash tool calls, so every call already
+starts in the harness's default cwd (which is your worktree). After any
+`Read` on a worktree file from the Orchestrator's session, subsequent
+git ops continue to run in the Orchestrator's worktree (the main-track
+worktree) by default — no prefix needed. **If you find yourself wanting to
+`cd /Users/liamj/...`, the answer is no. Use relative paths or `git -C
+<relative-path>` instead.** PreToolUse hooks enforce this.
 
 ---
 

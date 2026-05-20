@@ -77,31 +77,29 @@ A **Subtask dispatch brief** drawn from `docs/reference/task-list.json`:
 - **Commit before finishing.** Sub-agents can blow their token budget before the final
   `git commit` (CLAUDE.md "Sub-agents can blow their token budget"). Commit early; commit
   often; never end a dispatch with uncommitted work in the worktree.
-- **Use relative paths in the worktree.** Absolute paths resolve to the main repo, not the
-  worktree (CLAUDE.md "Worktree isolation rules"). All Edit / Read / Write / Bash
-  operations use paths relative to the worktree root.
+- **NEVER `cd` to absolute knowledge-hub paths. NEVER use absolute repo paths in Edit/Write/Read.** (Per `docs/research/worktree-isolation-leak-investigation.md`.) Your CWD is your worktree — every Bash tool call runs in it. The bash shell state does NOT persist between calls, so any single `cd /Users/liamj/Documents/development/knowledge-hub*` (or `git -C /Users/liamj/Documents/development/knowledge-hub*`) puts that one call in the wrong tree, and the commit lands on the wrong branch. STOP and report if your brief instructs you to `cd` to an absolute repo path. **All Edit / Read / Write / Bash operations use paths relative to your worktree root (or `pwd`-prefixed dynamic paths).** This rule is mechanically enforced by a PreToolUse hook in `.claude/settings.json` — if you see a `BLOCKED:` message from the hook, drop the `cd` and use relative paths.
 
 ## Phase-by-phase workflow
 
-### Step 1 — Initialise worktree
+### Step 1 — Initialise worktree (no-cd discipline)
 
-Your first action, every dispatch:
+Your first action, every dispatch (verbatim — do NOT add a `cd` prefix):
 
 ```
-git reset --hard {track-branch}
+pwd
+git branch --show-current
+git fetch origin {track-branch}
+git reset --hard origin/{track-branch}
+git branch --show-current   # MUST still equal worktree-agent-<your-id>
+git status
 ```
 
 The orchestrator will tell you which track branch (typically `main`,
 `production-readiness`, or `kh-knowledge-platform`). `isolation: "worktree"` branches from
-a historical commit — without this reset you start stale (CLAUDE.md "Worktree agents start
-stale").
+a historical commit — the `reset` brings your worktree branch up to track HEAD without
+switching branches.
 
-Then verify clean state:
-
-```
-git status
-git branch --show-current
-```
+**If the second `git branch --show-current` returns anything OTHER than `worktree-agent-*` (e.g. `production-readiness`), STOP and escalate.** That's the worktree-isolation leak gotcha; do not proceed. (Per Track A forensics: this happens only if a brief instructed you to `cd` or `git checkout` to the parent branch — see Operating principles: NEVER `cd`.)
 
 If `git status` shows leaked files, `git clean -fd`. If a worktree predecessor left
 untracked plugin/node-modules dirs, leave those — only clean what's tracked or in the way.

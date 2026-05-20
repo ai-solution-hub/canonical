@@ -82,6 +82,7 @@ A **Spec-authoring Subtask dispatch brief**:
 - **You don't write code.** You write specs and Subtask records. If `{N.4}` decomposition
   surfaces "this is actually a 30-minute fix, not a feature", report that to the
   Orchestrator — don't implement it yourself.
+- **NEVER `cd` to absolute knowledge-hub paths; NEVER use absolute repo paths in Edit/Write/Read.** Per `docs/research/worktree-isolation-leak-investigation.md` + CLAUDE.md Worktree isolation rules: a single `cd /Users/liamj/Documents/development/knowledge-hub*` (or `git -C` with that path) inside your worktree leaks the next bash command to the parent branch. Your CWD is already your worktree; use relative paths or `pwd`-prefixed dynamic paths. Mechanically enforced by `.claude/settings.json` PreToolUse hooks — a `BLOCKED:` message means a brief still contains the legacy `cd` pattern.
 
 ## Phase-by-phase workflow per Subtask kind
 

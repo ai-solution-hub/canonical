@@ -35,16 +35,18 @@ git status
 If unmerged branches exist, deploy an agent to investigate whether they should be merged or
 deleted.
 
+**Sub-agent guard (read first):** If you are a sub-agent dispatched by the
+Orchestrator (your CWD matches `*/worktrees/agent-*`), STOP reading this
+section — it is for the main session only. Do not `cd` anywhere, do not
+reference absolute paths. Your CWD is your worktree; use relative paths
+throughout. Skip to Step 2 and treat this skill as informational only.
+
 **Parallel track worktrees vs agent worktrees:** The project may have two types
 of worktrees:
 
 - **Top-level track worktrees** — long-lived worktrees for parallel development
   tracks. These have their own continuation prompts and are NOT cleaned up
-  between sessions. Do not delete or prune these. Currently:
-  - `/Users/liamj/Documents/development/knowledge-hub-production-readiness`
-    (branch `production-readiness`).
-  - `/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`
-    (branch `kh-knowledge-platform`).
+  between sessions. Do not delete or prune these. Discover them with `git worktree list`; the branches are typically `production-readiness` and `kh-knowledge-platform` (plus `main`).
 
   Per Q-COUNTER-1 ratification the session counter is now a **single global
   counter** (`kh-sNNN`); the track-prefixed scheme (`kh-prod-readiness-sN`) is
