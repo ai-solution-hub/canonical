@@ -1,13 +1,13 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
-  "capturedAt": "2026-05-14",
-  "capturedFromCommit": "S237 WP6 D1 implementer (commit a258d144) — exports 47→52: 5 new public surfaces from the ontology harness (OntologyCVSchema in lib/ontology/schemas.ts + loadOntologyCVs in lib/ontology/loader.ts + CONTENT_TYPE_VALUES in lib/ontology/content-type-registry.ts + the re-export shim for VALID_CONTENT_TYPES at lib/validation/schemas.ts:41 + one Zod-side surface flagged by knip's strict re-export detection). All five are wired end-to-end; knip flags them because the consumer is a different package than the declarer. Baseline raised to absorb the harness public surface; no code removed. Previously: Post-dependabot PR #58 (45-package bump) + knip 6.3→6.13 upgrade — exports 43→47, types 15→34, unlisted 3→2 from the upgraded knip detection surface.",
+  "capturedAt": "2026-05-20",
+  "capturedFromCommit": "a2c5ccf8 (chore/outstanding-cleanup-investigation, post-prod-readiness merge S57) — types 34→78 (+44): 34 are deliberate ast-dataflow public-API surface re-exported from lib/ast-dataflow/index.ts per HANDOVER.md §10 (BaseResult, CallSiteResult, the *Args set, etc.); the remaining ~10 from Zod schema work in lib/validation/*-schema.ts (S52 WP3) where exported types are not consumed outside the file. exports 52→60 (+8): public surfaces added by S245 WP2A intelligence work (lib/intelligence/workspace-context.ts) plus same Zod-schema work. unlisted 2→3 (+1): @tiptap/core in __tests__/components/item-detail/content-editor.test.tsx. All wired end-to-end; knip flags because consumers reach for concrete query functions / Zod parsers rather than the public type surface. Previously: capturedAt 2026-05-14 (S237 WP6 D1, commit a258d144) — exports 47→52.",
   "counts": {
     "dependencies": 3,
     "devDependencies": 0,
-    "exports": 52,
-    "types": 34,
-    "unlisted": 2,
+    "exports": 60,
+    "types": 78,
+    "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,
     "files": 0,
