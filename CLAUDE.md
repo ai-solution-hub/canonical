@@ -205,7 +205,7 @@ before each merge.
 
 ## Parallel Tracks
 
-Three concurrent long-lived worktrees on this project (shared filesystem via
+Two concurrent long-lived worktrees on this project (shared filesystem via
 `git worktree`):
 
 - **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
@@ -214,9 +214,11 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   `production-readiness`) — CI/CD, staging DB, structured logging, handover infra.
   Currently implementing the new dev-workflow orchestration setup. Original Primer:
   `docs/tracks/production-readiness.md`.
-- **kh-knowledge-platform** **(Being decommissioned)**
-  (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`, branch
-  `kh-knowledge-platform`). Primer: `docs/tracks/kh-knowledge-platform.md`.
+
+Decommissioned (S57): **kh-knowledge-platform** worktree + branch removed.
+History preserved at tag `archive/kh-knowledge-platform` (commit `67cfb0a6`).
+Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
+`.continuation-prompts/`, `.audits/kh-knowledge-platform-phase-1/`.
 
 ## Gotchas
 
