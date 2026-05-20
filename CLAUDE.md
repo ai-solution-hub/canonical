@@ -322,7 +322,16 @@ Archived artefacts under `.planning/.archive/.tracks/`, `.specs/`,
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports"; internal code
-  still uses "digest".
+  still uses "digest". DB table renamed `digests → change_reports` at T2 (S246); code
+  rename (`lib/digest/* → lib/change-reports/*`) is T5 scope.
+- **Workspace discriminator is `application_type_id` FK, not text `type` column** (T2
+  migration S246/S247): `workspaces.type` text col was DROPPED + replaced with
+  `application_type_id uuid NOT NULL → application_types(id)`. Read via
+  `.from('workspaces').select('application_types!inner(key)')` or compose with
+  `lib/intelligence/workspace-context.ts` `INTELLIGENCE_WORKSPACE_SELECT` for intel reads.
+  Legacy `WHERE type = 'X'` filters now fail at runtime — use `application_types.key = 'X'`.
+  Six seed keys: `procurement` / `intelligence` / `sales_proposal` / `product_guide` /
+  `competitor_research` / `training_onboarding`.
 - **Entity classification: false positives, not type errors:** Source of truth:
   `docs/reference/entity-type-taxonomy-spec.md`.
 
