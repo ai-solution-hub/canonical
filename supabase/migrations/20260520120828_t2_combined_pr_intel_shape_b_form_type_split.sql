@@ -21,6 +21,13 @@
 --   * cat supabase/.temp/project-ref before each push (CLAUDE.md project-ref drift gotcha)
 --   * supabase gen types typescript after apply (regenerates database.types.ts)
 --
+-- Apply log:
+--   * S246 (20/05/2026) staging-apply: commit `38242fef` — clean (greenfield 0/0/0/0).
+--   * S247 (20/05/2026) prod-apply: commit `2f98c8cf` — added sub-task 1.5b
+--     sync_bid_status trigger drop after first attempt failed (NEW.type
+--     dereference post-column-drop). Clean re-apply: 4/3/2/0 + 96/96 + 24/24 +
+--     6/6/8/3. Documented in SCHEMA-QUICK-REFERENCE.md §33.
+--
 -- Env-agnostic assertion design (Liam ratification S246 W1):
 --   Sub-task 8 (intelligence_workspaces backfill) captures pre-state counts INTO
 --   PL/pgSQL vars, runs the INSERT, then asserts post-state matches captured
