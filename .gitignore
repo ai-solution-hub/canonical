@@ -114,3 +114,5 @@ entities.json
 # AST Dataflow
 .ast-dataflow/
 !.ast-dataflow/CLAUDE.md
+# CocoIndex Code (ccc)
+/.cocoindex_code/
