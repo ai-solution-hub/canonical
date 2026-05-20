@@ -284,6 +284,16 @@ jobs:
     # Dependabot-skip: requires staging Supabase URL + service-role key +
     # TEST_USER_*_PASSWORD which resolve empty for Dependabot PRs.
     name: E2E smoke
+    # Cross-PR serialisation: only one e2e-smoke job runs at a time across
+    # the repo. Per-job-type group keys keep intra-PR parallelism (e2e-smoke,
+    # mcp-eval-seed, mcp-eval matrix, integration all run in parallel within
+    # one workflow run). cancel-in-progress: false queues instead of
+    # cancelling — Dependabot PR throughput trades latency for fixture
+    # isolation against the shared staging Supabase branch
+    # (`turayklvaunphgbgscat`).
+    concurrency:
+      group: integration-staging-e2e
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     # Staging env scope per docs/runbooks/github-environments.md §2 —
     # carries staging Supabase URL/keys + TEST_USER_1/2/3 credentials.
@@ -479,6 +489,10 @@ jobs:
     # Dependabot-skip: needs SUPABASE_SERVICE_ROLE_KEY + Anthropic / OpenAI
     # keys to seed and verify rows.
     name: MCP eval seed
+    # Per-job-type concurrency group — see `e2e-smoke` for rationale.
+    concurrency:
+      group: integration-staging-mcp-eval-seed
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
     needs: mcp-build
@@ -541,6 +555,12 @@ jobs:
     # Dependabot-skip: matrix expansion is gated upstream by mcp-build +
     # mcp-eval-seed (both also skipped on Dependabot). Adding the explicit
     # if: here keeps the policy obvious + matches the other 5 jobs.
+    # Per-job-type, per-layer concurrency — see `e2e-smoke` for rationale.
+    # Distinct per-layer keys preserve intra-PR matrix parallelism while
+    # cross-PR each layer still queues with itself.
+    concurrency:
+      group: integration-staging-mcp-eval-${{ matrix.layer }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     # Staging-scoped: TEST_USER_1_* secrets only exist on Staging env scope
     # (per docs/runbooks/github-environments.md §3.1). Eval scripts authenticate
@@ -735,6 +755,10 @@ jobs:
     # Dependabot-skip: hits real Supabase + Anthropic + OpenAI; all of these
     # come from `secrets.*` which are blocked for Dependabot PRs.
     name: Integration tests
+    # Per-job-type concurrency group — see `e2e-smoke` for rationale.
+    concurrency:
+      group: integration-staging-integration
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     # Staging-scoped: TEST_USER_{1,2,3}_* + staging Supabase secrets only
     # exist on Staging env scope (per docs/runbooks/github-environments.md
