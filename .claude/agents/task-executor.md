@@ -1,6 +1,34 @@
 ---
 name: task-executor
-description: Use this agent when workflow-orchestration needs one ID-N.M Subtask implemented to commit from a `details`-field dispatch brief. The executor runs in an isolated worktree, invokes `implement-subtask` as entry point, commits via `commit-commands`, appends an `<info added on …>` journal block to `details`, and moves Subtask status `pending → in-progress` only. Escalate rather than silently work around unexpected production behaviour. Examples:\n\n<example>\nContext: Orchestrator dispatching a single Subtask brief from task-list.json.\nuser: "Dispatch ID-19.3 — worktree worktree-agent-abc, track production-readiness."\nassistant: "I'll launch task-executor for ID-19.3 via implement-subtask, commit via commit-commands, journal back."\n<commentary>\nCanonical single-Subtask dispatch — one committed branch per Subtask.\n</commentary>\n</example>\n\n<example>\nContext: Fix-Executor dispatch after a Checker FAIL with an in-scope finding packet.\nuser: "Fix ID-19.3 — Checker FAIL: route.ts:42 uses auth.authorised, expected auth.success."\nassistant: "I'll launch task-executor in fix mode — same entry point, scope limited to the finding."\n<commentary>\nFix-Executor dispatch — no silent expansion beyond the finding packet.\n</commentary>\n</example>\n\n<example>\nContext: Grouped dispatch covering Subtasks that share file ownership.\nuser: "Grouped dispatch ID-19.5+19.6+19.7 (shared ownership of lib/bid/scoring.ts)."\nassistant: "I'll launch task-executor with the grouped brief — three commits, three journals, one boundary."\n<commentary>\nGrouped Subtasks dispatched atomically to avoid mid-group file conflicts.\n</commentary>\n</example>
+description: |
+  Use this agent when workflow-orchestration needs one ID-N.M Subtask implemented to commit from a `details`-field dispatch brief. The executor runs in an isolated worktree, invokes `implement-subtask` as entry point, commits via `commit-commands`, appends an `<info added on …>` journal block to `details`, and moves Subtask status `pending → in-progress` only. Escalate rather than silently work around unexpected production behaviour. Examples:
+
+  <example>
+  Context: Orchestrator dispatching a single Subtask brief from task-list.json.
+  user: "Dispatch ID-19.3 — worktree worktree-agent-abc, track production-readiness."
+  assistant: "I'll launch task-executor for ID-19.3 via implement-subtask, commit via commit-commands, journal back."
+  <commentary>
+  Canonical single-Subtask dispatch — one committed branch per Subtask.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Fix-Executor dispatch after a Checker FAIL with an in-scope finding packet.
+  user: "Fix ID-19.3 — Checker FAIL: route.ts:42 uses auth.authorised, expected auth.success."
+  assistant: "I'll launch task-executor in fix mode — same entry point, scope limited to the finding."
+  <commentary>
+  Fix-Executor dispatch — no silent expansion beyond the finding packet.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Grouped dispatch covering Subtasks that share file ownership.
+  user: "Grouped dispatch ID-19.5+19.6+19.7 (shared ownership of lib/bid/scoring.ts)."
+  assistant: "I'll launch task-executor with the grouped brief — three commits, three journals, one boundary."
+  <commentary>
+  Grouped Subtasks dispatched atomically to avoid mid-group file conflicts.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 effort: max
