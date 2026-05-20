@@ -56,23 +56,27 @@ export async function POST(
 
     const { question_ids, force } = parsed.data;
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, status, domain_metadata')
+      .select(
+        'id, status, domain_metadata, application_types!inner(key)',
+      )
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
       return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
-    // Fetch questions to match
+    // Fetch questions to match.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     let questionsQuery = supabase
       .from('bid_questions')
       .select('id, question_text, confidence_posture')
-      .eq('project_id', id);
+      .eq('workspace_id', id);
 
     if (question_ids && question_ids.length > 0) {
       questionsQuery = questionsQuery.in('id', question_ids);
@@ -155,7 +159,8 @@ export async function POST(
       const posture = assessConfidence(topMatches);
       const matchedIds = topMatches.map((m) => m.id);
 
-      // Update the question
+      // Update the question.
+      // Post-T2: `bid_questions.project_id` → `workspace_id`.
       await supabase
         .from('bid_questions')
         .update({
@@ -163,7 +168,7 @@ export async function POST(
           matched_content_ids: matchedIds,
         })
         .eq('id', question.id)
-        .eq('project_id', id);
+        .eq('workspace_id', id);
 
       return {
         question_id: question.id,
@@ -213,14 +218,16 @@ export async function POST(
       currentStatus === 'matching' &&
       canTransition(currentStatus, 'drafting')
     ) {
-      // Check if all questions now have a confidence posture
+      // Check if all questions now have a confidence posture.
+      // Post-T2: `bid_questions.project_id` → `workspace_id`.
       const { count: unmatchedCount } = await supabase
         .from('bid_questions')
         .select('id', { count: 'exact', head: true })
-        .eq('project_id', id)
+        .eq('workspace_id', id)
         .is('confidence_posture', null);
 
       if (unmatchedCount === null || unmatchedCount === 0) {
+        // UPDATE narrows on id only (prior read enforces procurement-type).
         await supabase
           .from('workspaces')
           .update({
@@ -228,8 +235,7 @@ export async function POST(
             updated_by: user.id,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', id)
-          .eq('type', 'bid');
+          .eq('id', id);
       }
     }
 

@@ -60,25 +60,27 @@ export async function GET(
       );
     }
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id')
+      .select('id, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
       return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
-    // Fetch questions ordered by section then question sequence
+    // Fetch questions ordered by section then question sequence.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select(
-        'id, project_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, status, has_variants, assigned_to, created_by, created_at, updated_at',
+        'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, status, has_variants, assigned_to, created_by, created_at, updated_at',
       )
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .order('section_sequence', { ascending: true })
       .order('question_sequence', { ascending: true });
 
@@ -144,7 +146,9 @@ export async function GET(
       response: responsePreviews[q.id] ?? null,
     }));
 
-    // Fetch question stats via RPC
+    // Fetch question stats via RPC.
+    // NB: RPC signature `p_project_id` retained — RPC is part of an SQL function
+    // signature that lives in a migration and is renamed separately (T4 scope).
     const { data: stats, error: statsError } = await supabase.rpc(
       'get_bid_question_stats',
       {
@@ -197,12 +201,13 @@ export async function POST(
 
     const raw = await request.json();
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id')
+      .select('id, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -224,12 +229,13 @@ export async function POST(
     const parsed = parseBody(QuestionCreateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    // Get the max question_sequence for this bid to assign next sequence number
+    // Get the max question_sequence for this bid to assign next sequence number.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     const maxSeqResult = await sb(
       supabase
         .from('bid_questions')
         .select('question_sequence')
-        .eq('project_id', id)
+        .eq('workspace_id', id)
         .order('question_sequence', { ascending: false })
         .limit(1),
       'bids.questions.list.maxSequence',
@@ -243,10 +249,11 @@ export async function POST(
     const { section_name, question_text, word_limit, evaluation_weight } =
       parsed.data;
 
+    // Post-T2: `bid_questions.project_id` → `workspace_id` on insert + select.
     const { data: created, error: insertError } = await supabase
       .from('bid_questions')
       .insert({
-        project_id: id,
+        workspace_id: id,
         section_name: section_name ?? null,
         question_text,
         question_sequence: nextSequence,
@@ -256,7 +263,7 @@ export async function POST(
         created_by: user.id,
       })
       .select(
-        'id, project_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
+        'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
       )
       .single();
 
@@ -284,8 +291,9 @@ async function handleBatchInsert(
   userId: string,
   questions: z.infer<typeof BatchQuestionCreateSchema>['questions'],
 ) {
+  // Post-T2: `bid_questions.project_id` → `workspace_id` on batch insert + select.
   const rows = questions.map((q) => ({
-    project_id: bidId,
+    workspace_id: bidId,
     section_name: q.section_name ?? null,
     section_sequence: q.section_sequence ?? 0,
     question_sequence: q.question_sequence ?? 0,
@@ -299,7 +307,7 @@ async function handleBatchInsert(
     .from('bid_questions')
     .insert(rows)
     .select(
-      'id, project_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
+      'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
     );
 
   if (insertError) {

@@ -40,12 +40,15 @@ export async function POST(
 
     const { skip_existing } = parsed.data;
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, status, domain_metadata')
+      .select(
+        'id, status, domain_metadata, application_types!inner(key)',
+      )
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -68,11 +71,12 @@ export async function POST(
       );
     }
 
-    // Fetch all questions for this bid
+    // Fetch all questions for this bid.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text, confidence_posture, matched_content_ids')
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .order('section_sequence', { ascending: true })
       .order('question_sequence', { ascending: true });
 

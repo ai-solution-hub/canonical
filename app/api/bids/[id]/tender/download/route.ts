@@ -45,12 +45,13 @@ export async function GET(
       );
     }
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id')
+      .select('id, application_types!inner(key)')
       .eq('id', bidId)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {

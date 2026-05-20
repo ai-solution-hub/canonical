@@ -34,14 +34,15 @@ export async function GET(
       );
     }
 
-    // Fetch template
+    // Fetch template.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .select(
-        'id, project_id, name, description, filename, storage_path, file_size, mime_type, status, field_count, mapped_count, structure_path, created_by, created_at, updated_at',
+        'id, workspace_id, name, description, filename, storage_path, file_size, mime_type, status, field_count, mapped_count, structure_path, created_by, created_at, updated_at',
       )
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
@@ -51,9 +52,10 @@ export async function GET(
       );
     }
 
-    // Fetch fields with their mapped bid question data
+    // Fetch fields with their mapped bid question data.
+    // Post-T2: `template_fields` → `form_template_fields`.
     const { data: fields, error: fieldsError } = await supabase
-      .from('template_fields')
+      .from('form_template_fields')
       .select(
         'id, template_id, field_type, table_index, row_index, col_index, question_text, section_name, word_limit, placeholder_text, question_id, mapping_status, mapping_confidence, fill_status, fill_error, sequence, created_at, updated_at',
       )
@@ -247,12 +249,13 @@ export async function DELETE(
       );
     }
 
-    // Fetch template to get storage paths for cleanup
+    // Fetch template to get storage paths for cleanup.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .select('id, storage_path, structure_path')
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
@@ -276,9 +279,10 @@ export async function DELETE(
       );
     }
 
-    // Delete template record (cascades to fields and completions)
+    // Delete template record (cascades to fields and completions).
+    // Post-T2: `templates` → `form_templates`.
     const { error: deleteError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .delete()
       .eq('id', templateId);
 

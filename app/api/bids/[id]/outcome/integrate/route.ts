@@ -50,12 +50,15 @@ export async function POST(
     const skipDedup = skip_dedup === true && role === 'admin';
     const { checkExactDuplicate } = await import('@/lib/dedup');
 
-    // Verify bid exists and is in won state
+    // Verify bid exists and is in won state.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, name, status, domain_metadata')
+      .select(
+        'id, name, status, domain_metadata, application_types!inner(key)',
+      )
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -75,12 +78,13 @@ export async function POST(
       );
     }
 
-    // Fetch the questions and responses for integration
+    // Fetch the questions and responses for integration.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     const questionIds = integrations.map((i) => i.question_id);
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text')
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .in('id', questionIds);
 
     if (questionsError) {

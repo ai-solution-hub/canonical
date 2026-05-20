@@ -61,7 +61,7 @@ export async function GET(
       .from('bid_questions')
       .select('id, question_text, word_limit, section_name, confidence_posture')
       .eq('id', response.question_id)
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .single();
 
     if (questionError || !question) {
@@ -188,7 +188,7 @@ export async function PATCH(
         .from('bid_questions')
         .select('id, word_limit')
         .eq('id', existing.question_id)
-        .eq('project_id', id)
+        .eq('workspace_id', id)
         .maybeSingle(),
       'bids.response.update.questionOwnership',
     );
@@ -279,13 +279,13 @@ export async function PATCH(
         .from('bid_questions')
         .update({ status: 'complete' })
         .eq('id', existing.question_id)
-        .eq('project_id', id);
+        .eq('workspace_id', id);
     } else if (review_status === 'needs_review') {
       await supabase
         .from('bid_questions')
         .update({ status: 'needs_review' })
         .eq('id', existing.question_id)
-        .eq('project_id', id);
+        .eq('workspace_id', id);
     }
 
     return NextResponse.json(updated);

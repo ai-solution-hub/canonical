@@ -44,12 +44,13 @@ export async function POST(
     if (!parsed.success) return parsed.response;
     const { threshold } = parsed.data;
 
-    // Verify template exists and is analysed
+    // Verify template exists and is analysed.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .select('id, status')
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
@@ -66,9 +67,10 @@ export async function POST(
       );
     }
 
-    // Fetch unmapped template fields
+    // Fetch unmapped template fields.
+    // Post-T2: `template_fields` → `form_template_fields`.
     const { data: fields, error: fieldsError } = await supabase
-      .from('template_fields')
+      .from('form_template_fields')
       .select('id, question_text')
       .eq('template_id', templateId)
       .in('mapping_status', ['unreviewed', 'unmapped'])
@@ -90,11 +92,12 @@ export async function POST(
       });
     }
 
-    // Fetch bid questions for this workspace
+    // Fetch bid questions for this workspace.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text')
-      .eq('project_id', bidId);
+      .eq('workspace_id', bidId);
 
     if (questionsError || !questions || questions.length === 0) {
       return NextResponse.json({
@@ -144,9 +147,10 @@ export async function POST(
       }
 
       if (bestMatch) {
-        // Update field with auto-mapped question
+        // Update field with auto-mapped question.
+        // Post-T2: `template_fields` → `form_template_fields`.
         await supabase
-          .from('template_fields')
+          .from('form_template_fields')
           .update({
             question_id: bestMatch.question_id,
             mapping_status: 'unreviewed',
@@ -168,16 +172,17 @@ export async function POST(
       }
     }
 
-    // Update mapped_count on template
+    // Update mapped_count on template.
+    // Post-T2: `template_fields` → `form_template_fields`, `templates` → `form_templates`.
     const { count } = await supabase
-      .from('template_fields')
+      .from('form_template_fields')
       .select('id', { count: 'exact', head: true })
       .eq('template_id', templateId)
       .not('question_id', 'is', null)
       .in('mapping_status', ['unreviewed', 'confirmed', 'manual']);
 
     await supabase
-      .from('templates')
+      .from('form_templates')
       .update({ mapped_count: count ?? 0 })
       .eq('id', templateId);
 

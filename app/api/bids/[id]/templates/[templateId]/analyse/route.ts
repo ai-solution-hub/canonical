@@ -36,12 +36,13 @@ export async function POST(
     const rl = checkRateLimit(`template-analyse:${user.id}`, 10, 60_000);
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    // Fetch template to verify it exists and get storage path
+    // Fetch template to verify it exists and get storage path.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
-      .select('id, project_id, storage_path, status')
+      .from('form_templates')
+      .select('id, workspace_id, storage_path, status')
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
@@ -75,24 +76,27 @@ export async function POST(
       );
     }
 
-    // If re-analysing, clear existing fields
+    // If re-analysing, clear existing fields.
+    // Post-T2: `template_fields` → `form_template_fields`.
     if (
       force &&
       (template.status === 'analysed' || template.status === 'completed')
     ) {
       await supabase
-        .from('template_fields')
+        .from('form_template_fields')
         .delete()
         .eq('template_id', templateId);
     }
 
-    // Update template status to analysing
+    // Update template status to analysing.
+    // Post-T2: `templates` → `form_templates`.
     await supabase
-      .from('templates')
+      .from('form_templates')
       .update({ status: 'analysing' })
       .eq('id', templateId);
 
-    // Insert job into processing_queue
+    // Insert job into processing_queue.
+    // payload.project_id retained — that's a JSONB blob shape, not a SQL column.
     const { data: job, error: jobError } = await supabase
       .from('processing_queue')
       .insert({
@@ -108,9 +112,9 @@ export async function POST(
       .single();
 
     if (jobError || !job) {
-      // Revert template status
+      // Revert template status.
       await supabase
-        .from('templates')
+        .from('form_templates')
         .update({ status: template.status })
         .eq('id', templateId);
 

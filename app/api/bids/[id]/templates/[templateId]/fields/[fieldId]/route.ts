@@ -37,12 +37,13 @@ export async function PATCH(
     const parsed = parseBody(FieldMappingUpdateSchema, body);
     if (!parsed.success) return parsed.response;
 
-    // Verify template exists and belongs to this bid
+    // Verify template exists and belongs to this bid.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .select('id')
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
@@ -52,9 +53,10 @@ export async function PATCH(
       );
     }
 
-    // Update field
+    // Update field.
+    // Post-T2: `template_fields` → `form_template_fields`.
     const { data: field, error: fieldError } = await supabase
-      .from('template_fields')
+      .from('form_template_fields')
       .update({
         question_id: parsed.data.question_id,
         mapping_status: parsed.data.mapping_status,
@@ -68,16 +70,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Field not found' }, { status: 404 });
     }
 
-    // Update mapped_count on template
+    // Update mapped_count on template.
+    // Post-T2: `template_fields` → `form_template_fields`, `templates` → `form_templates`.
     const { count } = await supabase
-      .from('template_fields')
+      .from('form_template_fields')
       .select('id', { count: 'exact', head: true })
       .eq('template_id', templateId)
       .not('question_id', 'is', null)
       .in('mapping_status', ['confirmed', 'manual']);
 
     await supabase
-      .from('templates')
+      .from('form_templates')
       .update({ mapped_count: count ?? 0 })
       .eq('id', templateId);
 

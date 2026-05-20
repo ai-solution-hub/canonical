@@ -31,12 +31,13 @@ export async function POST(
     const parsed = parseBody(BulkFieldMappingSchema, body);
     if (!parsed.success) return parsed.response;
 
-    // Verify template exists and belongs to this bid
+    // Verify template exists and belongs to this bid.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .select('id')
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
@@ -46,11 +47,12 @@ export async function POST(
       );
     }
 
-    // Update each field
+    // Update each field.
+    // Post-T2: `template_fields` → `form_template_fields`.
     let updated = 0;
     for (const mapping of parsed.data.mappings) {
       const { error } = await supabase
-        .from('template_fields')
+        .from('form_template_fields')
         .update({
           question_id: mapping.question_id,
           mapping_status: mapping.mapping_status,
@@ -63,16 +65,17 @@ export async function POST(
       }
     }
 
-    // Update mapped_count on template
+    // Update mapped_count on template.
+    // Post-T2: same table renames.
     const { count } = await supabase
-      .from('template_fields')
+      .from('form_template_fields')
       .select('id', { count: 'exact', head: true })
       .eq('template_id', templateId)
       .not('question_id', 'is', null)
       .in('mapping_status', ['confirmed', 'manual']);
 
     await supabase
-      .from('templates')
+      .from('form_templates')
       .update({ mapped_count: count ?? 0 })
       .eq('id', templateId);
 

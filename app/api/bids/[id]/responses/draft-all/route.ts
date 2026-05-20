@@ -71,11 +71,14 @@ export async function POST(
     // fail fast at HTTP-level before any queue work, surfacing 4xx
     // errors to the user immediately rather than via worker dead-letter.
     // ----------------------------------------------------------------
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, status, domain_metadata')
+      .select(
+        'id, status, domain_metadata, application_types!inner(key)',
+      )
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {

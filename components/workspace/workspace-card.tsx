@@ -38,7 +38,12 @@ export function WorkspaceCard({
   readOnly = false,
 }: WorkspaceCardProps) {
   const Icon = ICON_MAP[workspace.icon as WorkspaceIconName] ?? Folder;
-  const typeConfig = getWorkspaceType(workspace.type);
+  // Post-T2 (S246 WP2b): `workspaces.type` text column is dropped.
+  // `workspace.type` is now sourced from `application_types.key` via a JOIN
+  // in the API layer (see app/api/workspaces/route.ts). It may be missing if
+  // the caller projected workspace rows without the join — degrade
+  // gracefully to a generic card rather than crashing.
+  const typeConfig = workspace.type ? getWorkspaceType(workspace.type) : null;
 
   return (
     <div

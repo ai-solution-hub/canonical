@@ -127,12 +127,15 @@ export async function POST(
       );
     }
 
-    // Verify bid exists and is not in a terminal state
+    // Verify bid exists and is not in a terminal state.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, status, domain_metadata')
+      .select(
+        'id, status, domain_metadata, application_types!inner(key)',
+      )
       .eq('id', bidId)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -182,12 +185,13 @@ export async function POST(
       );
     }
 
-    // Insert template record
+    // Insert template record.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: insertError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .insert({
         id: templateId,
-        project_id: bidId,
+        workspace_id: bidId,
         name: templateName,
         description: description?.trim() || null,
         filename: file.name,
@@ -198,7 +202,7 @@ export async function POST(
         created_by: user.id,
       })
       .select(
-        'id, project_id, name, description, filename, storage_path, file_size, mime_type, status, field_count, mapped_count, created_by, created_at, updated_at',
+        'id, workspace_id, name, description, filename, storage_path, file_size, mime_type, status, field_count, mapped_count, created_by, created_at, updated_at',
       )
       .single();
 
@@ -242,25 +246,27 @@ export async function GET(
       );
     }
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id')
+      .select('id, application_types!inner(key)')
       .eq('id', bidId)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
       return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
-    // Fetch templates with completion count
+    // Fetch templates with completion count.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: templates, error } = await supabase
-      .from('templates')
+      .from('form_templates')
       .select(
         'id, name, filename, status, field_count, mapped_count, file_size, created_at, updated_at',
       )
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .order('created_at', { ascending: false });
 
     if (error) {

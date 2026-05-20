@@ -95,23 +95,25 @@ export async function GET(
       );
     }
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id')
+      .select('id, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
       return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
-    // Fetch all questions for this bid
+    // Fetch all questions for this bid.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text, question_sequence, section_name, word_limit')
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .order('section_sequence')
       .order('question_sequence');
 

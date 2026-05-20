@@ -40,19 +40,23 @@ export async function GET(
       );
     }
 
-    // Fetch the bid (workspace with type = 'bid')
-    const { data: bid, error } = await supabase
+    // Fetch the bid (workspace with procurement application_type).
+    // Post-T2: discriminator moved from `workspaces.type` to FK via application_types.
+    const { data: bidRow, error } = await supabase
       .from('workspaces')
       .select(
-        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
+        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by, application_types!inner(key)',
       )
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
-    if (error || !bid) {
+    if (error || !bidRow) {
       return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
+
+    // Strip the joined projection — callers expect flat workspace fields.
+    const { application_types: _appTypes, ...bid } = bidRow;
 
     // Composite view: question stats and tender documents are independent
     // enrichments of the bid detail page. A failure in either should not 500
@@ -143,12 +147,15 @@ export async function PATCH(
     const parsed = parseBody(BidUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    // Fetch current bid to get existing domain_metadata
+    // Fetch current bid to get existing domain_metadata.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: current, error: fetchError } = await supabase
       .from('workspaces')
-      .select('id, name, description, status, domain_metadata')
+      .select(
+        'id, name, description, status, domain_metadata, application_types!inner(key)',
+      )
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (fetchError || !current) {
@@ -192,11 +199,14 @@ export async function PATCH(
     if (description !== undefined) workspaceUpdates.description = description;
     if (status !== undefined) workspaceUpdates.status = status;
 
+    // UPDATE narrows on the same WHERE clause used in the read above. The
+    // application_type_id filter would require a sub-select; the prior read
+    // already verified the row is a procurement workspace, so a direct
+    // .eq('id', id) here is safe (RLS plus the prior fetchError gate).
     const { data: updated, error: updateError } = await supabase
       .from('workspaces')
       .update(workspaceUpdates)
       .eq('id', id)
-      .eq('type', 'bid')
       .select(
         'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
       )
@@ -247,12 +257,13 @@ export async function DELETE(
       );
     }
 
-    // Verify bid exists before cleanup
+    // Verify bid exists before cleanup.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: fetchError } = await supabase
       .from('workspaces')
-      .select('id, domain_metadata')
+      .select('id, domain_metadata, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (fetchError || !bid) {
@@ -289,11 +300,12 @@ export async function DELETE(
         }
       }
 
-      // Delete template files and completions
+      // Delete template files and completions.
+      // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
       const { data: templates, error: templatesError } = await supabase
-        .from('templates')
+        .from('form_templates')
         .select('id, storage_path, structure_path')
-        .eq('project_id', id);
+        .eq('workspace_id', id);
       if (templatesError) {
         logger.error(
           { bidId: id, error: templatesError },
@@ -347,11 +359,11 @@ export async function DELETE(
       .delete()
       .eq('workspace_id', id);
 
+    // DELETE narrows on id only (prior fetchError gate enforces procurement-type).
     const { error } = await supabase
       .from('workspaces')
       .delete()
-      .eq('id', id)
-      .eq('type', 'bid');
+      .eq('id', id);
 
     if (error) {
       logger.error({ err: error }, 'Failed to delete bid');

@@ -32,12 +32,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     );
     const limit = parsed.success ? parsed.data.limit : 50;
 
-    // Fetch workspace for channel metadata
+    // Fetch workspace for channel metadata.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: workspace, error: wsError } = await supabase
       .from('workspaces')
-      .select('id, name, description, type')
+      .select('id, name, description, application_types!inner(key)')
       .eq('id', workspaceId)
-      .eq('type', 'intelligence')
+      .eq('application_types.key', 'intelligence')
       .single();
 
     if (wsError || !workspace) {

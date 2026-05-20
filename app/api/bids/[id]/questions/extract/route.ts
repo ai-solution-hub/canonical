@@ -60,12 +60,13 @@ export async function POST(
 
     const { document_path, format } = parsed.data;
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id')
+      .select('id, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -136,10 +137,11 @@ export async function POST(
     let duplicatesSkipped = 0;
 
     if (extractedQuestions.length > 0) {
+      // Post-T2: `bid_questions.project_id` → `workspace_id`.
       const { data: existingQuestions, error: existingError } = await supabase
         .from('bid_questions')
         .select('question_text')
-        .eq('project_id', id);
+        .eq('workspace_id', id);
 
       if (existingError) {
         logger.error(
@@ -181,8 +183,12 @@ export async function POST(
         });
       }
 
+      // Post-T2: `bid_questions.project_id` → `workspace_id`. The unique index
+      // backing this onConflict was renamed in the migration too
+      // (bid_questions_project_question_unique → bid_questions_workspace_question_unique)
+      // but PostgREST resolves `onConflict` by column list, not constraint name.
       const inserts = newQuestions.map((q) => ({
-        project_id: id,
+        workspace_id: id,
         section_name: q.section_name,
         section_sequence: q.section_sequence,
         question_text: q.question_text,
@@ -198,7 +204,7 @@ export async function POST(
       const { error: insertError } = await supabase
         .from('bid_questions')
         .upsert(inserts, {
-          onConflict: 'project_id,question_text',
+          onConflict: 'workspace_id,question_text',
           ignoreDuplicates: true,
         });
 
@@ -258,14 +264,15 @@ export async function POST(
       );
     }
 
-    // Fetch the saved questions to return with IDs
+    // Fetch the saved questions to return with IDs.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     const savedQuestions = await sb(
       supabase
         .from('bid_questions')
         .select(
-          'id, project_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
+          'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
         )
-        .eq('project_id', id)
+        .eq('workspace_id', id)
         .eq('created_by', user.id)
         .order('section_sequence', { ascending: true })
         .order('question_sequence', { ascending: true }),

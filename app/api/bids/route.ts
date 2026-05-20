@@ -31,13 +31,15 @@ export async function GET(request: NextRequest) {
     if (!parsed.success) return parsed.response;
     const { status, limit, offset } = parsed.data;
 
+    // Post-T2: discriminator is application_type_id via application_types join.
+    // 'bid' → 'procurement' per Q-OQR1-02.
     let query = supabase
       .from('workspaces')
       .select(
-        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
+        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by, application_types!inner(key)',
         { count: 'exact' },
       )
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .eq('is_archived', false)
       .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -105,13 +107,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const bids = (workspaces ?? []).map((workspace) => ({
-      ...workspace,
-      domain_metadata:
-        parseBidMetadata(workspace.domain_metadata) ??
-        workspace.domain_metadata,
-      question_stats: statsMap.get(workspace.id) ?? null,
-    }));
+    // Strip the joined application_types projection from the response shape —
+    // callers only need the flat workspace fields plus enrichments.
+    const bids = (workspaces ?? []).map((workspace) => {
+      const { application_types: _appTypes, ...wsRest } = workspace;
+      return {
+        ...wsRest,
+        domain_metadata:
+          parseBidMetadata(wsRest.domain_metadata) ?? wsRest.domain_metadata,
+        question_stats: statsMap.get(wsRest.id) ?? null,
+      };
+    });
 
     // `failed_bid_ids` is a sibling field, only present when the fallback
     // loop produced at least one failure. Matches the H13 "absent when
@@ -179,12 +185,30 @@ export async function POST(request: NextRequest) {
       notes: notes ?? null,
     };
 
+    // Resolve the procurement application_type id (seeded in T2 sub-task 1.2).
+    // Per Q-OQR1-02, `bid` workspaces live under the `procurement` umbrella.
+    const { data: appType, error: appTypeError } = await supabase
+      .from('application_types')
+      .select('id')
+      .eq('key', 'procurement')
+      .maybeSingle();
+    if (appTypeError || !appType) {
+      logger.error(
+        { err: appTypeError },
+        'Failed to resolve procurement application_type',
+      );
+      return NextResponse.json(
+        { error: 'procurement application_type not seeded' },
+        { status: 500 },
+      );
+    }
+
     const { data, error } = await supabase
       .from('workspaces')
       .insert({
         name,
         description: description ?? null,
-        type: 'bid',
+        application_type_id: appType.id,
         status: 'draft',
         created_by: user.id,
         domain_metadata: domainMetadata,

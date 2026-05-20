@@ -7,9 +7,13 @@ async function getWorkspaceTypeCounts(): Promise<Record<string, number>> {
   const auth = await getAuthenticatedClient();
   if (!auth.success) redirect('/login');
 
+  // Post-T2: `workspaces.type` text column is dropped. Discriminator is now
+  // the FK `application_type_id` — project `application_types.key` as `type`
+  // via an inner JOIN so callers continue to receive the type-string they
+  // expect.
   const { data, error } = await auth.supabase
     .from('workspaces')
-    .select('type')
+    .select('application_types!inner(key)')
     .eq('is_archived', false);
 
   if (error) {
@@ -22,7 +26,13 @@ async function getWorkspaceTypeCounts(): Promise<Record<string, number>> {
 
   const counts: Record<string, number> = {};
   for (const row of data ?? []) {
-    const type = row.type ?? 'unknown';
+    const appTypes = row.application_types as
+      | { key: string }
+      | { key: string }[]
+      | null;
+    const type = Array.isArray(appTypes)
+      ? (appTypes[0]?.key ?? 'unknown')
+      : (appTypes?.key ?? 'unknown');
     counts[type] = (counts[type] ?? 0) + 1;
   }
   return counts;

@@ -5,7 +5,8 @@
  * KB content using the coverage matching engine. Compares against previous
  * week's gap list to identify new, resolved, and persistent gaps.
  *
- * Depends on `template_requirements` table being populated.
+ * Depends on `form_template_requirements` table being populated
+ * (renamed from `template_requirements` in T2 migration).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -55,9 +56,10 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceClient();
 
-    // List current templates
+    // List current templates.
+    // Post-T2: `template_requirements` → `form_template_requirements`.
     const { data: templates, error: templateError } = await supabase
-      .from('template_requirements')
+      .from('form_template_requirements')
       .select('template_name, template_version')
       .eq('is_current', true);
 

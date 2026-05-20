@@ -64,7 +64,7 @@ export async function POST(
       .from('bid_questions')
       .select('id, question_text, word_limit, section_name, confidence_posture')
       .eq('id', existing.question_id)
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .single();
 
     if (questionError || !question) {
@@ -156,7 +156,7 @@ export async function POST(
       .from('bid_questions')
       .update({ status: 'ai_drafted' })
       .eq('id', question.id)
-      .eq('project_id', id);
+      .eq('workspace_id', id);
 
     return NextResponse.json({
       question_id: question.id,

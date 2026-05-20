@@ -48,12 +48,15 @@ export async function POST(
 
     const { question_ids, model_tier, force } = parsed.data;
 
-    // Verify bid exists and is in an appropriate state
+    // Verify bid exists and is in an appropriate state.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, status, domain_metadata')
+      .select(
+        'id, status, domain_metadata, application_types!inner(key)',
+      )
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -76,13 +79,14 @@ export async function POST(
       );
     }
 
-    // Fetch questions to draft
+    // Fetch questions to draft.
+    // Post-T2: `bid_questions.project_id` → `workspace_id`.
     let questionsQuery = supabase
       .from('bid_questions')
       .select(
         'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
       )
-      .eq('project_id', id);
+      .eq('workspace_id', id);
 
     if (question_ids && question_ids.length > 0) {
       questionsQuery = questionsQuery.in('id', question_ids);
@@ -237,12 +241,13 @@ export async function POST(
           continue;
         }
 
-        // Update question status
+        // Update question status.
+        // Post-T2: `bid_questions.project_id` → `workspace_id`.
         await supabase
           .from('bid_questions')
           .update({ status: 'ai_drafted' })
           .eq('id', question.id)
-          .eq('project_id', id);
+          .eq('workspace_id', id);
 
         results.push({
           question_id: question.id,

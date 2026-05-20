@@ -52,9 +52,9 @@ export async function PATCH(
       .from('bid_questions')
       .update(updates)
       .eq('id', qId)
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .select(
-        'id, project_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
+        'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
       )
       .single();
 
@@ -110,7 +110,7 @@ export async function DELETE(
       .from('bid_questions')
       .delete()
       .eq('id', qId)
-      .eq('project_id', id);
+      .eq('workspace_id', id);
 
     if (error) {
       logger.error({ err: error }, 'Failed to delete bid question');

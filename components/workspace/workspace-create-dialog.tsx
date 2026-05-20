@@ -31,7 +31,13 @@ export function WorkspaceCreateDialog({
   open,
   onOpenChange,
   onCreated,
-  type = 'kb_section',
+  // Post-T2 (S246 WP2b): `kb_section` was retired (no rows in either env)
+  // and removed from `application_types`. Default to `procurement` so the
+  // generic create dialog continues to function until the T4 UX redesign
+  // adds a proper application_type selector.
+  // TODO(T4): replace this defaulted prop with a required application_type
+  // selector wired to `application_types` via a TanStack Query hook.
+  type = 'procurement',
   onBidCreate,
 }: WorkspaceCreateDialogProps) {
   const [name, setName] = useState('');

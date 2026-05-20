@@ -110,12 +110,13 @@ export async function POST(
       );
     }
 
-    // Verify bid exists
+    // Verify bid exists.
+    // Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, domain_metadata')
+      .select('id, domain_metadata, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -183,6 +184,7 @@ export async function POST(
       ? existingDocIds
       : [...existingDocIds, storagePath];
 
+    // UPDATE narrows on id only (prior fetchError gate enforces procurement-type).
     const { error: updateError } = await supabase
       .from('workspaces')
       .update({
@@ -193,8 +195,7 @@ export async function POST(
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .eq('type', 'bid');
+      .eq('id', id);
 
     if (updateError) {
       logger.error({ err: updateError }, 'Failed to update bid metadata');

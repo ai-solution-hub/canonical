@@ -44,12 +44,13 @@ export async function POST(
     if (!parsed.success) return parsed.response;
     const options = parsed.data;
 
-    // Fetch template
+    // Fetch template.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
-      .select('id, project_id, storage_path, status')
+      .from('form_templates')
+      .select('id, workspace_id, storage_path, status')
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
@@ -66,9 +67,10 @@ export async function POST(
       );
     }
 
-    // Fetch confirmed/manual mapped fields
+    // Fetch confirmed/manual mapped fields.
+    // Post-T2: `template_fields` → `form_template_fields`.
     const { data: fields, error: fieldsError } = await supabase
-      .from('template_fields')
+      .from('form_template_fields')
       .select(
         'id, table_index, row_index, col_index, question_id, word_limit, mapping_status',
       )
@@ -174,13 +176,15 @@ export async function POST(
       );
     }
 
-    // Update template status to filling
+    // Update template status to filling.
+    // Post-T2: `templates` → `form_templates`.
     await supabase
-      .from('templates')
+      .from('form_templates')
       .update({ status: 'filling' })
       .eq('id', templateId);
 
-    // Insert job into processing_queue
+    // Insert job into processing_queue.
+    // payload.project_id retained — JSONB blob shape, not a SQL column.
     const { data: job, error: jobError } = await supabase
       .from('processing_queue')
       .insert({
@@ -200,7 +204,7 @@ export async function POST(
 
     if (jobError || !job) {
       await supabase
-        .from('templates')
+        .from('form_templates')
         .update({ status: template.status })
         .eq('id', templateId);
 

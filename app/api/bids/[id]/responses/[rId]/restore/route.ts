@@ -54,7 +54,7 @@ export async function POST(
         .from('bid_questions')
         .select('id')
         .eq('id', existing.question_id)
-        .eq('project_id', id)
+        .eq('workspace_id', id)
         .maybeSingle(),
       'bids.response.restore.questionOwnership',
     );

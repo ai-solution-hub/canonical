@@ -28,10 +28,14 @@ export async function GET(request: NextRequest) {
     if (!parsed.success) return parsed.response;
     const includeArchived = parsed.data.include_archived === true;
 
+    // Post-T2: `workspaces.type` text column is dropped. The discriminator is
+    // now `application_type_id` (FK to `application_types`). Project the key as
+    // a flat `type` field for legacy consumers via a JOIN through
+    // `application_types`.
     let query = supabase
       .from('workspaces')
       .select(
-        'id, name, description, color, icon, type, status, domain_metadata, is_archived, created_at, created_by, updated_at, updated_by',
+        'id, name, description, color, icon, status, domain_metadata, is_archived, created_at, created_by, updated_at, updated_by, application_types!inner(key)',
       )
       .order('name');
     if (!includeArchived) {
@@ -48,7 +52,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data);
+    // Flatten the joined application_types projection to a top-level `type`
+    // field. Pre-T2 callers consumed `workspace.type` as a string — preserve
+    // that shape so the UI does not need to be aware of the JOIN.
+    const flattened = (data ?? []).map((ws) => {
+      const { application_types, ...wsRest } = ws;
+      const appTypes = application_types as { key: string } | { key: string }[] | null;
+      const key = Array.isArray(appTypes)
+        ? (appTypes[0]?.key ?? null)
+        : (appTypes?.key ?? null);
+      return { ...wsRest, type: key };
+    });
+
+    return NextResponse.json(flattened);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to fetch workspaces') },
@@ -70,6 +86,44 @@ export async function POST(request: NextRequest) {
 
     const { name, description, color, icon, type } = parsed.data;
 
+    // Post-T2: discriminator is `application_type_id`, not the dropped `type`
+    // text column. Map the legacy 'bid' input alias to the 'procurement'
+    // application_types row (Q-OQR1-02 umbrella rename).
+    //
+    // 'kb_section' was retired at T2 (no rows in either env). If clients still
+    // send it, reject loudly — the legacy default has no replacement seat and
+    // the migration's CHECK removal would silently produce a NULL FK insert
+    // otherwise.
+    const rawTypeKey = type ?? null;
+    if (rawTypeKey === 'kb_section' || rawTypeKey === null) {
+      return NextResponse.json(
+        {
+          error:
+            'Workspace `type` is required and must reference a seeded application_types key (procurement, intelligence, sales_proposal, product_guide, competitor_research, training_onboarding).',
+        },
+        { status: 400 },
+      );
+    }
+    const appTypeKey = rawTypeKey === 'bid' ? 'procurement' : rawTypeKey;
+
+    const { data: appType, error: appTypeError } = await supabase
+      .from('application_types')
+      .select('id')
+      .eq('key', appTypeKey)
+      .maybeSingle();
+    if (appTypeError || !appType) {
+      logger.error(
+        { err: appTypeError, appTypeKey },
+        'Failed to resolve application_type for workspace create',
+      );
+      return NextResponse.json(
+        {
+          error: `application_type "${appTypeKey}" not seeded — cannot create workspace`,
+        },
+        { status: 500 },
+      );
+    }
+
     const { data, error } = await supabase
       .from('workspaces')
       .insert({
@@ -77,7 +131,7 @@ export async function POST(request: NextRequest) {
         description: description ?? null,
         color: color ?? '#6366f1',
         icon: icon ?? 'folder',
-        type: type ?? 'kb_section',
+        application_type_id: appType.id,
         created_by: user.id,
       })
       .select()

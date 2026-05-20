@@ -47,7 +47,7 @@ export async function GET(
         .from('bid_questions')
         .select('id')
         .eq('id', response.question_id)
-        .eq('project_id', id)
+        .eq('workspace_id', id)
         .maybeSingle(),
       'bids.response.history.questionOwnership',
     );

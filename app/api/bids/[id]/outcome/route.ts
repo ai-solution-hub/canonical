@@ -39,12 +39,12 @@ export async function POST(
 
     const { outcome, notes, integrate_to_kb } = parsed.data;
 
-    // Fetch the bid
+    // Fetch the bid. Post-T2: discriminator via application_types JOIN.
     const { data: bid, error: bidError } = await supabase
       .from('workspaces')
-      .select('id, status, domain_metadata')
+      .select('id, status, domain_metadata, application_types!inner(key)')
       .eq('id', id)
-      .eq('type', 'bid')
+      .eq('application_types.key', 'procurement')
       .single();
 
     if (bidError || !bid) {
@@ -78,6 +78,7 @@ export async function POST(
       outcome_recorded_by: user.id,
     };
 
+    // UPDATE narrows on id only (prior read enforces procurement-type).
     const { error: updateError } = await supabase
       .from('workspaces')
       .update({
@@ -86,8 +87,7 @@ export async function POST(
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .eq('type', 'bid');
+      .eq('id', id);
 
     if (updateError) {
       logger.error({ err: updateError }, 'Failed to record bid outcome');
@@ -107,11 +107,12 @@ export async function POST(
     }> = [];
 
     if (outcome === 'won' && integrate_to_kb) {
-      // Fetch all approved/edited responses for this bid
+      // Fetch all approved/edited responses for this bid.
+      // Post-T2: `bid_questions.project_id` → `workspace_id`.
       const { data: questions, error: questionsError } = await supabase
         .from('bid_questions')
         .select('id, question_text')
-        .eq('project_id', id);
+        .eq('workspace_id', id);
 
       if (questionsError) {
         logger.error(

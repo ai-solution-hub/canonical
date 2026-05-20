@@ -39,12 +39,13 @@ export async function GET(
       );
     }
 
-    // Verify template belongs to bid
+    // Verify template belongs to bid.
+    // Post-T2: `templates` → `form_templates`, `project_id` → `workspace_id`.
     const { data: template, error: templateError } = await supabase
-      .from('templates')
+      .from('form_templates')
       .select('id')
       .eq('id', templateId)
-      .eq('project_id', bidId)
+      .eq('workspace_id', bidId)
       .single();
 
     if (templateError || !template) {
