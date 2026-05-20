@@ -4203,6 +4203,38 @@ export type Database = {
         Args: { p_source: string; p_target: string; p_type: string }
         Returns: number
       }
+      q_a_get_verbatim: {
+        Args: { p_pair_id: string }
+        Returns: {
+          alternate_question_phrasings: string[]
+          answer_advanced: string
+          answer_standard: string
+          anti_scope_tag: string[]
+          created_at: string
+          id: string
+          origin_kind: string
+          publication_status: string
+          question_text: string
+          scope_tag: string[]
+          source_workspace_id: string
+          superseded_by: string
+          updated_at: string
+          valid_from: string
+          valid_to: string
+        }[]
+      }
+      q_a_search: {
+        Args: { p_limit?: number; p_query: string; p_query_embedding: string }
+        Returns: {
+          answer_standard_preview: string
+          embedding_score: number
+          fulltext_score: number
+          pair_id: string
+          publication_status: string
+          question_text_preview: string
+          scope_tag: string[]
+        }[]
+      }
       reap_stuck_jobs: { Args: { p_timeout_seconds: number }; Returns: number }
       recalculate_all_freshness: {
         Args: never
