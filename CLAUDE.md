@@ -266,8 +266,8 @@ without their own worktree are fine — work in the `main` worktree directly.
   REVOKE EXECUTE ON FUNCTION public.foo(...) FROM anon;
   GRANT  EXECUTE ON FUNCTION public.foo(...) TO authenticated, service_role;
   ```
-  Per-tenant if SECURITY DEFINER. Vector signatures use bare `vector` (no size suffix)
-  to match catalog form; migration apply session needs
+  Per-tenant if SECURITY DEFINER. Vector signatures use bare `vector` (no size suffix) to
+  match catalog form; migration apply session needs
   `SET search_path = public, extensions;` at the top so unqualified `vector` resolves
   against `extensions.vector` under CLI `db push` (MCP `apply_migration` uses a different
   default search_path and may succeed without the explicit SET — do not rely on that).
@@ -392,12 +392,11 @@ without their own worktree are fine — work in the `main` worktree directly.
   parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
 - **Reference-doc freshness is self-policed:** the edit-coupled freshness guard
-  (`__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`) was removed S249
-  (commit `4d4524d3`) — doc maintenance burden outweighed catch-rate benefit, and
-  canonical reference docs are stable enough to self-police. Manually bump
-  `<!-- Last verified -->` headers (UK DD/MM/YYYY) when editing canonical reference
-  docs as a hygiene discipline; no CI enforcement of same-commit
-  migration ↔ SCHEMA-QUICK-REF coupling.
+  (`__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`) was removed S249 (commit
+  `4d4524d3`) — doc maintenance burden outweighed catch-rate benefit, and canonical
+  reference docs are stable enough to self-police. Manually bump `<!-- Last verified -->`
+  headers (UK DD/MM/YYYY) when editing canonical reference docs as a hygiene discipline;
+  no CI enforcement of same-commit migration ↔ SCHEMA-QUICK-REF coupling.
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
 - **ALWAYS check worktree `git status` before removing it:** This covers any cases where
