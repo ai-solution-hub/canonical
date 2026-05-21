@@ -10,8 +10,7 @@ description:
   exists. Invoked by the workflow-curator agent (Create after triage-finding
   returns roadmap/backlog) or directly by the workflow-orchestration skill
   (Update for status transitions; Delete for cancellations). Knows about the
-  current KH label-reversal between roadmap and backlog (target semantics drive
-  the write; legacy filenames are reconciled during the migration WP).
+  target semantics drive write routing.
 allowed-tools: Read, Edit, Bash, Grep
 ---
 
@@ -48,21 +47,12 @@ The curator invokes this skill with:
 
 ## Step 1: Resolve target → file
 
-**Critical:** KH currently has roadmap and backlog labelled the wrong way around (confirmed Session 46). The intended semantics:
+| Target semantics | File |
+|---|---|
+| Strategic / cross-cutting / multi-month | `docs/reference/product-roadmap.json` |
+| Tactical / single-feature / weeks-scope OR parked / deferred / pre-work | `docs/reference/product-backlog.json` |
 
-- `target: "roadmap"` = **strategic / cross-cutting / multi-month** work. This is the strategic register.
-- `target: "backlog"` = **tactical / single-feature / weeks-scope** work. This is the tactical register.
-
-Today's filenames follow the *legacy* convention. Until the migration WP corrects them, follow this mapping:
-
-| target (semantics) | file to edit | rationale |
-|--------------------|--------------|-----------|
-| `roadmap` (strategic) | `docs/reference/product-roadmap.json` | matches current legacy naming |
-| `backlog` (tactical) | `docs/reference/product-backlog.json` | matches current legacy naming |
-
-The mapping is 1:1 by coincidence with legacy naming for *this version* of the codebase. **When the migration WP runs and swaps the file names**, this skill must be updated. Until then, write to the file named after the target.
-
-If the triage payload included `label_reversal_flag`, propagate it to the curator's report — do not silently swap files.
+The mapping is 1:1 by `document_purpose`. The skill enforces target-semantic routing; the curator never auto-corrects the destination.
 
 ---
 
@@ -133,10 +123,12 @@ Required fields per the schema implicit in `product-backlog.json`:
 | `priority` | From triage payload `backlog_slot.priority`. Default `medium`. |
 | `track` | From triage payload `backlog_slot.track`. |
 | `dependencies` | [] unless triage identifies dependencies. |
-| `surfaced` | Provenance string. Format: `"{source-agent} during {session-counter} ({source-task-id|source-commit-sha})"`. E.g. `"workflow-checker during kh-prod-readiness-s47 (WP1.2 / a1b2c3d)"`. |
+| `session_refs` | Array of session identifiers. Populate with `[provenance.session_counter]` at minimum, plus `provenance.source_task_id` if available. |
+| `commit_refs` | Array of commit SHAs. Populate with `[provenance.source_commit_sha]` if available, else `[]`. |
+| `cross_doc_links` | Array of DocLink objects `{ path, anchor, raw }`. Populate if the finding cites a spec or doc; else `[]`. |
 | `notes` | Free-text. Include the finding's evidence reference (`file:line`) if available. |
 
-**Provenance lives in `surfaced`** for the backlog — that's the existing convention.
+**Provenance lives in `session_refs` + `commit_refs`** for backlog items, populated at creation time from the curator's current session context.
 
 ---
 
@@ -209,7 +201,6 @@ provenance:
   source_task_id: "{value or null}"
   source_commit_sha: "{value or null}"
   session_counter: "{value}"
-label_reversal_flag: "{flag or null}"
 ```
 
 ---
@@ -327,31 +318,15 @@ follow_up_create_required: true | false
 
 ---
 
-## Label-reversal note for future migration
-
-When the separate label-reversal migration WP runs, the files will be renamed (or swapped contents) so:
-
-- "Roadmap" file = strategic register.
-- "Backlog" file = tactical register.
-
-This skill currently maps `target` → file 1:1 with legacy naming. **The migration must update both:**
-- The mapping table in Step 1 above.
-- The example IDs and conventions in Steps 3 / 4 / 6.
-
-The label-reversal flag from `triage-finding` is the signal: if the curator's report contains `FLAG: target/legacy-label mismatch`, the migration has not yet run; if it does not, the migration has completed and this skill is current.
-
----
-
 ## Failure modes to avoid
 
 1. **Forgetting provenance.** Every Create entry must have at least a `session_counter`. Update / Delete operations bump `last_updated` with the session counter. Without provenance, edits can't be traced — the curator's primary value (clean ledger discipline) is lost.
 2. **Adding a `metadata` field to roadmap.** The schema is `.strict()` — extra fields fail Zod validation and break the round-trip.
 3. **Committing from this skill.** The orchestrator owns commit sequencing. Edit the file, report back, let the orchestrator commit. Applies to Create, Update, and Delete equally.
 4. **Writing to both files for one finding.** A finding goes to exactly one of roadmap or backlog. The triage decision is binary. (Reclassifications use Delete-then-Create across files, not concurrent writes.)
-5. **Auto-correcting the label reversal.** The reversal correction is a separate WP. This skill follows current naming; flagging is informational only.
-6. **Forgetting `bun run roadmap:render` for roadmap edits.** Without rendering, the MD drifts from JSON and the round-trip CI test fails. Applies to Create, Update, and Delete on the roadmap.
-7. **Using Delete for `done` closures.** A completed roadmap item is `status: "done"` via Update mode. Delete is reserved for cancellations and reclassifications only — see Delete mode's "What Delete is NOT" section.
-8. **Overwriting `notes` on Update.** Append with a session-counter prefix to preserve audit trail.
+5. **Forgetting `bun run roadmap:render` for roadmap edits.** Without rendering, the MD drifts from JSON and the round-trip CI test fails. Applies to Create, Update, and Delete on the roadmap.
+6. **Using Delete for `done` closures.** A completed roadmap item is `status: "done"` via Update mode. Delete is reserved for cancellations and reclassifications only — see Delete mode's "What Delete is NOT" section.
+7. **Overwriting `notes` on Update.** Append with a session-counter prefix to preserve audit trail.
 
 ---
 
