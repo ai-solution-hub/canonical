@@ -214,6 +214,24 @@ describe('recordPipelineRun', () => {
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });
 
+  // Regression — ID-28.11 FX-1
+  // Pipeline flow-start webhooks pass status='in_progress' (a healthy
+  // lifecycle event, not a failure). The original Sentry-guard at line
+  // 206 only short-circuited on 'completed', so every flow-start fired
+  // a spurious Sentry warning in production. The guard now covers both
+  // 'completed' AND 'in_progress'; only 'failed' / 'completed_with_errors'
+  // should trigger an alert.
+  it('does NOT fire Sentry on an in_progress run (flow-start lifecycle)', async () => {
+    const { client } = createMockSupabase({ data: null, error: null });
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'in_progress',
+      progress: { stage: 'started' },
+    });
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
   // -------------------------------------------------------------------------
   // Alerting on non-completed runs
   // -------------------------------------------------------------------------

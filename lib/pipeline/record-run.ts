@@ -27,6 +27,9 @@ import type { Database, Json } from '@/supabase/types/database.types';
 /**
  * Status value for a `pipeline_runs.status` column.
  *
+ * - `in_progress` — the pipeline has started but not yet finished. A
+ *   lifecycle event (typically emitted by flow-start webhooks), not an
+ *   error condition. No alert.
  * - `completed` — the pipeline finished without any failures. No alert.
  * - `completed_with_errors` — the pipeline finished but some sub-tasks
  *   failed (e.g. one feed out of ten, one template out of fifty).
@@ -36,6 +39,7 @@ import type { Database, Json } from '@/supabase/types/database.types';
  *   error. These should be rare and must be actioned.
  */
 export type PipelineRunStatus =
+  | 'in_progress'
   | 'completed'
   | 'completed_with_errors'
   | 'failed';
@@ -128,6 +132,8 @@ export interface RecordPipelineRunParams {
  *   alert; they are meant for the weekly review rather than immediate
  *   action.
  * - `status === 'completed'` → no Sentry emission (healthy path).
+ * - `status === 'in_progress'` → no Sentry emission (lifecycle event,
+ *   e.g. flow-start webhook). Added in ID-28.11 FX-1.
  * - DB insertion itself fails → `logBestEffortWarn` + Sentry error
  *   capture under the `pipeline.record_run` category. This covers the
  *   Q-36 library smell: the previous `await supabase.from(...).insert`
@@ -236,8 +242,14 @@ export async function recordPipelineRun(
   }
 
   // Insert succeeded. If the run itself reported a problem, alert.
+  // Healthy lifecycle states ('completed', 'in_progress') short-circuit
+  // here — only 'failed' / 'completed_with_errors' fall through to
+  // Sentry.captureMessage below. The 'in_progress' guard was added in
+  // ID-28.11 FX-1: pipeline flow-start webhooks pass status='in_progress'
+  // and the prior guard fired a spurious Sentry warning on every flow
+  // start in production.
   if (skipSentryAlert) return;
-  if (status === 'completed') return;
+  if (status === 'completed' || status === 'in_progress') return;
 
   const level: 'error' | 'warning' = status === 'failed' ? 'error' : 'warning';
   Sentry.captureMessage(
