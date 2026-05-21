@@ -86,7 +86,7 @@ function setupFetch(
     }
 
     // Match /api/change-reports/{id} — the detail endpoint (any non-route ID)
-    if (/\/api\/digest\/(?!latest|list|generate)[^/]+/.test(urlStr)) {
+    if (/\/api\/change-reports\/(?!latest|list|generate)[^/]+/.test(urlStr)) {
       return {
         ok: true,
         json: async () => ({ digest: options.detail ?? null }),

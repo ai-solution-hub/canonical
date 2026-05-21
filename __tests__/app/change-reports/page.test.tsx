@@ -614,7 +614,7 @@ describe('ChangeReportsPage', () => {
     await waitFor(() => {
       expect(mockMarkBulkRead).toHaveBeenCalledWith(
         ['item-1', 'item-2', 'item-3'],
-        'digest',
+        'change_report',
       );
     });
   });
@@ -793,7 +793,7 @@ describe('ChangeReportsPage', () => {
     await waitFor(() => {
       expect(mockMarkBulkRead).toHaveBeenCalledWith(
         ['ds-item-1', 'ds-item-2'],
-        'digest',
+        'change_report',
       );
     });
   });
