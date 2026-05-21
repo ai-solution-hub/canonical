@@ -40,7 +40,7 @@ interface GenerateChangeReportParams {
  * Replaces the manual fetch/setState/useEffect pattern in the digest page
  * with TanStack Query for caching, deduplication, and automatic refetch.
  *
- * Task 5: `loadDigest` routes through `queryClient.fetchQuery` so the
+ * Task 5: `loadChangeReport` routes through `queryClient.fetchQuery` so the
  * result is cached and subsequent loads for the same digest are instant.
  *
  * OPS-23: AbortController support for cancelling in-flight generation.

@@ -125,8 +125,8 @@ describe('useChangeReportsData', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.currentDigest).toEqual(digest);
-    expect(result.current.pastDigests).toEqual([digest]);
+    expect(result.current.currentChangeReport).toEqual(digest);
+    expect(result.current.pastChangeReports).toEqual([digest]);
   });
 
   it('returns null digest when none exists', async () => {
@@ -139,8 +139,8 @@ describe('useChangeReportsData', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.currentDigest).toBeNull();
-    expect(result.current.pastDigests).toEqual([]);
+    expect(result.current.currentChangeReport).toBeNull();
+    expect(result.current.pastChangeReports).toEqual([]);
   });
 
   it('generates a digest and updates cache on success', async () => {
@@ -165,7 +165,7 @@ describe('useChangeReportsData', () => {
       expect(result.current.generating).toBe(false);
     });
 
-    expect(result.current.currentDigest).toEqual(generated);
+    expect(result.current.currentChangeReport).toEqual(generated);
     expect(mockToast.success).toHaveBeenCalledWith(
       'Report generated successfully',
     );
@@ -230,9 +230,9 @@ describe('useChangeReportsData', () => {
     });
   });
 
-  // ─── loadDigest ─────────────────────────────────────────────────────────
+  // ─── loadChangeReport ─────────────────────────────────────────────────────────
 
-  it('loadDigest calls the detail endpoint and updates current digest', async () => {
+  it('loadChangeReport calls the detail endpoint and updates current digest', async () => {
     const latestDigest = makeChangeReport({ id: 'latest-1' });
     const pastDigest = makeChangeReport({
       id: 'past-1',
@@ -252,7 +252,7 @@ describe('useChangeReportsData', () => {
     });
 
     await act(async () => {
-      await result.current.loadDigest('past-1');
+      await result.current.loadChangeReport('past-1');
     });
 
     // Verify the detail endpoint was called, not the list endpoint
@@ -261,11 +261,11 @@ describe('useChangeReportsData', () => {
 
     // The current digest should now be the loaded one
     await waitFor(() => {
-      expect(result.current.currentDigest).toEqual(pastDigest);
+      expect(result.current.currentChangeReport).toEqual(pastDigest);
     });
   });
 
-  it('loadDigest shows error toast on failure', async () => {
+  it('loadChangeReport shows error toast on failure', async () => {
     setupFetch({ latest: null, list: [] });
     // Override to make the detail endpoint fail
     mockFetch.mockImplementation(async (url: string) => {
@@ -292,7 +292,7 @@ describe('useChangeReportsData', () => {
     });
 
     await act(async () => {
-      await result.current.loadDigest('nonexistent-id');
+      await result.current.loadChangeReport('nonexistent-id');
     });
 
     expect(mockToast.error).toHaveBeenCalledWith('Failed to load report');

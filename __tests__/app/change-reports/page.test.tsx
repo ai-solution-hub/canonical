@@ -54,7 +54,7 @@ const {
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
-  usePathname: () => '/digest',
+  usePathname: () => '/change-reports',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -283,7 +283,7 @@ describe('ChangeReportsPage', () => {
     // Pin Date.now() so the 24h account-age boundary (P0-11 auto-gen
     // gate) is deterministic AND so the `/digest` custom date-range
     // default — computed via a lazy `useState` initialiser in
-    // `app/digest/page.tsx` that calls `Date.now()` directly — resolves
+    // `app/change-reports/page.tsx` that calls `Date.now()` directly — resolves
     // to a fixed value across renders. Without the pin both a real
     // date-boundary flake and a snapshot-style drift in the default
     // filter are possible.
@@ -652,7 +652,7 @@ describe('ChangeReportsPage', () => {
       expect(screen.getByText('Previous Reports')).toBeInTheDocument();
     });
 
-    // Click the past digest entry — this triggers loadDigest which calls fetch
+    // Click the past change-report entry — this triggers loadChangeReport which calls fetch
     const list = screen.getByRole('list', { name: 'Previous reports' });
     const pastButton = within(list).getAllByRole('button')[0];
     await user.click(pastButton);

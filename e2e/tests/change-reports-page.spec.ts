@@ -19,7 +19,7 @@ test.describe('Change Reports page', () => {
   test('page loads with correct heading', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     // Wait for the loading skeleton to disappear and content to appear
     const section = page.locator('section[aria-label="Change reports"]');
@@ -57,7 +57,7 @@ test.describe('Change Reports page', () => {
   test('mode selector tabs are present and functional', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -82,7 +82,7 @@ test.describe('Change Reports page', () => {
   test('clicking Daily tab switches mode and shows daily description', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -110,7 +110,7 @@ test.describe('Change Reports page', () => {
   test('clicking Custom tab shows custom filter panel', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -146,7 +146,7 @@ test.describe('Change Reports page', () => {
   test('period selector dropdown shows period options', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -179,7 +179,7 @@ test.describe('Change Reports page', () => {
   test('generate button is present and clickable', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -208,7 +208,7 @@ test.describe('Change Reports page', () => {
   test('past reports section shows previous entries when reports exist', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -271,7 +271,7 @@ test.describe('Change Reports page', () => {
   test('empty state shows hero with generate controls', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -321,7 +321,7 @@ test.describe('Change Reports -- custom filter interactions', () => {
   test('custom domain filter shows active filter badge', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
@@ -364,7 +364,7 @@ test.describe('Change Reports -- custom filter interactions', () => {
   test('custom keyword filter shows individual keyword badges', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/digest');
+    await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
