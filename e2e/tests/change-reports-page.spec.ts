@@ -51,7 +51,7 @@ test.describe('Change Reports page', () => {
     }
     // In loaded state, the section aria-label="Change reports" is sufficient
     // (already verified above). The component does not render a heading in
-    // the loaded state — the DigestView is shown directly.
+    // the loaded state — the ChangeReportView is shown directly.
   });
 
   test('mode selector tabs are present and functional', async ({
