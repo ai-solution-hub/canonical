@@ -48,6 +48,54 @@ The curator invokes this skill with:
 
 ---
 
+## `last_updated` field-discipline (load-bearing)
+
+The `last_updated` field on every ledger (`product-roadmap.json` /
+`product-backlog.json` / `task-list.json`) is a **single-line freshness marker only**.
+It is NOT a session-log, NOT a diary, NOT a place to record narrative. The
+Zod schema (`lib/validation/task-list-schema.ts`) enforces:
+
+- `max(200)` chars hard cap
+- `^kh-(prod-readiness|main)-S\d+` prefix
+- single-line (no embedded newlines)
+- **exactly one session-id** (rejects diary-style "Earlier: kh-..." concat)
+
+### Canonical shape
+
+```
+kh-{track}-S{N}[letter] {wave} close-out — curator {verb} {item_id}[ ({short reason})]
+```
+
+`{verb}` ∈ `added | updated | deleted | promoted`. `{short reason}` is bounded
+to ≤80 chars and OPTIONAL — omit if the verb + item_id is self-explanatory.
+
+### Examples (Create / Update / Delete / Promote)
+
+```
+kh-prod-readiness-S64 W0c close-out — curator added 35 (ledger-CLI Task stub)
+kh-prod-readiness-S64 W1 close-out — curator updated 32 (status flip)
+kh-prod-readiness-S64 W2 close-out — curator deleted 99 (cancelled, superseded)
+kh-prod-readiness-S64 W3 close-out — curator promoted backlog/12 → task-list/36
+```
+
+### MUST NOT
+
+- Narrative (test counts, finding SHAs, multi-paragraph summaries) — those belong
+  in per-Subtask `details` `<info added on ...>` journal blocks (PRODUCT inv 13),
+  commit messages, continuation prompts, or the mempalace diary.
+- Concatenated prior-session narrative (`. Earlier: kh-...`). The root cause of
+  S64 W0 remediation was the historical convention of prepending prior values
+  on cherry-pick conflict — DO NOT continue that pattern.
+- Multi-line values (embedded `\n`).
+- `{summary}` freetext placeholders inviting unbounded prose. Wherever a
+  format-string template appears below, the slot is bounded by the rule above.
+
+If a write violates the shape, the schema parse fails at session-start
+(`parseTaskListWithWarnings` throws), surfacing the violation before any
+downstream work begins.
+
+---
+
 ## Step 1: Resolve target → file
 
 | Target semantics | File |
@@ -147,11 +195,11 @@ Use `Edit` to insert the new item into the target section's `items` array. Maint
 - Trailing commas: no (JSON, not JSON5).
 - Field order: match the schema field order seen in other items in the same section.
 
-After the entry append, update the roadmap-level `last_updated` field. Format: `"{session-counter} {context} — curator added {new-id}"`.
+After the entry append, update the roadmap-level `last_updated` field per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator added {new-id}[ ({≤80-char reason})]"`.
 
 ### For backlog
 
-Use `Edit` to insert the new item into `items[]`. Same JSON-formatting rules. Update the `last_updated` field similarly.
+Use `Edit` to insert the new item into `items[]`. Same JSON-formatting rules. Update the `last_updated` field per the same field-discipline rule above (no diary-style append).
 
 ---
 
@@ -233,7 +281,7 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
    - For `priority`: must be `high | medium | low` (or null for roadmap sections that don't carry priority).
    - For `notes`: free text. **Do not overwrite existing notes** — append with a session-counter prefix (e.g. `"[s52] Status moved to in-progress because …"`).
 4. **Apply the edit** with `Edit` (one targeted `old_string` / `new_string` pair per field). Preserve surrounding fields, indentation, and trailing-comma rules (JSON, not JSON5).
-5. **Update `last_updated`** at the file level. Format: `"{session-counter} — curator updated {item_id} ({summary})"`.
+5. **Update `last_updated`** at the file level per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator updated {item_id}[ ({≤80-char field-summary, e.g. status flip})]"`. **Do NOT** embed multi-sentence prose or test counts — that violates the rule.
 6. **Run the same validation gate as Step 5 of Create** (`bun run roadmap:render` for roadmap; JSON well-formedness check for backlog). Revert and report on failure.
 7. **Report:**
 
@@ -285,7 +333,7 @@ Used **only** for `cancelled` items (work that was abandoned or superseded) and 
 3. **Read the file** and locate the item by `id`. If not found, abort and report `DELETE FAILED: item_id "{id}" not found in {file}`.
 4. **Capture the item's body** (read the full JSON object) before removing — needed for the audit trail.
 5. **Remove the item** with `Edit`. Be careful with the trailing comma on the preceding item (or the leading comma on the next item) — JSON has no trailing-comma tolerance.
-6. **Update `last_updated`** at the file level. Format: `"{session-counter} — curator deleted {item_id} (reason: {reason})"`.
+6. **Update `last_updated`** at the file level per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator deleted {item_id} (reason: {reason})"`. `{reason}` is one of the enum values from the Inputs table; do not append narrative.
 7. **Run the same validation gate as Step 5 of Create.** Revert and report on failure.
 8. **If reason is `reclassified_*`**, the curator's caller is responsible for the follow-up Create on the destination ledger. Pass the captured item body forward so provenance is preserved.
 9. **Report:**
@@ -344,8 +392,8 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
    {provenance.source_commit_sha}.
    </info added on 2026-05-21T14:15:00.000Z>
    ```
-4. **Delete source entry.** Remove the backlog item from `items[]`. Bump backlog `last_updated`.
-5. **Write destination entry.** Append the new Task/Subtask. Bump task-list `last_updated` AND the parent Task's `updatedAt` if `destination_shape = new_subtask_under_task_id`.
+4. **Delete source entry.** Remove the backlog item from `items[]`. Bump backlog `last_updated` per the §`last_updated` field-discipline rule. Format: `"{session-counter} {wave} close-out — curator promoted backlog/{src-id} → task-list/{dst-id}"`.
+5. **Write destination entry.** Append the new Task/Subtask. Bump task-list `last_updated` per the same field-discipline rule (single line, ≤200 chars, no diary). Bump the parent Task's `updatedAt` if `destination_shape = new_subtask_under_task_id`.
 6. **Validate.** Run `BacklogSchema.parse()` against the new backlog state and `TaskSchema.parse()` against the new task-list state. If either fails, abort + restore source entry (the write order [delete first, then add] makes this rollback-safe; if add fails, source is gone — re-stage from git).
 7. **Report back.** YAML packet:
    ```yaml
