@@ -265,19 +265,19 @@ async def app_main() -> None:
             # mount_table_target registers each table for cocoindex-managed upserts.
             # managed_by=ManagedBy.USER: cocoindex does NOT alter DDL (no
             # CREATE/DROP/ALTER). KH migrations own the schema; cocoindex writes rows.
-            ci_target = mount_table_target(
+            ci_target = await mount_table_target(
                 DB_CTX,
                 "content_items",
                 CONTENT_ITEMS_SCHEMA,
                 managed_by=ManagedBy.USER,
             )
-            qa_target = mount_table_target(
+            qa_target = await mount_table_target(
                 DB_CTX,
                 "q_a_extractions",
                 Q_A_EXTRACTIONS_SCHEMA,
                 managed_by=ManagedBy.USER,
             )
-            sd_target = mount_table_target(
+            sd_target = await mount_table_target(
                 DB_CTX,
                 "source_documents",
                 SOURCE_DOCUMENTS_SCHEMA,
