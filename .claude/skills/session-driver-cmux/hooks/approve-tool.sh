@@ -73,15 +73,18 @@ done
 # Clean up
 rm -f "$PENDING_FILE" "$DECISION_FILE"
 
-# Map decision to hook output
+# Map decision to hook output.
+# `hookEventName: "PreToolUse"` is required as of Claude Code 2.1.x (S61 finding —
+# upstream omitted it; sub-cmux workers logged `Hook JSON output validation failed
+# — hookSpecificOutput is missing required field "hookEventName"`).
 case "$DECISION" in
   allow)
-    echo '{"hookSpecificOutput":{"permissionDecision":"allow"}}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     ;;
   deny)
-    echo '{"hookSpecificOutput":{"permissionDecision":"deny"}}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny"}}'
     ;;
   *)
-    echo '{"hookSpecificOutput":{"permissionDecision":"allow"}}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     ;;
 esac
