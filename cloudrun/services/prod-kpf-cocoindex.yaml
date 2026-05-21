@@ -70,6 +70,8 @@ spec:
             # IMAGE_SHA: injected at deploy time by Cloud Build substitution
             # (_COMMIT_SHA) so pipeline_runs.result->'extractor_version' can
             # cross-reference the exact image that processed a document set.
+            # IMAGE_SHA: injected post-deploy by workflow (FX-2: Inject IMAGE_SHA step).
+            # Correlates pipeline_runs.result->'extractor_version' to deployed image (Inv-8).
             - name: IMAGE_SHA
               value: ""
             # PIPELINE_RUN_WEBHOOK_URL and PULLMD_SERVICE_URL are mounted from

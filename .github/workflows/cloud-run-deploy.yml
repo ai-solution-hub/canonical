@@ -41,9 +41,6 @@ on:
       - "!scripts/tests/**"
       - "requirements.txt"
       - "cloudrun/**"
-      - "cloudrun/services/**"
-      - "cloudrun/cloudbuild-cocoindex.yaml"
-      - "cloudrun/cocoindex-prewarm.py"
       - ".gcloudignore"
       - ".github/workflows/cloud-run-deploy.yml"
   workflow_dispatch:
@@ -267,6 +264,28 @@ jobs:
             gcloud run services replace "$MANIFEST" \
               --project="$GCP_PROJECT" \
               --region=europe-west2
+            echo "::endgroup::"
+          done
+
+      - name: Inject IMAGE_SHA into cocoindex Services
+        # FX-2 (ID-28.6): Post-deploy step to inject the current commit SHA
+        # into IMAGE_SHA env var on each cocoindex Service.
+        # gcloud run services replace applies the static manifest as-is, so
+        # IMAGE_SHA=="" in the manifest. This step patches it post-deploy so
+        # pipeline_runs.result->'extractor_version' can cross-reference the
+        # deployed image (Inv-8 forensic correlation procedure).
+        # Uses github.sha routed via COMMIT_SHA env var (untrusted-input safety
+        # pattern per workflow header comment — no direct interpolation in run:).
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          for TENANT in example-client kpf; do
+            SERVICE_NAME="kh-cocoindex-pipeline-${TENANT}"
+            echo "::group::Inject IMAGE_SHA into $SERVICE_NAME"
+            gcloud run services update "$SERVICE_NAME" \
+              --project="$GCP_PROJECT" \
+              --region=europe-west2 \
+              --update-env-vars IMAGE_SHA="${COMMIT_SHA}"
             echo "::endgroup::"
           done
 

@@ -36,6 +36,10 @@ steps:
   # Buildpack base: gcr.io/buildpacks/builder:google-22 (same as kh-pipeline).
   # GOOGLE_ENTRYPOINT points at the cocoindex HTTP server entry point.
   # Python 3.13 matches kh-pipeline to share layer cache.
+  # NOTE: GOOGLE_BUILD_SCRIPT indirection is NOT used here — that env var
+  # requires the script to have executable permissions (100755) which cannot
+  # be guaranteed in a git checkout on Cloud Build workers. Instead, the
+  # Docling pre-warm runs in a dedicated step (Step 1b) after image publish.
   - id: build-cocoindex
     name: gcr.io/k8s-skaffold/pack
     entrypoint: pack
@@ -51,10 +55,18 @@ steps:
       - --env=GOOGLE_ENTRYPOINT=python3 scripts/cocoindex_server.py
       - --env=GOOGLE_RUNTIME=python
       - --env=GOOGLE_PYTHON_VERSION=3.13.13
-      # Run Docling pre-warm script at build time so model weights are baked
-      # into the image layer (avoids cold-start download on first request).
-      - --env=GOOGLE_BUILD_SCRIPT=cloudrun/cocoindex-prewarm.py
       - --publish
+
+  # Step 1b: Docling pre-warm — bake model weights into the image layer.
+  # Runs python3 directly (not via GOOGLE_BUILD_SCRIPT) to avoid the
+  # executable-permissions requirement (FX-1: file is 100644, not 100755).
+  # This step runs inside the just-built image so model weights land in the
+  # final layer, avoiding cold-start downloads on first request (Inv-10 SLA).
+  - id: prewarm-docling
+    name: europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:${_COMMIT_SHA}
+    entrypoint: python3
+    args:
+      - cloudrun/cocoindex-prewarm.py
 
   # Step 2: Inv-9 assertion — confirm zero pullmd binary entries and zero
   # Playwright/browser-driver dependencies in the published image.
@@ -128,7 +140,13 @@ steps:
         # 5.3 GB in bytes
         BUDGET_BYTES=5691392819
 
-        echo "Image size: $SIZE_BYTES bytes ($(python3 -c "print(f'{int('$SIZE_BYTES') / 1024**3:.2f}') if '$SIZE_BYTES' != '0' else print('unknown')") GB)"
+        # FX-3: use awk for GB conversion — avoids shell+Python quoting collision.
+        if [ "$SIZE_BYTES" != "0" ]; then
+          SIZE_GB=$(awk "BEGIN {printf \"%.2f\", ${SIZE_BYTES}/1024/1024/1024}")
+        else
+          SIZE_GB="unknown"
+        fi
+        echo "Image size: $SIZE_BYTES bytes (${SIZE_GB} GB, budget: 5.3 GB)"
 
         if [ "$SIZE_BYTES" -gt "$BUDGET_BYTES" ]; then
           echo "WARNING: Image size $SIZE_BYTES bytes exceeds 5.3 GB budget ($BUDGET_BYTES bytes)." >&2

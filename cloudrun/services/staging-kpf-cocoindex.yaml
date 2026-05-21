@@ -44,6 +44,8 @@ spec:
               value: kpf
             - name: COCOINDEX_SOURCE_PATH
               value: ""
+            # IMAGE_SHA: injected post-deploy by workflow (FX-2: Inject IMAGE_SHA step).
+            # Correlates pipeline_runs.result->'extractor_version' to deployed image (Inv-8).
             - name: IMAGE_SHA
               value: ""
           startupProbe:
