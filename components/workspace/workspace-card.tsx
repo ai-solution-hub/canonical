@@ -15,7 +15,7 @@ import {
   type WorkspaceIconName,
 } from '@/components/workspace/workspace-icon-picker';
 import { formatRelativeDate } from '@/lib/format';
-import { getWorkspaceType } from '@/lib/workspace-types';
+import { useWorkspaceType } from '@/hooks/workspaces/use-application-types';
 import { cn } from '@/lib/utils';
 import type { Workspace } from '@/types/content';
 
@@ -43,7 +43,12 @@ export function WorkspaceCard({
   // in the API layer (see app/api/workspaces/route.ts). It may be missing if
   // the caller projected workspace rows without the join — degrade
   // gracefully to a generic card rather than crashing.
-  const typeConfig = workspace.type ? getWorkspaceType(workspace.type) : null;
+  //
+  // ID-29.7: migrated from static getWorkspaceType() to useWorkspaceType() hook.
+  // The hook returns `undefined` during the first render frame (data resolving)
+  // and for unknown keys — the `typeConfig &&` JSX guards below treat both the
+  // same as the pre-refactor "joined-row-absent" case.
+  const { data: typeConfig } = useWorkspaceType(workspace.type ?? '');
 
   return (
     <div

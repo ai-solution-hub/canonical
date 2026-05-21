@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { WorkspaceColourPicker } from '@/components/workspace/workspace-colour-picker';
 import { WorkspaceIconPicker } from '@/components/workspace/workspace-icon-picker';
-import { getWorkspaceType } from '@/lib/workspace-types';
+import { useWorkspaceType } from '@/hooks/workspaces/use-application-types';
 import type { Workspace } from '@/types/content';
 
 interface WorkspaceCreateDialogProps {
@@ -47,7 +47,13 @@ export function WorkspaceCreateDialog({
   const [submitting, setSubmitting] = useState(false);
   const [nameError, setNameError] = useState('');
 
-  const typeConfig = getWorkspaceType(type);
+  // ID-29.7: migrated from static getWorkspaceType() to useWorkspaceType() hook.
+  // On first dialog open the hook may render once with `typeConfig === undefined`
+  // before resolving (~50ms from cache). The existing `typeConfig?.label ?? 'Workspace'`
+  // / `typeConfig?.description ?? 'Create a new workspace.'` fallbacks at L137/L139
+  // cover that frame. The useEffect deps below already include `typeConfig`, so the
+  // effect re-runs when the hook resolves and fires the custom-creation delegate.
+  const { data: typeConfig } = useWorkspaceType(type);
 
   // When type has a custom creation flow, close the dialog and delegate
   useEffect(() => {

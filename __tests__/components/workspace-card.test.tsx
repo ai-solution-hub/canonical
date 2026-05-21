@@ -3,10 +3,18 @@
  *
  * Tests the workspace card component: item count pill styling,
  * card structure, and accessibility.
+ *
+ * Post-ID-29.7: workspace-card consumes `useWorkspaceType()` (TanStack hook).
+ * Tests wrap renders in a `QueryClientProvider` and stub `fetch` to return
+ * the 6 application_types seed rows verbatim (snake_case). The hook's
+ * `select:` callback normalises to camelCase and joins the static client
+ * config — see hooks/workspaces/use-application-types.ts.
  */
-import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/lib/format', () => ({
   formatRelativeDate: (date: string) => date,
@@ -21,6 +29,79 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * The 6 seed rows returned by GET /api/application-types (snake_case).
+ * Matches the fixture used in __tests__/hooks/workspaces/use-application-types.test.ts
+ * so the hook's `select:` selector produces the same WorkspaceTypeConfig
+ * shape the static registry used to provide synchronously.
+ */
+const SEED_ROWS_SNAKE = [
+  {
+    key: 'procurement',
+    label: 'Procurement',
+    label_plural: 'Procurements',
+    description:
+      'Manage bid responses and tender submissions using your knowledge base',
+    default_icon: 'briefcase',
+    default_colour: '#d4880f',
+  },
+  {
+    key: 'intelligence',
+    label: 'Intelligence Stream',
+    label_plural: 'Intelligence Streams',
+    description:
+      'Sector and competitor news feeds tailored to your company profile.',
+    default_icon: 'newspaper',
+    default_colour: '#059669',
+  },
+  {
+    key: 'sales_proposal',
+    label: 'Sales Proposal',
+    label_plural: 'Sales Proposals',
+    description:
+      'Draft and manage sales proposals drawing on your knowledge base',
+    default_icon: 'file-signature',
+    default_colour: '#0d9488',
+  },
+  {
+    key: 'product_guide',
+    label: 'Product Guide',
+    label_plural: 'Product Guides',
+    description: 'Product Guide',
+    default_icon: null,
+    default_colour: null,
+  },
+  {
+    key: 'competitor_research',
+    label: 'Competitor Research',
+    label_plural: 'Competitor Researchs',
+    description: 'Competitor Research',
+    default_icon: null,
+    default_colour: null,
+  },
+  {
+    key: 'training_onboarding',
+    label: 'Training Onboarding',
+    label_plural: 'Training Onboardings',
+    description: 'Training Onboarding',
+    default_icon: null,
+    default_colour: null,
+  },
+];
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
+
 function makeWorkspace(
   overrides: Partial<WorkspaceWithCounts> = {},
 ): WorkspaceWithCounts {
@@ -29,7 +110,7 @@ function makeWorkspace(
     name: 'Test Workspace',
     description: 'A test workspace',
     // Post-T2: workspace.type is sourced from application_types.key via JOIN.
-    // Registry keys are 'procurement' (label 'Procurement'), 'intelligence', 'proposal'.
+    // Registry keys are 'procurement' (label 'Procurement'), 'intelligence', 'sales_proposal'.
     type: 'procurement',
     status: 'active',
     icon: 'folder',
@@ -58,6 +139,7 @@ function renderCard(
       onArchiveToggle={vi.fn()}
       readOnly={readOnly}
     />,
+    { wrapper: createWrapper() },
   );
 }
 
@@ -66,6 +148,23 @@ function renderCard(
 // ---------------------------------------------------------------------------
 
 describe('WorkspaceCard', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        url,
+        json: async () => SEED_ROWS_SNAKE,
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
   describe('item count pill', () => {
     it('renders item count as a link', () => {
       renderCard({ item_count: 12 });
@@ -113,32 +212,50 @@ describe('WorkspaceCard', () => {
       ).toBeInTheDocument();
     });
 
-    it('shows badge label from registry for procurement type', () => {
+    it('shows badge label from registry for procurement type', async () => {
       renderCard({ type: 'procurement' });
-      expect(screen.getByText('Procurement')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('Procurement')).toBeInTheDocument();
+      });
     });
 
-    it('shows badge label from registry for intelligence type', () => {
+    it('shows badge label from registry for intelligence type', async () => {
       renderCard({ type: 'intelligence' });
-      expect(screen.getByText('Intelligence Stream')).toBeInTheDocument();
+      // Hook resolves with DB label 'Intelligence Stream'
+      await waitFor(() => {
+        expect(screen.getByText('Intelligence Stream')).toBeInTheDocument();
+      });
     });
 
-    it('shows no badge for unknown workspace type', () => {
+    it('shows no badge for unknown workspace type', async () => {
       renderCard({ type: 'unknown_type' });
+      // Allow hook to resolve, then assert badge absent (typeConfig is undefined)
+      await waitFor(() => {
+        // Wait until at least one render after fetch resolves
+        expect(global.fetch).toHaveBeenCalled();
+      });
       expect(screen.queryByText('Procurement')).not.toBeInTheDocument();
       expect(screen.queryByText('Intelligence Stream')).not.toBeInTheDocument();
     });
 
-    it('shows arrow icon for types with a route', () => {
+    it('shows arrow icon for types with a route', async () => {
       renderCard({ type: 'procurement' });
-      expect(
-        screen.getByTitle('Opens procurement detail page'),
-      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(
+          screen.getByTitle('Opens procurement detail page'),
+        ).toBeInTheDocument();
+      });
     });
 
-    it('does not show arrow icon for types without a route', () => {
-      // 'proposal' is registered but has route: null (Coming Soon).
-      renderCard({ type: 'proposal' });
+    it('does not show arrow icon for types without a route', async () => {
+      // Post-ID-29.7: DB seed key is 'sales_proposal' (CLIENT_CONFIG.sales_proposal
+      // has route: null, available: false). The static registry's legacy 'proposal'
+      // key no longer exists in the DB.
+      renderCard({ type: 'sales_proposal' });
+      await waitFor(() => {
+        // Confirm the hook resolved (sales_proposal label appears in the badge)
+        expect(screen.getByText('Sales Proposal')).toBeInTheDocument();
+      });
       expect(
         screen.queryByTitle(/Opens .* detail page/),
       ).not.toBeInTheDocument();
