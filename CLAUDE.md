@@ -391,9 +391,13 @@ without their own worktree are fine — work in the `main` worktree directly.
   CWD-vs-path containment — trust the hooks, don't reinvent. Cherry-pick (not merge)
   parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
-- **Reference-doc freshness guard:** merge commits using combined-diff format don't
-  register single-parent `last_updated` additions. Workaround = follow-up single-parent
-  commit bumping `last_updated`, or `[skip-doc-freshness-guard]` body tag.
+- **Reference-doc freshness is self-policed:** the edit-coupled freshness guard
+  (`__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`) was removed S249
+  (commit `4d4524d3`) — doc maintenance burden outweighed catch-rate benefit, and
+  canonical reference docs are stable enough to self-police. Manually bump
+  `<!-- Last verified -->` headers (UK DD/MM/YYYY) when editing canonical reference
+  docs as a hygiene discipline; no CI enforcement of same-commit
+  migration ↔ SCHEMA-QUICK-REF coupling.
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
 - **ALWAYS check worktree `git status` before removing it:** This covers any cases where
