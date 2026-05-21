@@ -86,7 +86,7 @@ export type QuestionStatus =
   | 'in_progress'
   | 'needs_review'
   | 'complete';
-export type ResponseReviewStatus =
+type ResponseReviewStatus =
   | 'draft'
   | 'ai_drafted'
   | 'edited'
@@ -113,7 +113,7 @@ export interface ProcurementQuestion {
   response?: ProcurementResponseSummary;
 }
 
-export interface ProcurementResponseSummary {
+interface ProcurementResponseSummary {
   id: string;
   review_status: ResponseReviewStatus;
   word_count: number;
@@ -164,7 +164,7 @@ export interface ExtractedSection {
   questions: ExtractedQuestion[];
 }
 
-export interface ExtractedQuestion {
+interface ExtractedQuestion {
   question_text: string;
   question_sequence: number;
   word_limit: number | null;

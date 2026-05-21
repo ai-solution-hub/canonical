@@ -44,7 +44,7 @@ export interface QualityData {
 }
 
 /** AI generation context for cost tracking and debugging */
-export interface AIMetadata {
+interface AIMetadata {
   model: string;
   tokens_input: number;
   tokens_output: number;

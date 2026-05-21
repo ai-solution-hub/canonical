@@ -667,4 +667,4 @@ export function useBidActions({ id }: UseBidActionsParams) {
   };
 }
 
-export type { Tab, ExtractedQuestion };
+export type { Tab };
