@@ -19,6 +19,7 @@
 
 import { z } from 'zod';
 import { BacklogStatus, Priority } from '@/lib/validation/work-status';
+import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Re-export surface-level status enum (consumers import from here, not from
@@ -95,8 +96,25 @@ export const BacklogItemSchema = z.object({
    */
   dependencies: z.array(z.string()),
 
-  /** How this item was surfaced (e.g. `"Design critique audit"`). */
-  surfaced: z.string().min(1),
+  /**
+   * Session references for structured provenance (OQ-4 ratification).
+   * Written by workflow-curator at item creation; direct-copy on promotion
+   * to Task. Empty array when no session reference is known.
+   */
+  session_refs: z.array(z.string()),
+
+  /**
+   * Commit SHA references for structured provenance (OQ-4 ratification).
+   * Empty array when no commit reference is known.
+   */
+  commit_refs: z.array(z.string()),
+
+  /**
+   * Cross-document links for structured provenance (OQ-4 ratification).
+   * Mirrors the Roadmap + Task list shape using DocLinkSchema from
+   * roadmap-schema.ts. Empty array when no cross-doc links are known.
+   */
+  cross_doc_links: z.array(DocLinkSchema),
 
   /** Optional prose notes, nullable. */
   notes: z.string().nullable(),
