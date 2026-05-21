@@ -205,7 +205,7 @@ describe('ChangeReportGenerateBodySchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.period_days).toBe(7);
-      expect(result.data.digest_type).toBe('weekly');
+      expect(result.data.frequency).toBe('weekly');
     }
   });
 
@@ -220,7 +220,7 @@ describe('ChangeReportGenerateBodySchema', () => {
   it('should accept all valid digest types', () => {
     for (const digestType of ['weekly', 'daily', 'custom']) {
       const result = ChangeReportGenerateBodySchema.safeParse({
-        digest_type: digestType,
+        frequency: digestType,
       });
       expect(result.success).toBe(true);
     }
@@ -241,9 +241,9 @@ describe('ChangeReportGenerateBodySchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should reject invalid digest_type', () => {
+  it('should reject invalid frequency', () => {
     const result = ChangeReportGenerateBodySchema.safeParse({
-      digest_type: 'monthly',
+      frequency: 'monthly',
     });
     expect(result.success).toBe(false);
   });

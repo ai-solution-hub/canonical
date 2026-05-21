@@ -46,7 +46,7 @@ export function changeReportToMarkdown(
   const lines: string[] = [];
 
   // Title
-  const title = `${changeReportFrequencyLabel(digest.digest_type)}: ${formatDate(digest.period_start)} -- ${formatDate(digest.period_end)}`;
+  const title = `${changeReportFrequencyLabel(digest.frequency)}: ${formatDate(digest.period_start)} -- ${formatDate(digest.period_end)}`;
 
   lines.push(`# ${title}`);
   lines.push('');

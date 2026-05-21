@@ -14,7 +14,7 @@ import type { ChangeReport, ChangeReportGenerateResponse } from '@/types/change-
 /** @public */
 export interface PastChangeReportEntry {
   id: string;
-  digest_type: string;
+  frequency: string;
   period_start: string;
   period_end: string;
   item_count: number;
@@ -23,7 +23,7 @@ export interface PastChangeReportEntry {
 
 interface GenerateChangeReportParams {
   period_days: number;
-  digest_type: string;
+  frequency: string;
   date_from?: string;
   date_to?: string;
   domain?: string;

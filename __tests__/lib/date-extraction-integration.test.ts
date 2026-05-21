@@ -513,7 +513,7 @@ describe('Notification type — date_expiry_approaching', () => {
       'governance_request_changes',
       'governance_revert',
       'quality_flag',
-      'digest_ready',
+      'change_report_ready',
       'freshness_transition',
       'coverage_alert',
       'content_gap',

@@ -54,13 +54,6 @@ vi.mock('@/lib/ai-parse', () => ({
       },
     ],
     narrative_summary: 'You captured 3 items this week.',
-    theme_clusters: [
-      {
-        theme: 'AI Adoption',
-        description: 'Multiple items on AI',
-        item_count: 2,
-      },
-    ],
     content_opportunities: [
       {
         domain: 'Compliance',
@@ -142,7 +135,7 @@ const MOCK_SUGGESTIONS = [
 
 const MOCK_INSERT_RESULT = {
   id: 'digest-001',
-  digest_type: 'weekly',
+  frequency: 'weekly',
   period_start: '2026-03-15T00:00:00.000Z',
   period_end: '2026-03-22T23:59:59.999Z',
   item_count: 2,
@@ -227,7 +220,6 @@ function resetMocks() {
         input: {
           domain_summaries: [],
           narrative_summary: 'Test',
-          theme_clusters: [],
           content_opportunities: [],
         },
       },

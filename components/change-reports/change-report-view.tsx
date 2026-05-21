@@ -30,7 +30,7 @@ export function ChangeReportView({ digest, className }: ChangeReportViewProps) {
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-fluid-2xl font-bold tracking-tight">
-            {changeReportFrequencyLabel(digest.digest_type)}
+            {changeReportFrequencyLabel(digest.frequency)}
           </h1>
           <Badge variant="secondary" className="text-sm font-normal">
             {digest.item_count} {digest.item_count === 1 ? 'item' : 'items'}

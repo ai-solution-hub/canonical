@@ -416,7 +416,7 @@ export default function ChangeReportsPage() {
     autoGenTriggered.current = true;
     handleGenerate({
       period_days: 7,
-      digest_type: 'weekly',
+      frequency: 'weekly',
     });
   }, [
     loading,
@@ -461,7 +461,7 @@ export default function ChangeReportsPage() {
 
       handleGenerate({
         period_days: 7,
-        digest_type: 'custom',
+        frequency: 'custom',
         date_from: dateFrom.toISOString(),
         date_to: dateTo.toISOString(),
         ...(customDomain && customDomain !== 'all'
@@ -476,7 +476,7 @@ export default function ChangeReportsPage() {
       );
       handleGenerate({
         period_days: days,
-        digest_type: selectedPeriod?.type ?? 'custom',
+        frequency: selectedPeriod?.type ?? 'custom',
       });
     }
   }, [
@@ -676,7 +676,7 @@ export default function ChangeReportsPage() {
                           {formatDate(digest.period_end)}
                         </span>
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {changeReportFrequencyLabel(digest.digest_type)}
+                          {changeReportFrequencyLabel(digest.frequency)}
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground">

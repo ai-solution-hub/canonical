@@ -154,7 +154,7 @@ function mockNewAccount() {
 function makeChangeReport(overrides: Record<string, unknown> = {}) {
   return {
     id: 'change-report-1',
-    digest_type: 'weekly',
+    frequency: 'weekly',
     period_start: '2026-03-01T00:00:00Z',
     period_end: '2026-03-08T00:00:00Z',
     item_count: 5,
@@ -183,7 +183,7 @@ function makeChangeReport(overrides: Record<string, unknown> = {}) {
 function makePastChangeReportEntry(overrides: Record<string, unknown> = {}) {
   return {
     id: 'past-digest-1',
-    digest_type: 'weekly',
+    frequency: 'weekly',
     period_start: '2026-02-22T00:00:00Z',
     period_end: '2026-03-01T00:00:00Z',
     item_count: 8,
@@ -471,7 +471,7 @@ describe('ChangeReportsPage', () => {
         '/api/change-reports/generate',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"digest_type":"custom"'),
+          body: expect.stringContaining('"frequency":"custom"'),
         }),
       );
     });
@@ -997,7 +997,7 @@ describe('ChangeReportsPage', () => {
         body: expect.stringContaining('"period_days":7'),
       }),
     );
-    expect(String(generateCall?.[1]?.body)).toContain('"digest_type":"weekly"');
+    expect(String(generateCall?.[1]?.body)).toContain('"frequency":"weekly"');
 
     // On success the page transitions to the digest view.
     await waitFor(() => {

@@ -31,7 +31,7 @@ import { useChangeReportsData } from '@/hooks/use-change-reports-data';
 function makeChangeReport(overrides: Record<string, unknown> = {}) {
   return {
     id: 'change-report-1',
-    digest_type: 'weekly',
+    frequency: 'weekly',
     period_start: '2026-03-01T00:00:00Z',
     period_end: '2026-03-08T00:00:00Z',
     item_count: 5,
@@ -157,7 +157,7 @@ describe('useChangeReportsData', () => {
     act(() => {
       result.current.handleGenerate({
         period_days: 7,
-        digest_type: 'weekly',
+        frequency: 'weekly',
       });
     });
 
@@ -184,7 +184,7 @@ describe('useChangeReportsData', () => {
     act(() => {
       result.current.handleGenerate({
         period_days: 7,
-        digest_type: 'weekly',
+        frequency: 'weekly',
       });
     });
 
@@ -221,7 +221,7 @@ describe('useChangeReportsData', () => {
     act(() => {
       result.current.handleGenerate({
         period_days: 1,
-        digest_type: 'daily',
+        frequency: 'daily',
       });
     });
 

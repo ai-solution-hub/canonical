@@ -33,7 +33,7 @@ export async function GET(
     const { data, error } = await supabase
       .from('change_reports')
       .select(
-        'id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, item_ids, created_at',
+        'id, frequency, period_start, period_end, item_count, domain_summaries, narrative_summary, generated_at, generated_by, tokens_used, item_ids, created_at',
       )
       .eq('id', id)
       .maybeSingle();
@@ -52,7 +52,7 @@ export async function GET(
 
     const digest: ChangeReport = {
       id: data.id,
-      digest_type: data.digest_type,
+      frequency: data.frequency,
       period_start: data.period_start,
       period_end: data.period_end,
       item_count: data.item_count,

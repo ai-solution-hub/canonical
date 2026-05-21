@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     const {
       period_days: periodDays,
-      digest_type: digestType,
+      frequency: digestType,
       domain: filterDomain,
       keywords: filterKeywords,
       date_from: dateFrom,

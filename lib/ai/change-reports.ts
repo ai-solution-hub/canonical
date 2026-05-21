@@ -585,7 +585,7 @@ export async function generateChangeReport(
 
   // Store in the change_reports table
   const digestRow = {
-    digest_type: digestType,
+    frequency: digestType,
     period_start: periodStartISO,
     period_end: periodEndISO,
     item_count: typedItems.length,
@@ -621,7 +621,7 @@ export async function generateChangeReport(
   // Build the full ChangeReport response
   const digest: ChangeReport = {
     id: insertedDigest.id,
-    digest_type: insertedDigest.digest_type,
+    frequency: insertedDigest.frequency,
     period_start: insertedDigest.period_start,
     period_end: insertedDigest.period_end,
     item_count: insertedDigest.item_count,

@@ -56,7 +56,7 @@ const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 const MOCK_DIGEST = {
   digest: {
     id: VALID_UUID,
-    digest_type: 'weekly',
+    frequency: 'weekly',
     period_start: '2026-03-01T00:00:00.000Z',
     period_end: '2026-03-07T23:59:59.999Z',
     item_count: 5,
@@ -67,13 +67,6 @@ const MOCK_DIGEST = {
         summary: 'A busy week for technology content.',
         top_items: [],
         key_themes: ['AI', 'Security'],
-      },
-    ],
-    theme_clusters: [
-      {
-        theme: 'AI Adoption',
-        description: 'Multiple items on AI',
-        item_count: 3,
       },
     ],
     narrative_summary: 'You captured 5 items this week.',
@@ -220,12 +213,12 @@ describe('POST /api/change-reports/generate', () => {
     );
   });
 
-  it('returns 400 for invalid digest_type', async () => {
+  it('returns 400 for invalid frequency', async () => {
     configureRole(mockSupabase, 'editor');
 
     const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
-      body: { period_days: 7, digest_type: 'monthly' },
+      body: { period_days: 7, frequency: 'monthly' },
     });
 
     const res = await POST(req);
@@ -235,7 +228,7 @@ describe('POST /api/change-reports/generate', () => {
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: 'digest_type' }),
+        expect.objectContaining({ field: 'frequency' }),
       ]),
     );
   });
@@ -247,7 +240,7 @@ describe('POST /api/change-reports/generate', () => {
 
     const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
-      body: { period_days: 7, digest_type: 'weekly' },
+      body: { period_days: 7, frequency: 'weekly' },
     });
 
     const res = await POST(req);
@@ -255,7 +248,7 @@ describe('POST /api/change-reports/generate', () => {
 
     const json = await res.json();
     expect(json.digest).toBeDefined();
-    expect(json.digest.digest_type).toBe('weekly');
+    expect(json.digest.frequency).toBe('weekly');
     expect(json.digest.narrative_summary).toBeTruthy();
 
     // Verify generateDigest was called with correct params
@@ -273,20 +266,20 @@ describe('POST /api/change-reports/generate', () => {
 
     const dailyDigest = {
       ...MOCK_DIGEST,
-      digest: { ...MOCK_DIGEST.digest, digest_type: 'daily' },
+      digest: { ...MOCK_DIGEST.digest, frequency: 'daily' },
     };
     mockGenerateChangeReport.mockResolvedValue(dailyDigest);
 
     const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
-      body: { digest_type: 'daily' },
+      body: { frequency: 'daily' },
     });
 
     const res = await POST(req);
     expect(res.status).toBe(200);
 
     const json = await res.json();
-    expect(json.digest.digest_type).toBe('daily');
+    expect(json.digest.frequency).toBe('daily');
 
     expect(mockGenerateChangeReport).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -302,7 +295,7 @@ describe('POST /api/change-reports/generate', () => {
       method: 'POST',
       body: {
         period_days: 14,
-        digest_type: 'custom',
+        frequency: 'custom',
         domain: 'Technology',
         keywords: ['AI', 'security'],
         date_from: '2026-03-01T00:00:00.000Z',

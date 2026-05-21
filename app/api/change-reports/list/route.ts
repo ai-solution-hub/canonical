@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await supabase
       .from('change_reports')
       .select(
-        'id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at',
+        'id, frequency, period_start, period_end, item_count, domain_summaries, narrative_summary, generated_at, generated_by, tokens_used, created_at',
         { count: 'exact' },
       )
       .order('created_at', { ascending: false })
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     const digests: ChangeReport[] = (data ?? []).map((row) => ({
       id: row.id,
-      digest_type: row.digest_type,
+      frequency: row.frequency,
       period_start: row.period_start,
       period_end: row.period_end,
       item_count: row.item_count,

@@ -40,7 +40,7 @@ const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 
 const MOCK_DIGEST_ROW = {
   id: VALID_UUID,
-  digest_type: 'weekly',
+  frequency: 'weekly',
   period_start: '2026-03-01T00:00:00.000Z',
   period_end: '2026-03-07T23:59:59.999Z',
   item_count: 5,
@@ -53,13 +53,6 @@ const MOCK_DIGEST_ROW = {
         { id: 'item-1', title: 'AI Article', content_type: 'article' },
       ],
       key_themes: ['AI', 'Security'],
-    },
-  ],
-  theme_clusters: [
-    {
-      theme: 'AI Adoption',
-      description: 'Multiple items on AI',
-      item_count: 3,
     },
   ],
   narrative_summary: 'You captured 5 items this week.',
@@ -202,7 +195,7 @@ describe('GET /api/change-reports/[id]', () => {
 
     expect(json.digest).toBeDefined();
     expect(json.digest.id).toBe(VALID_UUID);
-    expect(json.digest.digest_type).toBe('weekly');
+    expect(json.digest.frequency).toBe('weekly');
     expect(json.digest.item_count).toBe(5);
     expect(json.digest.narrative_summary).toBe(
       'You captured 5 items this week.',
@@ -213,8 +206,6 @@ describe('GET /api/change-reports/[id]', () => {
     expect(json.digest.domain_summaries).toHaveLength(1);
     expect(json.digest.domain_summaries[0].domain).toBe('Technology');
     expect(json.digest.domain_summaries[0].top_items).toHaveLength(1);
-    expect(json.digest.theme_clusters).toHaveLength(1);
-    expect(json.digest.theme_clusters[0].theme).toBe('AI Adoption');
   });
 
   it('does not include metadata in the response', async () => {

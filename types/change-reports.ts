@@ -33,7 +33,7 @@ export interface ChangeReportGovernanceSummary {
 
 export interface ChangeReport {
   id: string;
-  digest_type: string;
+  frequency: string;
   period_start: string;
   period_end: string;
   item_count: number;

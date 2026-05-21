@@ -56,7 +56,7 @@ export function ChangeReportExportMenu({ digest }: ChangeReportExportMenuProps) 
   }
 
   function handleEmail() {
-    const label = changeReportFrequencyLabel(digest.digest_type);
+    const label = changeReportFrequencyLabel(digest.frequency);
     const subject = encodeURIComponent(`${label} — ${BRANDING.productName}`);
     const md = changeReportToMarkdown(digest);
     const body = encodeURIComponent(md);

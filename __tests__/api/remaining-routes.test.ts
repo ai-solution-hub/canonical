@@ -221,7 +221,7 @@ describe('GET /api/change-reports/latest', () => {
   it('returns 200 with parsed digest data on success', async () => {
     const digestRow = {
       id: VALID_UUID,
-      digest_type: 'weekly',
+      frequency: 'weekly',
       period_start: '2026-03-01T00:00:00Z',
       period_end: '2026-03-08T00:00:00Z',
       item_count: 12,
@@ -233,9 +233,6 @@ describe('GET /api/change-reports/latest', () => {
           top_items: [{ id: VALID_UUID_2, title: 'Item 1' }],
           key_themes: ['testing', 'deployment'],
         },
-      ],
-      theme_clusters: [
-        { theme: 'Quality', item_count: 3, description: 'Quality focus' },
       ],
       narrative_summary: 'A productive week.',
       generated_at: '2026-03-08T12:00:00Z',
@@ -255,11 +252,9 @@ describe('GET /api/change-reports/latest', () => {
     const body = await res.json();
     expect(body.digest).toBeDefined();
     expect(body.digest.id).toBe(VALID_UUID);
-    expect(body.digest.digest_type).toBe('weekly');
+    expect(body.digest.frequency).toBe('weekly');
     expect(body.digest.domain_summaries).toHaveLength(1);
     expect(body.digest.domain_summaries[0].domain).toBe('Engineering');
-    expect(body.digest.theme_clusters).toHaveLength(1);
-    expect(body.digest.theme_clusters[0].theme).toBe('Quality');
     expect(body.digest.narrative_summary).toBe('A productive week.');
   });
 
@@ -279,12 +274,11 @@ describe('GET /api/change-reports/latest', () => {
   it('handles JSONB fields that are not arrays gracefully', async () => {
     const digestRow = {
       id: VALID_UUID,
-      digest_type: 'weekly',
+      frequency: 'weekly',
       period_start: '2026-03-01T00:00:00Z',
       period_end: '2026-03-08T00:00:00Z',
       item_count: 0,
       domain_summaries: 'not-an-array',
-      theme_clusters: null,
       narrative_summary: null,
       generated_at: '2026-03-08T12:00:00Z',
       generated_by: 'claude',
@@ -302,7 +296,6 @@ describe('GET /api/change-reports/latest', () => {
 
     const body = await res.json();
     expect(body.digest.domain_summaries).toEqual([]);
-    expect(body.digest.theme_clusters).toEqual([]);
   });
 });
 
@@ -341,12 +334,11 @@ describe('GET /api/change-reports/list', () => {
     const rows = [
       {
         id: VALID_UUID,
-        digest_type: 'weekly',
+        frequency: 'weekly',
         period_start: '2026-03-01T00:00:00Z',
         period_end: '2026-03-08T00:00:00Z',
         item_count: 5,
         domain_summaries: [],
-        theme_clusters: [],
         narrative_summary: 'Summary one',
         generated_at: '2026-03-08T12:00:00Z',
         generated_by: 'claude',

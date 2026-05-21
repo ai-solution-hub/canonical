@@ -9,7 +9,7 @@ import type { ChangeReport } from '@/types/change-reports';
 function makeChangeReport(overrides: Partial<ChangeReport> = {}): ChangeReport {
   return {
     id: 'change-report-001',
-    digest_type: 'weekly',
+    frequency: 'weekly',
     period_start: '2026-01-25T00:00:00Z',
     period_end: '2026-02-24T00:00:00Z',
     item_count: 42,
@@ -96,7 +96,6 @@ describe('changeReportToMarkdown', () => {
     expect(md).toContain('## COMPLIANCE (8 items)');
     expect(md).toContain('**Enterprise AI Playbook** (pdf)');
 
-    // No theme clusters section (removed per S251 W1B ThemeCluster removal)
     expect(md).not.toContain('## Cross-Domain Themes');
   });
 
@@ -222,21 +221,21 @@ describe('changeReportToMarkdown', () => {
   });
 
   it('should handle daily digest type label', () => {
-    const digest = makeChangeReport({ digest_type: 'daily' });
+    const digest = makeChangeReport({ frequency: 'daily' });
     const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('# Daily Change Report:');
   });
 
   it('should handle custom digest type label', () => {
-    const digest = makeChangeReport({ digest_type: 'custom' });
+    const digest = makeChangeReport({ frequency: 'custom' });
     const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('# Custom Change Report:');
   });
 
   it('should handle unknown digest type label gracefully', () => {
-    const digest = makeChangeReport({ digest_type: 'monthly' });
+    const digest = makeChangeReport({ frequency: 'monthly' });
     const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('# Change Report:');

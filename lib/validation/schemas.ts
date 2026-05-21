@@ -198,7 +198,7 @@ export const SummaryGenerateBodySchema = z.object({
 /** POST /api/change-reports/generate */
 export const ChangeReportGenerateBodySchema = z.object({
   period_days: z.number().int().min(1).max(90).default(7),
-  digest_type: z.enum(VALID_CHANGE_REPORT_FREQUENCIES).default('weekly'),
+  frequency: z.enum(VALID_CHANGE_REPORT_FREQUENCIES).default('weekly'),
   domain: z.string().optional(),
   keywords: z.array(z.string().trim().min(1)).optional(),
   date_from: z.string().datetime().optional(),
