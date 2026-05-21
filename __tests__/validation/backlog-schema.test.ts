@@ -497,3 +497,99 @@ describe('BacklogItemSchema — structured-provenance triple (ID-15.7 §B.1)', (
     expect(result.success).toBe(false);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// BacklogSchema — id-uniqueness refine (ID-67)
+//
+// BacklogSchema carries a .refine() that rejects any document where two or
+// more items share the same id. This guard mechanically prevents recurrence
+// of the S59 W1 dup id=23 blocker.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('BacklogSchema — id-uniqueness refine (ID-67)', () => {
+  const VALID_ROOT = {
+    document_name: 'Product Backlog',
+    document_purpose: 'Items not currently on the roadmap.',
+    last_updated: 'kh-prod-readiness-S60',
+    related_documents: ['docs/reference/product-roadmap.json'],
+    items: [],
+  };
+
+  it('accepts a document where all items have unique ids', () => {
+    const result = BacklogSchema.safeParse({
+      ...VALID_ROOT,
+      items: [
+        { ...VALID_ITEM_BASE, id: '10' },
+        { ...VALID_ITEM_BASE, id: '20' },
+        { ...VALID_ITEM_BASE, id: '30' },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a document with two items sharing the same id', () => {
+    const result = BacklogSchema.safeParse({
+      ...VALID_ROOT,
+      items: [
+        { ...VALID_ITEM_BASE, id: '23' },
+        { ...VALID_ITEM_BASE, id: '23' },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(
+        messages.some((msg) => msg.includes('23')),
+        'Error message should name the duplicate id',
+      ).toBe(true);
+      expect(
+        messages.some((msg) => msg.includes('unique')),
+        'Error message should mention uniqueness requirement',
+      ).toBe(true);
+    }
+  });
+
+  it('rejects a document with three items where two share an id', () => {
+    const result = BacklogSchema.safeParse({
+      ...VALID_ROOT,
+      items: [
+        { ...VALID_ITEM_BASE, id: '10' },
+        { ...VALID_ITEM_BASE, id: '23' },
+        { ...VALID_ITEM_BASE, id: '23' },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a document where multiple distinct ids are duplicated', () => {
+    const result = BacklogSchema.safeParse({
+      ...VALID_ROOT,
+      items: [
+        { ...VALID_ITEM_BASE, id: '10' },
+        { ...VALID_ITEM_BASE, id: '10' },
+        { ...VALID_ITEM_BASE, id: '20' },
+        { ...VALID_ITEM_BASE, id: '20' },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message).join(' ');
+      // Both duplicate ids should appear in the error message
+      expect(messages).toContain('10');
+      expect(messages).toContain('20');
+    }
+  });
+
+  it('accepts a single-item document (no possible duplicate)', () => {
+    const result = BacklogSchema.safeParse({
+      ...VALID_ROOT,
+      items: [{ ...VALID_ITEM_BASE, id: '42' }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts an empty items array (no possible duplicate)', () => {
+    const result = BacklogSchema.safeParse({ ...VALID_ROOT, items: [] });
+    expect(result.success).toBe(true);
+  });
+});
