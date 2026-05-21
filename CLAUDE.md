@@ -254,10 +254,23 @@ without their own worktree are fine — work in the `main` worktree directly.
   `cat supabase/.temp/project-ref` before any push; relink via
   `supabase link --project-ref <correct>` if drift detected.
 - **Supabase auto-grants anon EXECUTE on every new public.\* PL/pgSQL function:**
-  `pg_default_acl` defaults make `REVOKE ... FROM PUBLIC` a no-op against the anon role.
-  Every new `public.*()` helper needs an explicit
-  `REVOKE EXECUTE ON FUNCTION public.foo() FROM anon;` in its migration — per-tenant if
-  SECURITY DEFINER.
+  `pg_default_acl` assigns a direct anon grant AND a `PUBLIC EXECUTE` grant. A single
+  `REVOKE ... FROM anon` only removes the direct grant — anon still inherits EXECUTE via
+  `PUBLIC`. A single `REVOKE ... FROM PUBLIC` only removes the PUBLIC grant — anon still
+  has its direct grant. **Both REVOKEs are required.** Canonical pattern in every
+  migration that creates or replaces a `public.*` function (S250 W1b confirmed both via
+  prod ACL inspection — `has_function_privilege('anon', ..., 'EXECUTE')` is the truth
+  check):
+  ```sql
+  REVOKE EXECUTE ON FUNCTION public.foo(...) FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.foo(...) FROM anon;
+  GRANT  EXECUTE ON FUNCTION public.foo(...) TO authenticated, service_role;
+  ```
+  Per-tenant if SECURITY DEFINER. Vector signatures use bare `vector` (no size suffix)
+  to match catalog form; migration apply session needs
+  `SET search_path = public, extensions;` at the top so unqualified `vector` resolves
+  against `extensions.vector` under CLI `db push` (MCP `apply_migration` uses a different
+  default search_path and may succeed without the explicit SET — do not rely on that).
 
 ### Testing
 
