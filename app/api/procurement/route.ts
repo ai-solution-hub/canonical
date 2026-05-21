@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
         }
       } else if (batchStats) {
         for (const row of batchStats) {
-          statsMap.set(row.project_id, row);
+          statsMap.set(row.workspace_id, row);
         }
       }
     }

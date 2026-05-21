@@ -48,13 +48,11 @@ const ALLOWLIST: ReadonlySet<string> = new Set([
   'lib/ast-dataflow/queries/flow-trace.ts',
   'lib/ast-dataflow/types.ts',
   'scripts/ast-dataflow-cli.ts',
-  // RPC `get_bid_question_stats_batch` returns a `project_id` field in
-  // its return shape (DB function signature unchanged at T2 — only the
-  // backing column was renamed). Code reads `row.project_id` from the
-  // RPC payload — semantically a column-name accessor on the RPC return
-  // type, not the bid_questions column.
-  'lib/procurement/procurement-queries.ts',
-  'app/api/procurement/route.ts',
+  // (S250 ID-22): `lib/procurement/procurement-queries.ts` +
+  // `app/api/procurement/route.ts` allowlist entries removed —
+  // `get_bid_question_stats_batch` RETURNS TABLE column renamed from
+  // `project_id` to `workspace_id` (S250 W2), so callers no longer
+  // need an allowlist carve-out.
 ]);
 
 /**

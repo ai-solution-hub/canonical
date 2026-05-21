@@ -3760,10 +3760,10 @@ export type Database = {
           needs_sme_count: number
           no_content_count: number
           partial_match_count: number
-          project_id: string
           strong_match_count: number
           total_questions: number
           unmatched_count: number
+          workspace_id: string
         }[]
       }
       get_bid_summary: { Args: { bid_workspace_id: string }; Returns: Json }
