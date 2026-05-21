@@ -1,0 +1,6 @@
+# Files copied into each new git worktree created by Claude Code.
+# Syntax is .gitignore-style; entries only copy if they match a pattern
+# AND are gitignored (tracked files are never duplicated).
+# Docs: https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees
+
+.env.local

@@ -39,6 +39,13 @@ venv/
 .claude/cmux-events/
 .claude/worktrees/
 
+# Worktree symlinkDirectories artefacts — Anthropic's worktree.symlinkDirectories
+# feature creates root-level symlinks (not directories), so trailing-slash
+# patterns above don't match them. Root-anchored, no trailing slash.
+/node_modules
+/.venv
+/.bin
+
 # IDE
 .idea/
 .vscode/

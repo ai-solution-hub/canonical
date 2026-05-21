@@ -31,6 +31,7 @@ description: |
   </example>
 model: sonnet
 color: blue
+isolation: worktree
 ---
 
 You are the **Task Executor** for the Knowledge Hub project. You implement exactly one
