@@ -24,11 +24,21 @@ CLAUDE.md gotchas applied:
   - content_items.content_text_hash is GENERATED ALWAYS — omit from TableSchema
   - recordPipelineRun() integration via per-flow op_id sidecar webhook (P-7)
 
+Inv-13 v1 substrate (P-5):
+  Per P-OQ1 ratification, v1 does NOT populate an `audit_log` table for
+  pipeline-driven writes (DEFERRED-v1.1). The v1 audit-observability path
+  is structured logs picked up by Cloud Run's jsonPayload ingest. The
+  per-row emission contract is provided by `_emit_upsert_log()` — see
+  helper below. Real per-row invocation lands when cocoindex 1.0.3
+  exposes a Postgres-upsert completion callback at the bind_target site
+  (see API deviation note below; orchestrator-tracked for 28.12 / Wave C
+  TECH.md amendment).
+
 Retry policy (per P-OQ2): cocoindex defaults (3 retries, exponential backoff, 1 s base).
 No custom override at v1 — operational evidence post-v1 governs tuning.
 
 References:
-  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2
+  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2, §P-5
   docs/plans/phase-0-investigation/architecture/02-data-flow.md §3.1
   spike/cocoindex_s1/probe_managed_by_user.py — canonical live-wiring shape
 
@@ -38,15 +48,31 @@ API deviation note (S254 / 28.8 discovery):
   coco.App(name_or_config, main_fn). KH_PIPELINE_APP uses coco.App() accordingly.
   coco.start() (no args) starts the default environment; coco.App.update() triggers
   the pipeline update cycle. This deviation is documented for 28.9 Checker review.
+
+API deviation note (S255 / 28.10 discovery):
+  TECH.md §P-5 brief assumes cocoindex 1.0.3 exposes a per-row UPSERT
+  completion callback at the bind_target site. It does NOT — UPSERT
+  application happens inside `TableTarget._apply_actions` (private
+  cocoindex internal) via `coco.TargetActionSink.from_async_fn()`. There
+  is no public hook to register a per-row completion observer at the
+  mount_table_target API. Per established 28.8 / 28.9 spec-drift
+  discipline, this Subtask lands the v1 helper contract
+  (`_emit_upsert_log`) with the correct JSON shape + INFO-level stdlib
+  emission, and documents the call-site at Stage 6. Real invocation is
+  blocked on a public cocoindex callback surface; orchestrator-tracked
+  for TECH.md §P-5 amendment + 28.12 / Wave C carry-forward.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import urllib.parse
+import uuid
 from pathlib import Path
+from typing import Literal
 
 import asyncpg
 import cocoindex as coco
@@ -90,6 +116,67 @@ _logger = logging.getLogger(__name__)
 
 # Production LLM model tier per cocoindex-extraction-contract TECH §3.1
 ANTHROPIC_MODEL = "claude-opus-4-6"
+
+
+# ── Inv-13 v1 substrate helper (P-5) ─────────────────────────────────────────
+
+
+def _emit_upsert_log(
+    *,
+    op_id: uuid.UUID | str,
+    table: str,
+    row_id: uuid.UUID | str,
+    operation: Literal["INSERT", "UPDATE"],
+) -> None:
+    """Emit one Cloud-Run-parseable structured log line per Postgres UPSERT.
+
+    Inv-13 v1 audit-observability substrate per TECH.md §P-5:
+    the Cloud Run logging surface picks up JSON-formatted log lines and
+    extracts them into `jsonPayload` automatically — no extra plumbing.
+
+    Contract shape (5 keys, all required):
+      {
+        "event":     "cocoindex.upsert",
+        "op_id":     "<uuid string>",
+        "table":     "<table name>",
+        "row_id":    "<uuid string>",
+        "operation": "INSERT" | "UPDATE",
+      }
+
+    Per S254 amendment (commit 61e163d8): cocoindex 1.0.3 does NOT expose
+    `coco.logger`; emission uses stdlib `logging.getLogger(__name__)`.
+
+    Args:
+      op_id:     cocoindex per-flow op_id (UUID v4); stringified for JSON.
+      table:     Postgres table name (e.g. 'content_items').
+      row_id:    Primary-key row id (UUID); stringified for JSON.
+      operation: 'INSERT' or 'UPDATE' — cocoindex's per-row outcome.
+
+    Invocation site:
+      Per TECH.md §P-5, this helper SHOULD be called once per UPSERT at
+      cocoindex's Stage 6 bind_target completion hook. Cocoindex 1.0.3
+      does NOT expose a public per-row completion callback at this site
+      (see module docstring API deviation note S255); real per-row
+      invocation is deferred to a TECH.md §P-5 amendment + 28.12 / Wave C
+      wiring once the cocoindex callback surface is exposed. This
+      helper's CONTRACT — shape + level + logger — IS the v1 substrate;
+      the integration test in 28.14 (audit-log-shipping.integration.test.ts)
+      will exercise live emission end-to-end.
+
+    PRODUCT invariants honoured:
+      - Inv-13 v1 (structured logs substitute for DEFERRED-v1.1 audit_log).
+    """
+    _logger.info(
+        json.dumps(
+            {
+                "event": "cocoindex.upsert",
+                "op_id": str(op_id),
+                "table": table,
+                "row_id": str(row_id),
+                "operation": operation,
+            }
+        )
+    )
 
 # asyncpg.Pool context key — shared across mount_table_target calls in app_main()
 DB_CTX: coco.ContextKey[asyncpg.Pool] = coco.ContextKey("kh_pipeline_db")
@@ -305,6 +392,22 @@ async def app_main() -> None:
             source.bind_target(  # type: ignore[attr-defined]
                 sd_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
             )
+
+            # ── Inv-13 v1 substrate emission point (P-5) ─────────────────
+            # Per TECH.md §P-5, _emit_upsert_log(op_id=flow['op_id'],
+            # table=<one of 'content_items' | 'q_a_extractions' |
+            # 'source_documents'>, row_id=<pk>, operation=<'INSERT' |
+            # 'UPDATE'>) SHOULD fire once per UPSERT, post-commit, at this
+            # Stage 6 boundary. The cocoindex 1.0.3 public API does NOT
+            # expose a per-row completion callback at mount_table_target /
+            # bind_target — UPSERT application is encapsulated inside
+            # TableTarget._apply_actions (private). Per the established
+            # 28.8 / 28.9 spec-drift discipline, the v1 helper contract
+            # (`_emit_upsert_log`) lands here as the callable substrate;
+            # real per-row invocation is unblocked by a cocoindex 1.0.x
+            # public callback surface (S255 amendment queue → TECH.md §P-5
+            # + 28.12 / Wave C carry-forward).
+            # See module docstring "API deviation note (S255 / 28.10)".
     finally:
         await coco_pool.close()
 
