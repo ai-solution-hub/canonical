@@ -35,6 +35,21 @@ Use this skill when the orchestrator session needs to:
 - Coordinate a fleet: wait for any-of or all-of a worker set to finish.
 - Hand a running worker off to a human operator.
 
+**Worker roles — leaf executor OR sub-orchestrator.** A cmux worker is a full
+Claude session and can play either role:
+
+- **Leaf executor.** Worker receives a narrow brief and produces one commit
+  (e.g. implement one ID-N.M Subtask). This is the historical default.
+- **Sub-orchestrator ("orchestrator-of-orchestrators").** Worker is briefed to
+  load the `workflow-orchestration` skill and drive a complete ID-N Task
+  lifecycle (planning chain `{N.1–N.4}` → impl wave → checker → curator). The
+  parent session dispatches one cmux sub-orchestrator per ID-N Task; each
+  sub-orchestrator manages its own internal dispatch tree (including, if it
+  wishes, further cmux workers of its own). The parent then cherry-picks /
+  merges each sub-orchestrator's commits back onto the track branch.
+
+The skill itself is identical in both cases — only the brief differs.
+
 **Do not** use this for sub-agents already covered by Claude Code's built-in
 `Agent` tool or `isolation: "worktree"` — those are simpler and don't need a
 full Claude session per worker. Reach for cmux workers when you need:
@@ -250,9 +265,14 @@ implemented under KH layout:
 | `wait-for-event.sh`          | Missing locally | Upstream version polls `/tmp/claude-workers/<id>.events.jsonl`. KH path is `<project-root>/.claude/cmux-events/<id>/events.jsonl`. Workaround: poll the JSONL file directly. |
 | `read-events.sh` (orchestrator-side) | Missing locally | Same wrong-path issue. Workaround: `jq -c '.' <events-file>`. |
 | `approve-tool.sh` (orchestrator-side) | Missing locally | Upstream version writes to `/tmp/claude-workers/<id>.tool-decision`. Workaround: `echo allow > <events-dir>/<id>/tool-decision` (or `deny`). |
+| `.worktreeinclude` propagation | Not honoured by `launch-worker.sh` | Anthropic's `.worktreeinclude` mechanism only triggers under Anthropic-internal worktree-creation paths (`claude --worktree`, Agent-tool `isolation: "worktree"`, `EnterWorktree`). `launch-worker.sh` uses raw `git worktree add` and bypasses this. Workers needing `.env.local` propagation must `cp ../../../.env.local . 2>/dev/null \|\| true` post-launch, OR `launch-worker.sh` must be extended to read `.worktreeinclude` and copy matching files. |
+| Worker branch cleanup | `stop-worker.sh` removes the worktree but NOT the worker branch (`cmux-worker-<name>-<sha>`) | After `stop-worker.sh`, the branch is dangling. If the worker's commits were merged or cherry-picked into the parent branch, the branch is safe to `git branch -D`. If not, the branch holds the only reference to that work. Recommendation: either (i) extend `stop-worker.sh` to `git branch -D <branch>` when the parent confirms via a flag, or (ii) the parent orchestrator handles branch deletion as part of its merge cadence. |
+| `symlinkDirectories` not applied | Workers get full fresh checkouts | Anthropic's `worktree.symlinkDirectories` setting symlinks dirs like `node_modules`, `.venv`, `.bin` into Anthropic-managed worktrees. cmux workers don't get these. Pro: clean `git status` (no `??` artefacts blocking orphan-sweep). Con: more disk + workers needing JS/Python tooling must `bun install` / `pip install -r requirements.txt` per worker. Relevant when dispatching impl workers that compile or run tests. |
 
-These helpers would be small re-implementations of the upstream scripts
-against the KH path layout — author when the workflow actually needs them.
+The first three are small re-implementations of upstream scripts against the
+KH path layout — author when the workflow actually needs them. The last three
+are gaps in `launch-worker.sh` / `stop-worker.sh` themselves, tracked as a
+separate Task (scripts NOT touched in this SKILL.md revision).
 
 ---
 
@@ -308,6 +328,48 @@ for s in "$S1" "$S2"; do
 done
 ```
 
+### Orchestrator-of-orchestrators: parallel Task lifecycles
+
+Dispatch one sub-orchestrator per ID-N Task. Each worker loads
+`workflow-orchestration` and drives its own `{N.1–N.4}` planning chain plus
+impl wave; the parent waits on the whole fleet, then cherry-picks each
+sub-orchestrator's commits back onto the track branch.
+
+```bash
+SD_SCRIPTS=".claude/skills/session-driver-cmux/scripts"
+
+R1=$("$SD_SCRIPTS/launch-worker.sh" subo-id-23 .)
+R2=$("$SD_SCRIPTS/launch-worker.sh" subo-id-24 .)
+R3=$("$SD_SCRIPTS/launch-worker.sh" subo-id-25 .)
+S1=$(echo "$R1" | jq -r '.session_id')
+S2=$(echo "$R2" | jq -r '.session_id')
+S3=$(echo "$R3" | jq -r '.session_id')
+
+# Each brief: "Load workflow-orchestration. Drive ID-N Task end-to-end —
+# planning chain, impl wave, checker, curator. Commit on your worker branch.
+# Surface Open Questions via the OQ-escalation channel (see Escalation below)."
+"$SD_SCRIPTS/send-prompt.sh" subo-id-23 "$(cat briefs/id-23.md)"
+"$SD_SCRIPTS/send-prompt.sh" subo-id-24 "$(cat briefs/id-24.md)"
+"$SD_SCRIPTS/send-prompt.sh" subo-id-25 "$(cat briefs/id-25.md)"
+
+# Block until every sub-orchestrator has completed its Task lifecycle
+"$SD_SCRIPTS/wait-for-fleet.sh" --mode all --timeout 7200 "$S1" "$S2" "$S3"
+
+# Parent cherry-picks worker branches onto the track branch (sequential, per
+# KH worktree-isolation rules), then stops each worker. Future Path A: merge.
+for name in subo-id-23 subo-id-24 subo-id-25; do
+  git cherry-pick "cmux-worker-${name}-*"  # resolve glob to actual SHA
+done
+
+"$SD_SCRIPTS/stop-worker.sh" subo-id-23 "$S1"
+"$SD_SCRIPTS/stop-worker.sh" subo-id-24 "$S2"
+"$SD_SCRIPTS/stop-worker.sh" subo-id-25 "$S3"
+```
+
+Caveats: each sub-orchestrator must be briefed with relative paths only
+(CLAUDE.md primer-effect gotcha); branch cleanup is manual until the
+`stop-worker.sh` gap (see Known limitations) is closed.
+
 ### Handing off to a human
 
 If the user wants to take over a running worker:
@@ -339,3 +401,16 @@ If the user wants to take over a running worker:
 - **Phase B (interactive) verifies end-to-end.** This SKILL.md and the scripts
   are the dispatch contract — empirical validation against a live cmux
   daemon happens in a follow-up interactive session.
+
+---
+
+## Escalation
+
+Sub-orchestrators (and leaf workers) that hit an Open Question they cannot
+resolve in-scope must NOT silently proceed or block indefinitely. The formal
+channel for surfacing Open Questions to the parent session is specified in
+`docs/specs/oq-escalation/PRODUCT.md` (authored in parallel with this revision
+— see that spec for the OQ packet shape, the parent's response contract, and
+the per-track ledger location). The session-driver-cmux skill does not
+re-specify the protocol; it is the dispatch primitive. Sub-orchestrators load
+the OQ-escalation skill alongside `workflow-orchestration` when they need it.
