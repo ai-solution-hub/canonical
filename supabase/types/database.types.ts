@@ -759,6 +759,7 @@ export type Database = {
           metadata: Json | null
           next_review_date: string | null
           notes: string | null
+          op_id: string | null
           parent_id: string | null
           platform: string | null
           previous_freshness: string | null
@@ -836,6 +837,7 @@ export type Database = {
           metadata?: Json | null
           next_review_date?: string | null
           notes?: string | null
+          op_id?: string | null
           parent_id?: string | null
           platform?: string | null
           previous_freshness?: string | null
@@ -913,6 +915,7 @@ export type Database = {
           metadata?: Json | null
           next_review_date?: string | null
           notes?: string | null
+          op_id?: string | null
           parent_id?: string | null
           platform?: string | null
           previous_freshness?: string | null
@@ -2151,6 +2154,7 @@ export type Database = {
           items_processed: number | null
           items_skipped: number | null
           items_updated: number | null
+          op_id: string | null
           pipeline_name: string
           progress: Json | null
           result: Json | null
@@ -2170,6 +2174,7 @@ export type Database = {
           items_processed?: number | null
           items_skipped?: number | null
           items_updated?: number | null
+          op_id?: string | null
           pipeline_name: string
           progress?: Json | null
           result?: Json | null
@@ -2189,6 +2194,7 @@ export type Database = {
           items_processed?: number | null
           items_skipped?: number | null
           items_updated?: number | null
+          op_id?: string | null
           pipeline_name?: string
           progress?: Json | null
           result?: Json | null
@@ -2388,6 +2394,7 @@ export type Database = {
           extractor_kind: string
           id: string
           invalidated_at: string | null
+          op_id: string | null
           promoted_to_pair_id: string | null
           source_content_item_id: string | null
           updated_at: string
@@ -2400,6 +2407,7 @@ export type Database = {
           extractor_kind: string
           id?: string
           invalidated_at?: string | null
+          op_id?: string | null
           promoted_to_pair_id?: string | null
           source_content_item_id?: string | null
           updated_at?: string
@@ -2412,6 +2420,7 @@ export type Database = {
           extractor_kind?: string
           id?: string
           invalidated_at?: string | null
+          op_id?: string | null
           promoted_to_pair_id?: string | null
           source_content_item_id?: string | null
           updated_at?: string
@@ -2871,6 +2880,7 @@ export type Database = {
           filename: string
           id: string
           mime_type: string
+          op_id: string | null
           original_filename: string
           parent_id: string | null
           pipeline_run_id: string | null
@@ -2891,6 +2901,7 @@ export type Database = {
           filename: string
           id?: string
           mime_type: string
+          op_id?: string | null
           original_filename: string
           parent_id?: string | null
           pipeline_run_id?: string | null
@@ -2911,6 +2922,7 @@ export type Database = {
           filename?: string
           id?: string
           mime_type?: string
+          op_id?: string | null
           original_filename?: string
           parent_id?: string | null
           pipeline_run_id?: string | null
@@ -3563,6 +3575,7 @@ export type Database = {
               metadata: Json | null
               next_review_date: string | null
               notes: string | null
+              op_id: string | null
               parent_id: string | null
               platform: string | null
               previous_freshness: string | null
@@ -4517,3 +4530,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.101.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
