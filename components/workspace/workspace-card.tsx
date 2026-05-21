@@ -48,7 +48,7 @@ export function WorkspaceCard({
   // The hook returns `undefined` during the first render frame (data resolving)
   // and for unknown keys — the `typeConfig &&` JSX guards below treat both the
   // same as the pre-refactor "joined-row-absent" case.
-  const { data: typeConfig } = useWorkspaceType(workspace.type ?? '');
+  const { data: typeConfig = null } = useWorkspaceType(workspace.type ?? '');
 
   return (
     <div
