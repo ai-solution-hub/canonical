@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   formatCoverageMatrix,
   formatProcurementDashboard,
-  formatBidDetail,
+  formatProcurementDetail,
   type CoverageMatrixData,
   type ProcurementDashboardData,
   type ProcurementDetail,
@@ -454,7 +454,7 @@ describe('formatProcurementDashboard', () => {
 });
 
 // ──────────────────────────────────────────
-// formatBidDetail (with sections and breakdowns)
+// formatProcurementDetail (with sections and breakdowns)
 // ──────────────────────────────────────────
 
 const sampleBidDetail: ProcurementDetail = {
@@ -524,9 +524,9 @@ const sampleBidDetail: ProcurementDetail = {
   },
 };
 
-describe('formatBidDetail', () => {
+describe('formatProcurementDetail', () => {
   it('returns Markdown with bid name and status', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     expect(result).toContain('# NHS Digital Transformation');
     expect(result).toContain('**Status:** active');
@@ -534,7 +534,7 @@ describe('formatBidDetail', () => {
   });
 
   it('includes question stats section', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     expect(result).toContain('## Question Progress');
     expect(result).toContain('**Total questions:** 10');
@@ -542,7 +542,7 @@ describe('formatBidDetail', () => {
   });
 
   it('formats bid detail with sections and question list', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     expect(result).toContain('## Questions by Section');
     expect(result).toContain('### Organisation (2 questions)');
@@ -556,13 +556,13 @@ describe('formatBidDetail', () => {
       ...sampleBidDetail,
       sections: [],
     };
-    const result = formatBidDetail(noSections);
+    const result = formatProcurementDetail(noSections);
 
     expect(result).not.toContain('## Questions by Section');
   });
 
   it('truncates long question text in Markdown', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     // q3 has 107 characters — should be truncated to 97 + '...'
     expect(result).toContain(
@@ -571,7 +571,7 @@ describe('formatBidDetail', () => {
   });
 
   it('shows response status icon for answered questions', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     // q1 and q2 have responses (has_response: true)
     // Use check mark for responded, empty square for not
@@ -580,7 +580,7 @@ describe('formatBidDetail', () => {
   });
 
   it('includes confidence posture in question lines', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     expect(result).toContain('[strong match]');
     expect(result).toContain('[partial match]');
@@ -588,7 +588,7 @@ describe('formatBidDetail', () => {
   });
 
   it('includes status breakdown section', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     expect(result).toContain('## Status Breakdown');
     expect(result).toContain('**complete:** 3');
@@ -601,13 +601,13 @@ describe('formatBidDetail', () => {
       ...sampleBidDetail,
       status_breakdown: {},
     };
-    const result = formatBidDetail(noBreakdown);
+    const result = formatProcurementDetail(noBreakdown);
 
     expect(result).not.toContain('## Status Breakdown');
   });
 
   it('includes confidence breakdown section', () => {
-    const result = formatBidDetail(sampleBidDetail);
+    const result = formatProcurementDetail(sampleBidDetail);
 
     expect(result).toContain('## Confidence Breakdown');
     expect(result).toContain('**strong match:** 4');
@@ -619,7 +619,7 @@ describe('formatBidDetail', () => {
       ...sampleBidDetail,
       confidence_breakdown: {},
     };
-    const result = formatBidDetail(noBreakdown);
+    const result = formatProcurementDetail(noBreakdown);
 
     expect(result).not.toContain('## Confidence Breakdown');
   });

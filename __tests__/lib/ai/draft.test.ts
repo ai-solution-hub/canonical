@@ -340,7 +340,7 @@ describe('Procurement Drafting Pipeline', () => {
       );
     });
 
-    it('loads bid-writing and uk-procurement skills when available', async () => {
+    it('loads procurement-writing and uk-procurement skills when available', async () => {
       mockLoadSkill
         .mockResolvedValueOnce('Procurement writing skill content')
         .mockResolvedValueOnce('UK procurement skill content');
@@ -349,7 +349,7 @@ describe('Procurement Drafting Pipeline', () => {
 
       await draftResponse(testQuestion, testContent, defaultAnalysis);
 
-      expect(mockLoadSkill).toHaveBeenCalledWith('bid-writing');
+      expect(mockLoadSkill).toHaveBeenCalledWith('procurement-writing');
       expect(mockLoadSkill).toHaveBeenCalledWith('uk-procurement');
 
       const call = mockCreate.mock.calls[0][0];

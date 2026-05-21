@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  formatBidQuestion,
+  formatProcurementQuestion,
   type ProcurementQuestionDetail,
-} from '@/lib/mcp/formatters/bids';
+} from '@/lib/mcp/formatters/procurements';
 
 const base: ProcurementQuestionDetail = {
   id: 'q-1',
@@ -15,9 +15,9 @@ const base: ProcurementQuestionDetail = {
   review_status: null,
 };
 
-describe('formatBidQuestion — response format', () => {
+describe('formatProcurementQuestion — response format', () => {
   it('converts Tiptap HTML response to markdown', () => {
-    const md = formatBidQuestion({
+    const md = formatProcurementQuestion({
       ...base,
       response_text:
         '<p>Our safeguarding approach:</p><ul><li><strong>Training</strong> for all staff</li><li>DBS checks</li></ul>',
@@ -33,7 +33,7 @@ describe('formatBidQuestion — response format', () => {
   });
 
   it('passes markdown response through unchanged', () => {
-    const md = formatBidQuestion({
+    const md = formatProcurementQuestion({
       ...base,
       response_text: '## Approach\n\n- Training\n- DBS checks',
     });
@@ -44,7 +44,7 @@ describe('formatBidQuestion — response format', () => {
   });
 
   it('handles plain-text response without wrapping', () => {
-    const md = formatBidQuestion({
+    const md = formatProcurementQuestion({
       ...base,
       response_text: 'Short plain response.',
     });
@@ -54,13 +54,13 @@ describe('formatBidQuestion — response format', () => {
   });
 
   it('omits Response section when response_text is null', () => {
-    const md = formatBidQuestion({ ...base, response_text: null });
+    const md = formatProcurementQuestion({ ...base, response_text: null });
     expect(md).not.toContain('## Response');
   });
 
   it('truncates long responses to ~3000 chars', () => {
     const longHtml = `<p>${'word '.repeat(2000)}</p>`;
-    const md = formatBidQuestion({ ...base, response_text: longHtml });
+    const md = formatProcurementQuestion({ ...base, response_text: longHtml });
 
     const responseIdx = md.indexOf('## Response');
     expect(responseIdx).toBeGreaterThanOrEqual(0);

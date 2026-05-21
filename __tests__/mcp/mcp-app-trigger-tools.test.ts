@@ -218,7 +218,7 @@ describe('MCP App trigger tools #22-23', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   let supabase: typeof mocks.mockSupabaseClient;
   let registerAppTools: typeof import('@/lib/mcp/tools/apps').registerAppTools;
-  let registerBidTools: typeof import('@/lib/mcp/tools/procurement').registerBidTools;
+  let registerBidTools: typeof import('@/lib/mcp/tools/procurement').registerProcurementTools;
   const extra = makeAuthExtra();
   beforeAll(async () => {
     ({ registerAppTools } = await import('@/lib/mcp/tools/apps'));
@@ -1346,7 +1346,7 @@ describe('MCP App trigger tools #22-23', () => {
 
   describe('get_procurement_detail', () => {
     beforeAll(async () => {
-      ({ registerBidTools } = await import('@/lib/mcp/tools/procurement'));
+      ({ registerProcurementTools: registerBidTools } = await import('@/lib/mcp/tools/procurement'));
     }, MCP_TOOL_IMPORT_TIMEOUT_MS);
     beforeEach(async () => {
       await registerBidTools(mockServer.server as never);

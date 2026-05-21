@@ -43,14 +43,14 @@ export {
   type ProcurementQuestionSummary,
   type ProcurementSection,
   type ProcurementDetail,
-  formatBidDetail,
+  formatProcurementDetail,
   type ProcurementQuestionDetail,
-  formatBidQuestion,
+  formatProcurementQuestion,
   type CitationResult,
   formatCitation,
   type ContentEffectiveness,
   formatContentEffectiveness,
-} from './bids';
+} from './procurements';
 export {
   type QualitySummary,
   formatQualitySummary,

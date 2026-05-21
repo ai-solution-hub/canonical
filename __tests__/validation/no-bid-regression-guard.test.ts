@@ -24,9 +24,9 @@
  *   embeds the forbidden patterns as string constants for grep).
  * - `lib/ast-dataflow/` — internal test fixtures may reference project_id
  *   as a demo column name (out of procurement scope).
- * - `lib/mcp/formatters/bids.ts` — deferred per Liam S248 ratification
- *   pending form_type investigation.
- * - `lib/ai/skills/bid-writing.md` — deferred per same ratification.
+ * Note: `lib/mcp/formatters/bids.ts` and `lib/ai/skills/bid-writing.md`
+ * were removed from the allowlist in S249 ID-23 after the deferred renames
+ * shipped (form_type coupling was a red herring — no allowlist entry needed).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
@@ -48,10 +48,6 @@ const ALLOWLIST: ReadonlySet<string> = new Set([
   'lib/ast-dataflow/queries/flow-trace.ts',
   'lib/ast-dataflow/types.ts',
   'scripts/ast-dataflow-cli.ts',
-  // Deferred renames per Liam S248 ratification (pending form_type
-  // investigation — see continuation prompt WP2 scope answers).
-  'lib/mcp/formatters/bids.ts',
-  'lib/ai/skills/bid-writing.md',
   // RPC `get_bid_question_stats_batch` returns a `project_id` field in
   // its return shape (DB function signature unchanged at T2 — only the
   // backing column was renamed). Code reads `row.project_id` from the

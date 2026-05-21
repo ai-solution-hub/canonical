@@ -49,7 +49,7 @@ export interface ProcurementDetail {
   confidence_breakdown: Record<string, number>;
 }
 
-export function formatBidDetail(bid: ProcurementDetail): string {
+export function formatProcurementDetail(bid: ProcurementDetail): string {
   const lines: string[] = [`# ${bid.name}`, '', `**Status:** ${bid.status}`];
 
   if (bid.buyer) lines.push(`**Buyer:** ${bid.buyer}`);
@@ -134,7 +134,7 @@ export interface ProcurementQuestionDetail {
   review_status: string | null;
 }
 
-export function formatBidQuestion(q: ProcurementQuestionDetail): string {
+export function formatProcurementQuestion(q: ProcurementQuestionDetail): string {
   const lines: string[] = [
     '# Procurement Question',
     '',
