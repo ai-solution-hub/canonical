@@ -26,26 +26,21 @@
  */
 
 import { z } from 'zod';
+import { Priority } from '@/lib/validation/work-status';
 
 // ──────────────────────────────────────────
 // Enums
 // ──────────────────────────────────────────
 
 /**
- * Item priority — flat union covering all values seen across roadmap
- * tables (Item 4 ratification). Downstream consumers (renderers,
- * filters) can group these into MoSCoW vs ranked vs trigger families.
+ * Item priority — re-export of the shared Priority master enum from
+ * work-status.ts (ID-15.7 §B.3 — eliminates standalone z.enum that was
+ * identical to Priority but not linked, reducing source-of-truth drift risk).
+ * Accepted values: must | should | could | future | high | medium | low | trigger.
+ * Downstream consumers (renderers, filters) can group these into MoSCoW vs
+ * ranked vs trigger families.
  */
-export const RoadmapPriority = z.enum([
-  'must',
-  'should',
-  'could',
-  'future',
-  'high',
-  'medium',
-  'low',
-  'trigger',
-]);
+export const RoadmapPriority = Priority;
 export type RoadmapPriority = z.infer<typeof RoadmapPriority>;
 
 /**
@@ -165,6 +160,10 @@ export const RoadmapItemSchema = z
      * Item 6 ratification — hybrid parsing. High-confidence patterns
      * (`§N.M`, `D-NN`, `OPS-NN`) parsed into structured arrays; the rest
      * stays in description / status_note.
+     *
+     * Per ID-15.6 OQ-3 ratification — intentional divergence from Backlog +
+     * Task list flat dependencies[]. Captures strategic decomposition (forward
+     * dep / reverse dep / lateral coordination).
      */
     depends_on: z.array(z.string()),
     blocks: z.array(z.string()),
