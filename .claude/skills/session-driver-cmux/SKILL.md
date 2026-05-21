@@ -244,9 +244,17 @@ This skill is the dispatch primitive — it does not reimplement those rules.
 file plus a structured pointer prompt.
 
 **`--delete-branch`**: after worktree removal, deletes the worker branch
-(`cmux-worker-<name>-<sha>`). Default OFF — the parent orchestrator usually
-needs the branch alive long enough to cherry-pick / merge. Pass once
-cherry-pick / merge is confirmed.
+(`cmux-worker-<name>-<sha>`). Falls back to `git worktree list` lookup when
+the meta file is missing (post-failure re-run scenario). Default OFF — the
+parent orchestrator usually needs the branch alive long enough to
+cherry-pick / merge. Pass once cherry-pick / merge is confirmed.
+
+**Order of operations (post-FX-1 ratification, S62C ID-28.1)**:
+`stop-worker.sh` runs the dirty-tree safety check BEFORE closing the cmux
+workspace. Exit-2 (dirty tree, no `--force`) therefore leaves the cmux
+workspace alive — operator can re-attach to inspect, then either commit the
+work or re-run with `--force`. The dirty-tree check excludes
+`.cmux-brief.md` (script-managed artefact placed by `--brief`).
 
 **`.worktreeinclude` honour**: if `<project-root>/.worktreeinclude` exists,
 `launch-worker.sh` reads it as a list of literal file paths (one per line,
