@@ -230,13 +230,29 @@ This skill is the dispatch primitive — it does not reimplement those rules.
 
 ## Reference: script summary
 
-| Script               | Usage                                                              | Description                                                  |
-| -------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `launch-worker.sh`   | `<worker-name> <base-dir> [--branch <ref>] [extra-claude-args...]` | Create worktree + cmux workspace, launch claude              |
-| `send-prompt.sh`     | `<worker-name> <prompt-text>`                                      | Send text to a worker (no wait)                              |
-| `converse.sh`        | `<worker-name> <session-id> <prompt> [timeout=120]`                | send-prompt + wait-for-stop + return last assistant text     |
-| `wait-for-fleet.sh`  | `--mode any\|all [--timeout S] <session-id>...`                    | Wait for any-of or all-of a set of workers to emit `stop`    |
-| `stop-worker.sh`     | `<worker-name> <session-id> [--force]`                             | /exit, close workspace, verify clean tree, remove worktree   |
+| Script               | Usage                                                                                            | Description                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `launch-worker.sh`   | `<worker-name> <base-dir> [--branch <ref>] [--brief <file>] [extra-claude-args...]`              | Create worktree + cmux workspace, launch claude              |
+| `send-prompt.sh`     | `<worker-name> <prompt-text>`                                                                    | Send text to a worker (no wait)                              |
+| `converse.sh`        | `<worker-name> <session-id> <prompt> [timeout=120]`                                              | send-prompt + wait-for-stop + return last assistant text     |
+| `wait-for-fleet.sh`  | `--mode any\|all [--timeout S] <session-id>...`                                                  | Wait for any-of or all-of a set of workers to emit `stop`    |
+| `stop-worker.sh`     | `<worker-name> <session-id> [--force] [--delete-branch]`                                         | /exit, close workspace, verify clean tree, remove worktree; optionally delete worker branch |
+
+**`--brief <file>`**: copies the file into the worker worktree as
+`.cmux-brief.md` and auto-sends "Read .cmux-brief.md before any work." after
+`session_start`. Mirrors the OQ-escalation channel shape: a known on-disk
+file plus a structured pointer prompt.
+
+**`--delete-branch`**: after worktree removal, deletes the worker branch
+(`cmux-worker-<name>-<sha>`). Default OFF — the parent orchestrator usually
+needs the branch alive long enough to cherry-pick / merge. Pass once
+cherry-pick / merge is confirmed.
+
+**`.worktreeinclude` honour**: if `<project-root>/.worktreeinclude` exists,
+`launch-worker.sh` reads it as a list of literal file paths (one per line,
+`#` comments skipped) and copies each existing source from project root into
+the new worktree. Plain paths only — no glob expansion. Canonical case:
+`.env.local`.
 
 ### Reading worker output
 
@@ -265,14 +281,11 @@ implemented under KH layout:
 | `wait-for-event.sh`          | Missing locally | Upstream version polls `/tmp/claude-workers/<id>.events.jsonl`. KH path is `<project-root>/.claude/cmux-events/<id>/events.jsonl`. Workaround: poll the JSONL file directly. |
 | `read-events.sh` (orchestrator-side) | Missing locally | Same wrong-path issue. Workaround: `jq -c '.' <events-file>`. |
 | `approve-tool.sh` (orchestrator-side) | Missing locally | Upstream version writes to `/tmp/claude-workers/<id>.tool-decision`. Workaround: `echo allow > <events-dir>/<id>/tool-decision` (or `deny`). |
-| `.worktreeinclude` propagation | Not honoured by `launch-worker.sh` | Anthropic's `.worktreeinclude` mechanism only triggers under Anthropic-internal worktree-creation paths (`claude --worktree`, Agent-tool `isolation: "worktree"`, `EnterWorktree`). `launch-worker.sh` uses raw `git worktree add` and bypasses this. Workers needing `.env.local` propagation must `cp ../../../.env.local . 2>/dev/null \|\| true` post-launch, OR `launch-worker.sh` must be extended to read `.worktreeinclude` and copy matching files. |
-| Worker branch cleanup | `stop-worker.sh` removes the worktree but NOT the worker branch (`cmux-worker-<name>-<sha>`) | After `stop-worker.sh`, the branch is dangling. If the worker's commits were merged or cherry-picked into the parent branch, the branch is safe to `git branch -D`. If not, the branch holds the only reference to that work. Recommendation: either (i) extend `stop-worker.sh` to `git branch -D <branch>` when the parent confirms via a flag, or (ii) the parent orchestrator handles branch deletion as part of its merge cadence. |
 | `symlinkDirectories` not applied | Workers get full fresh checkouts | Anthropic's `worktree.symlinkDirectories` setting symlinks dirs like `node_modules`, `.venv`, `.bin` into Anthropic-managed worktrees. cmux workers don't get these. Pro: clean `git status` (no `??` artefacts blocking orphan-sweep). Con: more disk + workers needing JS/Python tooling must `bun install` / `pip install -r requirements.txt` per worker. Relevant when dispatching impl workers that compile or run tests. |
 
 The first three are small re-implementations of upstream scripts against the
-KH path layout — author when the workflow actually needs them. The last three
-are gaps in `launch-worker.sh` / `stop-worker.sh` themselves, tracked as a
-separate Task (scripts NOT touched in this SKILL.md revision).
+KH path layout — author when the workflow actually needs them. The last is
+an open design choice (symlink vs full checkout) not yet acted on.
 
 ---
 

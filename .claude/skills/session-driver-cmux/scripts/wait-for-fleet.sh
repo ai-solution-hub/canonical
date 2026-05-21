@@ -78,13 +78,26 @@ EVENTS_BASE="${KH_CMUX_EVENTS_DIR:-${PROJECT_ROOT}/.claude/cmux-events}"
 
 # Load per-session after-line offsets (optional). File format:
 #   <session-id>:<line-count>
-declare -A AFTER_LINE
+#
+# bash 3.2 portable: associative arrays unavailable (macOS default).
+# Store as newline-delimited "sid=n" records in a flat string; look up
+# via awk. POSIX-only constructs throughout this script.
+AFTER_LINE_DATA=""
 if [ -n "$AFTER_LINE_FILE" ] && [ -f "$AFTER_LINE_FILE" ]; then
   while IFS=: read -r sid n; do
     [ -z "$sid" ] && continue
-    AFTER_LINE["$sid"]="$n"
+    AFTER_LINE_DATA="${AFTER_LINE_DATA}${sid}=${n}
+"
   done < "$AFTER_LINE_FILE"
 fi
+
+after_line_for() {
+  # Echo the offset for the given session-id, defaulting to 0.
+  local sid="$1"
+  local n
+  n=$(printf '%s' "$AFTER_LINE_DATA" | awk -F= -v sid="$sid" '$1==sid{print $2; exit}')
+  echo "${n:-0}"
+}
 
 # Helper: returns 0 if session has a `stop` event past its after-line offset.
 session_stopped() {
@@ -92,26 +105,38 @@ session_stopped() {
   local event_file="${EVENTS_BASE}/${sid}/events.jsonl"
   [ -f "$event_file" ] || return 1
 
-  local offset="${AFTER_LINE[$sid]:-0}"
+  local offset
+  offset=$(after_line_for "$sid")
   tail -n +"$((offset + 1))" "$event_file" \
     | jq -e 'select(.event == "stop")' >/dev/null 2>&1
 }
 
 DEADLINE=$((SECONDS + TIMEOUT))
-declare -A COMPLETED
+# bash 3.2 portable: space-bordered list of completed session-ids,
+# membership tested via `case " $COMPLETED_LIST " in *" $sid "*)`.
+COMPLETED_LIST=""
+COMPLETED_COUNT=0
 
 while [ "$SECONDS" -lt "$DEADLINE" ]; do
   for sid in "${SESSIONS[@]}"; do
-    if [ -z "${COMPLETED[$sid]:-}" ] && session_stopped "$sid"; then
-      COMPLETED["$sid"]=1
-      if [ "$MODE" = "any" ]; then
-        echo "$sid"
-        exit 0
-      fi
-    fi
+    case " $COMPLETED_LIST " in
+      *" $sid "*)
+        # already completed
+        ;;
+      *)
+        if session_stopped "$sid"; then
+          COMPLETED_LIST="${COMPLETED_LIST} ${sid}"
+          COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
+          if [ "$MODE" = "any" ]; then
+            echo "$sid"
+            exit 0
+          fi
+        fi
+        ;;
+    esac
   done
 
-  if [ "$MODE" = "all" ] && [ "${#COMPLETED[@]}" -eq "${#SESSIONS[@]}" ]; then
+  if [ "$MODE" = "all" ] && [ "$COMPLETED_COUNT" -eq "${#SESSIONS[@]}" ]; then
     for sid in "${SESSIONS[@]}"; do
       echo "$sid"
     done
@@ -123,13 +148,19 @@ done
 
 # Timeout
 {
+  # Trim leading/trailing whitespace from COMPLETED_LIST for display.
+  COMPLETED_DISPLAY=$(echo "$COMPLETED_LIST" | awk '{$1=$1;print}')
   echo "Error: timeout after ${TIMEOUT}s (mode=$MODE)"
-  echo "  Completed: ${!COMPLETED[*]:-<none>}"
+  echo "  Completed: ${COMPLETED_DISPLAY:-<none>}"
   echo "  Pending:"
   for sid in "${SESSIONS[@]}"; do
-    if [ -z "${COMPLETED[$sid]:-}" ]; then
-      echo "    - $sid"
-    fi
+    case " $COMPLETED_LIST " in
+      *" $sid "*)
+        ;;
+      *)
+        echo "    - $sid"
+        ;;
+    esac
   done
 } >&2
 exit 1

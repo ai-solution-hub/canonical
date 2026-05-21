@@ -12,15 +12,43 @@ set -euo pipefail
 #    git commit"). Pass --force to remove anyway.
 # 5. Remove the git worktree.
 # 6. Delete the events directory.
+# 7. Optionally delete the worker branch (--delete-branch).
 #
-# Usage: stop-worker.sh <worker-name> <session-id> [--force]
+# Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch]
+#
+# Flags:
+#   --force          Remove the worktree even if it has uncommitted changes
+#                    (DATA LOSS — only use after the worker has cherry-picked
+#                    or merged its commits elsewhere).
+#   --delete-branch  After worktree removal, delete the worker branch
+#                    (cmux-worker-<name>-<sha>) recorded in the meta file.
+#                    Default: branch retained, parent orchestrator owns its
+#                    lifecycle. Pass once cherry-pick / merge is confirmed.
 
-WORKER_NAME="${1:?Usage: stop-worker.sh <worker-name> <session-id> [--force]}"
-SESSION_ID="${2:?Usage: stop-worker.sh <worker-name> <session-id> [--force]}"
+USAGE="Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch]"
+WORKER_NAME="${1:?$USAGE}"
+SESSION_ID="${2:?$USAGE}"
+shift 2
+
 FORCE=0
-if [ "${3:-}" = "--force" ]; then
-  FORCE=1
-fi
+DELETE_BRANCH=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --force)
+      FORCE=1
+      shift
+      ;;
+    --delete-branch)
+      DELETE_BRANCH=1
+      shift
+      ;;
+    *)
+      echo "Error: unknown flag '$1'" >&2
+      echo "$USAGE" >&2
+      exit 2
+      ;;
+  esac
+done
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "Error: jq not found on PATH." >&2
@@ -39,9 +67,11 @@ fi
 
 WORKTREE_PATH=""
 WS_REF=""
+BRANCH_NAME=""
 if [ -f "$META_FILE" ]; then
   WORKTREE_PATH=$(jq -r '.cwd // empty' "$META_FILE")
   WS_REF=$(jq -r '.cmux_workspace // empty' "$META_FILE")
+  BRANCH_NAME=$(jq -r '.branch // empty' "$META_FILE")
 fi
 
 # --- Resolve and exit cmux workspace ---
@@ -121,6 +151,24 @@ if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
   fi
   if ! git -C "$PROJECT_ROOT" worktree remove "${REMOVE_ARGS[@]+"${REMOVE_ARGS[@]}"}" "$WORKTREE_PATH" 2>/dev/null; then
     echo "Warning: git worktree remove failed for $WORKTREE_PATH (may already be gone)." >&2
+  fi
+fi
+
+# --- Optional: delete the worker branch ---
+#
+# Off by default — parent orchestrator usually wants the branch alive long
+# enough to cherry-pick / merge. With --delete-branch the caller asserts
+# the branch is no longer needed (work landed elsewhere or being discarded).
+
+if [ "$DELETE_BRANCH" -eq 1 ]; then
+  if [ -z "$BRANCH_NAME" ]; then
+    echo "Warning: --delete-branch requested but no branch recorded in meta — skipping." >&2
+  elif ! git -C "$PROJECT_ROOT" show-ref --verify --quiet "refs/heads/${BRANCH_NAME}"; then
+    echo "Note: branch '$BRANCH_NAME' already gone — nothing to delete." >&2
+  else
+    if ! git -C "$PROJECT_ROOT" branch -D "$BRANCH_NAME" >/dev/null 2>&1; then
+      echo "Warning: git branch -D '$BRANCH_NAME' failed (may have unmerged commits not reachable from any other ref)." >&2
+    fi
   fi
 fi
 

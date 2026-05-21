@@ -13,27 +13,43 @@ set -euo pipefail
 # upstream — see docs/plans/phase-0-investigation/session-driver-cmux-divergence.md.
 #
 # Usage:
-#   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra claude args...]
+#   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--brief <file>] [extra claude args...]
 #
 # Arguments:
 #   <worker-name>       Unique cmux workspace name (e.g. "worker-api").
 #   <base-dir>          Project root (use ".") — anchors worktree + events.
 #   --branch <ref>      Optional ref to branch from. Defaults to current HEAD.
+#   --brief <file>      Optional path to a brief file. Copied into the worker's
+#                       worktree as `.cmux-brief.md` and an auto-prompt
+#                       "Read .cmux-brief.md before any work." is sent after
+#                       session_start. Mirrors OQ-escalation channel shape.
+#
+# Side effects beyond the worktree + workspace:
+#   - `.worktreeinclude` at the project root, if present, is honoured: every
+#     literal file path listed (one per line, '#' comments skipped) is copied
+#     into the new worktree if the source exists at the project root. Plain
+#     file paths only; no glob expansion. `.env.local` is the canonical case.
 #
 # Exits non-zero with a message on cmux unavailability, name collision,
 # safety-gate failure (worktree path not gitignored), or session_start timeout.
 
-WORKER_NAME="${1:?Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra args]}"
-BASE_DIR="${2:?Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [extra args]}"
+USAGE="Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--brief <file>] [extra args]"
+WORKER_NAME="${1:?$USAGE}"
+BASE_DIR="${2:?$USAGE}"
 shift 2
 
-# Parse optional --branch flag
+# Parse optional flags
 BRANCH_REF=""
+BRIEF_FILE=""
 EXTRA_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --branch)
       BRANCH_REF="${2:?--branch requires a ref argument}"
+      shift 2
+      ;;
+    --brief)
+      BRIEF_FILE="${2:?--brief requires a file path}"
       shift 2
       ;;
     *)
@@ -42,6 +58,12 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+# Validate brief file early (before any side effects)
+if [ -n "$BRIEF_FILE" ] && [ ! -f "$BRIEF_FILE" ]; then
+  echo "Error: --brief file not found: $BRIEF_FILE" >&2
+  exit 1
+fi
 
 # --- Validate environment ---
 
@@ -149,6 +171,51 @@ else
   fi
 fi
 
+# --- Honour .worktreeinclude (literal file paths only) ---
+#
+# Anthropic's `.worktreeinclude` mechanism only triggers under their internal
+# worktree-creation paths (`claude --worktree`, Agent-tool isolation, etc.).
+# `git worktree add` bypasses it. Mirror minimal semantics here for the
+# canonical `.env.local` case: each non-blank non-comment line is treated
+# as a literal relative path; if the source exists at PROJECT_ROOT, copy
+# into the worker worktree. No glob expansion (kept simple intentionally —
+# extend if patterns are needed).
+
+INCLUDE_FILE="${PROJECT_ROOT}/.worktreeinclude"
+if [ -f "$INCLUDE_FILE" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Strip CR (in case file has CRLF), trim leading/trailing whitespace
+    line="${line%$'\r'}"
+    line="$(echo "$line" | awk '{$1=$1;print}')"
+    [ -z "$line" ] && continue
+    case "$line" in
+      \#*) continue ;;
+    esac
+    SRC="${PROJECT_ROOT}/${line}"
+    DST="${WORKTREE_PATH}/${line}"
+    if [ -e "$SRC" ]; then
+      # Ensure destination parent dir exists for nested paths.
+      DST_PARENT="$(dirname "$DST")"
+      mkdir -p "$DST_PARENT"
+      cp -R "$SRC" "$DST" 2>/dev/null || \
+        echo "Warning: .worktreeinclude — failed to copy '$line' into worktree." >&2
+    fi
+  done < "$INCLUDE_FILE"
+fi
+
+# --- Copy brief file if provided ---
+
+BRIEF_DEST=""
+if [ -n "$BRIEF_FILE" ]; then
+  BRIEF_DEST="${WORKTREE_PATH}/.cmux-brief.md"
+  if ! cp "$BRIEF_FILE" "$BRIEF_DEST" 2>/dev/null; then
+    echo "Error: failed to copy brief file into worktree." >&2
+    git -C "$PROJECT_ROOT" worktree remove --force "$WORKTREE_PATH" 2>/dev/null || true
+    rm -rf "$EVENTS_DIR"
+    exit 1
+  fi
+fi
+
 # --- Write meta file (hooks consult this to recognise managed sessions) ---
 
 jq -n \
@@ -158,7 +225,8 @@ jq -n \
   --arg project_root "$PROJECT_ROOT" \
   --arg branch "$BRANCH_NAME" \
   --arg started_at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-  '{worker_name: $worker_name, session_id: $session_id, cwd: $cwd, project_root: $project_root, branch: $branch, started_at: $started_at}' \
+  --arg brief_path "$BRIEF_DEST" \
+  '{worker_name: $worker_name, session_id: $session_id, cwd: $cwd, project_root: $project_root, branch: $branch, started_at: $started_at, brief_path: $brief_path}' \
   > "$META_FILE"
 
 # --- Create cmux workspace ---
@@ -243,6 +311,17 @@ if [ "$SESSION_STARTED" -ne 1 ]; then
   exit 1
 fi
 
+# --- Auto-send brief prompt if --brief was provided ---
+#
+# Worker is now live in the worktree (session_start observed). Sending the
+# brief-pointer prompt here means downstream send-prompt.sh calls can assume
+# the worker has already read the brief.
+
+if [ -n "$BRIEF_DEST" ]; then
+  cmux send --workspace "$WS_REF" "Read .cmux-brief.md before any work." >/dev/null 2>&1 || true
+  cmux send-key --workspace "$WS_REF" enter >/dev/null 2>&1 || true
+fi
+
 # --- Output result JSON ---
 
 jq -n \
@@ -253,6 +332,7 @@ jq -n \
   --arg events_file "$EVENT_FILE" \
   --arg events_dir "$EVENTS_DIR" \
   --arg branch "$BRANCH_NAME" \
+  --arg brief_path "$BRIEF_DEST" \
   '{
     session_id: $session_id,
     worker_name: $worker_name,
@@ -260,5 +340,6 @@ jq -n \
     worktree_path: $worktree_path,
     events_file: $events_file,
     events_dir: $events_dir,
-    branch: $branch
+    branch: $branch,
+    brief_path: $brief_path
   }'
