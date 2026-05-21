@@ -1,0 +1,61 @@
+# Cloud Run Service manifest — staging / kpf tenant — cocoindex sidecar.
+#
+# ID-28.6: Cloud Run sidecar Service deploy infra.
+# Spec: docs/specs/t8-cocoindex/TECH.md §Service-vs-Job split + §S14-topology
+# Plan: docs/reference/task-list.json task 28, subtask 6
+#
+# See prod-kpf-cocoindex.yaml header for full architectural rationale.
+# This manifest is a clone with staging project substitutions.
+#
+# SA: reuses existing kpf-pipeline-sa@kh-staging-494815 — same Secret Manager
+#   secretAccessor grant.
+# region: europe-west2 (D-RUN-20 deferred)
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: kh-cocoindex-pipeline-kpf
+  labels:
+    tenant: kpf
+    env: staging
+    component: cocoindex-sidecar
+  annotations:
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: kpf-pipeline-sa@kh-staging-494815.iam.gserviceaccount.com
+      containerConcurrency: 10
+      timeoutSeconds: 900
+      containers:
+        - name: kh-cocoindex-pipeline
+          image: europe-west2-docker.pkg.dev/kh-staging-494815/pipeline/kh-cocoindex-pipeline:latest
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          env:
+            - name: NEXT_PUBLIC_CLIENT_ID
+              value: kpf
+            - name: COCOINDEX_SOURCE_PATH
+              value: ""
+            - name: IMAGE_SHA
+              value: ""
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 3

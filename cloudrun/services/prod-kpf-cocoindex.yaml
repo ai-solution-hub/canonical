@@ -1,0 +1,94 @@
+# Cloud Run Service manifest — prod / kpf tenant — cocoindex sidecar.
+#
+# ID-28.6: Cloud Run sidecar Service deploy infra.
+# Spec: docs/specs/t8-cocoindex/TECH.md §Service-vs-Job split + §S14-topology
+# Plan: docs/reference/task-list.json task 28, subtask 6
+#
+# Service vs Job rationale:
+#   cocoindex hosts a long-lived Rust + LMDB engine that keeps an in-process
+#   index across requests (single-writer, in-process concurrency only).
+#   A Cloud Run JOB exits after each task invocation — unsuitable for LMDB
+#   state management. A SERVICE runs continuously, accepting HTTP requests
+#   and keeping LMDB warm between calls (S14 single-orchestrator topology,
+#   O-Q2 ratification).
+#
+# pullmd AGPL boundary (O-Q3):
+#   Docling (MIT) + cocoindex engine run in THIS service image (kh-cocoindex-pipeline).
+#   pullmd remains a separately-deployed Service so the AGPL binary never ships
+#   inside the MIT+proprietary image. Sidecar calls pullmd via HTTP
+#   (PULLMD_SERVICE_URL Secret Manager mount — consumed by ID-28.7 _pullmd_to_markdown).
+#
+# SA: reuses existing kpf-pipeline-sa — same project, same Secret Manager
+#   secretAccessor grant (see docs/runbooks/cloud-run-phase-1-handover.md §3).
+# region: europe-west2 (D-RUN-20 deferred — re-evaluate at first-client-data-handling task)
+#
+# Secret Manager mounts wired declaratively at deploy time —
+# see `.github/workflows/cloud-run-deploy.yml` Mount Secret Manager step.
+#
+# IMAGE_SHA: injected by Cloud Build at deploy time as a substitution.
+# Correlates pipeline_runs.result->'extractor_version' to the deployed image
+# (Inv-8 forensic correlation procedure — see cloudrun/services/README.md).
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: kh-cocoindex-pipeline-kpf
+  labels:
+    tenant: kpf
+    env: prod
+    component: cocoindex-sidecar
+  annotations:
+    # Single-orchestrator topology (S14): min=max=1 prevents concurrent
+    # LMDB writer collisions. containerConcurrency=10 allows in-process
+    # request parallelism while LMDB serialises writes internally.
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: kpf-pipeline-sa@kh-prod-494815.iam.gserviceaccount.com
+      containerConcurrency: 10
+      timeoutSeconds: 900
+      containers:
+        - name: kh-cocoindex-pipeline
+          image: europe-west2-docker.pkg.dev/kh-prod-494815/pipeline/kh-cocoindex-pipeline:latest
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          env:
+            - name: NEXT_PUBLIC_CLIENT_ID
+              value: kpf
+            # COCOINDEX_SOURCE_PATH: empty default per O-Q8. Populated at
+            # runtime by the orchestrating job when targeting a specific corpus.
+            - name: COCOINDEX_SOURCE_PATH
+              value: ""
+            # IMAGE_SHA: injected at deploy time by Cloud Build substitution
+            # (_COMMIT_SHA) so pipeline_runs.result->'extractor_version' can
+            # cross-reference the exact image that processed a document set.
+            - name: IMAGE_SHA
+              value: ""
+            # PIPELINE_RUN_WEBHOOK_URL and PULLMD_SERVICE_URL are mounted from
+            # Secret Manager at deploy time — see workflow --set-secrets step.
+            # Secret Manager mounts wired declaratively at deploy time.
+          # Startup probe: allow up to 5 min for LMDB cold-start + Docling
+          # model load after first deploy (pre-warmed at build time via
+          # cocoindex-prewarm.py, but LMDB still requires ~7s rebuild on new
+          # volume mount).
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 3

@@ -1,0 +1,61 @@
+# Cloud Run Service manifest — prod / example-client tenant — cocoindex sidecar.
+#
+# ID-28.6: Cloud Run sidecar Service deploy infra.
+# Spec: docs/specs/t8-cocoindex/TECH.md §Service-vs-Job split + §S14-topology
+# Plan: docs/reference/task-list.json task 28, subtask 6
+#
+# See prod-kpf-cocoindex.yaml header for full architectural rationale.
+# This manifest is a clone with example-client tenant substitutions.
+#
+# SA: reuses existing example-client-pipeline-sa — same project, same Secret Manager
+#   secretAccessor grant (see docs/runbooks/cloud-run-phase-1-handover.md §3).
+# region: europe-west2 (D-RUN-20 deferred)
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: kh-cocoindex-pipeline-example-client
+  labels:
+    tenant: example-client
+    env: prod
+    component: cocoindex-sidecar
+  annotations:
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: example-client-pipeline-sa@kh-prod-494815.iam.gserviceaccount.com
+      containerConcurrency: 10
+      timeoutSeconds: 900
+      containers:
+        - name: kh-cocoindex-pipeline
+          image: europe-west2-docker.pkg.dev/kh-prod-494815/pipeline/kh-cocoindex-pipeline:latest
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          env:
+            - name: NEXT_PUBLIC_CLIENT_ID
+              value: example-client
+            - name: COCOINDEX_SOURCE_PATH
+              value: ""
+            - name: IMAGE_SHA
+              value: ""
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 3
