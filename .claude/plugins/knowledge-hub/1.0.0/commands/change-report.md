@@ -1,9 +1,9 @@
 ---
-description: Generate a digest of recent KB changes and activity
+description: Generate a change report of recent KB changes and activity
 argument-hint: "[--daily | --weekly]"
 ---
 
-# Digest Command
+# Change Report Command
 
 > If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
 
@@ -11,11 +11,11 @@ argument-hint: "[--daily | --weekly]"
 +---------------------------------------------------------+
 |  STANDALONE (always works)                              |
 |  Tell Claude about recent KB changes; get a structured  |
-|  digest with urgency categorisation and actions         |
+|  change report with urgency categorisation and actions         |
 +---------------------------------------------------------+
 |  SUPERCHARGED (when you connect your tools)             |
 |  Claude pulls live dashboard, freshness, and quality    |
-|  data to produce a complete change digest               |
+|  data to produce a complete change change report               |
 +---------------------------------------------------------+
 ```
 
@@ -27,9 +27,9 @@ If a file is referenced: @$1
 ## Usage
 
 ```
-/kb:digest
-/kb:digest --daily
-/kb:digest --weekly
+/kb:change-report
+/kb:change-report --daily
+/kb:change-report --weekly
 ```
 
 ## Instructions
@@ -41,7 +41,7 @@ Check for optional period arguments:
 - **No argument or `--daily`**: Focus on changes from the last 24 hours
 - **`--weekly`**: Cover the last 7 days with a broader summary
 
-Use the period to frame the digest scope and set expectations about change volume.
+Use the period to frame the change report scope and set expectations about change volume.
 
 ### 2. Fetch Dashboard Data
 
@@ -56,7 +56,7 @@ Call `get_dashboard_summary` to get current KB state including:
 **If no connector available:**
 
 ```
-To generate a KB digest, connect the Knowledge Hub server.
+To generate a KB change report, connect the Knowledge Hub server.
 
 In your MCP settings, add the Knowledge Hub connector:
 URL: https://knowledge-hub-seven-kappa.vercel.app/api/mcp/mcp
@@ -114,10 +114,10 @@ Use the @content-governance skill to categorise changes:
 - Quality issues resolved
 - Bid milestones achieved
 
-### 6. Present the Digest
+### 6. Present the Change Report
 
 ```
-# Knowledge Base Digest — [DD/MM/YYYY] [Daily | Weekly]
+# Knowledge Base Change Report — [DD/MM/YYYY] [Daily | Weekly]
 
 ## Summary
 [1-2 sentence overview of KB health and notable changes]
@@ -125,7 +125,7 @@ Use the @content-governance skill to categorise changes:
 ## Requires Action ([N] items)
 
 ### Freshness
-- [N] items moved to stale/expired since last digest
+- [N] items moved to stale/expired since last change report
 - Worst affected: [Domain] — [N] stale items
 - Action: Review and update or archive
 
@@ -167,14 +167,14 @@ Use the @content-governance skill to categorise changes:
 | [Domain] | [N] | Thin | Declining |
 
 ---
-[Total] items | [N] need action | [N] new since last digest
+[Total] items | [N] need action | [N] new since last change report
 ```
 
 ### 7. Handle Edge Cases
 
 **No changes since last check:**
 ```
-# Knowledge Base Digest — [DD/MM/YYYY]
+# Knowledge Base Change Report — [DD/MM/YYYY]
 
 No significant changes since your last check. Your KB is stable.
 
@@ -195,9 +195,9 @@ Other changes: [N] minor updates, [N] routine freshness transitions.
 ## Tips
 
 - Use UK date format (DD/MM/YYYY) throughout
-- Compare current state to baseline when possible ("+5 from last digest")
+- Compare current state to baseline when possible ("+5 from last change report")
 - Focus on actionable changes — routine freshness transitions can be summarised, not listed individually
 - Always end with concrete actions the user can take
 - Link to other commands: `/kb:coverage` for deep analysis, `/kb:bid-status` for bid detail
-- Keep the digest scannable — users should get the key information in 30 seconds
+- Keep the change report scannable — users should get the key information in 30 seconds
 - Use `--daily` for quick morning check-ins, `--weekly` for end-of-week reviews

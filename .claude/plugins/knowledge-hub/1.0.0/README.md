@@ -38,7 +38,7 @@ Every command works in two modes. Without the connector, you provide context and
 | **Bid Status** | You share bid details; Claude ranks urgency and identifies gaps | Claude fetches live bid data with question-level progress |
 | **Coverage** | You describe your KB; Claude analyses gaps | Claude pulls dashboard, freshness, and quality data automatically |
 | **Draft Response** | You paste source material; Claude drafts with bid writing best practice | Claude searches KB and Q&A library, cites sources, scores confidence |
-| **Digest** | You share recent changes; Claude categorises and prioritises | Claude generates digest from live dashboard and freshness data |
+| **Change Report** | You share recent changes; Claude categorises and prioritises | Claude generates change report from live dashboard and freshness data |
 | **Classification** | Claude advises on taxonomy based on description | Claude triggers AI classification via `classify_content` tool |
 | **Quality tracking** | Manual review guidance | Live freshness and quality data from KB |
 
@@ -74,7 +74,7 @@ Each item is classified into a domain taxonomy, tracked for freshness, and score
 | `/kb:bid-status` | Overview of active bids with progress, gaps, and deadlines |
 | `/kb:coverage` | Analyse coverage gaps and identify thin domains |
 | `/kb:draft-response` | Draft a bid response using KB content with citations |
-| `/kb:digest` | Generate a digest of recent KB changes and activity |
+| `/kb:change-report` | Generate a change report of recent KB changes and activity |
 
 ### Search
 
@@ -120,12 +120,12 @@ Analyse which domains have strong coverage and which are thin. Identifies freshn
 
 Searches the KB and Q&A library for relevant content, evaluates source quality, and drafts a structured response following UK public procurement conventions. Includes a confidence assessment and source citations.
 
-### Digest
+### Change Report
 
 ```
-/kb:digest
-/kb:digest --daily
-/kb:digest --weekly
+/kb:change-report
+/kb:change-report --daily
+/kb:change-report --weekly
 ```
 
 Summarise recent changes to the knowledge base — new content, freshness changes, quality issues, and items needing review. Helps you stay on top of KB health.
@@ -215,7 +215,7 @@ Result: Classification suggestions for each item with domain,
 ### Reviewing stale items
 
 ```
-You: /kb:digest --weekly
+You: /kb:change-report --weekly
 
 Claude checks:
   ~~knowledge base -> Freshness report shows 8 items moved to stale
