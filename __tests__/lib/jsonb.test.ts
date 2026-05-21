@@ -6,8 +6,7 @@ import {
   SummaryDataSchema,
   TranscriptSegmentSchema,
   TranscriptHighlightSchema,
-  DigestDomainSummarySchema,
-  ThemeClusterSchema,
+  ChangeReportDomainSummarySchema,
 } from '@/lib/validation/jsonb';
 
 describe('parseJsonb', () => {
@@ -86,33 +85,7 @@ describe('parseJsonb', () => {
     );
   });
 
-  it('should parse valid ThemeCluster', () => {
-    const valid = {
-      theme: 'AI Governance',
-      item_count: 5,
-      description: 'Items about AI governance and regulation',
-    };
-
-    const result = parseJsonb(ThemeClusterSchema, valid);
-    expect(result).not.toBeNull();
-    expect(result?.theme).toBe('AI Governance');
-    expect(result?.item_count).toBe(5);
-  });
-
-  it('should return null for invalid ThemeCluster', () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const invalid = {
-      theme: 'Missing required fields',
-    };
-
-    const result = parseJsonb(ThemeClusterSchema, invalid);
-    expect(result).toBeNull();
-
-    consoleSpy.mockRestore();
-  });
-
-  it('should parse valid DigestDomainSummary', () => {
+  it('should parse valid ChangeReportDomainSummary', () => {
     const valid = {
       domain: 'SECURITY',
       item_count: 10,
@@ -127,7 +100,7 @@ describe('parseJsonb', () => {
       key_themes: ['model releases', 'safety'],
     };
 
-    const result = parseJsonb(DigestDomainSummarySchema, valid);
+    const result = parseJsonb(ChangeReportDomainSummarySchema, valid);
     expect(result).not.toBeNull();
     expect(result?.domain).toBe('SECURITY');
     expect(result?.top_items).toHaveLength(1);
@@ -176,69 +149,77 @@ describe('parseJsonb', () => {
 });
 
 describe('parseJsonbArray', () => {
-  it('should parse array of valid items', () => {
+  it('should parse array of valid ChangeReportDomainSummary items', () => {
     const validArray = [
       {
-        theme: 'AI Safety',
+        domain: 'SECURITY',
         item_count: 3,
-        description: 'Items about AI safety',
+        summary: 'Security summary',
+        top_items: [],
+        key_themes: ['ai'],
       },
       {
-        theme: 'Business Strategy',
+        domain: 'COMPLIANCE',
         item_count: 7,
-        description: 'Items about strategy',
+        summary: 'Compliance summary',
+        top_items: [],
+        key_themes: ['strategy'],
       },
     ];
 
-    const result = parseJsonbArray(ThemeClusterSchema, validArray);
+    const result = parseJsonbArray(ChangeReportDomainSummarySchema, validArray);
     expect(result).toHaveLength(2);
-    expect(result[0].theme).toBe('AI Safety');
-    expect(result[1].theme).toBe('Business Strategy');
+    expect(result[0].domain).toBe('SECURITY');
+    expect(result[1].domain).toBe('COMPLIANCE');
   });
 
   it('should filter out invalid items from mixed array', () => {
     const mixedArray = [
       {
-        theme: 'Valid Theme',
+        domain: 'SECURITY',
         item_count: 5,
-        description: 'Valid description',
+        summary: 'Valid',
+        top_items: [],
+        key_themes: [],
       },
       {
-        theme: 'Invalid - missing item_count',
+        domain: 'Invalid - missing required fields',
       },
       {
-        theme: 'Another Valid',
+        domain: 'COMPLIANCE',
         item_count: 2,
-        description: 'Another description',
+        summary: 'Also valid',
+        top_items: [],
+        key_themes: [],
       },
     ];
 
-    const result = parseJsonbArray(ThemeClusterSchema, mixedArray);
+    const result = parseJsonbArray(ChangeReportDomainSummarySchema, mixedArray);
     expect(result).toHaveLength(2);
-    expect(result[0].theme).toBe('Valid Theme');
-    expect(result[1].theme).toBe('Another Valid');
+    expect(result[0].domain).toBe('SECURITY');
+    expect(result[1].domain).toBe('COMPLIANCE');
   });
 
   it('should return empty array for non-array input', () => {
-    expect(parseJsonbArray(ThemeClusterSchema, null)).toEqual([]);
-    expect(parseJsonbArray(ThemeClusterSchema, undefined)).toEqual([]);
-    expect(parseJsonbArray(ThemeClusterSchema, 'string')).toEqual([]);
-    expect(parseJsonbArray(ThemeClusterSchema, 42)).toEqual([]);
-    expect(parseJsonbArray(ThemeClusterSchema, {})).toEqual([]);
+    expect(parseJsonbArray(ChangeReportDomainSummarySchema, null)).toEqual([]);
+    expect(parseJsonbArray(ChangeReportDomainSummarySchema, undefined)).toEqual([]);
+    expect(parseJsonbArray(ChangeReportDomainSummarySchema, 'string')).toEqual([]);
+    expect(parseJsonbArray(ChangeReportDomainSummarySchema, 42)).toEqual([]);
+    expect(parseJsonbArray(ChangeReportDomainSummarySchema, {})).toEqual([]);
   });
 
   it('should return empty array for empty array input', () => {
-    const result = parseJsonbArray(ThemeClusterSchema, []);
+    const result = parseJsonbArray(ChangeReportDomainSummarySchema, []);
     expect(result).toEqual([]);
   });
 
   it('should return empty array when all items are invalid', () => {
     const allInvalid = [
-      { theme: 'Missing fields' },
-      { description: 'Also missing' },
+      { domain: 123 },
+      { item_count: 'not-a-number' },
     ];
 
-    const result = parseJsonbArray(ThemeClusterSchema, allInvalid);
+    const result = parseJsonbArray(ChangeReportDomainSummarySchema, allInvalid);
     expect(result).toEqual([]);
   });
 });

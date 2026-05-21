@@ -282,10 +282,10 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 
 ### Example 4 — Feature-scoped tech debt
 
-**Finding:** "The search filter component (`components/search/Filter.tsx`) re-renders on every keystroke because of an unstable empty-array default. Out of scope for current Subtask ID-14.2 (which is in `components/digest/`)."
+**Finding:** "The search filter component (`components/search/Filter.tsx`) re-renders on every keystroke because of an unstable empty-array default. Out of scope for current Subtask ID-14.2 (which is in `components/change-reports/`)."
 
 **Decision walk:**
-- Branch A (file-path predicate): `components/search/Filter.tsx` is OUTSIDE Subtask ID-14.2's `file_ownership_allowed` (`components/digest/**`). NOT IN-SCOPE.
+- Branch A (file-path predicate): `components/search/Filter.tsx` is OUTSIDE Subtask ID-14.2's `file_ownership_allowed` (`components/change-reports/**`). NOT IN-SCOPE.
 - Branch A (axis predicate): Not a spec-compliance issue against Subtask ID-14.2's slice. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
 - Branch B? No — single feature (search), not cross-cutting.

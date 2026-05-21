@@ -280,8 +280,8 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
-          digest_type: string
           domain_summaries: Json
+          frequency: string
           generated_at: string
           generated_by: string
           id: string
@@ -291,14 +291,13 @@ export type Database = {
           narrative_summary: string | null
           period_end: string
           period_start: string
-          theme_clusters: Json
           tokens_used: number | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
-          digest_type?: string
           domain_summaries?: Json
+          frequency?: string
           generated_at?: string
           generated_by?: string
           id?: string
@@ -308,14 +307,13 @@ export type Database = {
           narrative_summary?: string | null
           period_end: string
           period_start: string
-          theme_clusters?: Json
           tokens_used?: number | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
-          digest_type?: string
           domain_summaries?: Json
+          frequency?: string
           generated_at?: string
           generated_by?: string
           id?: string
@@ -325,7 +323,6 @@ export type Database = {
           narrative_summary?: string | null
           period_end?: string
           period_start?: string
-          theme_clusters?: Json
           tokens_used?: number | null
         }
         Relationships: []
@@ -3760,10 +3757,10 @@ export type Database = {
           needs_sme_count: number
           no_content_count: number
           partial_match_count: number
-          project_id: string
           strong_match_count: number
           total_questions: number
           unmatched_count: number
+          workspace_id: string
         }[]
       }
       get_bid_summary: { Args: { bid_workspace_id: string }; Returns: Json }

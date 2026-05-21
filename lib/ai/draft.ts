@@ -212,7 +212,7 @@ export async function draftResponse(
   let procurementWritingSkill = '';
   let ukProcurementSkill = '';
   try {
-    procurementWritingSkill = await loadSkill('bid-writing');
+    procurementWritingSkill = await loadSkill('procurement-writing');
   } catch {
     // Skill not available — proceed without it
   }
@@ -345,7 +345,7 @@ export async function draftResponseStreaming(
   let procurementWritingSkill = '';
   let ukProcurementSkill = '';
   try {
-    procurementWritingSkill = await loadSkill('bid-writing');
+    procurementWritingSkill = await loadSkill('procurement-writing');
   } catch {
     // Skill not available — proceed without it
   }

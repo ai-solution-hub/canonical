@@ -48,8 +48,8 @@ vi.mock('@/lib/validation/layer-schemas', async () => {
 });
 
 // Import routes AFTER mocks are registered
-const { GET: digestLatestGet } = await import('@/app/api/digest/latest/route');
-const { GET: digestListGet } = await import('@/app/api/digest/list/route');
+const { GET: digestLatestGet } = await import('@/app/api/change-reports/latest/route');
+const { GET: digestListGet } = await import('@/app/api/change-reports/list/route');
 const { GET: tagsSuggestGet } = await import('@/app/api/tags/suggest/route');
 const { GET: coverageGuidesGet } =
   await import('@/app/api/coverage/guides/route');
@@ -191,10 +191,10 @@ beforeEach(() => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/digest/latest
+// GET /api/change-reports/latest
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('GET /api/digest/latest', () => {
+describe('GET /api/change-reports/latest', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
@@ -221,7 +221,7 @@ describe('GET /api/digest/latest', () => {
   it('returns 200 with parsed digest data on success', async () => {
     const digestRow = {
       id: VALID_UUID,
-      digest_type: 'weekly',
+      frequency: 'weekly',
       period_start: '2026-03-01T00:00:00Z',
       period_end: '2026-03-08T00:00:00Z',
       item_count: 12,
@@ -233,9 +233,6 @@ describe('GET /api/digest/latest', () => {
           top_items: [{ id: VALID_UUID_2, title: 'Item 1' }],
           key_themes: ['testing', 'deployment'],
         },
-      ],
-      theme_clusters: [
-        { theme: 'Quality', item_count: 3, description: 'Quality focus' },
       ],
       narrative_summary: 'A productive week.',
       generated_at: '2026-03-08T12:00:00Z',
@@ -255,11 +252,9 @@ describe('GET /api/digest/latest', () => {
     const body = await res.json();
     expect(body.digest).toBeDefined();
     expect(body.digest.id).toBe(VALID_UUID);
-    expect(body.digest.digest_type).toBe('weekly');
+    expect(body.digest.frequency).toBe('weekly');
     expect(body.digest.domain_summaries).toHaveLength(1);
     expect(body.digest.domain_summaries[0].domain).toBe('Engineering');
-    expect(body.digest.theme_clusters).toHaveLength(1);
-    expect(body.digest.theme_clusters[0].theme).toBe('Quality');
     expect(body.digest.narrative_summary).toBe('A productive week.');
   });
 
@@ -279,12 +274,11 @@ describe('GET /api/digest/latest', () => {
   it('handles JSONB fields that are not arrays gracefully', async () => {
     const digestRow = {
       id: VALID_UUID,
-      digest_type: 'weekly',
+      frequency: 'weekly',
       period_start: '2026-03-01T00:00:00Z',
       period_end: '2026-03-08T00:00:00Z',
       item_count: 0,
       domain_summaries: 'not-an-array',
-      theme_clusters: null,
       narrative_summary: null,
       generated_at: '2026-03-08T12:00:00Z',
       generated_by: 'claude',
@@ -302,19 +296,18 @@ describe('GET /api/digest/latest', () => {
 
     const body = await res.json();
     expect(body.digest.domain_summaries).toEqual([]);
-    expect(body.digest.theme_clusters).toEqual([]);
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/digest/list
+// GET /api/change-reports/list
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('GET /api/digest/list', () => {
+describe('GET /api/change-reports/list', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/digest/list');
+    const req = createTestRequest('/api/change-reports/list');
     const res = await digestListGet(req);
     expect(res.status).toBe(401);
 
@@ -328,7 +321,7 @@ describe('GET /api/digest/list', () => {
         resolve({ data: [], error: null, count: 0 }),
     );
 
-    const req = createTestRequest('/api/digest/list');
+    const req = createTestRequest('/api/change-reports/list');
     const res = await digestListGet(req);
     expect(res.status).toBe(200);
 
@@ -341,12 +334,11 @@ describe('GET /api/digest/list', () => {
     const rows = [
       {
         id: VALID_UUID,
-        digest_type: 'weekly',
+        frequency: 'weekly',
         period_start: '2026-03-01T00:00:00Z',
         period_end: '2026-03-08T00:00:00Z',
         item_count: 5,
         domain_summaries: [],
-        theme_clusters: [],
         narrative_summary: 'Summary one',
         generated_at: '2026-03-08T12:00:00Z',
         generated_by: 'claude',
@@ -360,7 +352,7 @@ describe('GET /api/digest/list', () => {
         resolve({ data: rows, error: null, count: 15 }),
     );
 
-    const req = createTestRequest('/api/digest/list', {
+    const req = createTestRequest('/api/change-reports/list', {
       searchParams: { limit: '5', offset: '0' },
     });
     const res = await digestListGet(req);
@@ -373,7 +365,7 @@ describe('GET /api/digest/list', () => {
   });
 
   it('clamps out-of-range pagination params', async () => {
-    const req = createTestRequest('/api/digest/list', {
+    const req = createTestRequest('/api/change-reports/list', {
       searchParams: { limit: '0' },
     });
     const res = await digestListGet(req);
@@ -391,7 +383,7 @@ describe('GET /api/digest/list', () => {
         }),
     );
 
-    const req = createTestRequest('/api/digest/list');
+    const req = createTestRequest('/api/change-reports/list');
     const res = await digestListGet(req);
     expect(res.status).toBe(500);
 

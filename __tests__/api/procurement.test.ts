@@ -179,7 +179,7 @@ describe('GET /api/procurement', () => {
     );
 
     mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{ project_id: VALID_UUID, total: 5, answered: 3 }],
+      data: [{ workspace_id: VALID_UUID, total: 5, answered: 3 }],
       error: null,
     });
 
@@ -191,7 +191,7 @@ describe('GET /api/procurement', () => {
     expect(body.bids).toHaveLength(1);
     expect(body.bids[0].id).toBe(VALID_UUID);
     expect(body.bids[0].question_stats).toEqual({
-      project_id: VALID_UUID,
+      workspace_id: VALID_UUID,
       total: 5,
       answered: 3,
     });

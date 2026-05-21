@@ -98,7 +98,7 @@ export const VALID_REVIEW_STATUSES = [
 ] as const;
 
 /** @public */
-export const VALID_DIGEST_TYPES = ['weekly', 'daily', 'custom'] as const;
+export const VALID_CHANGE_REPORT_FREQUENCIES = ['weekly', 'daily', 'custom'] as const;
 
 // ──────────────────────────────────────────
 // API Route Schemas
@@ -205,18 +205,18 @@ export const SummaryGenerateBodySchema = z.object({
   force: z.boolean().optional(),
 });
 
-/** POST /api/digest/generate */
-export const DigestGenerateBodySchema = z.object({
+/** POST /api/change-reports/generate */
+export const ChangeReportGenerateBodySchema = z.object({
   period_days: z.number().int().min(1).max(90).default(7),
-  digest_type: z.enum(VALID_DIGEST_TYPES).default('weekly'),
+  frequency: z.enum(VALID_CHANGE_REPORT_FREQUENCIES).default('weekly'),
   domain: z.string().optional(),
   keywords: z.array(z.string().trim().min(1)).optional(),
   date_from: z.string().datetime().optional(),
   date_to: z.string().datetime().optional(),
 });
 
-/** GET /api/digest/list */
-export const DigestListParamsSchema = z.object({
+/** GET /api/change-reports/list */
+export const ChangeReportListParamsSchema = z.object({
   limit: z
     .number()
     .int()
@@ -248,7 +248,7 @@ export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('mark_read'),
     item_id: z.string().uuid('item_id must be a valid UUID'),
-    source: z.enum(['manual', 'review', 'digest', 'bulk']).default('manual'),
+    source: z.enum(['manual', 'review', 'change_report', 'bulk']).default('manual'),
   }),
   z.object({
     action: z.literal('mark_unread'),
@@ -257,7 +257,7 @@ export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('mark_bulk_read'),
     item_ids: z.array(z.string().uuid()).min(1).max(500),
-    source: z.enum(['manual', 'review', 'digest', 'bulk']).default('bulk'),
+    source: z.enum(['manual', 'review', 'change_report', 'bulk']).default('bulk'),
   }),
 ]);
 

@@ -14,8 +14,8 @@ import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
 import {
   formatActiveBids,
-  formatBidDetail,
-  formatBidQuestion,
+  formatProcurementDetail,
+  formatProcurementQuestion,
   formatCitation,
   formatContentEffectiveness,
   truncateResponse,
@@ -42,7 +42,9 @@ import {
   SAFE_WRITE_ANNOTATIONS,
 } from './shared';
 
-export async function registerBidTools(server: McpServer): Promise<void> {
+export async function registerProcurementTools(
+  server: McpServer,
+): Promise<void> {
   // -------------------------------------------------------------------------
   // 3. list_active_procurement
   // -------------------------------------------------------------------------
@@ -300,7 +302,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           ? `\n\n**Readiness:** ${readinessSummary.ready ? 'Ready to export' : 'Not ready'} (${readinessSummary.summary.answered}/${readinessSummary.summary.total_questions} answered, ${readinessSummary.summary.approved}/${readinessSummary.summary.total_questions} approved)`
           : '';
         const markdown = truncateResponse(
-          formatBidDetail(procurementDetail) + readinessLine,
+          formatProcurementDetail(procurementDetail) + readinessLine,
         );
         return {
           content: [{ type: 'text' as const, text: markdown }],
@@ -385,7 +387,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           review_status: response?.review_status ?? null,
         };
 
-        const markdown = formatBidQuestion(detail);
+        const markdown = formatProcurementQuestion(detail);
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent(detail),

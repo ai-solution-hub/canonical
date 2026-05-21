@@ -55,20 +55,20 @@ Full directory layout with file-level detail: `.planning/codebase/STRUCTURE.md`
 Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 (auto-discovered, not imported)
 
-| Directory     | Contents                                                                                                                                                                                                                                        |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/`        | Next.js 16 App Router — API routes, page routes                                                                                                                                                                                                 |
-| `mcp-apps/`   | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)                                                                                                                                                                              |
-| `components/` | Domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
-| `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                        |
-| `hooks/`      | Custom React hooks — domain subdirs (`browse`, `intelligence`, `procurement`, `provenance`, `review`, `streaming`, `ui`) + general hooks at root                                                                                                                    |
+| Directory     | Contents                                                                                                                                                                                                                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/`        | Next.js 16 App Router — API routes, page routes                                                                                                                                                                                                                                                              |
+| `mcp-apps/`   | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)                                                                                                                                                                                                                                           |
+| `components/` | Domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                                                                                        |
+| `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                                                                                     |
+| `hooks/`      | Custom React hooks — domain subdirs (`browse`, `intelligence`, `procurement`, `provenance`, `review`, `streaming`, `ui`) + general hooks at root                                                                                                                                                             |
 | `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `procurement/`, `content/`, `coverage/`, `change-reports/`, `entities/`, `extraction/`, `governance/`, `intelligence/`, `ontology/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
-| `types/`      | TypeScript types (content, procurement, procurement-metadata, digest, intelligence-refinement, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                     |
-| `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                     |
-| `supabase/`   | Migrations + auto-generated types (`database.types.ts` — never edit manually)                                                                                                                                                                   |
-| `__tests__/`  | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation)                                                                                                                                  |
-| `e2e/`        | Playwright E2E specs. Config: `playwright.config.ts`                                                                                                                                                                                            |
-| `docs/`       | Reference docs, continuation prompts, design system                                                                                                                                                                                             |
+| `types/`      | TypeScript types (content, procurement, procurement-metadata, change-reports, intelligence-refinement, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                                 |
+| `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                                                                                  |
+| `supabase/`   | Migrations + auto-generated types (`database.types.ts` — never edit manually)                                                                                                                                                                                                                                |
+| `__tests__/`  | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation)                                                                                                                                                                                               |
+| `e2e/`        | Playwright E2E specs. Config: `playwright.config.ts`                                                                                                                                                                                                                                                         |
+| `docs/`       | Reference docs, continuation prompts, design system                                                                                                                                                                                                                                                          |
 
 Current counts (routes, components, hooks, tools, migrations, tests):
 `docs/generated/codebase-stats.md` and `docs/generated/mcp-inventory.md`
@@ -254,10 +254,23 @@ without their own worktree are fine — work in the `main` worktree directly.
   `cat supabase/.temp/project-ref` before any push; relink via
   `supabase link --project-ref <correct>` if drift detected.
 - **Supabase auto-grants anon EXECUTE on every new public.\* PL/pgSQL function:**
-  `pg_default_acl` defaults make `REVOKE ... FROM PUBLIC` a no-op against the anon role.
-  Every new `public.*()` helper needs an explicit
-  `REVOKE EXECUTE ON FUNCTION public.foo() FROM anon;` in its migration — per-tenant if
-  SECURITY DEFINER.
+  `pg_default_acl` assigns a direct anon grant AND a `PUBLIC EXECUTE` grant. A single
+  `REVOKE ... FROM anon` only removes the direct grant — anon still inherits EXECUTE via
+  `PUBLIC`. A single `REVOKE ... FROM PUBLIC` only removes the PUBLIC grant — anon still
+  has its direct grant. **Both REVOKEs are required.** Canonical pattern in every
+  migration that creates or replaces a `public.*` function (S250 W1b confirmed both via
+  prod ACL inspection — `has_function_privilege('anon', ..., 'EXECUTE')` is the truth
+  check):
+  ```sql
+  REVOKE EXECUTE ON FUNCTION public.foo(...) FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.foo(...) FROM anon;
+  GRANT  EXECUTE ON FUNCTION public.foo(...) TO authenticated, service_role;
+  ```
+  Per-tenant if SECURITY DEFINER. Vector signatures use bare `vector` (no size suffix) to
+  match catalog form; migration apply session needs
+  `SET search_path = public, extensions;` at the top so unqualified `vector` resolves
+  against `extensions.vector` under CLI `db push` (MCP `apply_migration` uses a different
+  default search_path and may succeed without the explicit SET — do not rely on that).
 
 ### Testing
 
@@ -328,13 +341,6 @@ without their own worktree are fine — work in the `main` worktree directly.
   `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
-- **"Change Reports" not "Digest" — code rename complete (S248 T5):** User-facing label is
-  "Change Reports". DB table renamed `digests → change_reports` at T2 (S246). Code rename
-  shipped S248: `lib/digest/* → lib/change-reports/*`;
-  `lib/ai/digest.ts → lib/ai/change-reports.ts`; `lib/query/query-keys.ts` `digests` →
-  `changeReports` namespace. Route paths (`app/api/digest/*`, `app/digest/`) and type file
-  (`types/digest.ts`) kept as-is (URL-stable + type names unchanged). CI guard:
-  `__tests__/validation/no-digest-import-regression.test.ts`.
 - **Entity classification: false positives, not type errors:** Source of truth:
   `docs/reference/entity-type-taxonomy-spec.md`.
 
@@ -394,9 +400,12 @@ without their own worktree are fine — work in the `main` worktree directly.
   dispatch text — even in `git fetch` examples or hook-warning recitations — because
   primer effect causes the sub-agent's Write tool autocomplete to emit those paths. The
   Tier 2.2 hook is the backstop; relative-paths-only is the cheapest defense layer.
-- **Reference-doc freshness guard:** merge commits using combined-diff format don't
-  register single-parent `last_updated` additions. Workaround = follow-up single-parent
-  commit bumping `last_updated`, or `[skip-doc-freshness-guard]` body tag.
+- **Reference-doc freshness is self-policed:** the edit-coupled freshness guard
+  (`__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`) was removed S249 (commit
+  `4d4524d3`) — doc maintenance burden outweighed catch-rate benefit, and canonical
+  reference docs are stable enough to self-police. Manually bump `<!-- Last verified -->`
+  headers (UK DD/MM/YYYY) when editing canonical reference docs as a hygiene discipline;
+  no CI enforcement of same-commit migration ↔ SCHEMA-QUICK-REF coupling.
 - **Use General Purpose agents (unless otherwise specified):** These inherit the main
   sessions 1m token context window and avoids hitting token limits.
 - **ALWAYS check worktree `git status` before removing it:** This covers any cases where

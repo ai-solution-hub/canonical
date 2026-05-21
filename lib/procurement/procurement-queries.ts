@@ -82,7 +82,7 @@ export async function fetchActiveProcurementWithStats(
   const statsMap = new Map<string, ProcurementQuestionStats>();
   if (batchStats) {
     for (const row of batchStats) {
-      statsMap.set(row.project_id, {
+      statsMap.set(row.workspace_id, {
         total_questions: row.total_questions,
         drafted_count: row.drafted_count,
         complete_count: row.complete_count,

@@ -46,19 +46,12 @@ const DigestContentOpportunitySchema = z.object({
 
 /**
  * Schema for the `return_digest` tool response.
- * Used by: POST /api/digest/generate
+ * Used by: POST /api/change-reports/generate
  */
-export const DigestResponseSchema = z.object({
+export const ChangeReportResponseSchema = z.object({
   domain_summaries: z.array(DigestDomainSummaryResponseSchema),
   narrative_summary: z.string(),
-  theme_clusters: z.array(
-    z.object({
-      theme: z.string(),
-      description: z.string(),
-      item_count: z.number(),
-    }),
-  ),
   content_opportunities: z.array(DigestContentOpportunitySchema).optional(),
 });
 
-export type DigestResponse = z.infer<typeof DigestResponseSchema>;
+export type ChangeReportResponse = z.infer<typeof ChangeReportResponseSchema>;

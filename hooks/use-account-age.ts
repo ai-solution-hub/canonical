@@ -58,7 +58,7 @@ export function useAccountAge(): UseAccountAgeResult {
   // cache flush. `createdAt` is immutable, so the only cross-render
   // instability is the wall-clock reading — which is the behaviour we
   // want here. Suppressing `react-hooks/purity` deliberately, consistent
-  // with the lazy-initialiser pattern in `app/digest/page.tsx`.
+  // with the lazy-initialiser pattern in `app/change-reports/page.tsx`.
   /* eslint-disable react-hooks/purity */
   const hours = createdAt
     ? (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60)

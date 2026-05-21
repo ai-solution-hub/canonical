@@ -49,7 +49,7 @@ vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 
 import { registerSearchTools } from '@/lib/mcp/tools/search';
 import { registerContentTools } from '@/lib/mcp/tools/content';
-import { registerBidTools } from '@/lib/mcp/tools/procurement';
+import { registerProcurementTools } from '@/lib/mcp/tools/procurement';
 import { registerDashboardTools } from '@/lib/mcp/tools/dashboard';
 import { registerQualityTools } from '@/lib/mcp/tools/quality';
 import { registerAITools } from '@/lib/mcp/tools/ai';
@@ -94,7 +94,7 @@ async function collectAllTools(): Promise<ToolRegistration[]> {
   // the 4 app tools.
   await registerSearchTools(server);
   await registerDashboardTools(server);
-  await registerBidTools(server);
+  await registerProcurementTools(server);
   await registerContentTools(server);
   await registerQualityTools(server);
   await registerAITools(server);

@@ -12,7 +12,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 
-type ReadSource = 'manual' | 'review' | 'digest' | 'bulk';
+type ReadSource = 'manual' | 'review' | 'change_report' | 'bulk';
 
 interface ReadMarkCounts {
   read_count: number;

@@ -109,9 +109,10 @@ describe('MCP tools #14-16', () => {
     // Register only the categories under test: entity relationships plus
     // citation/effectiveness bid tools.
     const { registerEntityTools } = await import('@/lib/mcp/tools/entities');
-    const { registerBidTools } = await import('@/lib/mcp/tools/procurement');
+    const { registerProcurementTools } =
+      await import('@/lib/mcp/tools/procurement');
     await registerEntityTools(mockServer.server as never);
-    await registerBidTools(mockServer.server as never);
+    await registerProcurementTools(mockServer.server as never);
   });
 
   // ─────────────────────────────────────────

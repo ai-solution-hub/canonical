@@ -186,7 +186,7 @@ export function CommandPalette() {
                   </Command.Item>
                   <Command.Item
                     value="Change reports summary"
-                    onSelect={() => runCommand(() => router.push('/digest'))}
+                    onSelect={() => runCommand(() => router.push('/change-reports'))}
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
                     <BookOpen className="size-4 text-muted-foreground" />

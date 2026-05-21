@@ -3,8 +3,8 @@ import {
   SearchBodySchema,
   ReviewActionBodySchema,
   SummaryGenerateBodySchema,
-  DigestGenerateBodySchema,
-  DigestListParamsSchema,
+  ChangeReportGenerateBodySchema,
+  ChangeReportListParamsSchema,
   EmbedBodySchema,
   ReviewQueueParamsSchema,
   ReadMarkBodySchema,
@@ -199,18 +199,18 @@ describe('SummaryGenerateBodySchema', () => {
   });
 });
 
-describe('DigestGenerateBodySchema', () => {
+describe('ChangeReportGenerateBodySchema', () => {
   it('should apply defaults when no fields provided', () => {
-    const result = DigestGenerateBodySchema.safeParse({});
+    const result = ChangeReportGenerateBodySchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.period_days).toBe(7);
-      expect(result.data.digest_type).toBe('weekly');
+      expect(result.data.frequency).toBe('weekly');
     }
   });
 
   it('should accept custom period_days within bounds', () => {
-    const result = DigestGenerateBodySchema.safeParse({ period_days: 30 });
+    const result = ChangeReportGenerateBodySchema.safeParse({ period_days: 30 });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.period_days).toBe(30);
@@ -219,39 +219,39 @@ describe('DigestGenerateBodySchema', () => {
 
   it('should accept all valid digest types', () => {
     for (const digestType of ['weekly', 'daily', 'custom']) {
-      const result = DigestGenerateBodySchema.safeParse({
-        digest_type: digestType,
+      const result = ChangeReportGenerateBodySchema.safeParse({
+        frequency: digestType,
       });
       expect(result.success).toBe(true);
     }
   });
 
   it('should reject period_days above 90', () => {
-    const result = DigestGenerateBodySchema.safeParse({ period_days: 91 });
+    const result = ChangeReportGenerateBodySchema.safeParse({ period_days: 91 });
     expect(result.success).toBe(false);
   });
 
   it('should reject period_days below 1', () => {
-    const result = DigestGenerateBodySchema.safeParse({ period_days: 0 });
+    const result = ChangeReportGenerateBodySchema.safeParse({ period_days: 0 });
     expect(result.success).toBe(false);
   });
 
   it('should reject non-integer period_days', () => {
-    const result = DigestGenerateBodySchema.safeParse({ period_days: 7.5 });
+    const result = ChangeReportGenerateBodySchema.safeParse({ period_days: 7.5 });
     expect(result.success).toBe(false);
   });
 
-  it('should reject invalid digest_type', () => {
-    const result = DigestGenerateBodySchema.safeParse({
-      digest_type: 'monthly',
+  it('should reject invalid frequency', () => {
+    const result = ChangeReportGenerateBodySchema.safeParse({
+      frequency: 'monthly',
     });
     expect(result.success).toBe(false);
   });
 });
 
-describe('DigestListParamsSchema', () => {
+describe('ChangeReportListParamsSchema', () => {
   it('should apply defaults when no fields provided', () => {
-    const result = DigestListParamsSchema.safeParse({});
+    const result = ChangeReportListParamsSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.limit).toBe(10);
@@ -260,7 +260,7 @@ describe('DigestListParamsSchema', () => {
   });
 
   it('should clamp limit above 50 to 50', () => {
-    const result = DigestListParamsSchema.safeParse({ limit: 51 });
+    const result = ChangeReportListParamsSchema.safeParse({ limit: 51 });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.limit).toBe(50);
@@ -268,7 +268,7 @@ describe('DigestListParamsSchema', () => {
   });
 
   it('should clamp negative offset to 0', () => {
-    const result = DigestListParamsSchema.safeParse({ offset: -1 });
+    const result = ChangeReportListParamsSchema.safeParse({ offset: -1 });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.offset).toBe(0);
@@ -390,7 +390,7 @@ describe('ReadMarkBodySchema', () => {
   });
 
   it('should accept all valid sources for mark_read', () => {
-    for (const source of ['manual', 'review', 'digest', 'bulk']) {
+    for (const source of ['manual', 'review', 'change_report', 'bulk']) {
       const result = ReadMarkBodySchema.safeParse({
         action: 'mark_read',
         item_id: VALID_UUID,
