@@ -144,18 +144,44 @@ if cmux --json list-workspaces 2>/dev/null \
   exit 1
 fi
 
-# --- Create git worktree ---
+# --- Pre-flight collision checks (FX-3 ID-28.3 S62C) ---
+#
+# Distinguish branch-already-exists vs worktree-path-already-exists BEFORE
+# the opaque `git worktree add` error. Each shape emits a specific recovery
+# hint. When both collide, emit both diagnostics (operator may have a
+# stale branch AND a stale worktree from a prior partial cleanup).
 
 WORKTREE_PATH="${WORKTREE_BASE}/${WORKER_NAME}"
-if [ -e "$WORKTREE_PATH" ]; then
-  echo "Error: worktree path '$WORKTREE_PATH' already exists" >&2
-  rm -rf "$EVENTS_DIR"
-  exit 1
-fi
 
 # Derive branch name. Strategy: cmux-worker-<worker>-<short-sha-of-base>.
 BASE_SHA=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)
 BRANCH_NAME="cmux-worker-${WORKER_NAME}-${BASE_SHA}"
+
+COLLISION_BRANCH=0
+COLLISION_PATH=0
+
+if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "refs/heads/${BRANCH_NAME}" >/dev/null 2>&1; then
+  COLLISION_BRANCH=1
+fi
+if [ -e "$WORKTREE_PATH" ]; then
+  COLLISION_PATH=1
+fi
+
+if [ "$COLLISION_BRANCH" -eq 1 ] || [ "$COLLISION_PATH" -eq 1 ]; then
+  if [ "$COLLISION_BRANCH" -eq 1 ]; then
+    echo "Error: branch '${BRANCH_NAME}' already exists." >&2
+    echo "       A previous worker may have stopped without --delete-branch." >&2
+    echo "       Recover with:  git branch -D ${BRANCH_NAME}" >&2
+  fi
+  if [ "$COLLISION_PATH" -eq 1 ]; then
+    echo "Error: worktree path '${WORKTREE_PATH}' already exists." >&2
+    echo "       Recover with:  git worktree remove --force ${WORKTREE_PATH}" >&2
+  fi
+  rm -rf "$EVENTS_DIR"
+  exit 1
+fi
+
+# --- Create git worktree ---
 
 if [ -n "$BRANCH_REF" ]; then
   if ! git -C "$PROJECT_ROOT" worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" "$BRANCH_REF" >/dev/null 2>&1; then
