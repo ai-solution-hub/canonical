@@ -220,7 +220,7 @@ IF BACKLOG:
   Written to: docs/reference/product-backlog.json
   Item ID: {new-id}
   Track: {track-name}
-  Provenance: surfaced: "{provenance-string}"
+  Provenance: session_refs: [...], commit_refs: [...]
 
 IF NO-ACTION:
   Reason: [why this doesn't warrant action]

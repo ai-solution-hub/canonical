@@ -70,13 +70,15 @@ Backlog schema: documented inline in `docs/reference/product-backlog.json` `item
 {
   "id": "string",
   "description": "string",
-  "type": "feature | research | infra | tech-debt | ...",
+  "type": "feature | research | infra | tech_debt | ...",
   "status": "spec_needed | needs_research | parked | ready | blocked",
   "effort_estimate": "string | null",
   "priority": "high | medium | low",
   "track": "string",
   "dependencies": ["..."],
-  "surfaced": "string",
+  "session_refs": ["..."],
+  "commit_refs": ["..."],
+  "cross_doc_links": ["..."],
   "notes": "string | null"
 }
 ```
