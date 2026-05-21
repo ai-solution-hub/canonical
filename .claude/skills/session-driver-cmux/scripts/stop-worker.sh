@@ -181,8 +181,19 @@ if command -v cmux >/dev/null 2>&1 && [ -n "$WS_REF" ]; then
 fi
 
 # --- Remove the git worktree ---
+#
+# Auto-delete the script-managed `.cmux-brief.md` artefact before invoking
+# `git worktree remove` (FX-1 sub-issue 1 follow-up, S62C WP4 verification):
+# the in-script dirty-tree check carves out `.cmux-brief.md`, but
+# `git worktree remove` itself ALSO refuses dirty trees. Without this
+# pre-delete, worktree-remove fails post-clean-exit with "contains modified
+# or untracked files" even though stop-worker.sh's dirty-check passed.
 
 if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+  if [ -f "${WORKTREE_PATH}/.cmux-brief.md" ]; then
+    rm -f "${WORKTREE_PATH}/.cmux-brief.md"
+  fi
+
   REMOVE_ARGS=()
   if [ "$FORCE" -eq 1 ]; then
     REMOVE_ARGS+=("--force")
