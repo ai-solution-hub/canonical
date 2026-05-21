@@ -63,7 +63,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 | `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                                                                                     |
 | `hooks/`      | Custom React hooks — domain subdirs (`browse`, `intelligence`, `procurement`, `provenance`, `review`, `streaming`, `ui`) + general hooks at root                                                                                                                                                             |
 | `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `procurement/`, `content/`, `coverage/`, `change-reports/`, `entities/`, `extraction/`, `governance/`, `intelligence/`, `ontology/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
-| `types/`      | TypeScript types (content, procurement, procurement-metadata, digest, intelligence-refinement, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                                         |
+| `types/`      | TypeScript types (content, procurement, procurement-metadata, change-reports, intelligence-refinement, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                                 |
 | `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                                                                                  |
 | `supabase/`   | Migrations + auto-generated types (`database.types.ts` — never edit manually)                                                                                                                                                                                                                                |
 | `__tests__/`  | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation)                                                                                                                                                                                               |
@@ -341,13 +341,6 @@ without their own worktree are fine — work in the `main` worktree directly.
   `scripts/tests/fixtures/taxonomy_snapshot.json`.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
-- **"Change Reports" not "Digest" — code rename complete (S248 T5):** User-facing label is
-  "Change Reports". DB table renamed `digests → change_reports` at T2 (S246). Code rename
-  shipped S248: `lib/digest/* → lib/change-reports/*`;
-  `lib/ai/digest.ts → lib/ai/change-reports.ts`; `lib/query/query-keys.ts` `digests` →
-  `changeReports` namespace. Route paths (`app/api/digest/*`, `app/digest/`) and type file
-  (`types/digest.ts`) kept as-is (URL-stable + type names unchanged). CI guard:
-  `__tests__/validation/no-digest-import-regression.test.ts`.
 - **Entity classification: false positives, not type errors:** Source of truth:
   `docs/reference/entity-type-taxonomy-spec.md`.
 
