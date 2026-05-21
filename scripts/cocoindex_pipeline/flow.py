@@ -298,7 +298,7 @@ async def _emit_pipeline_run_webhook(
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                url, json=payload, headers=headers, timeout=10
+                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
             ) as resp:
                 if resp.status >= 400:
                     body_preview = await resp.text()
