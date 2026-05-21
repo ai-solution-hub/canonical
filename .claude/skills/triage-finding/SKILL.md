@@ -179,26 +179,7 @@ Possible reasons:
 
 ---
 
-## Step 3: Check for label-reversal flag
-
-**KH currently has roadmap and backlog labelled the wrong way around** (confirmed Session 46). Intended target semantics:
-
-- Roadmap = strategic / cross-cutting / multi-month.
-- Backlog = tactical / single-feature / weeks-scope.
-
-The current file naming follows the *legacy* convention. The `triage-finding` decision uses **target** semantics — if you decide `roadmap`, the destination is the *strategic* register, regardless of what filename it currently has. The `update-roadmap-backlog` skill resolves the legacy → target mapping at write time.
-
-**Flag the reversal if your decision contradicts what a naive read of the current files would suggest.** Include a one-line note in your output:
-
-```
-FLAG: target/legacy-label mismatch — decision is "{decision}" under target semantics; under legacy file naming this would land in "{opposite-file}". Migration is tracked separately.
-```
-
-This is informational only; no edits triggered.
-
----
-
-## Step 4: Output the decision
+## Step 3: Output the decision
 
 Return to the curator agent:
 

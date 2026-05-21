@@ -24,6 +24,7 @@
 import { z } from 'zod';
 import { TaskListStatus, Priority } from '@/lib/validation/work-status';
 import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
+import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Re-export surface-specific status and priority for consumers
@@ -96,7 +97,7 @@ export type Subtask = z.infer<typeof SubtaskSchema>;
 export const TaskSchema = z
   .object({
     /** Stringified integer (TM convention — inv 5). */
-    id: z.string().regex(/^\d+$/, 'Task id must be a string of digits'),
+    id: z.string().regex(BARE_ID_REGEX, 'Task id must be a string of digits'),
     /** Short noun phrase (~30–60 chars). */
     title: z.string().min(1),
     /** Markdown body — may preview Subtask plan in prose (TM §3.4 convention). */

@@ -50,6 +50,33 @@ per Task.
 
 ---
 
+## Backlog pickup → Promote
+
+When the Orchestrator or Liam selects a backlog item from
+`docs/reference/product-backlog.json` to implement, the **first action is to
+invoke `update-roadmap-backlog` in Promote mode** — not a manual Edit of
+`task-list.json` followed by a separate Delete on the backlog.
+
+Promote is the canonical path because:
+
+- It is **atomic**: backlog entry removed and task-list record created in one
+  operation, preserving the provenance trail on both surfaces.
+- It enforces the **idempotency check**: rejects re-promotion if the source id
+  is already absent from the backlog (prevents duplicate Task/Subtask records).
+- It writes the **provenance journal block** (`<info added on …>`) linking the
+  source backlog id into the task-list `details` field automatically.
+
+**Orchestrator-direct** (S60 ratification): the Promote operation is driven by
+the Orchestrator, not the workflow-curator. The curator handles triage and
+create; the Orchestrator handles the backlog → task-list lifecycle transition.
+
+After Promote completes, the new Task or Subtask appears on `task-list.json`
+with the correct status (`done` for already-shipped items, or the appropriate
+in-flight status). The standard ID-N lifecycle phases ({N.1}–{N.5+}) then
+proceed from that record as normal.
+
+---
+
 ## ID-N lifecycle (§3)
 
 Every Task follows the same six-phase shape. ID-N (Task) and ID-N.M (Subtask)
@@ -313,7 +340,10 @@ The Orchestrator does not declare a session `done` without:
 - Not a checker. The Orchestrator never audits commits itself — always
   dispatches.
 - Not a curator. The Orchestrator never edits roadmap or backlog itself
-  — always dispatches the `workflow-curator` agent.
+  — always dispatches the `workflow-curator` agent. Exception: the Orchestrator
+  directly invokes `update-roadmap-backlog` Promote mode when picking up a
+  backlog item (this is Orchestrator-direct per S60 ratification, not via the
+  curator).
 - Not Taskmaster-coupled. KH adopts the TM JSON **shape** (per §7 of the
   canonical doc) but not the TM CLI or MCP tool. The Orchestrator does
   not invoke `mcp__task-master-ai__*` tools or `task-master` CLI

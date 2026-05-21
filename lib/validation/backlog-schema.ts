@@ -19,6 +19,8 @@
 
 import { z } from 'zod';
 import { BacklogStatus, Priority } from '@/lib/validation/work-status';
+import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
+import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Re-export surface-level status enum (consumers import from here, not from
@@ -62,8 +64,8 @@ export type BacklogItemType = z.infer<typeof BacklogItemType>;
 // ──────────────────────────────────────────────────────────────────────────────
 
 export const BacklogItemSchema = z.object({
-  /** Item identifier — existing ids (e.g. `C2-PA5`) must not change (inv 37). */
-  id: z.string().min(1),
+  /** Item identifier — bare-digit canonical form after ID-15.4 migration (inv 37). */
+  id: z.string().regex(BARE_ID_REGEX, 'Backlog item id must be a bare digit string'),
 
   /** One-sentence summary of the work item. */
   description: z.string().min(1),
@@ -95,8 +97,25 @@ export const BacklogItemSchema = z.object({
    */
   dependencies: z.array(z.string()),
 
-  /** How this item was surfaced (e.g. `"Design critique audit"`). */
-  surfaced: z.string().min(1),
+  /**
+   * Session references for structured provenance (OQ-4 ratification).
+   * Written by workflow-curator at item creation; direct-copy on promotion
+   * to Task. Empty array when no session reference is known.
+   */
+  session_refs: z.array(z.string()),
+
+  /**
+   * Commit SHA references for structured provenance (OQ-4 ratification).
+   * Empty array when no commit reference is known.
+   */
+  commit_refs: z.array(z.string()),
+
+  /**
+   * Cross-document links for structured provenance (OQ-4 ratification).
+   * Mirrors the Roadmap + Task list shape using DocLinkSchema from
+   * roadmap-schema.ts. Empty array when no cross-doc links are known.
+   */
+  cross_doc_links: z.array(DocLinkSchema),
 
   /** Optional prose notes, nullable. */
   notes: z.string().nullable(),
@@ -124,21 +143,38 @@ export type BacklogItem = z.infer<typeof BacklogItemSchema>;
 // BacklogSchema — root document shape.
 // ──────────────────────────────────────────────────────────────────────────────
 
-export const BacklogSchema = z.object({
-  /** Document identifier literal. */
-  document_name: z.string().min(1),
+export const BacklogSchema = z
+  .object({
+    /** Document identifier literal. */
+    document_name: z.string().min(1),
 
-  /** One-paragraph human-readable purpose. */
-  document_purpose: z.string().min(1),
+    /** One-paragraph human-readable purpose. */
+    document_purpose: z.string().min(1),
 
-  /** Freetext one-liner matching the Roadmap convention. */
-  last_updated: z.string().min(1),
+    /** Freetext one-liner matching the Roadmap convention. */
+    last_updated: z.string().min(1),
 
-  /** Repo-relative paths to related documents. */
-  related_documents: z.array(z.string()),
+    /** Repo-relative paths to related documents. */
+    related_documents: z.array(z.string()),
 
-  /** Flat array of backlog items. */
-  items: z.array(BacklogItemSchema),
-});
+    /** Flat array of backlog items. */
+    items: z.array(BacklogItemSchema),
+  })
+  .superRefine((doc, ctx) => {
+    const ids = doc.items.map((item) => item.id);
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const id of ids) {
+      if (seen.has(id)) duplicates.add(id);
+      else seen.add(id);
+    }
+    if (duplicates.size > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['items'],
+        message: `Backlog items must have unique ids — duplicate id(s) found: ${[...duplicates].join(', ')}`,
+      });
+    }
+  });
 
 export type BacklogDocument = z.infer<typeof BacklogSchema>;

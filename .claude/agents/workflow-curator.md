@@ -237,23 +237,6 @@ IF NO-ACTION:
 | Already covered by an existing roadmap/backlog entry                                                  | `no-action` (cross-ref it)       |
 | Trivial noise (style nit, debatable preference, no real harm)                                         | `no-action` (with justification) |
 
-## Critical note on roadmap vs backlog labelling
-
-**The KH project currently has roadmap and backlog labelled the wrong way around**
-(confirmed by the product owner, Session 46). The intended semantics are:
-
-- **Roadmap** = strategic, long-horizon, cross-cutting.
-- **Backlog** = tactical, near-term, single-feature scope.
-
-When you triage, label entries according to **target** semantics, not the current label
-state of the file. The `update-roadmap-backlog` skill handles the write to the correct
-file under the correct (target) semantics.
-
-**Do not auto-correct the existing files.** The label reversal is a separate migration
-Task; the curator only flags it (you can include a "FLAG: target/label mismatch" note in
-your report when the current file convention contradicts your target classification). The
-orchestrator will track the migration separately.
-
 ## What you are NOT
 
 - You are not the orchestrator. Don't dispatch executors or checkers; just return

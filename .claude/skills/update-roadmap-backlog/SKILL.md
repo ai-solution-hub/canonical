@@ -1,17 +1,18 @@
 ---
 name: update-roadmap-backlog
 description:
-  Full-CRUD maintenance of the roadmap and backlog JSON ledgers — create new items
-  from a triaged finding (with provenance: source ID-N, source-commit-sha, or
-  session counter), update existing items' status / priority / notes fields
-  (covers status transitions like pending → in-progress → done), or delete items
+  Full-CRUD + Promote maintenance of the roadmap and backlog JSON ledgers — create
+  new items from a triaged finding (with provenance: source ID-N, source-commit-sha,
+  or session counter), update existing items' status / priority / notes fields
+  (covers status transitions like pending → in-progress → done), delete items
   (strictly cancelled / reclassified items — never done closures, which retain
-  in-place per s48-feedback B6). Regenerates the rendered MD if a render pipeline
-  exists. Invoked by the workflow-curator agent (Create after triage-finding
-  returns roadmap/backlog) or directly by the workflow-orchestration skill
-  (Update for status transitions; Delete for cancellations). Knows about the
-  current KH label-reversal between roadmap and backlog (target semantics drive
-  the write; legacy filenames are reconciled during the migration WP).
+  in-place per s48-feedback B6), or promote a backlog item atomically to
+  task-list.json as a new Task or Subtask (the canonical done-closure path for
+  backlog items). Regenerates the rendered MD if a render pipeline exists. Invoked
+  by the workflow-curator agent (Create after triage-finding returns roadmap/backlog)
+  or directly by the workflow-orchestration skill (Update for status transitions;
+  Delete for cancellations; Promote when picking up a backlog item for
+  implementation).
 allowed-tools: Read, Edit, Bash, Grep
 ---
 
@@ -25,9 +26,10 @@ Maintains the roadmap and backlog JSON ledgers across the full Create / Read / U
 |------|------------|---------|
 | **Create** | workflow-curator (after `triage-finding` returns `roadmap` or `backlog`) | Append a new item with provenance. Default mode. |
 | **Update** | workflow-orchestration skill (status transitions); curator (priority/notes edits) | Edit `status`, `priority`, or `notes` on an existing item. Canonical use case: S52 WP2 ID-11-14 pattern (status moves from `pending` → `in-progress` → `done`). |
-| **Delete** | workflow-orchestration skill (cancellations); curator (reclassifications) | Remove an item. **Scope: `cancelled` items and reclassifications only.** Never used for `done` closures — those retain in-place per s48-feedback B6 / S51 close-out remediation Fix A. |
+| **Delete** | workflow-orchestration skill (cancellations); curator (reclassifications) | Remove an item. **Scope: `cancelled` items and reclassifications only.** Never used for `done` closures — those use Promote. |
+| **Promote** | workflow-orchestration skill (at session-start when picking up a backlog item) | Atomically remove a backlog item and add it as a Task or Subtask on `docs/reference/task-list.json`. The canonical done-closure path for backlog items. |
 
-The Create path (Steps 1–7 below) is the original append-only flow and remains the default. Update and Delete sections at the end of this skill define their own invocation flows; both share the target → file mapping (Step 1) and the validation gate (Step 5).
+The Create path (Steps 1–7 below) is the original append-only flow and remains the default. Update, Delete, and Promote sections at the end of this skill define their own invocation flows; all share the target → file mapping (Step 1) and the validation gate (Step 5).
 
 ---
 
@@ -48,21 +50,12 @@ The curator invokes this skill with:
 
 ## Step 1: Resolve target → file
 
-**Critical:** KH currently has roadmap and backlog labelled the wrong way around (confirmed Session 46). The intended semantics:
+| Target semantics | File |
+|---|---|
+| Strategic / cross-cutting / multi-month | `docs/reference/product-roadmap.json` |
+| Tactical / single-feature / weeks-scope OR parked / deferred / pre-work | `docs/reference/product-backlog.json` |
 
-- `target: "roadmap"` = **strategic / cross-cutting / multi-month** work. This is the strategic register.
-- `target: "backlog"` = **tactical / single-feature / weeks-scope** work. This is the tactical register.
-
-Today's filenames follow the *legacy* convention. Until the migration WP corrects them, follow this mapping:
-
-| target (semantics) | file to edit | rationale |
-|--------------------|--------------|-----------|
-| `roadmap` (strategic) | `docs/reference/product-roadmap.json` | matches current legacy naming |
-| `backlog` (tactical) | `docs/reference/product-backlog.json` | matches current legacy naming |
-
-The mapping is 1:1 by coincidence with legacy naming for *this version* of the codebase. **When the migration WP runs and swaps the file names**, this skill must be updated. Until then, write to the file named after the target.
-
-If the triage payload included `label_reversal_flag`, propagate it to the curator's report — do not silently swap files.
+The mapping is 1:1 by `document_purpose`. The skill enforces target-semantic routing; the curator never auto-corrects the destination.
 
 ---
 
@@ -125,7 +118,7 @@ Required fields per the schema implicit in `product-backlog.json`:
 
 | Field | How to populate |
 |-------|-----------------|
-| `id` | Allocate next free ID. Inspect existing IDs in the same `track` first; follow the convention (`C{n}-{shortcode}` pattern, e.g. `C1-T3-Settings-3`, or a new pattern if no convention applies). |
+| `id` | Allocate next bare-digit integer above the current highest id in the file (post ID-15.4 migration all ids are bare digits, e.g. `66` if the current highest is `65`). |
 | `description` | One-sentence description of the finding. UK English. |
 | `type` | From triage payload `backlog_slot.type`. |
 | `status` | From triage payload `backlog_slot.status`. Default `spec_needed`. |
@@ -133,10 +126,12 @@ Required fields per the schema implicit in `product-backlog.json`:
 | `priority` | From triage payload `backlog_slot.priority`. Default `medium`. |
 | `track` | From triage payload `backlog_slot.track`. |
 | `dependencies` | [] unless triage identifies dependencies. |
-| `surfaced` | Provenance string. Format: `"{source-agent} during {session-counter} ({source-task-id|source-commit-sha})"`. E.g. `"workflow-checker during kh-prod-readiness-s47 (WP1.2 / a1b2c3d)"`. |
+| `session_refs` | Array of session identifiers. Populate with `[provenance.session_counter]` at minimum, plus `provenance.source_task_id` if available. |
+| `commit_refs` | Array of commit SHAs. Populate with `[provenance.source_commit_sha]` if available, else `[]`. |
+| `cross_doc_links` | Array of DocLink objects `{ path, anchor, raw }`. Populate if the finding cites a spec or doc; else `[]`. |
 | `notes` | Free-text. Include the finding's evidence reference (`file:line`) if available. |
 
-**Provenance lives in `surfaced`** for the backlog — that's the existing convention.
+**Provenance lives in `session_refs` + `commit_refs`** for backlog items, populated at creation time from the curator's current session context.
 
 ---
 
@@ -209,7 +204,6 @@ provenance:
   source_task_id: "{value or null}"
   source_commit_sha: "{value or null}"
   session_counter: "{value}"
-label_reversal_flag: "{flag or null}"
 ```
 
 ---
@@ -223,7 +217,7 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
 | Field | Description |
 |-------|-------------|
 | `target` | `roadmap` or `backlog` |
-| `item_id` | The ID of the existing item to edit (e.g. `"ID-11"`, `"9.15"`, `"C1-T3-Settings-3"`). |
+| `item_id` | The ID of the existing item to edit (e.g. `"ID-11"`, `"9.15"`, `"28"`). |
 | `field_edits` | Map of `{ status?, priority?, notes? }`. Only allowed fields are mutable via this skill. |
 | `provenance.session_counter` | Session ID for the `last_updated` stamp. |
 | `provenance.source_commit_sha` | Optional, appended to `commit_refs` (roadmap) or `notes` (backlog) if supplied. |
@@ -258,7 +252,7 @@ validation: passed | failed
 
 ### What Update is NOT
 
-- **Not for `done` closures on the backlog.** Backlog `status` enum has no `done` value. A finished backlog item is either removed (if it was reclassified or cancelled — see Delete) or retained in `ready` until the migration WP introduces a closure convention.
+- **Not for `done` closures on the backlog.** Backlog `status` enum has no `done` value. A finished backlog item is either removed via Delete (if it was reclassified or cancelled) or — when work is being picked up — moved to the task-list via **Promote** (the canonical done-closure path; see Promote mode section below).
 - **Not for ID changes.** Renaming an item's ID is a separate migration concern (delete + re-create); not in scope here.
 - **Not for `description` / `title` rewrites.** Item bodies are append-only via `notes`. Substantive rewrites require a delete-and-create cycle to preserve audit trail.
 
@@ -313,6 +307,62 @@ follow_up_create_required: true | false
 - **Not a closure mechanism.** Repeating for emphasis: a roadmap item completing is `status: "done"` via Update mode. Deletion is reserved for items that should not exist on the ledger at all.
 - **Not for cleanup of stale items.** Stale-but-not-cancelled items remain on the ledger until the product owner explicitly cancels them. Curator agents do not auto-prune.
 - **Not for typo / data-entry corrections.** Minor field corrections use Update mode where possible; if a full rewrite is needed, the Delete is paired with a Create on the same ledger (not a reclassification).
+- **Not the path for backlog → task-list pickup.** When a backlog item is picked up for implementation, use **Promote** (below), not Delete. The Promote operation captures the source → destination link with provenance; Delete loses that traceability.
+
+---
+
+## Promote mode — move a backlog item to the task-list
+
+Used when a backlog item is picked up for implementation. The item is REMOVED from `docs/reference/product-backlog.json` and ADDED to `docs/reference/task-list.json` as either a new top-level Task or a new Subtask under an existing Task. The backlog stays as a queue of OUTSTANDING work; the task-list carries the canonical `done` state for traceability. (Ratified S60 per Liam's S250 clarification — backlog → task-list MOVE convention codified in ID-15.10 Phase E.)
+
+**Invoked by:** workflow-orchestration skill at session-start (when the Orchestrator + product owner select a backlog item to pick up), or by the curator if a finding triages to `subtask` but the underlying need is already captured as a backlog item that should be promoted.
+
+### Inputs (Promote)
+
+| Field | Description |
+|-------|-------------|
+| `source_backlog_id` | The bare-digit id of the backlog item being promoted (e.g. `"67"`). |
+| `destination_shape` | One of: `new_top_level_task` (creates a new Task ID-N on task-list) or `new_subtask_under_task_id` (appends a Subtask to an existing Task). |
+| `destination_task_id` | Required if `destination_shape = new_subtask_under_task_id` — the parent Task's id (e.g. `"15"`). The new Subtask gets `id: N` where N = next-available integer in that Task's subtasks array. |
+| `provenance.session_counter` | Session ID for `last_updated` stamps (both surfaces). |
+| `provenance.source_commit_sha` | If the promotion is occurring after the underlying work has already shipped (rare but valid — e.g. ID-67 promoted post-impl during S60), include the commit SHA so the journal block captures it. Else null. |
+| `provenance.promotion_rationale` | One-line `notes` explaining why this item is being picked up now. |
+
+### Promote flow
+
+1. **Read source.** Open `docs/reference/product-backlog.json`; locate the item with `id === source_backlog_id`. Validate the item exists; if absent, error: `"Promote source not found: id={id}. Already promoted?"` (idempotency guard).
+2. **Compose destination entry.** Copy the backlog item's load-bearing fields (description, type semantics, effort_estimate, etc.) into the appropriate task-list shape:
+   - If `destination_shape = new_top_level_task`: build a new top-level Task per `TaskSchema` — assign next-available top-level Task id, populate `title`, `description`, `details`, `status` (typically `pending`; or `done` if work already shipped — see provenance.source_commit_sha), `priority`, `dependencies`, `subtasks: []`, `effort_estimate`, `owner`, `session_refs`, `commit_refs`, `cross_doc_links`, `updatedAt`.
+   - If `destination_shape = new_subtask_under_task_id`: build a Subtask record (`id` numeric, `title`, `description`, `details`, `status`, `dependencies` — sibling-only per Q-PLANNER-2, `testStrategy`).
+3. **Append journal block to destination.** Add `<info added on YYYY-MM-DDTHH:MM:SS.000Z>` block to the destination's `details` field referencing: source backlog id, promotion session, promotion rationale, optional commit SHA. Format:
+   ```
+   <info added on 2026-05-21T14:15:00.000Z>
+   Promoted from backlog item id=67 during kh-prod-readiness-S60. Rationale:
+   {provenance.promotion_rationale}. Underlying work shipped at commits
+   {provenance.source_commit_sha}.
+   </info added on 2026-05-21T14:15:00.000Z>
+   ```
+4. **Delete source entry.** Remove the backlog item from `items[]`. Bump backlog `last_updated`.
+5. **Write destination entry.** Append the new Task/Subtask. Bump task-list `last_updated` AND the parent Task's `updatedAt` if `destination_shape = new_subtask_under_task_id`.
+6. **Validate.** Run `BacklogSchema.parse()` against the new backlog state and `TaskSchema.parse()` against the new task-list state. If either fails, abort + restore source entry (the write order [delete first, then add] makes this rollback-safe; if add fails, source is gone — re-stage from git).
+7. **Report back.** YAML packet:
+   ```yaml
+   operation: promote
+   source_backlog_id: "{id}"
+   destination_target: task-list
+   destination_path: tasks[].id={N} | tasks[].id={N}.subtasks[].id={M}
+   item_title: "{title}"
+   journal_block: appended
+   source_deleted: true
+   destination_added: true
+   validation: passed | failed
+   ```
+
+### What Promote is NOT
+
+- **Not for one-way Backlog cleanup.** If a backlog item should be removed without becoming a Task (e.g. it was duplicated, abandoned, or absorbed into another effort), use Delete with `reason: cancelled` or `reason: superseded_by_{other_id}`. Promote requires a real destination entry.
+- **Not idempotent.** Re-promoting the same backlog id fails (the source is gone after the first promotion). This is intentional — Promote captures a unique pickup event; re-pickup of the same work is an error.
+- **Not for cross-ledger reclassification.** Moving an item from backlog to roadmap (or vice versa) still uses Delete + Create. Promote is exclusively backlog → task-list.
 
 ---
 
@@ -322,23 +372,8 @@ follow_up_create_required: true | false
 2. **`.strict()` schema for roadmap.** No new fields beyond what `RoadmapItemSchema` allows. Provenance lives in `session_refs` + `commit_refs`.
 3. **UK English throughout.** "colour", "organisation", "behaviour", DD/MM/YYYY dates.
 4. **Forward-looking only for roadmap.** Never add a SHIPPED marker or completed-status item to the roadmap. The roadmap is for active and ready-for-implementation only (per `update-docs` skill rules and the `forward_looking_only: true` schema literal).
-5. **No closure values in backlog status.** Backlog status enum is `spec_needed | needs_research | parked | ready | blocked`. Closed items are removed entirely, not status-flipped.
+5. **No closure values in backlog status.** Backlog status enum is `spec_needed | needs_research | parked | ready | blocked`. When work is picked up, items are PROMOTED to task-list (where `done` lives); when cancelled or reclassified, items are Deleted. Backlog itself never carries a `done` state.
 6. **Never `git commit` from this skill.** The curator returns to the orchestrator; the orchestrator's wave-close commit captures the JSON edits along with code changes.
-
----
-
-## Label-reversal note for future migration
-
-When the separate label-reversal migration WP runs, the files will be renamed (or swapped contents) so:
-
-- "Roadmap" file = strategic register.
-- "Backlog" file = tactical register.
-
-This skill currently maps `target` → file 1:1 with legacy naming. **The migration must update both:**
-- The mapping table in Step 1 above.
-- The example IDs and conventions in Steps 3 / 4 / 6.
-
-The label-reversal flag from `triage-finding` is the signal: if the curator's report contains `FLAG: target/legacy-label mismatch`, the migration has not yet run; if it does not, the migration has completed and this skill is current.
 
 ---
 
@@ -348,10 +383,9 @@ The label-reversal flag from `triage-finding` is the signal: if the curator's re
 2. **Adding a `metadata` field to roadmap.** The schema is `.strict()` — extra fields fail Zod validation and break the round-trip.
 3. **Committing from this skill.** The orchestrator owns commit sequencing. Edit the file, report back, let the orchestrator commit. Applies to Create, Update, and Delete equally.
 4. **Writing to both files for one finding.** A finding goes to exactly one of roadmap or backlog. The triage decision is binary. (Reclassifications use Delete-then-Create across files, not concurrent writes.)
-5. **Auto-correcting the label reversal.** The reversal correction is a separate WP. This skill follows current naming; flagging is informational only.
-6. **Forgetting `bun run roadmap:render` for roadmap edits.** Without rendering, the MD drifts from JSON and the round-trip CI test fails. Applies to Create, Update, and Delete on the roadmap.
-7. **Using Delete for `done` closures.** A completed roadmap item is `status: "done"` via Update mode. Delete is reserved for cancellations and reclassifications only — see Delete mode's "What Delete is NOT" section.
-8. **Overwriting `notes` on Update.** Append with a session-counter prefix to preserve audit trail.
+5. **Forgetting `bun run roadmap:render` for roadmap edits.** Without rendering, the MD drifts from JSON and the round-trip CI test fails. Applies to Create, Update, and Delete on the roadmap.
+6. **Using Delete for `done` closures.** A completed roadmap item is `status: "done"` via Update mode. Delete is reserved for cancellations and reclassifications only — see Delete mode's "What Delete is NOT" section.
+7. **Overwriting `notes` on Update.** Append with a session-counter prefix to preserve audit trail.
 
 ---
 

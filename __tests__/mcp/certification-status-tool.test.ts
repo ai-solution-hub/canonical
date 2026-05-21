@@ -2,12 +2,12 @@
  * MCP Tool: get_certification_status
  *
  * Tests the certification status tool formatter, report data assembly,
- * the Claude prompt generator, and holder-coverage paths (OPS-24).
+ * the Claude prompt generator, and holder-coverage paths (48).
  *
  * Pattern follows __tests__/mcp/get-document-versions.test.ts — tests
  * the formatter output rather than the live MCP server.
  *
- * The OPS-24 holder-coverage section (bottom of file) exercises the
+ * The 48 holder-coverage section (bottom of file) exercises the
  * tool handler directly via a mock MCP server, testing the holder
  * filtering logic in entities.ts lines 155-318.
  */
@@ -23,7 +23,7 @@ import { deriveExpiryStatus } from '@/lib/certification-status';
 import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
 
 // ---------------------------------------------------------------------------
-// Hoisted mocks for OPS-24 handler tests
+// Hoisted mocks for 48 handler tests
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => {
@@ -453,7 +453,7 @@ describe('generateCertificationReviewPrompt', () => {
 });
 
 // ---------------------------------------------------------------------------
-// OPS-24 — Holder coverage tests (tool handler via mock MCP server)
+// 48 — Holder coverage tests (tool handler via mock MCP server)
 // ---------------------------------------------------------------------------
 
 function makeAuthExtra(authInfo?: Partial<AuthInfo>) {
@@ -472,7 +472,7 @@ function makeAuthExtra(authInfo?: Partial<AuthInfo>) {
 const UUID_CONTENT_1 = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const UUID_CONTENT_2 = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
 
-describe('get_certification_status — holder coverage (OPS-24)', () => {
+describe('get_certification_status — holder coverage (48)', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = makeAuthExtra();
 
