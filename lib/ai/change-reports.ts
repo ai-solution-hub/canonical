@@ -7,16 +7,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import { extractToolResult } from '@/lib/ai-parse';
-import { DigestResponseSchema } from '@/lib/validation/ai-schemas';
-import type { DigestResponse } from '@/lib/validation/ai-schemas';
+import { ChangeReportResponseSchema } from '@/lib/validation/ai-schemas';
+import type { ChangeReportResponse } from '@/lib/validation/ai-schemas';
 import { toJson } from '@/lib/validation/jsonb';
 import { subDays, startOfDay, endOfDay, format } from 'date-fns';
 import type {
-  DigestDomainSummary,
-  DigestFilters,
-  DigestGovernanceSummary,
-  Digest,
-} from '@/types/digest';
+  ChangeReportDomainSummary,
+  ChangeReportFilters,
+  ChangeReportGovernanceSummary,
+  ChangeReport,
+} from '@/types/change-reports';
 import { AIServiceError } from '@/lib/ai/errors';
 import { generateContentSuggestions } from '@/lib/content/content-suggestions';
 import type { ContentSuggestion } from '@/lib/content/content-suggestions';
@@ -39,7 +39,7 @@ import { logger } from '@/lib/logger';
  * Exported so the client can display the threshold in the "too many items"
  * empty state and so tests can reference it.
  */
-export const DIGEST_AUTO_GEN_MAX_ITEMS = 150;
+export const CHANGE_REPORT_AUTO_GEN_MAX_ITEMS = 150;
 
 // ──────────────────────────────────────────
 // Types
@@ -63,7 +63,7 @@ interface ContentItemRow {
 }
 
 /** @public */
-export interface DigestParams {
+export interface ChangeReportParams {
   supabase: SupabaseClient<Database>;
   periodDays: number;
   digestType: string;
@@ -75,8 +75,8 @@ export interface DigestParams {
 }
 
 /** @public */
-export interface DigestResult {
-  digest: Digest;
+export interface ChangeReportResult {
+  digest: ChangeReport;
 }
 
 // ──────────────────────────────────────────
@@ -106,7 +106,6 @@ Rules:
 - domain_summaries: one per domain that has items, with a concise 2-3 sentence summary
 - key_themes: 2-5 themes per domain
 - top_items: the 3 most interesting/important items per domain with a brief explanation of why each stands out this period. Use the exact UUIDs from the item list above. If a domain has fewer than 3 items, include all of them.
-- theme_clusters: cross-domain themes that span multiple domains (3-7 clusters)
 - content_opportunities: if content suggestions are provided above, include 1-3 actionable suggestions for content to create. Each should have a domain, subtopic, a short suggestion sentence, and priority level. If no suggestions are provided, return an empty array.
 - Use UK English throughout`;
 }
@@ -134,7 +133,6 @@ Rules:
 - domain_summaries: one per domain that has items, with a single concise sentence
 - key_themes: 1-3 themes per domain (keep it brief)
 - top_items: highlight the 1-2 most interesting items per domain. Use the exact UUIDs from the item list above. If a domain has only 1 item, include it.
-- theme_clusters: 1-3 cross-domain themes only if genuinely applicable. If items are few and unrelated, return an empty array.
 - content_opportunities: if content suggestions are provided above, include 1-2 actionable suggestions. If none provided, return an empty array.
 - Use UK English throughout
 - Be concise — this is a daily snapshot, not a deep analysis`;
@@ -169,9 +167,9 @@ function buildSuggestionsSection(suggestions: ContentSuggestion[]): string {
  *
  * @throws AIServiceError for domain errors (400, 413, 500)
  */
-export async function generateDigest(
-  params: DigestParams,
-): Promise<DigestResult> {
+export async function generateChangeReport(
+  params: ChangeReportParams,
+): Promise<ChangeReportResult> {
   const {
     supabase,
     periodDays,
@@ -244,14 +242,14 @@ export async function generateDigest(
   // Pre-flight cost guard (OPS-23): reject before calling Claude when
   // the item count reaches the threshold. The API route catches the 413
   // and returns a structured error the client renders as actionable UX.
-  // `DIGEST_AUTO_GEN_MAX_ITEMS` is the first rejected value (>= not >).
-  if (typedItems.length >= DIGEST_AUTO_GEN_MAX_ITEMS) {
-    const message = `Your KB has ${typedItems.length} items in the selected period — that reaches the ${DIGEST_AUTO_GEN_MAX_ITEMS}-item limit for automatic summaries. Use Custom filter to narrow the date range or apply a domain filter.`;
+  // `CHANGE_REPORT_AUTO_GEN_MAX_ITEMS` is the first rejected value (>= not >).
+  if (typedItems.length >= CHANGE_REPORT_AUTO_GEN_MAX_ITEMS) {
+    const message = `Your KB has ${typedItems.length} items in the selected period — that reaches the ${CHANGE_REPORT_AUTO_GEN_MAX_ITEMS}-item limit for automatic summaries. Use Custom filter to narrow the date range or apply a domain filter.`;
     throw new AIServiceError(message, 413, {
       code: 'DIGEST_TOO_MANY_ITEMS',
       data: {
         item_count: typedItems.length,
-        max: DIGEST_AUTO_GEN_MAX_ITEMS,
+        max: CHANGE_REPORT_AUTO_GEN_MAX_ITEMS,
       },
     });
   }
@@ -415,18 +413,6 @@ export async function generateDigest(
               },
             },
             narrative_summary: { type: 'string' },
-            theme_clusters: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  theme: { type: 'string' },
-                  description: { type: 'string' },
-                  item_count: { type: 'number' },
-                },
-                required: ['theme', 'description', 'item_count'],
-              },
-            },
             content_opportunities: {
               type: 'array',
               description: 'Suggested content to create based on coverage gaps',
@@ -445,7 +431,7 @@ export async function generateDigest(
               },
             },
           },
-          required: ['domain_summaries', 'narrative_summary', 'theme_clusters'],
+          required: ['domain_summaries', 'narrative_summary'],
         },
       },
     ],
@@ -466,20 +452,16 @@ export async function generateDigest(
     );
   }
 
-  const parsed = extractToolResult<DigestResponse>(
+  const parsed = extractToolResult<ChangeReportResponse>(
     response,
     'return_digest',
-    DigestResponseSchema,
+    ChangeReportResponseSchema,
   );
 
   // Validate the parsed response
-  if (
-    !Array.isArray(parsed.domain_summaries) ||
-    !parsed.narrative_summary ||
-    !Array.isArray(parsed.theme_clusters)
-  ) {
+  if (!Array.isArray(parsed.domain_summaries) || !parsed.narrative_summary) {
     throw new AIServiceError(
-      'Invalid digest structure returned by Claude',
+      'Invalid change report structure returned by Claude',
       500,
     );
   }
@@ -491,7 +473,7 @@ export async function generateDigest(
   }
 
   // Merge Claude output with actual item data for domain_summaries
-  const domainSummaries: DigestDomainSummary[] = parsed.domain_summaries.map(
+  const domainSummaries: ChangeReportDomainSummary[] = parsed.domain_summaries.map(
     (ds) => {
       const domainItems = domainGroups.get(ds.domain) ?? [];
       const topItems = ds.top_items
@@ -521,8 +503,8 @@ export async function generateDigest(
   const tokensUsed =
     (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
 
-  // Build filter metadata to store alongside the digest
-  const filters: DigestFilters | null =
+  // Build filter metadata to store alongside the change report
+  const filters: ChangeReportFilters | null =
     filterDomain || (filterKeywords && filterKeywords.length > 0) || dateFrom
       ? {
           ...(filterDomain ? { domain: filterDomain } : {}),
@@ -535,7 +517,7 @@ export async function generateDigest(
       : null;
 
   // Collect governance data for the period
-  let governanceSummary: DigestGovernanceSummary | null = null;
+  let governanceSummary: ChangeReportGovernanceSummary | null = null;
   try {
     // Count modified items in period
     const { count: modifiedCount } = await supabase
@@ -601,14 +583,13 @@ export async function generateDigest(
   // Extract content opportunities from Claude response
   const contentOpportunities = parsed.content_opportunities ?? [];
 
-  // Store in the digests table
+  // Store in the change_reports table
   const digestRow = {
     digest_type: digestType,
     period_start: periodStartISO,
     period_end: periodEndISO,
     item_count: typedItems.length,
     domain_summaries: toJson(domainSummaries),
-    theme_clusters: toJson(parsed.theme_clusters),
     narrative_summary: parsed.narrative_summary,
     generated_at: new Date().toISOString(),
     generated_by: model,
@@ -637,15 +618,14 @@ export async function generateDigest(
     throw new AIServiceError('Digest generated but failed to store', 500);
   }
 
-  // Build the full Digest response
-  const digest: Digest = {
+  // Build the full ChangeReport response
+  const digest: ChangeReport = {
     id: insertedDigest.id,
     digest_type: insertedDigest.digest_type,
     period_start: insertedDigest.period_start,
     period_end: insertedDigest.period_end,
     item_count: insertedDigest.item_count,
     domain_summaries: domainSummaries,
-    theme_clusters: parsed.theme_clusters,
     narrative_summary: parsed.narrative_summary,
     generated_at: insertedDigest.generated_at,
     generated_by: insertedDigest.generated_by,

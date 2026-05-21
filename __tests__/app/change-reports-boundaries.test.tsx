@@ -17,8 +17,8 @@ vi.mock('@/lib/logger/client', () => ({
   logger: loggerMocks,
 }));
 
-import DigestError from '@/app/digest/error';
-import DigestLoading from '@/app/digest/loading';
+import ChangeReportError from '@/app/change-reports/error';
+import ChangeReportLoading from '@/app/change-reports/loading';
 
 describe('Digest Error Boundary', () => {
   const reset = vi.fn();
@@ -30,19 +30,19 @@ describe('Digest Error Boundary', () => {
   });
 
   it('renders with role="alert"', () => {
-    render(<DigestError error={error} reset={reset} />);
+    render(<ChangeReportError error={error} reset={reset} />);
     expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 
   it('renders the heading text', () => {
-    render(<DigestError error={error} reset={reset} />);
+    render(<ChangeReportError error={error} reset={reset} />);
     expect(
       screen.getByText(/couldn.*t load your change report/i),
     ).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {
-    render(<DigestError error={error} reset={reset} />);
+    render(<ChangeReportError error={error} reset={reset} />);
     const alert = screen.getByRole('alert');
     const icon = alert.querySelector('[aria-hidden="true"]');
     expect(icon).toBeInTheDocument();
@@ -50,13 +50,13 @@ describe('Digest Error Boundary', () => {
 
   it('has a "Try again" button that calls reset()', async () => {
     const user = userEvent.setup();
-    render(<DigestError error={error} reset={reset} />);
+    render(<ChangeReportError error={error} reset={reset} />);
     await user.click(screen.getByRole('button', { name: /try again/i }));
     expect(reset).toHaveBeenCalledOnce();
   });
 
   it('calls logger.error with the error via useEffect', () => {
-    render(<DigestError error={error} reset={reset} />);
+    render(<ChangeReportError error={error} reset={reset} />);
     expect(loggerMocks.error).toHaveBeenCalledWith(
       expect.objectContaining({ err: error }),
       'Digest error',
@@ -66,12 +66,12 @@ describe('Digest Error Boundary', () => {
 
 describe('Digest Loading Skeleton', () => {
   it('renders with role="status"', () => {
-    render(<DigestLoading />);
+    render(<ChangeReportLoading />);
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   it('has an aria-label attribute', () => {
-    render(<DigestLoading />);
+    render(<ChangeReportLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
       'Loading change report',
@@ -79,7 +79,7 @@ describe('Digest Loading Skeleton', () => {
   });
 
   it('contains screen-reader text', () => {
-    render(<DigestLoading />);
+    render(<ChangeReportLoading />);
     expect(screen.getByText('Loading change report...')).toBeInTheDocument();
   });
 });

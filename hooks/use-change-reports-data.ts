@@ -5,14 +5,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson, ApiError } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
-import type { Digest, DigestGenerateResponse } from '@/types/digest';
+import type { ChangeReport, ChangeReportGenerateResponse } from '@/types/change-reports';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 /** @public */
-export interface PastDigestEntry {
+export interface PastChangeReportEntry {
   id: string;
   digest_type: string;
   period_start: string;
@@ -21,7 +21,7 @@ export interface PastDigestEntry {
   created_at: string;
 }
 
-interface GenerateDigestParams {
+interface GenerateChangeReportParams {
   period_days: number;
   digest_type: string;
   date_from?: string;
@@ -45,7 +45,7 @@ interface GenerateDigestParams {
  *
  * OPS-23: AbortController support for cancelling in-flight generation.
  */
-export function useDigestData() {
+export function useChangeReportsData() {
   const queryClient = useQueryClient();
 
   // AbortController ref for cancelling in-flight generation (OPS-23)
@@ -53,23 +53,23 @@ export function useDigestData() {
 
   // ─── Latest digest query ───
 
-  const { data: latestDigest, isLoading: loading } = useQuery({
+  const { data: latestChangeReport, isLoading: loading } = useQuery({
     queryKey: queryKeys.changeReports.latest,
     queryFn: async () => {
-      const data = await fetchJson<{ digest: Digest | null }>(
-        '/api/digest/latest',
+      const data = await fetchJson<{ digest: ChangeReport | null }>(
+        '/api/change-reports/latest',
       );
       return data.digest;
     },
   });
 
-  // ─── Past digests list ───
+  // ─── Past change reports list ───
 
-  const { data: pastDigests = [], isLoading: loadingPastDigests } = useQuery({
+  const { data: pastChangeReports = [], isLoading: loadingPastChangeReports } = useQuery({
     queryKey: queryKeys.changeReports.list(10, 0),
     queryFn: async () => {
-      const data = await fetchJson<{ digests: PastDigestEntry[] }>(
-        '/api/digest/list?limit=10&offset=0',
+      const data = await fetchJson<{ digests: PastChangeReportEntry[] }>(
+        '/api/change-reports/list?limit=10&offset=0',
       );
       return data.digests;
     },
@@ -78,12 +78,12 @@ export function useDigestData() {
   // ─── Generate mutation ───
 
   const generateMutation = useMutation({
-    mutationFn: (params: GenerateDigestParams) => {
+    mutationFn: (params: GenerateChangeReportParams) => {
       // Create a new AbortController for each generation attempt
       const controller = new AbortController();
       abortRef.current = controller;
-      return mutationFetchJson<DigestGenerateResponse>(
-        '/api/digest/generate',
+      return mutationFetchJson<ChangeReportGenerateResponse>(
+        '/api/change-reports/generate',
         params,
         { signal: controller.signal },
       );
@@ -127,23 +127,23 @@ export function useDigestData() {
 
   // ─── Load a specific past digest ───
 
-  // Load a specific past digest into the "current" slot via the detail endpoint.
+  // Load a specific past change report into the "current" slot via the detail endpoint.
   // Results are cached via queryClient.fetchQuery with the detail query key.
-  const loadDigest = useCallback(
-    async (digestId: string) => {
+  const loadChangeReport = useCallback(
+    async (changeReportId: string) => {
       try {
-        const digest = await queryClient.fetchQuery({
-          queryKey: queryKeys.changeReports.detail(digestId),
+        const changeReport = await queryClient.fetchQuery({
+          queryKey: queryKeys.changeReports.detail(changeReportId),
           queryFn: async () => {
-            const data = await fetchJson<{ digest: Digest | null }>(
-              `/api/digest/${digestId}`,
+            const data = await fetchJson<{ digest: ChangeReport | null }>(
+              `/api/change-reports/${changeReportId}`,
             );
             return data.digest;
           },
         });
 
-        if (digest) {
-          queryClient.setQueryData(queryKeys.changeReports.latest, digest);
+        if (changeReport) {
+          queryClient.setQueryData(queryKeys.changeReports.latest, changeReport);
         }
       } catch {
         toast.error('Failed to load report');
@@ -153,14 +153,14 @@ export function useDigestData() {
   );
 
   return {
-    currentDigest: latestDigest ?? null,
-    pastDigests,
+    currentChangeReport: latestChangeReport ?? null,
+    pastChangeReports,
     loading,
-    loadingPastDigests,
+    loadingPastChangeReports,
     generating: generateMutation.isPending,
     generateError: generateMutation.error,
     handleGenerate: generateMutation.mutate,
     cancelGeneration,
-    loadDigest,
+    loadChangeReport,
   };
 }

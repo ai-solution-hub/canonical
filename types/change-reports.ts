@@ -1,11 +1,11 @@
-export interface DigestFilters {
+export interface ChangeReportFilters {
   domain?: string;
   keywords?: string[];
   date_from?: string;
   date_to?: string;
 }
 
-export interface DigestDomainSummary {
+export interface ChangeReportDomainSummary {
   domain: string;
   item_count: number;
   summary: string;
@@ -19,7 +19,7 @@ export interface DigestDomainSummary {
   key_themes: string[];
 }
 
-export interface DigestGovernanceSummary {
+export interface ChangeReportGovernanceSummary {
   items_modified: number;
   items_verified: number;
   items_flagged: number;
@@ -31,30 +31,23 @@ export interface DigestGovernanceSummary {
   };
 }
 
-export interface Digest {
+export interface ChangeReport {
   id: string;
   digest_type: string;
   period_start: string;
   period_end: string;
   item_count: number;
-  domain_summaries: DigestDomainSummary[];
-  theme_clusters: ThemeCluster[];
+  domain_summaries: ChangeReportDomainSummary[];
   narrative_summary: string | null;
   generated_at: string;
   generated_by: string;
   tokens_used: number | null;
   item_ids?: string[];
-  filters?: DigestFilters | null;
-  governance_summary?: DigestGovernanceSummary | null;
+  filters?: ChangeReportFilters | null;
+  governance_summary?: ChangeReportGovernanceSummary | null;
   created_at: string;
 }
 
-export interface ThemeCluster {
-  theme: string;
-  item_count: number;
-  description: string;
-}
-
-export interface DigestGenerateResponse {
-  digest: Digest;
+export interface ChangeReportGenerateResponse {
+  digest: ChangeReport;
 }

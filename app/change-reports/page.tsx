@@ -27,12 +27,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DigestView } from '@/components/digest/digest-view';
+import { ChangeReportView } from '@/components/change-reports/change-report-view';
 import { formatDate } from '@/lib/format';
-import { digestTypeLabel } from '@/lib/change-reports/change-reports-helpers';
+import { changeReportFrequencyLabel } from '@/lib/change-reports/change-reports-helpers';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
-import { useDigestData } from '@/hooks/use-digest-data';
+import { useChangeReportsData } from '@/hooks/use-change-reports-data';
 import { useAccountAge } from '@/hooks/use-account-age';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchNotificationPreferences, ApiError } from '@/lib/query/fetchers';
@@ -50,7 +50,7 @@ const PERIOD_OPTIONS = [
   { value: 'custom', label: 'Custom…', type: 'custom' as const },
 ];
 
-function DigestSkeleton() {
+function ChangeReportSkeleton() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -340,22 +340,22 @@ function TooManyItemsNotice({ itemCount, max }: TooManyItemsProps) {
 // Main page component
 // ---------------------------------------------------------------------------
 
-export default function DigestPage() {
+export default function ChangeReportsPage() {
   const { markBulkRead, loadReadMarks } = useReadMarks();
   const { getDomainNames } = useTaxonomy();
   const domainOptions = getDomainNames();
 
   const {
-    currentDigest,
+    currentChangeReport,
     loading,
-    pastDigests,
-    loadingPastDigests,
+    pastChangeReports,
+    loadingPastChangeReports,
     generating,
     generateError,
     handleGenerate,
     cancelGeneration,
-    loadDigest,
-  } = useDigestData();
+    loadChangeReport,
+  } = useChangeReportsData();
 
   const {
     isOver24h,
@@ -405,7 +405,7 @@ export default function DigestPage() {
   useEffect(() => {
     if (autoGenTriggered.current) return;
     if (loading || accountAgeLoading || notifPrefsLoading) return;
-    if (currentDigest) return;
+    if (currentChangeReport) return;
     if (generating) return;
     if (!isOver24h) return;
 
@@ -422,7 +422,7 @@ export default function DigestPage() {
     loading,
     accountAgeLoading,
     notifPrefsLoading,
-    currentDigest,
+    currentChangeReport,
     generating,
     isOver24h,
     notifPrefs,
@@ -488,14 +488,14 @@ export default function DigestPage() {
     handleGenerate,
   ]);
 
-  // Mark all items from digest as read
+  // Mark all items from change report as read
   const handleMarkAllRead = useCallback(async () => {
-    if (!currentDigest) return;
+    if (!currentChangeReport) return;
     const ids: string[] = [];
-    if (currentDigest.item_ids?.length) {
-      ids.push(...currentDigest.item_ids);
-    } else if (currentDigest.domain_summaries) {
-      for (const ds of currentDigest.domain_summaries) {
+    if (currentChangeReport.item_ids?.length) {
+      ids.push(...currentChangeReport.item_ids);
+    } else if (currentChangeReport.domain_summaries) {
+      for (const ds of currentChangeReport.domain_summaries) {
         if (ds.top_items) {
           for (const item of ds.top_items) {
             if (item.id) ids.push(item.id);
@@ -504,10 +504,10 @@ export default function DigestPage() {
       }
     }
     if (ids.length > 0) {
-      await markBulkRead(ids, 'digest');
+      await markBulkRead(ids, 'change_report');
       toast.success(`Marked ${ids.length} items as read`);
     }
-  }, [currentDigest, markBulkRead]);
+  }, [currentChangeReport, markBulkRead]);
 
   // Shared props for GenerateControls
   const controlsProps = {
@@ -537,14 +537,14 @@ export default function DigestPage() {
         className="mx-auto max-w-5xl px-4 py-12 sm:px-6"
       >
         <div role="status" aria-label="Loading">
-          <DigestSkeleton />
+          <ChangeReportSkeleton />
         </div>
       </section>
     );
   }
 
-  // No digest state + generating state
-  if (!currentDigest) {
+  // No change report state + generating state
+  if (!currentChangeReport) {
     // New-account empty-state (P0-11). Accounts < 24h old have no meaningful
     // KB history, so skip auto-gen and show a friendlier message. The manual
     // Generate button stays functional so the user can still trigger a run if
@@ -596,7 +596,7 @@ export default function DigestPage() {
               <p className="mb-4 text-center text-sm text-muted-foreground">
                 Generating your report... This may take up to a minute.
               </p>
-              <DigestSkeleton />
+              <ChangeReportSkeleton />
             </div>
           )}
         </div>
@@ -604,7 +604,7 @@ export default function DigestPage() {
     );
   }
 
-  // Digest view state
+  // Change report view state
   return (
     <section
       aria-label="Change reports"
@@ -621,11 +621,11 @@ export default function DigestPage() {
           <p className="mb-4 text-sm text-muted-foreground">
             Generating your report... This may take up to a minute.
           </p>
-          <DigestSkeleton />
+          <ChangeReportSkeleton />
         </div>
       ) : (
         <>
-          <DigestView digest={currentDigest} />
+          <ChangeReportView digest={currentChangeReport} />
 
           {/* Mark all as read — positioned after digest content */}
           <div className="mt-8 flex justify-center">
@@ -641,14 +641,14 @@ export default function DigestPage() {
         </>
       )}
 
-      {/* Past digests */}
-      {(loadingPastDigests ||
-        pastDigests.filter((d) => d.id !== currentDigest?.id).length > 0) && (
+      {/* Past change reports */}
+      {(loadingPastChangeReports ||
+        pastChangeReports.filter((d) => d.id !== currentChangeReport?.id).length > 0) && (
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Previous Reports
           </h2>
-          {loadingPastDigests ? (
+          {loadingPastChangeReports ? (
             <div
               className="flex items-center justify-center py-4"
               role="status"
@@ -662,12 +662,12 @@ export default function DigestPage() {
             </div>
           ) : (
             <ul className="space-y-2" aria-label="Previous reports">
-              {pastDigests
-                .filter((d) => d.id !== currentDigest?.id)
+              {pastChangeReports
+                .filter((d) => d.id !== currentChangeReport?.id)
                 .map((digest) => (
                   <li key={digest.id}>
                     <button
-                      onClick={() => loadDigest(digest.id)}
+                      onClick={() => loadChangeReport(digest.id)}
                       className="flex w-full flex-col gap-1 rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                     >
                       <div>
@@ -676,7 +676,7 @@ export default function DigestPage() {
                           {formatDate(digest.period_end)}
                         </span>
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {digestTypeLabel(digest.digest_type)}
+                          {changeReportFrequencyLabel(digest.digest_type)}
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground">

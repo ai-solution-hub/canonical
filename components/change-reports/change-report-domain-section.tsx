@@ -7,18 +7,18 @@ import { ContentTypeIcon } from '@/components/shared/content-type-icon';
 import { Badge } from '@/components/ui/badge';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { formatContentType } from '@/lib/format';
-import type { DigestDomainSummary } from '@/types/digest';
+import type { ChangeReportDomainSummary } from '@/types/change-reports';
 import { cn } from '@/lib/utils';
 
-interface DigestDomainSectionProps {
-  domainSummary: DigestDomainSummary;
+interface ChangeReportDomainSectionProps {
+  domainSummary: ChangeReportDomainSummary;
   className?: string;
 }
 
-export function DigestDomainSection({
+export function ChangeReportDomainSection({
   domainSummary,
   className,
-}: DigestDomainSectionProps) {
+}: ChangeReportDomainSectionProps) {
   const { getDomainColourKey } = useTaxonomy();
   const colourKey = getDomainColourKey(domainSummary.domain);
 

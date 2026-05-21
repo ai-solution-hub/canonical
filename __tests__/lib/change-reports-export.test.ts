@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { digestToMarkdown } from '@/lib/change-reports/change-reports-export';
-import type { Digest } from '@/types/digest';
+import { changeReportToMarkdown } from '@/lib/change-reports/change-reports-export';
+import type { ChangeReport } from '@/types/change-reports';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
 // ---------------------------------------------------------------------------
 
-function makeDigest(overrides: Partial<Digest> = {}): Digest {
+function makeChangeReport(overrides: Partial<ChangeReport> = {}): ChangeReport {
   return {
-    id: 'digest-001',
+    id: 'change-report-001',
     digest_type: 'weekly',
     period_start: '2026-01-25T00:00:00Z',
     period_end: '2026-02-24T00:00:00Z',
@@ -56,18 +56,6 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
         key_themes: ['enterprise adoption'],
       },
     ],
-    theme_clusters: [
-      {
-        theme: 'AI-powered development',
-        item_count: 12,
-        description: 'Tools and practices for AI-assisted software development',
-      },
-      {
-        theme: 'Enterprise readiness',
-        item_count: 7,
-        description: 'Maturation of AI tools for enterprise use cases',
-      },
-    ],
     ...overrides,
   };
 }
@@ -76,10 +64,10 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
 // Tests — updated for "Change Report" vocabulary
 // ---------------------------------------------------------------------------
 
-describe('digestToMarkdown', () => {
+describe('changeReportToMarkdown', () => {
   it('should produce output with all fields present', () => {
-    const digest = makeDigest();
-    const md = digestToMarkdown(digest);
+    const digest = makeChangeReport();
+    const md = changeReportToMarkdown(digest);
 
     // Title (auto-generated from type + dates) — now "Change Report"
     expect(md).toContain('# Weekly Change Report: 25 Jan 2026 -- 24 Feb 2026');
@@ -108,18 +96,12 @@ describe('digestToMarkdown', () => {
     expect(md).toContain('## COMPLIANCE (8 items)');
     expect(md).toContain('**Enterprise AI Playbook** (pdf)');
 
-    // Theme clusters
-    expect(md).toContain('## Cross-Domain Themes');
-    expect(md).toContain(
-      '**AI-powered development** (12 items) -- Tools and practices',
-    );
-    expect(md).toContain(
-      '**Enterprise readiness** (7 items) -- Maturation of AI tools',
-    );
+    // No theme clusters section (removed per S251 W1B ThemeCluster removal)
+    expect(md).not.toContain('## Cross-Domain Themes');
   });
 
   it('should render governance summary as "Review Activity This Period" with deltas', () => {
-    const digest = makeDigest({
+    const digest = makeChangeReport({
       governance_summary: {
         items_modified: 24,
         items_verified: 12,
@@ -132,7 +114,7 @@ describe('digestToMarkdown', () => {
         },
       },
     });
-    const md = digestToMarkdown(digest);
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('## Review Activity This Period');
     expect(md).not.toContain('## KB Health');
@@ -145,14 +127,14 @@ describe('digestToMarkdown', () => {
   });
 
   it('should format zero deltas without plus sign', () => {
-    const digest = makeDigest({
+    const digest = makeChangeReport({
       governance_summary: {
         items_modified: 0,
         items_verified: 0,
         items_flagged: 0,
       },
     });
-    const md = digestToMarkdown(digest);
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('**Items modified:** 0');
     expect(md).toContain('**Items verified:** 0');
@@ -160,8 +142,8 @@ describe('digestToMarkdown', () => {
   });
 
   it('should render item links when includeItemLinks and itemUrls are provided', () => {
-    const digest = makeDigest();
-    const md = digestToMarkdown(digest, {
+    const digest = makeChangeReport();
+    const md = changeReportToMarkdown(digest, {
       includeItemLinks: true,
       itemUrls: {
         'item-1': 'https://example.com/items/item-1',
@@ -182,8 +164,8 @@ describe('digestToMarkdown', () => {
   });
 
   it('should render bold titles when includeItemLinks is false even with itemUrls', () => {
-    const digest = makeDigest();
-    const md = digestToMarkdown(digest, {
+    const digest = makeChangeReport();
+    const md = changeReportToMarkdown(digest, {
       includeItemLinks: false,
       itemUrls: {
         'item-1': 'https://example.com/items/item-1',
@@ -197,18 +179,17 @@ describe('digestToMarkdown', () => {
   });
 
   it('should omit narrative summary section when narrative_summary is null', () => {
-    const digest = makeDigest({ narrative_summary: null });
-    const md = digestToMarkdown(digest);
+    const digest = makeChangeReport({ narrative_summary: null });
+    const md = changeReportToMarkdown(digest);
 
     expect(md).not.toContain('## Overview');
   });
 
   it('should handle empty domain summaries', () => {
-    const digest = makeDigest({
+    const digest = makeChangeReport({
       domain_summaries: [],
-      theme_clusters: [],
     });
-    const md = digestToMarkdown(digest);
+    const md = changeReportToMarkdown(digest);
 
     // Should still have the title and metadata — now "Change Report"
     expect(md).toContain('# Weekly Change Report:');
@@ -220,7 +201,7 @@ describe('digestToMarkdown', () => {
   });
 
   it('should handle domain with no top items and no key themes', () => {
-    const digest = makeDigest({
+    const digest = makeChangeReport({
       domain_summaries: [
         {
           domain: 'CORPORATE',
@@ -231,7 +212,7 @@ describe('digestToMarkdown', () => {
         },
       ],
     });
-    const md = digestToMarkdown(digest);
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('## CORPORATE (2 items)');
     expect(md).toContain('Personal reflections.');
@@ -241,29 +222,29 @@ describe('digestToMarkdown', () => {
   });
 
   it('should handle daily digest type label', () => {
-    const digest = makeDigest({ digest_type: 'daily' });
-    const md = digestToMarkdown(digest);
+    const digest = makeChangeReport({ digest_type: 'daily' });
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('# Daily Change Report:');
   });
 
   it('should handle custom digest type label', () => {
-    const digest = makeDigest({ digest_type: 'custom' });
-    const md = digestToMarkdown(digest);
+    const digest = makeChangeReport({ digest_type: 'custom' });
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('# Custom Change Report:');
   });
 
   it('should handle unknown digest type label gracefully', () => {
-    const digest = makeDigest({ digest_type: 'monthly' });
-    const md = digestToMarkdown(digest);
+    const digest = makeChangeReport({ digest_type: 'monthly' });
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('# Change Report:');
   });
 
   it('should not contain trailing whitespace on content lines', () => {
-    const digest = makeDigest();
-    const md = digestToMarkdown(digest);
+    const digest = makeChangeReport();
+    const md = changeReportToMarkdown(digest);
     const lines = md.split('\n');
 
     for (const line of lines) {
@@ -273,18 +254,16 @@ describe('digestToMarkdown', () => {
     }
   });
 
-  it('should handle null theme_clusters', () => {
-    const digest = makeDigest({
-      theme_clusters: null as unknown as undefined,
-    });
-    const md = digestToMarkdown(digest);
+  it('should not contain Cross-Domain Themes section', () => {
+    const digest = makeChangeReport();
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('# Weekly Change Report:');
     expect(md).not.toContain('## Cross-Domain Themes');
   });
 
   it('should handle domain_summaries with missing top_items field', () => {
-    const digest = makeDigest({
+    const digest = makeChangeReport({
       domain_summaries: [
         {
           domain: 'SECURITY',
@@ -295,7 +274,7 @@ describe('digestToMarkdown', () => {
         },
       ],
     });
-    const md = digestToMarkdown(digest);
+    const md = changeReportToMarkdown(digest);
 
     expect(md).toContain('## SECURITY (5 items)');
     expect(md).toContain('Updates in AI.');

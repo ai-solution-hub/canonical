@@ -6,7 +6,7 @@ import { Newspaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger/client';
 
-export default function DigestError({
+export default function ChangeReportError({
   error,
   reset,
 }: {

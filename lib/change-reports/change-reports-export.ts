@@ -9,8 +9,8 @@ import {
 import { format, parseISO } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { formatDate } from '@/lib/format';
-import { digestTypeLabel } from '@/lib/change-reports/change-reports-helpers';
-import type { Digest } from '@/types/digest';
+import { changeReportFrequencyLabel } from '@/lib/change-reports/change-reports-helpers';
+import type { ChangeReport } from '@/types/change-reports';
 
 /** Format a date string for filenames (e.g. "25-jan-2026") */
 function formatDateForFilename(dateString: string): string {
@@ -27,7 +27,7 @@ function formatDateForFilename(dateString: string): string {
 // ---------------------------------------------------------------------------
 
 /** @public */
-export interface DigestExportOptions {
+export interface ChangeReportExportOptions {
   /** Include hyperlinks for top items */
   includeItemLinks?: boolean;
   /** Map of item ID -> URL for linking */
@@ -35,18 +35,18 @@ export interface DigestExportOptions {
 }
 
 /**
- * Convert a Digest into well-structured Markdown.
+ * Convert a ChangeReport into well-structured Markdown.
  *
  * Used by "Copy as Markdown" and as input to the DOCX generator.
  */
-export function digestToMarkdown(
-  digest: Digest,
-  options?: DigestExportOptions,
+export function changeReportToMarkdown(
+  digest: ChangeReport,
+  options?: ChangeReportExportOptions,
 ): string {
   const lines: string[] = [];
 
   // Title
-  const title = `${digestTypeLabel(digest.digest_type)}: ${formatDate(digest.period_start)} -- ${formatDate(digest.period_end)}`;
+  const title = `${changeReportFrequencyLabel(digest.digest_type)}: ${formatDate(digest.period_start)} -- ${formatDate(digest.period_end)}`;
 
   lines.push(`# ${title}`);
   lines.push('');
@@ -105,18 +105,6 @@ export function digestToMarkdown(
       const fb = gs.freshness_breakdown;
       lines.push(
         `- **Freshness:** ${fb.fresh} fresh, ${fb.aging} aging, ${fb.stale} stale, ${fb.expired} expired`,
-      );
-    }
-    lines.push('');
-  }
-
-  // Theme clusters
-  if (digest.theme_clusters && digest.theme_clusters.length > 0) {
-    lines.push('## Cross-Domain Themes');
-    lines.push('');
-    for (const cluster of digest.theme_clusters) {
-      lines.push(
-        `- **${cluster.theme}** (${cluster.item_count} items) -- ${cluster.description}`,
       );
     }
     lines.push('');
@@ -235,16 +223,16 @@ function inlineRuns(text: string): TextRun[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a DOCX document from a Digest.
+ * Generate a DOCX document from a ChangeReport.
  *
- * Uses `digestToMarkdown` internally then converts the Markdown blocks
+ * Uses `changeReportToMarkdown` internally then converts the Markdown blocks
  * into Word paragraphs via the `docx` package.
  */
-async function generateDigestDocx(
-  digest: Digest,
-  options?: DigestExportOptions,
+async function generateChangeReportDocx(
+  digest: ChangeReport,
+  options?: ChangeReportExportOptions,
 ): Promise<Blob> {
-  const md = digestToMarkdown(digest, options);
+  const md = changeReportToMarkdown(digest, options);
   const blocks = parseMarkdown(md);
 
   const paragraphs: Paragraph[] = [];
@@ -355,13 +343,13 @@ async function generateDigestDocx(
 /**
  * Generate a DOCX blob and trigger a browser download.
  *
- * Filename follows the pattern: `digest-25-jan-24-feb-2026.docx`
+ * Filename follows the pattern: `change-report-25-jan-24-feb-2026.docx`
  */
-export async function downloadDigestDocx(
-  digest: Digest,
-  options?: DigestExportOptions,
+export async function downloadChangeReportDocx(
+  digest: ChangeReport,
+  options?: ChangeReportExportOptions,
 ): Promise<void> {
-  const blob = await generateDigestDocx(digest, options);
+  const blob = await generateChangeReportDocx(digest, options);
 
   const start = formatDateForFilename(digest.period_start);
   const end = formatDateForFilename(digest.period_end);

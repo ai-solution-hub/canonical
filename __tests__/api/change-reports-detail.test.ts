@@ -30,7 +30,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import handler under test (AFTER mocks are registered)
 // ---------------------------------------------------------------------------
 
-import { GET } from '@/app/api/digest/[id]/route';
+import { GET } from '@/app/api/change-reports/[id]/route';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -123,10 +123,10 @@ function resetMocks() {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/digest/[id]
+// GET /api/change-reports/[id]
 // ---------------------------------------------------------------------------
 
-describe('GET /api/digest/[id]', () => {
+describe('GET /api/change-reports/[id]', () => {
   beforeEach(resetMocks);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ describe('GET /api/digest/[id]', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/digest/${VALID_UUID}`);
+    const req = createTestRequest(`/api/change-reports/${VALID_UUID}`);
     const res = await GET(req, {
       params: createTestParams({ id: VALID_UUID }),
     });
@@ -147,7 +147,7 @@ describe('GET /api/digest/[id]', () => {
   // ── Validation ────────────────────────────────────────────────────────────
 
   it('returns 400 for invalid UUID format', async () => {
-    const req = createTestRequest('/api/digest/not-a-uuid');
+    const req = createTestRequest('/api/change-reports/not-a-uuid');
     const res = await GET(req, {
       params: createTestParams({ id: 'not-a-uuid' }),
     });
@@ -158,7 +158,7 @@ describe('GET /api/digest/[id]', () => {
   });
 
   it('returns 400 for empty ID', async () => {
-    const req = createTestRequest('/api/digest/');
+    const req = createTestRequest('/api/change-reports/');
     const res = await GET(req, { params: createTestParams({ id: '' }) });
 
     expect(res.status).toBe(400);
@@ -174,7 +174,7 @@ describe('GET /api/digest/[id]', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/digest/${VALID_UUID}`);
+    const req = createTestRequest(`/api/change-reports/${VALID_UUID}`);
     const res = await GET(req, {
       params: createTestParams({ id: VALID_UUID }),
     });
@@ -192,7 +192,7 @@ describe('GET /api/digest/[id]', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/digest/${VALID_UUID}`);
+    const req = createTestRequest(`/api/change-reports/${VALID_UUID}`);
     const res = await GET(req, {
       params: createTestParams({ id: VALID_UUID }),
     });
@@ -227,7 +227,7 @@ describe('GET /api/digest/[id]', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/digest/${VALID_UUID}`);
+    const req = createTestRequest(`/api/change-reports/${VALID_UUID}`);
     const res = await GET(req, {
       params: createTestParams({ id: VALID_UUID }),
     });
@@ -245,7 +245,7 @@ describe('GET /api/digest/[id]', () => {
       error: { message: 'Database connection failed', code: '500' },
     });
 
-    const req = createTestRequest(`/api/digest/${VALID_UUID}`);
+    const req = createTestRequest(`/api/change-reports/${VALID_UUID}`);
     const res = await GET(req, {
       params: createTestParams({ id: VALID_UUID }),
     });

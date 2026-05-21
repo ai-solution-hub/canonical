@@ -1,5 +1,5 @@
 /**
- * useDigestData cancel + AbortController tests (OPS-23).
+ * useChangeReportsData cancel + AbortController tests (OPS-23).
  *
  * Validates:
  *   - cancelGeneration aborts the in-flight request
@@ -25,21 +25,20 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }));
 
-import { useDigestData } from '@/hooks/use-digest-data';
+import { useChangeReportsData } from '@/hooks/use-change-reports-data';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDigest(overrides: Record<string, unknown> = {}) {
+function makeChangeReport(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'digest-1',
+    id: 'change-report-1',
     digest_type: 'weekly',
     period_start: '2026-03-01T00:00:00Z',
     period_end: '2026-03-08T00:00:00Z',
     item_count: 5,
     domain_summaries: [],
-    theme_clusters: [],
     narrative_summary: 'A summary.',
     generated_at: '2026-03-08T12:00:00Z',
     generated_by: 'system',
@@ -63,7 +62,7 @@ function setupFetch(
   mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
     const urlStr = typeof url === 'string' ? url : String(url);
 
-    if (urlStr.includes('/api/digest/latest')) {
+    if (urlStr.includes('/api/change-reports/latest')) {
       return {
         ok: true,
         json: async () => ({
@@ -72,7 +71,7 @@ function setupFetch(
       };
     }
 
-    if (urlStr.includes('/api/digest/list')) {
+    if (urlStr.includes('/api/change-reports/list')) {
       return {
         ok: true,
         json: async () => ({
@@ -81,7 +80,7 @@ function setupFetch(
       };
     }
 
-    if (urlStr.includes('/api/digest/generate')) {
+    if (urlStr.includes('/api/change-reports/generate')) {
       // Check if the signal has been aborted
       if (init?.signal?.aborted) {
         throw new DOMException('The operation was aborted.', 'AbortError');
@@ -111,7 +110,7 @@ function setupFetch(
       return {
         ok: true,
         json: async () => ({
-          digest: options.generateResult ?? makeDigest(),
+          digest: options.generateResult ?? makeChangeReport(),
         }),
       };
     }
@@ -127,7 +126,7 @@ function setupFetch(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('useDigestData cancel + AbortController (OPS-23)', () => {
+describe('useChangeReportsData cancel + AbortController (OPS-23)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', mockFetch);
@@ -140,7 +139,7 @@ describe('useDigestData cancel + AbortController (OPS-23)', () => {
 
   it('exposes cancelGeneration function', async () => {
     const { Wrapper } = createQueryWrapper();
-    const { result } = renderHook(() => useDigestData(), {
+    const { result } = renderHook(() => useChangeReportsData(), {
       wrapper: Wrapper,
     });
 
@@ -151,7 +150,7 @@ describe('useDigestData cancel + AbortController (OPS-23)', () => {
     setupFetch({ generateDelay: 5000 });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useDigestData(), {
+    const { result } = renderHook(() => useChangeReportsData(), {
       wrapper: Wrapper,
     });
 
@@ -188,7 +187,7 @@ describe('useDigestData cancel + AbortController (OPS-23)', () => {
     setupFetch({ generateDelay: 5000 });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useDigestData(), {
+    const { result } = renderHook(() => useChangeReportsData(), {
       wrapper: Wrapper,
     });
 
@@ -232,7 +231,7 @@ describe('useDigestData cancel + AbortController (OPS-23)', () => {
     });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useDigestData(), {
+    const { result } = renderHook(() => useChangeReportsData(), {
       wrapper: Wrapper,
     });
 
@@ -265,7 +264,7 @@ describe('useDigestData cancel + AbortController (OPS-23)', () => {
     });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useDigestData(), {
+    const { result } = renderHook(() => useChangeReportsData(), {
       wrapper: Wrapper,
     });
 

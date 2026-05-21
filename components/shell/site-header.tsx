@@ -53,7 +53,7 @@ const NAV_LINKS = [
     requiresEdit: false,
   },
   {
-    href: '/digest',
+    href: '/change-reports',
     label: 'Change Reports',
     icon: FileBarChart,
     requiresEdit: false,

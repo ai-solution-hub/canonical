@@ -24,10 +24,10 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-// Mock the AI digest service
-const mockGenerateDigest = vi.fn();
+// Mock the AI change report service
+const mockGenerateChangeReport = vi.fn();
 vi.mock('@/lib/ai/change-reports', () => ({
-  generateDigest: (...args: unknown[]) => mockGenerateDigest(...args),
+  generateChangeReport: (...args: unknown[]) => mockGenerateChangeReport(...args),
 }));
 
 // Mock rate-limit — allow by default
@@ -43,7 +43,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import handler under test (AFTER mocks are registered)
 // ---------------------------------------------------------------------------
 
-import { POST } from '@/app/api/digest/generate/route';
+import { POST } from '@/app/api/change-reports/generate/route';
 // Import AIServiceError for constructing test errors
 import { AIServiceError } from '@/lib/ai/errors';
 
@@ -141,14 +141,14 @@ function resetMocks() {
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 2 });
 
   // Default: generateDigest returns a valid digest
-  mockGenerateDigest.mockResolvedValue(MOCK_DIGEST);
+  mockGenerateChangeReport.mockResolvedValue(MOCK_DIGEST);
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/digest/generate
+// POST /api/change-reports/generate
 // ---------------------------------------------------------------------------
 
-describe('POST /api/digest/generate', () => {
+describe('POST /api/change-reports/generate', () => {
   beforeEach(resetMocks);
 
   // ── Auth & Role ──────────────────────────────────────────────────────────
@@ -156,7 +156,7 @@ describe('POST /api/digest/generate', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 7 },
     });
@@ -171,7 +171,7 @@ describe('POST /api/digest/generate', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 7 },
     });
@@ -186,7 +186,7 @@ describe('POST /api/digest/generate', () => {
     configureRole(mockSupabase, 'editor');
     mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0 });
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 7 },
     });
@@ -203,7 +203,7 @@ describe('POST /api/digest/generate', () => {
   it('returns 400 for invalid period_days (too large)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 999 },
     });
@@ -223,7 +223,7 @@ describe('POST /api/digest/generate', () => {
   it('returns 400 for invalid digest_type', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 7, digest_type: 'monthly' },
     });
@@ -245,7 +245,7 @@ describe('POST /api/digest/generate', () => {
   it('returns 200 with digest on success (weekly)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 7, digest_type: 'weekly' },
     });
@@ -259,7 +259,7 @@ describe('POST /api/digest/generate', () => {
     expect(json.digest.narrative_summary).toBeTruthy();
 
     // Verify generateDigest was called with correct params
-    expect(mockGenerateDigest).toHaveBeenCalledWith(
+    expect(mockGenerateChangeReport).toHaveBeenCalledWith(
       expect.objectContaining({
         periodDays: 7,
         digestType: 'weekly',
@@ -275,9 +275,9 @@ describe('POST /api/digest/generate', () => {
       ...MOCK_DIGEST,
       digest: { ...MOCK_DIGEST.digest, digest_type: 'daily' },
     };
-    mockGenerateDigest.mockResolvedValue(dailyDigest);
+    mockGenerateChangeReport.mockResolvedValue(dailyDigest);
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { digest_type: 'daily' },
     });
@@ -288,7 +288,7 @@ describe('POST /api/digest/generate', () => {
     const json = await res.json();
     expect(json.digest.digest_type).toBe('daily');
 
-    expect(mockGenerateDigest).toHaveBeenCalledWith(
+    expect(mockGenerateChangeReport).toHaveBeenCalledWith(
       expect.objectContaining({
         digestType: 'daily',
       }),
@@ -298,7 +298,7 @@ describe('POST /api/digest/generate', () => {
   it('honours optional digest filters when generating a digest', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: {
         period_days: 14,
@@ -313,7 +313,7 @@ describe('POST /api/digest/generate', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
 
-    expect(mockGenerateDigest).toHaveBeenCalledWith(
+    expect(mockGenerateChangeReport).toHaveBeenCalledWith(
       expect.objectContaining({
         periodDays: 14,
         digestType: 'custom',
@@ -330,14 +330,14 @@ describe('POST /api/digest/generate', () => {
 
   it('returns AIServiceError status when AI service throws domain error', async () => {
     configureRole(mockSupabase, 'editor');
-    mockGenerateDigest.mockRejectedValue(
+    mockGenerateChangeReport.mockRejectedValue(
       new AIServiceError(
         'No content items found for the selected filters and period',
         400,
       ),
     );
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 7 },
     });
@@ -353,14 +353,14 @@ describe('POST /api/digest/generate', () => {
 
   it('returns 413 when content is too long for digest', async () => {
     configureRole(mockSupabase, 'editor');
-    mockGenerateDigest.mockRejectedValue(
+    mockGenerateChangeReport.mockRejectedValue(
       new AIServiceError(
         'Content too long for digest generation — response was truncated',
         413,
       ),
     );
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 30 },
     });
@@ -374,11 +374,11 @@ describe('POST /api/digest/generate', () => {
 
   it('returns 500 on unexpected error', async () => {
     configureRole(mockSupabase, 'editor');
-    mockGenerateDigest.mockRejectedValue(
+    mockGenerateChangeReport.mockRejectedValue(
       new Error('Unexpected network failure'),
     );
 
-    const req = createTestRequest('/api/digest/generate', {
+    const req = createTestRequest('/api/change-reports/generate', {
       method: 'POST',
       body: { period_days: 7 },
     });

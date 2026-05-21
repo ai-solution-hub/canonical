@@ -3,10 +3,9 @@ import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import {
   parseJsonbArray,
-  DigestDomainSummarySchema,
-  ThemeClusterSchema,
+  ChangeReportDomainSummarySchema,
 } from '@/lib/validation/jsonb';
-import type { Digest } from '@/types/digest';
+import type { ChangeReport } from '@/types/change-reports';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
@@ -39,17 +38,16 @@ export async function GET() {
       return NextResponse.json({ digest: null });
     }
 
-    const digest: Digest = {
+    const digest: ChangeReport = {
       id: data.id,
       digest_type: data.digest_type,
       period_start: data.period_start,
       period_end: data.period_end,
       item_count: data.item_count,
       domain_summaries: parseJsonbArray(
-        DigestDomainSummarySchema,
+        ChangeReportDomainSummarySchema,
         data.domain_summaries,
       ),
-      theme_clusters: parseJsonbArray(ThemeClusterSchema, data.theme_clusters),
       narrative_summary: data.narrative_summary,
       generated_at: data.generated_at,
       generated_by: data.generated_by,

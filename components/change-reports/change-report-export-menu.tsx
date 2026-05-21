@@ -13,27 +13,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  digestToMarkdown,
-  downloadDigestDocx,
+  changeReportToMarkdown,
+  downloadChangeReportDocx,
 } from '@/lib/change-reports/change-reports-export';
-import { digestTypeLabel } from '@/lib/change-reports/change-reports-helpers';
+import { changeReportFrequencyLabel } from '@/lib/change-reports/change-reports-helpers';
 import { safeErrorMessage } from '@/lib/error';
-import type { Digest } from '@/types/digest';
+import type { ChangeReport } from '@/types/change-reports';
 
-interface DigestExportMenuProps {
-  digest: Digest;
+interface ChangeReportExportMenuProps {
+  digest: ChangeReport;
 }
 
-export function DigestExportMenu({ digest }: DigestExportMenuProps) {
+export function ChangeReportExportMenu({ digest }: ChangeReportExportMenuProps) {
   const [downloadingDocx, setDownloadingDocx] = useState(false);
 
   async function handleCopyMarkdown() {
     try {
-      const md = digestToMarkdown(digest);
+      const md = changeReportToMarkdown(digest);
       await navigator.clipboard.writeText(md);
       toast.success('Copied as Markdown');
     } catch (err) {
-      console.error('Failed to copy digest as Markdown:', err);
+      console.error('Failed to copy change report as Markdown:', err);
       toast.error(safeErrorMessage(err, 'Failed to copy to clipboard'));
     }
   }
@@ -41,7 +41,7 @@ export function DigestExportMenu({ digest }: DigestExportMenuProps) {
   async function handleDownloadDocx() {
     setDownloadingDocx(true);
     try {
-      await downloadDigestDocx(digest);
+      await downloadChangeReportDocx(digest);
       toast.success('DOCX downloaded');
     } catch (err) {
       console.error('Failed to generate DOCX:', err);
@@ -56,9 +56,9 @@ export function DigestExportMenu({ digest }: DigestExportMenuProps) {
   }
 
   function handleEmail() {
-    const label = digestTypeLabel(digest.digest_type);
+    const label = changeReportFrequencyLabel(digest.digest_type);
     const subject = encodeURIComponent(`${label} — ${BRANDING.productName}`);
-    const md = digestToMarkdown(digest);
+    const md = changeReportToMarkdown(digest);
     const body = encodeURIComponent(md);
     window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
   }

@@ -81,7 +81,7 @@ vi.spyOn(console, 'warn').mockImplementation(() => {});
 // Import under test AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { generateDigest } from '@/lib/ai/change-reports';
+import { generateChangeReport } from '@/lib/ai/change-reports';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
@@ -244,7 +244,7 @@ beforeEach(resetMocks);
 
 describe('Digest Content Suggestions Integration', () => {
   it('calls generateContentSuggestions during digest generation', async () => {
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',
@@ -261,7 +261,7 @@ describe('Digest Content Suggestions Integration', () => {
   });
 
   it('passes domain filter to suggestion engine when digest has domain filter', async () => {
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',
@@ -277,7 +277,7 @@ describe('Digest Content Suggestions Integration', () => {
   });
 
   it('includes content suggestions in the Claude prompt', async () => {
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',
@@ -295,7 +295,7 @@ describe('Digest Content Suggestions Integration', () => {
   });
 
   it('includes content_opportunities in the tool schema', async () => {
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',
@@ -313,7 +313,7 @@ describe('Digest Content Suggestions Integration', () => {
     mockGenerateContentSuggestions.mockRejectedValue(new Error('DB error'));
 
     // Should not throw — suggestions failure should not block digest
-    const result = await generateDigest({
+    const result = await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',
@@ -325,7 +325,7 @@ describe('Digest Content Suggestions Integration', () => {
   });
 
   it('prompt includes content_opportunities instruction for standard digests', async () => {
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',
@@ -340,7 +340,7 @@ describe('Digest Content Suggestions Integration', () => {
   });
 
   it('prompt includes content_opportunities instruction for daily digests', async () => {
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 1,
       digestType: 'daily',
@@ -356,7 +356,7 @@ describe('Digest Content Suggestions Integration', () => {
   it('does not include suggestions section when engine returns empty', async () => {
     mockGenerateContentSuggestions.mockResolvedValue([]);
 
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',
@@ -371,7 +371,7 @@ describe('Digest Content Suggestions Integration', () => {
   });
 
   it('stores content_opportunities in digest metadata when present', async () => {
-    await generateDigest({
+    await generateChangeReport({
       supabase: mockSupabase as unknown as SupabaseClient<Database>,
       periodDays: 7,
       digestType: 'weekly',

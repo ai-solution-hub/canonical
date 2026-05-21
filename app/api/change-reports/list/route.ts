@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
-import { DigestListParamsSchema } from '@/lib/validation/schemas';
+import { ChangeReportListParamsSchema } from '@/lib/validation/schemas';
 import {
   parseJsonbArray,
-  DigestDomainSummarySchema,
-  ThemeClusterSchema,
+  ChangeReportDomainSummarySchema,
 } from '@/lib/validation/jsonb';
-import type { Digest } from '@/types/digest';
+import type { ChangeReport } from '@/types/change-reports';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
@@ -21,7 +20,7 @@ export async function GET(request: NextRequest) {
     const { supabase } = auth;
 
     const { searchParams } = new URL(request.url);
-    const parsed = parseSearchParams(DigestListParamsSchema, searchParams);
+    const parsed = parseSearchParams(ChangeReportListParamsSchema, searchParams);
     if (!parsed.success) return parsed.response;
     const { limit, offset } = parsed.data;
 
@@ -43,17 +42,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const digests: Digest[] = (data ?? []).map((row) => ({
+    const digests: ChangeReport[] = (data ?? []).map((row) => ({
       id: row.id,
       digest_type: row.digest_type,
       period_start: row.period_start,
       period_end: row.period_end,
       item_count: row.item_count,
       domain_summaries: parseJsonbArray(
-        DigestDomainSummarySchema,
+        ChangeReportDomainSummarySchema,
         row.domain_summaries,
       ),
-      theme_clusters: parseJsonbArray(ThemeClusterSchema, row.theme_clusters),
       narrative_summary: row.narrative_summary,
       generated_at: row.generated_at,
       generated_by: row.generated_by,

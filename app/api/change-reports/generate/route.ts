@@ -7,8 +7,8 @@ import {
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { DigestGenerateBodySchema } from '@/lib/validation/schemas';
-import { generateDigest } from '@/lib/ai/change-reports';
+import { ChangeReportGenerateBodySchema } from '@/lib/validation/schemas';
+import { generateChangeReport } from '@/lib/ai/change-reports';
 import { AIServiceError } from '@/lib/ai/errors';
 
 export const maxDuration = 60;
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const raw = await request.json();
-    const validated = parseBody(DigestGenerateBodySchema, raw);
+    const validated = parseBody(ChangeReportGenerateBodySchema, raw);
     if (!validated.success) return validated.response;
 
     const {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       date_to: dateTo,
     } = validated.data;
 
-    const result = await generateDigest({
+    const result = await generateChangeReport({
       supabase,
       periodDays,
       digestType,

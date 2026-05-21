@@ -1,42 +1,42 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Layers, FileText, Shield, Activity } from 'lucide-react';
+import { FileText, Shield, Activity } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { DigestDomainSection } from '@/components/digest/digest-domain-section';
+import { ChangeReportDomainSection } from '@/components/change-reports/change-report-domain-section';
 import { formatDate } from '@/lib/format';
-import { digestTypeLabel } from '@/lib/change-reports/change-reports-helpers';
+import { changeReportFrequencyLabel } from '@/lib/change-reports/change-reports-helpers';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
-import type { Digest, DigestGovernanceSummary } from '@/types/digest';
+import type { ChangeReport, ChangeReportGovernanceSummary } from '@/types/change-reports';
 import { cn } from '@/lib/utils';
 
-const DigestExportMenu = dynamic(
+const ChangeReportExportMenu = dynamic(
   () =>
-    import('@/components/digest/digest-export-menu').then(
-      (mod) => mod.DigestExportMenu,
+    import('@/components/change-reports/change-report-export-menu').then(
+      (mod) => mod.ChangeReportExportMenu,
     ),
   { ssr: false },
 );
 
-interface DigestViewProps {
-  digest: Digest;
+interface ChangeReportViewProps {
+  digest: ChangeReport;
   className?: string;
 }
 
-export function DigestView({ digest, className }: DigestViewProps) {
+export function ChangeReportView({ digest, className }: ChangeReportViewProps) {
   return (
     <div className={cn('space-y-8', className)}>
       {/* Header */}
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-fluid-2xl font-bold tracking-tight">
-            {digestTypeLabel(digest.digest_type)}
+            {changeReportFrequencyLabel(digest.digest_type)}
           </h1>
           <Badge variant="secondary" className="text-sm font-normal">
             {digest.item_count} {digest.item_count === 1 ? 'item' : 'items'}
           </Badge>
           <div className="ml-auto flex items-center gap-2" data-no-print>
-            <DigestExportMenu digest={digest} />
+            <ChangeReportExportMenu digest={digest} />
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -70,7 +70,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
             {digest.domain_summaries.map((ds) => (
-              <DigestDomainSection key={ds.domain} domainSummary={ds} />
+              <ChangeReportDomainSection key={ds.domain} domainSummary={ds} />
             ))}
           </div>
         </section>
@@ -90,41 +90,6 @@ export function DigestView({ digest, className }: DigestViewProps) {
         />
       )}
 
-      {/* Theme clusters */}
-      <section className="rounded-xl border bg-card p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Layers className="size-4 text-primary" />
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Cross-Domain Themes
-          </h2>
-        </div>
-        {digest.theme_clusters.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {digest.theme_clusters.map((cluster) => (
-              <div
-                key={cluster.theme}
-                className="rounded-lg border bg-muted/30 p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {cluster.theme}
-                  </h3>
-                  <Badge variant="outline" className="shrink-0 text-[11px]">
-                    {cluster.item_count}
-                  </Badge>
-                </div>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-                  {cluster.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No cross-domain themes identified for this period.
-          </p>
-        )}
-      </section>
     </div>
   );
 }
@@ -142,7 +107,7 @@ function formatDelta(value: number): string {
 function ReviewActivitySection({
   summary,
 }: {
-  summary: DigestGovernanceSummary;
+  summary: ChangeReportGovernanceSummary;
 }) {
   const { items_modified, items_verified, items_flagged } = summary;
 
@@ -189,7 +154,7 @@ function ReviewActivitySection({
 function KBHealthSection({
   freshnessBreakdown,
 }: {
-  freshnessBreakdown: DigestGovernanceSummary['freshness_breakdown'];
+  freshnessBreakdown: ChangeReportGovernanceSummary['freshness_breakdown'];
 }) {
   if (!freshnessBreakdown) return null;
 

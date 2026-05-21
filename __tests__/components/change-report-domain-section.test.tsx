@@ -1,5 +1,5 @@
 /**
- * DigestDomainSection Component Tests
+ * ChangeReportDomainSection Component Tests
  *
  * Tests the digest domain section card — domain badge, summary, themes,
  * top items, and the "Review these items" link.
@@ -57,16 +57,16 @@ vi.mock('@/components/ui/badge', () => ({
 }));
 
 // Import AFTER mocks
-import { DigestDomainSection } from '@/components/digest/digest-domain-section';
-import type { DigestDomainSummary } from '@/types/digest';
+import { ChangeReportDomainSection } from '@/components/change-reports/change-report-domain-section';
+import type { ChangeReportDomainSummary } from '@/types/change-reports';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function makeDomainSummary(
-  overrides: Partial<DigestDomainSummary> = {},
-): DigestDomainSummary {
+  overrides: Partial<ChangeReportDomainSummary> = {},
+): ChangeReportDomainSummary {
   return {
     domain: 'Corporate',
     item_count: 3,
@@ -84,13 +84,13 @@ function makeDomainSummary(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('DigestDomainSection', () => {
+describe('ChangeReportDomainSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('renders domain badge and item count', () => {
-    render(<DigestDomainSection domainSummary={makeDomainSummary()} />);
+    render(<ChangeReportDomainSection domainSummary={makeDomainSummary()} />);
 
     expect(screen.getByTestId('domain-badge')).toHaveTextContent('Corporate');
     expect(screen.getByText('3 items')).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe('DigestDomainSection', () => {
 
   it('renders singular "item" for count of 1', () => {
     render(
-      <DigestDomainSection
+      <ChangeReportDomainSection
         domainSummary={makeDomainSummary({ item_count: 1 })}
       />,
     );
@@ -107,7 +107,7 @@ describe('DigestDomainSection', () => {
   });
 
   it('renders summary text', () => {
-    render(<DigestDomainSection domainSummary={makeDomainSummary()} />);
+    render(<ChangeReportDomainSection domainSummary={makeDomainSummary()} />);
 
     expect(
       screen.getByText('Corporate domain summary text.'),
@@ -115,14 +115,14 @@ describe('DigestDomainSection', () => {
   });
 
   it('renders key theme badges', () => {
-    render(<DigestDomainSection domainSummary={makeDomainSummary()} />);
+    render(<ChangeReportDomainSection domainSummary={makeDomainSummary()} />);
 
     expect(screen.getByText('governance')).toBeInTheDocument();
     expect(screen.getByText('compliance')).toBeInTheDocument();
   });
 
   it('renders top items as links', () => {
-    render(<DigestDomainSection domainSummary={makeDomainSummary()} />);
+    render(<ChangeReportDomainSection domainSummary={makeDomainSummary()} />);
 
     const firstLink = screen.getByRole('link', { name: /First Item/i });
     expect(firstLink).toHaveAttribute('href', '/item/item-1');
@@ -132,7 +132,7 @@ describe('DigestDomainSection', () => {
   });
 
   it('renders "Review these items" link pointing to review page with domain filter', () => {
-    render(<DigestDomainSection domainSummary={makeDomainSummary()} />);
+    render(<ChangeReportDomainSection domainSummary={makeDomainSummary()} />);
 
     const reviewLink = screen.getByRole('link', {
       name: /Review these items/i,
@@ -143,7 +143,7 @@ describe('DigestDomainSection', () => {
 
   it('encodes domain names with special characters in the review link', () => {
     render(
-      <DigestDomainSection
+      <ChangeReportDomainSection
         domainSummary={makeDomainSummary({ domain: 'Health & Safety' })}
       />,
     );
@@ -159,7 +159,7 @@ describe('DigestDomainSection', () => {
 
   it('renders review link even with no top items', () => {
     render(
-      <DigestDomainSection
+      <ChangeReportDomainSection
         domainSummary={makeDomainSummary({ top_items: [] })}
       />,
     );
@@ -172,7 +172,7 @@ describe('DigestDomainSection', () => {
 
   it('does not render key themes section when themes array is empty', () => {
     render(
-      <DigestDomainSection
+      <ChangeReportDomainSection
         domainSummary={makeDomainSummary({ key_themes: [] })}
       />,
     );
@@ -183,7 +183,7 @@ describe('DigestDomainSection', () => {
 
   it('renders why_notable text for items that have it', () => {
     render(
-      <DigestDomainSection
+      <ChangeReportDomainSection
         domainSummary={makeDomainSummary({
           top_items: [
             {

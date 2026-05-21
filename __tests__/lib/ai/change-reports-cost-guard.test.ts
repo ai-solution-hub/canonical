@@ -1,9 +1,9 @@
 /**
  * Digest cost guard tests (OPS-23).
  *
- * Tests the DIGEST_AUTO_GEN_MAX_ITEMS threshold pre-flight check in
+ * Tests the CHANGE_REPORT_AUTO_GEN_MAX_ITEMS threshold pre-flight check in
  * `lib/ai/digest.ts`. When the number of content items in the period
- * exceeds the threshold, `generateDigest` should throw an AIServiceError
+ * exceeds the threshold, `generateChangeReport` should throw an AIServiceError
  * with status 413 and a structured JSON body.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -40,8 +40,8 @@ vi.mock('@/lib/supabase/telemetry', () => ({
 // ---------------------------------------------------------------------------
 
 import {
-  generateDigest,
-  DIGEST_AUTO_GEN_MAX_ITEMS,
+  generateChangeReport,
+  CHANGE_REPORT_AUTO_GEN_MAX_ITEMS,
 } from '@/lib/ai/change-reports';
 
 // ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ function createMockSupabase(itemCount: number) {
   });
 
   return mockQuery as unknown as Parameters<
-    typeof generateDigest
+    typeof generateChangeReport
   >[0]['supabase'];
 }
 
@@ -97,15 +97,15 @@ describe('Digest cost guard (OPS-23)', () => {
     vi.clearAllMocks();
   });
 
-  it('exports DIGEST_AUTO_GEN_MAX_ITEMS as 150', () => {
-    expect(DIGEST_AUTO_GEN_MAX_ITEMS).toBe(150);
+  it('exports CHANGE_REPORT_AUTO_GEN_MAX_ITEMS as 150', () => {
+    expect(CHANGE_REPORT_AUTO_GEN_MAX_ITEMS).toBe(150);
   });
 
   it('throws AIServiceError(413) when item count reaches or exceeds threshold', async () => {
     const supabase = createMockSupabase(200);
 
     await expect(
-      generateDigest({
+      generateChangeReport({
         supabase,
         periodDays: 7,
         digestType: 'weekly',
@@ -114,7 +114,7 @@ describe('Digest cost guard (OPS-23)', () => {
     ).rejects.toThrow(AIServiceError);
 
     try {
-      await generateDigest({
+      await generateChangeReport({
         supabase,
         periodDays: 7,
         digestType: 'weekly',
@@ -129,30 +129,30 @@ describe('Digest cost guard (OPS-23)', () => {
       // JSON-inside-message). Human-readable message on `message`.
       expect(aiErr.code).toBe('DIGEST_TOO_MANY_ITEMS');
       expect(aiErr.data?.item_count).toBe(200);
-      expect(aiErr.data?.max).toBe(DIGEST_AUTO_GEN_MAX_ITEMS);
+      expect(aiErr.data?.max).toBe(CHANGE_REPORT_AUTO_GEN_MAX_ITEMS);
       expect(aiErr.message).toContain('200 items');
     }
   });
 
   it('throws 413 when item count is exactly at the threshold (>= boundary)', async () => {
-    // S191 Wave 3 fix: guard uses `>=` not `>`, so DIGEST_AUTO_GEN_MAX_ITEMS
+    // S191 Wave 3 fix: guard uses `>=` not `>`, so CHANGE_REPORT_AUTO_GEN_MAX_ITEMS
     // is the first rejected value, not the last accepted one.
-    const supabase = createMockSupabase(DIGEST_AUTO_GEN_MAX_ITEMS);
+    const supabase = createMockSupabase(CHANGE_REPORT_AUTO_GEN_MAX_ITEMS);
 
     try {
-      await generateDigest({
+      await generateChangeReport({
         supabase,
         periodDays: 7,
         digestType: 'weekly',
         userId: '00000000-0000-4000-8000-000000000001',
       });
-      throw new Error('generateDigest should have thrown');
+      throw new Error('generateChangeReport should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(AIServiceError);
       const aiErr = err as AIServiceError;
       expect(aiErr.status).toBe(413);
       expect(aiErr.code).toBe('DIGEST_TOO_MANY_ITEMS');
-      expect(aiErr.data?.item_count).toBe(DIGEST_AUTO_GEN_MAX_ITEMS);
+      expect(aiErr.data?.item_count).toBe(CHANGE_REPORT_AUTO_GEN_MAX_ITEMS);
     }
   });
 
@@ -160,7 +160,7 @@ describe('Digest cost guard (OPS-23)', () => {
     const supabase = createMockSupabase(50);
 
     try {
-      await generateDigest({
+      await generateChangeReport({
         supabase,
         periodDays: 7,
         digestType: 'weekly',
@@ -178,7 +178,7 @@ describe('Digest cost guard (OPS-23)', () => {
     const supabase = createMockSupabase(0);
 
     await expect(
-      generateDigest({
+      generateChangeReport({
         supabase,
         periodDays: 7,
         digestType: 'weekly',
@@ -187,7 +187,7 @@ describe('Digest cost guard (OPS-23)', () => {
     ).rejects.toThrow(AIServiceError);
 
     try {
-      await generateDigest({
+      await generateChangeReport({
         supabase,
         periodDays: 7,
         digestType: 'weekly',
@@ -203,13 +203,13 @@ describe('Digest cost guard (OPS-23)', () => {
     const supabase = createMockSupabase(500);
 
     try {
-      await generateDigest({
+      await generateChangeReport({
         supabase,
         periodDays: 7,
         digestType: 'weekly',
         userId: '00000000-0000-4000-8000-000000000001',
       });
-      throw new Error('generateDigest should have thrown');
+      throw new Error('generateChangeReport should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(AIServiceError);
       const aiErr = err as AIServiceError;

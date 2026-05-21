@@ -1,4 +1,4 @@
-export default function DigestLoading() {
+export default function ChangeReportLoading() {
   return (
     <div
       role="status"

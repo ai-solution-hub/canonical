@@ -1,5 +1,5 @@
 /**
- * DigestPage Component Tests
+ * ChangeReportsPage Component Tests
  *
  * Tests the digest page — loading state, hero/generate states, period selector,
  * custom filters, generation flow, past digests, and accessibility.
@@ -25,7 +25,7 @@ const {
   mockFetch,
   mockToast,
   mockFormatDate,
-  mockDigestTypeLabel,
+  mockChangeReportFrequencyLabel,
   mockGetUser,
 } = vi.hoisted(() => ({
   mockMarkBulkRead: vi.fn().mockResolvedValue(undefined),
@@ -39,7 +39,7 @@ const {
     warning: vi.fn(),
   },
   mockFormatDate: vi.fn((d: string) => (d ? d.slice(0, 10) : '')),
-  mockDigestTypeLabel: vi.fn((t: string) => {
+  mockChangeReportFrequencyLabel: vi.fn((t: string) => {
     switch (t) {
       case 'weekly':
         return 'Weekly Change Report';
@@ -75,9 +75,9 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }));
 
-vi.mock('@/components/digest/digest-view', () => ({
-  DigestView: ({ digest }: { digest: { id: string } }) => (
-    <div data-testid="digest-view">DigestView: {digest.id}</div>
+vi.mock('@/components/change-reports/change-report-view', () => ({
+  ChangeReportView: ({ digest }: { digest: { id: string } }) => (
+    <div data-testid="digest-view">ChangeReportView: {digest.id}</div>
   ),
 }));
 
@@ -86,7 +86,7 @@ vi.mock('@/lib/format', () => ({
 }));
 
 vi.mock('@/lib/change-reports/change-reports-helpers', () => ({
-  digestTypeLabel: mockDigestTypeLabel,
+  changeReportFrequencyLabel: mockChangeReportFrequencyLabel,
 }));
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -98,7 +98,7 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 
 // Import AFTER mocks
-import DigestPage from '@/app/digest/page';
+import ChangeReportsPage from '@/app/change-reports/page';
 
 // ---------------------------------------------------------------------------
 // jsdom polyfill — Radix Select uses pointer capture APIs not present in jsdom
@@ -151,9 +151,9 @@ function mockNewAccount() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDigest(overrides: Record<string, unknown> = {}) {
+function makeChangeReport(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'digest-1',
+    id: 'change-report-1',
     digest_type: 'weekly',
     period_start: '2026-03-01T00:00:00Z',
     period_end: '2026-03-08T00:00:00Z',
@@ -170,7 +170,6 @@ function makeDigest(overrides: Record<string, unknown> = {}) {
         key_themes: ['theme-1'],
       },
     ],
-    theme_clusters: [],
     narrative_summary: 'A narrative summary.',
     generated_at: '2026-03-08T12:00:00Z',
     generated_by: 'system',
@@ -181,7 +180,7 @@ function makeDigest(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makePastDigestEntry(overrides: Record<string, unknown> = {}) {
+function makePastChangeReportEntry(overrides: Record<string, unknown> = {}) {
   return {
     id: 'past-digest-1',
     digest_type: 'weekly',
@@ -224,21 +223,21 @@ function setupFetch(
       };
     }
 
-    if (urlStr.includes('/api/digest/latest')) {
+    if (urlStr.includes('/api/change-reports/latest')) {
       return {
         ok: true,
         json: async () => ({ digest: options.latest ?? null }),
       };
     }
 
-    if (urlStr.includes('/api/digest/list')) {
+    if (urlStr.includes('/api/change-reports/list')) {
       return {
         ok: true,
         json: async () => ({ digests: options.list ?? [] }),
       };
     }
 
-    if (urlStr.includes('/api/digest/generate')) {
+    if (urlStr.includes('/api/change-reports/generate')) {
       if (options.generateError) {
         return {
           ok: false,
@@ -248,15 +247,15 @@ function setupFetch(
       }
       return {
         ok: true,
-        json: async () => ({ digest: options.generateResult ?? makeDigest() }),
+        json: async () => ({ digest: options.generateResult ?? makeChangeReport() }),
       };
     }
 
-    // Match /api/digest/{id} — the detail endpoint
+    // Match /api/change-reports/{id} — the detail endpoint
     if (/\/api\/digest\/(?!latest|list|generate)[^/]+/.test(urlStr)) {
       return {
         ok: true,
-        json: async () => ({ digest: options.detail ?? makeDigest() }),
+        json: async () => ({ digest: options.detail ?? makeChangeReport() }),
       };
     }
 
@@ -265,18 +264,18 @@ function setupFetch(
 }
 
 /**
- * Render DigestPage wrapped in QueryClientProvider.
+ * Render ChangeReportsPage wrapped in QueryClientProvider.
  */
-function renderDigestPage() {
+function renderChangeReportsPage() {
   const { Wrapper } = createQueryWrapper();
-  return render(<DigestPage />, { wrapper: Wrapper });
+  return render(<ChangeReportsPage />, { wrapper: Wrapper });
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('DigestPage', () => {
+describe('ChangeReportsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', mockFetch);
@@ -304,7 +303,7 @@ describe('DigestPage', () => {
   it('shows loading skeleton on initial load', () => {
     // fetch never resolves — stays in loading state
     mockFetch.mockImplementation(() => new Promise(() => {}));
-    renderDigestPage();
+    renderChangeReportsPage();
 
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
   });
@@ -312,7 +311,7 @@ describe('DigestPage', () => {
   // 2. No digest (hero state) — now says "Change Reports"
   it('shows hero state when no digest exists', async () => {
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -326,7 +325,7 @@ describe('DigestPage', () => {
   // 3. Period dropdown — replaces three-tab mode selector (P1-4/P1-9)
   it('renders a unified period dropdown with preset and custom options', async () => {
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -345,7 +344,7 @@ describe('DigestPage', () => {
   // 4. Preset mode: generate button present with default "Last 7 days"
   it('shows generate button with default period selection', async () => {
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -360,7 +359,7 @@ describe('DigestPage', () => {
   it('shows custom filter panel when Custom option is selected from dropdown', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -384,7 +383,7 @@ describe('DigestPage', () => {
   it('shows active filter badges in custom mode and removes on click', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -418,9 +417,9 @@ describe('DigestPage', () => {
   // 7. Generate preset digest
   it('calls fetch with correct body when generating preset digest', async () => {
     const user = userEvent.setup();
-    const generatedDigest = makeDigest({ id: 'new-digest' });
+    const generatedDigest = makeChangeReport({ id: 'new-digest' });
     setupFetch({ latest: null, list: [], generateResult: generatedDigest });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -433,7 +432,7 @@ describe('DigestPage', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/digest/generate',
+        '/api/change-reports/generate',
         expect.objectContaining({
           method: 'POST',
           body: expect.stringContaining('"period_days":7'),
@@ -445,8 +444,8 @@ describe('DigestPage', () => {
   // 8. Generate custom digest
   it('calls fetch with custom filters when generating custom digest', async () => {
     const user = userEvent.setup();
-    setupFetch({ latest: null, list: [], generateResult: makeDigest() });
-    renderDigestPage();
+    setupFetch({ latest: null, list: [], generateResult: makeChangeReport() });
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -469,7 +468,7 @@ describe('DigestPage', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/digest/generate',
+        '/api/change-reports/generate',
         expect.objectContaining({
           method: 'POST',
           body: expect.stringContaining('"digest_type":"custom"'),
@@ -499,19 +498,19 @@ describe('DigestPage', () => {
           }),
         };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/latest')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/latest')) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/list')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/list')) {
         return { ok: true, json: async () => ({ digests: [] }) };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/generate')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/generate')) {
         return new Promise(() => {}); // never resolves
       }
       return { ok: true, json: async () => ({}) };
     });
 
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -532,11 +531,11 @@ describe('DigestPage', () => {
   });
 
   // 10. Successful generation updates view
-  it('shows DigestView after successful generation', async () => {
+  it('shows ChangeReportView after successful generation', async () => {
     const user = userEvent.setup();
-    const generatedDigest = makeDigest({ id: 'generated-1' });
+    const generatedDigest = makeChangeReport({ id: 'generated-1' });
     setupFetch({ latest: null, list: [], generateResult: generatedDigest });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -564,7 +563,7 @@ describe('DigestPage', () => {
       list: [],
       generateError: 'Insufficient content',
     });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -580,11 +579,11 @@ describe('DigestPage', () => {
     });
   });
 
-  // 12. Digest view state renders controls and DigestView — "Generate New Report"
-  it('renders bar controls and DigestView when digest exists', async () => {
-    const digest = makeDigest();
+  // 12. Digest view state renders controls and ChangeReportView — "Generate New Report"
+  it('renders bar controls and ChangeReportView when digest exists', async () => {
+    const digest = makeChangeReport();
     setupFetch({ latest: digest, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -599,9 +598,9 @@ describe('DigestPage', () => {
   // 13. Mark all as read
   it('calls markBulkRead with item IDs when mark all as read is clicked', async () => {
     const user = userEvent.setup();
-    const digest = makeDigest({ item_ids: ['item-1', 'item-2', 'item-3'] });
+    const digest = makeChangeReport({ item_ids: ['item-1', 'item-2', 'item-3'] });
     setupFetch({ latest: digest, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -622,14 +621,14 @@ describe('DigestPage', () => {
 
   // 14. Past digests list — now "Previous Reports"
   it('renders previous reports excluding the current one', async () => {
-    const digest = makeDigest({ id: 'current-digest' });
+    const digest = makeChangeReport({ id: 'current-digest' });
     const pastList = [
       { ...digest, id: 'current-digest' },
-      makePastDigestEntry({ id: 'past-1' }),
-      makePastDigestEntry({ id: 'past-2' }),
+      makePastChangeReportEntry({ id: 'past-1' }),
+      makePastChangeReportEntry({ id: 'past-2' }),
     ];
     setupFetch({ latest: digest, list: pastList });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -644,10 +643,10 @@ describe('DigestPage', () => {
   // 15. Load past digest
   it('loads a past digest when clicked', async () => {
     const user = userEvent.setup();
-    const currentDigest = makeDigest({ id: 'current-digest' });
-    const pastEntry = makePastDigestEntry({ id: 'past-1' });
+    const currentDigest = makeChangeReport({ id: 'current-digest' });
+    const pastEntry = makePastChangeReportEntry({ id: 'past-1' });
     setupFetch({ latest: currentDigest, list: [currentDigest, pastEntry] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Previous Reports')).toBeInTheDocument();
@@ -662,16 +661,16 @@ describe('DigestPage', () => {
     await waitFor(() => {
       const calls = mockFetch.mock.calls.map((c: unknown[]) => c[0]);
       expect(calls).toContainEqual(
-        expect.stringContaining('/api/digest/past-1'),
+        expect.stringContaining('/api/change-reports/past-1'),
       );
     });
   });
 
   // 16. Empty past digests
   it('does not render previous reports section when none exist', async () => {
-    const digest = makeDigest();
+    const digest = makeChangeReport();
     setupFetch({ latest: digest, list: [digest] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -700,19 +699,19 @@ describe('DigestPage', () => {
           }),
         };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/latest')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/latest')) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/list')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/list')) {
         return { ok: true, json: async () => ({ digests: [] }) };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/generate')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/generate')) {
         return new Promise(() => {});
       }
       return { ok: true, json: async () => ({}) };
     });
 
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -729,7 +728,7 @@ describe('DigestPage', () => {
   // 18. Content section has correct aria-label — "Change reports"
   it('wraps content in section with correct aria-label', async () => {
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -743,7 +742,7 @@ describe('DigestPage', () => {
   // 19. No tablist in the new dropdown-based design (P1-4/P1-9)
   it('does not render a tablist — tabs replaced by dropdown', async () => {
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -757,7 +756,7 @@ describe('DigestPage', () => {
   // 20. loadReadMarks is called on mount
   it('calls loadReadMarks on mount', async () => {
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(mockLoadReadMarks).toHaveBeenCalled();
@@ -767,7 +766,7 @@ describe('DigestPage', () => {
   // 21. Mark all as read extracts IDs from domain_summaries when item_ids is empty
   it('extracts item IDs from domain_summaries when item_ids is not present', async () => {
     const user = userEvent.setup();
-    const digest = makeDigest({
+    const digest = makeChangeReport({
       item_ids: [],
       domain_summaries: [
         {
@@ -783,7 +782,7 @@ describe('DigestPage', () => {
       ],
     });
     setupFetch({ latest: digest, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -819,19 +818,19 @@ describe('DigestPage', () => {
           }),
         };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/latest')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/latest')) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/list')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/list')) {
         return { ok: true, json: async () => ({ digests: [] }) };
       }
-      if (typeof url === 'string' && url.includes('/api/digest/generate')) {
+      if (typeof url === 'string' && url.includes('/api/change-reports/generate')) {
         return new Promise(() => {});
       }
       return { ok: true, json: async () => ({}) };
     });
 
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -856,9 +855,9 @@ describe('DigestPage', () => {
 
   // 23. Mark all as read button is positioned after digest content, not in controls
   it('renders mark all as read button after digest content', async () => {
-    const digest = makeDigest();
+    const digest = makeChangeReport();
     setupFetch({ latest: digest, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -873,7 +872,7 @@ describe('DigestPage', () => {
   // 24. Mark all as read button is not shown when no digest exists
   it('does not render mark all as read button in hero state', async () => {
     setupFetch({ latest: null, list: [] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -887,9 +886,9 @@ describe('DigestPage', () => {
   // 25. Daily generation via "Last 1 day" dropdown option
   it('generates daily digest when "Last 1 day" is selected', async () => {
     const user = userEvent.setup();
-    const generated = makeDigest({ id: 'daily-gen' });
+    const generated = makeChangeReport({ id: 'daily-gen' });
     setupFetch({ latest: null, list: [], generateResult: generated });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -908,7 +907,7 @@ describe('DigestPage', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/digest/generate',
+        '/api/change-reports/generate',
         expect.objectContaining({
           method: 'POST',
           body: expect.stringContaining('"period_days":1'),
@@ -923,9 +922,9 @@ describe('DigestPage', () => {
   //     manual Generate button still functional.
   it('new account (< 24h) does NOT auto-generate and renders new-account empty-state', async () => {
     mockNewAccount();
-    const generated = makeDigest({ id: 'new-account-manual' });
+    const generated = makeChangeReport({ id: 'new-account-manual' });
     setupFetch({ latest: null, list: [], generateResult: generated });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     // New-account copy should appear.
     await waitFor(() => {
@@ -949,7 +948,7 @@ describe('DigestPage', () => {
 
     const generateCalls = mockFetch.mock.calls.filter((call) => {
       const url = String(call[0]);
-      return url.includes('/api/digest/generate');
+      return url.includes('/api/change-reports/generate');
     });
     expect(generateCalls).toHaveLength(0);
 
@@ -964,7 +963,7 @@ describe('DigestPage', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/digest/generate',
+        '/api/change-reports/generate',
         expect.objectContaining({ method: 'POST' }),
       );
     });
@@ -974,15 +973,15 @@ describe('DigestPage', () => {
   //     weekly defaults.
   it('established account (> 24h) auto-generates weekly report on first visit', async () => {
     mockOldAccount();
-    const generated = makeDigest({ id: 'auto-generated' });
+    const generated = makeChangeReport({ id: 'auto-generated' });
     setupFetch({ latest: null, list: [], generateResult: generated });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     // The auto-gen effect fires after the initial queries settle.
     await waitFor(() => {
       const generateCalls = mockFetch.mock.calls.filter((call) => {
         const url = String(call[0]);
-        return url.includes('/api/digest/generate');
+        return url.includes('/api/change-reports/generate');
       });
       expect(generateCalls).toHaveLength(1);
     });
@@ -990,7 +989,7 @@ describe('DigestPage', () => {
     // Verify the auto-gen payload matches the weekly default.
     const generateCall = mockFetch.mock.calls.find((call) => {
       const url = String(call[0]);
-      return url.includes('/api/digest/generate');
+      return url.includes('/api/change-reports/generate');
     });
     expect(generateCall?.[1]).toEqual(
       expect.objectContaining({
@@ -1010,9 +1009,9 @@ describe('DigestPage', () => {
   //     established accounts. Prevents burning an AI call on a page refresh.
   it('does not auto-generate when a digest is already cached', async () => {
     mockOldAccount();
-    const existing = makeDigest({ id: 'existing' });
+    const existing = makeChangeReport({ id: 'existing' });
     setupFetch({ latest: existing, list: [existing] });
-    renderDigestPage();
+    renderChangeReportsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -1023,7 +1022,7 @@ describe('DigestPage', () => {
 
     const generateCalls = mockFetch.mock.calls.filter((call) => {
       const url = String(call[0]);
-      return url.includes('/api/digest/generate');
+      return url.includes('/api/change-reports/generate');
     });
     expect(generateCalls).toHaveLength(0);
   });

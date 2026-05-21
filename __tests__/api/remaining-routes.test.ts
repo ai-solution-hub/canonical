@@ -48,8 +48,8 @@ vi.mock('@/lib/validation/layer-schemas', async () => {
 });
 
 // Import routes AFTER mocks are registered
-const { GET: digestLatestGet } = await import('@/app/api/digest/latest/route');
-const { GET: digestListGet } = await import('@/app/api/digest/list/route');
+const { GET: digestLatestGet } = await import('@/app/api/change-reports/latest/route');
+const { GET: digestListGet } = await import('@/app/api/change-reports/list/route');
 const { GET: tagsSuggestGet } = await import('@/app/api/tags/suggest/route');
 const { GET: coverageGuidesGet } =
   await import('@/app/api/coverage/guides/route');
@@ -191,10 +191,10 @@ beforeEach(() => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/digest/latest
+// GET /api/change-reports/latest
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('GET /api/digest/latest', () => {
+describe('GET /api/change-reports/latest', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
@@ -307,14 +307,14 @@ describe('GET /api/digest/latest', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/digest/list
+// GET /api/change-reports/list
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('GET /api/digest/list', () => {
+describe('GET /api/change-reports/list', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/digest/list');
+    const req = createTestRequest('/api/change-reports/list');
     const res = await digestListGet(req);
     expect(res.status).toBe(401);
 
@@ -328,7 +328,7 @@ describe('GET /api/digest/list', () => {
         resolve({ data: [], error: null, count: 0 }),
     );
 
-    const req = createTestRequest('/api/digest/list');
+    const req = createTestRequest('/api/change-reports/list');
     const res = await digestListGet(req);
     expect(res.status).toBe(200);
 
@@ -360,7 +360,7 @@ describe('GET /api/digest/list', () => {
         resolve({ data: rows, error: null, count: 15 }),
     );
 
-    const req = createTestRequest('/api/digest/list', {
+    const req = createTestRequest('/api/change-reports/list', {
       searchParams: { limit: '5', offset: '0' },
     });
     const res = await digestListGet(req);
@@ -373,7 +373,7 @@ describe('GET /api/digest/list', () => {
   });
 
   it('clamps out-of-range pagination params', async () => {
-    const req = createTestRequest('/api/digest/list', {
+    const req = createTestRequest('/api/change-reports/list', {
       searchParams: { limit: '0' },
     });
     const res = await digestListGet(req);
@@ -391,7 +391,7 @@ describe('GET /api/digest/list', () => {
         }),
     );
 
-    const req = createTestRequest('/api/digest/list');
+    const req = createTestRequest('/api/change-reports/list');
     const res = await digestListGet(req);
     expect(res.status).toBe(500);
 

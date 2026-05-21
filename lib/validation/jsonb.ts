@@ -55,7 +55,7 @@ export const TranscriptHighlightSchema = z
   })
   .passthrough();
 
-export const DigestDomainSummarySchema = z
+export const ChangeReportDomainSummarySchema = z
   .object({
     domain: z.string(),
     item_count: z.number(),
@@ -70,14 +70,6 @@ export const DigestDomainSummarySchema = z
       }),
     ),
     key_themes: z.array(z.string()),
-  })
-  .passthrough();
-
-export const ThemeClusterSchema = z
-  .object({
-    theme: z.string(),
-    item_count: z.number(),
-    description: z.string(),
   })
   .passthrough();
 
