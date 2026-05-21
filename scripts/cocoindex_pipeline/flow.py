@@ -72,8 +72,9 @@ import os
 import urllib.parse
 import uuid
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
+import aiohttp
 import asyncpg
 import cocoindex as coco
 from cocoindex.connectors import localfs
@@ -177,6 +178,146 @@ def _emit_upsert_log(
             }
         )
     )
+
+
+# ── Inv-16 / Inv-17 / Inv-18 rollup substrate (P-7 — ID-28.11) ───────────────
+
+
+PipelineRunStatus = Literal[
+    "in_progress",
+    "completed",
+    "completed_with_errors",
+    "failed",
+]
+
+
+def _empty_stage_counts() -> dict[str, int]:
+    """Return the canonical six-stage counter map initialised to zero.
+
+    The six stages mirror the canonical pipeline topology per
+    `02-data-flow.md` §3.1. The webhook route (`POST
+    /api/internal/pipeline-runs/record`) enforces ALL six keys via Zod, so
+    every emission MUST supply the full map (even zeros).
+    """
+    return {
+        "source_walk": 0,
+        "binary_conversion": 0,
+        "llm_extraction": 0,
+        "embedding": 0,
+        "entity_resolution": 0,
+        "postgres_upsert": 0,
+    }
+
+
+async def _emit_pipeline_run_webhook(
+    *,
+    op_id: uuid.UUID | str,
+    status: PipelineRunStatus,
+    stage_counts: dict[str, int],
+    items_processed: int,
+    items_created: list[str],
+    error_message: str | None = None,
+    error_class: str | None = None,
+    extractor_version: str | None = None,
+    pipeline_name: str = "kh_canonical_pipeline",
+) -> None:
+    """POST a pipeline-run rollup to the Vercel webhook (Inv-16 / Inv-17 / Inv-18).
+
+    Per TECH.md §P-7 Option α (sidecar webhook callback): the cocoindex
+    sidecar emits one HTTP POST per flow lifecycle event (flow start with
+    `status='in_progress'`, flow end with one of the three terminal
+    statuses). The receiving Vercel route (`POST
+    /api/internal/pipeline-runs/record`) delegates to the TS-side
+    `recordPipelineRun()` helper — the ONLY path the sidecar uses to land
+    `pipeline_runs` rows (Inv-18 code-discipline guard).
+
+    Authentication: `Authorization: Bearer <CRON_SECRET>` (T-OQ2 ratified
+    S252 — reuse the existing cron-handler convention; `CRON_SECRET` is
+    mounted in the Cloud Run Service env via Secret Manager per ID-28.6).
+
+    Best-effort emission: missing env vars or HTTP errors are LOGGED but
+    do NOT raise — the pipeline must keep running even if the rollup
+    webhook is unreachable. The structured-log emission via
+    `_emit_upsert_log()` remains the per-row audit substrate; webhook
+    failure degrades to "log-only" observability rather than crashing the
+    flow. Cocoindex's own retry policy (P-OQ2 defaults) governs the data
+    plane; the rollup webhook is an out-of-band observability surface.
+
+    Args:
+      op_id:             cocoindex per-flow op_id (UUID v4); stringified for JSON.
+      status:            'in_progress' (flow start) | 'completed' |
+                         'completed_with_errors' | 'failed' (flow end).
+      stage_counts:      Per-stage row counts — MUST contain all six canonical
+                         stage keys (see `_empty_stage_counts()`); enforced by
+                         the Vercel route's Zod schema.
+      items_processed:   Total items the pipeline observed in this run.
+      items_created:     IDs of `content_items` the pipeline created
+                         (empty list on memo-hit no-op runs per Inv-4).
+      error_message:     Human-readable failure summary (omit for non-failures).
+      error_class:       6-class error vocabulary from 28.13 (omit for non-failures).
+      extractor_version: IMAGE_SHA from Cloud Build (28.6) — Inv-8 forensic key.
+      pipeline_name:     Defaults to 'kh_canonical_pipeline'.
+
+    Env vars (must be set by Cloud Run Service manifest per ID-28.6):
+      PIPELINE_RUN_WEBHOOK_URL — full URL of the Vercel route
+                                 (e.g. https://kh.client.example/api/internal/pipeline-runs/record).
+      CRON_SECRET              — shared bearer secret with the Vercel route.
+    """
+    url = os.environ.get("PIPELINE_RUN_WEBHOOK_URL")
+    secret = os.environ.get("CRON_SECRET")
+    if not url or not secret:
+        _logger.warning(
+            "PIPELINE_RUN_WEBHOOK_URL or CRON_SECRET not set — skipping "
+            "pipeline-run webhook emission (op_id=%s status=%s). "
+            "Per-row structured logs via _emit_upsert_log() are unaffected.",
+            op_id,
+            status,
+        )
+        return
+
+    payload: dict[str, Any] = {
+        "opId": str(op_id),
+        "pipelineName": pipeline_name,
+        "status": status,
+        "itemsProcessed": items_processed,
+        "itemsCreated": list(items_created),
+        "stageCounts": stage_counts,
+    }
+    if error_message is not None:
+        payload["errorMessage"] = error_message
+    if error_class is not None:
+        payload["errorClass"] = error_class
+    if extractor_version is not None:
+        payload["extractorVersion"] = extractor_version
+
+    headers = {
+        "Authorization": f"Bearer {secret}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, headers=headers, timeout=10
+            ) as resp:
+                if resp.status >= 400:
+                    body_preview = await resp.text()
+                    _logger.error(
+                        "pipeline-run webhook returned HTTP %d "
+                        "(op_id=%s status=%s body_preview=%r)",
+                        resp.status,
+                        op_id,
+                        status,
+                        body_preview[:200],
+                    )
+    except Exception as exc:  # noqa: BLE001 — best-effort emission
+        _logger.error(
+            "pipeline-run webhook emission failed (op_id=%s status=%s): %s",
+            op_id,
+            status,
+            exc,
+        )
+
 
 # asyncpg.Pool context key — shared across mount_table_target calls in app_main()
 DB_CTX: coco.ContextKey[asyncpg.Pool] = coco.ContextKey("kh_pipeline_db")
@@ -291,6 +432,36 @@ async def app_main() -> None:
             source_path,
         )
         return
+
+    # ── ID-28.11 rollup state (Inv-16 / Inv-17) ──────────────────────────────
+    # cocoindex 1.0.3 does NOT expose public per-stage completion callbacks
+    # (the same API-surface gap surfaced in 28.10 for per-row UPSERT callbacks).
+    # Per the brief's escalation rule, the contract is the JSON payload shape,
+    # not the per-stage observability source — so the rollup is aggregated via
+    # internal counters at flow scope. Live per-stage wiring is deferred to
+    # Wave C 28.12 (alongside ExtractByLlm wiring) when the cocoindex callback
+    # surface is exposed and counter-increment hooks can be threaded into each
+    # stage's transform pipeline. Until then, this Subtask lands the helper
+    # contract + flow-start/flow-end invocation substrate.
+    run_op_id: uuid.UUID = uuid.uuid4()  # placeholder until cocoindex exposes flow['op_id']
+    stage_counts: dict[str, int] = _empty_stage_counts()
+    items_created: list[str] = []
+    extractor_version = os.environ.get("IMAGE_SHA")
+
+    # Flow start emission (Inv-16: one pipeline_runs row per invocation;
+    # in_progress row signals "pipeline accepted work, processing began").
+    await _emit_pipeline_run_webhook(
+        op_id=run_op_id,
+        status="in_progress",
+        stage_counts=stage_counts,
+        items_processed=0,
+        items_created=[],
+        extractor_version=extractor_version,
+    )
+
+    flow_status: PipelineRunStatus = "completed"
+    flow_error_message: str | None = None
+    flow_error_class: str | None = None
 
     coco_pool = await asyncpg.create_pool(_build_dsn(), min_size=2, max_size=10)
     try:
@@ -408,8 +579,40 @@ async def app_main() -> None:
             # public callback surface (S255 amendment queue → TECH.md §P-5
             # + 28.12 / Wave C carry-forward).
             # See module docstring "API deviation note (S255 / 28.10)".
+    except Exception as exc:  # noqa: BLE001 — capture for rollup status
+        # Per Inv-16 + Inv-17 + Inv-18: failures still land a pipeline_runs
+        # row via the webhook so the cocoindex sidecar's invocation count
+        # is honest (one row per invocation, success or fail). The error
+        # vocabulary (`error_class`) is the 28.13 6-class enum once wired;
+        # at v1 we default to the exception's class name for forensic
+        # tracing — refined classification lands when 28.13 ships.
+        flow_status = "failed"
+        flow_error_message = str(exc)
+        flow_error_class = type(exc).__name__
+        _logger.error(
+            "kh_canonical_pipeline flow raised (op_id=%s class=%s): %s",
+            run_op_id,
+            flow_error_class,
+            exc,
+        )
+        raise
     finally:
         await coco_pool.close()
+        # Flow end emission (Inv-16: terminal pipeline_runs row).
+        # stage_counts is filled at the placeholder zero values until Wave C
+        # 28.12 wires per-stage counter increments (see escalation note at
+        # the rollup-state block above). items_created is similarly empty
+        # at v1 — populated when ExtractByLlm wiring lands in 28.12.
+        await _emit_pipeline_run_webhook(
+            op_id=run_op_id,
+            status=flow_status,
+            stage_counts=stage_counts,
+            items_processed=sum(stage_counts.values()) or 0,
+            items_created=items_created,
+            error_message=flow_error_message,
+            error_class=flow_error_class,
+            extractor_version=extractor_version,
+        )
 
 
 # ── Module-level App declaration ─────────────────────────────────────────────

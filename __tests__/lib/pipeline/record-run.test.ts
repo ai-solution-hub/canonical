@@ -138,6 +138,72 @@ describe('recordPipelineRun', () => {
     expect(payload.op_id).toBeNull();
   });
 
+  // -------------------------------------------------------------------------
+  // stageCounts merge (ID-28.11 — Inv-17 rollup substrate)
+  // -------------------------------------------------------------------------
+
+  it('lands stageCounts inside result.stage_counts when no result is supplied', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const stageCounts = {
+      source_walk: 5,
+      binary_conversion: 5,
+      llm_extraction: 5,
+      embedding: 5,
+      entity_resolution: 5,
+      postgres_upsert: 5,
+    };
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'completed',
+      stageCounts,
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.result).toEqual({ stage_counts: stageCounts });
+  });
+
+  it('merges stageCounts INTO caller-supplied result without dropping siblings', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const stageCounts = {
+      source_walk: 1,
+      binary_conversion: 1,
+      llm_extraction: 1,
+      embedding: 1,
+      entity_resolution: 1,
+      postgres_upsert: 1,
+    };
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'completed',
+      result: { extractor_version: 'abc123', error_class: null },
+      stageCounts,
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.result).toEqual({
+      extractor_version: 'abc123',
+      error_class: null,
+      stage_counts: stageCounts,
+    });
+  });
+
+  it('keeps result null when neither result nor stageCounts is supplied', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'content_gaps',
+      status: 'completed',
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.result).toBeNull();
+  });
+
   it('does NOT fire Sentry on a completed run', async () => {
     const { client } = createMockSupabase({ data: null, error: null });
     await recordPipelineRun({

@@ -84,6 +84,23 @@ export interface RecordPipelineRunParams {
    */
   opId?: string | null;
   /**
+   * Cocoindex per-stage row-count rollup (ID-28.11 — Inv-17 substrate).
+   * Six canonical stages per `02-data-flow.md` §3.1. When provided, lands
+   * inside the `pipeline_runs.result` JSON column under the `stage_counts`
+   * key — does NOT introduce a new column. Caller-supplied `result` (if any)
+   * is shallow-merged WITH `stage_counts` overriding the same key, so a
+   * caller passing both `result: { foo: 1 }` and
+   * `stageCounts: { source_walk: 5, ... }` ends up with
+   * `result.stage_counts.source_walk = 5` AND `result.foo = 1`.
+   *
+   * The `Record<string, number>` shape is the widest contract — strict
+   * Zod-validated keying is enforced at the
+   * `/api/internal/pipeline-runs/record` route boundary (the only
+   * cocoindex caller path). Internal callers can pass any string-keyed
+   * counter map.
+   */
+  stageCounts?: Record<string, number> | null;
+  /**
    * Opt-out of Sentry alerting. Use sparingly — tests and bulk
    * backfills may legitimately want to avoid alerting. When `true`,
    * only the DB insertion + logBestEffortWarn on failure paths fire;
@@ -150,8 +167,25 @@ export async function recordPipelineRun(
     result,
     errorMessage,
     opId,
+    stageCounts,
     skipSentryAlert = false,
   } = params;
+
+  // Merge `stageCounts` into `result.stage_counts` (ID-28.11). The
+  // caller-supplied `result` is preserved; `stage_counts` is added or
+  // overwritten on the shallow top level. When neither `result` nor
+  // `stageCounts` is supplied, the column stays `null` as before.
+  let mergedResult: Json | null;
+  if (stageCounts) {
+    const base: Record<string, unknown> =
+      result && typeof result === 'object' && !Array.isArray(result)
+        ? { ...(result as Record<string, unknown>) }
+        : {};
+    base.stage_counts = stageCounts;
+    mergedResult = base as Json;
+  } else {
+    mergedResult = result ?? null;
+  }
 
   // Insert the row via `sb()` so any insertion failure throws a
   // SupabaseError. Catch the throw here — this helper is never-throws by
@@ -168,7 +202,7 @@ export async function recordPipelineRun(
         source_filename: sourceFilename ?? null,
         cost: cost ?? null,
         progress: progress ?? null,
-        result: result ?? null,
+        result: mergedResult,
         error_message: errorMessage ?? null,
         op_id: opId ?? null,
       }),

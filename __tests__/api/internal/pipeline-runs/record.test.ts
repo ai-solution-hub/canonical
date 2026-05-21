@@ -1,0 +1,405 @@
+/**
+ * Tests for POST /api/internal/pipeline-runs/record.
+ *
+ * Subtask ID-28.11 — webhook callback bridge from the cocoindex Python
+ * sidecar to the TS-side `recordPipelineRun()` helper per TECH.md §P-7
+ * Option α (sidecar webhook callback).
+ *
+ * Acceptance (per testStrategy):
+ *   - POST with valid `Authorization: Bearer <CRON_SECRET>` writes a
+ *     `pipeline_runs` row via `recordPipelineRun()`.
+ *   - POST with bad or missing CRON_SECRET returns 401.
+ *   - `stageCounts` field lands in `pipeline_runs.result` JSON.
+ *
+ * Auth pattern: mirrors `/api/cron/*` — bare `Authorization: Bearer <secret>`
+ * check via `verifyCronAuth()`. No `getAuthorisedClient()` here; the cron
+ * secret IS the auth boundary (T-OQ2 ratified S252).
+ *
+ * Inv-18 discipline: this route is the ONLY path through which the cocoindex
+ * sidecar lands `pipeline_runs` rows. The route MUST call
+ * `recordPipelineRun()` — never a raw `supabase.from('pipeline_runs').insert`
+ * (per CLAUDE.md "Cron pipeline_runs inserts" gotcha).
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockSupabaseClient } from '../../../helpers/mock-supabase';
+import { createMockCronRequest } from '../../../helpers/factories/cron-request';
+
+// ---------------------------------------------------------------------------
+// Mock setup
+// ---------------------------------------------------------------------------
+
+const mockSupabase = createMockSupabaseClient();
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServiceClient: vi.fn(() => mockSupabase),
+}));
+
+const { mockVerifyCronAuth } = vi.hoisted(() => ({
+  mockVerifyCronAuth: vi.fn(),
+}));
+
+vi.mock('@/lib/cron-auth', () => ({
+  verifyCronAuth: mockVerifyCronAuth,
+}));
+
+const { mockRecordPipelineRun } = vi.hoisted(() => ({
+  mockRecordPipelineRun: vi.fn(),
+}));
+
+vi.mock('@/lib/pipeline/record-run', () => ({
+  recordPipelineRun: mockRecordPipelineRun,
+}));
+
+vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+// Import handler AFTER mocks (vi.mock hoist + factory function pattern)
+import { POST } from '@/app/api/internal/pipeline-runs/record/route';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const ROUTE_PATH = '/api/internal/pipeline-runs/record';
+
+/**
+ * Build a valid POST payload body for the route. The cocoindex Python
+ * sidecar emits this shape per TECH.md §P-7 + the ID-28.11 brief.
+ */
+function makePayload(
+  overrides: Partial<{
+    opId: string;
+    pipelineName: string;
+    status: 'in_progress' | 'completed' | 'completed_with_errors' | 'failed';
+    itemsProcessed: number;
+    itemsCreated: string[];
+    stageCounts: Record<string, number>;
+    errorMessage: string;
+    errorClass: string;
+    extractorVersion: string;
+  }> = {},
+): Record<string, unknown> {
+  return {
+    opId: overrides.opId ?? '11111111-1111-4111-8111-111111111111',
+    pipelineName: overrides.pipelineName ?? 'kh_canonical_pipeline',
+    status: overrides.status ?? 'completed',
+    itemsProcessed: overrides.itemsProcessed ?? 5,
+    itemsCreated: overrides.itemsCreated ?? [
+      '22222222-2222-4222-8222-222222222222',
+    ],
+    stageCounts: overrides.stageCounts ?? {
+      source_walk: 5,
+      binary_conversion: 5,
+      llm_extraction: 5,
+      embedding: 5,
+      entity_resolution: 5,
+      postgres_upsert: 5,
+    },
+    ...(overrides.errorMessage !== undefined
+      ? { errorMessage: overrides.errorMessage }
+      : {}),
+    ...(overrides.errorClass !== undefined
+      ? { errorClass: overrides.errorClass }
+      : {}),
+    ...(overrides.extractorVersion !== undefined
+      ? { extractorVersion: overrides.extractorVersion }
+      : {}),
+  };
+}
+
+/**
+ * Build a Request for the route. Mirrors `createMockCronRequest()` but for
+ * POST with JSON body — the cron-request factory supports `method: 'POST'`
+ * and `body: object` per its forward-compatible signature.
+ */
+function buildRequest(
+  overrides: {
+    secret?: string;
+    body?: Record<string, unknown> | string;
+    omitAuth?: boolean;
+  } = {},
+): Request {
+  if (overrides.omitAuth) {
+    // verifyCronAuth() checks the `authorization` header; omit it entirely
+    // to exercise the missing-header branch.
+    return new Request(`http://localhost:3000${ROUTE_PATH}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(overrides.body ?? makePayload()),
+    });
+  }
+  return createMockCronRequest({
+    path: ROUTE_PATH,
+    method: 'POST',
+    secret: overrides.secret,
+    body: overrides.body ?? makePayload(),
+  });
+}
+
+function resetMocks() {
+  vi.clearAllMocks();
+  mockVerifyCronAuth.mockReturnValue(true);
+  mockRecordPipelineRun.mockResolvedValue(undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('POST /api/internal/pipeline-runs/record — auth', () => {
+  beforeEach(resetMocks);
+
+  it('returns 401 when cron auth fails (wrong secret)', async () => {
+    mockVerifyCronAuth.mockReturnValue(false);
+
+    const res = await POST(buildRequest({ secret: 'wrong-secret' }) as never);
+    expect(res.status).toBe(401);
+
+    const body = await res.json();
+    expect(body.error).toBeDefined();
+  });
+
+  it('returns 401 when authorization header is missing entirely', async () => {
+    mockVerifyCronAuth.mockReturnValue(false);
+
+    const res = await POST(buildRequest({ omitAuth: true }) as never);
+    expect(res.status).toBe(401);
+  });
+
+  it('does NOT call recordPipelineRun when auth fails', async () => {
+    mockVerifyCronAuth.mockReturnValue(false);
+
+    await POST(buildRequest({ secret: 'wrong-secret' }) as never);
+    expect(mockRecordPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it('accepts the request when cron auth succeeds', async () => {
+    mockVerifyCronAuth.mockReturnValue(true);
+
+    const res = await POST(buildRequest() as never);
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('POST /api/internal/pipeline-runs/record — body validation', () => {
+  beforeEach(resetMocks);
+
+  it('returns 400 when body is not valid JSON', async () => {
+    const req = new Request(`http://localhost:3000${ROUTE_PATH}`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer test-cron-secret',
+        'content-type': 'application/json',
+      },
+      body: 'not json{',
+    });
+
+    const res = await POST(req as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when opId is missing', async () => {
+    const payload = makePayload();
+    delete payload.opId;
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when opId is not a UUID', async () => {
+    const payload = makePayload({ opId: 'not-a-uuid' });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when status is an unknown value', async () => {
+    const payload = {
+      ...makePayload(),
+      status: 'unknown_status',
+    };
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when stageCounts is missing required stage', async () => {
+    const payload = makePayload({
+      stageCounts: {
+        // missing source_walk + others
+        binary_conversion: 5,
+      },
+    });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when stageCounts contains a negative count', async () => {
+    const payload = makePayload({
+      stageCounts: {
+        source_walk: -1,
+        binary_conversion: 5,
+        llm_extraction: 5,
+        embedding: 5,
+        entity_resolution: 5,
+        postgres_upsert: 5,
+      },
+    });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts payload with all required fields present', async () => {
+    const res = await POST(buildRequest() as never);
+    expect(res.status).toBe(200);
+    expect(mockRecordPipelineRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts payload with optional errorMessage + errorClass', async () => {
+    const payload = makePayload({
+      status: 'failed',
+      errorMessage: 'Extraction failed: malformed JSON',
+      errorClass: 'extraction_validation_failed',
+    });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(200);
+  });
+
+  it('accepts payload with status=in_progress (flow-start emission)', async () => {
+    const payload = makePayload({
+      status: 'in_progress',
+      itemsProcessed: 0,
+      itemsCreated: [],
+    });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('POST /api/internal/pipeline-runs/record — recordPipelineRun call shape', () => {
+  beforeEach(resetMocks);
+
+  it('calls recordPipelineRun with pipelineName from the body', async () => {
+    await POST(buildRequest() as never);
+
+    expect(mockRecordPipelineRun).toHaveBeenCalledTimes(1);
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    expect(call.pipelineName).toBe('kh_canonical_pipeline');
+  });
+
+  it('forwards opId so it lands in pipeline_runs.op_id', async () => {
+    const opId = '33333333-3333-4333-8333-333333333333';
+    await POST(buildRequest({ body: makePayload({ opId }) }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    expect(call.opId).toBe(opId);
+  });
+
+  it('forwards status, itemsProcessed, and itemsCreated', async () => {
+    const payload = makePayload({
+      status: 'completed_with_errors',
+      itemsProcessed: 12,
+      itemsCreated: [
+        '44444444-4444-4444-8444-444444444444',
+        '55555555-5555-4555-8555-555555555555',
+      ],
+    });
+    await POST(buildRequest({ body: payload }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    expect(call.status).toBe('completed_with_errors');
+    expect(call.itemsProcessed).toBe(12);
+    expect(call.itemsCreated).toEqual(payload.itemsCreated);
+  });
+
+  it('lands stageCounts inside result.stage_counts JSON (Inv-17)', async () => {
+    const stageCounts = {
+      source_walk: 3,
+      binary_conversion: 3,
+      llm_extraction: 3,
+      embedding: 3,
+      entity_resolution: 3,
+      postgres_upsert: 3,
+    };
+    await POST(buildRequest({ body: makePayload({ stageCounts }) }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    // stageCounts MUST land in result JSON (existing pipeline_runs.result column);
+    // shape: result.stage_counts.{source_walk,binary_conversion,...}.
+    expect(call.result).toBeDefined();
+    const result = call.result as Record<string, unknown>;
+    expect(result.stage_counts).toEqual(stageCounts);
+  });
+
+  it('lands extractorVersion inside result.extractor_version (Inv-8)', async () => {
+    const sha = 'abc1234567890def1234567890abcdef12345678';
+    await POST(
+      buildRequest({
+        body: makePayload({ extractorVersion: sha }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.extractor_version).toBe(sha);
+  });
+
+  it('lands errorClass inside result.error_class when provided', async () => {
+    await POST(
+      buildRequest({
+        body: makePayload({
+          status: 'failed',
+          errorMessage: 'boom',
+          errorClass: 'extraction_validation_failed',
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.error_class).toBe('extraction_validation_failed');
+  });
+
+  it('forwards errorMessage into the recordPipelineRun param', async () => {
+    await POST(
+      buildRequest({
+        body: makePayload({
+          status: 'failed',
+          errorMessage: 'pipeline halted',
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    expect(call.errorMessage).toBe('pipeline halted');
+  });
+
+  it('passes the service-role supabase client to recordPipelineRun', async () => {
+    await POST(buildRequest() as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    expect(call.supabase).toBe(mockSupabase);
+  });
+
+  it('returns 200 OK with { ok: true } on success', async () => {
+    const res = await POST(buildRequest() as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+  });
+
+  it('returns 500 when recordPipelineRun throws unexpectedly', async () => {
+    // recordPipelineRun is "never throws" by contract, but defensive guard
+    // exists for completeness — if the helper's contract were violated, the
+    // route MUST still respond cleanly to the Python sidecar.
+    mockRecordPipelineRun.mockRejectedValueOnce(new Error('unexpected'));
+
+    const res = await POST(buildRequest() as never);
+    expect(res.status).toBe(500);
+  });
+});
