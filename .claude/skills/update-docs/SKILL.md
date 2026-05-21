@@ -364,11 +364,20 @@ the row entirely instead.
 - **Existing item progressed in session** → update the row's `status` /
   `effort_estimate` / `notes` via Edit anchoring on the unique `"id": "<ID>"`
   line.
-- **Item completed** → remove the entire row (the closing `}` plus the preceding
-  comma if not the last item). The audit trail lives in git log + continuation
-  prompts + State of the Product narrative.
+- **Item picked up for implementation** → invoke `update-roadmap-backlog` in
+  Promote mode (not Delete) — the backlog entry is removed and a new Task or
+  Subtask is appended to `docs/reference/task-list.json` with provenance journal
+  block linking source backlog id. The task-list carries the canonical `done`
+  state for traceability. (Ratified S60 / ID-15.10 Phase E.)
+- **Item cancelled or superseded** (no implementation) → remove the entire row
+  (the closing `}` plus the preceding comma if not the last item). The audit
+  trail lives in git log + continuation prompts + State of the Product narrative.
 - **Item promoted to roadmap** → remove the row from `product-backlog.json` and
-  add a record to `product-roadmap.md` in the same commit.
+  add a record to `product-roadmap.md` in the same commit. (Strategic /
+  cross-cutting reclassification.)
+- **Item promoted to task-list as new Task or Subtask** → invoke
+  `update-roadmap-backlog` in Promote mode (see first bullet); the skill writes
+  to both surfaces atomically with provenance journal.
 
 After every edit, bump the top-level `last_updated` field to the current session
 label (e.g. `"kh-prod-readiness-S37 close-out"`).
