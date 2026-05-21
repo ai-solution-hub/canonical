@@ -40,7 +40,7 @@ codebase.
 |---|---|---|
 | `oldName` | Yes | The original symbol name (e.g. `generateDigest`) |
 | `newName` | Yes | The renamed symbol (e.g. `generateChangeReport`) |
-| `oldModulePath` | Yes | Module path before rename (e.g. `@/lib/ai/digest`) |
+| `oldModulePath` | Yes | Module path before rename (e.g. `@/lib/ai/change-reports`) |
 | `newModulePath` | Yes | Module path after rename (e.g. `@/lib/reports/generate-change-report`) |
 | `scope` | No | Glob to restrict searches (e.g. `app/**,lib/**,__tests__/**`) |
 
@@ -71,8 +71,8 @@ bun scripts/ast-dataflow-cli.ts string-literal-uses \
   --value '<oldModulePath>'
 ```
 
-Catches: `vi.mock('@/lib/ai/digest')`, `import(...)` dynamic imports,
-`fetch('/api/digest/...')` URL fragments, SQL template strings containing the
+Catches: `vi.mock('@/lib/ai/change-reports')`, `import(...)` dynamic imports,
+`fetch('/api/change-reports/...')` URL fragments, SQL template strings containing the
 old path.
 
 **Pass B — old symbol name as a string literal:**
@@ -109,11 +109,11 @@ bun scripts/ast-dataflow-cli.ts importers \
   --module '<oldModulePath>'
 ```
 
-If the old module path was `lib/ai/digest.ts`, also run:
+If the old module path was `lib/ai/change-reports.ts`, also run:
 
 ```bash
 bun scripts/ast-dataflow-cli.ts importers \
-  --module '@/lib/ai/digest'
+  --module '@/lib/ai/change-reports'
 ```
 
 **Interpreting Q2 results:**
