@@ -19,9 +19,11 @@ export type Database = {
           created_at: string
           default_colour: string | null
           default_icon: string | null
+          description: string | null
           id: string
           key: string
           label: string
+          label_plural: string | null
           provenance: string
           state_machine_config: Json | null
           updated_at: string
@@ -30,9 +32,11 @@ export type Database = {
           created_at?: string
           default_colour?: string | null
           default_icon?: string | null
+          description?: string | null
           id?: string
           key: string
           label: string
+          label_plural?: string | null
           provenance?: string
           state_machine_config?: Json | null
           updated_at?: string
@@ -41,9 +45,11 @@ export type Database = {
           created_at?: string
           default_colour?: string | null
           default_icon?: string | null
+          description?: string | null
           id?: string
           key?: string
           label?: string
+          label_plural?: string | null
           provenance?: string
           state_machine_config?: Json | null
           updated_at?: string
