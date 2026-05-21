@@ -42,7 +42,9 @@ import {
   SAFE_WRITE_ANNOTATIONS,
 } from './shared';
 
-export async function registerProcurementTools(server: McpServer): Promise<void> {
+export async function registerProcurementTools(
+  server: McpServer,
+): Promise<void> {
   // -------------------------------------------------------------------------
   // 3. list_active_procurement
   // -------------------------------------------------------------------------

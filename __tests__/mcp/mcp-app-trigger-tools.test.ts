@@ -1346,7 +1346,8 @@ describe('MCP App trigger tools #22-23', () => {
 
   describe('get_procurement_detail', () => {
     beforeAll(async () => {
-      ({ registerProcurementTools: registerBidTools } = await import('@/lib/mcp/tools/procurement'));
+      ({ registerProcurementTools: registerBidTools } =
+        await import('@/lib/mcp/tools/procurement'));
     }, MCP_TOOL_IMPORT_TIMEOUT_MS);
     beforeEach(async () => {
       await registerBidTools(mockServer.server as never);

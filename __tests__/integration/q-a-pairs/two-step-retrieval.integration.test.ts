@@ -160,10 +160,7 @@ afterEach(async () => {
   // 2. q_a_extractions (FK to q_a_pairs — explicit, no cascade on pair DELETE)
   // 3. q_a_pairs
 
-  await db
-    .from('q_a_pair_history')
-    .delete()
-    .in('q_a_pair_id', seededPairIds);
+  await db.from('q_a_pair_history').delete().in('q_a_pair_id', seededPairIds);
 
   await db
     .from('q_a_extractions')
@@ -207,9 +204,7 @@ async function readHistory(pairId: string) {
     .order('version', { ascending: true });
 
   if (error) {
-    throw new Error(
-      `readHistory(${pairId}) failed: ${error.message}`,
-    );
+    throw new Error(`readHistory(${pairId}) failed: ${error.message}`);
   }
   return data ?? [];
 }
@@ -238,430 +233,415 @@ describe.skipIf(!RUN_INTEGRATION)(
     // -------------------------------------------------------------------------
     // Test 1: q_a_search returns ranked candidates with separate score columns
     // -------------------------------------------------------------------------
-    it(
-      'q_a_search returns ranked candidates with separate score columns',
-      async () => {
-        // Embed pair #2 (the "target") with d0=1.0 so it is the closest to
-        // the query vector (which also has d0=1.0). Pairs #1 and #3 have
-        // lower similarity (d0=0.1 and d0=0.2 respectively).
-        const embedding1 = makeEmbedding(0.1, 0.0);
-        const embedding2 = makeEmbedding(1.0, 0.5); // target — closest to query
-        const embedding3 = makeEmbedding(0.2, 0.0);
+    it('q_a_search returns ranked candidates with separate score columns', async () => {
+      // Embed pair #2 (the "target") with d0=1.0 so it is the closest to
+      // the query vector (which also has d0=1.0). Pairs #1 and #3 have
+      // lower similarity (d0=0.1 and d0=0.2 respectively).
+      const embedding1 = makeEmbedding(0.1, 0.0);
+      const embedding2 = makeEmbedding(1.0, 0.5); // target — closest to query
+      const embedding3 = makeEmbedding(0.2, 0.0);
 
-        const pair1Id = await seedQaPair({
-          questionText:
-            'What is the recommended approach for ISO 27001 certification?',
-          answerStandard:
-            'ISO 27001 certification requires a formal ISMS implementation.',
-          publicationStatus: 'published',
-          embedding: embedding1,
-          scopeTag: ['procurement'],
-        });
+      const pair1Id = await seedQaPair({
+        questionText:
+          'What is the recommended approach for ISO 27001 certification?',
+        answerStandard:
+          'ISO 27001 certification requires a formal ISMS implementation.',
+        publicationStatus: 'published',
+        embedding: embedding1,
+        scopeTag: ['procurement'],
+      });
 
-        const pair2Id = await seedQaPair({
-          questionText: 'How do we demonstrate GDPR compliance to clients?',
-          answerStandard:
-            'GDPR compliance requires documented data processing activities and DPA agreements.',
-          publicationStatus: 'published',
-          embedding: embedding2,
-          scopeTag: ['procurement', 'sales'],
-        });
+      const pair2Id = await seedQaPair({
+        questionText: 'How do we demonstrate GDPR compliance to clients?',
+        answerStandard:
+          'GDPR compliance requires documented data processing activities and DPA agreements.',
+        publicationStatus: 'published',
+        embedding: embedding2,
+        scopeTag: ['procurement', 'sales'],
+      });
 
-        const pair3Id = await seedQaPair({
-          questionText: 'What certifications does the organisation hold?',
-          answerStandard:
-            'The organisation holds Cyber Essentials Plus and ISO 9001.',
-          publicationStatus: 'published',
-          embedding: embedding3,
-          scopeTag: ['procurement'],
-        });
+      const pair3Id = await seedQaPair({
+        questionText: 'What certifications does the organisation hold?',
+        answerStandard:
+          'The organisation holds Cyber Essentials Plus and ISO 9001.',
+        publicationStatus: 'published',
+        embedding: embedding3,
+        scopeTag: ['procurement'],
+      });
 
-        // Query embedding aligned to pair #2 (d0=1.0 matches exactly).
-        const queryEmbedding = makeEmbedding(1.0, 0.5);
-        const queryText = 'GDPR compliance documentation';
+      // Query embedding aligned to pair #2 (d0=1.0 matches exactly).
+      const queryEmbedding = makeEmbedding(1.0, 0.5);
+      const queryText = 'GDPR compliance documentation';
 
-        const { data, error } = await db.rpc('q_a_search', {
-          p_query: queryText,
-          p_query_embedding: JSON.stringify(queryEmbedding), // CLAUDE.md: must stringify
-          p_limit: 10,
-        });
+      const { data, error } = await db.rpc('q_a_search', {
+        p_query: queryText,
+        p_query_embedding: JSON.stringify(queryEmbedding), // CLAUDE.md: must stringify
+        p_limit: 10,
+      });
 
-        expect(error, `q_a_search RPC failed: ${error?.message}`).toBeNull();
-        expect(data).toBeDefined();
-        expect(Array.isArray(data)).toBe(true);
+      expect(error, `q_a_search RPC failed: ${error?.message}`).toBeNull();
+      expect(data).toBeDefined();
+      expect(Array.isArray(data)).toBe(true);
 
-        // At least one result returned (pair2 must appear).
-        expect(data!.length).toBeGreaterThanOrEqual(1);
-        // Limit is respected — should not exceed p_limit.
-        expect(data!.length).toBeLessThanOrEqual(10);
+      // At least one result returned (pair2 must appear).
+      expect(data!.length).toBeGreaterThanOrEqual(1);
+      // Limit is respected — should not exceed p_limit.
+      expect(data!.length).toBeLessThanOrEqual(10);
 
-        // Each row has BOTH separate score columns (N9 RESOLVED-S236).
-        for (const row of data!) {
-          // pair_id is present
-          expect(row.pair_id, 'each row must have pair_id').toBeDefined();
+      // Each row has BOTH separate score columns (N9 RESOLVED-S236).
+      for (const row of data!) {
+        // pair_id is present
+        expect(row.pair_id, 'each row must have pair_id').toBeDefined();
 
-          // embedding_score: cosine similarity in range [0..1].
-          expect(
-            typeof row.embedding_score,
-            'embedding_score must be a number',
-          ).toBe('number');
-          expect(
-            row.embedding_score,
-            `embedding_score ${row.embedding_score} must be >= 0`,
-          ).toBeGreaterThanOrEqual(0);
-          expect(
-            row.embedding_score,
-            `embedding_score ${row.embedding_score} must be <= 1`,
-          ).toBeLessThanOrEqual(1);
-
-          // fulltext_score: ts_rank is always >= 0.
-          expect(
-            typeof row.fulltext_score,
-            'fulltext_score must be a number',
-          ).toBe('number');
-          expect(
-            row.fulltext_score,
-            `fulltext_score ${row.fulltext_score} must be >= 0`,
-          ).toBeGreaterThanOrEqual(0);
-
-          // question_embedding is NOT in the preview payload (S16 §6.1 discipline).
-          // The RPC returns table columns explicitly; embedding must not appear.
-          expect(
-            'question_embedding' in row,
-            'question_embedding must NOT appear in q_a_search result rows',
-          ).toBe(false);
-
-          // Preview columns are present.
-          expect(
-            row.question_text_preview,
-            'question_text_preview must be defined',
-          ).toBeDefined();
-          expect(
-            row.answer_standard_preview,
-            'answer_standard_preview must be defined',
-          ).toBeDefined();
-
-          // scope_tag and publication_status pass-through (caller-side filter substrate).
-          expect(
-            Array.isArray(row.scope_tag),
-            'scope_tag must be an array',
-          ).toBe(true);
-          expect(
-            row.publication_status,
-            'publication_status must be defined',
-          ).toBeDefined();
-        }
-
-        // Pair #2 appears in results — ranking quality check.
-        // The RPC filters WHERE publication_status='published', so all 3 pairs qualify.
-        // Pair #2 has the highest cosine similarity to the query vector.
-        const returnedPairIds = data!.map((r) => r.pair_id);
+        // embedding_score: cosine similarity in range [0..1].
         expect(
-          returnedPairIds,
-          'pair #2 (closest embedding) must appear in ranked results',
-        ).toContain(pair2Id);
+          typeof row.embedding_score,
+          'embedding_score must be a number',
+        ).toBe('number');
+        expect(
+          row.embedding_score,
+          `embedding_score ${row.embedding_score} must be >= 0`,
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+          row.embedding_score,
+          `embedding_score ${row.embedding_score} must be <= 1`,
+        ).toBeLessThanOrEqual(1);
 
-        // Pair #1 and #3 are present in DB but pair #2 should rank first.
-        // We assert pair #2 appears before pair #1 and pair #3 in the result set.
-        const pair2Index = returnedPairIds.indexOf(pair2Id);
-        const pair1Index = returnedPairIds.indexOf(pair1Id);
-        const pair3Index = returnedPairIds.indexOf(pair3Id);
+        // fulltext_score: ts_rank is always >= 0.
+        expect(
+          typeof row.fulltext_score,
+          'fulltext_score must be a number',
+        ).toBe('number');
+        expect(
+          row.fulltext_score,
+          `fulltext_score ${row.fulltext_score} must be >= 0`,
+        ).toBeGreaterThanOrEqual(0);
 
-        if (pair1Index !== -1) {
-          expect(
-            pair2Index,
-            'pair #2 must rank higher (lower index) than pair #1',
-          ).toBeLessThan(pair1Index);
-        }
-        if (pair3Index !== -1) {
-          expect(
-            pair2Index,
-            'pair #2 must rank higher (lower index) than pair #3',
-          ).toBeLessThan(pair3Index);
-        }
+        // question_embedding is NOT in the preview payload (S16 §6.1 discipline).
+        // The RPC returns table columns explicitly; embedding must not appear.
+        expect(
+          'question_embedding' in row,
+          'question_embedding must NOT appear in q_a_search result rows',
+        ).toBe(false);
 
-        // Verify these pair IDs are NOT from old test data — confirm they
-        // were seeded by this test (they're in seededPairIds).
-        expect(seededPairIds).toContain(pair1Id);
-        expect(seededPairIds).toContain(pair2Id);
-        expect(seededPairIds).toContain(pair3Id);
-      },
-      60_000,
-    );
+        // Preview columns are present.
+        expect(
+          row.question_text_preview,
+          'question_text_preview must be defined',
+        ).toBeDefined();
+        expect(
+          row.answer_standard_preview,
+          'answer_standard_preview must be defined',
+        ).toBeDefined();
+
+        // scope_tag and publication_status pass-through (caller-side filter substrate).
+        expect(Array.isArray(row.scope_tag), 'scope_tag must be an array').toBe(
+          true,
+        );
+        expect(
+          row.publication_status,
+          'publication_status must be defined',
+        ).toBeDefined();
+      }
+
+      // Pair #2 appears in results — ranking quality check.
+      // The RPC filters WHERE publication_status='published', so all 3 pairs qualify.
+      // Pair #2 has the highest cosine similarity to the query vector.
+      const returnedPairIds = data!.map((r) => r.pair_id);
+      expect(
+        returnedPairIds,
+        'pair #2 (closest embedding) must appear in ranked results',
+      ).toContain(pair2Id);
+
+      // Pair #1 and #3 are present in DB but pair #2 should rank first.
+      // We assert pair #2 appears before pair #1 and pair #3 in the result set.
+      const pair2Index = returnedPairIds.indexOf(pair2Id);
+      const pair1Index = returnedPairIds.indexOf(pair1Id);
+      const pair3Index = returnedPairIds.indexOf(pair3Id);
+
+      if (pair1Index !== -1) {
+        expect(
+          pair2Index,
+          'pair #2 must rank higher (lower index) than pair #1',
+        ).toBeLessThan(pair1Index);
+      }
+      if (pair3Index !== -1) {
+        expect(
+          pair2Index,
+          'pair #2 must rank higher (lower index) than pair #3',
+        ).toBeLessThan(pair3Index);
+      }
+
+      // Verify these pair IDs are NOT from old test data — confirm they
+      // were seeded by this test (they're in seededPairIds).
+      expect(seededPairIds).toContain(pair1Id);
+      expect(seededPairIds).toContain(pair2Id);
+      expect(seededPairIds).toContain(pair3Id);
+    }, 60_000);
 
     // -------------------------------------------------------------------------
     // Test 2: q_a_get_verbatim returns full row excluding embedding
     // -------------------------------------------------------------------------
-    it(
-      'q_a_get_verbatim returns full row excluding question_embedding',
-      async () => {
-        // Insert a published pair.
-        const publishedEmbedding = makeEmbedding(0.7, 0.3);
-        const publishedId = await seedQaPair({
-          questionText:
-            'What data retention policies apply to tender documentation?',
-          answerStandard:
-            'Tender documentation must be retained for 7 years per UK public procurement regulations.',
-          publicationStatus: 'published',
-          embedding: publishedEmbedding,
-          scopeTag: ['procurement'],
-        });
-
-        // Insert a draft pair — q_a_get_verbatim has no publication_status filter.
-        const draftId = await seedQaPair({
-          questionText: 'How do we handle supply chain due diligence?',
-          answerStandard:
-            'Supply chain due diligence requires Tier 1 supplier assessment and risk register.',
-          publicationStatus: 'draft',
-          // No embedding on the draft — question_embedding NULL is valid.
-        });
-
-        // --- Verbatim for published pair ---
-        const { data: publishedData, error: publishedError } = await db.rpc(
-          'q_a_get_verbatim',
-          { p_pair_id: publishedId },
-        );
-
-        expect(
-          publishedError,
-          `q_a_get_verbatim(published) failed: ${publishedError?.message}`,
-        ).toBeNull();
-        expect(publishedData, 'published verbatim data must be defined').toBeDefined();
-        expect(
-          publishedData!.length,
-          'q_a_get_verbatim must return exactly 1 row',
-        ).toBe(1);
-
-        const publishedRow = publishedData![0];
-
-        // Full row columns are present (shape per 05-qa-flow.md §7.2).
-        expect(publishedRow.id).toBe(publishedId);
-        expect(publishedRow.question_text).toBe(
+    it('q_a_get_verbatim returns full row excluding question_embedding', async () => {
+      // Insert a published pair.
+      const publishedEmbedding = makeEmbedding(0.7, 0.3);
+      const publishedId = await seedQaPair({
+        questionText:
           'What data retention policies apply to tender documentation?',
-        );
-        expect(publishedRow.answer_standard).toBe(
+        answerStandard:
           'Tender documentation must be retained for 7 years per UK public procurement regulations.',
-        );
-        expect(publishedRow.publication_status).toBe('published');
-        expect(publishedRow.origin_kind).toBe('curated_explicit');
-        expect(Array.isArray(publishedRow.scope_tag)).toBe(true);
-        expect(Array.isArray(publishedRow.anti_scope_tag)).toBe(true);
-        expect(Array.isArray(publishedRow.alternate_question_phrasings)).toBe(
-          true,
-        );
+        publicationStatus: 'published',
+        embedding: publishedEmbedding,
+        scopeTag: ['procurement'],
+      });
 
-        // question_embedding is NOT in the verbatim payload (S16 §6.1 discipline —
-        // payload-size discipline: omit embedding from the retrieval response).
-        expect(
-          'question_embedding' in publishedRow,
-          'question_embedding must NOT appear in q_a_get_verbatim result',
-        ).toBe(false);
+      // Insert a draft pair — q_a_get_verbatim has no publication_status filter.
+      const draftId = await seedQaPair({
+        questionText: 'How do we handle supply chain due diligence?',
+        answerStandard:
+          'Supply chain due diligence requires Tier 1 supplier assessment and risk register.',
+        publicationStatus: 'draft',
+        // No embedding on the draft — question_embedding NULL is valid.
+      });
 
-        // Timestamp columns are present.
-        expect(publishedRow.created_at).toBeDefined();
-        expect(publishedRow.updated_at).toBeDefined();
+      // --- Verbatim for published pair ---
+      const { data: publishedData, error: publishedError } = await db.rpc(
+        'q_a_get_verbatim',
+        { p_pair_id: publishedId },
+      );
 
-        // --- Verbatim for draft pair (no publication_status filter) ---
-        const { data: draftData, error: draftError } = await db.rpc(
-          'q_a_get_verbatim',
-          { p_pair_id: draftId },
-        );
+      expect(
+        publishedError,
+        `q_a_get_verbatim(published) failed: ${publishedError?.message}`,
+      ).toBeNull();
+      expect(
+        publishedData,
+        'published verbatim data must be defined',
+      ).toBeDefined();
+      expect(
+        publishedData!.length,
+        'q_a_get_verbatim must return exactly 1 row',
+      ).toBe(1);
 
-        expect(
-          draftError,
-          `q_a_get_verbatim(draft) failed: ${draftError?.message}`,
-        ).toBeNull();
-        expect(draftData, 'draft verbatim data must be defined').toBeDefined();
-        expect(
-          draftData!.length,
-          'q_a_get_verbatim must return exactly 1 row for draft pair',
-        ).toBe(1);
+      const publishedRow = publishedData![0];
 
-        const draftRow = draftData![0];
-        expect(draftRow.id).toBe(draftId);
-        expect(draftRow.publication_status).toBe('draft');
+      // Full row columns are present (shape per 05-qa-flow.md §7.2).
+      expect(publishedRow.id).toBe(publishedId);
+      expect(publishedRow.question_text).toBe(
+        'What data retention policies apply to tender documentation?',
+      );
+      expect(publishedRow.answer_standard).toBe(
+        'Tender documentation must be retained for 7 years per UK public procurement regulations.',
+      );
+      expect(publishedRow.publication_status).toBe('published');
+      expect(publishedRow.origin_kind).toBe('curated_explicit');
+      expect(Array.isArray(publishedRow.scope_tag)).toBe(true);
+      expect(Array.isArray(publishedRow.anti_scope_tag)).toBe(true);
+      expect(Array.isArray(publishedRow.alternate_question_phrasings)).toBe(
+        true,
+      );
 
-        // question_embedding also absent on draft row.
-        expect(
-          'question_embedding' in draftRow,
-          'question_embedding must NOT appear in draft verbatim result',
-        ).toBe(false);
-      },
-      60_000,
-    );
+      // question_embedding is NOT in the verbatim payload (S16 §6.1 discipline —
+      // payload-size discipline: omit embedding from the retrieval response).
+      expect(
+        'question_embedding' in publishedRow,
+        'question_embedding must NOT appear in q_a_get_verbatim result',
+      ).toBe(false);
+
+      // Timestamp columns are present.
+      expect(publishedRow.created_at).toBeDefined();
+      expect(publishedRow.updated_at).toBeDefined();
+
+      // --- Verbatim for draft pair (no publication_status filter) ---
+      const { data: draftData, error: draftError } = await db.rpc(
+        'q_a_get_verbatim',
+        { p_pair_id: draftId },
+      );
+
+      expect(
+        draftError,
+        `q_a_get_verbatim(draft) failed: ${draftError?.message}`,
+      ).toBeNull();
+      expect(draftData, 'draft verbatim data must be defined').toBeDefined();
+      expect(
+        draftData!.length,
+        'q_a_get_verbatim must return exactly 1 row for draft pair',
+      ).toBe(1);
+
+      const draftRow = draftData![0];
+      expect(draftRow.id).toBe(draftId);
+      expect(draftRow.publication_status).toBe('draft');
+
+      // question_embedding also absent on draft row.
+      expect(
+        'question_embedding' in draftRow,
+        'question_embedding must NOT appear in draft verbatim result',
+      ).toBe(false);
+    }, 60_000);
 
     // -------------------------------------------------------------------------
     // Test 3: q_a_pair_history trigger writes version rows on UPDATE
     // -------------------------------------------------------------------------
-    it(
-      'q_a_pair_history trigger writes version on UPDATE and increments version on subsequent UPDATE',
-      async () => {
-        const pairId = await seedQaPair({
-          questionText: 'What are our IR35 compliance obligations?',
-          answerStandard:
-            'IR35 compliance requires off-payroll working rules assessment for contractors.',
-          publicationStatus: 'draft',
-        });
-
-        // Baseline: no history rows should exist (trigger fires on UPDATE, not INSERT).
-        const historyBefore = await readHistory(pairId);
-        expect(
-          historyBefore.length,
-          'no history rows should exist before first UPDATE',
-        ).toBe(0);
-
-        // First UPDATE: change answer_standard + publication_status.
-        const { error: updateError1 } = await db
-          .from('q_a_pairs')
-          .update({
-            answer_standard:
-              'IR35 compliance requires off-payroll working rules assessment. Updated v1.',
-            publication_status: 'in_review',
-          })
-          .eq('id', pairId)
-          .select('id'); // .select() prevents HTTP 204 hang (CLAUDE.md sandbox gotcha)
-
-        expect(
-          updateError1,
-          `First UPDATE failed: ${updateError1?.message}`,
-        ).toBeNull();
-
-        // After first UPDATE: exactly 1 history row, version=1, snapshot = OLD values.
-        const historyAfterFirst = await readHistory(pairId);
-        expect(
-          historyAfterFirst.length,
-          'exactly 1 history row after first UPDATE',
-        ).toBe(1);
-
-        const firstHistoryRow = historyAfterFirst[0];
-        expect(firstHistoryRow.version).toBe(1);
-        expect(firstHistoryRow.q_a_pair_id).toBe(pairId);
-
-        // Snapshot captures OLD row values (before the update was applied).
-        expect(firstHistoryRow.question_text).toBe(
-          'What are our IR35 compliance obligations?',
-        );
-        expect(firstHistoryRow.answer_standard).toBe(
+    it('q_a_pair_history trigger writes version on UPDATE and increments version on subsequent UPDATE', async () => {
+      const pairId = await seedQaPair({
+        questionText: 'What are our IR35 compliance obligations?',
+        answerStandard:
           'IR35 compliance requires off-payroll working rules assessment for contractors.',
-        );
-        expect(firstHistoryRow.publication_status).toBe('draft');
+        publicationStatus: 'draft',
+      });
 
-        // changed_at is set.
-        expect(firstHistoryRow.changed_at).toBeDefined();
+      // Baseline: no history rows should exist (trigger fires on UPDATE, not INSERT).
+      const historyBefore = await readHistory(pairId);
+      expect(
+        historyBefore.length,
+        'no history rows should exist before first UPDATE',
+      ).toBe(0);
 
-        // Second UPDATE: change question_text + answer.
-        const { error: updateError2 } = await db
-          .from('q_a_pairs')
-          .update({
-            question_text: 'What are our IR35 compliance obligations as a client?',
-            answer_standard:
-              'IR35 compliance requires off-payroll working rules assessment. Updated v2.',
-            publication_status: 'published',
-          })
-          .eq('id', pairId)
-          .select('id');
+      // First UPDATE: change answer_standard + publication_status.
+      const { error: updateError1 } = await db
+        .from('q_a_pairs')
+        .update({
+          answer_standard:
+            'IR35 compliance requires off-payroll working rules assessment. Updated v1.',
+          publication_status: 'in_review',
+        })
+        .eq('id', pairId)
+        .select('id'); // .select() prevents HTTP 204 hang (CLAUDE.md sandbox gotcha)
 
-        expect(
-          updateError2,
-          `Second UPDATE failed: ${updateError2?.message}`,
-        ).toBeNull();
+      expect(
+        updateError1,
+        `First UPDATE failed: ${updateError1?.message}`,
+      ).toBeNull();
 
-        // After second UPDATE: 2 history rows, versions 1 and 2.
-        const historyAfterSecond = await readHistory(pairId);
-        expect(
-          historyAfterSecond.length,
-          'exactly 2 history rows after second UPDATE',
-        ).toBe(2);
+      // After first UPDATE: exactly 1 history row, version=1, snapshot = OLD values.
+      const historyAfterFirst = await readHistory(pairId);
+      expect(
+        historyAfterFirst.length,
+        'exactly 1 history row after first UPDATE',
+      ).toBe(1);
 
-        const [v1Row, v2Row] = historyAfterSecond;
-        expect(v1Row.version).toBe(1);
-        expect(v2Row.version).toBe(2);
+      const firstHistoryRow = historyAfterFirst[0];
+      expect(firstHistoryRow.version).toBe(1);
+      expect(firstHistoryRow.q_a_pair_id).toBe(pairId);
 
-        // v2 snapshot captures what the row looked like BEFORE the second UPDATE
-        // (i.e. the state set by the first UPDATE).
-        expect(v2Row.answer_standard).toBe(
-          'IR35 compliance requires off-payroll working rules assessment. Updated v1.',
-        );
-        expect(v2Row.publication_status).toBe('in_review');
+      // Snapshot captures OLD row values (before the update was applied).
+      expect(firstHistoryRow.question_text).toBe(
+        'What are our IR35 compliance obligations?',
+      );
+      expect(firstHistoryRow.answer_standard).toBe(
+        'IR35 compliance requires off-payroll working rules assessment for contractors.',
+      );
+      expect(firstHistoryRow.publication_status).toBe('draft');
 
-        // Verify the live pair row now reflects the second UPDATE.
-        const livePair = await readPair(pairId);
-        expect(livePair.answer_standard).toBe(
-          'IR35 compliance requires off-payroll working rules assessment. Updated v2.',
-        );
-        expect(livePair.publication_status).toBe('published');
-      },
-      60_000,
-    );
+      // changed_at is set.
+      expect(firstHistoryRow.changed_at).toBeDefined();
+
+      // Second UPDATE: change question_text + answer.
+      const { error: updateError2 } = await db
+        .from('q_a_pairs')
+        .update({
+          question_text:
+            'What are our IR35 compliance obligations as a client?',
+          answer_standard:
+            'IR35 compliance requires off-payroll working rules assessment. Updated v2.',
+          publication_status: 'published',
+        })
+        .eq('id', pairId)
+        .select('id');
+
+      expect(
+        updateError2,
+        `Second UPDATE failed: ${updateError2?.message}`,
+      ).toBeNull();
+
+      // After second UPDATE: 2 history rows, versions 1 and 2.
+      const historyAfterSecond = await readHistory(pairId);
+      expect(
+        historyAfterSecond.length,
+        'exactly 2 history rows after second UPDATE',
+      ).toBe(2);
+
+      const [v1Row, v2Row] = historyAfterSecond;
+      expect(v1Row.version).toBe(1);
+      expect(v2Row.version).toBe(2);
+
+      // v2 snapshot captures what the row looked like BEFORE the second UPDATE
+      // (i.e. the state set by the first UPDATE).
+      expect(v2Row.answer_standard).toBe(
+        'IR35 compliance requires off-payroll working rules assessment. Updated v1.',
+      );
+      expect(v2Row.publication_status).toBe('in_review');
+
+      // Verify the live pair row now reflects the second UPDATE.
+      const livePair = await readPair(pairId);
+      expect(livePair.answer_standard).toBe(
+        'IR35 compliance requires off-payroll working rules assessment. Updated v2.',
+      );
+      expect(livePair.publication_status).toBe('published');
+    }, 60_000);
 
     // -------------------------------------------------------------------------
     // Test 4: CASCADE DELETE removes history rows
     // -------------------------------------------------------------------------
-    it(
-      'CASCADE DELETE removes q_a_pair_history rows when q_a_pair is deleted',
-      async () => {
-        const pairId = await seedQaPair({
-          questionText:
-            'What is our approach to sustainable procurement?',
-          answerStandard:
-            'Sustainable procurement policy requires supplier ESG assessment.',
-          publicationStatus: 'draft',
-        });
+    it('CASCADE DELETE removes q_a_pair_history rows when q_a_pair is deleted', async () => {
+      const pairId = await seedQaPair({
+        questionText: 'What is our approach to sustainable procurement?',
+        answerStandard:
+          'Sustainable procurement policy requires supplier ESG assessment.',
+        publicationStatus: 'draft',
+      });
 
-        // Create a history row by updating.
-        const { error: updateErr } = await db
-          .from('q_a_pairs')
-          .update({ answer_standard: 'Updated answer for cascade test.' })
-          .eq('id', pairId)
-          .select('id');
+      // Create a history row by updating.
+      const { error: updateErr } = await db
+        .from('q_a_pairs')
+        .update({ answer_standard: 'Updated answer for cascade test.' })
+        .eq('id', pairId)
+        .select('id');
 
-        expect(
-          updateErr,
-          `UPDATE for cascade test failed: ${updateErr?.message}`,
-        ).toBeNull();
+      expect(
+        updateErr,
+        `UPDATE for cascade test failed: ${updateErr?.message}`,
+      ).toBeNull();
 
-        // Confirm history row exists.
-        const historyBefore = await readHistory(pairId);
-        expect(
-          historyBefore.length,
-          'history row must exist before DELETE',
-        ).toBe(1);
+      // Confirm history row exists.
+      const historyBefore = await readHistory(pairId);
+      expect(historyBefore.length, 'history row must exist before DELETE').toBe(
+        1,
+      );
 
-        // Perform the DELETE.
-        const { error: deleteErr } = await db
-          .from('q_a_pairs')
-          .delete()
-          .eq('id', pairId)
-          .select('id');
+      // Perform the DELETE.
+      const { error: deleteErr } = await db
+        .from('q_a_pairs')
+        .delete()
+        .eq('id', pairId)
+        .select('id');
 
-        expect(
-          deleteErr,
-          `DELETE q_a_pair failed: ${deleteErr?.message}`,
-        ).toBeNull();
+      expect(
+        deleteErr,
+        `DELETE q_a_pair failed: ${deleteErr?.message}`,
+      ).toBeNull();
 
-        // Remove from seededPairIds since we deleted it manually — afterEach
-        // cleanup would fail silently on a non-existent row, but we clean up
-        // explicitly to avoid confusion.
-        seededPairIds = seededPairIds.filter((id) => id !== pairId);
+      // Remove from seededPairIds since we deleted it manually — afterEach
+      // cleanup would fail silently on a non-existent row, but we clean up
+      // explicitly to avoid confusion.
+      seededPairIds = seededPairIds.filter((id) => id !== pairId);
 
-        // Assert: no orphan history rows for this pair_id.
-        // CASCADE DELETE on q_a_pair_history.q_a_pair_id_fkey handles this
-        // automatically — we assert the result, not the mechanism.
-        const { data: orphanHistory, error: historyCheckErr } = await db
-          .from('q_a_pair_history')
-          .select('id')
-          .eq('q_a_pair_id', pairId);
+      // Assert: no orphan history rows for this pair_id.
+      // CASCADE DELETE on q_a_pair_history.q_a_pair_id_fkey handles this
+      // automatically — we assert the result, not the mechanism.
+      const { data: orphanHistory, error: historyCheckErr } = await db
+        .from('q_a_pair_history')
+        .select('id')
+        .eq('q_a_pair_id', pairId);
 
-        expect(
-          historyCheckErr,
-          `History orphan check failed: ${historyCheckErr?.message}`,
-        ).toBeNull();
-        expect(
-          orphanHistory?.length,
-          'no orphan q_a_pair_history rows must remain after CASCADE DELETE',
-        ).toBe(0);
-      },
-      60_000,
-    );
+      expect(
+        historyCheckErr,
+        `History orphan check failed: ${historyCheckErr?.message}`,
+      ).toBeNull();
+      expect(
+        orphanHistory?.length,
+        'no orphan q_a_pair_history rows must remain after CASCADE DELETE',
+      ).toBe(0);
+    }, 60_000);
   },
 );

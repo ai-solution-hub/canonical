@@ -134,7 +134,9 @@ export interface ProcurementQuestionDetail {
   review_status: string | null;
 }
 
-export function formatProcurementQuestion(q: ProcurementQuestionDetail): string {
+export function formatProcurementQuestion(
+  q: ProcurementQuestionDetail,
+): string {
   const lines: string[] = [
     '# Procurement Question',
     '',
