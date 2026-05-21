@@ -93,6 +93,51 @@ describe('recordPipelineRun', () => {
     expect(typeof payload.completed_at).toBe('string');
   });
 
+  it('includes op_id in the insert payload when opId is provided', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const testOpId = '550e8400-e29b-41d4-a716-446655440000';
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'completed',
+      opId: testOpId,
+    });
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.op_id).toBe(testOpId);
+  });
+
+  it('inserts op_id as null when opId is omitted', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'content_gaps',
+      status: 'completed',
+    });
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.op_id).toBeNull();
+  });
+
+  it('inserts op_id as null when opId is explicitly null', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'content_gaps',
+      status: 'completed',
+      opId: null,
+    });
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.op_id).toBeNull();
+  });
+
   it('does NOT fire Sentry on a completed run', async () => {
     const { client } = createMockSupabase({ data: null, error: null });
     await recordPipelineRun({

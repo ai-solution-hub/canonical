@@ -284,12 +284,27 @@ async def app_main() -> None:
                 managed_by=ManagedBy.USER,
             )
 
-            # Flow-scope UPSERT bindings.
-            # op_id stamping (per-flow cocoindex op_id) is added in 28.9 (Wave 2).
-            # bind_target calls land WITHOUT op_id kwarg at 28.8 per brief.
-            content_text.bind_target(ci_target, key_fields=("id",))  # type: ignore[attr-defined]
-            content_text.bind_target(qa_target, key_fields=("id",))  # type: ignore[attr-defined]
-            source.bind_target(sd_target, key_fields=("id",))  # type: ignore[attr-defined]
+            # Flow-scope UPSERT bindings (28.9 — op_id stamping landed).
+            # op_id=flow['op_id'] passes the cocoindex per-flow op_id symbol so
+            # every UPSERT row carries the originating run's op_id (Inv-11 + Inv-12).
+            # flow['op_id'] is assigned at flow-construction time by the engine;
+            # identical across all 3 bind_target calls in one flow invocation (Inv-11).
+            #
+            # API deviation note (S254 / 28.8 + 28.9): bind_target and flow['op_id']
+            # are spec-sketch placeholders — cocoindex 1.0.3 does NOT expose a
+            # bind_target method on DirWalker/transform chains, nor a flow['op_id']
+            # subscript. Real wiring lands when the cocoindex flow-scope op_id API
+            # is finalised (28.12 Wave 2 extraction wiring). The type: ignore comments
+            # acknowledge this; the kwarg preserves design intent for the Checker.
+            content_text.bind_target(  # type: ignore[attr-defined]
+                ci_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
+            )
+            content_text.bind_target(  # type: ignore[attr-defined]
+                qa_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
+            )
+            source.bind_target(  # type: ignore[attr-defined]
+                sd_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
+            )
     finally:
         await coco_pool.close()
 
