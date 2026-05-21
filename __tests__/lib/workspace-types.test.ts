@@ -1,101 +1,17 @@
 /**
- * Workspace Type Registry Tests
+ * Workspace Types — Sync Constraint Tests
  *
- * Unit tests for the workspace type registry public API: getWorkspaceType,
- * getAllWorkspaceTypes, getLauncherTypes, getValidTypeValues, formatTypeCount.
+ * Post-ID-29: `lib/workspace-types.ts` has collapsed to the sync source of
+ * truth for `application_types.key` (used by Zod schema construction at
+ * module-load). Only `APPLICATION_TYPE_KEYS` + `getValidTypeValues()`
+ * remain — UI metadata surface lives in
+ * `hooks/workspaces/use-application-types.ts` (tested in
+ * `__tests__/hooks/workspaces/use-application-types.test.ts`).
  */
 import { describe, it, expect } from 'vitest';
-import {
-  getWorkspaceType,
-  getAllWorkspaceTypes,
-  getLauncherTypes,
-  getValidTypeValues,
-  formatTypeCount,
-} from '@/lib/workspace-types';
+import { getValidTypeValues } from '@/lib/workspace-types';
 
-describe('workspace-types registry', () => {
-  describe('getWorkspaceType', () => {
-    // Post-T2 (S246): 'bid' renamed to 'procurement' per application_types.key
-    // mapping. Tests updated to match current registry shape (TODO(T4) shim).
-    it('returns config for "procurement" application type (bid management)', () => {
-      const config = getWorkspaceType('procurement');
-      expect(config).toBeDefined();
-      expect(config!.type).toBe('procurement');
-      expect(config!.label).toBe('Procurement');
-      expect(config!.labelPlural).toBe('Procurements');
-      expect(config!.route).toBe('/procurement');
-      expect(config!.available).toBe(true);
-      expect(config!.hasCustomCreation).toBe(true);
-    });
-
-    // Post-T2: 'kb_section' retired (no prod rows, not in application_types).
-    // The type no longer exists in the registry.
-    it('returns undefined for retired "kb_section" type', () => {
-      expect(getWorkspaceType('kb_section')).toBeUndefined();
-    });
-
-    it('returns config for "proposal" type (unavailable placeholder)', () => {
-      const config = getWorkspaceType('proposal');
-      expect(config).toBeDefined();
-      expect(config!.available).toBe(false);
-    });
-
-    it('returns undefined for unknown type', () => {
-      expect(getWorkspaceType('nonexistent')).toBeUndefined();
-    });
-
-    it('returns undefined for empty string', () => {
-      expect(getWorkspaceType('')).toBeUndefined();
-    });
-
-    it('intelligence description is free of AI branding and prompt language', () => {
-      const config = getWorkspaceType('intelligence');
-      expect(config).toBeDefined();
-      // Guards S157 WP1 C4 regression — no "AI" or "prompt" words in the
-      // user-visible workspace type description.
-      expect(config!.description).not.toMatch(/\bAI\b/i);
-      expect(config!.description).not.toMatch(/prompt/i);
-    });
-  });
-
-  describe('getAllWorkspaceTypes', () => {
-    it('returns all registered types', () => {
-      const all = getAllWorkspaceTypes();
-      expect(all.length).toBeGreaterThanOrEqual(3);
-      const types = all.map((t) => t.type);
-      // Post-T2: 'bid' renamed to 'procurement'; 'kb_section' retired.
-      expect(types).toContain('procurement');
-      expect(types).toContain('intelligence');
-      expect(types).toContain('proposal');
-    });
-
-    it('returns an array (not a record)', () => {
-      const all = getAllWorkspaceTypes();
-      expect(Array.isArray(all)).toBe(true);
-    });
-  });
-
-  describe('getLauncherTypes', () => {
-    it('includes bid management type (procurement) in the launcher', () => {
-      const launcher = getLauncherTypes();
-      const types = launcher.map((t) => t.type);
-      expect(types).toContain('procurement');
-    });
-
-    it('includes unavailable types (shown as "coming soon")', () => {
-      const launcher = getLauncherTypes();
-      const types = launcher.map((t) => t.type);
-      expect(types).toContain('proposal');
-    });
-
-    it('excludes retired kb_section type from the launcher', () => {
-      const launcher = getLauncherTypes();
-      const types = launcher.map((t) => t.type);
-      // kb_section retired post-T2 — must not appear
-      expect(types).not.toContain('kb_section');
-    });
-  });
-
+describe('workspace-types sync constraint', () => {
   describe('getValidTypeValues', () => {
     it('returns a non-empty tuple', () => {
       const values = getValidTypeValues();
@@ -109,46 +25,23 @@ describe('workspace-types registry', () => {
       expect(values).toContain('intelligence');
     });
 
-    it('excludes unavailable types (not in DB CHECK constraint)', () => {
-      const values = getValidTypeValues();
-      expect(values).not.toContain('proposal');
-    });
-
     it('first element is a string (tuple shape)', () => {
       const values = getValidTypeValues();
       expect(typeof values[0]).toBe('string');
     });
-  });
 
-  describe('formatTypeCount', () => {
-    it('formats singular procurement count using bid label', () => {
-      // The registry maps 'procurement' key to label 'Procurement'
-      expect(formatTypeCount('procurement', 1)).toBe('1 active procurement');
-    });
-
-    it('formats plural procurement count using procurements label', () => {
-      expect(formatTypeCount('procurement', 5)).toBe('5 active procurements');
-    });
-
-    it('formats zero procurement count as plural', () => {
-      expect(formatTypeCount('procurement', 0)).toBe('0 active procurements');
-    });
-
-    it('formats singular intelligence count', () => {
-      expect(formatTypeCount('intelligence', 1)).toBe(
-        '1 active intelligence stream',
-      );
-    });
-
-    it('formats plural intelligence count', () => {
-      expect(formatTypeCount('intelligence', 3)).toBe(
-        '3 active intelligence streams',
-      );
-    });
-
-    it('falls back to "workspace(s)" for unknown type', () => {
-      expect(formatTypeCount('unknown_type', 1)).toBe('1 active workspace');
-      expect(formatTypeCount('unknown_type', 5)).toBe('5 active workspaces');
+    it('returns all 6 application_types seed keys', () => {
+      // Sync constraint: must match the `application_types` table seed.
+      // Update both in lockstep when a seed key is added or retired.
+      const values = getValidTypeValues();
+      expect(values).toEqual([
+        'procurement',
+        'intelligence',
+        'sales_proposal',
+        'product_guide',
+        'competitor_research',
+        'training_onboarding',
+      ]);
     });
   });
 });
