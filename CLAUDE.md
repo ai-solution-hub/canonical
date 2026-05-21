@@ -378,6 +378,22 @@ without their own worktree are fine — work in the `main` worktree directly.
   CWD-vs-path containment — trust the hooks, don't reinvent. Cherry-pick (not merge)
   parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
+- **Hook propagation discipline (ID-19.4):** Sub-agent worktrees created via
+  `isolation: "worktree"` live under `/Users/liamj/.../knowledge-hub/.claude/worktrees/agent-XXX/`
+  — i.e. they inherit **main repo branch state**, not the orchestrator's branch.
+  If the Tier 2.2 hook (or any future PreToolUse guard) lives only on a non-main branch
+  (e.g. `production-readiness`-only at commit time), sub-agents will dispatch WITHOUT the
+  hook on disk. Pre-dispatch check: `git show origin/main:.claude/settings.json | grep -c
+  "Tier 2.2 hook (ID-19.3)"` must be ≥1. If 0, propagate via merge or cherry-pick to main
+  BEFORE dispatch. Full analysis: `docs/research/hook-cwd-prefix-gap-investigation.md`.
+- **Brief-authoring discipline — minimise sibling-worktree absolute paths.** When writing
+  dispatch briefs for sub-agents (Agent tool `isolation: "worktree"` or
+  `session-driver-cmux`), use **relative paths only** for file references. If absolute
+  paths are unavoidable, only the worker's OWN worktree path is acceptable. NEVER mention
+  sibling worktree absolute paths (`-production-readiness/`, `-staging/`, etc.) in
+  dispatch text — even in `git fetch` examples or hook-warning recitations — because
+  primer effect causes the sub-agent's Write tool autocomplete to emit those paths. The
+  Tier 2.2 hook is the backstop; relative-paths-only is the cheapest defense layer.
 - **Reference-doc freshness guard:** merge commits using combined-diff format don't
   register single-parent `last_updated` additions. Workaround = follow-up single-parent
   commit bumping `last_updated`, or `[skip-doc-freshness-guard]` body tag.
