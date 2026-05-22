@@ -67,6 +67,15 @@ If an existing roadmap or backlog item already covers this finding:
 
 Walk the decision tree in order. Stop at the first match.
 
+**Liam-driven promote (no finding source) — short-circuit at the top of the tree (per S62E sub-o 2 §2 carry-forward):**
+
+This skill's canonical input is a finding packet from a `task-executor` or `workflow-checker`. However, the workflow-orchestration skill (or Orchestrator directly per S60 ratification) may invoke this skill on a backlog item being picked up for implementation — there is no finding source, only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
+
+- `finding.source` is set to `orchestrator-direct` (or `liam-direct`); `finding.source_context` carries the backlog item id; `finding.description` carries the Orchestrator's promotion rationale; `finding.evidence` is empty or carries the backlog item's existing `notes`.
+- **Decision is short-circuit:** `decision: subtask` (Promote target = task-list) when Liam direction names a parent Task; `decision: roadmap`/`backlog` are NOT reachable from a Liam-driven promote (the item is already on the backlog). The actual Promote write is performed by `update-roadmap-backlog` Promote mode.
+- The decision-tree's binary in-scope-ness check (Branch A) and Branches B/C/D do NOT run in this mode — the promotion is the entire decision.
+- Output: `decision: subtask` with `subtask_spec` populated from the backlog item's load-bearing fields (description → title; existing `details` → scope; existing `testStrategy` if present). Set `in_scope_predicate_matched: "liam-direction"`.
+
 **If the case is genuinely ambiguous after walking the tree** (roadmap-vs-backlog unclear, impact radius unclear, "already covered" debatable):
 
 - **If the Advisor tool is available** (Anthropic beta `advisor-tool-2026-03-01`): invoke it before forcing a decision. The advisor sees your full transcript (finding packet + roadmap/backlog reads) and returns advice on the branch-A/B/C/D choice. Record the decision yourself — advisor returns text only, not a write.
@@ -107,33 +116,35 @@ in_scope_predicate_matched: "file-path" | "axis"  # which of the two binary pred
 
 The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it into the current wave or schedule it for a fix wave.
 
-### Branch B — Is it strategic / cross-cutting?
+### Branch B — Is it a new capability theme? (Shape A — "capability theme promotion")
 
 Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
-A finding is a **roadmap** candidate when **any** of these hold:
+Under Shape A (per `docs/specs/roadmap-backlog-consolidation/PRODUCT.md` inv 13 a + TECH §4.1), the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
 
-1. It cross-cuts multiple features (touches more than one functional area, e.g. "auth pattern needs to change across all routes").
-2. It is strategic — a product-level decision (e.g. "we should support multi-tenant deployments").
-3. It is multi-month effort (anything estimated at "weeks" of work that spans feature boundaries).
-4. It introduces a new top-level capability (new section under `state-of-the-product.md` §5 Feature State or §8 AI Integration Points).
-5. It is a research item that, once resolved, will unblock multiple downstream features.
+A finding routes to Branch B when **both** of these hold:
 
-**If yes → Decision: `roadmap`.**
+1. **Not covered by an existing theme.** Inspect `docs/reference/product-roadmap.json` `themes[]`. The finding's subject is NOT covered by any existing theme's `linked_tasks[]` or `linked_backlog[]` chain (i.e. no existing theme already enumerates this capability area in its linked work). If the finding extends a theme's existing chain, it is Branch C (active work item) not Branch B.
+2. **Multi-month or cross-cutting capability.** The capability is genuinely multi-month in scope OR cross-cuts multiple feature areas at the headline level (e.g. "support multi-tenant deployments", "ship sales-proposal as a sibling application"). Single-feature/weeks-scope items are Branch C, even if they touch territory adjacent to an existing theme.
 
-Identify the target section:
+**If both hold → Decision: `roadmap`.**
 
-- Look at `docs/reference/product-roadmap.json` `sections[*].id` and `.title` to find the section the finding best fits.
-- If no existing section fits, propose a new section (the `update-roadmap-backlog` skill handles the section structure).
-
-Output:
+Propose the theme shape (the `update-roadmap-backlog` skill Create-mode populates the full RoadmapThemeSchema fields):
 
 ```yaml
-roadmap_target_section: "§{N.M}"  # e.g. "§9.15", or "new section" if none fits
-section_title_if_new: "{title}"  # only if proposing a new section
+roadmap_proposed_theme:
+  title: "{short capability name — e.g. 'multi-tenant deployments'}"
+  description: "{multi-sentence Markdown — why this capability matters; outcome shape}"
+  time_horizon: "later"  # default per PRODUCT inv 13 a + P-OQ-2; curator may revise to now | next
+  initial_linked_tasks: ["{source_task_id, if relevant}"]  # may be empty
+  initial_linked_backlog: []  # empty by default; populated as backlog items accumulate
 ```
 
-### Branch C — Is it tactical, single-feature?
+The curator (via `update-roadmap-backlog` Create) appends the theme to `themes[]`, populates `id` from next-free-bare-digit, and fills required schema fields (`status: "pending"` default per P-OQ-1; `session_refs` / `commit_refs` from provenance).
+
+> If only condition 1 OR only condition 2 holds — e.g. uncovered but single-feature/weeks — route to Branch C as a `backlog` candidate. Branch B is for **new theme** introductions; existing themes accept new linked work via Branch C.
+
+### Branch C — Is it an active work item? (Shape A — "active work item promotion")
 
 Reached only when Branches A and B did not match.
 
@@ -144,7 +155,7 @@ A finding is a **backlog** candidate when **all** of these hold:
 3. It is not blocking any currently-active Task ID-N (otherwise Branch A's file-path or axis predicate would have matched).
 4. The current Subtask ID-N.M is not already touching the same surface (otherwise Branch A's file-path predicate would have matched).
 
-This is the most common destination for non-blocking out-of-scope findings.
+This is the most common destination for non-blocking out-of-scope findings. Under Shape A (per PRODUCT inv 13 b + TECH §4.1), Branch C output gains `rank` — the within-priority-tier deterministic ordering integer (PRODUCT inv 3). The curator may set `rank` explicitly when the finding's evidence carries an obvious ordering signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog` Update mode) sets it later.
 
 **If yes → Decision: `backlog`.**
 
@@ -159,10 +170,13 @@ Output:
 ```yaml
 backlog_slot:
   track: "{track-name}"
-  type: "feature" | "research" | "infra" | "tech-debt"
+  type: "feature" | "research" | "infra" | "tech_debt"
   priority: "high" | "medium" | "low"  # default medium unless evidence supports otherwise
   status: "spec_needed" | "needs_research" | "parked" | "ready"
+  rank: null | {integer}  # default null per PRODUCT inv 3; set explicitly if ordering signal present
 ```
+
+> `rank` default is `null`. The schema does NOT enforce uniqueness or contiguity within a priority tier (PRODUCT inv 3); the `update-roadmap-backlog` Create / Update flows enforce discipline via the auto-shift collision policy (P-OQ-3 default).
 
 ### Branch D — None of the above
 
@@ -190,7 +204,7 @@ justification: |
   {one-paragraph explanation of why this decision was reached.
    Cite which branch (A/B/C/D) and which specific criteria triggered it.}
 
-# Branch A populated
+# Branch A populated (also short-circuit Liam-driven promote — see Step 2 preamble)
 subtask_spec:
   title: "..."
   scope: "..."
@@ -198,17 +212,23 @@ subtask_spec:
   suggested_skills: ["..."]
   estimated_effort: "..."
   file_ownership_allowed: ["..."]
+  in_scope_predicate_matched: "file-path" | "axis" | "liam-direction"
 
-# Branch B populated
-roadmap_target_section: "§N.M" | "new"
-roadmap_section_title_if_new: "..."
+# Branch B populated (Shape A — capability theme promotion)
+roadmap_proposed_theme:
+  title: "..."
+  description: "..."
+  time_horizon: "now" | "next" | "later"  # default "later"
+  initial_linked_tasks: ["..."]
+  initial_linked_backlog: ["..."]
 
-# Branch C populated
+# Branch C populated (Shape A — active work item promotion)
 backlog_slot:
   track: "..."
   type: "..."
   priority: "..."
   status: "..."
+  rank: null | {integer}
 
 # Branch D populated
 noaction_reason: "..."
@@ -242,12 +262,13 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
 5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer reconciles to the current files.
 6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional (per s48-feedback B10). If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership` and the finding is not a spec-compliance issue against the Subtask slice, it is OUT-OF-SCOPE. Route to B / C / D.
+7. **Routing a tactical item to Branch B — it belongs on Backlog.** Under Shape A (per PRODUCT inv 13 a + TECH §4.1), Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
 
 ---
 
 ## Examples
 
-### Example 1 — Cross-cutting auth pattern
+### Example 1 — Cross-cutting auth pattern (Shape A routing)
 
 **Finding:** "Found that all routes under `app/api/coverage/` use the old `getAuthorisedClient()` return-shape `{ authorised }` instead of the new `{ success }` pattern. Out of scope for current Subtask ID-7.3 (which is one specific coverage route)."
 
@@ -255,8 +276,8 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 - Branch A (file-path predicate): `app/api/coverage/*` files outside `subtask_file_ownership` (Subtask ID-7.3 owns only one route). NOT IN-SCOPE.
 - Branch A (axis predicate): The finding is not a spec-compliance issue against Subtask ID-7.3's slice — Subtask ID-7.3's spec only requires its one route conform. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B? Yes — cross-cuts multiple routes, is an infra pattern, weeks of effort.
-- **Decision: `roadmap`** under §{auth-infra-section, or new section}.
+- Branch B (Shape A — new capability theme): condition 1 — check `themes[]` for existing coverage of "auth pattern modernisation". No existing theme. condition 2 — multi-route refactor that cross-cuts auth surface; multi-week scope. BOTH HOLD.
+- **Decision: `roadmap`** with `roadmap_proposed_theme` `{ title: "auth pattern modernisation", time_horizon: "next", initial_linked_tasks: [], initial_linked_backlog: [] }`.
 
 ### Example 2 — Direct consequence of current change
 
@@ -280,7 +301,7 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 
 > Binary in-scope-ness governs routing, not effort. The Orchestrator may still defer or skip a low-value Subtask after seeing the spec.
 
-### Example 4 — Feature-scoped tech debt
+### Example 4 — Feature-scoped tech debt (Shape A — rank default null)
 
 **Finding:** "The search filter component (`components/search/Filter.tsx`) re-renders on every keystroke because of an unstable empty-array default. Out of scope for current Subtask ID-14.2 (which is in `components/change-reports/`)."
 
@@ -288,9 +309,31 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 - Branch A (file-path predicate): `components/search/Filter.tsx` is OUTSIDE Subtask ID-14.2's `file_ownership_allowed` (`components/change-reports/**`). NOT IN-SCOPE.
 - Branch A (axis predicate): Not a spec-compliance issue against Subtask ID-14.2's slice. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B? No — single feature (search), not cross-cutting.
+- Branch B (Shape A)? condition 1 — search is already covered by an existing theme (e.g. "search experience"). FAILS condition 1. Skip Branch B.
 - Branch C? Yes — tactical, single-feature, weeks-scope, no current Task touches search.
-- **Decision: `backlog`** in `track: search`, `type: tech-debt`, `priority: medium`.
+- **Decision: `backlog`** in `track: search`, `type: tech_debt`, `priority: medium`, `rank: null` (no obvious within-tier ordering signal — curator may rank later).
+
+### Example 5 — New capability theme proposal (Shape A — Branch B routing)
+
+**Finding (Checker surfacing):** "While verifying Subtask ID-22.3's auth-coupling cleanup, noticed the codebase has no abstraction for tenant-scoped DB connections. Multi-tenant deployments would require a new layer in `lib/supabase/` plus per-route propagation of a tenant id. Out of scope for current Subtask ID-22.3 (which only touches one route)."
+
+**Decision walk:**
+- Branch A (file-path predicate): the proposed change spans `lib/supabase/**` and many routes — OUTSIDE Subtask ID-22.3's `file_ownership_allowed` (`app/api/coverage/route.ts`). NOT IN-SCOPE.
+- Branch A (axis predicate): Subtask ID-22.3's spec doesn't mention multi-tenancy — not a spec-compliance issue against that slice. NOT IN-SCOPE.
+- Branch A → OUT-OF-SCOPE. Continue.
+- Branch B (Shape A — new capability theme):
+  - condition 1 — inspect `themes[]`. No existing theme covers "multi-tenant deployments" (none of the theme `linked_tasks[]` or `linked_backlog[]` enumerate tenant-scoping work). HOLDS.
+  - condition 2 — multi-month scope, cuts across every authenticated route, requires schema changes (tenant id columns), middleware changes (request-context propagation), and possibly RLS rewrites. Genuinely cross-cutting at the headline level. HOLDS.
+- BOTH conditions hold → **Decision: `roadmap`** with:
+  ```yaml
+  roadmap_proposed_theme:
+    title: "multi-tenant deployments"
+    description: "Add tenant-scoped data isolation across the entire authenticated surface — schema changes for tenant id propagation, middleware for request-context tenancy, RLS policy review per tenant, and admin UX for tenant provisioning. Outcome: a single Knowledge Hub deployment serves multiple isolated customer organisations."
+    time_horizon: "later"
+    initial_linked_tasks: []
+    initial_linked_backlog: []
+  ```
+- The curator (via `update-roadmap-backlog` Create) appends the theme; subsequent active work items (per Branch C findings) get added to `linked_backlog[]` over time. Subtask ID-22.3 itself remains unchanged — the finding is OUT-OF-SCOPE for that Subtask.
 
 ---
 
