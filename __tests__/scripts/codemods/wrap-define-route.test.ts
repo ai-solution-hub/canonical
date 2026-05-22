@@ -34,6 +34,7 @@ import { Project } from 'ts-morph';
 import {
   classifyRoute,
   inferSchema,
+  rewriteMultiMethod,
   rewriteSingleMethod,
 } from '../../../scripts/codemods/wrap-define-route';
 import {
@@ -1093,5 +1094,281 @@ export async function GET(_request: NextRequest) {
     expect(rewritten).toMatch(
       /\/\/ TODO\(OPS-T1\): author ResponseSchema\s*\n\s*export const GET = defineRoute\(z\.unknown\(\)/,
     );
+  });
+});
+
+// ── Multi-method rewrite (Subtask 32.11) ──────────────────────────────────
+
+/**
+ * Tests for `rewriteMultiMethod(sf, methods, schemas)` per the Subtask 32.11
+ * brief + TECH §2.4 + AC-7.
+ *
+ * Scope (Subtask 32.11): three multi-method NEEDS-REVIEW shapes — MULTI_PARAM_BODY
+ * (GET+PATCH+DELETE), MULTI_BODY (GET+POST), MULTI_PARAM (GET+DELETE). Each
+ * exported method is wrapped INDEPENDENTLY by delegating to 32.10's
+ * `rewriteSingleMethod`; the helper additionally emits one `NeedsManualEntry`
+ * per exported method with reason `MULTI_METHOD_SCHEMA` (TECH §6.2).
+ *
+ * The +WRC sub-variants of multi-method shapes re-use 32.10's outer-wrap
+ * preservation logic — they share the same `rewriteSingleMethod` code path
+ * per-method, so the AC-7 invariant lands by inheritance. Dedicated +WRC
+ * multi-method fixtures are not in the 32.7 corpus (see 32.10 close-out OOS
+ * F2) and are out of scope here; the inherited AUTH_PLAIN+WRC coverage from
+ * 32.10 is the load-bearing AC-7 fixture.
+ */
+
+describe('wrap-define-route rewriteMultiMethod — Subtask 32.11', () => {
+  it('wraps GET and PATCH independently in a MULTI_PARAM_BODY route', () => {
+    // MULTI_PARAM_BODY fixture: GET + PATCH + DELETE on the same parameterised
+    // resource path. Each method has its own handler body; the rewrite MUST
+    // wrap each one independently with its own (per-method) schema and
+    // preserve the `Promise<{ id: string }>` second-argument shape verbatim
+    // per TECH §8.2.
+    const sf = loadRewriteFixture(
+      'multi-param-body.ts',
+      '/repo/app/api/items/[id]/route.ts',
+    );
+
+    const entries = rewriteMultiMethod(
+      sf,
+      ['GET', 'PATCH', 'DELETE'],
+      {
+        GET: { schema: 'ItemDetailResponseSchema' },
+        PATCH: { schema: 'ItemPatchResponseSchema' },
+        DELETE: { schema: 'ItemDeleteResponseSchema' },
+      },
+      'app/api/items/[id]/route.ts',
+      'MULTI_PARAM_BODY',
+    );
+
+    const rewritten = sf.getFullText();
+
+    // Each exported method is wrapped independently with its own schema.
+    expect(rewritten).toContain(
+      'export const GET = defineRoute(ItemDetailResponseSchema',
+    );
+    expect(rewritten).toContain(
+      'export const PATCH = defineRoute(ItemPatchResponseSchema',
+    );
+    expect(rewritten).toContain(
+      'export const DELETE = defineRoute(ItemDeleteResponseSchema',
+    );
+
+    // None of the original `export async function METHOD(...)` declarations
+    // survive — every one was replaced with the `export const METHOD = ...`
+    // form.
+    expect(rewritten).not.toMatch(/export async function GET\b/);
+    expect(rewritten).not.toMatch(/export async function PATCH\b/);
+    expect(rewritten).not.toMatch(/export async function DELETE\b/);
+
+    // The Promise<params> second arg per TECH §8.2 is preserved on each
+    // method (one occurrence per handler — three total).
+    const promiseParamsHits = rewritten.match(
+      /\{ params \}: \{ params: Promise<\{ id: string \}> \}/g,
+    );
+    expect(promiseParamsHits).toHaveLength(3);
+
+    // `defineRoute` is imported exactly once — the import-add is idempotent
+    // across the per-method loop per TECH §2.4 Step A.
+    const defineRouteImportLines = rewritten
+      .split('\n')
+      .filter(
+        (line) =>
+          line.startsWith('import ') && line.includes('@/lib/api/define-route'),
+      );
+    expect(defineRouteImportLines).toHaveLength(1);
+
+    // The returned entries are one-per-method with `MULTI_METHOD_SCHEMA`
+    // reason — asserted in detail by the next test; here we sanity-check the
+    // shape from the same invocation.
+    expect(entries).toHaveLength(3);
+    expect(entries.every((e) => e.reason === 'MULTI_METHOD_SCHEMA')).toBe(true);
+  });
+
+  it('emits one MULTI_METHOD_SCHEMA entry per method', () => {
+    // The needs-manual artefact (32.12) carries one record per affected
+    // route+method per TECH §6.2. For multi-method shapes that means one
+    // `MULTI_METHOD_SCHEMA` entry per exported method — the developer
+    // confirms each method's schema independently before merging.
+    const sf = loadRewriteFixture(
+      'multi-body.ts',
+      '/repo/app/api/layers/route.ts',
+    );
+
+    const entries = rewriteMultiMethod(
+      sf,
+      ['GET', 'POST'],
+      {
+        GET: { schema: 'LayersListResponseSchema' },
+        POST: { schema: 'LayersCreateResponseSchema' },
+      },
+      'app/api/layers/route.ts',
+      'MULTI_BODY',
+    );
+
+    expect(entries).toHaveLength(2);
+
+    // Each entry carries the route path, the multi-method shape, the
+    // MULTI_METHOD_SCHEMA reason, and a single-method-name `methods` array.
+    expect(entries).toEqual([
+      {
+        route: 'app/api/layers/route.ts',
+        shape: 'MULTI_BODY',
+        reason: 'MULTI_METHOD_SCHEMA',
+        methods: ['GET'],
+      },
+      {
+        route: 'app/api/layers/route.ts',
+        shape: 'MULTI_BODY',
+        reason: 'MULTI_METHOD_SCHEMA',
+        methods: ['POST'],
+      },
+    ]);
+  });
+
+  it('wraps GET and POST independently in a MULTI_BODY route', () => {
+    // MULTI_BODY fixture: GET + POST on the same NON-parameterised resource
+    // path. The single-arg `(_request: NextRequest)` signature is preserved
+    // on GET; the POST handler reads the body via `request.json()` +
+    // `parseBody()` and that body-handling code must round-trip verbatim
+    // (the body's text is copied as-is per the 32.10 contract).
+    const sf = loadRewriteFixture(
+      'multi-body.ts',
+      '/repo/app/api/layers/route.ts',
+    );
+
+    rewriteMultiMethod(
+      sf,
+      ['GET', 'POST'],
+      {
+        GET: { schema: 'LayersListResponseSchema' },
+        POST: { schema: 'LayersCreateResponseSchema' },
+      },
+      'app/api/layers/route.ts',
+      'MULTI_BODY',
+    );
+
+    const rewritten = sf.getFullText();
+
+    expect(rewritten).toContain(
+      'export const GET = defineRoute(LayersListResponseSchema, async (_request: NextRequest)',
+    );
+    expect(rewritten).toContain(
+      'export const POST = defineRoute(LayersCreateResponseSchema, async (request: NextRequest)',
+    );
+
+    // Body text round-trips verbatim — `parseBody(CreateBodySchema, raw)`
+    // must survive the rewrite unchanged.
+    expect(rewritten).toContain('parseBody(CreateBodySchema, raw)');
+  });
+
+  it('wraps GET and DELETE independently in a MULTI_PARAM route', () => {
+    // MULTI_PARAM fixture: GET + DELETE on a parameterised resource path
+    // with NO body on either method. Exercises the same per-method dispatch
+    // as MULTI_PARAM_BODY but without the body-handling code in any method.
+    const sf = loadRewriteFixture(
+      'multi-param.ts',
+      '/repo/app/api/items/[id]/files/route.ts',
+    );
+
+    rewriteMultiMethod(
+      sf,
+      ['GET', 'DELETE'],
+      {
+        GET: { schema: 'ItemFilesListResponseSchema' },
+        DELETE: { schema: 'ItemFilesDeleteResponseSchema' },
+      },
+      'app/api/items/[id]/files/route.ts',
+      'MULTI_PARAM',
+    );
+
+    const rewritten = sf.getFullText();
+
+    expect(rewritten).toContain(
+      'export const GET = defineRoute(ItemFilesListResponseSchema',
+    );
+    expect(rewritten).toContain(
+      'export const DELETE = defineRoute(ItemFilesDeleteResponseSchema',
+    );
+
+    // Both methods retain their `Promise<{ id: string }>` second-arg
+    // destructure (two occurrences).
+    const promiseParamsHits = rewritten.match(
+      /\{ params \}: \{ params: Promise<\{ id: string \}> \}/g,
+    );
+    expect(promiseParamsHits).toHaveLength(2);
+  });
+
+  it('propagates NEEDS_SCHEMA fall-back per-method via the TODO comment', () => {
+    // When inference falls back to `z.unknown()` for ONE method but not
+    // others, only the affected method's `export const METHOD = ...` line
+    // is preceded by the `// TODO(OPS-T1): author ResponseSchema` comment.
+    // The needs-manual entries still surface one `MULTI_METHOD_SCHEMA`
+    // record per method — the NEEDS_SCHEMA reason is the per-method
+    // inference signal and the rewrite-loop caller (32.12 emitter) is
+    // responsible for deciding which reason takes precedence in the
+    // artefact. For now this helper always reports MULTI_METHOD_SCHEMA;
+    // the in-source TODO captures the inference fall-back on the affected
+    // method only.
+    const sf = loadRewriteFixture(
+      'multi-param-body.ts',
+      '/repo/app/api/items/[id]/route.ts',
+    );
+
+    rewriteMultiMethod(
+      sf,
+      ['GET', 'PATCH', 'DELETE'],
+      {
+        GET: { schema: 'ItemDetailResponseSchema' },
+        // PATCH falls back to z.unknown() — TODO comment must land on
+        // PATCH's `export const PATCH = ...` line, not on the others.
+        PATCH: { schema: 'z.unknown()', reason: 'NEEDS_SCHEMA' },
+        DELETE: { schema: 'ItemDeleteResponseSchema' },
+      },
+      'app/api/items/[id]/route.ts',
+      'MULTI_PARAM_BODY',
+    );
+
+    const rewritten = sf.getFullText();
+
+    // Exactly one TODO comment is emitted (only PATCH falls back).
+    const todoHits = rewritten.match(/\/\/ TODO\(OPS-T1\): author ResponseSchema/g);
+    expect(todoHits).toHaveLength(1);
+
+    // The TODO sits immediately above PATCH's export — not GET's, not DELETE's.
+    expect(rewritten).toMatch(
+      /\/\/ TODO\(OPS-T1\): author ResponseSchema\s*\n\s*export const PATCH = defineRoute\(z\.unknown\(\)/,
+    );
+  });
+
+  it('idempotently adds the defineRoute import only once across all methods', () => {
+    // The per-method dispatch calls `rewriteSingleMethod` which invokes
+    // `ensureDefineRouteImport`. The import-add must be idempotent across
+    // the loop — the second + third invocations must see the existing
+    // import and no-op.
+    const sf = loadRewriteFixture(
+      'multi-param.ts',
+      '/repo/app/api/items/[id]/files/route.ts',
+    );
+
+    rewriteMultiMethod(
+      sf,
+      ['GET', 'DELETE'],
+      {
+        GET: { schema: 'ItemFilesListResponseSchema' },
+        DELETE: { schema: 'ItemFilesDeleteResponseSchema' },
+      },
+      'app/api/items/[id]/files/route.ts',
+      'MULTI_PARAM',
+    );
+
+    const defineRouteImportLines = sf
+      .getFullText()
+      .split('\n')
+      .filter(
+        (line) =>
+          line.startsWith('import ') && line.includes('@/lib/api/define-route'),
+      );
+    expect(defineRouteImportLines).toHaveLength(1);
   });
 });
