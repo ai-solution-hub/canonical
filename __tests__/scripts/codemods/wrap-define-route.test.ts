@@ -30,7 +30,13 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Project } from 'ts-morph';
-import { classifyRoute } from '../../../scripts/codemods/wrap-define-route';
+import {
+  classifyRoute,
+  inferSchema,
+} from '../../../scripts/codemods/wrap-define-route';
+import type {
+  BaselineEntry,
+} from '../../../scripts/codemods/inference-source-a';
 import type { RouteShape } from '../../../scripts/codemods/types';
 
 const CODEMOD_PATH = resolve(
@@ -230,19 +236,162 @@ const FIXTURE_TABLE: ReadonlyArray<{
     title:
       'with-return-type-annotation.ts fixture classifies as AUTH_PLAIN (Source B inference is exercised by Subtask 32.9)',
   },
+  {
+    fixture: 'with-baseline-but-no-schema-constant.ts',
+    path: '/repo/app/api/pipeline-runs/route.ts',
+    expected: 'AUTH_PLAIN',
+    title:
+      'with-baseline-but-no-schema-constant.ts fixture classifies as AUTH_PLAIN (Source A fall-back is exercised by Subtask 32.8)',
+  },
 ];
 
 describe('wrap-define-route classifier — fixture corpus (Subtask 32.7)', () => {
   // Sanity guard: a typo or missed row in FIXTURE_TABLE would silently shrink
-  // the matrix. Per TECH §4 the corpus is exactly 14 fixtures; if this number
-  // changes intentionally (e.g. Subtask 32.8 adds the 15th fall-back fixture)
-  // both the table and this guard get updated in the same commit.
-  it('covers the 14-fixture corpus declared by TECH §4', () => {
-    expect(FIXTURE_TABLE).toHaveLength(14);
+  // the matrix. TECH §4 declared 14; Subtask 32.8 bumped the corpus to 15 by
+  // authoring the Source A fall-back fixture
+  // (`with-baseline-but-no-schema-constant.ts`). The count and the table get
+  // updated in the same commit so this guard always reflects the on-disk
+  // fixture set.
+  it('covers the 15-fixture corpus (TECH §4 baseline of 14 plus Subtask 32.8 fall-back)', () => {
+    expect(FIXTURE_TABLE).toHaveLength(15);
   });
 
   it.each(FIXTURE_TABLE)('$title', ({ fixture, path, expected }) => {
     const sf = loadFixture(fixture, path);
     expect(classifyRoute(sf)).toBe(expected);
+  });
+});
+
+// ── ResponseSchema inference — Source A (Subtask 32.8) ────────────────────
+
+/**
+ * Build a virtual ts-morph `Project` that models the corpus shape Source A
+ * inference needs to query:
+ *
+ *   1. The route file itself (loaded from the on-disk fixture under
+ *      `fixtures/wrap-define-route/`).
+ *   2. A synthetic `lib/query/fetchers.ts` that contains a
+ *      `fetchJson<InterfaceName>(url)` call so the heuristic URL matcher
+ *      (re-used from `lib/ast-dataflow/queries/type-drift-detect.ts`) can
+ *      bind the route URL to its candidate response interface.
+ *   3. A synthetic `lib/validation/schemas.ts` that EITHER exports
+ *      `${interfaceName}Schema` (happy path) or omits it (fall-back path).
+ *
+ * The synthetic baseline is supplied via the `options.baseline` injection
+ * point on `inferSchema()` so the test does not touch the on-disk
+ * `docs/generated/type-drift-baseline.json` file.
+ */
+function buildInferenceProject(opts: {
+  routeFixture: string;
+  routePath: string;
+  fetcherSource: string;
+  schemasSource: string;
+}): { project: Project; routeSf: ReturnType<Project['createSourceFile']> } {
+  const project = new Project({ useInMemoryFileSystem: true });
+  const routeText = readFileSync(resolve(FIXTURE_DIR, opts.routeFixture), 'utf8');
+  const routeSf = project.createSourceFile(opts.routePath, routeText);
+  project.createSourceFile('/repo/lib/query/fetchers.ts', opts.fetcherSource);
+  project.createSourceFile('/repo/lib/validation/schemas.ts', opts.schemasSource);
+  return { project, routeSf };
+}
+
+describe('wrap-define-route inferSchema — Source A (type-drift-baseline.json)', () => {
+  it('inserts real schema when baseline interface has a co-located Schema constant', () => {
+    // Synthetic baseline: one entry whose interface is `ReviewStatsResponse`,
+    // the same interface declared in the `with-schema-in-baseline.ts`
+    // fixture. The fetcher binds the route URL `/api/review/stats` to this
+    // interface; the schemas registry exports the co-located
+    // `ReviewStatsResponseSchema`. The happy-path return is the schema
+    // identifier as a string.
+    const baseline: BaselineEntry[] = [
+      {
+        interface: 'ReviewStatsResponse',
+        declaredAt: { file: 'types/review.ts' },
+      },
+    ];
+    const fetcherSource = `
+import { z } from 'zod';
+
+export type ReviewStatsResponse = {
+  total: number;
+  verified: number;
+  flagged: number;
+  unverified: number;
+};
+
+declare function fetchJson<T>(url: string): Promise<T>;
+
+export function getReviewStats(): Promise<ReviewStatsResponse> {
+  return fetchJson<ReviewStatsResponse>('/api/review/stats');
+}
+`;
+    const schemasSource = `
+import { z } from 'zod';
+
+export const ReviewStatsResponseSchema = z.object({
+  total: z.number(),
+  verified: z.number(),
+  flagged: z.number(),
+  unverified: z.number(),
+});
+`;
+
+    const { project, routeSf } = buildInferenceProject({
+      routeFixture: 'with-schema-in-baseline.ts',
+      routePath: '/repo/app/api/review/stats/route.ts',
+      fetcherSource,
+      schemasSource,
+    });
+
+    const result = inferSchema(routeSf, 'GET', project, { baseline });
+    expect(result).toEqual({ schema: 'ReviewStatsResponseSchema' });
+  });
+
+  it('falls back to z.unknown() placeholder when the schema constant is missing', () => {
+    // Synthetic baseline: one entry whose interface is `PipelineRunRow`,
+    // the same interface declared in the
+    // `with-baseline-but-no-schema-constant.ts` fixture. The fetcher binds
+    // the route URL `/api/pipeline-runs` to this interface; the schemas
+    // registry has NO `PipelineRunRowSchema` export. The fall-back return is
+    // `z.unknown()` plus the `NEEDS_SCHEMA` reason code so Subtask 32.12's
+    // `codemod-needs-manual.json` emitter can surface the route.
+    const baseline: BaselineEntry[] = [
+      {
+        interface: 'PipelineRunRow',
+        declaredAt: { file: 'lib/query/fetchers.ts' },
+      },
+    ];
+    const fetcherSource = `
+export type PipelineRunRow = {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+};
+
+declare function fetchJson<T>(url: string): Promise<T>;
+
+export function getPipelineRuns(): Promise<PipelineRunRow[]> {
+  return fetchJson<PipelineRunRow[]>('/api/pipeline-runs');
+}
+`;
+    // Schemas registry deliberately omits any PipelineRunRow* export.
+    const schemasSource = `
+import { z } from 'zod';
+
+// Some other unrelated schema — present so the file is non-empty but
+// does NOT match the baseline interface lookup target.
+export const UnrelatedSchema = z.object({ foo: z.string() });
+`;
+
+    const { project, routeSf } = buildInferenceProject({
+      routeFixture: 'with-baseline-but-no-schema-constant.ts',
+      routePath: '/repo/app/api/pipeline-runs/route.ts',
+      fetcherSource,
+      schemasSource,
+    });
+
+    const result = inferSchema(routeSf, 'GET', project, { baseline });
+    expect(result).toEqual({ schema: 'z.unknown()', reason: 'NEEDS_SCHEMA' });
   });
 });

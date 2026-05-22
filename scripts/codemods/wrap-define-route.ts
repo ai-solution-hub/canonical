@@ -33,6 +33,11 @@
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { Project, type SourceFile } from 'ts-morph';
+import {
+  inferSchemaSourceA,
+  type InferSchemaOptions,
+  type InferSchemaResult,
+} from './inference-source-a';
 import type { RouteShape } from './types';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -299,6 +304,34 @@ export function classifyRoute(sf: SourceFile): RouteShape {
     return `${variant}+WRC` as RouteShape;
   }
   return variant;
+}
+
+// ── ResponseSchema inference ──────────────────────────────────────────────
+
+/**
+ * Infer the `ResponseSchema` argument for a route handler.
+ *
+ * Currently exposes Source A (`docs/generated/type-drift-baseline.json`)
+ * only. Sources B (return-type annotation, Subtask 32.9) and C (return-
+ * statement walk, post-32 backlog) chain off this entry point if added —
+ * the public contract stays `inferSchema(sf, method, project, options?)`
+ * so downstream call sites in 32.10 / 32.11 / 32.12 do not change shape
+ * when those sources land.
+ *
+ * Per PRODUCT.md AC-5 / AC-6:
+ *   - AC-5: routes whose interface IS in the baseline AND has a
+ *     `${interfaceName}Schema` constant get the schema identifier verbatim.
+ *   - AC-6: routes that fall back to `z.unknown()` carry the
+ *     `NEEDS_SCHEMA` reason code so the 32.12 emitter can attach the
+ *     `// TODO(OPS-T1): author ResponseSchema` comment.
+ */
+export function inferSchema(
+  sf: SourceFile,
+  method: string,
+  project: Project,
+  options?: InferSchemaOptions,
+): InferSchemaResult {
+  return inferSchemaSourceA(sf, method, project, options);
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────
