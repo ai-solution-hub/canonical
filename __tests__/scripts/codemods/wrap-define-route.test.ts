@@ -243,17 +243,43 @@ const FIXTURE_TABLE: ReadonlyArray<{
     title:
       'with-baseline-but-no-schema-constant.ts fixture classifies as AUTH_PLAIN (Source A fall-back is exercised by Subtask 32.8)',
   },
+  // JSDoc-poisoned regression fixtures (Subtask 32.17)
+  //
+  // Both files mention the body-discriminator substrings `request.json()` and
+  // `parseBody(` ONLY inside JSDoc and inline comments. Pre-32.17 the
+  // classifier's `getFullText().includes(...)` scan would taint these as
+  // PARAM_BODY / MULTI_PARAM_BODY because comment text passed the discriminator.
+  // Post-32.17 the AST CallExpression walk excludes comments — these classify
+  // as PARAM and MULTI_PARAM respectively. Source-file-level coverage
+  // complements the synthetic in-memory cases in
+  // `wrap-define-route.classifier.test.ts`.
+  {
+    fixture: 'param-only-jsdoc-poisoned.ts',
+    path: '/repo/app/api/entities/[canonical_name]/route.ts',
+    expected: 'PARAM',
+    title:
+      'param-only-jsdoc-poisoned.ts fixture classifies as PARAM (Subtask 32.17: JSDoc mentioning request.json() / parseBody( must not taint detection)',
+  },
+  {
+    fixture: 'multi-param-jsdoc-poisoned.ts',
+    path: '/repo/app/api/items/[id]/files/route.ts',
+    expected: 'MULTI_PARAM',
+    title:
+      'multi-param-jsdoc-poisoned.ts fixture classifies as MULTI_PARAM (Subtask 32.17: JSDoc poisoning must not promote MULTI_PARAM → MULTI_PARAM_BODY)',
+  },
 ];
 
 describe('wrap-define-route classifier — fixture corpus (Subtask 32.7)', () => {
   // Sanity guard: a typo or missed row in FIXTURE_TABLE would silently shrink
   // the matrix. TECH §4 declared 14; Subtask 32.8 bumped the corpus to 15 by
   // authoring the Source A fall-back fixture
-  // (`with-baseline-but-no-schema-constant.ts`). The count and the table get
-  // updated in the same commit so this guard always reflects the on-disk
-  // fixture set.
-  it('covers the 15-fixture corpus (TECH §4 baseline of 14 plus Subtask 32.8 fall-back)', () => {
-    expect(FIXTURE_TABLE).toHaveLength(15);
+  // (`with-baseline-but-no-schema-constant.ts`); Subtask 32.17 bumped to 17
+  // by adding the JSDoc-poisoned PARAM and MULTI_PARAM regression fixtures
+  // (`param-only-jsdoc-poisoned.ts`, `multi-param-jsdoc-poisoned.ts`). The
+  // count and the table get updated in the same commit so this guard always
+  // reflects the on-disk fixture set.
+  it('covers the 17-fixture corpus (TECH §4 baseline of 14 plus Subtask 32.8 fall-back plus Subtask 32.17 JSDoc-poisoned regressions)', () => {
+    expect(FIXTURE_TABLE).toHaveLength(17);
   });
 
   it.each(FIXTURE_TABLE)('$title', ({ fixture, path, expected }) => {

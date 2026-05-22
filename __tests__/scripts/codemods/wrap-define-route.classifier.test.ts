@@ -299,6 +299,143 @@ describe('classifyRoute — withRequestContext sub-variant', () => {
   });
 });
 
+// ── JSDoc / comment poisoning tests (Subtask 32.17) ───────────────────────
+
+/**
+ * Regression tests for Subtask 32.17 — body-detection AST refactor.
+ *
+ * Pre-32.17 the classifier used `sf.getFullText().includes('request.json()')`
+ * and `sf.getFullText().includes('parseBody(')`. That substring scan tainted
+ * detection with anything in JSDoc, line comments, or string literals — any
+ * route mentioning the discriminator substrings in prose would mis-classify
+ * as a BODY-tainted variant. Post-32.17 the detection walks
+ * `getDescendantsOfKind(SyntaxKind.CallExpression)` so comments and string
+ * literals are excluded.
+ *
+ * These tests assert the post-refactor contract: discriminator substrings in
+ * comments / JSDoc must NOT taint classification.
+ */
+
+/**
+ * Build a synthetic route fixture whose source text contains the
+ * discriminator substrings ONLY in JSDoc / line comments / string literals,
+ * never in executable code. Used to assert the AST-walk body detection
+ * ignores non-code text.
+ */
+function buildJsDocPoisonedFixture(opts: {
+  path: string;
+  methods: readonly string[];
+  hasAuth?: boolean;
+}): SourceFile {
+  const { path, methods, hasAuth = true } = opts;
+  const project = new Project({ useInMemoryFileSystem: true });
+
+  const importLines: string[] = [];
+  if (hasAuth) {
+    importLines.push(
+      "import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';",
+    );
+  }
+
+  // Each handler:
+  //   - JSDoc that mentions `request.json()` and `parseBody(` in prose.
+  //   - A line comment that mentions both.
+  //   - A string-literal label that contains both substrings verbatim.
+  //   - NO actual call to either function in executable code.
+  const methodBlocks = methods
+    .map(
+      (method) => `/**
+ * ${method} handler — does NOT call request.json() and does NOT call parseBody(payload).
+ * The substrings above are deliberate poisoning to prove comment text is
+ * excluded from body-shape classification.
+ */
+export async function ${method}(_request) {
+  // Note: this handler never invokes request.json() or parseBody(...).
+  const label = 'audit:request.json() && parseBody( — string-literal poisoning';
+  return new Response(label);
+}`,
+    )
+    .join('\n\n');
+
+  const source = `${importLines.join('\n')}\n\n${methodBlocks}\n`;
+  return project.createSourceFile(path, source);
+}
+
+describe('classifyRoute — JSDoc / comment poisoning (Subtask 32.17)', () => {
+  it('classifies a JSDoc-poisoned single-method parameterised route as PARAM (not PARAM_BODY) when the body-discriminator substrings appear only in JSDoc / comments / string literals', () => {
+    // Pre-32.17: substring scan over `getFullText()` would match `request.json()`
+    // and `parseBody(` inside the JSDoc, line comment, and string literal —
+    // mis-classifying as PARAM_BODY. Post-32.17 the CallExpression walk only
+    // matches executable code, so this is PARAM.
+    const sf = buildJsDocPoisonedFixture({
+      path: '/repo/app/api/entities/[canonical_name]/route.ts',
+      methods: ['GET'],
+    });
+    expectShape(sf, 'PARAM');
+  });
+
+  it('classifies a JSDoc-poisoned multi-method parameterised route as MULTI_PARAM (not MULTI_PARAM_BODY) when the body-discriminator substrings appear only in JSDoc / comments / string literals', () => {
+    // Same poisoning, multi-method (GET + DELETE) on a `[id]` path. Expected
+    // post-refactor: MULTI_PARAM (not MULTI_PARAM_BODY / MULTI_BODY).
+    const sf = buildJsDocPoisonedFixture({
+      path: '/repo/app/api/items/[id]/files/route.ts',
+      methods: ['GET', 'DELETE'],
+    });
+    expectShape(sf, 'MULTI_PARAM');
+  });
+
+  it('still classifies a route as PARAM_BODY when request.json() appears in executable code (positive control)', () => {
+    // Positive control: ensure the AST walk still detects executable calls.
+    // The fixture has both a JSDoc mention AND a real call to request.json()
+    // — the real call must dominate so the result is PARAM_BODY.
+    const project = new Project({ useInMemoryFileSystem: true });
+    const source = `import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+
+/**
+ * PATCH handler — calls request.json() in executable code (positive control).
+ */
+export async function PATCH(request) {
+  const auth = await getAuthorisedClient(['admin']);
+  if (!auth.success) return authFailureResponse(auth);
+  const body = await request.json();
+  return new Response(JSON.stringify(body));
+}
+`;
+    const sf = project.createSourceFile(
+      '/repo/app/api/items/[id]/route.ts',
+      source,
+    );
+    expectShape(sf, 'PARAM_BODY');
+  });
+
+  it('still classifies a route as BODY_VALIDATED when parseBody() appears in executable code (positive control)', () => {
+    // Positive control for the parseBody discriminator. Source mentions
+    // request.json() in a comment (poisoning) but only calls parseBody() in
+    // executable code, on a non-parameterised path → BODY_VALIDATED.
+    const project = new Project({ useInMemoryFileSystem: true });
+    const source = `import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { parseBody } from '@/lib/validation';
+import { SomeSchema } from '@/lib/validation/schemas';
+
+/**
+ * POST handler — note: this does not use request.json() directly.
+ * It uses parseBody(SomeSchema) instead.
+ */
+export async function POST(request) {
+  const auth = await getAuthorisedClient(['admin']);
+  if (!auth.success) return authFailureResponse(auth);
+  const parsed = await parseBody(request, SomeSchema);
+  return new Response(JSON.stringify(parsed));
+}
+`;
+    const sf = project.createSourceFile(
+      '/repo/app/api/items/route.ts',
+      source,
+    );
+    expectShape(sf, 'BODY_VALIDATED');
+  });
+});
+
 // ── Method-enumeration helper tests ───────────────────────────────────────
 
 describe('getExportedMethods', () => {

@@ -32,7 +32,7 @@
 
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { Project, type SourceFile } from 'ts-morph';
+import { Project, type SourceFile, SyntaxKind } from 'ts-morph';
 import {
   inferSchemaSourceA,
   type InferSchemaOptions,
@@ -212,6 +212,71 @@ export function getExportedMethods(sf: SourceFile): string[] {
 }
 
 /**
+ * Detect whether a route source file calls `request.json()` or `parseBody(...)`
+ * in EXECUTABLE code (i.e. excluding JSDoc, line comments, and string
+ * literals). Returns `true` when at least one such call is present.
+ *
+ * Subtask 32.17 — AST refactor of the body-detection signal: pre-32.17 the
+ * classifier used `sf.getFullText().includes('request.json()')` /
+ * `.includes('parseBody(')`, which scanned ALL file text (comments and string
+ * literals included). That tainted classification on any route mentioning the
+ * discriminator substrings in JSDoc / comments. Post-refactor the detection
+ * walks `getDescendantsOfKind(SyntaxKind.CallExpression)` and matches:
+ *
+ *   - `<receiver>.json(...)` — PropertyAccessExpression callee where the
+ *     property name is `json`. The original substring `request.json()` matched
+ *     any receiver text equal to `request`; for AST symmetry we accept any
+ *     receiver whose text ends in `request` (covers `request`, `req`, and
+ *     `_request` synonyms — these are conservative widenings since the
+ *     classifier already accepts those param names in production routes).
+ *     In practice the receiver match is the literal `request` substring rule
+ *     bound to executable code only.
+ *   - `parseBody(...)` — either a direct `Identifier` callee named
+ *     `parseBody` or a `PropertyAccessExpression` callee whose name is
+ *     `parseBody` (covers both bare `parseBody(...)` and module-style
+ *     `helpers.parseBody(...)` invocations, mirroring the original substring
+ *     `parseBody(` which would have matched the property-access form too).
+ *
+ * Comments and string literals are not `CallExpression` nodes — by
+ * construction they are excluded from the walk. JSDoc tags such as `@example`
+ * are JSDoc syntax nodes and not call expressions.
+ */
+function hasBodyCall(sf: SourceFile): boolean {
+  const callExprs = sf.getDescendantsOfKind(SyntaxKind.CallExpression);
+  for (const callExpr of callExprs) {
+    const expr = callExpr.getExpression();
+
+    if (expr.getKind() === SyntaxKind.PropertyAccessExpression) {
+      // PropertyAccessExpression: <object>.<name>
+      const propAccess = expr.asKind(SyntaxKind.PropertyAccessExpression);
+      if (!propAccess) continue;
+      const name = propAccess.getName();
+      if (name === 'json') {
+        // Match `<receiver>.json(...)` where the receiver text contains
+        // `request` — covers `request`, `req`, `_request`, and any other
+        // production-route convention. The original substring scan keyed
+        // off the verbatim `request.json()` token, so the receiver gate
+        // keeps the post-refactor signal proportionate.
+        const receiverText = propAccess.getExpression().getText();
+        if (receiverText.includes('request') || receiverText.includes('req')) {
+          return true;
+        }
+      }
+      if (name === 'parseBody') {
+        // Module-style invocation, e.g. `helpers.parseBody(...)`.
+        return true;
+      }
+    } else if (expr.getKind() === SyntaxKind.Identifier) {
+      // Bare `parseBody(...)` call.
+      if (expr.getText() === 'parseBody') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Classify a route source file into one of the 17 `RouteShape` variants per
  * TECH §2.3.
  *
@@ -228,8 +293,10 @@ export function getExportedMethods(sf: SourceFile): string[] {
  * NEVER appended to MANUAL shapes because the codemod does not rewrite
  * those routes — the outer-wrap concern is moot.
  *
- * Body detection per TECH §2.3 sample: substring `request.json()` or
- * `parseBody(` in the file's full text — matches the corpus convention.
+ * Body detection per Subtask 32.17 (AST refactor of the TECH §2.3 sample):
+ * a `CallExpression` walk over the source file matching `<receiver>.json(...)`
+ * or `parseBody(...)` / `*.parseBody(...)`. Excludes JSDoc, line comments,
+ * and string literals — see `hasBodyCall()` above for the full predicate.
  *
  * Path parameterisation per TECH §2.3 sample: `[` in the file path —
  * detects the Next.js dynamic-segment syntax (`[id]`, `[...slug]`, etc.).
@@ -263,10 +330,15 @@ export function classifyRoute(sf: SourceFile): RouteShape {
   // Mechanisable + needs-review classification signals
   const methods = getExportedMethods(sf);
   const isParameterised = path.includes('[');
-  const fullText = sf.getFullText();
-  const hasBody =
-    fullText.includes('request.json()') || fullText.includes('parseBody(');
-  const hasWithRequestContext = fullText.includes('withRequestContext');
+  // Body detection now walks the AST (CallExpression-only) per Subtask 32.17 —
+  // discriminator substrings in JSDoc / comments / string literals no longer
+  // taint classification.
+  const hasBody = hasBodyCall(sf);
+  // `withRequestContext` import detection is orthogonal and remains a
+  // substring scan: the +WRC suffix tracks "does the source IMPORT the
+  // helper" which captures both call-site and outer-wrap usage in a single
+  // signal. Switching to an AST walk here is out of scope for 32.17.
+  const hasWithRequestContext = sf.getFullText().includes('withRequestContext');
 
   // Priority 4 — multi-method.
   //
