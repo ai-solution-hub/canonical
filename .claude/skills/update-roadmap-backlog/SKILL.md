@@ -39,12 +39,13 @@ The curator invokes this skill with:
 
 | Field | Description |
 |-------|-------------|
-| `target` | `roadmap` or `backlog` (the **target semantics**, not the current legacy filename) |
+| `target` | `roadmap`, `backlog`, or `task-list` (the **target semantics**, not the current legacy filename) — `task-list` writes a new top-level Task per Subtask 31.9 (T-OQ-2 RATIFIED) |
 | `finding_detail` | The finding from the source agent, summarised for ledger storage |
 | `provenance.source_task_id` | Workpackage ID (e.g. `WP1.2`) or null |
 | `provenance.source_commit_sha` | Short SHA from the source commit, or null |
 | `provenance.session_counter` | Session ID (e.g. `kh-prod-readiness-s47`) |
 | `triage_payload` | The full `triage-finding` output (carries section / track / type / priority) |
+| `umbrella_id` | `string` (kebab-case) or `null` (default `null`). Shared on Create + Promote per Subtask 31.9. When non-null AND destination resolves to a top-level Task: triggers same-commit edit to `docs/reference/umbrellas.json` appending the new Task id to that umbrella's `task_ids[]` (idempotent — see Step 8 below). When null: no umbrella edit (Task lands as orphan per P-OQ-2 soft warning). Ignored when destination is a Subtask (subtasks inherit parent Task's umbrella membership). |
 
 ---
 
@@ -102,8 +103,11 @@ downstream work begins.
 |---|---|
 | Strategic / cross-cutting / multi-month | `docs/reference/product-roadmap.json` |
 | Tactical / single-feature / weeks-scope OR parked / deferred / pre-work | `docs/reference/product-backlog.json` |
+| Forward Task creation (new top-level Task, with or without umbrella membership) | `docs/reference/task-list.json` |
 
 The mapping is 1:1 by `document_purpose`. The skill enforces target-semantic routing; the curator never auto-corrects the destination.
+
+**`task-list` target (per Subtask 31.9 — T-OQ-2 RATIFIED):** writes a new top-level Task into `task-list.json#/tasks`. Used by the Orchestrator when opening a forward Task JIT (per TECH §6.5 of `docs/specs/canonical-pipeline-task-list-migration/TECH.md`). The Promote mode (below) handles backlog → task-list MOVE semantics — Create with `target: 'task-list'` is the **new-Task creation** path (no backlog source).
 
 ---
 
@@ -181,6 +185,33 @@ Required fields per `BacklogItemSchema` (`lib/validation/backlog-schema.ts`):
 
 **Provenance lives in `session_refs` + `commit_refs`** for backlog items, populated at creation time from the curator's current session context.
 
+### For task-list (new top-level Task — Subtask 31.9 / T-OQ-2 RATIFIED)
+
+Required fields per `TaskSchema` (`lib/validation/task-list-schema.ts`, `.strict()`):
+
+| Field | How to populate |
+|-------|-----------------|
+| `id` | **MUST equal `MAX_ID_ACROSS_BRANCHES + 1`** per cross-branch MAX-ID discipline (PRODUCT inv 10 + `workflow-orchestration` SKILL.md §`Task ID assignment: cross-branch MAX-ID discipline`). The caller (Orchestrator) computes this via the documented `git show origin/{branch}:docs/reference/task-list.json` sweep; this skill does NOT re-compute. Bare-digit string regex (`^\d+$`). |
+| `title` | Human-readable Task title from the caller's forward-Task open brief. UK English. |
+| `description` | One-paragraph overview. |
+| `status` | Default `"pending"`. Use `"done"` only for retrospective Tasks per `umbrellas-helpers.formatRetrospectiveJournalBlock()`. |
+| `priority` | From caller; valid values per shared `Priority` enum (`must | should | could | future | high | medium | low | trigger`). |
+| `dependencies` | Caller-supplied array of sibling Task ids; `[]` if none. |
+| `subtasks` | Initially `[]` for forward Tasks; the spec-chain Subtasks (`{N.1 RESEARCH, N.2 PRODUCT, N.3 TECH, N.4 PLAN}`) are populated separately via `spec-driven-implementation`. |
+| `updatedAt` | ISO 8601 timestamp at creation time (`new Date().toISOString()`). |
+| `effort_estimate` | **MUST be present (explicit `null` acceptable).** |
+| `owner` | **MUST be present (explicit `null` acceptable).** |
+| `priority_note` | **MUST be present (explicit `null` acceptable).** |
+| `status_note` | **MUST be present (explicit `null` acceptable).** |
+| `cross_doc_links` | Array of `DocLink` objects `{ path, anchor, raw }`. Populate with spec-substrate links (e.g. PLAN.md/PRODUCT.md/TECH.md) when present; else `[]`. |
+| `session_refs` | `[provenance.session_counter]` at minimum; add `provenance.source_task_id` if available. |
+| `commit_refs` | `[provenance.source_commit_sha]` if available, else `[]`. |
+| `capability_theme` | Optional. Roadmap theme id back-link (per ID-30 PR-A copy-through). Distinct from `umbrella_id`: `capability_theme` points at the Shape A Roadmap; `umbrella_id` points at the umbrella (Linear-Initiative analogue). Both may coexist. |
+
+All four nullable fields (`effort_estimate`, `owner`, `priority_note`, `status_note`) MUST be present in the JSON object even if the value is `null` — the schema requires the keys.
+
+**Provenance lives in `session_refs` + `commit_refs` + `cross_doc_links`** (same convention as roadmap themes and backlog items).
+
 ---
 
 ## Step 4: Append the entry
@@ -198,6 +229,10 @@ After the entry append, update the roadmap-level `last_updated` field per the §
 ### For backlog
 
 Use `Edit` to insert the new item into `items[]`. Same JSON-formatting rules. Update the `last_updated` field per the same field-discipline rule above (no diary-style append).
+
+### For task-list
+
+Use `Edit` to insert the new Task into `tasks[]` of `docs/reference/task-list.json`. Same JSON-formatting rules (2-space indent, no trailing commas, field-order match). Update the file-level `last_updated` field per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator added {new-task-id}[ ({≤80-char reason})]"`.
 
 ---
 
@@ -222,6 +257,8 @@ bun -e "JSON.parse(require('fs').readFileSync('docs/reference/product-backlog.js
 
 If the JSON fails to parse, revert your edit and report.
 
+For the `task-list` target, validate via `parseTaskListWithWarnings()` from `@/lib/validation/task-list-schema` — schema parse must succeed and any surfaced warnings should be reported to the curator. If validation fails, revert your edit. The umbrella round-trip test (`__tests__/docs/umbrellas-task-list-roundtrip.test.ts`) covers the cross-doc invariant separately at next test run.
+
 ---
 
 ## Step 6: Render the MD (roadmap only)
@@ -243,8 +280,8 @@ The backlog has no MD render today; the JSON is the only artefact.
 ```yaml
 WRITE COMPLETE
 
-target: roadmap | backlog
-file: docs/reference/product-{roadmap|backlog}.json
+target: roadmap | backlog | task-list
+file: docs/reference/product-{roadmap|backlog}.json | docs/reference/task-list.json
 new_item_id: "{id}"
 section_id_or_track: "{section or track}"
 last_updated_field: "{new last_updated value}"
@@ -254,7 +291,39 @@ provenance:
   source_task_id: "{value or null}"
   source_commit_sha: "{value or null}"
   session_counter: "{value}"
+umbrella_membership:  # populated only when umbrella_id was supplied and destination is a Task
+  umbrella_id: "{id}" | null
+  task_ids_updated: true | false
 ```
+
+---
+
+## Step 8: Umbrella membership edit (optional) — Subtask 31.9 / TECH §6.4
+
+**Applies when:** `umbrella_id` input is non-null AND the destination resolves to a top-level Task (i.e. `target === 'task-list'` Create OR Promote mode with `destination_shape === 'new_top_level_task'`). Ignored for Subtask destinations and for roadmap/backlog Create targets.
+
+**Spec reference:** the spec slice for this step uses the label `9.` per `docs/specs/canonical-pipeline-task-list-migration/TECH.md` §6.4 line 627. The label here is `8.` because the post-ID-30 Create-mode flow numbers 1-7; this step follows immediately. The semantic position (after Step 7 Report and before mode-specific sections) and the procedure below are exactly as specified.
+
+After the existing Create-mode (or Promote-mode) write completes:
+
+1. **Load** `docs/reference/umbrellas.json` via the `Read` tool.
+2. **Parse** via `UmbrellasSchema` (import: `import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema'`). On parse failure, abort and report `STEP 8 ABORTED: umbrellas.json failed UmbrellasSchema parse — {error}`. Do NOT proceed; the curator must repair `umbrellas.json` first.
+3. **Find** the umbrella entry with `id === input.umbrella_id`. If not found, abort and report `STEP 8 ABORTED: umbrella_id "{id}" not found in umbrellas.json#/umbrellas[]`. Do NOT auto-create the umbrella entry — umbrella creation is a curator decision, not a Create-side-effect.
+4. **Append the destination Task id** to that umbrella's `task_ids[]` array. **Idempotent:** if the id is already present, skip the append (the membership write is a no-op; the rest of the step still runs).
+5. **Bump `last_updated`** on `umbrellas.json` per the §`last_updated` field-discipline rule above (single line, ≤200 chars, single session-id, `kh-{prod-readiness|main}-S{N}` prefix). Format: `"{session-counter} {wave} close-out — curator added task {new-task-id} to umbrella {umbrella-id}"`.
+6. **Re-validate** the modified `umbrellas.json` via `UmbrellasSchema.parse(...)`. On failure, abort and revert the `umbrellas.json` edit; report `STEP 8 ABORTED: post-edit UmbrellasSchema.parse failed — {error}`.
+7. **Commit-coupling (PRODUCT inv 17 — load-bearing):** the caller (Orchestrator or curator) MUST include BOTH `docs/reference/task-list.json` AND `docs/reference/umbrellas.json` edits in a **single commit**. This is procedural — there is no automated guard. The umbrella round-trip test (`__tests__/docs/umbrellas-task-list-roundtrip.test.ts`) catches broken references (orphans warn but don't fail per P-OQ-2).
+
+**Capability theme coexists peacefully (per ID-30 PR-A):** `capability_theme` (set on the Task object itself, points at a Roadmap theme) and `umbrella_id` (drives the umbrellas.json membership append) are orthogonal fields — both may be supplied in the same Create or Promote call. Combined Promote signature: `Promote(source_backlog_id, dest_task_id, [capability_theme], [umbrella_id])`. Both optional; different surfaces.
+
+**Forward-Task open pattern (per TECH §6.5 of `docs/specs/canonical-pipeline-task-list-migration/TECH.md`):**
+
+When the orchestrator opens each forward Task JIT (per PRODUCT inv 6 of the same spec):
+
+1. Compute fresh resolved id via cross-branch MAX-ID query (per `workflow-orchestration` SKILL.md §`Task ID assignment: cross-branch MAX-ID discipline`).
+2. Open the Task with spec-chain Subtasks (`{N.1 RESEARCH, N.2 PRODUCT, N.3 TECH, N.4 PLAN}`) per `spec-driven-implementation` skill.
+3. Call this skill's Create mode with `target: 'task-list'` and `umbrella_id: 'canonical-pipeline'` (or other applicable umbrella).
+4. Optionally append `(see Task ID-NN)` backlink to PLAN.md §4.n header per PRODUCT inv 14 of the migration spec.
 
 ---
 
@@ -404,6 +473,7 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
 | `provenance.session_counter` | Session ID for `last_updated` stamps (both surfaces). |
 | `provenance.source_commit_sha` | If the promotion is occurring after the underlying work has already shipped (rare but valid — e.g. ID-67 promoted post-impl during S60), include the commit SHA so the journal block captures it. Else null. |
 | `provenance.promotion_rationale` | One-line `notes` explaining why this item is being picked up now. |
+| `umbrella_id` | Optional. `string` (kebab-case) or `null` (default `null`) — Subtask 31.9 / T-OQ-2 RATIFIED. When non-null AND `destination_shape === 'new_top_level_task'`: triggers Step 8 above (same-commit `umbrellas.json` membership edit). When `destination_shape === 'new_subtask_under_task_id'`: ignored (subtasks inherit parent Task's umbrella membership). When `null`: no umbrella edit (Task lands as orphan per P-OQ-2 soft warning). Coexists peacefully with `capability_theme` — combined signature: `Promote(source_backlog_id, dest_task_id, [capability_theme], [umbrella_id])`. |
 
 ### Promote flow
 
@@ -438,7 +508,8 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
 4. **Delete source entry.** Remove the backlog item from `items[]`. Bump backlog `last_updated` per the §`last_updated` field-discipline rule. Format: `"{session-counter} {wave} close-out — curator promoted backlog/{src-id} → task-list/{dst-id}"`.
 5. **Write destination entry.** Append the new Task/Subtask. Bump task-list `last_updated` per the same field-discipline rule (single line, ≤200 chars, no diary). Bump the parent Task's `updatedAt` if `destination_shape = new_subtask_under_task_id`.
 6. **Validate.** Run `BacklogSchema.parse()` against the new backlog state and `TaskSchema.parse()` against the new task-list state. If either fails, abort + restore source entry (the write order [delete first, then add] makes this rollback-safe; if add fails, source is gone — re-stage from git).
-7. **Report back.** YAML packet:
+7. **Umbrella membership (optional — Step 8 above).** If `umbrella_id` is non-null AND `destination_shape === 'new_top_level_task'`, run Step 8 (umbrella membership edit). The caller MUST include the resulting `umbrellas.json` edit in the same commit as the backlog/task-list edits (PRODUCT inv 17 commit-coupling, per `docs/specs/canonical-pipeline-task-list-migration/PRODUCT.md` Inv 17).
+8. **Report back.** YAML packet:
    ```yaml
    operation: promote
    source_backlog_id: "{id}"
@@ -452,6 +523,9 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
      status: set | unset | warned_multi_match  # per the lookup above
      theme_id: "{id}" | null
      multi_match_theme_ids: ["{id1}", "{id2}"] | null  # populated only on warned_multi_match
+   umbrella_membership:  # populated only when umbrella_id supplied and destination is a Task
+     umbrella_id: "{id}" | null
+     task_ids_updated: true | false  # true if append occurred, false if idempotent skip
    validation: passed | failed
    ```
 
