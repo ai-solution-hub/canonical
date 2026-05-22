@@ -356,8 +356,8 @@ def stamp_extraction_base(
     | QAFormExtraction
     | EntityMentionExtraction,
     *,
-    op_id: UUID,
-    content_items_id: UUID,
+    op_id: UUID | None = None,
+    content_items_id: UUID | None = None,
 ) -> ClassificationExtraction | QAFormExtraction | EntityMentionExtraction:
     """Plain Python helper — NOT @coco.fn.
 
@@ -369,11 +369,65 @@ def stamp_extraction_base(
     flow run, so memoisation would either stale-cache the values or
     invalidate every run, defeating the purpose. Pydantic v2 `model_copy`
     preserves immutability semantics.
+
+    ID-28.16 flow-scope reading:
+      When `op_id` and/or `content_items_id` are omitted, the helper reads
+      them from the currently-bound `FLOW_META_CTX` via
+      `cocoindex_pipeline.flow_context.current_flow_meta()`. This is the
+      flow-scope wiring primitive — extractor outputs are stamped at
+      flow-scope without the call-site needing to thread op_id /
+      content_items_id through every `.transform()` chain argument.
+
+      Explicit kwargs ALWAYS take precedence over the FLOW_META_CTX-bound
+      values when both are present — call-site-provided values win.
+
+      If neither explicit args nor a FLOW_META_CTX binding can supply the
+      required values, `RuntimeError` is raised rather than silently
+      stamping zero UUIDs. The error message names `FLOW_META_CTX` so the
+      operator knows which binding is missing.
     """
+    if op_id is None or content_items_id is None:
+        # Lazy import to guarantee the *same* `flow_context` module object
+        # is reached as the caller's import path. When the caller imports
+        # via `scripts.cocoindex_pipeline.flow_context` and a test imports
+        # via `cocoindex_pipeline.flow_context` (sys.path injection), the
+        # two paths resolve to DIFFERENT `sys.modules` entries — each with
+        # its own private `_flow_meta_var` ContextVar (storage not shared).
+        # Using `__package__` here resolves through whichever import path
+        # the caller actually used, keeping the ContextVar identity consistent.
+        # (See module docstring SIGNATURE_DRIFT note in flow_context.py for
+        # background on the coco.ContextKey global-uniqueness pitfall.)
+        from importlib import import_module
+
+        flow_context_module = import_module(f"{__package__}.flow_context")
+        meta = flow_context_module.current_flow_meta()
+        if meta is None:
+            raise RuntimeError(
+                "stamp_extraction_base() called without explicit op_id / "
+                "content_items_id AND no FLOW_META_CTX binding is active. "
+                "Wrap the call in `async with bind_flow_meta(op_id=..., "
+                "content_items_id=...):` or pass explicit kwargs."
+            )
+        resolved_op_id = op_id if op_id is not None else meta.op_id
+        if content_items_id is None:
+            if meta.content_items_id is None:
+                raise RuntimeError(
+                    "stamp_extraction_base() called without explicit "
+                    "content_items_id AND FLOW_META_CTX has content_items_id=None. "
+                    "Rebind FLOW_META_CTX with a non-None content_items_id "
+                    "before invoking the per-row stamping path."
+                )
+            resolved_content_items_id = meta.content_items_id
+        else:
+            resolved_content_items_id = content_items_id
+    else:
+        resolved_op_id = op_id
+        resolved_content_items_id = content_items_id
+
     return extraction.model_copy(
         update={
-            "op_id": op_id,
-            "content_items_id": content_items_id,
+            "op_id": resolved_op_id,
+            "content_items_id": resolved_content_items_id,
             "extracted_at": datetime.now(timezone.utc),
         }
     )
