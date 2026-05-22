@@ -181,6 +181,7 @@ from scripts.cocoindex_pipeline.extraction import (
 from scripts.cocoindex_pipeline.flow_context import (
     FLOW_META_CTX,
     bind_flow_meta,
+    bind_retry_counter,
     current_flow_meta,
 )
 # ────────────────────────────────────────────────────────────────────────────
@@ -866,13 +867,19 @@ async def app_main() -> None:
     stage_counts: dict[str, int] = _empty_stage_counts()
     items_created: list[str] = []
     extractor_version = os.environ.get("IMAGE_SHA")
-    # Inv-23 retry-count substrate (ID-28.13 fix-pack). The counter is
-    # constructed per-flow and read at flow-end webhook emission. v1
-    # has NO production caller of `.increment()` — the substrate is in
-    # place; production wiring lands when KH adds an Anthropic 503-retry
-    # wrapper around the @coco.fn extractors (out of scope for this
-    # fix-pack; deferred to a follow-up Subtask). See `_FlowRetryCounter`
-    # class docstring for the empirical rationale.
+    # Inv-23 retry-count substrate (ID-28.13 fix-pack + ID-28.17 wrapper +
+    # ID-28.19 binding wiring). The counter is constructed per-flow and
+    # read at flow-end webhook emission. Production wiring (ID-28.19):
+    # the counter is bound via `bind_retry_counter(flow_retry_counter)`
+    # below — nested inside the existing `bind_flow_meta(...)` block —
+    # so the tenacity `before_sleep` hook in `extraction.py`
+    # (`_bump_flow_retry_counter`) fires `.increment()` on each retry
+    # attempt of the `_anthropic_retry` wrapper around the 3 @coco.fn
+    # extractors. Result: `pipeline_runs.result.retry_count` now reports
+    # the true per-flow retry count in production runs (was always 0
+    # pre-28.19 even when retries actually fired). See `_FlowRetryCounter`
+    # class docstring for the empirical rationale + ID-28.19 brief for
+    # the wiring contract closure.
     flow_retry_counter = _FlowRetryCounter()
 
     # Flow start emission (Inv-16: one pipeline_runs row per invocation;
@@ -951,12 +958,34 @@ async def app_main() -> None:
             # `coco.ContextKey[FlowRunMeta]` identity handle per the
             # ID-28.16 brief. See `flow_context.py` for the full empirical
             # provenance.
+            # ID-28.19 retry-counter binding (Inv-23 production wiring closure):
+            # nest `bind_retry_counter(flow_retry_counter)` INSIDE the existing
+            # `bind_flow_meta(...)` block so the per-flow `_FlowRetryCounter`
+            # instance is attached to the contextvar scope that
+            # `_bump_flow_retry_counter()` reads inside the tenacity
+            # `before_sleep` callback. Each retry the `_anthropic_retry`
+            # wrapper performs (transient InternalServerError /
+            # RateLimitError / APIConnectionError) now bumps the counter
+            # exactly once via that callback — closing the observability
+            # gap that left `pipeline_runs.result.retry_count` emitting 0
+            # in production even when retries actually fired.
+            #
+            # Scope rationale (Executor judgement): retries can only fire
+            # during `client.messages.create()` calls inside the 3
+            # extractors, which are exactly the call sites wrapped by
+            # `bind_flow_meta`. Nesting `bind_retry_counter` INSIDE
+            # `bind_flow_meta` keeps the binding tightly scoped to the
+            # extractor block (mirrors the 28.17 brief's contract that the
+            # counter is bound around the extractor invocations, not the
+            # surrounding source-walk / write-back stages where no
+            # Anthropic SDK calls occur).
             async with bind_flow_meta(
                 op_id=run_op_id, content_items_id=None
             ):
-                classification = content_text.transform(extract_classification)  # type: ignore[attr-defined]
-                q_a_form = content_text.transform(extract_qa_form)  # type: ignore[attr-defined]
-                entity_mentions = content_text.transform(extract_entity_mentions)  # type: ignore[attr-defined]
+                async with bind_retry_counter(flow_retry_counter):
+                    classification = content_text.transform(extract_classification)  # type: ignore[attr-defined]
+                    q_a_form = content_text.transform(extract_qa_form)  # type: ignore[attr-defined]
+                    entity_mentions = content_text.transform(extract_entity_mentions)  # type: ignore[attr-defined]
 
             # ── stamp_extraction_base() integration (ID-28.16 substrate) ─────
             # Per Q-EX2 TECH §3.2, after each extractor returns its validated
@@ -1123,13 +1152,18 @@ async def app_main() -> None:
         # wires per-stage counter increments (see escalation note at the
         # rollup-state block above). items_created is similarly empty at
         # v1 — populated when 28.13's per-extraction-kind write path lands.
-        # `retry_count` (ID-28.13 fix-pack — Inv-23): read from the
-        # per-flow `_FlowRetryCounter` instance. v1 always reads 0
-        # because no production caller bumps `.increment()` yet — the
-        # field still emits verbatim (0 is meaningful per the route's
-        # discriminator). Operator dashboards relying on the
-        # `result.retry_count IS NOT NULL` filter will see the field
-        # populated on every 28.13-onwards run.
+        # `retry_count` (ID-28.13 fix-pack — Inv-23, completed by 28.19):
+        # read from the per-flow `_FlowRetryCounter` instance. Post-28.19
+        # this reflects the true retry count for the flow run: each
+        # transient Anthropic error (InternalServerError / RateLimitError /
+        # APIConnectionError) retried by `_anthropic_retry` in
+        # extraction.py bumps the counter exactly once via the
+        # `_bump_flow_retry_counter` tenacity `before_sleep` hook (active
+        # because `app_main()` binds the counter via
+        # `bind_retry_counter(flow_retry_counter)` above). Operator
+        # dashboards relying on `result.retry_count IS NOT NULL` filter
+        # see the field populated on every 28.13-onwards run; the value
+        # reflects real retry activity on every 28.19-onwards run.
         await _emit_pipeline_run_webhook(
             op_id=run_op_id,
             status=flow_status,
