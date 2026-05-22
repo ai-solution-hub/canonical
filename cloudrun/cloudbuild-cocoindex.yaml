@@ -57,16 +57,42 @@ steps:
       - --env=GOOGLE_PYTHON_VERSION=3.13.13
       - --publish
 
-  # Step 1b: Docling pre-warm — bake model weights into the image layer.
-  # Runs python3 directly (not via GOOGLE_BUILD_SCRIPT) to avoid the
-  # executable-permissions requirement (FX-1: file is 100644, not 100755).
-  # This step runs inside the just-built image so model weights land in the
-  # final layer, avoiding cold-start downloads on first request (Inv-10 SLA).
-  - id: prewarm-docling
-    name: europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:${_COMMIT_SHA}
-    entrypoint: python3
-    args:
-      - cloudrun/cocoindex-prewarm.py
+  # Step 1b: Docling pre-warm — DEFERRED v1.0 per S256 FX-7.
+  #
+  # The original design ran python3 cloudrun/cocoindex-prewarm.py inside the
+  # just-built buildpack image to bake Docling layout-heron + docling-models
+  # into the final image layer (avoids a ~7 s cold-start model fetch on first
+  # request). The naive entrypoint override (`entrypoint: python3 + args:
+  # [cloudrun/cocoindex-prewarm.py]`) FAILS because buildpack images
+  # (gcr.io/buildpacks/builder:google-22) put the Python runtime under
+  # /layers/google.python.runtime/python/bin/ and expose it to PATH only via
+  # the cnb launcher (/cnb/lifecycle/launcher). Direct entrypoint override
+  # bypasses the launcher, so PATH is unset:
+  #   "exec: \"python3\": executable file not found in $PATH"
+  #
+  # Correct invocation (untested — defer to v1.1):
+  #   - id: prewarm-docling
+  #     name: europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:${_COMMIT_SHA}
+  #     entrypoint: /cnb/lifecycle/launcher
+  #     args:
+  #       - python3
+  #       - cloudrun/cocoindex-prewarm.py
+  # OR (more conservative, exercises the buildpack's web process type):
+  #   - id: prewarm-docling
+  #     name: europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:${_COMMIT_SHA}
+  #     entrypoint: /cnb/lifecycle/launcher
+  #     args:
+  #       - bash
+  #       - -c
+  #       - "python3 cloudrun/cocoindex-prewarm.py"
+  #
+  # v1.0 trade-off (accepted FX-7 ratification): defer the pre-warm + accept
+  # a one-time ~7 s cold-start latency hit on the first Service request after
+  # min_instances=0 → 1. Inv-10 SLA target (60 s end-to-end on first PDF ingest
+  # after scale-to-zero) has 53 s of slack vs the ~7 s lazy-load cost; the
+  # Inv-10 acceptance test still passes without pre-warm. Re-enable in v1.1
+  # once one of the two launcher invocations above is empirically verified
+  # against the live buildpack image.
 
   # Step 2: Inv-9 assertion — confirm zero pullmd binary entries and zero
   # Playwright/browser-driver dependencies in the published image.
