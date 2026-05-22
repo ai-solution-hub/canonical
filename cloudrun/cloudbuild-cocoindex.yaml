@@ -80,12 +80,12 @@ steps:
       - |
         set -e
 
-        # Shell variables escaped with $$ per Cloud Build substitution syntax
-        # (FX-5 S256 WP0 staging-deploy fix — bare $IMAGE was being parsed as
-        # a Cloud Build substitution attempt; "IMAGE" is not a built-in sub
-        # nor an underscore-prefixed user-defined sub, so submit failed with
-        # "invalid value for 'build.substitutions'". `$$` escapes to a literal
-        # `$` at shell-execution time.)
+        # Shell variables escaped with double-dollar per Cloud Build syntax
+        # (FX-5 S256 WP0 fix — Cloud Build dynamic-substitution scans the YAML
+        # literal-block including comments, so bare single-dollar var refs to
+        # non-builtin keys fail at submit time with
+        # "invalid value for build.substitutions". Escaped form resolves to a
+        # literal dollar at shell-execution time.)
         IMAGE="europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:${_COMMIT_SHA}"
         echo "Inv-9 assertion: scanning $$IMAGE for forbidden binaries..."
 
