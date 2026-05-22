@@ -5,9 +5,12 @@ Stages (flow-scope):
   1. source walk            -> connectors.localfs.walk_dir(live=True, recursive=True)
   2. binary conversion      -> per-MIME adapters (P-3): docling for PDF/DOCX/XLSX,
                                pullmd HTTP client for HTML, passthrough for markdown
-  3. LLM extraction         -> TODO(28.12) ExtractByLlm stubs — real wiring in Wave 2
-  4. embedding              -> TODO(28.12) LiteLLMEmbedder stub — real wiring in Wave 2
-  5. entity resolution      -> TODO(28.12) entity_resolution stub — real wiring in Wave 2
+  3. LLM extraction         -> Path A: @coco.fn(memo=True) extractors call
+                               anthropic SDK + Pydantic TypeAdapter validation
+                               (S256 W1 / WP4 — extract_classification /
+                               extract_qa_form / extract_entity_mentions).
+  4. embedding              -> TODO(28.13+) LiteLLMEmbedder stub
+  5. entity resolution      -> TODO(28.13+) entity_resolution stub
   6. Postgres UPSERT        -> postgres.mount_table_target(managed_by=ManagedBy.USER)
                                for content_items, q_a_extractions, source_documents
 
@@ -434,11 +437,10 @@ async def app_main() -> None:
     # (the same API-surface gap surfaced in 28.10 for per-row UPSERT callbacks).
     # Per the brief's escalation rule, the contract is the JSON payload shape,
     # not the per-stage observability source — so the rollup is aggregated via
-    # internal counters at flow scope. Live per-stage wiring is deferred to
-    # Wave C 28.12 (alongside ExtractByLlm wiring) when the cocoindex callback
-    # surface is exposed and counter-increment hooks can be threaded into each
-    # stage's transform pipeline. Until then, this Subtask lands the helper
-    # contract + flow-start/flow-end invocation substrate.
+    # internal counters at flow scope. Per-stage counter-increment wiring is
+    # deferred to Subtask 28.13 (alongside per-extraction-kind structured-
+    # failure routing). Until then, this Subtask lands the helper contract +
+    # flow-start/flow-end invocation substrate.
     run_op_id: uuid.UUID = uuid.uuid4()  # placeholder until cocoindex exposes flow['op_id']
     stage_counts: dict[str, int] = _empty_stage_counts()
     items_created: list[str] = []
@@ -477,41 +479,70 @@ async def app_main() -> None:
             # Inner-tier: memoised on content payload (metadata edits no-op).
             content_text = source.transform(convert_binary_to_markdown)  # type: ignore[attr-defined]
 
-            # ── Stage 3: LLM extraction (flow-scope) — TODO(28.12) ──────────
-            # Real ExtractByLlm wiring lands in Wave 2 (28.12).
-            # Per cocoindex-extraction-contract TECH §3.1 (verifier B-3):
-            # placed at flow scope on a data-source column, NOT inside a
-            # @coco.fn wrapper. Stub comments preserve the intended shape.
+            # ── Stage 3: LLM extraction (flow-scope) — Path A canonical ──────
+            # Per cocoindex-extraction-contract TECH §3.1 (S256 W1 amendment):
+            # KH-authored @coco.fn(memo=True) extractors call the anthropic
+            # SDK directly + validate via Pydantic TypeAdapter. The flow-scope
+            # wiring is a plain `.transform(extractor_fn)`. The extractors are
+            # imported from extraction.py (co-located per S256 WP4 architectural
+            # choice — see journal block on Subtask 28.12).
             #
-            # classification = content_text.transform(
-            #     ExtractByLlm(
-            #         llm_spec=LlmSpec(api_type=LlmApiType.ANTHROPIC, model=ANTHROPIC_MODEL),
-            #         output_type=ClassificationExtraction,
-            #         instruction=CLASSIFICATION_PROMPT,
-            #     )
-            # )
-            # q_a_form = content_text.transform(
-            #     ExtractByLlm(
-            #         llm_spec=LlmSpec(api_type=LlmApiType.ANTHROPIC, model=ANTHROPIC_MODEL),
-            #         output_type=QAFormExtraction,
-            #         instruction=Q_A_FORM_PROMPT,
-            #     )
-            # )
-            # entity_mentions = content_text.transform(
-            #     ExtractByLlm(
-            #         llm_spec=LlmSpec(api_type=LlmApiType.ANTHROPIC, model=ANTHROPIC_MODEL),
-            #         output_type=list[EntityMentionExtraction],
-            #         instruction=ENTITY_MENTION_PROMPT,
-            #     )
-            # )
+            # Memoisation: each extractor is `@coco.fn(memo=True)` keyed on
+            # `(content_text,)` per Inv-21 — unchanged content + unchanged
+            # prompt → memo hit, zero LLM call.
+            #
+            # Validation-failure path: Option A — `ValidationError` propagates
+            # to app_main()'s `except Exception` block at lines ~582-598 below
+            # which sets `flow_error_class = type(exc).__name__` (== "ValidationError")
+            # and emits the rollup webhook. Per-extraction-kind structured-
+            # failure routing (via `classify_pydantic_error()`) is deferred to
+            # Subtask 28.13 alongside the cocoindex-ledger-api TECH §T1.3
+            # helper-contract finalisation.
+            classification = content_text.transform(extract_classification)  # type: ignore[attr-defined]
+            q_a_form = content_text.transform(extract_qa_form)  # type: ignore[attr-defined]
+            entity_mentions = content_text.transform(extract_entity_mentions)  # type: ignore[attr-defined]
 
-            # ── Stage 4: embedding (vector(1024)) — TODO(28.12) ─────────────
+            # ── stamp_extraction_base() integration — DEFERRED to 28.13 ─────
+            # Per Q-EX2 TECH §3.2, after each extractor returns its validated
+            # Pydantic object, the `_ExtractionBase` fields (op_id,
+            # content_items_id, extracted_at) must be stamped at flow scope:
+            #
+            #   stamped_classification = stamp_extraction_base(
+            #       classification, op_id=<flow-op-id>, content_items_id=<row-pk>
+            #   )
+            #
+            # Cocoindex 1.0.3 does NOT expose `flow["op_id"]` nor
+            # `flow["content_items_id"]` as flow-scope symbols (per S254 §P-4
+            # discovery; same API-surface gap as Stage 6 bind_target / per-row
+            # UPSERT callbacks). The `run_op_id` local var on line ~446 is the
+            # v1 Python-scope op_id, but `transform()` consumes a flow column
+            # — there is no public 1.0.3 surface to pass a Python-scope local
+            # into a `.transform()` call AS a flow input.
+            #
+            # Per the established 28.8 / 28.9 / 28.10 spec-drift discipline,
+            # this Subtask (28.12 WP4) lands:
+            #   - The 3 `@coco.fn(memo=True)` extractors (above).
+            #   - The `stamp_extraction_base` helper (imported at line ~107).
+            #   - The doc-comment substrate documenting the stamping call-site.
+            # Real per-row stamping is unblocked by either:
+            #   (a) cocoindex 1.0.x exposing `flow["op_id"]` /
+            #       `flow["content_items_id"]` symbols at flow scope, OR
+            #   (b) KH authoring a flow-scope context-extractor helper that
+            #       projects run_op_id + per-row PK into transform inputs.
+            # Orchestrator-tracked for 28.13 + TECH §3.2 amendment queue.
+            #
+            # Until then, classification / q_a_form / entity_mentions carry
+            # `Field(...)` placeholder values on the _ExtractionBase fields;
+            # the Pydantic shapes themselves enforce that any downstream
+            # writer must stamp the fields before persisting to Postgres.
+
+            # ── Stage 4: embedding (vector(1024)) — TODO(28.13+) ─────────────
             # Requires litellm package + LITELLM_API_KEY env var.
             # embedding = content_text.transform(
             #     LiteLLMEmbedder(model="openai/text-embedding-3-large")
             # )
 
-            # ── Stage 5: entity resolution — TODO(28.12) ─────────────────────
+            # ── Stage 5: entity resolution — TODO(28.13+) ────────────────────
             # Selectively adopted per COCO.1. Requires faiss + entity_resolution.
             # resolved_entities = entity_mentions.transform(entity_resolution())
 
@@ -595,10 +626,10 @@ async def app_main() -> None:
     finally:
         await coco_pool.close()
         # Flow end emission (Inv-16: terminal pipeline_runs row).
-        # stage_counts is filled at the placeholder zero values until Wave C
-        # 28.12 wires per-stage counter increments (see escalation note at
-        # the rollup-state block above). items_created is similarly empty
-        # at v1 — populated when ExtractByLlm wiring lands in 28.12.
+        # stage_counts is filled at the placeholder zero values until 28.13
+        # wires per-stage counter increments (see escalation note at the
+        # rollup-state block above). items_created is similarly empty at
+        # v1 — populated when 28.13's per-extraction-kind write path lands.
         await _emit_pipeline_run_webhook(
             op_id=run_op_id,
             status=flow_status,
