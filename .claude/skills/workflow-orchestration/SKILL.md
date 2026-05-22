@@ -77,6 +77,119 @@ proceed from that record as normal.
 
 ---
 
+## Task ID assignment: cross-branch MAX-ID discipline (PRODUCT inv 10)
+
+Before opening ANY new Task on any branch, the Orchestrator computes
+`MAX_ID_ACROSS_BRANCHES` by querying every active long-lived branch's
+`task-list.json` HEAD, then assigns the new Task ID as
+`MAX_ID_ACROSS_BRANCHES + 1`. This is a manual discipline encoded here per
+PRODUCT inv 10 + S62 W3 OQ-5 ratification — there is no CI guard (T-OQ-3
+ratified default: defer CI enforcement until a second collision incident
+warrants automation; S62 W4 ID-28 rename is the only known collision to date
+and the recovery pattern below is its worked example).
+
+### Active branches (revise on each major branch-set change)
+
+- `origin/main`
+- `origin/production-readiness`
+- `origin/content-items-investigation`
+
+When the active-branch set changes (a long-lived branch retires or a new one
+opens), update this list AND the bash snippet's `BRANCHES` array in the same
+commit.
+
+### Discipline — pre-open MAX-ID query
+
+Run this snippet from the Orchestrator's worktree before opening any new
+Task. The snippet fetches each active branch fresh, extracts every Task
+`id` from each branch's `task-list.json`, computes the global maximum, and
+prints `NEW_ID = MAX_ID_ACROSS_BRANCHES + 1`:
+
+```bash
+set -euo pipefail
+BRANCHES=(main production-readiness content-items-investigation)
+
+# Fetch every active branch fresh — never rely on stale local refs for
+# cross-branch MAX-ID computation.
+for B in "${BRANCHES[@]}"; do
+  git fetch origin "${B}"
+done
+
+# Per-branch max ID extraction via python (handles both integer and string ids
+# in the parent-Task `id` field — KH uses string-typed ids on parent Tasks per
+# the TaskListSchema; coerce to int for max comparison).
+declare -a PER_BRANCH_MAX
+for B in "${BRANCHES[@]}"; do
+  MAX_B=$(git show "origin/${B}:docs/reference/task-list.json" \
+    | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+ids = [int(t['id']) for t in data['tasks']]
+print(max(ids) if ids else 0)
+")
+  echo "origin/${B}: MAX_ID = ${MAX_B}"
+  PER_BRANCH_MAX+=("${MAX_B}")
+done
+
+# Max across all branches → NEW_ID = MAX + 1.
+MAX_ACROSS=$(printf '%s\n' "${PER_BRANCH_MAX[@]}" | sort -n | tail -1)
+NEW_ID=$((MAX_ACROSS + 1))
+echo "MAX_ID_ACROSS_BRANCHES = ${MAX_ACROSS}"
+echo "NEW_ID = ${NEW_ID}"
+```
+
+The Orchestrator records `NEW_ID` and uses it as the `id` for the new Task
+(or as the base id for a Subtask's parent-Task open).
+
+### Collision recovery — rename pattern (S62 W4 ID-28 worked example)
+
+If a collision is detected at merge time (a concurrent Task open on a
+sibling branch bypassed the discipline and reused an existing id), the
+later-merged Task gets renumbered using the rename pattern below. The
+worked example is S62 W4's ID-28 rename (commit `9e498e2f`): the
+`production-readiness` cmux orchestrator-of-orchestrators polish Task held
+ID-28; the `content-items-investigation` T8 cocoindex flow ALSO opened at
+ID-28 (S62 W3 OQ-2 ratified `keep T8 = ID-28` as the canonical anchor). The
+production-readiness ID-28 was renamed to ID-33; its three Subtasks
+(28.1/28.2/28.3) renamed to 33.1/33.2/33.3.
+
+**Commit message shape** (single commit per rename):
+
+```
+chore(s{NN}-w{N}): rename ID-{old} → ID-{new} (cross-branch collision resolve)
+```
+
+The rename commit spans, in a single commit:
+
+- `docs/reference/task-list.json` — top-level Task `id` field + every
+  Subtask dispatch reference using the old id (`{old.M}` → `{new.M}`) +
+  a `<info added on …>` journal block on the renamed Task's first Subtask
+  documenting the rename provenance + ratification anchor.
+- `docs/reference/umbrellas.json` (when umbrellas exist for the renamed
+  Task) — `task_ids[]` entry rewritten from old to new id.
+- All `cross_doc_links` referencing the old id across `docs/` — found via
+  `grep -rn "ID-{old}" docs/` then patched in the same commit. Filenames
+  with the old id in their path may be retained for git-history continuity
+  if a leading errata header documents the rename (S62 W4 chose this for
+  the cmux research file + continuation prompt).
+
+After the rename commit lands, the Orchestrator amends the parent
+session's continuation prompt (if open) so downstream sessions pick up the
+new id without re-running the MAX-ID query.
+
+### No CI guard — manual discipline by ratification
+
+Per S62 W3 OQ-5 ratification + S64 W2b T-OQ-3 default: the cross-branch
+MAX-ID check is **manual discipline encoded in this skill body**, not a CI
+guard. The single known collision (S62 W4 ID-28) was caught at merge time
+and resolved cleanly via the rename pattern above. A CI guard would have to
+query every active branch on every PR — high cost for an event that has
+fired once. Re-evaluate this default on the second collision incident; for
+now, the discipline lives here, the rename pattern is reusable, and the
+worked-example commit (`9e498e2f`) is the reference implementation.
+
+---
+
 ## ID-N lifecycle (§3)
 
 Every Task follows the same six-phase shape. ID-N (Task) and ID-N.M (Subtask)
