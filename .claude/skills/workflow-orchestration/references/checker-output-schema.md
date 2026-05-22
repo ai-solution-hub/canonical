@@ -1,15 +1,14 @@
-# Checker output schema (§6.1) + finding routing (§3.6 + §6.2)
+# Checker output schema + finding routing
 
 JSON shape every Checker emits, the verdict mapping the Orchestrator
 applies, and the binary in-scope-ness rule that routes findings to
 fix-Executor vs Curator.
 
-## Finding routing (§3.6 + §6.2)
+## Finding routing
 
 When a Checker returns PASS_WITH_NOTES or FAIL, or an Executor escalates
 mid-task, each finding routes through a **binary in-scope-ness rule**. The
-Orchestrator evaluates the rule directly — there is no separate routing
-skill. The predicate (per B10):
+Orchestrator evaluates the rule directly — the predicate:
 
 > A finding is **in-scope** if and only if its `location` (file path) falls
 > within the file-ownership set of the current subtask brief, **OR** the
@@ -22,7 +21,7 @@ an Orchestrator routing input.
 ### In-scope → fix-Executor
 
 The Orchestrator dispatches a fix-Executor with the finding packet. Three
-fix-flows (per N1):
+fix-flows:
 
 - **Type (a) — missed-but-correctly-detailed**: fix-Executor implements the
   missing piece against the existing subtask brief. No spec change.
@@ -32,8 +31,7 @@ fix-flows (per N1):
   Checker's `fix_recommendation` directly. No re-implementation.
 
 If the finding reveals that the spec itself is wrong (implementation
-discovery requires spec amendment), the Orchestrator does **not** dispatch
-a fix-Executor — it re-engages a Planner to update PRODUCT.md / TECH.md,
+discovery requires spec amendment), the Orchestrator re-engages a Planner to update PRODUCT.md / TECH.md,
 re-runs the Checker on the amended spec, then re-decomposes implementation
 subtasks.
 
@@ -50,7 +48,7 @@ The Orchestrator does **not** carry out-of-scope findings in working
 memory. Curator dispatch keeps the main session's context lean across
 multi-wave sessions.
 
-### Checker output schema (§6.1)
+### Checker output schema
 
 Checker output is JSON-shaped so the routing logic is mechanical. The
 Orchestrator does not re-read Checker prose; it routes from the JSON:

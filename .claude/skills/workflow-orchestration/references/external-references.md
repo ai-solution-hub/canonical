@@ -15,33 +15,30 @@ skills, and project rules.
 
 ## Sibling roles
 
-- `.claude/agents/task-planner.md` — Planner agent (opus-4-7, `thinking: 'max'`).
-- `.claude/agents/task-executor.md` — Executor agent (sonnet-4-6).
-- `.claude/agents/task-checker.md` — Checker agent (sonnet-4-6, two
+- `.claude/agents/task-planner.md` — Planner agent
+- `.claude/agents/task-executor.md` — Executor agent
+- `.claude/agents/task-checker.md` — Checker agent (two
   variants).
 - `.claude/agents/workflow-curator.md` — Curator agent.
 
-## Dispatch primitives (§5)
+## Dispatch primitives
 
 - `.claude/skills/session-driver-cmux/SKILL.md` — fleet dispatch (cmux +
   worktrees + JSONL events).
-- `using-git-worktrees` — worktree-creation primitive (Anthropic plugin).
-- `dispatching-parallel-agents` — abstract parallel pattern (Anthropic
-  plugin).
-- `git-workflow-and-versioning` — Orchestrator-owned merge skill
-  (Anthropic plugin).
+- `using-git-worktrees` — worktree-creation primitive.
+- `dispatching-parallel-agents` — abstract parallel pattern.
+- `git-workflow-and-versioning` — Orchestrator-owned merge skill.
 
 ## Schema + validation
 
 - `lib/validation/task-list-schema.ts` — `TaskListSchema`,
-  `parseTaskListWithWarnings` (inv 20 25-Subtask soft-ceiling).
+  `parseTaskListWithWarnings`.
 - `docs/reference/task-list.json` — the live Task list.
-- `docs/reference/taskmaster-schema-reference.md` — empirical TM shape.
 
 ## Side skills the Orchestrator invokes
 
 - `start-session`, `context-engineering`, `spec-driven-implementation`,
-  `diagnose-ci-failures`, `update-docs`, `handoff`, `code-simplification`,
+  `diagnose-ci-failures`, `handoff`, `code-simplification`,
   `resolve-merge-conflicts`.
 
 ## Curator-side skills
@@ -52,11 +49,7 @@ skills, and project rules.
 
 ## Project rules
 
-- `CLAUDE.md` — "Implementation Workflow", "Worktree isolation rules",
-  "Sub-agents can blow their token budget", "Worktree agents start
-  stale", "Bash CWD drifts into worktree dirs after `Read`",
-  "Anthropic plugin files invisible to worktree agents", "Git Safety
-  Protocol", "Agent escalation rule".
+- `CLAUDE.md`.
 - `docs/reference/test-philosophy.md` — six audit criteria the Checker
   applies.
 - `docs/design/warm-meridian-implementation-spec.md` — design tokens the
