@@ -379,8 +379,14 @@ the row entirely instead.
   `update-roadmap-backlog` in Promote mode (see first bullet); the skill writes
   to both surfaces atomically with provenance journal.
 
-After every edit, bump the top-level `last_updated` field to the current session
-label (e.g. `"kh-prod-readiness-S37 close-out"`).
+After every edit, bump the top-level `last_updated` field per the
+`last_updated` field-discipline rule in `update-roadmap-backlog/SKILL.md`
+(§`last_updated` field-discipline). Applies to ALL three ledgers:
+`product-roadmap.json`, `product-backlog.json`, AND `docs/reference/task-list.json`.
+Single line, `kh-{track}-S{N}` prefix, ≤200 chars, one session-id only — NEVER
+prepend prior narrative on cherry-pick conflict. Example:
+`"kh-prod-readiness-S37 close-out — docs sync (5 fields)"`. The Zod schema enforces
+the shape on `task-list.json`; roadmap + backlog rely on the discipline alone.
 
 ---
 

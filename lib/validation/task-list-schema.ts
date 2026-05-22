@@ -163,10 +163,37 @@ export const TaskListSchema = z
     /** One-paragraph human-readable purpose (inv 4). */
     document_purpose: z.string().min(1),
     /**
-     * Freetext one-liner of the form "kh-prod-readiness-SNN <wave> close-out".
+     * Freshness marker only — single line of the form
+     * "kh-{prod-readiness|main}-SNN[letter] <wave> close-out — <1-line context>".
      * Matches Roadmap and Backlog convention (PRODUCT inv 52).
+     *
+     * Capped at 200 chars; narrative belongs in per-Subtask `details` journal
+     * blocks (PRODUCT inv 13), commit messages, continuation prompts, or
+     * mempalace diary — NOT the freshness marker. The single-session-id refine
+     * prevents diary-style append (S64 W0 root cause: cherry-pick conflict
+     * concat reinforced via curator `{summary}` format-string placeholder).
      */
-    last_updated: z.string().min(1),
+    last_updated: z
+      .string()
+      .min(1)
+      .max(
+        200,
+        'last_updated must be ≤200 chars — narrative belongs in per-Subtask details journal blocks, commit messages, continuation prompts, or mempalace diary, not the freshness marker.',
+      )
+      .regex(
+        /^kh-(prod-readiness|main)-S\d+/,
+        'last_updated must start with "kh-{prod-readiness|main}-S{N}" session-id prefix.',
+      )
+      .refine((s) => !s.includes('\n'), {
+        message: 'last_updated must be a single line (no newlines).',
+      })
+      .refine(
+        (s) => (s.match(/\bkh-(prod-readiness|main)-S\d+/g) ?? []).length === 1,
+        {
+          message:
+            'last_updated must contain exactly one session-id (diary-style append detected — narrative belongs in per-Subtask details / continuation prompts / mempalace diary).',
+        },
+      ),
     /** Array of repo-relative paths to related documents (inv 4). */
     related_documents: z.array(z.string()),
     /** Array of Task objects — empty allowed (inv 4, 19). */

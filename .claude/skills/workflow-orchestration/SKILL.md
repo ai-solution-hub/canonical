@@ -403,6 +403,38 @@ The Orchestrator does not declare a session `done` without:
 
 ---
 
+## Ledger field-discipline
+
+The Orchestrator owns ledger writes for status transitions, journal-block
+appends, Subtask additions, and Task opens. Per-field discipline (ID-34
+canonical scope) — write the right shape into the right field:
+
+| Field | Shape | Load-bearing for |
+|---|---|---|
+| `last_updated` (file-level) | Single-line `kh-{track}-S{N} {wave} close-out — {short marker}` (max 200 chars; Zod-enforced on `task-list.json`) | Freshness guard only. NEVER narrative — see `update-roadmap-backlog/SKILL.md` §`last_updated` field-discipline. |
+| Subtask `details` `<info added on …>` blocks | Multi-line narrative permitted; structured journal blocks per PRODUCT inv 13 | Per-Subtask traceability. THE canonical home for session-by-session narrative (commits, test counts, OQ ratifications, Checker verdicts, Curator decisions). |
+| Task `description` | One-paragraph human-readable purpose; updated only on scope amendment | Cross-doc cross-reference target. NOT a journal. |
+| Task `status_note` | Short rationale for current status (`blocked: waiting on X`); ≤300 chars | Status-line context only. Bump on status flip. |
+| `testStrategy` (Subtask) | One-line acceptance criterion the Checker verifies against | Checker contract. |
+| `cross_doc_links` | Repo-relative path + anchor + raw text per `DocLinkSchema` | Doc-graph traversal. |
+| Commit messages | Body + bullets per `commit-commands` convention | Per-commit immutable audit. |
+| Continuation prompts (`docs/continuation-prompts/`) | Multi-section session handoff | Session-to-session context transfer. |
+| Mempalace diary (`mempalace_diary_write`) | AAAK pipe-delimited per-WP segments | Cross-session recall. |
+
+**Anti-pattern: diary-style append into `last_updated`** (S64 W0 root cause).
+The `{summary}` placeholder previously in the curator skill format strings
+invited unbounded prose; cherry-pick conflict resolution by concatenation
+entrenched the convention. The Zod schema now rejects multi-session-id values
+on `task-list.json`. Apply the same discipline manually on
+`product-roadmap.json` + `product-backlog.json` (no schema-level enforcement
+there yet — track for ID-34 follow-up).
+
+**When in doubt about which field carries which content**: per-Subtask
+`details` journal block is the catch-all. `last_updated` is ONLY the
+session/wave freshness stamp.
+
+---
+
 ## What this skill is NOT
 
 - Not an executor. The Orchestrator never writes production code itself
