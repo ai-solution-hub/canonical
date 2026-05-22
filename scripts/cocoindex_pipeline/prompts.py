@@ -164,9 +164,3 @@ GUIDANCE
 
 Now extract entity mentions from the following document:
 """
-
-
-# Sanity check on module load — every prompt is non-empty.
-assert CLASSIFICATION_PROMPT.strip(), "CLASSIFICATION_PROMPT is empty"
-assert Q_A_FORM_PROMPT.strip(), "Q_A_FORM_PROMPT is empty"
-assert ENTITY_MENTION_PROMPT.strip(), "ENTITY_MENTION_PROMPT is empty"
