@@ -40,8 +40,39 @@ Inv-13 v1 substrate (P-5):
 Retry policy (per P-OQ2): cocoindex defaults (3 retries, exponential backoff, 1 s base).
 No custom override at v1 — operational evidence post-v1 governs tuning.
 
+Empirical retry-surface note (ID-28.13 verification against cocoindex 1.0.3):
+  The spec's example "override per-stage via @coco.fn(memo=True, retries=N,
+  backoff_base_ms=N)" was a TECH-sketch fiction — cocoindex.fn 1.0.3's public
+  signature is `(fn, /, *, memo, memo_key, batching, max_batch_size, runner,
+  version, logic_tracking, deps)` with NO `retries` or `backoff_base_ms`
+  kwargs. The actual retry surface in 1.0.3 lives in connector-specific
+  RetryConfig dataclasses (e.g. `cocoindex.connectors.doris.RetryConfig`
+  defaults: max_retries=3, base_delay=1.0, max_delay=30.0,
+  exponential_base=2.0 — matching the documented P-OQ2 semantic by
+  coincidence in the doris connector). The postgres path used by
+  `mount_table_target` inherits retry behaviour from the asyncpg connection
+  pool + cocoindex's internal Rust engine; the public 1.0.3 surface does NOT
+  expose a tuning hook. v1 accepts the engine defaults; if operational
+  evidence demands tuning, the orchestrator should escalate to a TECH.md
+  P-OQ2 amendment that reflects the real 1.0.3 surface (likely connector-
+  scoped RetryConfig overrides rather than @coco.fn kwargs).
+
+Failure-mode wiring (per P-8 / ID-28.13):
+  - `_classify_stage_exception()` maps Python exception types to the
+    Inv-25 6-class stage-level vocabulary (extraction_validation_failed,
+    extraction_provider_unavailable, postgres_write_failed,
+    binary_conversion_failed, embedding_failed, entity_resolution_failed).
+  - `_emit_stage_error_log()` emits one PII-redacted structured-log line
+    per stage exception per Inv-26 (event=cocoindex.stage_error;
+    error_message truncated to 200 chars; UUID substrings redacted to
+    <uuid>).
+  - `app_main()`'s except-Exception block classifies via the helper, falling
+    back to the exception class name for unmapped types so the
+    `pipeline_runs.error_class` column never lands an unaudited string.
+
 References:
-  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2, §P-5
+  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2, §P-5, §P-8
+  docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-23..Inv-27
   docs/plans/phase-0-investigation/architecture/02-data-flow.md §3.1
   spike/cocoindex_s1/probe_managed_by_user.py — canonical live-wiring shape
 
@@ -72,6 +103,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import urllib.parse
 import uuid
 from pathlib import Path
@@ -177,6 +209,193 @@ def _emit_upsert_log(
             }
         )
     )
+
+
+# ── Inv-25 stage-level error classification (P-8 — ID-28.13) ─────────────────
+
+
+# Canonical 6-class stage-level error vocabulary per PRODUCT Inv-25.
+# Mirror of `lib/pipeline/error-classes.ts::PIPELINE_ERROR_CLASSES`.
+# Source-of-truth lives in the TS module (consumed by the Vercel route's
+# Zod validator); this Python tuple is the emitter-side reflection. The
+# pair stays in sync via the `test_cocoindex_flow_failure_mode.py` tests
+# that enumerate each class verbatim.
+_PIPELINE_ERROR_CLASSES: tuple[str, ...] = (
+    "extraction_validation_failed",
+    "extraction_provider_unavailable",
+    "postgres_write_failed",
+    "binary_conversion_failed",
+    "embedding_failed",
+    "entity_resolution_failed",
+)
+
+
+# UUID regex used by `_emit_stage_error_log()` for PII redaction. Matches
+# v4-style canonical UUIDs in lowercase or uppercase. The pattern is
+# anchored on `\b`-style hex-digit boundaries via the surrounding non-hex
+# characters in the typical error-message context.
+_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+)
+
+
+def _classify_stage_exception(exc: BaseException) -> str | None:
+    """Map a Python exception to the Inv-25 6-class stage-level vocabulary.
+
+    Returns the canonical class string when the exception type matches a
+    known stage-failure pattern, or `None` when the exception is unmapped
+    (the caller is then free to fall back to the exception class name or
+    treat it as an internal failure).
+
+    Mappings (per TECH.md §P-8 + the ID-28.13 dispatch brief):
+
+      - `pydantic.ValidationError`        → `extraction_validation_failed`
+      - `anthropic.APIStatusError`        → `extraction_provider_unavailable`
+      - `anthropic.APIConnectionError`    → `extraction_provider_unavailable`
+      - `anthropic.APIError` (other)      → `extraction_provider_unavailable`
+      - `asyncpg.PostgresError`           → `postgres_write_failed`
+      - `docling.*` (any docling-raised)  → `binary_conversion_failed`
+
+    Embedding-stage + entity-resolution-stage classes (`embedding_failed`,
+    `entity_resolution_failed`) are NOT auto-classified at v1: their
+    upstream exception types (LiteLLM proxy / entity_resolution function)
+    are not yet wired in flow.py (Stages 4+5 stubs per docstring). Once
+    those stages land, this mapper grows two more branches.
+
+    Args:
+      exc: The exception instance to classify.
+
+    Returns:
+      One of the 6 canonical class strings, or `None` for unmapped types.
+    """
+    # Pydantic validation (Stage 3 LLM-extraction failure surface).
+    try:
+        from pydantic import ValidationError as _PydanticValidationError
+
+        if isinstance(exc, _PydanticValidationError):
+            return "extraction_validation_failed"
+    except ImportError:  # pragma: no cover — pydantic is required at runtime
+        pass
+
+    # Anthropic provider surface (Stage 3 LLM-extraction provider failure).
+    # APIConnectionError is a sibling of APIStatusError (not a subclass) —
+    # both inherit from APIError. We accept any APIError to cover the full
+    # provider-side surface.
+    try:
+        import anthropic as _anthropic
+
+        if isinstance(exc, _anthropic.APIError):
+            return "extraction_provider_unavailable"
+    except ImportError:  # pragma: no cover — anthropic is required at runtime
+        pass
+
+    # asyncpg Postgres surface (Stage 6 UPSERT failure). Guard the
+    # isinstance call against `asyncpg.PostgresError` being a non-class
+    # mock under unit-test stubbing — flow.py is imported by tests that
+    # install MagicMock asyncpg modules; the real prod import always
+    # resolves to the asyncpg package's exception class.
+    _postgres_error_cls = getattr(asyncpg, "PostgresError", None)
+    if isinstance(_postgres_error_cls, type) and isinstance(
+        exc, _postgres_error_cls
+    ):
+        return "postgres_write_failed"
+
+    # Docling surface (Stage 2 binary-conversion failure). Docling has no
+    # single exception-class hierarchy; classify by module-name prefix
+    # over the exception's defining module instead.
+    exc_module = type(exc).__module__ or ""
+    if exc_module.startswith("docling"):
+        return "binary_conversion_failed"
+
+    return None
+
+
+def _redact_error_message(msg: str, *, max_length: int = 200) -> str:
+    """Apply PII redaction to a stage-error message for structured logging.
+
+    Two steps (per Inv-26 + ID-28.13 brief):
+      1. Replace UUID-shaped substrings with the placeholder `<uuid>` so
+         per-row identifiers don't leak through error messages — operator
+         forensic correlation is via the structured-log `op_id` /
+         `content_items_id` fields, not the message body.
+      2. Truncate to `max_length` (default 200) characters so provider
+         5xx responses that echo user-supplied payloads cannot bloat the
+         log surface.
+
+    Args:
+      msg:        The raw error message (typically `str(exc)`).
+      max_length: Maximum length of the redacted message (default 200).
+
+    Returns:
+      The redacted, truncated message safe for structured-log emission.
+    """
+    redacted = _UUID_RE.sub("<uuid>", msg)
+    if len(redacted) > max_length:
+        redacted = redacted[:max_length]
+    return redacted
+
+
+def _emit_stage_error_log(
+    *,
+    op_id: uuid.UUID | str,
+    stage: str,
+    error_class: str,
+    content_items_id: uuid.UUID | str | None,
+    error_message: str,
+) -> None:
+    """Emit one Cloud-Run-parseable structured ERROR log line per stage failure.
+
+    Inv-26 v1 substrate per TECH.md §P-8: every failed pipeline invocation
+    emits at least one structured-log line at ERROR level so the failure
+    is enumerable from the Cloud Run logging surface (in addition to the
+    `pipeline_runs.status='failed'` rollup row).
+
+    Contract shape (6 keys, all required):
+      {
+        "event":            "cocoindex.stage_error",
+        "op_id":            "<uuid string>",
+        "stage":            "<stage name>",
+        "error_class":      "<one of PIPELINE_ERROR_CLASSES>",
+        "content_items_id": "<uuid string>" | null,
+        "error_message":    "<truncated, UUID-redacted>",
+      }
+
+    PII redaction policy (Inv-26 + ID-28.13 brief):
+      - `error_message` is truncated to 200 characters.
+      - UUID-shaped substrings inside `error_message` are replaced with
+        the placeholder `<uuid>`. Operator forensic correlation is via
+        the structured `op_id` / `content_items_id` fields, never the
+        message body.
+
+    Args:
+      op_id:            cocoindex per-flow op_id (UUID v4); stringified for JSON.
+      stage:            Canonical stage name (one of: source_walk,
+                        binary_conversion, llm_extraction, embedding,
+                        entity_resolution, postgres_upsert).
+      error_class:      One of the 6 PIPELINE_ERROR_CLASSES.
+      content_items_id: Primary-key row id (UUID) if the failure surfaced
+                        post-binding; `None` for pre-binding failures
+                        (e.g. Stage 1 source-walk). Serialised as JSON
+                        null in the latter case.
+      error_message:    Free-form failure message; gets redacted +
+                        truncated before emission.
+
+    PRODUCT invariants honoured:
+      - Inv-26 (one structured-log line per failed invocation, JSON-parseable).
+      - Inv-13 v1 (Cloud Run structured-log substrate is the audit path).
+    """
+    payload: dict[str, object | None] = {
+        "event": "cocoindex.stage_error",
+        "op_id": str(op_id),
+        "stage": stage,
+        "error_class": error_class,
+        "content_items_id": (
+            str(content_items_id) if content_items_id is not None else None
+        ),
+        "error_message": _redact_error_message(error_message),
+    }
+    _logger.error(json.dumps(payload))
 
 
 # ── Inv-16 / Inv-17 / Inv-18 rollup substrate (P-7 — ID-28.11) ───────────────
@@ -609,18 +828,57 @@ async def app_main() -> None:
     except Exception as exc:  # noqa: BLE001 — capture for rollup status
         # Per Inv-16 + Inv-17 + Inv-18: failures still land a pipeline_runs
         # row via the webhook so the cocoindex sidecar's invocation count
-        # is honest (one row per invocation, success or fail). The error
-        # vocabulary (`error_class`) is the 28.13 6-class enum once wired;
-        # at v1 we default to the exception's class name for forensic
-        # tracing — refined classification lands when 28.13 ships.
+        # is honest (one row per invocation, success or fail).
+        #
+        # Classification (ID-28.13): map the exception to one of the 6
+        # canonical stage-level classes per PRODUCT Inv-25 via
+        # `_classify_stage_exception()`. Unmapped exceptions fall back to
+        # the Python type name so `pipeline_runs.error_class` is never
+        # NULL on a `status='failed'` row — but the Vercel route's Zod
+        # validator will reject any unmapped class string with HTTP 400,
+        # which surfaces drift (a new exception type that bypassed the
+        # classifier) as an operator-visible 4xx rather than a silent
+        # data-quality regression. The fallback flag is wrapped in a
+        # `coco.stage_error.unclassified` log line so the drift is
+        # forensically traceable.
         flow_status = "failed"
         flow_error_message = str(exc)
-        flow_error_class = type(exc).__name__
-        _logger.error(
-            "kh_canonical_pipeline flow raised (op_id=%s class=%s): %s",
-            run_op_id,
-            flow_error_class,
-            exc,
+        classified = _classify_stage_exception(exc)
+        if classified is not None:
+            flow_error_class = classified
+        else:
+            # Fallback: emit a marker log so operators see "unclassified
+            # exception type X reached the rollup boundary" and can amend
+            # the classifier. The webhook still gets the type-name value
+            # so the failure row lands — the Zod validator at the trust
+            # boundary will reject it with HTTP 400 if the class name is
+            # not in the 6-class enum, which is the desired loud-fail
+            # behaviour for drift detection.
+            flow_error_class = type(exc).__name__
+            _logger.error(
+                json.dumps(
+                    {
+                        "event": "cocoindex.stage_error.unclassified",
+                        "op_id": str(run_op_id),
+                        "exception_type": type(exc).__name__,
+                        "exception_module": type(exc).__module__,
+                    }
+                )
+            )
+
+        # Per-stage structured error log emission (Inv-26). The stage
+        # name is "flow" at this level — the granular per-stage handlers
+        # remain stubs until cocoindex 1.0.x exposes per-stage completion
+        # callbacks (same blocker as 28.10 / 28.11 / 28.12 stamping).
+        # Until then, the flow-scope `except` block is the single
+        # structured-log emission point; finer-grained per-stage logs
+        # land when the public callback surface is available.
+        _emit_stage_error_log(
+            op_id=run_op_id,
+            stage="flow",
+            error_class=flow_error_class,
+            content_items_id=None,
+            error_message=flow_error_message,
         )
         raise
     finally:
