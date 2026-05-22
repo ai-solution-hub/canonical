@@ -101,7 +101,6 @@ describe.skipIf(!HAS_LIVE_DB)(
       // below. The static migration-history check (second test) is the
       // v1-deterministic substrate that runs always.
       if (isNetworkIsolationError(error)) {
-        // eslint-disable-next-line no-console
         console.warn(
           'Inv-19: skipping live PostgREST assertion — network-isolated environment',
         );

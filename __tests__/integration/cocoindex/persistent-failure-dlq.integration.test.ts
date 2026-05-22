@@ -111,7 +111,6 @@ describe.skipIf(!ENABLED)(
 
       // Sandbox-aware skip — network-isolated env.
       if (isNetworkIsolationError(error)) {
-        // eslint-disable-next-line no-console
         console.warn('Inv-25: skipping — network-isolated environment');
         return;
       }

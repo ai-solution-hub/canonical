@@ -81,7 +81,6 @@ describe.skipIf(!ENABLED)(
       // Supabase; the contract is unverifiable from here. CI with real
       // network access will exercise the assertion path.
       if (isNetworkIsolationError(error)) {
-        // eslint-disable-next-line no-console
         console.warn(
           'Inv-14/Inv-8 cross-ref: skipping — network-isolated environment',
         );

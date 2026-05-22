@@ -66,8 +66,10 @@ const COCOINDEX_BRIDGE_ROUTE = path.join(
   'app/api/internal/pipeline-runs/record/route.ts',
 );
 
-// The canonical helper path (Inv-18 anchor).
-const RECORD_RUN_HELPER = '@/lib/pipeline/record-run';
+// The canonical helper path (Inv-18 anchor). Referenced in the regex
+// assertion below as a documented anchor for the import path; the regex
+// is the runtime check.
+const _RECORD_RUN_HELPER = '@/lib/pipeline/record-run';
 
 describe('Inv-18 — cocoindex pipeline_runs writes go through recordPipelineRun()', () => {
   it('cocoindex webhook bridge route imports recordPipelineRun from canonical helper', async () => {

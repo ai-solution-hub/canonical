@@ -93,7 +93,6 @@ describe.skipIf(!ENABLED)(
         .limit(20);
 
       if (isNetworkIsolationError(error)) {
-        // eslint-disable-next-line no-console
         console.warn('Inv-23: skipping — network-isolated environment');
         return;
       }

@@ -110,7 +110,7 @@ describe('Inv-9 — pullmd licence boundary preservation (image-content inspecti
     let requirementsContent: string;
     try {
       requirementsContent = await readFile(requirementsPath, 'utf-8');
-    } catch (error) {
+    } catch {
       // If requirements.txt doesn't exist at the root, the sidecar may
       // use a per-service requirements file. Try the canonical sidecar
       // location.

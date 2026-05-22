@@ -74,7 +74,6 @@ describe.skipIf(!ENABLED)(
         .limit(20);
 
       if (isNetworkIsolationError(queryError)) {
-        // eslint-disable-next-line no-console
         console.warn('Inv-27: skipping — network-isolated environment');
         return;
       }
@@ -143,7 +142,6 @@ describe.skipIf(!ENABLED)(
         .limit(20);
 
       if (isNetworkIsolationError(failedQueryError)) {
-        // eslint-disable-next-line no-console
         console.warn('Inv-27 (failed): skipping — network-isolated env');
         return;
       }
