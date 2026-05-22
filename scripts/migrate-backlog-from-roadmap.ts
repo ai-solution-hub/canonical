@@ -2,7 +2,7 @@
  * migrate-backlog-from-roadmap.ts — PR-B bulk content migration.
  *
  * Per Subtask 30.9 (Wave 3, PR-B):
- *  - Append 54 net-new Backlog entries (IDs 86-139, renumbered from RESEARCH §3.2 78-131 via S67 W1b reconciliation to clear live MAX-ID 85) from
+ *  - Append 54 net-new Backlog entries (IDs 87-140, renumbered from RESEARCH §3.2 78-131 via S67 W1b reconciliation + S68 W0 +1 shift to clear live MAX-ID 86) from
  *    scripts/fixtures/backlog-migration-payload.json (extracted from
  *    RESEARCH §3.2) to docs/reference/product-backlog.json.
  *  - Remove 8 REMOVE_REDUNDANT items (3.2, 3.4, 3.6, 7.2, 7.6, 8.1, 11.17,
@@ -91,10 +91,10 @@ export interface PartialOverlapCluster {
 }
 
 export const PARTIAL_OVERLAP_CLUSTERS: ReadonlyArray<PartialOverlapCluster> = [
-  { name: 'ingest-UI', ids: ['61', '62', '87', '108'] },
-  { name: 'doc-triage', ids: ['64', '90'] },
-  { name: 'prompt-suggestion', ids: ['49', '99'] },
-  { name: 'portal-automation', ids: ['53', '109'] },
+  { name: 'ingest-UI', ids: ['61', '62', '88', '109'] },
+  { name: 'doc-triage', ids: ['64', '91'] },
+  { name: 'prompt-suggestion', ids: ['49', '100'] },
+  { name: 'portal-automation', ids: ['53', '110'] },
 ];
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -527,7 +527,7 @@ function printHelp(): void {
   console.log(`Usage: bun scripts/migrate-backlog-from-roadmap.ts [options]
 
 PR-B bulk content migration — appends 54 net-new Backlog entries (IDs
-86-139) and removes 8 REMOVE_REDUNDANT Roadmap items per PRODUCT inv 12.
+87-140) and removes 8 REMOVE_REDUNDANT Roadmap items per PRODUCT inv 12.
 
 Options:
   --dry-run, -n            Validate + classify, but do not write either JSON file.

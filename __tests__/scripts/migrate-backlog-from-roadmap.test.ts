@@ -3,7 +3,7 @@
  *
  * Eight test cases (a-h) per PLAN §2.2 Subtask 30.9 testStrategy:
  *
- *   (a) Run once on live-JSON copy; delta = +54 entries; IDs 86-139 present.
+ *   (a) Run once on live-JSON copy; delta = +54 entries; IDs 87-140 present.
  *   (b) Run again; delta = 0 (idempotent).
  *   (c) Fixture with one id pre-populated; script reports collision and does
  *       NOT write.
@@ -19,7 +19,7 @@
  *   (h) Roadmap item count drops from 61 to 53.
  *
  * Tests use synthetic pre-migration baselines (live JSONs filtered to drop
- * any IDs 86+ that might already be present from triage-routed entries)
+ * any IDs 87+ that might already be present from triage-routed entries)
  * so the script's migration behaviour is exercised independently of
  * accidental coupling to the current live data state.
  *
@@ -89,7 +89,7 @@ function cleanupSandbox(sb: Sandbox): void {
 
 /**
  * Build a synthetic "pre-migration" backlog by reading the live JSON and
- * filtering out any IDs 86-139 (which may have been independently authored
+ * filtering out any IDs 87-140 (which may have been independently authored
  * via triage-routing post-migration-spec). The result has the same shape
  * but mirrors the original "55 → 109" baseline shape PRODUCT inv 1
  * specified before T-OQ-1 reconciliation.
@@ -99,7 +99,7 @@ function buildPreMigrationBacklog(): unknown {
     items: Array<BacklogItem>;
   } & Record<string, unknown>;
   const migrationIdSet = new Set(
-    Array.from({ length: 54 }, (_, i) => String(86 + i)),
+    Array.from({ length: 54 }, (_, i) => String(87 + i)),
   );
   return {
     ...raw,
@@ -251,7 +251,7 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
   });
 
   // ─────────────────── (a) ─────────────────────────────────────────────────
-  it('(a) appends 54 net-new entries (IDs 86-139) on first run', () => {
+  it('(a) appends 54 net-new entries (IDs 87-140) on first run', () => {
     const before = readBacklog(sb.paths.backlogPath);
     const result = runMigration({ paths: sb.paths, write: true });
 
@@ -264,7 +264,7 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
     const after = readBacklog(sb.paths.backlogPath);
     expect(after.items.length - before.items.length).toBe(54);
     const ids = new Set(after.items.map((it) => it.id));
-    for (let i = 86; i <= 139; i++) {
+    for (let i = 87; i <= 140; i++) {
       expect(ids.has(String(i))).toBe(true);
     }
     // Post-write file parses through BacklogSchema (PRODUCT inv 15).
@@ -293,11 +293,11 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
 
   // ─────────────────── (c) ─────────────────────────────────────────────────
   it('(c) fixture id pre-populated as non-migration entry — collision; no write', () => {
-    // Seed the pre-migration backlog with ID-86 as an INDEPENDENT entry
+    // Seed the pre-migration backlog with ID-87 as an INDEPENDENT entry
     // (notes lack the migration marker), then run migration.
     const backlog = readBacklog(sb.paths.backlogPath);
     backlog.items.push({
-      id: '86',
+      id: '87',
       description:
         'Independently authored stub for collision-detection test (no migration marker)',
       type: 'feature',
@@ -324,7 +324,7 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe('collision');
-    expect(result.detail).toContain('86');
+    expect(result.detail).toContain('87');
 
     // Crucial: no write occurred.
     const postFile = fs.readFileSync(sb.paths.backlogPath, 'utf-8');
@@ -409,7 +409,7 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
 
     const after = readBacklog(sb.paths.backlogPath);
     const migrationIds = new Set(
-      Array.from({ length: 54 }, (_, i) => String(86 + i)),
+      Array.from({ length: 54 }, (_, i) => String(87 + i)),
     );
     const migrated = after.items.filter((it) => migrationIds.has(it.id));
     expect(migrated).toHaveLength(54);
@@ -432,7 +432,7 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
       for (const memberId of cluster.ids) {
         const member = byId.get(memberId);
         // Some cluster members are in the pre-migration backlog (e.g. ID-61),
-        // others are migration entries (e.g. ID-87). All four must exist in
+        // others are migration entries (e.g. ID-88). All four must exist in
         // the post-migration backlog and carry the adjacency note.
         expect(member).toBeDefined();
         if (!member) continue;
@@ -517,7 +517,7 @@ describe('runMigration — additional defensive cases', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data).toHaveLength(54);
-    expect(result.data[0].id).toBe('86');
-    expect(result.data[result.data.length - 1].id).toBe('139');
+    expect(result.data[0].id).toBe('87');
+    expect(result.data[result.data.length - 1].id).toBe('140');
   });
 });
