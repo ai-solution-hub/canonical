@@ -6,7 +6,7 @@
  *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md
  *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md
  *
- * Scope (cumulative through Subtask 32.12):
+ * Scope (cumulative through Subtask 32.13):
  *   - CLI argv parsing via `node:util` `parseArgs` — `--apply`, `--scope`,
  *     `--help` flags (TECH §5 / §9). [32.5]
  *   - `--help` output and exit 0; exit code 1 on fatal init failure.
@@ -22,11 +22,16 @@
  *   - `buildRouteRecords()` per-route assembly + `emitDryRunReport()` +
  *     `emitNeedsManualReport()` — both artefacts emitted on EVERY run per
  *     PRODUCT AC-4. [32.12]
+ *   - `isAlreadyWrapped(sf, method)` idempotency detector — direct form
+ *     (`defineRoute(...)`) + `withRequestContext(defineRoute(...))` AC-7
+ *     composition. Routes whose every method is already wrapped land in
+ *     the SKIPPED bucket of the dry-run report with no needs-manual entry
+ *     per PRODUCT §4. [32.13]
  *
  * Downstream Subtasks add:
- *   - 32.9 Source B inference (return-type annotation, optional)
- *   - 32.10 / 32.11 handler rewrite (single / multi-method)
- *   - 32.13 idempotency check (`isAlreadyWrapped`)
+ *   - 32.9 Source B inference (return-type annotation, optional) — DONE
+ *   - 32.10 / 32.11 handler rewrite (single / multi-method) — DONE
+ *   - 32.13 idempotency check (`isAlreadyWrapped`) — DONE (this Subtask)
  *   - 32.14 apply mode + format pass
  *
  * This module still performs NO file rewrite — only artefact emission to
@@ -40,7 +45,7 @@
 import { parseArgs } from 'node:util';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { Project, type SourceFile, SyntaxKind } from 'ts-morph';
+import { type Expression, Project, type SourceFile, SyntaxKind } from 'ts-morph';
 import {
   inferSchemaSourceA,
   type InferSchemaOptions,
@@ -129,10 +134,11 @@ Override the output directory via the CODEMOD_OUTPUT_DIR environment
 variable; tests redirect emission to a tmpdir().
 
 Status: rewrite emitters (Subtasks 32.10 / 32.11), inference wiring
-(32.8 already landed; 32.9 optional), idempotency (32.13), and apply-mode
-(32.14) are downstream. Subtask 32.12 covers CLI flags + both artefact
-emitters; the discovery loop captures shape + methods + reason, and the
-emitters render whatever metadata is present.
+(32.8 + 32.9), idempotency (32.13) have all landed. Apply-mode (32.14)
+is the remaining gap — --apply currently prints a notice and runs the
+discovery loop only. The discovery loop captures shape + methods +
+reason + SKIPPED idempotency action; the emitters render whatever
+metadata is present.
 `;
 
 // ── CLI argv parsing ──────────────────────────────────────────────────────
@@ -513,6 +519,125 @@ export { rewriteSingleMethod };
  */
 export { rewriteMultiMethod };
 
+// ── Idempotency check (Subtask 32.13) ─────────────────────────────────────
+
+/**
+ * The wrapper callee identifier text we recognise as "already wrapped"
+ * (PRODUCT §4). Centralised so any future rename of the wrapper function
+ * (e.g. `defineRoute` → `defineApiRoute`) flips this constant and the
+ * downstream rewrite emitters in `rewrite-single-method.ts` /
+ * `rewrite-multi-method.ts` together.
+ */
+const DEFINE_ROUTE_CALLEE_TEXT = 'defineRoute';
+
+/**
+ * The outer wrapper callee identifier text recognised as a legitimate AC-7
+ * composition (`withRequestContext(defineRoute(...))`). Per TECH §8.1 the
+ * outer-wrap order is the load-bearing invariant — `withRequestContext`
+ * stays outermost; `defineRoute` lives inside.
+ */
+const WITH_REQUEST_CONTEXT_CALLEE_TEXT = 'withRequestContext';
+
+/**
+ * Detect whether the exported handler `method` on `sf` has already been
+ * wrapped with `defineRoute(...)` per PRODUCT §4 (idempotency guarantee).
+ *
+ * Two AST forms qualify as wrapped:
+ *
+ *   (a) Direct form — `export const METHOD = defineRoute(Schema, async (req)
+ *       => { ... });`. The `VariableStatement` initialiser is a
+ *       `CallExpression` whose callee identifier text is `defineRoute`.
+ *
+ *   (b) +WRC composition — `export const METHOD = withRequestContext(
+ *         defineRoute(Schema, async (req) => { ... })
+ *       );`. The initialiser is a `CallExpression` whose callee is
+ *       `withRequestContext` AND whose first argument is a `CallExpression`
+ *       with callee `defineRoute`. This is the post-32.10 AC-7-compliant
+ *       output for the +WRC sub-variant — re-running the codemod on a
+ *       partially-migrated tree MUST short-circuit it.
+ *
+ * Returns `false` for:
+ *   - `FunctionDeclaration` form (`export async function METHOD(...)`) —
+ *     by definition not wrapped; there is no initialiser to inspect.
+ *   - `VariableStatement` initialisers that are not `defineRoute(...)` or
+ *     `withRequestContext(defineRoute(...))` (e.g. raw arrow function,
+ *     `withRequestContext(asyncArrow)` without an inner `defineRoute`).
+ *   - Method names that do not appear as an exported handler in `sf` at
+ *     all — defensive no-op, consistent with treating "no method found" as
+ *     "no wrapped method found".
+ *
+ * Called by `buildRouteRecords()` (the per-route discovery loop) and
+ * short-circuits the action verdict to `'SKIPPED'` before the rewrite
+ * emitters (32.10 / 32.11) get a chance to mutate the source. The
+ * `codemod-needs-manual.json` artefact does NOT carry SKIPPED routes
+ * (PRODUCT §4 explicit guarantee).
+ *
+ * Spec:
+ *   - PRODUCT.md §4 (idempotency contract).
+ *   - PRODUCT.md §8 AC-3 (re-applying produces no further file changes).
+ *   - TECH.md §8.1 (outer-wrap order for +WRC).
+ *   - PLAN.md §4 Subtask 32.13 (this function).
+ */
+export function isAlreadyWrapped(sf: SourceFile, method: string): boolean {
+  // FunctionDeclaration form is never wrapped — it has no initialiser. Skip
+  // straight to the VariableStatement search.
+  const fnDecl = sf.getFunction(method);
+  if (fnDecl && fnDecl.isExported()) {
+    return false;
+  }
+
+  // Locate `export const METHOD = X` — the only form that can carry a
+  // wrapper call. Mirrors `findExportedMethodVariableStatement` in
+  // rewrite-single-method.ts but lives here so the discovery loop can
+  // query it without pulling in the rewrite helper's internals.
+  let initialiser: Expression | undefined;
+  for (const stmt of sf.getVariableStatements()) {
+    if (!stmt.isExported()) continue;
+    const decl = stmt.getDeclarations().find((d) => d.getName() === method);
+    if (decl) {
+      initialiser = decl.getInitializer();
+      break;
+    }
+  }
+  if (!initialiser) {
+    // No exported `const METHOD = ...` binding — not wrapped (and not even
+    // present; the caller's `getExportedMethods` would not have enumerated
+    // this method if it did not exist).
+    return false;
+  }
+
+  if (initialiser.getKind() !== SyntaxKind.CallExpression) {
+    // Bare arrow function, identifier reference, etc. Not wrapped.
+    return false;
+  }
+  const callExpr = initialiser.asKind(SyntaxKind.CallExpression);
+  if (!callExpr) return false;
+
+  const calleeText = callExpr.getExpression().getText();
+
+  // Direct form — `defineRoute(...)`.
+  if (calleeText === DEFINE_ROUTE_CALLEE_TEXT) {
+    return true;
+  }
+
+  // +WRC composition — `withRequestContext(defineRoute(...))`. The outer
+  // call must be `withRequestContext`; its first argument must be a
+  // `CallExpression` whose callee is `defineRoute`. Anything else (e.g.
+  // `withRequestContext(asyncArrow)` without an inner `defineRoute`) is
+  // NOT wrapped — the codemod still has to rewrite the inner arrow.
+  if (calleeText === WITH_REQUEST_CONTEXT_CALLEE_TEXT) {
+    const args = callExpr.getArguments();
+    if (args.length === 0) return false;
+    const innerArg = args[0]!;
+    if (innerArg.getKind() !== SyntaxKind.CallExpression) return false;
+    const innerCall = innerArg.asKind(SyntaxKind.CallExpression);
+    if (!innerCall) return false;
+    return innerCall.getExpression().getText() === DEFINE_ROUTE_CALLEE_TEXT;
+  }
+
+  return false;
+}
+
 // ── Per-route assembly ───────────────────────────────────────────────────
 
 /**
@@ -526,8 +651,10 @@ export { rewriteMultiMethod };
  * cleanly.
  *
  * The SKIPPED verdict (PRODUCT §4 idempotency) is NOT derived here — it
- * comes from `isAlreadyWrapped()` once Subtask 32.13 lands. For Subtask
- * 32.12 the classifier branch is the only signal.
+ * is overlaid by `buildRouteRecords()` via the `isAlreadyWrapped()` check
+ * (Subtask 32.13). This helper returns the SHAPE-derived action; the
+ * caller may flip TRANSFORM / NEEDS_REVIEW to SKIPPED when every exported
+ * method already calls `defineRoute(...)`.
  */
 function shapeToAction(shape: RouteShape): RouteReportEntry['action'] {
   if (shape === 'CRON' || shape === 'NAKED_NO_AUTH' || shape === 'MCP') {
@@ -580,8 +707,33 @@ export function buildRouteRecords(routeFiles: readonly SourceFile[]): {
   for (const sf of routeFiles) {
     const shape = classifyRoute(sf);
     const methods = getExportedMethods(sf);
-    const action = shapeToAction(shape);
+    const shapeAction = shapeToAction(shape);
     const route = toRepoRelativePosixPath(sf.getFilePath());
+
+    // Subtask 32.13 idempotency gate: for MECHANISABLE / NEEDS-REVIEW shapes,
+    // check whether EVERY exported method is already wrapped per PRODUCT §4.
+    // If so, the route is a no-op and lands in the SKIPPED bucket — no
+    // needs-manual entry (idempotent successes are not unhandled cases).
+    //
+    // MANUAL shapes (CRON / NAKED_NO_AUTH / MCP) bypass the idempotency
+    // check: the codemod never rewrites them, so they cannot be "already
+    // wrapped" in the codemod's sense (the developer migrates them by
+    // hand under a different model). Running the check on MANUAL would
+    // be inert at best and misleading at worst.
+    //
+    // Partial-migration semantics: a multi-method route where SOME methods
+    // are wrapped and OTHERS are not is NOT SKIPPED — the rewrite loop
+    // still has work to do on the un-wrapped methods. We require
+    // `every(method, isAlreadyWrapped)` so the SKIPPED bucket is reserved
+    // for true no-ops.
+    const isIdempotentSkip =
+      shapeAction !== 'MANUAL' &&
+      methods.length > 0 &&
+      methods.every((m) => isAlreadyWrapped(sf, m));
+
+    const action: RouteReportEntry['action'] = isIdempotentSkip
+      ? 'SKIPPED'
+      : shapeAction;
 
     const reason: NeedsManualReason | null = reasonForShape(shape);
     const reportEntry: RouteReportEntry = {
@@ -590,11 +742,16 @@ export function buildRouteRecords(routeFiles: readonly SourceFile[]): {
       methods,
       action,
     };
+    // `reason` is reserved for NEEDS_REVIEW / MANUAL entries per
+    // emit-dry-run.ts RouteReportEntry contract; SKIPPED routes do NOT
+    // carry one (PRODUCT §4 — they are idempotent successes).
     if (reason && (action === 'NEEDS_REVIEW' || action === 'MANUAL')) {
       reportEntry.reason = reason;
     }
     reportEntries.push(reportEntry);
 
+    // needs-manual.json carries NEEDS-REVIEW and MANUAL routes ONLY.
+    // SKIPPED routes are explicitly omitted per PRODUCT §4.
     if (reason && (action === 'NEEDS_REVIEW' || action === 'MANUAL')) {
       const entry: NeedsManualEntry = {
         route,
