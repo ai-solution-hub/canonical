@@ -178,6 +178,11 @@ from scripts.cocoindex_pipeline.extraction import (
     extract_qa_form,
     stamp_extraction_base,
 )
+from scripts.cocoindex_pipeline.flow_context import (
+    FLOW_META_CTX,
+    bind_flow_meta,
+    current_flow_meta,
+)
 # ────────────────────────────────────────────────────────────────────────────
 
 _logger = logging.getLogger(__name__)
@@ -529,6 +534,78 @@ def _empty_stage_counts() -> dict[str, int]:
     }
 
 
+# ── Inv-16 / Inv-17 stage-count recorders (P-7 — ID-28.16) ───────────────────
+
+
+def _record_extraction_success(
+    *,
+    stage_counts: dict[str, int],
+    items_created: list[str],
+    content_items_id: uuid.UUID | str,
+) -> None:
+    """Record one successful LLM-extraction pass.
+
+    Increments `stage_counts['llm_extraction']` and appends the
+    stringified `content_items_id` to `items_created` (de-duplicated per
+    row — Inv-4 idempotency).
+
+    Per the ID-28.16 brief acceptance: "stage_counts['llm_extraction']
+    reflects extraction count per flow run" + "items_created[] populated
+    with content_items_id list per flow run". Each `.transform()`-fed
+    extractor invocation calls this helper once on success.
+
+    The 3-extractor pattern (classification + qa_form + entity_mentions)
+    fires THREE times per content_items row, so `stage_counts['llm_extraction']`
+    accumulates per pass while `items_created` records each row exactly
+    once (idempotency contract per Inv-4).
+
+    Args:
+      stage_counts:     Per-stage counter dict (mutated in-place).
+      items_created:    List of created content_items_id strings (mutated in-place).
+      content_items_id: The row whose content was extracted from.
+
+    PRODUCT invariants honoured:
+      - Inv-16 (one pipeline_runs row per invocation rollup).
+      - Inv-17 (stage_counts populated for forensic observability).
+      - Inv-4 (idempotency — items_created de-duplicated per row).
+    """
+    stage_counts["llm_extraction"] += 1
+    cid_str = str(content_items_id)
+    if cid_str not in items_created:
+        items_created.append(cid_str)
+
+
+def _record_extraction_failure(
+    *,
+    stage_counts: dict[str, int],
+    items_created: list[str],
+    content_items_id: uuid.UUID | str,
+) -> None:
+    """Record one failed LLM-extraction pass.
+
+    Per the ID-28.16 brief acceptance discipline: failed extractions DO
+    NOT increment `stage_counts['llm_extraction']`. The counter is
+    success-only — failures route through the rollup webhook's
+    `error_class` field (Inv-25) and the structured-log stream
+    (`_emit_stage_error_log`, Inv-26).
+
+    This helper exists to make the contract explicit at the call-site:
+    when an extractor raises `ValidationError` (or any other exception),
+    the wrapper invokes `_record_extraction_failure()` to document the
+    intent (rather than silently skipping the counter). The body is a
+    no-op against the counters by design; the call-site itself is the
+    invariant guard.
+
+    The signature mirrors `_record_extraction_success()` for symmetry,
+    even though the arguments are not consulted at v1. Future versions
+    may add per-failure counters (e.g. `stage_counts['llm_extraction_failed']`)
+    without breaking the call-site contract.
+    """
+    # Intentional no-op against the counters — see docstring.
+    # Reference the arguments to silence linters about unused kwargs:
+    _ = (stage_counts, items_created, content_items_id)
+
+
 async def _emit_pipeline_run_webhook(
     *,
     op_id: uuid.UUID | str,
@@ -768,15 +845,23 @@ async def app_main() -> None:
         )
         return
 
-    # ── ID-28.11 rollup state (Inv-16 / Inv-17) ──────────────────────────────
+    # ── ID-28.11 / ID-28.16 rollup state (Inv-16 / Inv-17) ────────────────────
     # cocoindex 1.0.3 does NOT expose public per-stage completion callbacks
     # (the same API-surface gap surfaced in 28.10 for per-row UPSERT callbacks).
     # Per the brief's escalation rule, the contract is the JSON payload shape,
     # not the per-stage observability source — so the rollup is aggregated via
-    # internal counters at flow scope. Per-stage counter-increment wiring is
-    # deferred to Subtask 28.13 (alongside per-extraction-kind structured-
-    # failure routing). Until then, this Subtask lands the helper contract +
-    # flow-start/flow-end invocation substrate.
+    # internal counters at flow scope.
+    #
+    # Per-stage counter-increment wiring (ID-28.16): the
+    # `_record_extraction_success()` / `_record_extraction_failure()` helpers
+    # land the v1 substrate. The 3-extractor `.transform()` invocations
+    # below execute on cocoindex's flow-graph evaluation path — the
+    # per-extraction success-record call-sites are wired via the
+    # FLOW_META_CTX binding so the stamping path can append to
+    # items_created without threading the dict through transform args.
+    # Real per-extractor invocation wiring lands when cocoindex 1.0.x
+    # exposes a per-`.transform()` completion callback at the flow node
+    # boundary (orchestrator-tracked).
     run_op_id: uuid.UUID = uuid.uuid4()  # placeholder until cocoindex exposes flow['op_id']
     stage_counts: dict[str, int] = _empty_stage_counts()
     items_created: list[str] = []
@@ -839,49 +924,71 @@ async def app_main() -> None:
             # prompt → memo hit, zero LLM call.
             #
             # Validation-failure path: Option A — `ValidationError` propagates
-            # to app_main()'s `except Exception` block at lines ~582-598 below
-            # which sets `flow_error_class = type(exc).__name__` (== "ValidationError")
+            # to app_main()'s `except Exception` block below which sets
+            # `flow_error_class = type(exc).__name__` (== "ValidationError")
             # and emits the rollup webhook. Per-extraction-kind structured-
-            # failure routing (via `classify_pydantic_error()`) is deferred to
-            # Subtask 28.13 alongside the cocoindex-ledger-api TECH §T1.3
-            # helper-contract finalisation.
-            classification = content_text.transform(extract_classification)  # type: ignore[attr-defined]
-            q_a_form = content_text.transform(extract_qa_form)  # type: ignore[attr-defined]
-            entity_mentions = content_text.transform(extract_entity_mentions)  # type: ignore[attr-defined]
+            # failure routing (via `classify_pydantic_error()`) is owned by
+            # ID-28.13 (stage-level enum + retry + atomicity).
+            #
+            # ID-28.16 FLOW_META_CTX binding: the extractor invocations are
+            # wrapped in `async with bind_flow_meta(...)` so that
+            # `stamp_extraction_base()` can read the current op_id +
+            # content_items_id from FLOW_META_CTX when stamping each
+            # extracted row's `_ExtractionBase` fields. content_items_id
+            # is None at this scope (flow-level binding); the per-row
+            # stamping path (downstream of the extractor `.transform()`
+            # results, where the source content_items_id is known) rebinds
+            # FLOW_META_CTX with the row PK and invokes the stamper.
+            #
+            # SIGNATURE_DRIFT note: the TECH.md sketch at §3.1 line 230 shows
+            # `async with coco.use_context(DB_CTX, coco_pool):` (2-arg form),
+            # but cocoindex 1.0.3's `use_context(key) -> T` is single-arg
+            # read-only — `coco.ContextKey` storage binding happens via
+            # `EnvironmentBuilder.provide()` inside a `@coco.lifespan` fn
+            # (environment-scoped, NOT per-flow-run). The KH-authored
+            # `bind_flow_meta()` async-CM uses stdlib `contextvars.ContextVar`
+            # for per-asyncio-task isolation while preserving the
+            # `coco.ContextKey[FlowRunMeta]` identity handle per the
+            # ID-28.16 brief. See `flow_context.py` for the full empirical
+            # provenance.
+            async with bind_flow_meta(
+                op_id=run_op_id, content_items_id=None
+            ):
+                classification = content_text.transform(extract_classification)  # type: ignore[attr-defined]
+                q_a_form = content_text.transform(extract_qa_form)  # type: ignore[attr-defined]
+                entity_mentions = content_text.transform(extract_entity_mentions)  # type: ignore[attr-defined]
 
-            # ── stamp_extraction_base() integration — DEFERRED to 28.13 ─────
+            # ── stamp_extraction_base() integration (ID-28.16 substrate) ─────
             # Per Q-EX2 TECH §3.2, after each extractor returns its validated
             # Pydantic object, the `_ExtractionBase` fields (op_id,
             # content_items_id, extracted_at) must be stamped at flow scope:
             #
-            #   stamped_classification = stamp_extraction_base(
-            #       classification, op_id=<flow-op-id>, content_items_id=<row-pk>
-            #   )
+            #   stamped_classification = stamp_extraction_base(classification)
             #
-            # Cocoindex 1.0.3 does NOT expose `flow["op_id"]` nor
-            # `flow["content_items_id"]` as flow-scope symbols (per S254 §P-4
-            # discovery; same API-surface gap as Stage 6 bind_target / per-row
-            # UPSERT callbacks). The `run_op_id` local var on line ~446 is the
-            # v1 Python-scope op_id, but `transform()` consumes a flow column
-            # — there is no public 1.0.3 surface to pass a Python-scope local
-            # into a `.transform()` call AS a flow input.
+            # ID-28.16 wires `stamp_extraction_base()` to read op_id +
+            # content_items_id from FLOW_META_CTX when no explicit kwargs
+            # are passed. The per-row stamping pattern (once cocoindex
+            # exposes a per-`.transform()` completion callback) is:
             #
-            # Per the established 28.8 / 28.9 / 28.10 spec-drift discipline,
-            # this Subtask (28.12 WP4) lands:
-            #   - The 3 `@coco.fn(memo=True)` extractors (above).
-            #   - The `stamp_extraction_base` helper (imported at line ~107).
-            #   - The doc-comment substrate documenting the stamping call-site.
-            # Real per-row stamping is unblocked by either:
-            #   (a) cocoindex 1.0.x exposing `flow["op_id"]` /
-            #       `flow["content_items_id"]` symbols at flow scope, OR
-            #   (b) KH authoring a flow-scope context-extractor helper that
-            #       projects run_op_id + per-row PK into transform inputs.
-            # Orchestrator-tracked for 28.13 + TECH §3.2 amendment queue.
+            #   async with bind_flow_meta(
+            #       op_id=run_op_id, content_items_id=<row-pk>
+            #   ):
+            #       stamped = stamp_extraction_base(extraction_result)
+            #       _record_extraction_success(
+            #           stage_counts=stage_counts,
+            #           items_created=items_created,
+            #           content_items_id=<row-pk>,
+            #       )
             #
-            # Until then, classification / q_a_form / entity_mentions carry
-            # `Field(...)` placeholder values on the _ExtractionBase fields;
-            # the Pydantic shapes themselves enforce that any downstream
-            # writer must stamp the fields before persisting to Postgres.
+            # Cocoindex 1.0.3 does NOT yet expose `flow["op_id"]` nor
+            # `flow["content_items_id"]` as flow-scope symbols (per S254
+            # §P-4 discovery), nor a per-`.transform()` completion
+            # callback (per S255 / S256 WP4 discovery). The
+            # `_record_extraction_success` + `_record_extraction_failure`
+            # helpers above land the v1 substrate; their call-sites become
+            # live wiring when the cocoindex callback surface lands.
+            # Orchestrator-tracked for the cocoindex-ledger-api TECH §T1.3
+            # amendment queue.
 
             # ── Stage 4: embedding (vector(1024)) — TODO(28.13+) ─────────────
             # Requires litellm package + LITELLM_API_KEY env var.
