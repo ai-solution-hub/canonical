@@ -391,6 +391,42 @@ Caveats: each sub-orchestrator must be briefed with relative paths only
 (CLAUDE.md primer-effect gotcha); branch cleanup is manual until the
 `stop-worker.sh` gap (see Known limitations) is closed.
 
+### Final-report convention (sub-orchestrator stdout vs events_dir file)
+
+**Problem (S62C §7.2 obs 3 carry-forward).** When the parent orchestrator
+reads a sub-orchestrator's final report via `cmux read-screen --workspace
+<ref> --scrollback`, the captured output contains raw ANSI escape sequences
+from the Claude TUI rendering (Bash tool-call boxes, thinking dots, etc.).
+A structured YAML/JSON report embedded in that stream is parseable but
+copy-paste fragile and brittle to grep over.
+
+**Workaround — sub-o brief convention.** Brief the sub-orchestrator to
+EMIT its final report to a structured file inside its events directory
+*in addition to* (not instead of) the stdout summary:
+
+```
+Before /exit, write your final report to `<events_dir>/final_report.yaml`
+(or `.json`). Schema: structured key/value with sections {summary, commits,
+dispositions, OQs_for_parent, next_session_handoff}. Keep stdout summary
+too (for human glance) but the YAML/JSON file is the canonical machine-read
+surface.
+```
+
+In the brief, `<events_dir>` resolves to the worker's per-SID directory
+at `.claude/cmux-events/<SID>/` (also discoverable from the launch script's
+returned `events_dir` field). The parent then reads the report via
+ordinary `cat` / `jq` / `yq` rather than scraping `cmux read-screen` output:
+
+```bash
+EVENTS_DIR=$(jq -r '.events_dir' <(echo "$R1"))
+cat "$EVENTS_DIR/final_report.yaml"            # clean machine read
+yq '.commits[]' "$EVENTS_DIR/final_report.yaml"
+```
+
+Path (b) workaround; path (a) (proper ANSI-strip at the `cmux read-screen`
+layer) is tracked as upstream cmux scope and not blocking here. Adopted
+S62E sub-o 2 triage — see `docs/research/cmux-hardening-triage-S62E.md` §4.
+
 ### Handing off to a human
 
 If the user wants to take over a running worker:
