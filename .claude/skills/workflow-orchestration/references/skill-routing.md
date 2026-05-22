@@ -1,4 +1,4 @@
-# Skill routing (§4.4)
+# Skill routing
 
 Orchestrator baseline skill catalogue + the rule for adding Task-specific
 skills on demand. Consult when planning a Task's dispatch briefs.
@@ -17,17 +17,13 @@ itself, no per-Task selection required:
 - **`diagnose-ci-failures`** — when CI returns red on the Task's PR.
   Returns a fix plan; the Orchestrator dispatches a fix-Executor against
   it.
-- **`update-docs`** — end-of-session: roadmap, state-of-the-product,
-  generated stats, backlog updates.
 - **`handoff`** — end-of-session: continuation-prompt for the next session.
 
-**Task-specific skills added on demand by Liam (per Q-PLANNER-SKILLS-1
-ratification):** the Orchestrator does not pre-load every potentially-useful
+**Task-specific skills:** The Orchestrator does not pre-load every potentially-useful
 skill. Consult `docs/reference/skill-routing-map.md` to look up which skills
 fit the Task's tilt (AI, CI, Supabase, Frontend, Data-pipeline, etc.) —
 Required vs Conditional vs Anti-pattern columns tell you what to name in the
-dispatch brief. This stays user-driven — the map is a lookup, not a forcing
-function (Workflow Evaluator role deferred per §9.2 of the canonical doc).
+dispatch brief.
 
 When dispatching a Planner, Executor, or Checker, the Orchestrator names
 the relevant skills in the dispatch brief. Sub-agents do not auto-discover
