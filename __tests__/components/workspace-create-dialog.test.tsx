@@ -8,15 +8,14 @@
  * Default prop is `procurement`, which delegates to the bid wizard.
  *
  * Post-ID-29.7: dialog consumes `useWorkspaceType()` (TanStack hook). Tests wrap
- * in a `QueryClientProvider` and stub `fetch` to return the 6 application_types
- * seed rows. Assertions about `typeConfig`-derived UI use `waitFor` because the
- * hook resolves asynchronously (~50ms in jsdom).
+ * in a `QueryClientProvider` (via `createQueryWrapper()`) and stub `fetch` (via
+ * `stubApplicationTypesFetch()`) to return the 6 application_types seed rows.
+ * Assertions about `typeConfig`-derived UI use `waitFor` because the hook
+ * resolves asynchronously (~50ms in jsdom).
  */
-import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -45,77 +44,8 @@ vi.mock('@/components/workspace/workspace-icon-picker', () => ({
 }));
 
 import { WorkspaceCreateDialog } from '@/components/workspace/workspace-create-dialog';
-
-// ---------------------------------------------------------------------------
-// Hook fixture — 6 seed rows verbatim from GET /api/application-types
-// ---------------------------------------------------------------------------
-
-const SEED_ROWS_SNAKE = [
-  {
-    key: 'procurement',
-    label: 'Procurement',
-    label_plural: 'Procurements',
-    description:
-      'Manage bid responses and tender submissions using your knowledge base',
-    default_icon: 'briefcase',
-    default_colour: '#d4880f',
-  },
-  {
-    key: 'intelligence',
-    label: 'Intelligence Stream',
-    label_plural: 'Intelligence Streams',
-    description:
-      'Sector and competitor news feeds tailored to your company profile.',
-    default_icon: 'newspaper',
-    default_colour: '#059669',
-  },
-  {
-    key: 'sales_proposal',
-    label: 'Sales Proposal',
-    label_plural: 'Sales Proposals',
-    description:
-      'Draft and manage sales proposals drawing on your knowledge base',
-    default_icon: 'file-signature',
-    default_colour: '#0d9488',
-  },
-  {
-    key: 'product_guide',
-    label: 'Product Guide',
-    label_plural: 'Product Guides',
-    description: 'Product Guide',
-    default_icon: null,
-    default_colour: null,
-  },
-  {
-    key: 'competitor_research',
-    label: 'Competitor Research',
-    label_plural: 'Competitor Researchs',
-    description: 'Competitor Research',
-    default_icon: null,
-    default_colour: null,
-  },
-  {
-    key: 'training_onboarding',
-    label: 'Training Onboarding',
-    label_plural: 'Training Onboardings',
-    description: 'Training Onboarding',
-    default_icon: null,
-    default_colour: null,
-  },
-];
-
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(
-      QueryClientProvider,
-      { client: queryClient },
-      children,
-    );
-  };
-}
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
+import { stubApplicationTypesFetch } from '@/__tests__/helpers/workspace-type-fixtures';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -124,15 +54,7 @@ function createWrapper() {
 describe('WorkspaceCreateDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string) => ({
-        ok: true,
-        status: 200,
-        url,
-        json: async () => SEED_ROWS_SNAKE,
-      })),
-    );
+    stubApplicationTypesFetch();
   });
 
   afterEach(() => {
@@ -150,7 +72,7 @@ describe('WorkspaceCreateDialog', () => {
           onCreated={mockOnCreated}
           type="sales_proposal"
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -171,7 +93,7 @@ describe('WorkspaceCreateDialog', () => {
           onCreated={mockOnCreated}
           type="sales_proposal"
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       // The form is rendered on first paint (no async dependency); the typeConfig
@@ -190,7 +112,7 @@ describe('WorkspaceCreateDialog', () => {
           onCreated={mockOnCreated}
           type="sales_proposal"
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -208,7 +130,7 @@ describe('WorkspaceCreateDialog', () => {
           onCreated={mockOnCreated}
           onBidCreate={mockOnBidCreate}
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       // procurement has hasCustomCreation: true — dialog closes and delegates
@@ -228,7 +150,7 @@ describe('WorkspaceCreateDialog', () => {
           type="procurement"
           onBidCreate={mockOnBidCreate}
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -245,7 +167,7 @@ describe('WorkspaceCreateDialog', () => {
           onCreated={mockOnCreated}
           type="procurement"
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {

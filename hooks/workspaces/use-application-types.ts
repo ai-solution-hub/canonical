@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * useApplicationTypes — TanStack Query hook for DB-driven application types.
  *
@@ -15,17 +17,7 @@
  *   - Code-side fields (route, available, hasCustomCreation, features.*) are
  *     developer-editable feature flags that must land via PR review, not via
  *     an admin UI mutation → live here in the static CLIENT_CONFIG map.
- *
- * CLAUDE.md stable-empty-array discipline (R-6): `EMPTY_TYPES` is module-level
- * so hook callers never receive a new array reference on each render.
- *
- * Coexistence note: at ID-29.6 commit time, no UI consumer has been migrated.
- * The static `WORKSPACE_TYPE_REGISTRY` in `lib/workspace-types.ts` still serves
- * the 3 UI consumers. This is the intentional intermediate state per TECH.md §5
- * step 3 — the hook exists and is tested in isolation; consumer migration is
- * ID-29.7; static registry deletion is ID-29.8.
  */
-'use client';
 
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -61,8 +53,9 @@ interface ApplicationTypeRowWire {
 /**
  * Normalised (camelCase) shape as seen by hook consumers.
  * The `select:` selector maps snake_case → camelCase before callers see it.
+ * Internal — exported as part of `WorkspaceTypeConfig` via `extends`.
  */
-export interface ApplicationTypeRow {
+interface ApplicationTypeRow {
   readonly key: string;
   readonly label: string;
   readonly labelPlural: string;
@@ -167,13 +160,6 @@ function resolveIcon(iconName: string | null): LucideIcon {
 }
 
 // ---------------------------------------------------------------------------
-// Stable empty array (CLAUDE.md R-6 stable-empty-array discipline)
-// ---------------------------------------------------------------------------
-
-/** Module-level stable empty array — prevents new reference creation per render. */
-const EMPTY_TYPES: WorkspaceTypeConfig[] = [];
-
-// ---------------------------------------------------------------------------
 // Internal selector — joins wire row + static config + resolved icon
 // ---------------------------------------------------------------------------
 
@@ -198,6 +184,25 @@ function toWorkspaceTypeConfig(row: ApplicationTypeRowWire): WorkspaceTypeConfig
 }
 
 // ---------------------------------------------------------------------------
+// Shared query config — all 3 public hooks key off the same fetched dataset
+// (queryKey is shared, so TanStack Query dedupes the fetch). Only the
+// `select:` transformation varies per hook.
+// ---------------------------------------------------------------------------
+
+const APPLICATION_TYPES_STALE_TIME_MS = 5 * 60_000;
+
+function useApplicationTypesQuery<T>(
+  select: (rows: ApplicationTypeRowWire[]) => T,
+) {
+  return useQuery({
+    queryKey: queryKeys.applicationTypes.list,
+    queryFn: () => fetchJson<ApplicationTypeRowWire[]>('/api/application-types'),
+    select,
+    staleTime: APPLICATION_TYPES_STALE_TIME_MS,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Public hooks
 // ---------------------------------------------------------------------------
 
@@ -206,12 +211,7 @@ function toWorkspaceTypeConfig(row: ApplicationTypeRowWire): WorkspaceTypeConfig
  * Cache: staleTime 5 min (closed-list reference data, no invalidation triggers).
  */
 export function useApplicationTypes() {
-  return useQuery({
-    queryKey: queryKeys.applicationTypes.list,
-    queryFn: () => fetchJson<ApplicationTypeRowWire[]>('/api/application-types'),
-    select: (rows) => rows.map(toWorkspaceTypeConfig),
-    staleTime: 5 * 60_000,
-  });
+  return useApplicationTypesQuery((rows) => rows.map(toWorkspaceTypeConfig));
 }
 
 /**
@@ -219,15 +219,9 @@ export function useApplicationTypes() {
  * Returns undefined for unknown keys (preserves getWorkspaceType() contract).
  */
 export function useWorkspaceType(type: string) {
-  return useQuery({
-    queryKey: queryKeys.applicationTypes.list,
-    queryFn: () => fetchJson<ApplicationTypeRowWire[]>('/api/application-types'),
-    select: (rows) => {
-      const mapped = rows.map(toWorkspaceTypeConfig);
-      return mapped.find((c) => c.key === type);
-    },
-    staleTime: 5 * 60_000,
-  });
+  return useApplicationTypesQuery((rows) =>
+    rows.map(toWorkspaceTypeConfig).find((c) => c.key === type),
+  );
 }
 
 /**
@@ -235,15 +229,9 @@ export function useWorkspaceType(type: string) {
  * Preserves getLauncherTypes() semantics: route !== null || !available.
  */
 export function useLauncherTypes() {
-  return useQuery({
-    queryKey: queryKeys.applicationTypes.list,
-    queryFn: () => fetchJson<ApplicationTypeRowWire[]>('/api/application-types'),
-    select: (rows) => {
-      const mapped = rows.map(toWorkspaceTypeConfig);
-      return mapped.filter((t) => t.route !== null || !t.available);
-    },
-    staleTime: 5 * 60_000,
-  });
+  return useApplicationTypesQuery((rows) =>
+    rows.map(toWorkspaceTypeConfig).filter((t) => t.route !== null || !t.available),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -268,9 +256,3 @@ export function formatTypeCount(
     count === 1 ? config.label.toLowerCase() : config.labelPlural.toLowerCase();
   return `${count} active ${noun}`;
 }
-
-// ---------------------------------------------------------------------------
-// Re-export stable empty array for consumer defaulting
-// ---------------------------------------------------------------------------
-
-export { EMPTY_TYPES };

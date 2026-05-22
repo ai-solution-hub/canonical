@@ -7,17 +7,20 @@
 // Query hook over `application_types` DB rows joined with a static
 // client config (Option C hybrid per
 // docs/specs/tanstack-workspace-types/TECH.md). Add or retire a seed
-// key: update both `APPLICATION_TYPE_KEYS` AND the `application_types`
-// table seed in lockstep.
+// key: update both the module-internal `APPLICATION_TYPE_KEYS` list AND
+// the `application_types` table seed in lockstep.
 
 /**
  * Six application_types seed keys (matches `application_types.key` per T2
  * migration S246/S247). Source of truth is the DB table; this constant is
  * the sync-callable equivalent used by Zod schema construction at module
- * load (`lib/validation/schemas.ts:535`). Update both lists in lockstep
- * if a seed key is added or retired.
+ * load via `getValidTypeValues()` (`lib/validation/schemas.ts:545`). Update
+ * both this list AND the `application_types` table seed in lockstep if a
+ * seed key is added or retired.
+ *
+ * Module-internal — external consumers use `getValidTypeValues()`.
  */
-export const APPLICATION_TYPE_KEYS = [
+const APPLICATION_TYPE_KEYS = [
   'procurement',
   'intelligence',
   'sales_proposal',

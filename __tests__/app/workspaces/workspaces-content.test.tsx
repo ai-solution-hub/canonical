@@ -6,7 +6,8 @@
  * Intelligence Streams) instead of individual workspace items.
  *
  * Post-ID-29.7: launcher consumes `useLauncherTypes()` (TanStack hook). Tests
- * wrap in a `QueryClientProvider` and stub `fetch` to return the 6
+ * wrap in a `QueryClientProvider` (via `createQueryWrapper()`) and stub
+ * `fetch` (via `stubApplicationTypesFetch()`) to return the 6
  * application_types seed rows. Assertions use `waitFor` because the hook
  * resolves asynchronously (~50ms in jsdom).
  */
@@ -14,7 +15,6 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
@@ -25,77 +25,8 @@ vi.mock('next/link', () => ({
 }));
 
 import { WorkspacesContent } from '@/app/workspaces/workspaces-content';
-
-// ---------------------------------------------------------------------------
-// Hook fixture — 6 seed rows verbatim from GET /api/application-types
-// ---------------------------------------------------------------------------
-
-const SEED_ROWS_SNAKE = [
-  {
-    key: 'procurement',
-    label: 'Procurement',
-    label_plural: 'Procurements',
-    description:
-      'Manage bid responses and tender submissions using your knowledge base',
-    default_icon: 'briefcase',
-    default_colour: '#d4880f',
-  },
-  {
-    key: 'intelligence',
-    label: 'Intelligence Stream',
-    label_plural: 'Intelligence Streams',
-    description:
-      'Sector and competitor news feeds tailored to your company profile.',
-    default_icon: 'newspaper',
-    default_colour: '#059669',
-  },
-  {
-    key: 'sales_proposal',
-    label: 'Sales Proposal',
-    label_plural: 'Sales Proposals',
-    description:
-      'Draft and manage sales proposals drawing on your knowledge base',
-    default_icon: 'file-signature',
-    default_colour: '#0d9488',
-  },
-  {
-    key: 'product_guide',
-    label: 'Product Guide',
-    label_plural: 'Product Guides',
-    description: 'Product Guide',
-    default_icon: null,
-    default_colour: null,
-  },
-  {
-    key: 'competitor_research',
-    label: 'Competitor Research',
-    label_plural: 'Competitor Researchs',
-    description: 'Competitor Research',
-    default_icon: null,
-    default_colour: null,
-  },
-  {
-    key: 'training_onboarding',
-    label: 'Training Onboarding',
-    label_plural: 'Training Onboardings',
-    description: 'Training Onboarding',
-    default_icon: null,
-    default_colour: null,
-  },
-];
-
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(
-      QueryClientProvider,
-      { client: queryClient },
-      children,
-    );
-  };
-}
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
+import { stubApplicationTypesFetch } from '@/__tests__/helpers/workspace-type-fixtures';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -103,15 +34,7 @@ function createWrapper() {
 
 describe('WorkspacesContent', () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string) => ({
-        ok: true,
-        status: 200,
-        url,
-        json: async () => SEED_ROWS_SNAKE,
-      })),
-    );
+    stubApplicationTypesFetch();
   });
 
   afterEach(() => {
@@ -120,7 +43,7 @@ describe('WorkspacesContent', () => {
   });
 
   it('renders page description', () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createWrapper() });
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
     // Header is rendered on first paint regardless of hook state.
     expect(
       screen.getByText(
@@ -132,7 +55,7 @@ describe('WorkspacesContent', () => {
   it('renders Bids type card with count', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
     render(<WorkspacesContent counts={{ procurement: 3 }} />, {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
       expect(screen.getByText('Procurements')).toBeInTheDocument();
@@ -141,7 +64,7 @@ describe('WorkspacesContent', () => {
   });
 
   it('renders Sales Proposals as coming soon', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createWrapper() });
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
     await waitFor(() => {
       expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
     });
@@ -153,7 +76,7 @@ describe('WorkspacesContent', () => {
 
   it('links Bids card to /bid', async () => {
     render(<WorkspacesContent counts={{ procurement: 1 }} />, {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
       const link = screen.getByRole('link', { name: /procurements/i });
@@ -162,7 +85,7 @@ describe('WorkspacesContent', () => {
   });
 
   it('marks coming soon cards as aria-disabled', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createWrapper() });
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
     await waitFor(() => {
       expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
     });
@@ -175,7 +98,7 @@ describe('WorkspacesContent', () => {
   it('shows singular "bid" for count of 1', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
     render(<WorkspacesContent counts={{ procurement: 1 }} />, {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
       expect(screen.getByText('1 active procurement')).toBeInTheDocument();
@@ -185,7 +108,7 @@ describe('WorkspacesContent', () => {
   it('hides count text when count is 0 but includes in aria-label', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
     render(<WorkspacesContent counts={{ procurement: 0 }} />, {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
       // Confirm the hook resolved (Procurements card present)
