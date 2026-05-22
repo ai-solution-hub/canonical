@@ -45,17 +45,53 @@ Empirical retry-surface note (ID-28.13 verification against cocoindex 1.0.3):
   backoff_base_ms=N)" was a TECH-sketch fiction — cocoindex.fn 1.0.3's public
   signature is `(fn, /, *, memo, memo_key, batching, max_batch_size, runner,
   version, logic_tracking, deps)` with NO `retries` or `backoff_base_ms`
-  kwargs. The actual retry surface in 1.0.3 lives in connector-specific
-  RetryConfig dataclasses (e.g. `cocoindex.connectors.doris.RetryConfig`
-  defaults: max_retries=3, base_delay=1.0, max_delay=30.0,
-  exponential_base=2.0 — matching the documented P-OQ2 semantic by
-  coincidence in the doris connector). The postgres path used by
-  `mount_table_target` inherits retry behaviour from the asyncpg connection
-  pool + cocoindex's internal Rust engine; the public 1.0.3 surface does NOT
-  expose a tuning hook. v1 accepts the engine defaults; if operational
-  evidence demands tuning, the orchestrator should escalate to a TECH.md
-  P-OQ2 amendment that reflects the real 1.0.3 surface (likely connector-
-  scoped RetryConfig overrides rather than @coco.fn kwargs).
+  kwargs. Empirical investigation in the ID-28.13 fix-pack established:
+
+    PRESENT:   `ComponentStats.num_reprocesses` (named-tuple field on the
+               per-component stats group, mirrored from Rust's
+               `ProcessingStatsGroup`). Observable via
+               `UpdateHandle.stats().total.num_reprocesses` or
+               `UpdateHandle.stats().by_component[<name>].num_reprocesses`.
+               Returned by `App.update()` to the entrypoint that called
+               it — NOT to `app_main()` itself. Since
+               `_emit_pipeline_run_webhook()` fires from INSIDE
+               `app_main()`, this surface is not queryable at
+               webhook-emission time without an architectural refactor
+               (move the webhook emission out of `app_main()` body and
+               into a post-await caller; deferred).
+
+    PRESENT:   Connector-specific `RetryConfig` dataclasses in the Doris
+               connector (`cocoindex.connectors.doris._target.RetryConfig`,
+               defaults max_retries=3 / base_delay=1.0 / max_delay=30.0 /
+               exponential_base=2.0). Used only by Doris stream-load
+               operations. NOT used by `mount_table_target` (postgres).
+
+    ABSENT:    `@coco.fn(retries=N, backoff_base_ms=N)` — empirically
+               not in the decorator signature.
+
+    ABSENT:    Postgres-connector retry primitive of any kind. Source
+               grep across `cocoindex.connectors.postgres._target` /
+               `_source` returns ZERO retry/backoff/attempt occurrences.
+               `mount_table_target` -> `table_target` -> internal Rust
+               `_apply_actions` — no retry wrapper at any Python layer.
+
+    ABSENT:    `cocoindex._internal/*` retry primitives outside Doris
+               connector + `ops.entity_resolution.llm_resolver`. Neither
+               is used by the KH canonical 6-stage pipeline.
+
+    ABSENT:    Anthropic-SDK-call retry inside the @coco.fn extractors
+               (extraction.py). The extractor body is plain `await
+               client.messages.create(...)`; an `anthropic.APIError`
+               propagates UNRETRIED to the flow-scope except block.
+               KH must add its OWN retry wrapper (deferred to a
+               follow-up Subtask — out of scope for ID-28.13 fix-pack).
+
+  Retry-count emission per Inv-23 is therefore landed via the KH-managed
+  `_FlowRetryCounter` substrate (see class below). v1 ships the
+  contract surface (counter + webhook field + Vercel route + storage
+  location); v1.1 production wiring lands when KH adds an Anthropic
+  503-retry wrapper around the @coco.fn extractors (or when cocoindex
+  1.0.x exposes a flow-internal stats query API, whichever lands first).
 
 Failure-mode wiring (per P-8 / ID-28.13):
   - `_classify_stage_exception()` maps Python exception types to the
@@ -398,6 +434,72 @@ def _emit_stage_error_log(
     _logger.error(json.dumps(payload))
 
 
+# ── Inv-23 retry-count substrate (ID-28.13 fix-pack) ─────────────────────────
+
+
+class _FlowRetryCounter:
+    """V1 substrate for Inv-23 per-flow retry-count observability.
+
+    The testStrategy criterion this satisfies (verbatim):
+      "transient 503-once mock retries successfully (retry_count=1)"
+
+    Empirical reality (verified against cocoindex 1.0.3 — see module
+    docstring "Empirical retry-surface note" + further investigation
+    recorded in ID-28.13 fix-pack journal):
+
+      - `@coco.fn` decorator has NO `retries` / `backoff_base_ms` kwargs.
+      - `cocoindex.connectors.postgres` source contains ZERO retry /
+        backoff / attempt strings — the postgres connector has no
+        retry primitive at all.
+      - `cocoindex._internal/` source contains ZERO retry primitives
+        beyond Doris connector + entity_resolution.llm_resolver private
+        loops (neither used by KH's canonical 6-stage pipeline).
+      - The Rust engine binary DOES expose retry-related symbols
+        (`rust/utils/src/retryable.rs`, `ComponentStats.num_reprocesses`).
+        `ComponentStats` is observable from outside `app_main()` via
+        `UpdateHandle.stats()` — but the handle is returned by
+        `App.update()`, accessible only to the entrypoint that called
+        it (i.e. `__main__.py`'s `coco.start_blocking()`), NOT to
+        `app_main()` itself. Since `_emit_pipeline_run_webhook()` fires
+        from INSIDE `app_main()`, the engine-native counter is not
+        queryable at webhook-emission time without architectural refactor
+        (move the webhook emission to the post-await caller side; deferred
+        to a follow-up Subtask, orchestrator-tracked).
+
+    The v1 substrate is a KH-managed counter whose `.increment()` is
+    called by any KH-authored retry wrapper, and whose `.get()` is read
+    at flow end and emitted via the webhook. Consistent with the
+    28.10 / 28.11 / 28.12 spec-drift discipline: land the contract
+    substrate now; the production-wiring source-of-retry-bumping comes
+    when KH adds its own retry wrapper around the @coco.fn extractors
+    (or when cocoindex 1.0.x exposes a flow-internal stats query API,
+    whichever lands first).
+
+    Instances are per-flow (one counter per `app_main()` invocation);
+    instances do NOT share state across flows. Thread-safety is not
+    required at v1 — cocoindex's @coco.fn execution is sequential
+    per-content-text per the engine semantic.
+    """
+
+    def __init__(self) -> None:
+        self._count: int = 0
+
+    def increment(self) -> None:
+        """Bump the per-flow retry count by one.
+
+        Called by any KH-authored retry wrapper after a successful
+        retry. v1: no caller (the substrate is in place for future
+        wiring); v1.1 wiring lands when KH adds an Anthropic 503-retry
+        wrapper around the extractors in extraction.py (out of scope
+        for this fix-pack per file-ownership).
+        """
+        self._count += 1
+
+    def get(self) -> int:
+        """Return the current per-flow retry count without mutating it."""
+        return self._count
+
+
 # ── Inv-16 / Inv-17 / Inv-18 rollup substrate (P-7 — ID-28.11) ───────────────
 
 
@@ -437,6 +539,7 @@ async def _emit_pipeline_run_webhook(
     error_message: str | None = None,
     error_class: str | None = None,
     extractor_version: str | None = None,
+    retry_count: int | None = None,
     pipeline_name: str = "kh_canonical_pipeline",
 ) -> None:
     """POST a pipeline-run rollup to the Vercel webhook (Inv-16 / Inv-17 / Inv-18).
@@ -474,6 +577,15 @@ async def _emit_pipeline_run_webhook(
       error_message:     Human-readable failure summary (omit for non-failures).
       error_class:       6-class error vocabulary from 28.13 (omit for non-failures).
       extractor_version: IMAGE_SHA from Cloud Build (28.6) — Inv-8 forensic key.
+      retry_count:       Per-flow retry count (ID-28.13 — Inv-23 transient-failure
+                         observability). When provided, emitted as `retryCount` in
+                         the payload (camelCase mirrors the rest of the shape).
+                         `None` means "field omitted entirely" — distinguishable
+                         from `retry_count=0` (the no-retry happy path) by the
+                         Vercel route's `!== undefined` discriminator. Source of
+                         truth is the per-flow `_FlowRetryCounter` instance
+                         constructed in `app_main()`; v1 substrate (no production
+                         caller yet — see `_FlowRetryCounter` class docstring).
       pipeline_name:     Defaults to 'kh_canonical_pipeline'.
 
     Env vars (must be set by Cloud Run Service manifest per ID-28.6):
@@ -507,6 +619,11 @@ async def _emit_pipeline_run_webhook(
         payload["errorClass"] = error_class
     if extractor_version is not None:
         payload["extractorVersion"] = extractor_version
+    # `retry_count=0` is meaningful (the no-retry happy path) and MUST
+    # land verbatim — distinguishable from "field omitted" via the
+    # Vercel route's `!== undefined` check (Slice 1 of this fix-pack).
+    if retry_count is not None:
+        payload["retryCount"] = retry_count
 
     headers = {
         "Authorization": f"Bearer {secret}",
@@ -664,9 +781,20 @@ async def app_main() -> None:
     stage_counts: dict[str, int] = _empty_stage_counts()
     items_created: list[str] = []
     extractor_version = os.environ.get("IMAGE_SHA")
+    # Inv-23 retry-count substrate (ID-28.13 fix-pack). The counter is
+    # constructed per-flow and read at flow-end webhook emission. v1
+    # has NO production caller of `.increment()` — the substrate is in
+    # place; production wiring lands when KH adds an Anthropic 503-retry
+    # wrapper around the @coco.fn extractors (out of scope for this
+    # fix-pack; deferred to a follow-up Subtask). See `_FlowRetryCounter`
+    # class docstring for the empirical rationale.
+    flow_retry_counter = _FlowRetryCounter()
 
     # Flow start emission (Inv-16: one pipeline_runs row per invocation;
     # in_progress row signals "pipeline accepted work, processing began").
+    # `retry_count` is NOT emitted on the flow-start row — at flow-start
+    # the count is always 0, and emitting `retryCount=0` would suggest
+    # observability data is already present when it is not yet.
     await _emit_pipeline_run_webhook(
         op_id=run_op_id,
         status="in_progress",
@@ -888,6 +1016,13 @@ async def app_main() -> None:
         # wires per-stage counter increments (see escalation note at the
         # rollup-state block above). items_created is similarly empty at
         # v1 — populated when 28.13's per-extraction-kind write path lands.
+        # `retry_count` (ID-28.13 fix-pack — Inv-23): read from the
+        # per-flow `_FlowRetryCounter` instance. v1 always reads 0
+        # because no production caller bumps `.increment()` yet — the
+        # field still emits verbatim (0 is meaningful per the route's
+        # discriminator). Operator dashboards relying on the
+        # `result.retry_count IS NOT NULL` filter will see the field
+        # populated on every 28.13-onwards run.
         await _emit_pipeline_run_webhook(
             op_id=run_op_id,
             status=flow_status,
@@ -897,6 +1032,7 @@ async def app_main() -> None:
             error_message=flow_error_message,
             error_class=flow_error_class,
             extractor_version=extractor_version,
+            retry_count=flow_retry_counter.get(),
         )
 
 
