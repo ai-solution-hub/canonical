@@ -112,6 +112,23 @@ const BodySchema = z.object({
   errorClass: PipelineErrorClassSchema.optional(),
   /** IMAGE_SHA from Cloud Build (28.6) — Inv-8 forensic correlation key. */
   extractorVersion: z.string().optional(),
+  /**
+   * Per-flow retry count from the cocoindex sidecar (ID-28.13 — Inv-23
+   * transient-failure observability). The Python sidecar increments a
+   * flow-scope counter on each transient-error retry (currently driven
+   * by KH-authored retry wrappers — see flow.py `_FlowRetryCounter` for
+   * the v1 substrate; cocoindex 1.0.3's native `ComponentStats.num_
+   * reprocesses` surface is observable only from outside `app_main()`
+   * and is therefore not the emission source today). Lands inside
+   * `pipeline_runs.result.retry_count` so operator filter-by-retries
+   * queries work uniformly with the rest of the result envelope.
+   *
+   * Optional for back-compat with pre-28.13 sidecar emissions; when
+   * present, must be a nonneg integer (negative or float would indicate
+   * a sidecar bug and is rejected at the boundary so the corrupt value
+   * does not silently land).
+   */
+  retryCount: z.number().int().nonnegative().optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -158,19 +175,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     errorMessage,
     errorClass,
     extractorVersion,
+    retryCount,
   } = parsed.data;
 
   // Compose the `result` JSON column so per-stage observability (Inv-17),
-  // version forensics (Inv-8), and the 6-class error vocabulary (28.13) all
-  // land in one structured envelope. The `pipeline_runs.result` column is
-  // `Json | null` per supabase/types/database.types.ts — any JSON shape is
-  // accepted at the DB level; the shape contract is policed by the
-  // integration tests in 28.14 (stage-topology.integration.test.ts etc.).
+  // version forensics (Inv-8), the 6-class error vocabulary (28.13), and
+  // the Inv-23 retry-count rollup all land in one structured envelope. The
+  // `pipeline_runs.result` column is `Json | null` per
+  // supabase/types/database.types.ts — any JSON shape is accepted at the DB
+  // level; the shape contract is policed by the integration tests in 28.14
+  // (stage-topology.integration.test.ts etc.).
+  //
+  // `retry_count` uses an explicit `!== undefined` check rather than the
+  // truthy-coercion pattern used for extractorVersion / errorClass because
+  // 0 is a meaningful value (the no-retry happy path) and must land
+  // verbatim — operator dashboards relying on
+  // `result.retry_count IS NOT NULL` to count emitted-with-retry-info runs
+  // depend on this distinction.
   const result: Record<string, unknown> = {
     stage_counts: stageCounts,
   };
   if (extractorVersion) result.extractor_version = extractorVersion;
   if (errorClass) result.error_class = errorClass;
+  if (retryCount !== undefined) result.retry_count = retryCount;
 
   try {
     const supabase = createServiceClient();

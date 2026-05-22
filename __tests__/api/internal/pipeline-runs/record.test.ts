@@ -78,6 +78,7 @@ function makePayload(
     errorMessage: string;
     errorClass: string;
     extractorVersion: string;
+    retryCount: number;
   }> = {},
 ): Record<string, unknown> {
   return {
@@ -104,6 +105,9 @@ function makePayload(
       : {}),
     ...(overrides.extractorVersion !== undefined
       ? { extractorVersion: overrides.extractorVersion }
+      : {}),
+    ...(overrides.retryCount !== undefined
+      ? { retryCount: overrides.retryCount }
       : {}),
   };
 }
@@ -337,6 +341,26 @@ describe('POST /api/internal/pipeline-runs/record — body validation', () => {
     const res = await POST(buildRequest({ body: payload }) as never);
     expect(res.status).toBe(200);
   });
+
+  it('rejects negative retryCount with HTTP 400 (Inv-23 invariant)', async () => {
+    // The Zod schema enforces nonnegative integers — a negative value
+    // would indicate a sidecar bug (uninitialised counter) and must
+    // not silently land in `pipeline_runs.result.retry_count` where it
+    // would corrupt operator dashboards.
+    const payload = makePayload({ retryCount: -1 });
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+    expect(mockRecordPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-integer retryCount with HTTP 400', async () => {
+    // Float retry counts would suggest a wrong-units bug (e.g. timing
+    // value misrouted into the counter field); reject at the boundary.
+    const payload = makePayload();
+    (payload as Record<string, unknown>).retryCount = 1.5;
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('POST /api/internal/pipeline-runs/record — recordPipelineRun call shape', () => {
@@ -421,6 +445,60 @@ describe('POST /api/internal/pipeline-runs/record — recordPipelineRun call sha
     const call = mockRecordPipelineRun.mock.calls[0][0];
     const result = call.result as Record<string, unknown>;
     expect(result.error_class).toBe('extraction_validation_failed');
+  });
+
+  it('lands retryCount inside result.retry_count when provided (Inv-23)', async () => {
+    // ID-28.13 testStrategy criterion: "transient 503-once mock retries
+    // successfully (retry_count=1)". The Python sidecar reports the
+    // per-flow retry count via an optional `retryCount` field on the
+    // webhook payload (mirrors the existing `errorClass` /
+    // `extractorVersion` optional-field pattern); the route lands it
+    // inside `pipeline_runs.result.retry_count` so operator filter-
+    // by-retries queries work uniformly with the rest of the result
+    // envelope (Inv-17 + Inv-23).
+    await POST(
+      buildRequest({
+        body: makePayload({
+          status: 'completed',
+          retryCount: 1,
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.retry_count).toBe(1);
+  });
+
+  it('lands retryCount=0 inside result.retry_count when supplied explicitly', async () => {
+    // Zero is a meaningful value (the no-retry happy path) and MUST land
+    // verbatim — distinguishable from "field not provided". Operator
+    // dashboards relying on `result.retry_count IS NOT NULL` to count
+    // emitted-with-retry-info runs depend on this.
+    await POST(
+      buildRequest({
+        body: makePayload({
+          status: 'completed',
+          retryCount: 0,
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.retry_count).toBe(0);
+  });
+
+  it('omits retry_count from result when retryCount is absent (back-compat)', async () => {
+    // Pre-28.13 sidecar emissions omit the field. The route MUST NOT
+    // synthesise a `result.retry_count` key when the body does not carry
+    // it, so the absence is distinguishable from `retry_count: 0` in the
+    // landed envelope.
+    await POST(buildRequest({ body: makePayload() }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result).not.toHaveProperty('retry_count');
   });
 
   it('forwards errorMessage into the recordPipelineRun param', async () => {
