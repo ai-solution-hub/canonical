@@ -6,24 +6,31 @@
  *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md
  *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md
  *
- * Scope (Subtask 32.5): SCAFFOLD ONLY. This file implements:
- *   - CLI argv parsing via `node:util` `parseArgs` (TECH §5 / §9).
- *   - `--help` output and exit 0.
+ * Scope (cumulative through Subtask 32.12):
+ *   - CLI argv parsing via `node:util` `parseArgs` — `--apply`, `--scope`,
+ *     `--help` flags (TECH §5 / §9). [32.5]
+ *   - `--help` output and exit 0; exit code 1 on fatal init failure.
  *   - ts-morph `Project` initialisation from the working tree's
- *     `tsconfig.json` (TECH §2.1).
+ *     `tsconfig.json` (TECH §2.1). [32.5]
  *   - Route enumeration via `app/api/.*\/route.ts$` regex over
  *     `project.getSourceFiles()` (TECH §2.2) with optional `--scope` filter.
- *   - Exit code 0 on success / 1 on fatal init failure (TECH §5).
+ *     [32.5]
+ *   - `classifyRoute()` shape classifier — 17 RouteShape variants per TECH
+ *     §2.3 with body-detection AST refactor from 32.17. [32.6 + 32.17]
+ *   - `inferSchema()` Source A inference (`type-drift-baseline.json` →
+ *     `${interfaceName}Schema` lookup with NEEDS_SCHEMA fall-back). [32.8]
+ *   - `buildRouteRecords()` per-route assembly + `emitDryRunReport()` +
+ *     `emitNeedsManualReport()` — both artefacts emitted on EVERY run per
+ *     PRODUCT AC-4. [32.12]
  *
  * Downstream Subtasks add:
- *   - 32.6 shape classifier
- *   - 32.8 ResponseSchema inference (Source A)
+ *   - 32.9 Source B inference (return-type annotation, optional)
  *   - 32.10 / 32.11 handler rewrite (single / multi-method)
- *   - 32.12 dry-run + needs-manual artefact emitters
- *   - 32.13 idempotency check
+ *   - 32.13 idempotency check (`isAlreadyWrapped`)
  *   - 32.14 apply mode + format pass
  *
- * This scaffold MUST NOT rewrite any file. It is purely a discovery walk.
+ * This module still performs NO file rewrite — only artefact emission to
+ * `docs/generated/` (or the test-injected `CODEMOD_OUTPUT_DIR` override).
  *
  * Usage:
  *   bun scripts/codemods/wrap-define-route.ts [--apply] [--scope <path>]
@@ -31,14 +38,25 @@
  */
 
 import { parseArgs } from 'node:util';
-import { resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { Project, type SourceFile, SyntaxKind } from 'ts-morph';
 import {
   inferSchemaSourceA,
   type InferSchemaOptions,
   type InferSchemaResult,
 } from './inference-source-a';
-import type { RouteShape } from './types';
+import {
+  emitDryRunReport,
+  type DryRunReportContext,
+  type RouteReportEntry,
+} from './emit-dry-run';
+import {
+  emitNeedsManualReport,
+  reasonForShape,
+  type NeedsManualEntry,
+} from './emit-needs-manual';
+import type { NeedsManualReason, RouteShape } from './types';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -76,6 +94,19 @@ const MANUAL_SHAPES: ReadonlySet<RouteShape> = new Set<RouteShape>([
 const EXIT_OK = 0;
 const EXIT_FATAL = 1;
 
+/**
+ * Default output directory for both artefacts. Per TECH §6 the canonical
+ * location is `docs/generated/`; tests redirect via the
+ * `CODEMOD_OUTPUT_DIR` environment variable to a `tmpdir()` location so
+ * `bun run test` never dirties the committed `docs/generated/` tree.
+ *
+ * Resolved against `process.cwd()` at run time so the same constant works
+ * from any invocation directory.
+ */
+const DEFAULT_OUTPUT_DIR = 'docs/generated';
+const DRY_RUN_REPORT_FILENAME = 'codemod-dry-run.md';
+const NEEDS_MANUAL_REPORT_FILENAME = 'codemod-needs-manual.json';
+
 const USAGE = `wrap-define-route — OPS-T1 codemod for Knowledge Hub
 
 Usage:
@@ -87,13 +118,18 @@ Options:
                    (e.g. 'app/api/intelligence')
   --help           Show this message
 
-Output files (always written by full implementation, NOT by this scaffold):
+Output files (always written, even in dry-run — PRODUCT.md AC-4):
   docs/generated/codemod-dry-run.md         Human-readable diff preview
   docs/generated/codemod-needs-manual.json  Structured MANUAL/NEEDS-REVIEW report
 
-Status: SCAFFOLD ONLY (Subtask 32.5). This invocation enumerates routes but
-performs no rewrite. Downstream Subtasks add the classifier, inference,
-rewrite, idempotency check, and apply-mode logic.
+Override the output directory via the CODEMOD_OUTPUT_DIR environment
+variable; tests redirect emission to a tmpdir().
+
+Status: rewrite emitters (Subtasks 32.10 / 32.11), inference wiring
+(32.8 already landed; 32.9 optional), idempotency (32.13), and apply-mode
+(32.14) are downstream. Subtask 32.12 covers CLI flags + both artefact
+emitters; the discovery loop captures shape + methods + reason, and the
+emitters render whatever metadata is present.
 `;
 
 // ── CLI argv parsing ──────────────────────────────────────────────────────
@@ -132,7 +168,9 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
  * Throws if the tsconfig cannot be located or parsed — the CLI converts the
  * exception into exit code 1.
  */
-export function createCodemodProject(tsConfigFilePath = 'tsconfig.json'): Project {
+export function createCodemodProject(
+  tsConfigFilePath = 'tsconfig.json',
+): Project {
   return new Project({
     tsConfigFilePath: resolve(process.cwd(), tsConfigFilePath),
     skipAddingFilesFromTsConfig: false,
@@ -406,18 +444,168 @@ export function inferSchema(
   return inferSchemaSourceA(sf, method, project, options);
 }
 
-// ── Main entry point ──────────────────────────────────────────────────────
+// ── Per-route assembly ───────────────────────────────────────────────────
 
 /**
- * Run the codemod scaffold against the working tree.
+ * Mapping from `RouteShape` verdict to the codemod's intended action.
  *
- * Returns the discovered route count (0+) on success; throws on fatal init
- * failure (ts-morph cannot load tsconfig, etc.). The CLI wrapper converts
- * thrown errors into exit code 1.
+ * MANUAL shapes (`CRON` / `NAKED_NO_AUTH` / `MCP`) are skipped during apply
+ * mode per PRODUCT §6.1. MULTI_* and *+WRC variants are wrapped but flagged
+ * NEEDS_REVIEW so the developer confirms before merging (PRODUCT §6.2).
+ * Single-method MECHANISABLE shapes (`AUTH_PLAIN` / `PARAM_BODY` /
+ * `BODY_VALIDATED` / `PARAM`) are TRANSFORM — the codemod rewrites them
+ * cleanly.
+ *
+ * The SKIPPED verdict (PRODUCT §4 idempotency) is NOT derived here — it
+ * comes from `isAlreadyWrapped()` once Subtask 32.13 lands. For Subtask
+ * 32.12 the classifier branch is the only signal.
+ */
+function shapeToAction(shape: RouteShape): RouteReportEntry['action'] {
+  if (shape === 'CRON' || shape === 'NAKED_NO_AUTH' || shape === 'MCP') {
+    return 'MANUAL';
+  }
+  if (shape.startsWith('MULTI_') || shape.endsWith('+WRC')) {
+    return 'NEEDS_REVIEW';
+  }
+  return 'TRANSFORM';
+}
+
+/**
+ * Resolve a source file's absolute path to a repo-relative POSIX path so
+ * the emitted artefacts read consistently across operating systems.
+ *
+ * Falls back to the absolute path if the file does not live under the
+ * current working directory (defensive — should never fire in practice
+ * since the ts-morph project loads from the working-tree tsconfig).
+ */
+function toRepoRelativePosixPath(absolutePath: string): string {
+  const cwdPosix = process.cwd().replace(/\\/g, '/');
+  const filePosix = absolutePath.replace(/\\/g, '/');
+  if (filePosix.startsWith(`${cwdPosix}/`)) {
+    return filePosix.slice(cwdPosix.length + 1);
+  }
+  return filePosix;
+}
+
+/**
+ * Build the per-route discovery record set the emitters consume.
+ *
+ * For Subtask 32.12 the record is derived from `classifyRoute()` +
+ * `getExportedMethods()` only. Inference (Source A/B) and rewrite-diff
+ * narration land via subsequent Subtasks; the record shape is forward-
+ * compatible — `schemaSource`, `schemaIdentifier`, and `notes` are
+ * optional fields that those upstream slices populate when wired.
+ *
+ * NEEDS_SCHEMA reasons surfaced by `inferSchema` will be merged into
+ * `needsManualEntries` by the rewrite-loop callers (Subtasks 32.10 /
+ * 32.11). The shape-derived entries built here are the floor — they do not
+ * subsume inference-derived ones.
+ */
+export function buildRouteRecords(routeFiles: readonly SourceFile[]): {
+  reportEntries: RouteReportEntry[];
+  needsManualEntries: NeedsManualEntry[];
+} {
+  const reportEntries: RouteReportEntry[] = [];
+  const needsManualEntries: NeedsManualEntry[] = [];
+
+  for (const sf of routeFiles) {
+    const shape = classifyRoute(sf);
+    const methods = getExportedMethods(sf);
+    const action = shapeToAction(shape);
+    const route = toRepoRelativePosixPath(sf.getFilePath());
+
+    const reason: NeedsManualReason | null = reasonForShape(shape);
+    const reportEntry: RouteReportEntry = {
+      route,
+      shape,
+      methods,
+      action,
+    };
+    if (reason && (action === 'NEEDS_REVIEW' || action === 'MANUAL')) {
+      reportEntry.reason = reason;
+    }
+    reportEntries.push(reportEntry);
+
+    if (reason && (action === 'NEEDS_REVIEW' || action === 'MANUAL')) {
+      const entry: NeedsManualEntry = {
+        route,
+        shape,
+        reason,
+      };
+      // Multi-method routes need per-method visibility per TECH §6.2
+      // (MULTI_METHOD_SCHEMA reason). Single-method NEEDS-REVIEW entries
+      // (e.g. AUTH_PLAIN+WRC with WRC_COMPOSITION) omit the field because
+      // there is only one method.
+      if (shape.startsWith('MULTI_')) {
+        entry.methods = methods;
+      }
+      needsManualEntries.push(entry);
+    }
+  }
+
+  return { reportEntries, needsManualEntries };
+}
+
+// ── Output-path resolution ────────────────────────────────────────────────
+
+/**
+ * Resolve the directory where both artefacts should land.
+ *
+ * Precedence:
+ *   1. Explicit `outputDir` argument from the caller (test injection).
+ *   2. `CODEMOD_OUTPUT_DIR` environment variable (test override at the
+ *      process boundary — survives `bun scripts/...` spawning).
+ *   3. `DEFAULT_OUTPUT_DIR` (`docs/generated/`) resolved against the
+ *      current working directory.
+ *
+ * Tests use either (1) the in-process API path or (2) the env-var
+ * override so the committed `docs/generated/` tree is never touched by
+ * `bun run test`.
+ */
+export function resolveOutputDir(outputDir?: string): string {
+  if (outputDir) return resolve(outputDir);
+  const envOverride = process.env['CODEMOD_OUTPUT_DIR'];
+  if (envOverride && envOverride.length > 0) {
+    return resolve(envOverride);
+  }
+  return resolve(process.cwd(), DEFAULT_OUTPUT_DIR);
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────
+
+export interface RunScaffoldResult {
+  routeCount: number;
+  apply: boolean;
+  scope?: string;
+  dryRunReportPath: string;
+  needsManualReportPath: string;
+  reportEntries: RouteReportEntry[];
+  needsManualEntries: NeedsManualEntry[];
+}
+
+/**
+ * Run the codemod against the working tree.
+ *
+ * Per Subtask 32.12 the scaffold now:
+ *   1. Loads the ts-morph project from `tsconfig.json`.
+ *   2. Enumerates route files (with optional `--scope` filter).
+ *   3. Classifies each route via `classifyRoute()`.
+ *   4. Builds the per-route discovery records.
+ *   5. Emits both artefacts (`codemod-dry-run.md` +
+ *      `codemod-needs-manual.json`) on EVERY run (dry-run AND apply) per
+ *      PRODUCT.md AC-4.
+ *
+ * Returns metadata about the run; throws on fatal init failure (ts-morph
+ * cannot load tsconfig, file write permission, etc.). The CLI wrapper
+ * converts thrown errors into exit code 1.
+ *
+ * `outputDir` accepts a test-injected override; production callers omit it
+ * to consume `CODEMOD_OUTPUT_DIR` env or fall through to `docs/generated/`.
  */
 export async function runScaffold(
   args: ParsedCliArgs,
-): Promise<{ routeCount: number; apply: boolean }> {
+  options: { outputDir?: string } = {},
+): Promise<RunScaffoldResult> {
   if (args.apply) {
     // Apply mode is not implemented in the scaffold — emit a notice and
     // continue with dry-run enumeration so the scaffold's exit-code-0
@@ -431,14 +619,45 @@ export async function runScaffold(
   const project = createCodemodProject();
   const routeFiles = enumerateRouteFiles(project, args.scope);
 
-  // Discovery-only output. The full dry-run report (PRODUCT §5 / TECH §6.1)
-  // is emitted by Subtask 32.12. For Subtask 32.5 we only need the count
-  // to confirm enumeration works against the live corpus.
   console.log(
     `${routeFiles.length} route(s) discovered${args.scope ? ` (scoped to ${args.scope})` : ''}.`,
   );
 
-  return { routeCount: routeFiles.length, apply: args.apply };
+  const { reportEntries, needsManualEntries } = buildRouteRecords(routeFiles);
+
+  // Artefact emission per AC-4 — on EVERY run, dry-run or apply.
+  const outputDir = resolveOutputDir(options.outputDir);
+  const dryRunReportPath = resolve(outputDir, DRY_RUN_REPORT_FILENAME);
+  const needsManualReportPath = resolve(
+    outputDir,
+    NEEDS_MANUAL_REPORT_FILENAME,
+  );
+
+  // Ensure the output directory exists. `recursive: true` is a no-op when
+  // the directory already exists (the normal case for `docs/generated/`)
+  // and creates intermediate directories when tests inject a `tmpdir()`
+  // sub-path that does not yet exist.
+  mkdirSync(dirname(dryRunReportPath), { recursive: true });
+
+  const reportContext: DryRunReportContext = {
+    apply: args.apply,
+    ...(args.scope ? { scope: args.scope } : {}),
+  };
+  emitDryRunReport(reportEntries, dryRunReportPath, reportContext);
+  emitNeedsManualReport(needsManualEntries, needsManualReportPath);
+
+  console.log(`Wrote ${dryRunReportPath}.`);
+  console.log(`Wrote ${needsManualReportPath}.`);
+
+  return {
+    routeCount: routeFiles.length,
+    apply: args.apply,
+    ...(args.scope ? { scope: args.scope } : {}),
+    dryRunReportPath,
+    needsManualReportPath,
+    reportEntries,
+    needsManualEntries,
+  };
 }
 
 // ── CLI bootstrap ──────────────────────────────────────────────────────────
