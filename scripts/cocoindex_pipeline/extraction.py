@@ -36,14 +36,30 @@ from pathlib import Path
 from typing import Annotated, Literal, Union
 from uuid import UUID
 
+import anthropic
 import cocoindex as coco
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    TypeAdapter,
     ValidationError,
     field_validator,
 )
+
+from scripts.cocoindex_pipeline.prompts import (
+    CLASSIFICATION_PROMPT,
+    ENTITY_MENTION_PROMPT,
+    Q_A_FORM_PROMPT,
+)
+
+
+# Production Anthropic model — mirrors lib/anthropic.ts:29 +
+# scripts/kb_pipeline/config.py:29 + cocoindex-extraction-contract TECH §3.1.
+# Centralised here so the 3 extractors below share a single source of truth;
+# flow.py re-exports the same constant for backwards-compat with existing
+# infra references (no behavioural difference).
+ANTHROPIC_MODEL = "claude-opus-4-6"
 
 
 # ---------------------------------------------------------------------------
@@ -405,3 +421,157 @@ async def normalise_entity_span(
             "source_span_end": new_end,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Path A canonical LLM extractors (S256 / Subtask 28.12 WP4)
+# ---------------------------------------------------------------------------
+#
+# The 3 `@coco.fn(memo=True)`-decorated extractors below call the anthropic
+# SDK directly + validate via Pydantic `TypeAdapter`. This is the canonical
+# 1.x extraction pattern (Path A) ratified at S256 W1 — `ExtractByLlm` /
+# `LlmSpec` / `LlmApiType` were removed in cocoindex 1.0.0 (full provenance
+# in `docs/research/cocoindex-1.0.3-extractbyllm-spec-reality-investigation.md`).
+#
+# Memoisation discipline (Inv-21):
+# - `memo=True` is mandatory — cocoindex content-hashes the `content_text`
+#   argument so re-runs of the same content skip the LLM call. Per S256 W1
+#   stub-pattern verification, `@coco.fn(memo=True)` returns a directly-
+#   awaitable `AsyncFunction` instance whose body executes ONLY on memo miss.
+#
+# Validation-failure routing (Inv-13 / Inv-22):
+# - On `ValidationError`, the extractor RAISES — cocoindex's flow-scope
+#   try/except at `app_main()` (flow.py lines ~582-598) catches the
+#   exception and emits the rollup webhook with `error_class=type(exc).__name__`.
+# - This is "Option A" from the S256 WP4 brief — defers structured-error-
+#   class routing (via `classify_pydantic_error()`) to Subtask 28.13 when the
+#   per-extraction-kind failure-write path lands.
+# - Transient anthropic.APIError exceptions propagate to cocoindex's retry
+#   machinery per §4.3 — KH does NOT catch them here.
+#
+# Prompt-template usage:
+# - The 3 prompt constants live in `scripts/cocoindex_pipeline/prompts.py`.
+# - Each extractor concatenates `f"{PROMPT}\n\n{content_text}"` per spec §3.1.
+
+# Module-level TypeAdapter instances — built once on import, reused per call.
+# Per pydantic 2.12.5 docs, TypeAdapter construction is non-trivial (compiles
+# the validation core); reuse is the canonical idiom.
+_classification_adapter: TypeAdapter[ClassificationExtraction] = TypeAdapter(
+    ClassificationExtraction
+)
+_qa_form_adapter: TypeAdapter[QAFormExtraction] = TypeAdapter(QAFormExtraction)
+_entity_mentions_adapter: TypeAdapter[list[EntityMentionExtraction]] = TypeAdapter(
+    list[EntityMentionExtraction]
+)
+
+
+# Max-tokens budget per extraction call — 4096 is the spec §3.1 default;
+# accommodates ~3000-word classification rationales + ~50 QA-pair forms +
+# ~200 entity mentions per call. Cocoindex's retry machinery handles
+# anthropic.APIError truncation cases (per §4.3); validation failures on
+# truncated JSON raise `ValidationError` → Option A failure path.
+_MAX_TOKENS = 4096
+
+
+@coco.fn(memo=True)
+async def extract_classification(content_text: str) -> ClassificationExtraction:
+    """Path A canonical classification extractor (S256 WP4).
+
+    Calls anthropic.AsyncAnthropic().messages.create() with the
+    CLASSIFICATION_PROMPT + content_text user-message, extracts the
+    response text, validates via `TypeAdapter(ClassificationExtraction)`.
+
+    Returns the validated `ClassificationExtraction` instance with the
+    LLM-provided fields populated; `_ExtractionBase` fields (op_id,
+    content_items_id, extracted_at) remain at their default `Field(...)`
+    placeholders and are stamped post-validation by
+    `stamp_extraction_base()` at flow-scope wiring time (28.13+ owns the
+    per-row flow-scope stamping; v1 substrate documented in flow.py).
+
+    Validation-failure path: `ValidationError` propagates per Option A
+    (S256 WP4 brief). Cocoindex flow-scope try/except in `app_main()`
+    catches + emits the rollup webhook.
+
+    Memoisation: `memo=True` keys on `(content_text,)` per cocoindex
+    content-hash determinism (Inv-21). Unchanged content + unchanged
+    prompt → memo hit, zero LLM call.
+    """
+    client = anthropic.AsyncAnthropic()  # picks up ANTHROPIC_API_KEY from env
+    response = await client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=_MAX_TOKENS,
+        messages=[
+            {
+                "role": "user",
+                "content": f"{CLASSIFICATION_PROMPT}\n\n{content_text}",
+            }
+        ],
+    )
+    response_text = response.content[0].text
+    return _classification_adapter.validate_json(response_text)
+
+
+@coco.fn(memo=True)
+async def extract_qa_form(content_text: str) -> QAFormExtraction:
+    """Path A canonical Q&A form extractor (S256 WP4).
+
+    Calls anthropic.AsyncAnthropic().messages.create() with the
+    Q_A_FORM_PROMPT + content_text user-message, validates via
+    `TypeAdapter(QAFormExtraction)`. Returns the typed extraction with
+    `form_metadata` + `qa_pairs[]` populated.
+
+    Per PRODUCT inv 2: if the document is NOT a form, the LLM is
+    instructed to return a valid JSON object with `qa_pairs: []` (rather
+    than synthesising Q&A pairs). The prompt enforces this.
+
+    Validation-failure + memoisation: same Option A / Inv-21 contract as
+    `extract_classification` above.
+    """
+    client = anthropic.AsyncAnthropic()
+    response = await client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=_MAX_TOKENS,
+        messages=[
+            {
+                "role": "user",
+                "content": f"{Q_A_FORM_PROMPT}\n\n{content_text}",
+            }
+        ],
+    )
+    response_text = response.content[0].text
+    return _qa_form_adapter.validate_json(response_text)
+
+
+@coco.fn(memo=True)
+async def extract_entity_mentions(
+    content_text: str,
+) -> list[EntityMentionExtraction]:
+    """Path A canonical entity-mentions extractor (S256 WP4).
+
+    Calls anthropic.AsyncAnthropic().messages.create() with the
+    ENTITY_MENTION_PROMPT + content_text user-message, validates via
+    `TypeAdapter(list[EntityMentionExtraction])`. Returns a list of typed
+    entity mentions — empty list when the document contains no entities
+    (per PRODUCT inv 3 + prompt instruction).
+
+    Per spec §3.1 + prompts.py: the LLM is instructed to return a JSON
+    array (not an object containing an array), so the TypeAdapter is
+    `list[EntityMentionExtraction]` — pydantic handles list-typed
+    extraction per docs §2 (nested-schema support).
+
+    Validation-failure + memoisation: same Option A / Inv-21 contract as
+    `extract_classification` above.
+    """
+    client = anthropic.AsyncAnthropic()
+    response = await client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=_MAX_TOKENS,
+        messages=[
+            {
+                "role": "user",
+                "content": f"{ENTITY_MENTION_PROMPT}\n\n{content_text}",
+            }
+        ],
+    )
+    response_text = response.content[0].text
+    return _entity_mentions_adapter.validate_json(response_text)

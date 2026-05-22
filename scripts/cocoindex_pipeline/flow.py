@@ -89,28 +89,24 @@ from scripts.cocoindex_pipeline.adapters import (
     convert_binary_to_markdown,  # P-3 outer-tier adapter (28.7 — LANDED)
 )
 
-# ── Stage 3 / Stage 4 / Stage 5 imports — TODO(28.12) stubs ────────────────
-# ExtractByLlm, LlmSpec, LlmApiType, LiteLLMEmbedder, and entity_resolution
-# are wired in Wave 2 (28.12). The extraction module (T1.2) must be landed
-# AND litellm + faiss packages available before these imports resolve.
+# ── Stage 3 imports — Path A canonical (S256 W1 / WP4) ─────────────────────
+# Path A: KH-authored @coco.fn(memo=True) extractors call anthropic SDK
+# directly + validate via Pydantic TypeAdapter. NO ExtractByLlm / LlmSpec /
+# LlmApiType (those symbols are ABSENT in cocoindex 1.0.3 per OQ-3 empirical
+# verification — see docs/research/cocoindex-1.0.3-extractbyllm-spec-reality-
+# investigation.md). Co-located in extraction.py to avoid circular imports +
+# keep extraction concerns in one module (architectural choice ratified in
+# Subtask 28.12 journal).
 #
-# API note: ExtractByLlm / LlmSpec / LlmApiType do NOT exist in cocoindex
-# 1.0.3 (confirmed S254) — they are expected from the extraction-contract spec
-# (T1.2). LiteLLMEmbedder lives in cocoindex.ops.litellm (requires litellm pkg).
-# entity_resolution lives in cocoindex.ops.entity_resolution (requires faiss).
-#
-# from scripts.cocoindex_pipeline.extraction import (
-#     ClassificationExtraction,
-#     EntityMentionExtraction,
-#     QAFormExtraction,
-# )
-# from scripts.cocoindex_pipeline.prompts import (
-#     CLASSIFICATION_PROMPT,
-#     ENTITY_MENTION_PROMPT,
-#     Q_A_FORM_PROMPT,
-# )
-# from cocoindex.ops.litellm import LiteLLMEmbedder
-# from cocoindex.ops.entity_resolution import entity_resolution
+# Stage 4 (embedding) + Stage 5 (entity_resolution) imports are OUT OF SCOPE
+# for WP4 — they land in 28.13+. Their commented-out stubs are preserved at
+# the Stage 4/5 placeholder blocks below.
+from scripts.cocoindex_pipeline.extraction import (
+    extract_classification,
+    extract_entity_mentions,
+    extract_qa_form,
+    stamp_extraction_base,
+)
 # ────────────────────────────────────────────────────────────────────────────
 
 _logger = logging.getLogger(__name__)
