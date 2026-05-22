@@ -378,12 +378,21 @@ describe('BacklogItemSchema — required fields enforcement', () => {
   it('rejects legacy-format ids (schema tightened to bare-digit in ID-15.4)', () => {
     // After ID-15.4 migration all backlog items use bare-digit ids (e.g. "42").
     // Legacy formats such as OPS-6, AST-S10-O1, C2-PA5 are no longer valid.
-    for (const legacyId of ['OPS-6', 'AST-S10-O1', 'C2-PA5', 'RLS-P8', 'ID-17']) {
+    for (const legacyId of [
+      'OPS-6',
+      'AST-S10-O1',
+      'C2-PA5',
+      'RLS-P8',
+      'ID-17',
+    ]) {
       const result = BacklogItemSchema.safeParse({
         ...VALID_ITEM_BASE,
         id: legacyId,
       });
-      expect(result.success, `expected legacy id "${legacyId}" to be rejected`).toBe(false);
+      expect(
+        result.success,
+        `expected legacy id "${legacyId}" to be rejected`,
+      ).toBe(false);
     }
   });
 });
@@ -665,7 +674,9 @@ describe('BacklogSchema — id-uniqueness refine (ID-67)', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const messages = result.error.issues.map((issue) => issue.message).join(' ');
+      const messages = result.error.issues
+        .map((issue) => issue.message)
+        .join(' ');
       // Both duplicate ids should appear in the error message
       expect(messages).toContain('10');
       expect(messages).toContain('20');

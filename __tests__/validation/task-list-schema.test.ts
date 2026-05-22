@@ -120,8 +120,7 @@ describe('TaskListSchema last_updated discipline', () => {
   it('rejects values exceeding 200 chars (anti-bloat cap)', () => {
     const result = TaskListSchema.safeParse({
       ...VALID_TASK_LIST,
-      last_updated:
-        'kh-prod-readiness-S64 W0a close-out — ' + 'x'.repeat(200),
+      last_updated: 'kh-prod-readiness-S64 W0a close-out — ' + 'x'.repeat(200),
     });
     expect(result.success).toBe(false);
   });

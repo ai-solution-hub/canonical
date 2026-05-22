@@ -241,9 +241,7 @@ export type RoadmapSection = z.infer<typeof RoadmapSectionSchema>;
 export const RoadmapThemeSchema = z
   .object({
     /** Bare-digit theme id (e.g. "1", "42"). Matches BARE_ID_REGEX. */
-    id: z
-      .string()
-      .regex(BARE_ID_REGEX, 'Theme id must be a bare-digit string'),
+    id: z.string().regex(BARE_ID_REGEX, 'Theme id must be a bare-digit string'),
     /** Short noun phrase title for the theme. */
     title: z.string().min(1),
     /** Markdown description of the theme's scope and intent. */

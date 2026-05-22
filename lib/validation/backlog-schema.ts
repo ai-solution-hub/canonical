@@ -65,7 +65,9 @@ export type BacklogItemType = z.infer<typeof BacklogItemType>;
 
 export const BacklogItemSchema = z.object({
   /** Item identifier — bare-digit canonical form after ID-15.4 migration (inv 37). */
-  id: z.string().regex(BARE_ID_REGEX, 'Backlog item id must be a bare digit string'),
+  id: z
+    .string()
+    .regex(BARE_ID_REGEX, 'Backlog item id must be a bare digit string'),
 
   /** One-sentence summary of the work item. */
   description: z.string().min(1),

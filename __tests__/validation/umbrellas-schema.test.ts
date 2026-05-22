@@ -39,8 +39,7 @@ import {
 const VALID_ENTRY = {
   id: 'canonical-pipeline',
   title: 'Canonical Pipeline Implementation',
-  substrate_doc:
-    'docs/specs/canonical-pipeline-implementation-plan/PLAN.md',
+  substrate_doc: 'docs/specs/canonical-pipeline-implementation-plan/PLAN.md',
   task_ids: ['30', '31'],
   status: 'in_progress' as const,
   phase: 'Phase 1',
@@ -458,8 +457,7 @@ describe('UmbrellasSchema last_updated discipline', () => {
   it('rejects values exceeding 200 chars (anti-bloat cap)', () => {
     const result = UmbrellasSchema.safeParse({
       ...VALID_ROOT,
-      last_updated:
-        'kh-prod-readiness-S66 W2 close-out — ' + 'x'.repeat(200),
+      last_updated: 'kh-prod-readiness-S66 W2 close-out — ' + 'x'.repeat(200),
     });
     expect(result.success).toBe(false);
   });

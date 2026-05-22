@@ -325,10 +325,7 @@ describe('curator skill rewrites (Shape A) — smoke contract', () => {
 
       // session_refs round-trip: provenance.session_counter at minimum,
       // plus source_task_id when present (per SKILL.md Step 3 table).
-      expect(entry.session_refs).toEqual([
-        'kh-prod-readiness-S66',
-        'ID-30.5',
-      ]);
+      expect(entry.session_refs).toEqual(['kh-prod-readiness-S66', 'ID-30.5']);
 
       // commit_refs round-trip: source_commit_sha at index 0.
       expect(entry.commit_refs).toEqual(['abc1234']);

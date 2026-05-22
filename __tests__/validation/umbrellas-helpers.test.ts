@@ -131,7 +131,9 @@ describe('formatRetrospectiveJournalBlock — opening/closing tag bounds', () =>
   it('timestamps are valid ISO 8601 with millisecond precision and Z suffix', () => {
     const out = formatRetrospectiveJournalBlock(MINIMAL_INPUT);
     const openMatch = out.match(/^<info added on (.+?)>/);
-    expect(openMatch?.[1]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(openMatch?.[1]).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    );
   });
 });
 

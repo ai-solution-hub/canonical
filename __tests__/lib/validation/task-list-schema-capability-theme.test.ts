@@ -19,7 +19,8 @@ import { TaskSchema } from '@/lib/validation/task-list-schema';
 const VALID_SUBTASK = {
   id: 1,
   title: 'Smoke subtask',
-  description: 'Smoke subtask used to satisfy TaskSchema for capability_theme cases.',
+  description:
+    'Smoke subtask used to satisfy TaskSchema for capability_theme cases.',
   details: 'Brief.',
   status: 'pending',
   dependencies: [],
