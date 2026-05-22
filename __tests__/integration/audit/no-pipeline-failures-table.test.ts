@@ -50,16 +50,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
+  isNetworkIsolationError,
 } from '../helpers/supabase-client';
 
 // Tighter live-DB gate: skip cleanly when the URL is the dummy test
 // default from `__tests__/setup.ts`. The dummy URL produces an HTTP-level
 // fetch error rather than a PGRST table-absent error, which is not a
 // meaningful Inv-19 assertion target.
-const HAS_LIVE_DB =
-  hasLiveDbCredentials() &&
-  !process.env.NEXT_PUBLIC_SUPABASE_URL!.includes('test.supabase.co');
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 describe.skipIf(!HAS_LIVE_DB)(
   'Inv-19 — pipeline_failures table does NOT exist (to_regclass guard)',
@@ -96,33 +95,21 @@ describe.skipIf(!HAS_LIVE_DB)(
       // miss code) OR the message text contains the table-absent signal.
       // We accept either form to remain resilient to PostgREST version
       // upgrades that may shift the wording.
-      const errorMsg = (error!.message ?? '').toLowerCase();
-      const errorCode = (error!.code ?? '') as string;
-
-      // Sandbox-aware skip: DNS resolution failure means the test
-      // environment cannot reach Supabase. The Inv-19 contract is the
-      // SQL-semantic check; if the network can't get there, the test
-      // can't prove anything. Skip cleanly with a documented gap rather
-      // than failing on env-isolation.
-      //
-      // Pattern observed in sandbox: error.message="TypeError: fetch
-      // failed", details mention ENOTFOUND. Detect either signal.
-      const isDnsFailure =
-        errorMsg.includes('fetch failed') ||
-        errorMsg.includes('enotfound') ||
-        errorMsg.includes('getaddrinfo');
-      if (isDnsFailure) {
-        // Sandbox / network-isolated environment. The PostgREST
-        // contract is unverifiable from here. CI environments with
-        // real network access will exercise the assertion below.
+      // Sandbox-aware skip: network-isolated environments cannot reach
+      // Supabase. The Inv-19 contract is unverifiable from here. CI
+      // environments with real network access exercise the assertion
+      // below. The static migration-history check (second test) is the
+      // v1-deterministic substrate that runs always.
+      if (isNetworkIsolationError(error)) {
         // eslint-disable-next-line no-console
         console.warn(
-          'Inv-19: skipping live PostgREST assertion — DNS / sandbox isolation detected. ' +
-            'Static migration-history check (second test) is the v1-deterministic substrate.',
+          'Inv-19: skipping live PostgREST assertion — network-isolated environment',
         );
         return;
       }
 
+      const errorMsg = (error!.message ?? '').toLowerCase();
+      const errorCode = (error!.code ?? '') as string;
       const hasNotFoundSignal =
         errorCode === 'PGRST205' ||
         errorCode === 'PGRST106' ||

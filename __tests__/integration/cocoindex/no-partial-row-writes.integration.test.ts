@@ -50,10 +50,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
+  isNetworkIsolationError,
 } from '../helpers/supabase-client';
 
-const HAS_LIVE_DB = hasLiveDbCredentials();
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED = HAS_LIVE_DB;
 
@@ -64,13 +65,19 @@ describe.skipIf(!ENABLED)(
       const client = await createLiveServiceClient();
 
       // Find recent successful cocoindex runs.
-      const { data: succeededRuns } = await client
+      const { data: succeededRuns, error: queryError } = await client
         .from('pipeline_runs')
         .select('id, op_id, status')
         .eq('pipeline_name', 'kh_canonical_pipeline')
         .eq('status', 'succeeded')
         .order('started_at', { ascending: false })
         .limit(20);
+
+      if (isNetworkIsolationError(queryError)) {
+        // eslint-disable-next-line no-console
+        console.warn('Inv-27: skipping — network-isolated environment');
+        return;
+      }
 
       if (!succeededRuns || succeededRuns.length === 0) {
         // No data to assert against.
@@ -127,13 +134,19 @@ describe.skipIf(!ENABLED)(
     it('failed runs: no derivation rows exist linked to the failed run op_id', async () => {
       const client = await createLiveServiceClient();
 
-      const { data: failedRuns } = await client
+      const { data: failedRuns, error: failedQueryError } = await client
         .from('pipeline_runs')
         .select('id, op_id')
         .eq('pipeline_name', 'kh_canonical_pipeline')
         .eq('status', 'failed')
         .order('started_at', { ascending: false })
         .limit(20);
+
+      if (isNetworkIsolationError(failedQueryError)) {
+        // eslint-disable-next-line no-console
+        console.warn('Inv-27 (failed): skipping — network-isolated env');
+        return;
+      }
 
       if (!failedRuns || failedRuns.length === 0) {
         return;

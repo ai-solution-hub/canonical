@@ -67,11 +67,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
+  isNetworkIsolationError,
 } from '../helpers/supabase-client';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED = HAS_STAGING_URL && HAS_LIVE_DB;
 
@@ -90,6 +91,12 @@ describe.skipIf(!ENABLED)(
         .eq('pipeline_name', 'kh_canonical_pipeline')
         .order('started_at', { ascending: false })
         .limit(20);
+
+      if (isNetworkIsolationError(error)) {
+        // eslint-disable-next-line no-console
+        console.warn('Inv-23: skipping — network-isolated environment');
+        return;
+      }
 
       expect(error).toBeNull();
       expect(runs).not.toBeNull();
