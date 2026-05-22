@@ -226,8 +226,8 @@ export function getExportedMethods(sf: SourceFile): string[] {
  *   - `<receiver>.json(...)` — PropertyAccessExpression callee where the
  *     property name is `json`. The original substring `request.json()` matched
  *     any receiver text equal to `request`; for AST symmetry we accept any
- *     receiver whose text ends in `request` (covers `request`, `req`, and
- *     `_request` synonyms — these are conservative widenings since the
+ *     receiver whose text contains `request` or `req` (covers `request`, `req`,
+ *     and `_request` synonyms — these are conservative widenings since the
  *     classifier already accepts those param names in production routes).
  *     In practice the receiver match is the literal `request` substring rule
  *     bound to executable code only.
