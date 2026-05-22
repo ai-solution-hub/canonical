@@ -135,36 +135,33 @@ Backlog schema: documented inline in `docs/reference/product-backlog.json` `item
 
 ## Step 3: Compose the new entry
 
-### For roadmap
+### For roadmap (Shape A — `RoadmapThemeSchema`)
 
-Match the `RoadmapItemSchema` in `lib/validation/roadmap-schema.ts`. Required fields:
+Under Shape A (per PRODUCT inv 6-9 + TECH §3.1 + §4.2), the Roadmap is a flat list of **themes** — multi-month capability areas, NOT sections of typed items. The Step 3 field set targets `RoadmapThemeSchema` (added in PR-A; see `lib/validation/roadmap-schema.ts`). The pre-Shape-A field set (`section_id`, `phase_label`, `severity`, `priority`, `status_note`, `owner`, `depends_on`, `blocks`, `coordinates_with`) is dropped wholesale — none of those fields exist under Shape A.
+
+Required fields per `RoadmapThemeSchema`:
 
 | Field | How to populate |
 |-------|-----------------|
-| `id` | Allocate next free ID under the target section (e.g. if section §9 has items 9.1–9.14, new ID is `9.15`). Inspect existing IDs first. |
-| `section_id` | Triage payload's `roadmap_target_section` (without the `§` prefix; e.g. `"9"`). |
-| `title` | One-line title from the finding. UK English. |
-| `phase_label` | null unless the section uses phase labels. |
-| `description` | Multi-sentence: what the finding is, why it matters, link to evidence if any. |
-| `effort_estimate` | From triage payload, normalised to project convention (e.g. `"1-2 sessions"`, `"~3-5h"`). |
-| `priority` | null unless the section's `table_columns` includes priority. |
-| `priority_note` | null unless residual freetext needed. |
-| `severity` | null. |
-| `status` | `"pending"` by default. |
-| `status_note` | null. |
-| `owner` | `"Engineering"` by default, unless triage payload indicates otherwise. |
-| `depends_on` | [] unless triage identifies dependencies. |
-| `blocks` | []. |
-| `coordinates_with` | []. |
-| `cross_doc_links` | If the finding cites a spec or doc, populate with `{ path, anchor, raw }`. |
-| `session_refs` | `[provenance.session_counter]` — at minimum. Add `provenance.source_task_id` if available. |
-| `commit_refs` | `[provenance.source_commit_sha]` if available, else []. |
+| `id` | Next free bare-digit id across `themes[]` (e.g. if existing theme ids are 1-10, new id is `"11"`). Schema enforces `BARE_ID_REGEX`. |
+| `title` | Short capability name from `triage_payload.roadmap_proposed_theme.title`. UK English. |
+| `description` | Multi-paragraph Markdown — why this capability matters, the outcome shape, optional bullet list of constituent work. From `triage_payload.roadmap_proposed_theme.description`. |
+| `time_horizon` | From `triage_payload.roadmap_proposed_theme.time_horizon`. Default `"later"` per PRODUCT inv 13 a + P-OQ-2. Enum: `now | next | later`. |
+| `status` | `"pending"` by default per P-OQ-1. Enum: `pending | in_progress | done`. |
+| `linked_tasks` | From `triage_payload.roadmap_proposed_theme.initial_linked_tasks[]`. Array of task ids that contribute to this theme; `[]` if none yet. |
+| `linked_backlog` | From `triage_payload.roadmap_proposed_theme.initial_linked_backlog[]`. Array of backlog item ids that contribute to this theme; `[]` if none yet. |
+| `session_refs` | `[provenance.session_counter]` at minimum. Add `provenance.source_task_id` if available. |
+| `commit_refs` | `[provenance.source_commit_sha]` if available, else `[]`. |
+| `cross_doc_links` | If the finding cites a spec, populate with `[{ path, anchor, raw }]`. Else `[]`. |
+| `notes` | Free text; default `null`. |
 
-**Provenance lives in `session_refs` + `commit_refs`** because the schema is `.strict()` and does not accept a separate `metadata.source` field. The existing convention in the file is for `last_updated` and item-level `session_refs` / `commit_refs` to carry this tracing data.
+**Provenance lives in `session_refs` + `commit_refs`** because `RoadmapThemeSchema` is `.strict()` and does not accept a separate `metadata.source` field — the existing convention is for `last_updated` and item-level `session_refs` / `commit_refs` to carry tracing data.
+
+**Soft-cap awareness (PRODUCT inv 8 + failure-modes bullet 8):** Before appending the theme, count `themes[].length`. If the new entry would push the count to 13+, surface a warning to the curator (the `parseRoadmapWithWarnings()` helper will emit a warning at write-time; consider whether two existing themes should merge first per PRODUCT inv 8 soft cap).
 
 ### For backlog
 
-Required fields per the schema implicit in `product-backlog.json`:
+Required fields per `BacklogItemSchema` (`lib/validation/backlog-schema.ts`):
 
 | Field | How to populate |
 |-------|-----------------|
@@ -180,6 +177,7 @@ Required fields per the schema implicit in `product-backlog.json`:
 | `commit_refs` | Array of commit SHAs. Populate with `[provenance.source_commit_sha]` if available, else `[]`. |
 | `cross_doc_links` | Array of DocLink objects `{ path, anchor, raw }`. Populate if the finding cites a spec or doc; else `[]`. |
 | `notes` | Free-text. Include the finding's evidence reference (`file:line`) if available. |
+| `rank` | From triage payload `backlog_slot.rank`. Default `null`. If the triage payload supplies an explicit integer, use it. If the priority tier already has items ranked (e.g. tier `high` has items ranked 1-5), the curator may choose to insert at the next free integer (e.g. `6`) or leave `null` — the auto-shift collision policy in Update mode handles re-ranking when an explicit collision occurs. Per PRODUCT inv 3, the schema does NOT enforce uniqueness or contiguity within a priority tier. |
 
 **Provenance lives in `session_refs` + `commit_refs`** for backlog items, populated at creation time from the curator's current session context.
 
@@ -213,6 +211,8 @@ bun run roadmap:render
 ```
 
 If `bun run roadmap:render` exits non-zero, the JSON has drifted from the schema — revert your edit and report the validation error to the curator. The roadmap render is the canonical guard for `product-roadmap.json` (round-trip CI guard at `__tests__/docs/roadmap-roundtrip.test.ts`).
+
+**Shape A soft-cap warning (PRODUCT inv 8):** For Roadmap Create operations, also invoke `parseRoadmapWithWarnings()` from `@/lib/validation/roadmap-schema` (added in PR-A per TECH §3.3). The helper returns `{ value, warnings }`; surface any warnings (e.g. "Roadmap has 13 themes (>12). Per PRODUCT inv 8, consider merging.") to the curator before completing the Create. The schema parse itself does not block 13+ themes — the soft cap is enforced via warning, not error.
 
 For the backlog there is **no render pipeline** today (the file is read directly). Validation is JSON well-formedness only — confirm:
 
@@ -268,7 +268,7 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
 |-------|-------------|
 | `target` | `roadmap` or `backlog` |
 | `item_id` | The ID of the existing item to edit (e.g. `"ID-11"`, `"9.15"`, `"28"`). |
-| `field_edits` | Map of `{ status?, priority?, notes? }`. Only allowed fields are mutable via this skill. |
+| `field_edits` | Map of allowed mutable fields. Backlog: `{ status?, priority?, notes?, rank? }`. Roadmap (Shape A theme): `{ status?, notes?, time_horizon? }`. Only allowed fields are mutable via this skill. |
 | `provenance.session_counter` | Session ID for the `last_updated` stamp. |
 | `provenance.source_commit_sha` | Optional, appended to `commit_refs` (roadmap) or `notes` (backlog) if supplied. |
 
@@ -277,10 +277,31 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
 1. **Resolve target → file** (same mapping table as Step 1 of Create).
 2. **Read the file** and locate the item by `id`. If the ID does not exist, abort and report `UPDATE FAILED: item_id "{id}" not found in {file}`.
 3. **Validate the proposed edits:**
-   - For `status`: must be a value in the schema enum. Roadmap status enum (per `RoadmapItemSchema`): `pending | in-progress | done | blocked` (verify the live enum at edit time — schema is `.strict()`). Backlog status enum: `spec_needed | needs_research | parked | ready | blocked` (no `done` — done items follow Delete-or-retain rules below).
-   - For `priority`: must be `high | medium | low` (or null for roadmap sections that don't carry priority).
+   - For `status`: must be a value in the schema enum. Roadmap theme status enum (per `RoadmapThemeSchema`): `pending | in_progress | done` (per P-OQ-1 default; verify the live enum at edit time — schema is `.strict()`). Backlog status enum: `spec_needed | needs_research | parked | ready | blocked` (no `done` — done items follow Delete-or-retain rules below).
+   - For `priority` (backlog only): must be a value in the shared `Priority` master enum (`must | should | could | future | high | medium | low | trigger`).
    - For `notes`: free text. **Do not overwrite existing notes** — append with a session-counter prefix (e.g. `"[s52] Status moved to in-progress because …"`).
+   - For `rank` (backlog only): integer (positive, negative, or zero — schema imposes no sign constraint) or `null`. Per PRODUCT inv 3, the schema does NOT enforce uniqueness or contiguity within a priority tier. **Collision behaviour (per P-OQ-3 default):** the curator skill auto-shifts existing items in the same priority tier — inserting at `rank: N` in tier T pushes every item in tier T with `rank ≥ N` to `rank + 1`. See "Rank auto-shift policy" below.
+   - For `time_horizon` (roadmap only): must be one of `now | next | later`.
 4. **Apply the edit** with `Edit` (one targeted `old_string` / `new_string` pair per field). Preserve surrounding fields, indentation, and trailing-comma rules (JSON, not JSON5).
+
+   **Rank auto-shift policy (Backlog `rank` Update only, per P-OQ-3 default):**
+
+   ```
+   if field_edits.rank is set AND target tier has items with rank >= new_rank:
+     for each item in tier with rank >= new_rank, increment item.rank by 1
+     apply field_edits.rank
+     emit warning: "auto-shifted N items in tier T to accommodate insert at rank=K"
+   ```
+
+   Pseudocode:
+   1. Read the backlog `items[]`. Filter to items where `item.priority == target.priority` AND `item.id != target.id` (the tier members excluding the item being edited).
+   2. Find collisions: items where `item.rank !== null && item.rank >= field_edits.rank`.
+   3. For each collision, emit a separate `Edit` operation incrementing `item.rank` by 1. Preserve insertion order so the auto-shift is deterministic.
+   4. Apply the original `field_edits.rank` to the target item.
+   5. Surface a warning in the YAML report: `auto_shifted: { tier: "{priority}", count: N, items: ["{id1}", "{id2}", ...] }`.
+
+   Items with `rank: null` in the same tier are NOT touched by auto-shift (they have no ordering signal to preserve).
+
 5. **Update `last_updated`** at the file level per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator updated {item_id}[ ({≤80-char field-summary, e.g. status flip})]"`. **Do NOT** embed multi-sentence prose or test counts — that violates the rule.
 6. **Run the same validation gate as Step 5 of Create** (`bun run roadmap:render` for roadmap; JSON well-formedness check for backlog). Revert and report on failure.
 7. **Report:**
@@ -295,6 +316,12 @@ fields_changed:
   status: "{old} → {new}" | unchanged
   priority: "{old} → {new}" | unchanged
   notes: "appended" | unchanged
+  rank: "{old} → {new}" | unchanged  # backlog only
+  time_horizon: "{old} → {new}" | unchanged  # roadmap only
+auto_shifted:  # backlog rank Update only; null if no collisions
+  tier: "{priority}"
+  count: {N}
+  items: ["{id1}", "{id2}"]
 last_updated_field: "{new last_updated value}"
 md_render: rendered | n/a
 validation: passed | failed
@@ -382,8 +409,24 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
 
 1. **Read source.** Open `docs/reference/product-backlog.json`; locate the item with `id === source_backlog_id`. Validate the item exists; if absent, error: `"Promote source not found: id={id}. Already promoted?"` (idempotency guard).
 2. **Compose destination entry.** Copy the backlog item's load-bearing fields (description, type semantics, effort_estimate, etc.) into the appropriate task-list shape:
-   - If `destination_shape = new_top_level_task`: build a new top-level Task per `TaskSchema` — assign next-available top-level Task id, populate `title`, `description`, `details`, `status` (typically `pending`; or `done` if work already shipped — see provenance.source_commit_sha), `priority`, `dependencies`, `subtasks: []`, `effort_estimate`, `owner`, `session_refs`, `commit_refs`, `cross_doc_links`, `updatedAt`.
-   - If `destination_shape = new_subtask_under_task_id`: build a Subtask record (`id` numeric, `title`, `description`, `details`, `status`, `dependencies` — sibling-only per Q-PLANNER-2, `testStrategy`).
+   - If `destination_shape = new_top_level_task`: build a new top-level Task per `TaskSchema` — assign next-available top-level Task id, populate `title`, `description`, `details`, `status` (typically `pending`; or `done` if work already shipped — see provenance.source_commit_sha), `priority`, `dependencies`, `subtasks: []`, `effort_estimate`, `owner`, `session_refs`, `commit_refs`, `cross_doc_links`, `updatedAt`. **Also set `capability_theme` per the lookup below.**
+   - If `destination_shape = new_subtask_under_task_id`: build a Subtask record (`id` numeric, `title`, `description`, `details`, `status`, `dependencies` — sibling-only per Q-PLANNER-2, `testStrategy`). Subtasks do NOT carry `capability_theme` — only Tasks do (the back-link is set on the parent Task, not the Subtask).
+
+   **`capability_theme` copy-through lookup (Tasks only, per PRODUCT inv 13 d + P-OQ-4 default):**
+
+   ```
+   1. Read docs/reference/product-roadmap.json themes[].
+   2. Find themes where source_backlog_id appears in theme.linked_backlog[].
+   3. If exactly one match: set destination Task.capability_theme = that theme.id.
+   4. If zero matches: leave capability_theme unset (null / omitted — the TaskSchema field is nullable + optional per PR-A schema).
+   5. If two or more matches: leave capability_theme unset AND emit a warning in
+      the Promote report's YAML: warning: "source_backlog_id={id} linked from
+      {N} themes ({theme.id list}); capability_theme left unset for explicit
+      curator decision".
+   ```
+
+   The lookup is best-effort — it does NOT block the Promote. A zero-match case is the normal shape for promotions that pre-date theme back-links; the curator may later set `capability_theme` via Update mode against `task-list.json` (out of this skill's scope; Update mode here covers roadmap/backlog only).
+
 3. **Append journal block to destination.** Add `<info added on YYYY-MM-DDTHH:MM:SS.000Z>` block to the destination's `details` field referencing: source backlog id, promotion session, promotion rationale, optional commit SHA. Format:
    ```
    <info added on 2026-05-21T14:15:00.000Z>
@@ -405,6 +448,10 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
    journal_block: appended
    source_deleted: true
    destination_added: true
+   capability_theme:
+     status: set | unset | warned_multi_match  # per the lookup above
+     theme_id: "{id}" | null
+     multi_match_theme_ids: ["{id1}", "{id2}"] | null  # populated only on warned_multi_match
    validation: passed | failed
    ```
 
@@ -436,6 +483,8 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
 5. **Forgetting `bun run roadmap:render` for roadmap edits.** Without rendering, the MD drifts from JSON and the round-trip CI test fails. Applies to Create, Update, and Delete on the roadmap.
 6. **Using Delete for `done` closures.** A completed roadmap item is `status: "done"` via Update mode. Delete is reserved for cancellations and reclassifications only — see Delete mode's "What Delete is NOT" section.
 7. **Overwriting `notes` on Update.** Append with a session-counter prefix to preserve audit trail.
+8. **Creating a 13th theme without first checking whether two existing themes should merge per inv 8 soft cap.** Per PRODUCT inv 8, the schema does NOT block 13+ themes — the cap is enforced via `parseRoadmapWithWarnings()` warning at write-time. When the warning fires, pause and consider whether two existing themes' capability scopes overlap enough to merge (multi-month capabilities should still be coherent at the headline level). If merging is justified, propose the merge to the curator before completing the Create. Re-evaluation cadence is quarterly per RESEARCH §4.5.
+9. **Forgetting to set `rank` on Create when the priority tier is otherwise empty.** Leaving `rank: null` is valid (PRODUCT inv 3 — schema does NOT enforce uniqueness or contiguity), but inserting the first ranked item in a previously-unranked tier without a numeric `rank` loses the within-tier ordering benefit. The curator's `sortBacklogItems()` helper (per TECH §3.3) sorts unranked items by id (bare-digit parsed as integer) as the tiebreaker — fine for the all-unranked case, but mixing ranked and unranked items in the same tier produces a less predictable ordering. Hint: when introducing the first ranked item in an empty tier, set `rank: 1` explicitly so future inserts have a stable anchor.
 
 ---
 
