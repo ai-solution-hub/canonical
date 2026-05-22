@@ -38,6 +38,7 @@ import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { PipelineErrorClassSchema } from '@/lib/pipeline/error-classes';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { parseBody } from '@/lib/validation';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 10;
@@ -150,19 +151,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const parsed = BodySchema.safeParse(rawBody);
+  const parsed = parseBody(BodySchema, rawBody);
   if (!parsed.success) {
-    logger.warn(
-      { issues: parsed.error.issues },
-      'pipeline-runs/record: payload validation failed',
-    );
-    return NextResponse.json(
-      {
-        error: 'invalid_payload',
-        details: parsed.error.flatten(),
-      },
-      { status: 400 },
-    );
+    return parsed.response;
   }
 
   const {
