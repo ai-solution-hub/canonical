@@ -338,3 +338,51 @@ export const RoadmapSchema = z
     }
   });
 export type Roadmap = z.infer<typeof RoadmapSchema>;
+
+// ──────────────────────────────────────────
+// parseRoadmapWithWarnings — PRODUCT inv 8 (12-theme soft ceiling)
+// ──────────────────────────────────────────
+
+/**
+ * A warning raised by `parseRoadmapWithWarnings` when a document exceeds the
+ * 12-theme soft ceiling defined in PRODUCT inv 8.
+ */
+export interface RoadmapWarning {
+  themeCount?: number;
+  message: string;
+}
+
+/**
+ * Parse a Roadmap and surface warnings for any document that exceeds the
+ * 12-theme soft ceiling (PRODUCT inv 8).
+ *
+ * The soft ceiling is NOT enforced as a schema rejection — `RoadmapSchema.parse()`
+ * continues to accept documents with >12 themes because the invariant is a
+ * planning signal, not a hard constraint. Consumers that want to surface the
+ * warning (e.g. a Planner agent) call this helper; consumers that don't care
+ * continue using `RoadmapSchema.parse()` directly.
+ *
+ * Throws `ZodError` on hard validation failure (same behaviour as
+ * `RoadmapSchema.parse()`). On success, returns the parsed `Roadmap` plus a
+ * `warnings` array — empty when the document is within the ceiling or when
+ * `themes` is absent (sections-only Phase-A document).
+ *
+ * One warning entry per offending document (not per excess theme). Mirrors the
+ * `parseTaskListWithWarnings` shape from task-list-schema.ts.
+ */
+export function parseRoadmapWithWarnings(input: unknown): {
+  value: Roadmap;
+  warnings: RoadmapWarning[];
+} {
+  const value = RoadmapSchema.parse(input);
+  const warnings: RoadmapWarning[] = [];
+  if (value.themes && value.themes.length > 12) {
+    warnings.push({
+      themeCount: value.themes.length,
+      message:
+        `Roadmap has ${value.themes.length} themes (>12). ` +
+        `Per PRODUCT inv 8, consider merging.`,
+    });
+  }
+  return { value, warnings };
+}
