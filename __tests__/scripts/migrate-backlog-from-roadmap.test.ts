@@ -28,6 +28,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -122,6 +123,28 @@ function primeSandbox(sb: Sandbox): void {
   fs.copyFileSync(LIVE_ROADMAP, sb.paths.roadmapPath);
   fs.copyFileSync(LIVE_TASKLIST, sb.paths.taskListPath);
   fs.copyFileSync(LIVE_FIXTURE, sb.paths.fixturePath);
+}
+
+/**
+ * Re-seed the sandbox roadmap with the pre-30.10-migration baseline (61
+ * items, including the 8 REMOVE_REDUNDANT items) sourced from
+ * `840f140a:docs/reference/product-roadmap.json`. Used exclusively by the
+ * (h) test so the migration script's roadmap-removal contract is
+ * verifiable post-30.10 (when LIVE_ROADMAP is already 53 items). Mirrors
+ * the spirit of buildPreMigrationBacklog (re-derive baseline from history).
+ *
+ * Approach B per Subtask 30.10 brief — chosen because Approach C
+ * (delta-based on live state alone) reports roadmapRemovals: 0 against
+ * a post-migration sandbox roadmap.
+ */
+function primeSandboxWithPreMigrationRoadmap(sb: Sandbox): void {
+  const PRE_MIGRATION_COMMIT = '840f140a';
+  const historicalRoadmap = execFileSync(
+    'git',
+    ['show', `${PRE_MIGRATION_COMMIT}:docs/reference/product-roadmap.json`],
+    { cwd: REPO_ROOT, encoding: 'utf-8' },
+  );
+  fs.writeFileSync(sb.paths.roadmapPath, historicalRoadmap, 'utf-8');
 }
 
 function readBacklog(p: string): {
@@ -448,11 +471,17 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
   });
 
   // ─────────────────── (h) ─────────────────────────────────────────────────
-  it('(h) roadmap item count drops from 61 to 53 (8 REMOVE_REDUNDANT items)', () => {
+  it('(h) roadmap item count drops by 8 (REMOVE_REDUNDANT items)', () => {
+    // Approach B (Subtask 30.10 Option 1 amendment) — buildPreMigrationRoadmap
+    // helper re-injects the 8 REMOVE_REDUNDANT items into the sandbox roadmap
+    // so the migration script has work to do post-30.10. The live roadmap is
+    // now post-migration (53 items); without restoring the 8 items, the
+    // script reports `roadmapRemovals: 0` and the contract is unverifiable.
+    // Approach C (delta-based on live state alone) is unworkable for this
+    // reason — chose B per Subtask 30.10 brief.
+    primeSandboxWithPreMigrationRoadmap(sb);
     const beforeRoadmap = readRoadmap(sb.paths.roadmapPath);
     const beforeCount = countRoadmapItems(beforeRoadmap);
-    // The live roadmap is the test baseline; assert it starts at 61.
-    expect(beforeCount).toBe(61);
 
     const result = runMigration({ paths: sb.paths, write: true });
     expect(result.ok).toBe(true);
@@ -461,7 +490,7 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
 
     const afterRoadmap = readRoadmap(sb.paths.roadmapPath);
     const afterCount = countRoadmapItems(afterRoadmap);
-    expect(afterCount).toBe(53);
+    expect(beforeCount - afterCount).toBe(8);
 
     // Verify all 8 ids were removed.
     const remaining = new Set<string>();
