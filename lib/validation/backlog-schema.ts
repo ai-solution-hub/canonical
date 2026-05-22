@@ -120,6 +120,15 @@ export const BacklogItemSchema = z.object({
   /** Optional prose notes, nullable. */
   notes: z.string().nullable(),
 
+  /**
+   * Within-priority deterministic ordering. Lower integer = higher rank.
+   * Default null; pre-existing items omit. Schema does NOT enforce uniqueness
+   * or contiguity within tier (PRODUCT inv 3). Curator skill maintains
+   * discipline (Subtask 30.5 + P-OQ-3 auto-shift default). Per TECH §3.1
+   * (Subtask 30.6).
+   */
+  rank: z.number().int().nullable().optional(),
+
   // ── New optional fields per PRODUCT inv 38 ──────────────────────────────
 
   /**

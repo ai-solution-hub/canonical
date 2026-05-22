@@ -316,6 +316,82 @@ describe('SubtaskSchema shape', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// TaskSchema — capability_theme field (Subtask 30.6 / TECH §3.1)
+//
+// Optional back-link to a Roadmap theme (OQ-6 ratification). Authoritative
+// direction is theme.linked_tasks[]; capability_theme is convenience back-link.
+// Absent = unaffiliated.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('TaskSchema — capability_theme field (Subtask 30.6 / TECH §3.1)', () => {
+  it('accepts capability_theme: null (default)', () => {
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.capability_theme).toBeNull();
+    }
+  });
+
+  it('accepts capability_theme as a string', () => {
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: 'roadmap-rethink',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.capability_theme).toBe('roadmap-rethink');
+    }
+  });
+
+  it('accepts capability_theme omitted entirely (optional field)', () => {
+    const result = TaskSchema.safeParse(VALID_TASK);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.capability_theme).toBeUndefined();
+    }
+  });
+
+  it('rejects capability_theme as a non-string (e.g. number)', () => {
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: 42,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('capability_theme round-trips for both null and string values', () => {
+    const withNull = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: null,
+    });
+    expect(withNull.success).toBe(true);
+    if (withNull.success) {
+      const reparsed = TaskSchema.safeParse(withNull.data);
+      expect(reparsed.success).toBe(true);
+      if (reparsed.success) {
+        expect(reparsed.data.capability_theme).toBeNull();
+      }
+    }
+
+    const withTheme = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: 'developer-velocity',
+    });
+    expect(withTheme.success).toBe(true);
+    if (withTheme.success) {
+      const reparsed = TaskSchema.safeParse(withTheme.data);
+      expect(reparsed.success).toBe(true);
+      if (reparsed.success) {
+        expect(reparsed.data.capability_theme).toBe('developer-velocity');
+      }
+    }
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Status enum membership (inv 21, 22)
 // ──────────────────────────────────────────────────────────────────────────────
 

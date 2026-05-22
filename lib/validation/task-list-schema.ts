@@ -127,6 +127,14 @@ export const TaskSchema = z
     cross_doc_links: z.array(DocLinkSchema),
     session_refs: z.array(z.string()),
     commit_refs: z.array(z.string()),
+
+    /**
+     * Optional back-link to a Roadmap theme (OQ-6 ratification). Authoritative
+     * direction is theme.linked_tasks[]; capability_theme is convenience
+     * back-link the curator skill maintains in sync. Absent = unaffiliated.
+     * Per TECH §3.1 (Subtask 30.6).
+     */
+    capability_theme: z.string().nullable().optional(),
   })
   .strict() // inv 7 (no details/testStrategy), inv 8 (no parentId)
   .superRefine((task, ctx) => {

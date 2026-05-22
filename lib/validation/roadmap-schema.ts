@@ -27,6 +27,7 @@
 
 import { z } from 'zod';
 import { Priority } from '@/lib/validation/work-status';
+import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 
 // ──────────────────────────────────────────
 // Enums
@@ -226,7 +227,65 @@ export const RoadmapSectionSchema = z
 export type RoadmapSection = z.infer<typeof RoadmapSectionSchema>;
 
 // ──────────────────────────────────────────
-// Roadmap (root)
+// Theme (Subtask 30.6 / TECH §3.1)
+//
+// Phase-B Roadmap shape — Linear-style themes grouping related Tasks under
+// time horizons (now / next / later). Authoritative back-link from Roadmap
+// theme → Task via `linked_tasks[]`; Task carries a convenience
+// `capability_theme` back-link that the curator skill maintains in sync.
+//
+// 10 fields, all required (arrays default to empty, notes nullable).
+// Strict — no unknown fields permitted.
+// ──────────────────────────────────────────
+
+export const RoadmapThemeSchema = z
+  .object({
+    /** Bare-digit theme id (e.g. "1", "42"). Matches BARE_ID_REGEX. */
+    id: z
+      .string()
+      .regex(BARE_ID_REGEX, 'Theme id must be a bare-digit string'),
+    /** Short noun phrase title for the theme. */
+    title: z.string().min(1),
+    /** Markdown description of the theme's scope and intent. */
+    description: z.string().min(1),
+    /**
+     * Linear-style time horizon — `now` (in flight), `next` (queued for
+     * next cycle), `later` (parked for future cycles).
+     */
+    time_horizon: z.enum(['now', 'next', 'later']),
+    /**
+     * Theme-level status. 3 values per P-OQ-1 default: pending | in_progress
+     * | done. Themes do not adopt the wider Task-level status vocabulary
+     * (no blocked / deferred at theme level — those belong on Tasks).
+     */
+    status: z.enum(['pending', 'in_progress', 'done']),
+    /**
+     * Authoritative back-link to Tasks under this theme. Mirrored by each
+     * Task's optional `capability_theme` convenience field.
+     */
+    linked_tasks: z.array(z.string()),
+    /** Optional back-link to Backlog items related to the theme. */
+    linked_backlog: z.array(z.string()),
+    /** Session references for structured provenance. */
+    session_refs: z.array(z.string()),
+    /** Commit SHA references for structured provenance. */
+    commit_refs: z.array(z.string()),
+    /** Cross-document links for structured provenance. */
+    cross_doc_links: z.array(DocLinkSchema),
+    /** Optional prose notes, nullable. */
+    notes: z.string().nullable(),
+  })
+  .strict();
+export type RoadmapTheme = z.infer<typeof RoadmapThemeSchema>;
+
+// ──────────────────────────────────────────
+// Roadmap (root) — union root via .superRefine() (Subtask 30.6 / TECH §3.1)
+//
+// Exactly one of sections[] OR themes[] must be present at the root. Per
+// T-OQ-4 ratification: stay with .superRefine() (not z.discriminatedUnion)
+// to avoid discriminator-field content churn during the Phase-A → Phase-B
+// migration. Both fields are optional at schema level; superRefine
+// enforces the exactly-one-of constraint.
 // ──────────────────────────────────────────
 
 export const RoadmapSchema = z
@@ -253,7 +312,29 @@ export const RoadmapSchema = z
      * one-liner of the form "kh-prod-readiness-SNN <wave> close-out".
      */
     last_updated: z.string().min(1),
-    sections: z.array(RoadmapSectionSchema),
+    /**
+     * Phase-A sections shape. OPTIONAL — back-compat with the legacy
+     * sections-based JSON. Per Subtask 30.6 union root, exactly one of
+     * sections[] OR themes[] must be present (enforced by .superRefine()).
+     */
+    sections: z.array(RoadmapSectionSchema).optional(),
+    /**
+     * Phase-B themes shape. OPTIONAL — Linear-style theme grouping. Per
+     * Subtask 30.6 union root, exactly one of sections[] OR themes[] must
+     * be present (enforced by .superRefine()).
+     */
+    themes: z.array(RoadmapThemeSchema).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((doc, ctx) => {
+    const hasSections = doc.sections !== undefined;
+    const hasThemes = doc.themes !== undefined;
+    if (hasSections === hasThemes) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sections', 'themes'],
+        message: 'Exactly one of sections or themes must be present.',
+      });
+    }
+  });
 export type Roadmap = z.infer<typeof RoadmapSchema>;
