@@ -80,11 +80,17 @@ steps:
       - |
         set -e
 
+        # Shell variables escaped with $$ per Cloud Build substitution syntax
+        # (FX-5 S256 WP0 staging-deploy fix — bare $IMAGE was being parsed as
+        # a Cloud Build substitution attempt; "IMAGE" is not a built-in sub
+        # nor an underscore-prefixed user-defined sub, so submit failed with
+        # "invalid value for 'build.substitutions'". `$$` escapes to a literal
+        # `$` at shell-execution time.)
         IMAGE="europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:${_COMMIT_SHA}"
-        echo "Inv-9 assertion: scanning $IMAGE for forbidden binaries..."
+        echo "Inv-9 assertion: scanning $$IMAGE for forbidden binaries..."
 
         # Inspect image layers for pullmd binary entries.
-        PULLMD_HITS=$(docker image inspect "$IMAGE" 2>/dev/null \
+        PULLMD_HITS=$$(docker image inspect "$$IMAGE" 2>/dev/null \
           | python3 -c "
         import sys, json
         layers = json.load(sys.stdin)
@@ -93,7 +99,7 @@ steps:
         " || echo "0")
 
         # Inspect image config/labels for Playwright browser markers.
-        PLAYWRIGHT_HITS=$(docker image inspect "$IMAGE" 2>/dev/null \
+        PLAYWRIGHT_HITS=$$(docker image inspect "$$IMAGE" 2>/dev/null \
           | python3 -c "
         import sys, json
         data = json.load(sys.stdin)
@@ -103,15 +109,15 @@ steps:
         print(len(hits))
         " || echo "0")
 
-        echo "pullmd entries found: $PULLMD_HITS"
-        echo "Playwright markers found: $PLAYWRIGHT_HITS"
+        echo "pullmd entries found: $$PULLMD_HITS"
+        echo "Playwright markers found: $$PLAYWRIGHT_HITS"
 
-        if [ "$PULLMD_HITS" -gt 0 ]; then
+        if [ "$$PULLMD_HITS" -gt 0 ]; then
           echo "ERROR: Inv-9 FAIL — pullmd binary detected in cocoindex image. AGPL boundary violated." >&2
           exit 1
         fi
 
-        if [ "$PLAYWRIGHT_HITS" -gt 0 ]; then
+        if [ "$$PLAYWRIGHT_HITS" -gt 0 ]; then
           echo "ERROR: Inv-9 FAIL — Playwright/browser dependency detected in cocoindex image." >&2
           exit 1
         fi
@@ -127,10 +133,12 @@ steps:
     args:
       - -c
       - |
+        # Shell variables escaped with $$ per Cloud Build substitution syntax
+        # (FX-5 — see assert-inv9-no-pullmd-no-playwright step for rationale).
         IMAGE="europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:${_COMMIT_SHA}"
         echo "Image-size budget check (T-OQ4): target <= 5.3 GB..."
 
-        SIZE_BYTES=$(docker image inspect "$IMAGE" 2>/dev/null \
+        SIZE_BYTES=$$(docker image inspect "$$IMAGE" 2>/dev/null \
           | python3 -c "
         import sys, json
         data = json.load(sys.stdin)
@@ -141,15 +149,15 @@ steps:
         BUDGET_BYTES=5691392819
 
         # FX-3: use awk for GB conversion — avoids shell+Python quoting collision.
-        if [ "$SIZE_BYTES" != "0" ]; then
-          SIZE_GB=$(awk "BEGIN {printf \"%.2f\", ${SIZE_BYTES}/1024/1024/1024}")
+        if [ "$$SIZE_BYTES" != "0" ]; then
+          SIZE_GB=$$(awk "BEGIN {printf \"%.2f\", $${SIZE_BYTES}/1024/1024/1024}")
         else
           SIZE_GB="unknown"
         fi
-        echo "Image size: $SIZE_BYTES bytes (${SIZE_GB} GB, budget: 5.3 GB)"
+        echo "Image size: $$SIZE_BYTES bytes ($${SIZE_GB} GB, budget: 5.3 GB)"
 
-        if [ "$SIZE_BYTES" -gt "$BUDGET_BYTES" ]; then
-          echo "WARNING: Image size $SIZE_BYTES bytes exceeds 5.3 GB budget ($BUDGET_BYTES bytes)." >&2
+        if [ "$$SIZE_BYTES" -gt "$$BUDGET_BYTES" ]; then
+          echo "WARNING: Image size $$SIZE_BYTES bytes exceeds 5.3 GB budget ($$BUDGET_BYTES bytes)." >&2
           echo "WARNING: Review Docling model pre-warm scope or switch to runtime download." >&2
           echo "WARNING: T-OQ4 ratification: log+warn at v1 — build continues." >&2
         else
