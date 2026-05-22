@@ -417,21 +417,14 @@ export function runMigration(opts: RunMigrationOpts): MigrationResult {
   const observedRemovals = new Set<string>();
   let removed = 0;
 
-  let updatedRoadmap: Roadmap = roadmap;
-  if (roadmap.sections) {
-    const newSections = roadmap.sections.map((section) => {
-      const filteredItems = section.items.filter((it) => {
-        if (removalSet.has(it.id)) {
-          observedRemovals.add(it.id);
-          removed++;
-          return false;
-        }
-        return true;
-      });
-      return { ...section, items: filteredItems };
-    });
-    updatedRoadmap = { ...roadmap, sections: newSections };
-  }
+  // 30.10-historic: sections-traversal removed per Subtask 30.13 (Option β scope expansion)
+  // after 30.11 themes[] population + 30.12 schema reshape made the path unreachable.
+  // The current themes-shape RoadmapSchema has no `sections` field, so the
+  // REMOVE_REDUNDANT removal path is a no-op on post-migration roadmaps.
+  // Re-running the migration script against a themes-shape roadmap leaves
+  // `updatedRoadmap` identical to the input (the script is now idempotent
+  // on both backlog and roadmap surfaces under the post-30.12 schema).
+  const updatedRoadmap: Roadmap = roadmap;
 
   // Verify every targeted id was actually present (idempotent re-runs of
   // PR-B against a roadmap that's already had the removals applied will

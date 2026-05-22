@@ -471,37 +471,26 @@ describe('runMigration — Subtask 30.9 testStrategy (a-h)', () => {
   });
 
   // ─────────────────── (h) ─────────────────────────────────────────────────
-  it('(h) roadmap item count drops by 8 (REMOVE_REDUNDANT items)', () => {
-    // Approach B (Subtask 30.10 Option 1 amendment) — buildPreMigrationRoadmap
-    // helper re-injects the 8 REMOVE_REDUNDANT items into the sandbox roadmap
-    // so the migration script has work to do post-30.10. The live roadmap is
-    // now post-migration (53 items); without restoring the 8 items, the
-    // script reports `roadmapRemovals: 0` and the contract is unverifiable.
-    // Approach C (delta-based on live state alone) is unworkable for this
-    // reason — chose B per Subtask 30.10 brief.
-    primeSandboxWithPreMigrationRoadmap(sb);
-    const beforeRoadmap = readRoadmap(sb.paths.roadmapPath);
-    const beforeCount = countRoadmapItems(beforeRoadmap);
-
-    const result = runMigration({ paths: sb.paths, write: true });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.roadmapRemovals).toBe(8);
-
-    const afterRoadmap = readRoadmap(sb.paths.roadmapPath);
-    const afterCount = countRoadmapItems(afterRoadmap);
-    expect(beforeCount - afterCount).toBe(8);
-
-    // Verify all 8 ids were removed.
-    const remaining = new Set<string>();
-    for (const s of afterRoadmap.sections ?? []) {
-      for (const it of s.items) remaining.add(it.id);
-    }
-    for (const id of REMOVE_REDUNDANT_ROADMAP_IDS) {
-      expect(remaining.has(id)).toBe(false);
-    }
-    // Post-write roadmap parses through RoadmapSchema (PRODUCT inv 15).
-    expect(() => RoadmapSchema.parse(afterRoadmap)).not.toThrow();
+  it.skip('(h) roadmap item count drops by 8 — 30.10-historic, archived post-Option-β scope expansion in 30.13', () => {
+    // The script + this test verified the 30.10 migration contract against
+    // the pre-migration sections-shape roadmap. Post-30.12 schema reshape
+    // (themes-only RoadmapSchema; sections[] dropped entirely) rejects
+    // sections-shape sandboxes at parse time, making this assertion path
+    // unreachable. The 30.10 migration outcome is verifiable via git
+    // history (commits ee04f7b2 + 81258b26 + c9808105) and the live count
+    // delta (54 → 108 backlog after IDs 87-140; 61 → 53 roadmap after the
+    // 8 REMOVE_REDUNDANT items). Subtask 30.13 (Option β expanded scope)
+    // dropped the sections-traversal branch from runMigration (lines
+    // 421-433 in the pre-30.13 script) so the script is now safely
+    // idempotent on the post-30.12 themes-shape RoadmapSchema.
+    //
+    // Helper references retained for posterity but unused (the test is
+    // skipped, not deleted, so the historical contract is auditable):
+    void primeSandboxWithPreMigrationRoadmap;
+    void readRoadmap;
+    void countRoadmapItems;
+    void REMOVE_REDUNDANT_ROADMAP_IDS;
+    void RoadmapSchema;
   });
 });
 
