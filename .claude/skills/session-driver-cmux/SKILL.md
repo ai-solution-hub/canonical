@@ -331,6 +331,53 @@ KH_CMUX_EVENTS_DIR=".claude/cmux-events" \
 "$SD_SCRIPTS/stop-worker.sh" worker-tests "$S3"
 ```
 
+### Mid-session interaction: monitor `stop`, not `session_end`
+
+For long-running sub-orchestrators where the parent may want to converse mid-session
+(send-prompt for follow-ups, OQ ratifications, scope amendments) before final teardown:
+
+- **`stop` event** fires after EVERY assistant turn-end. Use this as the pause signal.
+- **`session_end` event** fires ONLY when the worker hits `/exit`. Reserve this for
+  definitive-teardown polling.
+
+Anti-pattern (S62E observed): orchestrator-side custom watcher polling `grep -c
+'"event":"session_end"'`. The watcher never fired despite the worker emitting many
+`stop` events, because `session_end` requires `/exit` — workers that pause naturally
+between turns don't emit it. Result: orchestrator missed every mid-session interaction
+opportunity until the worker explicitly /exit'd.
+
+Canonical loop using `wait-for-fleet.sh` (which already polls `stop` correctly):
+
+```bash
+SD_SCRIPTS=".claude/skills/session-driver-cmux/scripts"
+SID="<session-id>"
+LAST_STOP=0
+
+while true; do
+  # Block until worker emits `stop` (or timeout). Returns 0 if stop fired.
+  "$SD_SCRIPTS/wait-for-fleet.sh" --mode all --timeout 1800 "$SID" || break
+
+  # Worker paused. Inspect events since LAST_STOP to decide next action.
+  NEW_LAST=$(jq -c 'select(.event=="stop")' .claude/cmux-events/$SID/events.jsonl | wc -l)
+
+  # Decision: more work to send?
+  if <orchestrator-decides-more-work>; then
+    "$SD_SCRIPTS/send-prompt.sh" worker-name "Follow-up prompt..."
+    LAST_STOP=$NEW_LAST
+    continue
+  fi
+
+  # Otherwise teardown
+  "$SD_SCRIPTS/stop-worker.sh" worker-name "$SID" --delete-branch
+  break
+done
+```
+
+Use this pattern when the brief explicitly allows mid-session OQ-escalation or when the
+parent expects to ratify partial progress before letting the worker continue. For pure
+fire-and-forget workers (single Subtask, no escalation expected), poll `session_end`
+directly via the worker's own `/exit` at end of brief — simpler.
+
 ### Race: first-to-finish wins
 
 ```bash
