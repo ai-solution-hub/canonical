@@ -46,6 +46,7 @@ import {
   type InferSchemaOptions,
   type InferSchemaResult,
 } from './inference-source-a';
+import { inferSchemaSourceB } from './inference-source-b';
 import {
   emitDryRunReport,
   type DryRunReportContext,
@@ -423,12 +424,32 @@ export function classifyRoute(sf: SourceFile): RouteShape {
 /**
  * Infer the `ResponseSchema` argument for a route handler.
  *
- * Currently exposes Source A (`docs/generated/type-drift-baseline.json`)
- * only. Sources B (return-type annotation, Subtask 32.9) and C (return-
- * statement walk, post-32 backlog) chain off this entry point if added —
- * the public contract stays `inferSchema(sf, method, project, options?)`
- * so downstream call sites in 32.10 / 32.11 / 32.12 do not change shape
- * when those sources land.
+ * Composes Source A (`docs/generated/type-drift-baseline.json` URL-matcher,
+ * Subtask 32.8) with Source B (existing `Promise<NextResponse<X>>` return-
+ * type annotation, Subtask 32.9). Source C (handler return-statement walk)
+ * is explicitly out of scope per PLAN.md §4 Subtask 32.9 OQ-2 / TECH §3.C.
+ *
+ * Chain order (per TECH §3 recommended ranking + Subtask 32.9 testStrategy):
+ *
+ *   1. Source B is tried first. When the handler carries an explicit
+ *      `Promise<NextResponse<X>>` return-type annotation, the developer's
+ *      stated type is authoritative — it beats Source A's heuristic URL
+ *      matcher because the annotation is unambiguous syntactic intent.
+ *      Source B returns `null` when the annotation is absent, signalling
+ *      the chain should fall through.
+ *
+ *   2. Source A runs when Source B returns `null`. Source A's URL matcher
+ *      binds the route file to its `${interfaceName}` via the fetcher
+ *      walk, then looks up `${interfaceName}Schema` / `${interfaceName}ZodSchema`
+ *      via name convention. Source A's own fall-back (no baseline match,
+ *      or no co-located Schema constant) is the final `z.unknown()` +
+ *      `NEEDS_SCHEMA` outcome.
+ *
+ * Both sources land on the same fall-back shape
+ * (`{ schema: 'z.unknown()', reason: 'NEEDS_SCHEMA' }`) so the rewrite
+ * emitters (Subtasks 32.10 / 32.11) do not need to distinguish between
+ * "Source B failed schema lookup" and "Source A failed schema lookup" —
+ * both produce the same AC-6 TODO comment behaviour.
  *
  * Per PRODUCT.md AC-5 / AC-6:
  *   - AC-5: routes whose interface IS in the baseline AND has a
@@ -443,6 +464,16 @@ export function inferSchema(
   project: Project,
   options?: InferSchemaOptions,
 ): InferSchemaResult {
+  // Source B is opportunistic — the developer's explicit annotation beats
+  // Source A's URL matcher when present. The `schemasPath` is the only
+  // option both sources share at the chain level; tests inject it via
+  // Source A's `options.schemasPath` and the same value is forwarded.
+  const sourceBResult = inferSchemaSourceB(sf, method, project, {
+    ...(options?.schemasPath ? { schemasPath: options.schemasPath } : {}),
+  });
+  if (sourceBResult !== null) {
+    return sourceBResult;
+  }
   return inferSchemaSourceA(sf, method, project, options);
 }
 
