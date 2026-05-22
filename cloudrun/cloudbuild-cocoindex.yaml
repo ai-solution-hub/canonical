@@ -51,8 +51,13 @@ steps:
       - --previous-image=europe-west2-docker.pkg.dev/$PROJECT_ID/pipeline/kh-cocoindex-pipeline:latest
       - --builder=gcr.io/buildpacks/builder:google-22
       # GOOGLE_ENTRYPOINT: cocoindex serves an HTTP interface on $PORT.
-      # scripts/cocoindex_server.py is authored by ID-28.8 (flow.py scaffolding).
-      - --env=GOOGLE_ENTRYPOINT=python3 scripts/cocoindex_server.py
+      # scripts/cocoindex_pipeline/server.py is authored by ID-28.15 — thin
+      # aiohttp wrapper that exposes GET /health (200 OK) + runs
+      # coco.start_blocking() in a background daemon thread so the cocoindex
+      # fs-watch loop runs concurrently with the HTTP server. Resolves the
+      # GOOGLE_ENTRYPOINT mismatch identified in S256 WP0 (the original brief
+      # referenced scripts/cocoindex_server.py which was never authored).
+      - --env=GOOGLE_ENTRYPOINT=python3 scripts/cocoindex_pipeline/server.py
       - --env=GOOGLE_RUNTIME=python
       - --env=GOOGLE_PYTHON_VERSION=3.13.13
       - --publish
