@@ -56,6 +56,7 @@ import {
   reasonForShape,
   type NeedsManualEntry,
 } from './emit-needs-manual';
+import { rewriteSingleMethod } from './rewrite-single-method';
 import type { NeedsManualReason, RouteShape } from './types';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -443,6 +444,26 @@ export function inferSchema(
 ): InferSchemaResult {
   return inferSchemaSourceA(sf, method, project, options);
 }
+
+// ── Handler rewrite — single-method ──────────────────────────────────────
+
+/**
+ * Single-method handler rewrite for the four MECHANISABLE single-method
+ * shapes (`AUTH_PLAIN`, `PARAM_BODY`, `BODY_VALIDATED`, `PARAM`) plus the
+ * `+WRC` sub-variant of each. Implementation lives in
+ * `rewrite-single-method.ts` (extracted from `wrap-define-route.ts` per the
+ * Subtask 32.10 brief's "exceeds 80 LOC" carve-out — total module size is
+ * ~285 LOC including helper documentation).
+ *
+ * Re-exported here so the call-site contract in the codemod (and the test
+ * suite's import path) stays `wrap-define-route.ts`-anchored — the
+ * extraction is an internal organisation decision, not a public-API change.
+ *
+ * Multi-method rewrites land via Subtask 32.11's `rewriteMultiMethod` —
+ * the per-method dispatch in 32.11 invokes this same `rewriteSingleMethod`
+ * once per exported method.
+ */
+export { rewriteSingleMethod };
 
 // ── Per-route assembly ───────────────────────────────────────────────────
 

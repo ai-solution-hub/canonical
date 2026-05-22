@@ -34,6 +34,7 @@ import { Project } from 'ts-morph';
 import {
   classifyRoute,
   inferSchema,
+  rewriteSingleMethod,
 } from '../../../scripts/codemods/wrap-define-route';
 import {
   reasonForShape,
@@ -736,5 +737,361 @@ describe('serialiseDryRunReport — markdown structure', () => {
     expect(markdown).toContain('no NEEDS-REVIEW routes detected');
     expect(markdown).toContain('no MANUAL routes detected');
     expect(markdown).toContain('no SKIPPED routes');
+  });
+});
+
+// ── Single-method rewrite (Subtask 32.10) ─────────────────────────────────
+
+/**
+ * Tests for `rewriteSingleMethod(sf, method, schema)` per TECH §2.4 + AC-7.
+ *
+ * Scope (Subtask 32.10): rewrites the four single-method MECHANISABLE shapes
+ * — AUTH_PLAIN, PARAM_BODY, BODY_VALIDATED, PARAM — plus the +WRC sub-variant
+ * for AUTH_PLAIN (the +WRC sub-variants for PARAM_BODY / BODY_VALIDATED /
+ * PARAM exist in the route-shape-inventory but have no dedicated fixture;
+ * the AUTH_PLAIN+WRC fixture exercises the outer-wrap branch and is the
+ * canonical TECH §8.1 test per AC-7).
+ *
+ * The tests load each fixture file with a synthetic in-memory ts-morph
+ * filePath (mirroring the 32.7 fixture-classification harness) so the
+ * rewrite is observable through the file's serialised text. Assertions use
+ * `toMatchInlineSnapshot()` per the testStrategy field on Subtask 32.10:
+ * the rewritten source must match the snapshot verbatim — including
+ * `Promise<params>` second-argument preservation per TECH §8.2 and the
+ * AC-7 outer-wrap order for +WRC.
+ */
+
+/**
+ * Helper: load a fixture into a virtual ts-morph `Project` under the
+ * supplied synthetic filePath and return the freshly-created `SourceFile`.
+ *
+ * Differs from the classifier harness's `loadFixture()` only in name —
+ * kept separate so the rewrite-suite assertion failures point at the
+ * rewrite helper, not the classifier helper, when a regression lands.
+ */
+function loadRewriteFixture(
+  fixtureName: string,
+  syntheticPath: string,
+): ReturnType<Project['createSourceFile']> {
+  const source = readFileSync(resolve(FIXTURE_DIR, fixtureName), 'utf8');
+  const project = new Project({ useInMemoryFileSystem: true });
+  return project.createSourceFile(syntheticPath, source);
+}
+
+describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
+  it('wraps an AUTH_PLAIN handler with defineRoute', () => {
+    // AUTH_PLAIN fixture: `export async function GET(_request: NextRequest)`.
+    // Rewrite target per TECH §2.4 + brief:
+    //   export const GET = defineRoute(ReviewStatsResponseSchema, async (...) => { ... });
+    // The schema identifier is supplied by the caller (the rewrite loop
+    // wires inference Source A's output through this argument). Tests
+    // pass a known identifier so the snapshot is deterministic.
+    const sf = loadRewriteFixture(
+      'auth-plain.ts',
+      '/repo/app/api/insights/route.ts',
+    );
+
+    rewriteSingleMethod(sf, 'GET', { schema: 'InsightsResponseSchema' });
+
+    expect(sf.getFullText()).toMatchInlineSnapshot(`
+      "/**
+       * Fixture: AUTH_PLAIN — single GET, \`getAuthorisedClient\`, no params, no body.
+       *
+       * Modelled on \`app/api/insights/route.ts\` / \`app/api/activity/route.ts\` per
+       * route-shape-inventory.md §4.1. Used by \`wrap-define-route.test.ts\` fixture
+       * harness; the file's content provides the classifier's auth-import +
+       * single-method signals.
+       *
+       * The fixture is loaded into a virtual ts-morph \`Project\` by the harness with
+       * a synthetic filePath (e.g. \`/repo/app/api/insights/route.ts\`); the path is
+       * supplied at load time so the classifier's path-based discriminators
+       * (\`/cron/\`, \`/mcp/\`, \`[id]\`) can be exercised without the fixture having to
+       * live in a contrived directory tree.
+       */
+
+      import { NextRequest, NextResponse } from 'next/server';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { defineRoute } from "@/lib/api/define-route";
+
+      export const GET = defineRoute(InsightsResponseSchema, async (_request: NextRequest) => {
+        const auth = await getAuthorisedClient(['admin', 'editor']);
+        if (!auth.success) return authFailureResponse(auth);
+        return NextResponse.json({ ok: true });
+      });
+      "
+    `);
+  });
+
+  it('preserves withRequestContext as the outer wrapper', () => {
+    // AC-7 / TECH §8.1: the +WRC sub-variant requires
+    //   export const GET = withRequestContext(defineRoute(Schema, async (req) => { ... }));
+    // — NEVER the reverse. Request-context propagation depends on
+    // withRequestContext remaining the OUTERMOST wrapper.
+    const sf = loadRewriteFixture(
+      'auth-plain-with-wrc.ts',
+      '/repo/app/api/activity/route.ts',
+    );
+
+    rewriteSingleMethod(sf, 'GET', { schema: 'ActivityFeedResponseSchema' });
+
+    const rewritten = sf.getFullText();
+    expect(rewritten).toMatchInlineSnapshot(`
+      "/**
+       * Fixture: AUTH_PLAIN+WRC — single GET wrapped in \`withRequestContext\`,
+       * \`getAuthorisedClient\`, no params, no body.
+       *
+       * Modelled on the \`withRequestContext\` sub-variant called out in
+       * route-shape-inventory.md §4.11. The classifier appends \`+WRC\` to
+       * MECHANISABLE / NEEDS-REVIEW shapes whose source contains the
+       * \`withRequestContext\` substring (TECH §2.3); preserving the outer-wrap order
+       * during rewrite is the AC-7 / TECH §8.1 concern owned by Subtask 32.10.
+       */
+
+      import { NextRequest, NextResponse } from 'next/server';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { withRequestContext } from '@/lib/logger';
+      import { defineRoute } from "@/lib/api/define-route";
+
+      export const GET = withRequestContext(defineRoute(ActivityFeedResponseSchema, async (_request: NextRequest) => {
+        const auth = await getAuthorisedClient(['admin', 'editor']);
+        if (!auth.success) return authFailureResponse(auth);
+        return NextResponse.json({ ok: true });
+      }));
+      "
+    `);
+
+    // Outer wrapper order is the load-bearing AC-7 invariant — assert it
+    // explicitly so a regression that flips the order is caught even if a
+    // snapshot author accidentally updates the inline snapshot.
+    expect(rewritten).toContain(
+      'withRequestContext(defineRoute(ActivityFeedResponseSchema',
+    );
+    expect(rewritten).not.toContain('defineRoute(withRequestContext');
+    expect(rewritten).not.toMatch(/defineRoute\([^,]+,\s*withRequestContext/);
+  });
+
+  it('preserves the Promise<params> second argument unchanged', () => {
+    // TECH §8.2: 78 of 92 parameterised routes use the Next.js 15 async
+    // `{ params }: { params: Promise<{ id: string }> }` second argument.
+    // The rewrite MUST keep the second-arg destructure verbatim — the
+    // `defineRoute()` wrapper is variadic-context-aware, so the inner
+    // arrow signature receives whatever the source declared.
+    const sf = loadRewriteFixture(
+      'param-body.ts',
+      '/repo/app/api/items/[id]/classify/route.ts',
+    );
+
+    rewriteSingleMethod(sf, 'POST', { schema: 'ClassifyItemResponseSchema' });
+
+    const rewritten = sf.getFullText();
+    expect(rewritten).toMatchInlineSnapshot(`
+      "/**
+       * Fixture: PARAM_BODY — single POST, \`getAuthorisedClient\`, \`Promise<{ id }>\`
+       * params (Next.js 15 async-params style), \`parseBody()\`.
+       *
+       * Modelled on \`app/api/items/[id]/classify/route.ts\` per
+       * route-shape-inventory.md §4.2. The \`Promise<{ id: string }>\` second-argument
+       * shape is the 78-of-92 majority pattern per TECH §8.2 and must be preserved
+       * verbatim by Subtask 32.10's rewrite logic.
+       */
+
+      import { NextRequest, NextResponse } from 'next/server';
+      import { z } from 'zod';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { parseBody } from '@/lib/validation';
+      import { defineRoute } from "@/lib/api/define-route";
+
+      const BodySchema = z.object({ note: z.string() });
+
+      export const POST = defineRoute(ClassifyItemResponseSchema, async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+        const auth = await getAuthorisedClient(['admin', 'editor']);
+        if (!auth.success) return authFailureResponse(auth);
+        const { id } = await params;
+        const raw = await request.json();
+        const body = parseBody(BodySchema, raw);
+        if (!body.success) return body.response;
+        return NextResponse.json({ id, note: body.data.note });
+      });
+      "
+    `);
+
+    // The Promise<params> second arg is the AC-bearing invariant — assert
+    // it explicitly so an unrelated snapshot update cannot mask a
+    // regression in the arg-list preservation.
+    expect(rewritten).toContain(
+      '{ params }: { params: Promise<{ id: string }> }',
+    );
+  });
+
+  it('wraps a BODY_VALIDATED handler with defineRoute', () => {
+    // BODY_VALIDATED fixture: `export async function POST(request: NextRequest)`
+    // with `request.json()` + `parseBody()` inside. No second argument.
+    // The single-arg signature must round-trip verbatim.
+    const sf = loadRewriteFixture(
+      'body-validated.ts',
+      '/repo/app/api/search/route.ts',
+    );
+
+    rewriteSingleMethod(sf, 'POST', { schema: 'SearchResponseSchema' });
+
+    expect(sf.getFullText()).toMatchInlineSnapshot(`
+      "/**
+       * Fixture: BODY_VALIDATED — single POST, \`getAuthorisedClient\`, no params,
+       * \`request.json()\` + \`parseBody()\`.
+       *
+       * Modelled on \`app/api/search/route.ts\` / \`app/api/embed/route.ts\` per
+       * route-shape-inventory.md §4.3. The classifier detects the body signal via
+       * the \`request.json()\` and \`parseBody(\` substrings in the file's full text
+       * (TECH §2.3); both are present here so the discriminator fires regardless of
+       * which substring the implementation checks first.
+       */
+
+      import { NextRequest, NextResponse } from 'next/server';
+      import { z } from 'zod';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { parseBody } from '@/lib/validation';
+      import { defineRoute } from "@/lib/api/define-route";
+
+      const SearchBodySchema = z.object({ query: z.string() });
+
+      export const POST = defineRoute(SearchResponseSchema, async (request: NextRequest) => {
+        const auth = await getAuthorisedClient(['admin', 'editor']);
+        if (!auth.success) return authFailureResponse(auth);
+        // Read the raw payload first so the \`request.json()\` substring is present,
+        // then re-parse via the validation helper. Mirrors a small number of
+        // production routes that inspect the raw body before delegating to Zod.
+        const raw = await request.json();
+        const body = parseBody(SearchBodySchema, raw);
+        if (!body.success) return body.response;
+        return NextResponse.json({ query: body.data.query, hits: [] });
+      });
+      "
+    `);
+  });
+
+  it('wraps a PARAM handler with defineRoute', () => {
+    // PARAM fixture: single GET with `Promise<{ canonical_name }>` second
+    // arg, no body. Exercises the same Promise<params> preservation as
+    // PARAM_BODY but with a different params shape and a GET method.
+    const sf = loadRewriteFixture(
+      'param-only.ts',
+      '/repo/app/api/entities/[canonical_name]/route.ts',
+    );
+
+    rewriteSingleMethod(sf, 'GET', { schema: 'EntityResponseSchema' });
+
+    const rewritten = sf.getFullText();
+    expect(rewritten).toMatchInlineSnapshot(`
+      "/**
+       * Fixture: PARAM — single GET, \`getAuthorisedClient\`, \`Promise<{ canonical_name }>\`
+       * params (Next.js 15 async-params style), no body.
+       *
+       * Modelled on \`app/api/entities/[canonical_name]/route.ts\` per
+       * route-shape-inventory.md §4.4. The classifier disambiguates PARAM from
+       * PARAM_BODY via the absence of the JSON-payload and Zod-parse substrings
+       * inside the file's full text; the second-argument context destructure does
+       * NOT introduce those substrings. (The discriminator substrings are
+       * intentionally NOT named in this comment so the classifier's substring
+       * sweep over \`getFullText()\` does not match them.)
+       */
+
+      import { NextRequest, NextResponse } from 'next/server';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { defineRoute } from "@/lib/api/define-route";
+
+      export const GET = defineRoute(EntityResponseSchema, async (_request: NextRequest, { params }: { params: Promise<{ canonical_name: string }> }) => {
+        const auth = await getAuthorisedClient(['admin', 'editor']);
+        if (!auth.success) return authFailureResponse(auth);
+        const { canonical_name } = await params;
+        return NextResponse.json({ canonical_name, type: 'organisation' });
+      });
+      "
+    `);
+
+    expect(rewritten).toContain(
+      '{ params }: { params: Promise<{ canonical_name: string }> }',
+    );
+  });
+
+  it('adds the defineRoute import only when missing (idempotent)', () => {
+    // TECH §2.4 Step A: the codemod must check for an existing
+    // `defineRoute` import before adding one. Running the rewrite twice
+    // (across two distinct methods on a multi-method file is the 32.11
+    // call site, but the single-method 32.10 must still guard the import
+    // insertion idempotently for the case where the route is re-applied).
+    const sf = loadRewriteFixture(
+      'auth-plain.ts',
+      '/repo/app/api/insights/route.ts',
+    );
+
+    rewriteSingleMethod(sf, 'GET', { schema: 'InsightsResponseSchema' });
+    const afterFirst = sf.getFullText();
+
+    // Snapshot of imports after the first call — single defineRoute import.
+    const importLinesAfterFirst = afterFirst
+      .split('\n')
+      .filter((line) => line.startsWith('import '));
+    expect(
+      importLinesAfterFirst.filter((line) =>
+        line.includes('@/lib/api/define-route'),
+      ),
+    ).toHaveLength(1);
+
+    // Running the rewrite again on the SAME GET is the 32.13 idempotency
+    // concern — out of scope here — but the import-guard contract must
+    // still hold. Invoke the helper directly with a fresh in-memory copy
+    // that already has the import declared, simulating a partial-rerun.
+    const project = new Project({ useInMemoryFileSystem: true });
+    const sourceWithImport = `
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+
+export async function GET(_request: NextRequest) {
+  const auth = await getAuthorisedClient(['admin', 'editor']);
+  if (!auth.success) return authFailureResponse(auth);
+  return NextResponse.json({ ok: true });
+}
+`;
+    const sf2 = project.createSourceFile(
+      '/repo/app/api/insights/route.ts',
+      sourceWithImport,
+    );
+    rewriteSingleMethod(sf2, 'GET', { schema: 'InsightsResponseSchema' });
+
+    const importLinesAfterSecond = sf2
+      .getFullText()
+      .split('\n')
+      .filter((line) => line.startsWith('import '));
+    expect(
+      importLinesAfterSecond.filter((line) =>
+        line.includes('@/lib/api/define-route'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('places a TODO comment when the inferred schema is z.unknown()', () => {
+    // AC-6 + PRODUCT §6.3: routes whose inference falls back to z.unknown()
+    // must carry a `// TODO(OPS-T1): author ResponseSchema` comment on the
+    // preceding line so the developer reviewing the diff sees the placeholder
+    // immediately. The rewrite still proceeds — the rewritten file is
+    // syntactically valid; the TODO marks the slot to fill before merge.
+    const sf = loadRewriteFixture(
+      'auth-plain.ts',
+      '/repo/app/api/insights/route.ts',
+    );
+
+    rewriteSingleMethod(sf, 'GET', {
+      schema: 'z.unknown()',
+      reason: 'NEEDS_SCHEMA',
+    });
+
+    const rewritten = sf.getFullText();
+    // The TODO comment lands on the line immediately preceding the
+    // `export const GET = defineRoute(...)` statement.
+    expect(rewritten).toContain('// TODO(OPS-T1): author ResponseSchema');
+    expect(rewritten).toMatch(
+      /\/\/ TODO\(OPS-T1\): author ResponseSchema\s*\n\s*export const GET = defineRoute\(z\.unknown\(\)/,
+    );
   });
 });
