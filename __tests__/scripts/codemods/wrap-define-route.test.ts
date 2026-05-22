@@ -47,6 +47,7 @@ import {
   type RouteReportEntry,
 } from '../../../scripts/codemods/emit-dry-run';
 import type { BaselineEntry } from '../../../scripts/codemods/inference-source-a';
+import { inferSchemaSourceB } from '../../../scripts/codemods/inference-source-b';
 import type {
   NeedsManualReason,
   RouteShape,
@@ -530,6 +531,113 @@ export const UnrelatedSchema = z.object({ foo: z.string() });
     });
 
     const result = inferSchema(routeSf, 'GET', project, { baseline });
+    expect(result).toEqual({ schema: 'z.unknown()', reason: 'NEEDS_SCHEMA' });
+  });
+});
+
+// ── ResponseSchema inference — Source B (Subtask 32.9) ────────────────────
+
+/**
+ * Source B inference reads an existing `Promise<NextResponse<X>>` return-type
+ * annotation on the handler function declaration per TECH §3.B. When the
+ * annotation is present, `X` is extracted and resolved via the SAME name-
+ * convention lookup as Source A (`${interfaceName}Schema` /
+ * `${interfaceName}ZodSchema` in `lib/validation/schemas.ts`).
+ *
+ * Chain semantics (TECH §3 recommended ranking + brief): Source B is
+ * authoritative when the annotation is explicit — the developer's stated
+ * return type beats the heuristic URL-matcher of Source A. When the
+ * annotation is ABSENT, the Source B helper returns null at the unit
+ * boundary; `inferSchema()` then falls through to Source A.
+ */
+
+describe('wrap-define-route inferSchema — Source B (return-type annotation)', () => {
+  it('extracts ResponseSchema from existing Promise<NextResponse<X>> annotation when present', () => {
+    // Happy path: the `with-return-type-annotation.ts` fixture declares
+    //   export async function GET(...): Promise<NextResponse<ReviewQueueResponse>> { ... }
+    // Source B reads the return-type node, extracts `ReviewQueueResponse`,
+    // then looks up `ReviewQueueResponseSchema` in the schemas registry via
+    // the same name-convention lookup as Source A. The fetcher source is
+    // deliberately empty so Source A's URL matcher cannot bind — proving
+    // Source B alone produces the result via the chain in inferSchema.
+    const baseline: BaselineEntry[] = [];
+    const fetcherSource = `
+declare function fetchJson<T>(url: string): Promise<T>;
+`;
+    const schemasSource = `
+import { z } from 'zod';
+
+export const ReviewQueueResponseSchema = z.object({
+  items: z.array(z.object({ id: z.string(), title: z.string() })),
+  total: z.number(),
+});
+`;
+
+    const { project, routeSf } = buildInferenceProject({
+      routeFixture: 'with-return-type-annotation.ts',
+      routePath: '/repo/app/api/review/queue/route.ts',
+      fetcherSource,
+      schemasSource,
+    });
+
+    const result = inferSchema(routeSf, 'GET', project, { baseline });
+    expect(result).toEqual({ schema: 'ReviewQueueResponseSchema' });
+  });
+
+  it('Source B returns null when no return-type annotation is present so Source A is used', () => {
+    // Negative path at the unit boundary: the `with-schema-in-baseline.ts`
+    // fixture's GET handler has NO return-type annotation, so
+    // `inferSchemaSourceB` MUST return null. The end-to-end chain
+    // (`inferSchema` in `wrap-define-route.ts`) then falls through to
+    // Source A — verified separately by the Source A happy-path test
+    // ("inserts real schema when baseline interface has a co-located
+    // Schema constant"). This test pins the unit-level null contract so a
+    // regression that confuses the Source B helper with a false-positive
+    // is caught at the inference-source-b.ts boundary, not via Source A's
+    // observable output.
+    const project = new Project({ useInMemoryFileSystem: true });
+    const routeText = readFileSync(
+      resolve(FIXTURE_DIR, 'with-schema-in-baseline.ts'),
+      'utf8',
+    );
+    const routeSf = project.createSourceFile(
+      '/repo/app/api/review/stats/route.ts',
+      routeText,
+    );
+    project.createSourceFile(
+      '/repo/lib/validation/schemas.ts',
+      'import { z } from "zod"; export const ReviewStatsResponseSchema = z.object({});',
+    );
+
+    const result = inferSchemaSourceB(routeSf, 'GET', project);
+    expect(result).toBeNull();
+  });
+
+  it('Source B falls back to z.unknown() + NEEDS_SCHEMA when annotation references an interface with no co-located Schema constant', () => {
+    // The annotation IS present but the schemas registry has no
+    // `${interfaceName}Schema` export. Per TECH §3.B's `zodSchemaFor` /
+    // name-convention lookup, the result is the same fall-back as Source A:
+    // `z.unknown()` + NEEDS_SCHEMA reason so the developer reviewing the
+    // dry-run sees the placeholder and the codemod-needs-manual.json
+    // artefact carries the route. Demonstrates Source B is symmetrical with
+    // Source A's fall-back contract — the chain caller does not need to
+    // disambiguate between the two sources for the fall-back path.
+    const project = new Project({ useInMemoryFileSystem: true });
+    const routeText = readFileSync(
+      resolve(FIXTURE_DIR, 'with-return-type-annotation.ts'),
+      'utf8',
+    );
+    const routeSf = project.createSourceFile(
+      '/repo/app/api/review/queue/route.ts',
+      routeText,
+    );
+    project.createSourceFile(
+      '/repo/lib/validation/schemas.ts',
+      // Schemas registry deliberately omits ReviewQueueResponseSchema.
+      'import { z } from "zod"; export const UnrelatedSchema = z.object({ foo: z.string() });',
+    );
+
+    const result = inferSchemaSourceB(routeSf, 'GET', project);
     expect(result).toEqual({ schema: 'z.unknown()', reason: 'NEEDS_SCHEMA' });
   });
 });
