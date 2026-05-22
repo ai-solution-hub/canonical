@@ -370,3 +370,120 @@ class TestStampWithFlowMeta:
         # Surface useful operator guidance — name FLOW_META_CTX so the
         # error message tells operators exactly which binding to apply.
         assert "FLOW_META_CTX" in str(exc_info.value)
+
+
+# ============================================================================
+# Retry-counter binding — ID-28.17 substrate
+# ============================================================================
+#
+# Per ID-28.17: the Anthropic 503-retry wrapper in extraction.py needs to call
+# `_FlowRetryCounter.increment()` on each retry attempt. The counter instance
+# is constructed per-flow at `app_main()` (flow.py); the wrapper reads it via
+# a sibling helper added here so extraction.py does NOT need to import the
+# private `_FlowRetryCounter` from flow.py (which would create a cycle and
+# also cross 28.13's file-ownership boundary).
+#
+# Design intent: the counter binding is a SEPARATE context-var from the
+# `FLOW_META_CTX` (which carries op_id + content_items_id only). Keeping them
+# separate preserves the immutability of the `FlowRunMeta` dataclass and
+# avoids coupling flow_context.py to flow.py's _FlowRetryCounter class.
+
+
+class TestBindRetryCounter:
+    """`bind_retry_counter()` exposes a counter to the wrapped block."""
+
+    def test_module_exposes_bind_retry_counter(self) -> None:
+        from cocoindex_pipeline import flow_context
+
+        assert hasattr(flow_context, "bind_retry_counter")
+        assert hasattr(flow_context, "current_retry_counter")
+
+    def test_unbound_default_is_none(self) -> None:
+        """Outside any `bind_retry_counter()` block, `current_retry_counter()`
+        returns None — the wrapper must gracefully skip `.increment()` when
+        no production caller has bound a counter (e.g. extractor unit tests
+        that exercise the SDK path without flow-scope wiring)."""
+        from cocoindex_pipeline.flow_context import current_retry_counter
+
+        assert current_retry_counter() is None
+
+    def test_binding_exposes_counter_to_wrapped_block(self) -> None:
+        """Inside the `async with bind_retry_counter(c)` block,
+        `current_retry_counter()` returns the same counter instance."""
+        from cocoindex_pipeline.flow_context import (
+            bind_retry_counter,
+            current_retry_counter,
+        )
+
+        class _DummyCounter:
+            def __init__(self) -> None:
+                self._n = 0
+
+            def increment(self) -> None:
+                self._n += 1
+
+            def get(self) -> int:
+                return self._n
+
+        counter = _DummyCounter()
+
+        async def _exercise() -> object | None:
+            async with bind_retry_counter(counter):
+                return current_retry_counter()
+
+        result = asyncio.run(_exercise())
+        assert result is counter
+
+    def test_binding_restored_on_exit(self) -> None:
+        """The async-context-manager restores the prior binding on exit."""
+        from cocoindex_pipeline.flow_context import (
+            bind_retry_counter,
+            current_retry_counter,
+        )
+
+        class _DummyCounter:
+            def increment(self) -> None: ...
+            def get(self) -> int: return 0
+
+        counter = _DummyCounter()
+
+        async def _exercise() -> tuple[object | None, object | None]:
+            async with bind_retry_counter(counter):
+                inside = current_retry_counter()
+            outside = current_retry_counter()
+            return (inside, outside)
+
+        inside, outside = asyncio.run(_exercise())
+        assert inside is counter
+        assert outside is None
+
+    def test_concurrent_tasks_see_independent_counters(self) -> None:
+        """Per-asyncio-task isolation: concurrent flows must see independent
+        retry counters even though they share the same module-level
+        ContextVar storage."""
+        from cocoindex_pipeline.flow_context import (
+            bind_retry_counter,
+            current_retry_counter,
+        )
+
+        class _DummyCounter:
+            def __init__(self, label: str) -> None:
+                self.label = label
+
+            def increment(self) -> None: ...
+            def get(self) -> int: return 0
+
+        ca = _DummyCounter("A")
+        cb = _DummyCounter("B")
+
+        async def _task(counter: _DummyCounter) -> str | None:
+            async with bind_retry_counter(counter):
+                await asyncio.sleep(0.001)
+                bound = current_retry_counter()
+                return bound.label if bound is not None else None  # type: ignore[attr-defined]
+
+        async def _exercise() -> list[str | None]:
+            return await asyncio.gather(_task(ca), _task(cb))
+
+        results = asyncio.run(_exercise())
+        assert results == ["A", "B"]

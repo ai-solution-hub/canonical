@@ -49,7 +49,7 @@ from __future__ import annotations
 import contextvars
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import AsyncIterator
+from typing import AsyncIterator, Protocol
 from uuid import UUID
 
 import cocoindex as coco
@@ -188,3 +188,105 @@ def current_flow_meta() -> FlowRunMeta | None:
     plumb it through `.transform()` chains.
     """
     return _flow_meta_var.get()
+
+
+# ---------------------------------------------------------------------------
+# Retry-counter binding — ID-28.17 substrate
+# ---------------------------------------------------------------------------
+#
+# The Anthropic 503-retry wrapper in `extraction.py` needs to call
+# `_FlowRetryCounter.increment()` on each retry attempt. The counter
+# instance is constructed per-flow at `app_main()` in `flow.py` (line ~876,
+# inside the ID-28.13 fix-pack substrate). The wrapper accesses the
+# counter via this sibling helper so that:
+#
+#   1. `extraction.py` does NOT import `_FlowRetryCounter` directly from
+#      `flow.py` — that import would create a cycle (`flow.py` already
+#      imports from `flow_context.py`).
+#   2. The retry counter is propagated SEPARATELY from `FlowRunMeta`,
+#      preserving the immutability of the `FlowRunMeta` frozen dataclass
+#      (extending it with a mutable counter field would break that
+#      contract).
+#   3. The wrapper degrades gracefully when no counter is bound
+#      (e.g. unit tests for the extractors that exercise the SDK call
+#      path without booting `app_main()`). `current_retry_counter()`
+#      returns `None` in that case; the wrapper skips `.increment()`.
+#
+# Storage uses a dedicated `contextvars.ContextVar` (per-asyncio-task
+# scoping) — same primitive as `_flow_meta_var` above. The variable holds
+# a `RetryCounterProtocol` (structural type) so any object exposing
+# `.increment()` / `.get()` is accepted — this keeps the binding API
+# decoupled from the private `_FlowRetryCounter` class identity.
+
+
+class RetryCounterProtocol(Protocol):
+    """Structural type for any per-flow retry counter the wrapper can bump.
+
+    `_FlowRetryCounter` in `flow.py` is the production implementation; the
+    Protocol here lets `extraction.py`'s wrapper consume the counter
+    without importing the private class (avoids the cycle described in
+    the module-level comment above). Unit tests can supply lightweight
+    stand-ins implementing the same surface.
+    """
+
+    def increment(self) -> None:
+        """Bump the retry count by one."""
+        ...
+
+    def get(self) -> int:
+        """Return the current retry count without mutating it."""
+        ...
+
+
+# Module-private storage — separate from `_flow_meta_var` (see rationale
+# above). Default `None` means no counter is bound; the wrapper treats
+# that as "no production caller; skip `.increment()`".
+_retry_counter_var: contextvars.ContextVar[RetryCounterProtocol | None] = (
+    contextvars.ContextVar("_kh_flow_retry_counter_var", default=None)
+)
+
+
+@asynccontextmanager
+async def bind_retry_counter(
+    counter: RetryCounterProtocol,
+) -> AsyncIterator[RetryCounterProtocol]:
+    """Bind a retry counter for the duration of the wrapped async block.
+
+    On exit (normal or exceptional), the prior binding is restored via
+    contextvar token reset — safe against nested calls + exception paths.
+
+    Usage from `app_main()` (production wiring; lands in a follow-up
+    Subtask per the ID-28.17 brief file-ownership boundary):
+
+        async with bind_retry_counter(flow_retry_counter):
+            # All `client.messages.create()` calls inside this block,
+            # when wrapped by the extraction.py retry decorator, will
+            # bump `flow_retry_counter` on each retry attempt.
+            ...
+
+    Args:
+      counter: Any object exposing `.increment()` / `.get()` (see
+               RetryCounterProtocol). In production this is the
+               `_FlowRetryCounter` instance from `flow.py`.
+
+    Yields:
+      The bound counter so callers may inspect it inside the block.
+    """
+    token = _retry_counter_var.set(counter)
+    try:
+        yield counter
+    finally:
+        _retry_counter_var.reset(token)
+
+
+def current_retry_counter() -> RetryCounterProtocol | None:
+    """Return the currently-bound retry counter, or None if no binding.
+
+    The retry wrapper in `extraction.py` calls this from inside the
+    tenacity `before_sleep` callback to bump the counter on each retry
+    attempt. When no counter is bound (e.g. unit tests that exercise
+    the SDK call path without flow-scope wiring), the wrapper skips
+    `.increment()` — the retry still happens; only the observability
+    bump is omitted.
+    """
+    return _retry_counter_var.get()

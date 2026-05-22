@@ -53,6 +53,29 @@ from scripts.cocoindex_pipeline.prompts import (
     Q_A_FORM_PROMPT,
 )
 
+# NOTE: `current_retry_counter` from `flow_context` is intentionally NOT
+# imported at module top-level. The same dual-import-path hazard documented
+# in `stamp_extraction_base()` (lines ~398-419) applies here: when tests
+# bind the counter via `cocoindex_pipeline.flow_context` (sys.path[0]
+# injection) but `extraction.py` was imported via
+# `scripts.cocoindex_pipeline.extraction`, the top-level
+# `from scripts.cocoindex_pipeline.flow_context import current_retry_counter`
+# binds to a DIFFERENT `_retry_counter_var` ContextVar instance than the
+# test's `bind_retry_counter()` writes to — and bumps silently miss.
+#
+# We resolve the module lazily inside `_bump_flow_retry_counter` via
+# `importlib.import_module(f"{__package__}.flow_context")` — the same
+# pattern the stamping path uses to keep ContextVar identity consistent
+# across both import paths.
+
+from tenacity import (
+    AsyncRetrying,
+    RetryCallState,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 
 # Production Anthropic model — mirrors lib/anthropic.ts:29 +
 # scripts/kb_pipeline/config.py:29 + cocoindex-extraction-contract TECH §3.1.
@@ -500,8 +523,20 @@ async def normalise_entity_span(
 # - This is "Option A" from the S256 WP4 brief — defers structured-error-
 #   class routing (via `classify_pydantic_error()`) to Subtask 28.13 when the
 #   per-extraction-kind failure-write path lands.
-# - Transient anthropic.APIError exceptions propagate to cocoindex's retry
-#   machinery per §4.3 — KH does NOT catch them here.
+#
+# Transient-failure retry (Inv-23 / P-OQ2 — ID-28.17):
+# - Each `client.messages.create()` call is wrapped by `_anthropic_retry`
+#   (tenacity-based). Empirically verified at S257 W2a + ID-28.13 fix-pack:
+#   cocoindex 1.0.3 has NO retry primitives around `@coco.fn` extractors
+#   — KH owns the retry surface for the Anthropic call path.
+# - 3 retries with exponential backoff (1 s base, 2x exponent, 30 s cap).
+# - Retry-on classes: `InternalServerError`, `RateLimitError`,
+#   `APIConnectionError`. Auth / bad-request / permission errors propagate
+#   immediately (deterministic operator errors).
+# - On each retry attempt, `_FlowRetryCounter.increment()` is called via
+#   `current_retry_counter()` (from `flow_context.py`). When no counter is
+#   bound (e.g. unit tests, flow-scope production wiring still pending),
+#   the wrapper gracefully skips the bump — the retry still happens.
 #
 # Prompt-template usage:
 # - The 3 prompt constants live in `scripts/cocoindex_pipeline/prompts.py`.
@@ -521,10 +556,114 @@ _entity_mentions_adapter: TypeAdapter[list[EntityMentionExtraction]] = TypeAdapt
 
 # Max-tokens budget per extraction call — 4096 is the spec §3.1 default;
 # accommodates ~3000-word classification rationales + ~50 QA-pair forms +
-# ~200 entity mentions per call. Cocoindex's retry machinery handles
-# anthropic.APIError truncation cases (per §4.3); validation failures on
-# truncated JSON raise `ValidationError` → Option A failure path.
+# ~200 entity mentions per call. Transient anthropic.APIError cases (503,
+# rate-limit, connection) are handled by `_anthropic_retry` (below);
+# validation failures on truncated JSON raise `ValidationError` → Option A
+# failure path.
 _MAX_TOKENS = 4096
+
+
+# ---------------------------------------------------------------------------
+# Anthropic 503-retry wrapper (ID-28.17 / PRODUCT Inv-23 / P-OQ2)
+# ---------------------------------------------------------------------------
+#
+# Per-attempt backoff bounds — exposed as module-level constants so unit
+# tests can monkeypatch them to zero (avoids the 1-2-4 s ladder in CI).
+# Production defaults match P-OQ2: 1 s minimum, 30 s maximum, 2x exponent
+# (standard tenacity `wait_exponential` semantic).
+_ANTHROPIC_RETRY_WAIT_SECONDS_MIN: float = 1.0
+_ANTHROPIC_RETRY_WAIT_SECONDS_MAX: float = 30.0
+
+# Total attempt cap — 4 means 1 initial attempt + 3 retries (the brief's
+# "3 retries on transient failures").
+_ANTHROPIC_RETRY_TOTAL_ATTEMPTS: int = 4
+
+# Retry-on exception classes — per ID-28.17 brief:
+#   - Transient infrastructure failures: retry.
+#   - Deterministic operator errors (auth, bad-request, permission): NO
+#     retry — propagate immediately.
+_RETRYABLE_ANTHROPIC_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    anthropic.InternalServerError,
+    anthropic.RateLimitError,
+    anthropic.APIConnectionError,
+)
+
+
+def _bump_flow_retry_counter(retry_state: RetryCallState) -> None:
+    """Tenacity `before_sleep` hook — fires once per retry attempt
+    (between the failed attempt and the next sleep), giving us the
+    canonical "a retry will be attempted" signal to bump the counter.
+
+    Reads the current flow-bound retry counter via
+    `current_retry_counter()`. When no counter is bound (no flow-scope
+    wiring active — e.g. unit tests, or production flows where the
+    flow.py `app_main()` has not yet been updated to bind one), the
+    bump is silently skipped: the retry still happens (correctness is
+    not affected), only observability is omitted.
+
+    Tenacity 9.1.4 invokes `before_sleep` callbacks with the
+    `RetryCallState`; we ignore the state argument because the counter
+    bump is a simple side-effect — the callback signature is fixed by
+    the tenacity API.
+    """
+    del retry_state  # unused — callback signature requires the argument
+    # Lazy import to dodge the dual-import-path hazard documented at the
+    # top-level NOTE block (and mirrored in `stamp_extraction_base()`).
+    # `__package__` resolves to whichever path the caller imported under,
+    # so the `_retry_counter_var` ContextVar identity matches the one the
+    # caller's `bind_retry_counter()` actually wrote to.
+    from importlib import import_module
+
+    flow_context_module = import_module(f"{__package__}.flow_context")
+    counter = flow_context_module.current_retry_counter()
+    if counter is not None:
+        counter.increment()
+
+
+async def _anthropic_retry(call, /):
+    """Async retry helper for an `anthropic.AsyncAnthropic.messages.create`
+    awaitable. Constructs a fresh `AsyncRetrying` iterator per call so
+    each invocation independently observes the module-level constants
+    (lets unit tests monkeypatch `_ANTHROPIC_RETRY_WAIT_SECONDS_*` to
+    zero without leaking state between tests).
+
+    Usage from an extractor:
+
+        response = await _anthropic_retry(
+            lambda: client.messages.create(model=..., messages=...)
+        )
+
+    The `call` parameter is a zero-arg lambda/callable returning the
+    awaitable from `messages.create(...)` — wrapping in a closure lets
+    tenacity invoke the SDK afresh on each retry attempt (a single
+    pre-built awaitable would be exhausted after the first await).
+
+    Behaviour:
+      - Up to 4 total attempts (1 initial + 3 retries).
+      - Exponential backoff between attempts: 1 s base, 2x multiplier,
+        30 s cap (tenacity's `wait_exponential` defaults match P-OQ2).
+      - Retries on `InternalServerError`, `RateLimitError`,
+        `APIConnectionError`.
+      - All other exceptions (incl. `AuthenticationError`,
+        `BadRequestError`, `PermissionDeniedError`, pydantic
+        `ValidationError`) propagate immediately on the first occurrence.
+      - On each retry attempt, `_bump_flow_retry_counter` fires via
+        the tenacity `before_sleep` hook.
+    """
+    retrying = AsyncRetrying(
+        stop=stop_after_attempt(_ANTHROPIC_RETRY_TOTAL_ATTEMPTS),
+        wait=wait_exponential(
+            multiplier=1,
+            min=_ANTHROPIC_RETRY_WAIT_SECONDS_MIN,
+            max=_ANTHROPIC_RETRY_WAIT_SECONDS_MAX,
+        ),
+        retry=retry_if_exception_type(_RETRYABLE_ANTHROPIC_EXCEPTIONS),
+        before_sleep=_bump_flow_retry_counter,
+        reraise=True,
+    )
+    async for attempt in retrying:
+        with attempt:
+            return await call()
 
 
 @coco.fn(memo=True)
@@ -551,15 +690,17 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
     prompt → memo hit, zero LLM call.
     """
     client = anthropic.AsyncAnthropic()  # picks up ANTHROPIC_API_KEY from env
-    response = await client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=_MAX_TOKENS,
-        messages=[
-            {
-                "role": "user",
-                "content": f"{CLASSIFICATION_PROMPT}\n\n{content_text}",
-            }
-        ],
+    response = await _anthropic_retry(
+        lambda: client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=_MAX_TOKENS,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"{CLASSIFICATION_PROMPT}\n\n{content_text}",
+                }
+            ],
+        )
     )
     response_text = response.content[0].text
     return _classification_adapter.validate_json(response_text)
@@ -582,15 +723,17 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
     `extract_classification` above.
     """
     client = anthropic.AsyncAnthropic()
-    response = await client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=_MAX_TOKENS,
-        messages=[
-            {
-                "role": "user",
-                "content": f"{Q_A_FORM_PROMPT}\n\n{content_text}",
-            }
-        ],
+    response = await _anthropic_retry(
+        lambda: client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=_MAX_TOKENS,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"{Q_A_FORM_PROMPT}\n\n{content_text}",
+                }
+            ],
+        )
     )
     response_text = response.content[0].text
     return _qa_form_adapter.validate_json(response_text)
@@ -617,15 +760,17 @@ async def extract_entity_mentions(
     `extract_classification` above.
     """
     client = anthropic.AsyncAnthropic()
-    response = await client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=_MAX_TOKENS,
-        messages=[
-            {
-                "role": "user",
-                "content": f"{ENTITY_MENTION_PROMPT}\n\n{content_text}",
-            }
-        ],
+    response = await _anthropic_retry(
+        lambda: client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=_MAX_TOKENS,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"{ENTITY_MENTION_PROMPT}\n\n{content_text}",
+                }
+            ],
+        )
     )
     response_text = response.content[0].text
     return _entity_mentions_adapter.validate_json(response_text)
