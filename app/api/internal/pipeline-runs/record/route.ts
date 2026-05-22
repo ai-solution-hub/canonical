@@ -35,6 +35,7 @@ import { z } from 'zod';
 import { verifyCronAuth } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
+import { PipelineErrorClassSchema } from '@/lib/pipeline/error-classes';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import type { Json } from '@/supabase/types/database.types';
@@ -94,8 +95,21 @@ const BodySchema = z.object({
   stageCounts: StageCountsSchema,
   /** Human-readable failure summary (optional; populated on terminal failure). */
   errorMessage: z.string().optional(),
-  /** 6-class error vocabulary from 28.13 (optional; populated on terminal failure). */
-  errorClass: z.string().optional(),
+  /**
+   * 6-class stage-level error vocabulary from ID-28.13 (optional;
+   * populated on terminal failure). Strict-validated via
+   * `PipelineErrorClassSchema` so unknown classes from a sidecar that
+   * drifts out of sync surface as HTTP 400 at the trust boundary rather
+   * than silently landing in `pipeline_runs.result.error_class` and
+   * breaking operator filter-by-cause queries.
+   *
+   * Source of truth: `lib/pipeline/error-classes.ts` —
+   * PRODUCT.md Inv-25 verbatim. The pydantic-level sub-classes from
+   * `_PYDANTIC_ERROR_TO_ERROR_CLASS` (extraction.py) live at a deeper
+   * abstraction and MUST be wrapped by `extraction_validation_failed`
+   * before crossing this boundary.
+   */
+  errorClass: PipelineErrorClassSchema.optional(),
   /** IMAGE_SHA from Cloud Build (28.6) — Inv-8 forensic correlation key. */
   extractorVersion: z.string().optional(),
 });
