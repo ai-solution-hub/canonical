@@ -56,6 +56,7 @@ import {
   reasonForShape,
   type NeedsManualEntry,
 } from './emit-needs-manual';
+import { rewriteMultiMethod } from './rewrite-multi-method';
 import { rewriteSingleMethod } from './rewrite-single-method';
 import type { NeedsManualReason, RouteShape } from './types';
 
@@ -464,6 +465,22 @@ export function inferSchema(
  * once per exported method.
  */
 export { rewriteSingleMethod };
+
+/**
+ * Multi-method handler rewrite for the three multi-method NEEDS-REVIEW shapes
+ * (`MULTI_PARAM_BODY` / `MULTI_BODY` / `MULTI_PARAM`) plus their `+WRC`
+ * sub-variants. Implementation lives in `rewrite-multi-method.ts` per the
+ * Subtask 32.11 brief's file-ownership boundary; each exported method is
+ * rewritten independently by delegating to `rewriteSingleMethod` once per
+ * method, and one `NeedsManualEntry` per method is returned for the
+ * codemod-needs-manual.json artefact (TECH §6.2 — reason
+ * `MULTI_METHOD_SCHEMA`).
+ *
+ * Re-exported here so the call-site contract in the codemod (and the test
+ * suite's import path) stays `wrap-define-route.ts`-anchored — the
+ * extraction is an internal organisation decision, not a public-API change.
+ */
+export { rewriteMultiMethod };
 
 // ── Per-route assembly ───────────────────────────────────────────────────
 
