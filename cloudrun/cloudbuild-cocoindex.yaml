@@ -57,7 +57,18 @@ steps:
       # fs-watch loop runs concurrently with the HTTP server. Resolves the
       # GOOGLE_ENTRYPOINT mismatch identified in S256 WP0 (the original brief
       # referenced scripts/cocoindex_server.py which was never authored).
-      - --env=GOOGLE_ENTRYPOINT=python3 scripts/cocoindex_pipeline/server.py
+      #
+      # FX-8 (S257 W2 deploy verification): use `python3 -m` invocation, NOT
+      # bare-script. Cloud Run buildpack runtime does NOT add /workspace to
+      # sys.path on bare-script invocation, so `from scripts.cocoindex_pipeline.flow
+      # import ...` qualified-namespace imports inside server.py + __main__.py
+      # fail with `ModuleNotFoundError: No module named 'scripts'`. The `-m`
+      # invocation makes Python prepend the parent of the topmost-package to
+      # sys.path (i.e. /workspace), so the qualified namespace resolves. Local
+      # pytest masked this gap (pytest rootdir auto-added /workspace to sys.path).
+      # `scripts/` is a PEP 420 namespace package (no __init__.py); cocoindex_pipeline
+      # is a regular package (__init__.py present). -m works for both.
+      - --env=GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server
       - --env=GOOGLE_RUNTIME=python
       - --env=GOOGLE_PYTHON_VERSION=3.13.13
       - --publish
