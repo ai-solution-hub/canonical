@@ -38,6 +38,10 @@ cocoindex[postgres]==1.0.3
 docling>=2.0.0,<3.0.0
 # litellm: unified LLM API abstraction used by cocoindex ExtractByLlm stage (ID-28.12).
 litellm>=1.40.0,<2.0.0
+# aiohttp: HTTP framework for cocoindex sidecar wrapper server (ID-28.15). Transitive via
+# litellm, pinned explicitly because scripts/cocoindex_pipeline/server.py treats it as a
+# first-class production dependency (Cloud Run sidecar HTTP server).
+aiohttp>=3.9.0,<4.0.0
 # asyncpg: async Postgres driver for cocoindex postgres source/sink connector.
 asyncpg>=0.30.0
 
