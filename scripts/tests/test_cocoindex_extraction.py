@@ -551,6 +551,58 @@ class TestStampExtractionBase:
         # Stamped has new op_id
         assert stamped.op_id != original_op_id
 
+    def test_explicit_kwargs_call_still_works_post_28_16(
+        self, base_fields: dict
+    ) -> None:
+        """ID-28.16 changed `op_id` / `content_items_id` to optional kwargs
+        that fall back to FLOW_META_CTX when omitted. The pre-28.16 explicit
+        call signature (positional, kwargs both supplied) MUST still work
+        — backwards-compat with WP3 / WP4 call-sites that pass explicit
+        UUIDs.
+        """
+        original = ClassificationExtraction(
+            **base_fields,
+            content_type="article",
+            primary_domain="compliance",
+            classification_confidence=0.7,
+        )
+        new_op_id = uuid4()
+        new_content_id = uuid4()
+        # Same call signature as the pre-28.16 baseline — required kwargs
+        # become "still-required-when-no-binding-active", but pass-through
+        # behaviour is unchanged.
+        stamped = stamp_extraction_base(
+            original,
+            op_id=new_op_id,
+            content_items_id=new_content_id,
+        )
+        assert stamped.op_id == new_op_id
+        assert stamped.content_items_id == new_content_id
+
+    def test_missing_args_raises_runtime_error_when_no_binding(
+        self, base_fields: dict
+    ) -> None:
+        """ID-28.16 contract: when neither explicit args nor a FLOW_META_CTX
+        binding can supply the required values, RuntimeError is raised
+        rather than silently stamping zero UUIDs.
+
+        Backstop for "forgot to bind FLOW_META_CTX before invoking the
+        stamper" operator error — surfaces as a loud exception, not as
+        bad data landing in Postgres.
+        """
+        original = ClassificationExtraction(
+            **base_fields,
+            content_type="article",
+            primary_domain="compliance",
+            classification_confidence=0.7,
+        )
+        with pytest.raises(RuntimeError) as exc_info:
+            # No kwargs + no active FLOW_META_CTX binding → raises.
+            stamp_extraction_base(original)
+        # Error message must name FLOW_META_CTX so the operator knows
+        # what's missing.
+        assert "FLOW_META_CTX" in str(exc_info.value)
+
 
 class TestNormaliseEntitySpan:
     """Q-EX2 §3.2 — inner-tier @coco.fn(memo=True) async helper.
