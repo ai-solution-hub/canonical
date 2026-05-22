@@ -82,14 +82,12 @@ describe('parseRoadmapWithWarnings — PRODUCT inv 8 (Subtask 30.7 / TECH §3.3)
   });
 
   it('throws ZodError on hard validation failure (not warnings)', () => {
-    const invalid = { ...VALID_ROADMAP_ROOT_BASE, document_name: 'Wrong Name' };
+    const invalid = {
+      ...VALID_ROADMAP_ROOT_BASE,
+      themes: [],
+      document_name: 'Wrong Name',
+    };
     expect(() => parseRoadmapWithWarnings(invalid)).toThrow();
-  });
-
-  it('does not emit a warning for sections-only documents (themes undefined)', () => {
-    const input = { ...VALID_ROADMAP_ROOT_BASE, sections: [] };
-    const { warnings } = parseRoadmapWithWarnings(input);
-    expect(warnings).toHaveLength(0);
   });
 
   it('RoadmapSchema.parse() continues to accept >12 themes (soft cap is helper-level only)', () => {

@@ -101,132 +101,6 @@ export const DocLinkSchema = z
 export type DocLink = z.infer<typeof DocLinkSchema>;
 
 // ──────────────────────────────────────────
-// Item
-// ──────────────────────────────────────────
-
-export const RoadmapItemSchema = z
-  .object({
-    id: z
-      .string()
-      .min(1)
-      .describe('Dotted-decimal positional ID (e.g. 1.3, 3.1.8, 9.18.1)'),
-    section_id: z
-      .string()
-      .min(1)
-      .describe('Pointer to Section.id; redundant for query convenience'),
-    title: z.string().min(1),
-    /**
-     * Item 5 ratification — `Phase` column source (§3.7, §4.1, §4.2, §6)
-     * gets surfaced separately so the title remains the canonical heading.
-     */
-    phase_label: z.string().nullable(),
-    /**
-     * Markdown-preserved (multi-paragraph allowed). Round-trip rendering
-     * must reproduce this verbatim minus pipe-padding.
-     */
-    description: z.string().min(1),
-    /**
-     * Item 7 ratification — freetext per backlog precedent. Examples:
-     * `~15 min`, `1-2 sessions`, `Multiple sessions`, `XS`, `TBD`.
-     */
-    effort_estimate: z.string().nullable(),
-    priority: RoadmapPriority.nullable(),
-    /**
-     * Phase 2 addition (kh-prod-readiness-S39 W1) — preserves the original
-     * priority cell text verbatim when it carries editorial annotation
-     * beyond the canonical enum (e.g. "Should (demoted from Must)",
-     * "Medium (deferred)", "Low (H2)"). Renderer prefers `priority_note`
-     * over the canonical capitalised enum so round-trip is lossless.
-     * Null when the source cell was the unannotated canonical form.
-     */
-    priority_note: z.string().nullable(),
-    /**
-     * Item 8 ratification — §3.2 only (gap-analysis grading C2/H5/M4).
-     * Null on every other section.
-     */
-    severity: z.string().nullable(),
-    status: RoadmapStatus.nullable(),
-    /**
-     * Item 3 ratification — residual freetext when status doesn't fit
-     * the enum (e.g. "Blocked on bid-to-template linkage", "EP8 build
-     * remains.").
-     */
-    status_note: z.string().nullable(),
-    /**
-     * Per-item owner override (§1, §12.0 only). Falls back to
-     * Section.owner when null.
-     */
-    owner: z.string().nullable(),
-    /**
-     * Item 6 ratification — hybrid parsing. High-confidence patterns
-     * (`§N.M`, `D-NN`, `OPS-NN`) parsed into structured arrays; the rest
-     * stays in description / status_note.
-     *
-     * Per ID-15.6 OQ-3 ratification — intentional divergence from Backlog +
-     * Task list flat dependencies[]. Captures strategic decomposition (forward
-     * dep / reverse dep / lateral coordination).
-     */
-    depends_on: z.array(z.string()),
-    blocks: z.array(z.string()),
-    coordinates_with: z.array(z.string()),
-    cross_doc_links: z.array(DocLinkSchema),
-    session_refs: z
-      .array(z.string())
-      .describe('e.g. ["S203 WP-C1", "kh-prod-readiness-S35"]'),
-    commit_refs: z
-      .array(z.string())
-      .describe('Short or full SHA strings extracted from descriptions'),
-  })
-  .strict();
-export type RoadmapItem = z.infer<typeof RoadmapItemSchema>;
-
-// ──────────────────────────────────────────
-// Section
-// ──────────────────────────────────────────
-
-export const RoadmapSectionSchema = z
-  .object({
-    id: z
-      .string()
-      .min(1)
-      .describe('Dotted-decimal stable ID (e.g. "1", "3.1", "9.15")'),
-    parent_id: z
-      .string()
-      .nullable()
-      .describe('Null for top-level numbered sections; parent ID otherwise'),
-    /**
-     * Human-facing label — same as `id` today; surfaced separately so
-     * future renderers can substitute (e.g. "I" / "II" / "III" Roman).
-     */
-    number: z.string().min(1),
-    title: z.string().min(1),
-    /**
-     * Item 1 ratification — markdown-preserved free-text prose between
-     * the heading and the table. May be null when the section is pure
-     * tabular content.
-     */
-    narrative: z.string().nullable(),
-    /**
-     * Item 1 ratification — structured `Spec:` / `Plan:` / `Source:` /
-     * inline-link extraction in addition to keeping the source text in
-     * `narrative`. Round-trip retains both.
-     */
-    spec_links: z.array(DocLinkSchema),
-    /**
-     * Section-level owner declaration (`**Owner:**` line at the top of
-     * §9.7, §12.0 narrative). Items inherit when their per-item owner
-     * is null.
-     */
-    owner: z.string().nullable(),
-    table_columns: ColumnSet,
-    items: z
-      .array(RoadmapItemSchema)
-      .describe('Empty allowed (e.g. §2 root, §9.17 narrative-only).'),
-  })
-  .strict();
-export type RoadmapSection = z.infer<typeof RoadmapSectionSchema>;
-
-// ──────────────────────────────────────────
 // Theme (Subtask 30.6 / TECH §3.1)
 //
 // Phase-B Roadmap shape — Linear-style themes grouping related Tasks under
@@ -277,13 +151,12 @@ export const RoadmapThemeSchema = z
 export type RoadmapTheme = z.infer<typeof RoadmapThemeSchema>;
 
 // ──────────────────────────────────────────
-// Roadmap (root) — union root via .superRefine() (Subtask 30.6 / TECH §3.1)
+// Roadmap (root) — themes-only shape (Subtask 30.12 / TECH §3.1 PR-C)
 //
-// Exactly one of sections[] OR themes[] must be present at the root. Per
-// T-OQ-4 ratification: stay with .superRefine() (not z.discriminatedUnion)
-// to avoid discriminator-field content churn during the Phase-A → Phase-B
-// migration. Both fields are optional at schema level; superRefine
-// enforces the exactly-one-of constraint.
+// Phase-B is the only supported shape. The transitional union root from
+// Subtask 30.6 (sections[] XOR themes[] via .superRefine()) is removed in
+// PR-C per TECH §3.1 + §7 risk row 1. `themes` is REQUIRED; legacy
+// sections-shape documents are rejected at parse time.
 // ──────────────────────────────────────────
 
 export const RoadmapSchema = z
@@ -311,30 +184,14 @@ export const RoadmapSchema = z
      */
     last_updated: z.string().min(1),
     /**
-     * Phase-A sections shape. OPTIONAL — back-compat with the legacy
-     * sections-based JSON. Per Subtask 30.6 union root, exactly one of
-     * sections[] OR themes[] must be present (enforced by .superRefine()).
+     * Phase-B themes shape. REQUIRED — Linear-style theme grouping. The
+     * Phase-A sections[] shape was retired in Subtask 30.12 (PR-C). The
+     * strict() root rejects any document that retains the legacy
+     * sections[] field.
      */
-    sections: z.array(RoadmapSectionSchema).optional(),
-    /**
-     * Phase-B themes shape. OPTIONAL — Linear-style theme grouping. Per
-     * Subtask 30.6 union root, exactly one of sections[] OR themes[] must
-     * be present (enforced by .superRefine()).
-     */
-    themes: z.array(RoadmapThemeSchema).optional(),
+    themes: z.array(RoadmapThemeSchema),
   })
-  .strict()
-  .superRefine((doc, ctx) => {
-    const hasSections = doc.sections !== undefined;
-    const hasThemes = doc.themes !== undefined;
-    if (hasSections === hasThemes) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['sections', 'themes'],
-        message: 'Exactly one of sections or themes must be present.',
-      });
-    }
-  });
+  .strict();
 export type Roadmap = z.infer<typeof RoadmapSchema>;
 
 // ──────────────────────────────────────────
@@ -362,8 +219,7 @@ export interface RoadmapWarning {
  *
  * Throws `ZodError` on hard validation failure (same behaviour as
  * `RoadmapSchema.parse()`). On success, returns the parsed `Roadmap` plus a
- * `warnings` array — empty when the document is within the ceiling or when
- * `themes` is absent (sections-only Phase-A document).
+ * `warnings` array — empty when the document is within the ceiling.
  *
  * One warning entry per offending document (not per excess theme). Mirrors the
  * `parseTaskListWithWarnings` shape from task-list-schema.ts.
@@ -374,7 +230,7 @@ export function parseRoadmapWithWarnings(input: unknown): {
 } {
   const value = RoadmapSchema.parse(input);
   const warnings: RoadmapWarning[] = [];
-  if (value.themes && value.themes.length > 12) {
+  if (value.themes.length > 12) {
     warnings.push({
       themeCount: value.themes.length,
       message:

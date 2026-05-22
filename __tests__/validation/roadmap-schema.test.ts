@@ -9,27 +9,22 @@
  *   - Accepted values are identical.
  *   - The inline z.enum([...]) is gone — no independent copy.
  *
- * Subtask 30.6 (TECH §3.1): RoadmapThemeSchema added, RoadmapSchema root
- * reshaped to union root via .superRefine() (exactly one of sections[] OR
- * themes[]). T-OQ-4 ratification: stay with superRefine over
- * discriminatedUnion to avoid discriminator-field content churn.
+ * Subtask 30.6 (TECH §3.1): RoadmapThemeSchema added. The earlier
+ * transitional union root via .superRefine() was retired in Subtask 30.12
+ * (TECH §3.1 PR-C section); the RoadmapSchema root tests now live in
+ * `roadmap-schema-shape-a.test.ts` Suite 1.
  *
- * Test coverage:
+ * Test coverage in this file:
  *   - B-INV-4: RoadmapPriority === Priority (same Zod instance, not a copy)
  *   - All 8 priority values accepted by RoadmapPriority
  *   - Unknown priority value rejected by RoadmapPriority
  *   - RoadmapPriority and Priority produce identical parse results for all values
  *   - RoadmapThemeSchema 10-field shape with strict()
- *   - RoadmapSchema root accepts sections-only document
- *   - RoadmapSchema root accepts themes-only document
- *   - RoadmapSchema root rejects when BOTH sections[] and themes[] present
- *   - RoadmapSchema root rejects when NEITHER sections[] nor themes[] present
  */
 
 import { describe, it, expect } from 'vitest';
 import {
   RoadmapPriority,
-  RoadmapSchema,
   RoadmapThemeSchema,
 } from '@/lib/validation/roadmap-schema';
 import { Priority } from '@/lib/validation/work-status';
@@ -231,108 +226,3 @@ describe('RoadmapThemeSchema — 10-field Phase-B theme shape', () => {
   });
 });
 
-// ──────────────────────────────────────────────────────────────────────────────
-// RoadmapSchema — union root via .superRefine() (Subtask 30.6 / TECH §3.1)
-//
-// Exactly one of sections[] OR themes[] must be present at the root. Both
-// fields are optional at the schema level; superRefine enforces the exactly-
-// one-of constraint. Per T-OQ-4 ratification, we use superRefine (not
-// discriminatedUnion) to avoid discriminator-field content churn.
-// ──────────────────────────────────────────────────────────────────────────────
-
-const VALID_ROADMAP_ROOT_BASE = {
-  document_name: 'Knowledge Hub Roadmap' as const,
-  document_purpose: 'Active forward-looking roadmap.',
-  date: '2026-05-22',
-  status: 'Active' as const,
-  forward_looking_only: true as const,
-  related_documents: ['docs/reference/product-backlog.json'],
-  last_updated: 'kh-prod-readiness-S66 close-out — roadmap rethink',
-};
-
-describe('RoadmapSchema root — union of sections[] OR themes[] (Subtask 30.6)', () => {
-  it('accepts a sections-only document (back-compat with existing JSON)', () => {
-    const result = RoadmapSchema.safeParse({
-      ...VALID_ROADMAP_ROOT_BASE,
-      sections: [],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a themes-only document (new Phase-B shape)', () => {
-    const result = RoadmapSchema.safeParse({
-      ...VALID_ROADMAP_ROOT_BASE,
-      themes: [VALID_THEME],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a themes-only document with empty themes[] array', () => {
-    const result = RoadmapSchema.safeParse({
-      ...VALID_ROADMAP_ROOT_BASE,
-      themes: [],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects a document with BOTH sections[] and themes[] present', () => {
-    const result = RoadmapSchema.safeParse({
-      ...VALID_ROADMAP_ROOT_BASE,
-      sections: [],
-      themes: [VALID_THEME],
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const messages = result.error.issues.map((i) => i.message).join(' ');
-      expect(messages).toMatch(/exactly one of sections or themes/i);
-    }
-  });
-
-  it('rejects a document with NEITHER sections[] nor themes[] present', () => {
-    const result = RoadmapSchema.safeParse({
-      ...VALID_ROADMAP_ROOT_BASE,
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const messages = result.error.issues.map((i) => i.message).join(' ');
-      expect(messages).toMatch(/exactly one of sections or themes/i);
-    }
-  });
-
-  it('accepts a populated sections-only document with a non-empty section', () => {
-    const result = RoadmapSchema.safeParse({
-      ...VALID_ROADMAP_ROOT_BASE,
-      sections: [
-        {
-          id: '1',
-          parent_id: null,
-          number: '1',
-          title: 'Top-level',
-          narrative: null,
-          spec_links: [],
-          owner: null,
-          table_columns: 'item_desc_owner_effort_status',
-          items: [],
-        },
-      ],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a populated themes-only document with multiple themes', () => {
-    const result = RoadmapSchema.safeParse({
-      ...VALID_ROADMAP_ROOT_BASE,
-      themes: [
-        VALID_THEME,
-        {
-          ...VALID_THEME,
-          id: '2',
-          title: 'Developer Velocity',
-          time_horizon: 'next',
-          status: 'pending',
-        },
-      ],
-    });
-    expect(result.success).toBe(true);
-  });
-});
