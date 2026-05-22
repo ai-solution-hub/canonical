@@ -13,9 +13,6 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 Generates
 `docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}-{slug}.md`.
 
-**Prerequisite:** `/update-docs` must have run first (stats, roadmap,
-state-of-product, git context already in conversation). Remind the user if not.
-
 ---
 
 ## Step 1 — Read context
@@ -45,7 +42,6 @@ Highest existing session number for this track + 1.
 | Track                   | Filename pattern                                                             |
 | ----------------------- | ---------------------------------------------------------------------------- |
 | main                    | `continuation-prompt-kh-s{NNN}-main-{slug}.md`                               |
-| `kh-knowledge-platform` | `continuation-prompt-kh-kpf-s{N}-{slug}.md` (track-local counter)            |
 | `production-readiness`  | `continuation-prompt-kh-prod-readiness-s{N}-{slug}.md` (track-local counter) |
 
 ---
@@ -163,7 +159,28 @@ docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}-{slug}.md
 
 ---
 
-## Step 7 — Commit and push
+## Step 7 - Prettier Sweep
+
+```bash
+# Run format check; capture unformatted file list if it fails.
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+if ! bun run format:check >/tmp/fmt-check.log 2>&1; then
+  echo "Prettier drift detected — files:"
+  grep -E '^\[warn\] ' /tmp/fmt-check.log | awk '{print $2}'
+  # Surgical fix — only the files Prettier flagged (avoid full-repo reformat).
+  files=$(grep -E '^\[warn\] ' /tmp/fmt-check.log | awk '{print $2}' | tr '\n' ' ')
+  if [ -n "$files" ]; then
+    bunx prettier --write $files
+    git add $files
+    git commit -m "chore(format): prettier sweep at session close"
+  fi
+else
+  echo "Prettier clean — no sweep needed."
+fi
+```
+
+## Step 8 — Commit and push
 
 ```bash
 git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}*.md
@@ -173,11 +190,34 @@ git push
 
 If Liam edits, he creates a new commit (not amend).
 
-## Step 8 — Add MemPalace diary entry
+## Step 9 — Add MemPalace diary entry
 
-Per the AAAK format documented in `.claude/skills/start-session/SKILL.md`
-"Mempalace diary entry shape" section. Call `mempalace_diary_write` with
-`agent_name: claude` + the structured `content` field.
+**Required structure** (passed via `mempalace_diary_write`):
+
+- `agent_name`: `claude` (single wing for the assistant across all KH work).
+- `topic`: one of `kh-prod-readiness-SNN` / `main-track` / `workflow-orchestration`
+  / `general` — names the session's primary focus.
+- `content`: pipe-separated facts in this order:
+  1. `SESSION:YYYY-MM-DD.SXX` — date + session counter.
+  2. Top-line summary (one segment).
+  3. Per-WP segments — each summarising what shipped, key files touched,
+     ratifications applied, gotchas surfaced.
+  4. Build status (`test.baseline.N.pass/N.fail/N.skip`).
+  5. Push refs (`push:short-sha1+short-sha2`).
+  6. Forward-look (`SXX+1.continuation.<bullet count>.lines.<WP count>.WPs`).
+  7. `★rating` — 1–5 ★ self-assessment of session quality (writer's call;
+     ★★★★+ for clean shipping sessions, ★★★ for sessions with workarounds,
+     ★★ for partially-blocked sessions).
+
+**Length**: ~600–1500 chars. One logical event per pipe-delimited segment.
+Use entity codes (e.g. `WP1.work-status.ts`) and emotion markers (e.g.
+`.✓` / `.fail`) for AAAK-compatible search.
+
+**Example** (from S50 close):
+
+```
+SESSION:2026-05-18.S50|surface.migration.impl.complete.24commits.production-readiness|WP0.spec.re-ratification.drop.aliases+unified.WorkStatus+Priority.master.enums|WP1.work-status.ts+task-list-schema.ts+task-list.json.dogfood.Tasks.2-5.seeded|...|test.baseline.12546.pass.1.fail.FU-9.only.24.skip|S51.continuation.298.lines.5.WPs|★★★★
+```
 
 ---
 
