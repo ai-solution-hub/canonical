@@ -43,11 +43,11 @@ import {
   type BacklogDocument,
   type BacklogItem,
 } from '@/lib/validation/backlog-schema';
+import { RoadmapSchema, type Roadmap } from '@/lib/validation/roadmap-schema';
 import {
-  RoadmapSchema,
-  type Roadmap,
-} from '@/lib/validation/roadmap-schema';
-import { TaskListSchema, type TaskList } from '@/lib/validation/task-list-schema';
+  TaskListSchema,
+  type TaskList,
+} from '@/lib/validation/task-list-schema';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Constants — PRODUCT inv 2 / inv 5 / inv 12 PR-B + RESEARCH §2 / §5.4
@@ -230,9 +230,9 @@ function readJson(filePath: string): unknown {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-export function loadFixture(filePath: string):
-  | { ok: true; data: BacklogItem[] }
-  | { ok: false; detail: string } {
+export function loadFixture(
+  filePath: string,
+): { ok: true; data: BacklogItem[] } | { ok: false; detail: string } {
   const raw = readJson(filePath);
   const parsed = z.array(BacklogItemSchema).safeParse(raw);
   if (!parsed.success) {
@@ -327,8 +327,7 @@ export function runMigration(opts: RunMigrationOpts): MigrationResult {
     return {
       ok: false,
       reason: 'collision',
-      detail:
-        `Fixture id(s) collide with existing non-migration Backlog entries (existing entry lacks the '${PROVENANCE_MARKER}' marker, so this is NOT an idempotent re-run): ${collisions.join(', ')}`,
+      detail: `Fixture id(s) collide with existing non-migration Backlog entries (existing entry lacks the '${PROVENANCE_MARKER}' marker, so this is NOT an idempotent re-run): ${collisions.join(', ')}`,
     };
   }
 
@@ -362,7 +361,11 @@ export function runMigration(opts: RunMigrationOpts): MigrationResult {
   }
   const taskList: TaskList = taskListParse.data;
 
-  const overlapTargets: Array<{ entryId: string; taskId: string; window: string }> = [];
+  const overlapTargets: Array<{
+    entryId: string;
+    taskId: string;
+    window: string;
+  }> = [];
   for (const entry of toAppend) {
     for (const task of taskList.tasks) {
       const window = detectFourWordOverlap(entry.description, task.title);

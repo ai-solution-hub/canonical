@@ -8,9 +8,7 @@
     "priority": "high",
     "track": "eval-baseline",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §1.4. Blocks roadmap §7.1 (bid drafting rubric). Real data needed to replace synthetic question IDs in gold-standard eval set."
@@ -24,11 +22,7 @@
     "priority": "high",
     "track": "ingestion-ui",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "S209",
-      "S198"
-    ],
+    "session_refs": ["kh-prod-readiness-S62", "S209", "S198"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -48,9 +42,7 @@
     "priority": "medium",
     "track": "client-docs",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -70,9 +62,7 @@
     "priority": "medium",
     "track": "validation",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -92,10 +82,7 @@
     "priority": "medium",
     "track": "documentation",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "S210"
-    ],
+    "session_refs": ["kh-prod-readiness-S62", "S210"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -115,10 +102,7 @@
     "priority": "high",
     "track": "classifier-quality",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "S204"
-    ],
+    "session_refs": ["kh-prod-readiness-S62", "S204"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -142,12 +126,8 @@
     "effort_estimate": "~1.75h Phase 2",
     "priority": "high",
     "track": "classifier-quality",
-    "dependencies": [
-      "83"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["83"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §3.9. Bundled with §3.8 (sibling WP-C2)."
@@ -161,9 +141,7 @@
     "priority": "medium",
     "track": "eval-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -182,12 +160,8 @@
     "effort_estimate": "1 session",
     "priority": "medium",
     "track": "eval-infrastructure",
-    "dependencies": [
-      "85"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["85"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §5.2."
@@ -200,12 +174,8 @@
     "effort_estimate": "~3h",
     "priority": "medium",
     "track": "eval-infrastructure",
-    "dependencies": [
-      "85"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["85"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §5.3."
@@ -218,12 +188,8 @@
     "effort_estimate": "1 session",
     "priority": "medium",
     "track": "eval-infrastructure",
-    "dependencies": [
-      "85"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["85"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §5.4."
@@ -236,12 +202,8 @@
     "effort_estimate": "1 session",
     "priority": "medium",
     "track": "eval-infrastructure",
-    "dependencies": [
-      "85"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["85"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -260,12 +222,8 @@
     "effort_estimate": "1-2 sessions",
     "priority": "medium",
     "track": "ai-refinement",
-    "dependencies": [
-      "85"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["85"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -284,12 +242,8 @@
     "effort_estimate": "1 session",
     "priority": "medium",
     "track": "ai-refinement",
-    "dependencies": [
-      "90"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["90"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §6.2."
@@ -302,12 +256,8 @@
     "effort_estimate": "1 session",
     "priority": "medium",
     "track": "ai-refinement",
-    "dependencies": [
-      "90"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["90"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §6.3."
@@ -320,12 +270,8 @@
     "effort_estimate": "1 session",
     "priority": "medium",
     "track": "ai-refinement",
-    "dependencies": [
-      "90"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["90"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §6.4."
@@ -338,12 +284,8 @@
     "effort_estimate": "1-2 sessions",
     "priority": "low",
     "track": "eval-coverage",
-    "dependencies": [
-      "78"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["78"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -363,9 +305,7 @@
     "priority": "low",
     "track": "eval-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §7.3."
@@ -379,9 +319,7 @@
     "priority": "low",
     "track": "eval-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §7.4."
@@ -395,10 +333,7 @@
     "priority": "medium",
     "track": "validation",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "S203 WP-B"
-    ],
+    "session_refs": ["kh-prod-readiness-S62", "S203 WP-B"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §8.4. Python bypasses Zod via REST today."
@@ -412,10 +347,7 @@
     "priority": "medium",
     "track": "telemetry",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "S222"
-    ],
+    "session_refs": ["kh-prod-readiness-S62", "S222"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -435,9 +367,7 @@
     "priority": "medium",
     "track": "procurement-templates",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -457,9 +387,7 @@
     "priority": "medium",
     "track": "ingestion",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -479,9 +407,7 @@
     "priority": "low",
     "track": "ingestion",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §9.2.2. Note: future-priority on roadmap; mapped to `parked` on backlog since `future` is not a BacklogStatus value."
@@ -495,9 +421,7 @@
     "priority": "medium",
     "track": "background-queue",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §10.1."
@@ -510,12 +434,8 @@
     "effort_estimate": "1-2 sessions",
     "priority": "low",
     "track": "background-queue",
-    "dependencies": [
-      "102"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["102"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [
       {
@@ -535,9 +455,7 @@
     "priority": "high",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.1."
@@ -550,15 +468,8 @@
     "effort_estimate": "2-3 sessions remaining",
     "priority": "high",
     "track": "test-infrastructure",
-    "dependencies": [
-      "104"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "S39",
-      "kh-prod-readiness-S43",
-      "kh-prod-readiness-S44"
-    ],
+    "dependencies": ["104"],
+    "session_refs": ["kh-prod-readiness-S62", "S39", "kh-prod-readiness-S43", "kh-prod-readiness-S44"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.2 (partial after canonical-pipeline absorption)."
@@ -572,9 +483,7 @@
     "priority": "high",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.3."
@@ -587,13 +496,8 @@
     "effort_estimate": "1-2 sessions",
     "priority": "medium",
     "track": "test-infrastructure",
-    "dependencies": [
-      "104",
-      "105"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["104", "105"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.4."
@@ -607,9 +511,7 @@
     "priority": "medium",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.5."
@@ -623,9 +525,7 @@
     "priority": "low",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.6."
@@ -639,9 +539,7 @@
     "priority": "low",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.7 (partial)."
@@ -655,9 +553,7 @@
     "priority": "low",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.8."
@@ -671,9 +567,7 @@
     "priority": "low",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.9."
@@ -687,9 +581,7 @@
     "priority": "low",
     "track": "test-infrastructure",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.10."
@@ -703,9 +595,7 @@
     "priority": "medium",
     "track": "test-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.11."
@@ -719,9 +609,7 @@
     "priority": "medium",
     "track": "test-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.12."
@@ -734,12 +622,8 @@
     "effort_estimate": "1h",
     "priority": "medium",
     "track": "test-coverage",
-    "dependencies": [
-      "115"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["115"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.13."
@@ -753,9 +637,7 @@
     "priority": "medium",
     "track": "test-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.14."
@@ -769,9 +651,7 @@
     "priority": "medium",
     "track": "test-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.15 (partial)."
@@ -785,9 +665,7 @@
     "priority": "medium",
     "track": "test-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.16."
@@ -801,9 +679,7 @@
     "priority": "medium",
     "track": "test-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.18."
@@ -817,9 +693,7 @@
     "priority": "medium",
     "track": "test-coverage",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §11.19."
@@ -833,9 +707,7 @@
     "priority": "medium",
     "track": "production-readiness",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §12.1."
@@ -849,9 +721,7 @@
     "priority": "low",
     "track": "performance",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §12.2 (partial)."
@@ -865,9 +735,7 @@
     "priority": "low",
     "track": "codebase-health",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §12.6 (partial — T14 deletes ~6,800 LOC of pipeline monoliths; survivors listed)."
@@ -881,9 +749,7 @@
     "priority": "low",
     "track": "codebase-health",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §12.14."
@@ -897,13 +763,8 @@
     "priority": "medium",
     "track": "cloud-run",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "kh-prod-readiness-S35 W3a"
-    ],
-    "commit_refs": [
-      "4f0d7d37"
-    ],
+    "session_refs": ["kh-prod-readiness-S62", "kh-prod-readiness-S35 W3a"],
+    "commit_refs": ["4f0d7d37"],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §12.15.3 (partial)."
   },
@@ -916,9 +777,7 @@
     "priority": "medium",
     "track": "context-graph",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §13.1 (partial)."
@@ -932,9 +791,7 @@
     "priority": "medium",
     "track": "context-graph",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §13.2."
@@ -947,12 +804,8 @@
     "effort_estimate": null,
     "priority": "medium",
     "track": "context-graph",
-    "dependencies": [
-      "128"
-    ],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "dependencies": ["128"],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §13.3."
@@ -966,9 +819,7 @@
     "priority": "medium",
     "track": "context-graph",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62"
-    ],
+    "session_refs": ["kh-prod-readiness-S62"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §13.4."
@@ -982,10 +833,7 @@
     "priority": "medium",
     "track": "ui-simplification",
     "dependencies": [],
-    "session_refs": [
-      "kh-prod-readiness-S62",
-      "S196"
-    ],
+    "session_refs": ["kh-prod-readiness-S62", "S196"],
     "commit_refs": [],
     "cross_doc_links": [],
     "notes": "Migrated from roadmap §13.5. Promoted S196 per Liam."
