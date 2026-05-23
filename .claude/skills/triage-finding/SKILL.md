@@ -38,6 +38,8 @@ The curator agent invokes this skill with a finding packet:
 | `task_context.subtask_scope` | Current Subtask (ID-N.M) scope summary |
 | `task_context.subtask_file_ownership` | The Subtask's declared `file_ownership_allowed` globs |
 | `task_context.acceptance_criteria` | Current Subtask acceptance criteria |
+| `task_context.parent_task_acceptance_criteria` | Parent Task ID-N's `## Acceptance criteria` excerpt (PRODUCT.md). Required input for Branch A predicate 3; the Orchestrator dispatcher MUST populate this — especially at wave close when the source Subtask has promoted to `done` and the Subtask-level fields above are stale. |
+| `task_context.sibling_subtask_file_ownership` | Map of `{ subtask_id: file_ownership_allowed_globs }` for pending/in-progress sibling Subtasks under the same parent Task ID-N. Required input for Branch A predicate 3 (file-path arm). |
 
 You also read:
 
@@ -83,17 +85,18 @@ This skill's canonical input is a finding packet from a `task-executor` or `work
 
 ### Branch A — Is it in-scope for the current Subtask? (binary rule)
 
-**Binary in-scope-ness rule (per s48-feedback B10):**
+**Binary in-scope-ness rule (per s48-feedback B10; parent-Task-AC predicate added per S62F-WP3 audit):**
 
-A finding is **IN-SCOPE** (and therefore routed as a Subtask under the current Task ID-N) when **either** of these predicates holds:
+A finding is **IN-SCOPE** (and therefore routed as a Subtask under the current Task ID-N) when **any** of these predicates holds:
 
 1. **File-path predicate** — The finding's evidence `file:line` references fall **within the current Subtask's declared `file_ownership_allowed` globs** (`task_context.subtask_file_ownership`).
 2. **Axis predicate** — The finding is a **spec-compliance issue against the current Subtask slice** (the implementation diverges from `task_context.spec_path` for the slice the current Subtask is delivering, or fails one of the Subtask's `acceptance_criteria`).
+3. **Parent-Task-AC predicate** — The finding's evidence demonstrates a failure of one of the **parent Task ID-N's acceptance criteria** (per the Task's spec PRODUCT.md `## Acceptance criteria` section), OR the finding's `file:line` evidence falls within a **sibling pending/in-progress Subtask's** declared `file_ownership_allowed` globs under the same Task ID-N. In this case, route as a new Subtask ID-N.M under Task ID-N (NOT under the current closed Subtask). This predicate is the dominant Branch A path at wave close, when the source Subtask has already promoted to `done` and the file-path / axis predicates against the closed Subtask context are vacuously empty.
 
-If **either** predicate holds → IN-SCOPE → **Decision: `subtask`**.
-If **neither** predicate holds → OUT-OF-SCOPE → continue to Branch B / C / D.
+If **any** predicate holds → IN-SCOPE → **Decision: `subtask`**.
+If **none** of the predicates hold → OUT-OF-SCOPE → continue to Branch B / C / D.
 
-**No grey area.** There is no third "judgement call" path. If the finding does not pass file-path or axis, it is out-of-scope by definition — even if the executor "noticed it while in the area" or it "feels related". Out-of-scope findings route to Branch B, C, or D per the cross-cutting / tactical / no-action criteria below.
+**No grey area.** There is no fourth "judgement call" path. If the finding does not pass file-path, axis, or parent-Task-AC, it is out-of-scope by definition — even if the executor "noticed it while in the area" or it "feels related". Out-of-scope findings route to Branch B, C, or D per the cross-cutting / tactical / no-action criteria below.
 
 The intent of the binary rule is to preserve task-driven discipline: the current Subtask has a tightly-bounded scope, and findings that fall outside that boundary belong on a different ledger entry (Subtask under another Task, backlog item, or roadmap entry).
 
@@ -111,7 +114,7 @@ suggested_skills:
 estimated_effort: "{<30min | 30min-1h | 1-2h}"
 file_ownership_allowed:
   - "{specific file or glob}"
-in_scope_predicate_matched: "file-path" | "axis"  # which of the two binary predicates triggered
+in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac"  # which of the binary predicates triggered
 ```
 
 The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it into the current wave or schedule it for a fix wave.
@@ -152,8 +155,9 @@ A finding is a **backlog** candidate when **all** of these hold:
 
 1. Scope is contained to a single feature area.
 2. Effort is "weeks" or smaller (not "months").
-3. It is not blocking any currently-active Task ID-N (otherwise Branch A's file-path or axis predicate would have matched).
-4. The current Subtask ID-N.M is not already touching the same surface (otherwise Branch A's file-path predicate would have matched).
+3. No sibling pending/in-progress Subtask under any active Task ID-N owns the affected surface (otherwise Branch A's parent-Task-AC predicate would have matched).
+4. The finding does not cause any active Task ID-N's `## Acceptance criteria` to fail (otherwise Branch A's parent-Task-AC predicate would have matched).
+5. The current Subtask ID-N.M is not already touching the same surface (otherwise Branch A's file-path predicate would have matched).
 
 This is the most common destination for non-blocking out-of-scope findings. Under Shape A (per PRODUCT inv 13 b + TECH §4.1), Branch C output gains `rank` — the within-priority-tier deterministic ordering integer (PRODUCT inv 3). The curator may set `rank` explicitly when the finding's evidence carries an obvious ordering signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog` Update mode) sets it later.
 
@@ -212,7 +216,7 @@ subtask_spec:
   suggested_skills: ["..."]
   estimated_effort: "..."
   file_ownership_allowed: ["..."]
-  in_scope_predicate_matched: "file-path" | "axis" | "liam-direction"
+  in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac" | "liam-direction"
 
 # Branch B populated (Shape A — capability theme promotion)
 roadmap_proposed_theme:
@@ -257,12 +261,13 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 ## Failure modes to avoid
 
 1. **Defaulting everything to backlog.** Backlog should not be a dumping ground. Use `no-action` when warranted.
-2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership` OR axis = spec-compliance against the Subtask slice**. Anything else is OUT-OF-SCOPE.
+2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE.
 3. **Promoting style nits to the roadmap.** Roadmap is strategic capability; "rename this variable for clarity" is not roadmap material.
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
 5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer reconciles to the current files.
-6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional (per s48-feedback B10). If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership` and the finding is not a spec-compliance issue against the Subtask slice, it is OUT-OF-SCOPE. Route to B / C / D.
+6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional (per s48-feedback B10). If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership`, the finding is not a spec-compliance issue against the Subtask slice, and the parent-Task-AC predicate also does not hold, it is OUT-OF-SCOPE. Route to B / C / D.
 7. **Routing a tactical item to Branch B — it belongs on Backlog.** Under Shape A (per PRODUCT inv 13 a + TECH §4.1), Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
+8. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses (per S62F-WP3 audit — items 152/153/154 routed to backlog despite blocking ID-9 Third-1 acceptance).
 
 ---
 

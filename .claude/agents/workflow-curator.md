@@ -69,12 +69,16 @@ FINDING:
 CURRENT TASK CONTEXT:
   Spec/plan path: {path}
   Workpackage scope: [one-paragraph summary]
-  Acceptance criteria: [list]
+  Acceptance criteria: [list — current Subtask acceptance criteria]
+  Parent Task acceptance criteria: [list — parent Task ID-N's `## Acceptance criteria` excerpt from PRODUCT.md]
+  Sibling Subtask file ownership: { ID-N.X: [globs], ID-N.Y: [globs], ... }  # pending/in-progress siblings under same parent Task
 
 CURRENT ROADMAP/BACKLOG STATE (read by you):
   - docs/reference/product-roadmap.json
   - docs/reference/product-backlog.json
 ```
+
+The Orchestrator dispatcher **MUST** populate `Parent Task acceptance criteria` and `Sibling Subtask file ownership` at every dispatch — especially at wave close when the source Subtask has already promoted to `done`. These fields back Branch A predicate 3 (the parent-Task-AC predicate) in `triage-finding`; omitting them causes the curator to vacuously fail Branch A and false-negative-route wave-close findings to backlog (per S62F-WP3 audit).
 
 ## Operating principles
 
