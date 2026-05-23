@@ -189,6 +189,24 @@ jobs:
             --substitutions="_COMMIT_SHA=${GITHUB_SHA}" \
             .
 
+      - name: Build cocoindex image via Cloud Build
+        # ID-28.6: Build the kh-cocoindex-pipeline image (Docling + cocoindex Rust engine).
+        # Runs in parallel with the existing kh-pipeline build conceptually, but
+        # executes sequentially here (single GHA job) after the primary image build.
+        # cloudbuild-cocoindex.yaml: separate Cloud Build config to maintain the
+        # AGPL boundary (pullmd excluded) and the 5.3 GB image-size budget (T-OQ4).
+        # Docling pre-warm (cloudrun/cocoindex-prewarm.py) bakes model weights into
+        # the image layer at build time.
+        env:
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA_EMAIL }}
+        run: |
+          gcloud builds submit \
+            --project="$GCP_PROJECT" \
+            --service-account="projects/${GCP_PROJECT}/serviceAccounts/${DEPLOY_SA}" \
+            --config=cloudrun/cloudbuild-cocoindex.yaml \
+            --substitutions="_COMMIT_SHA=${GITHUB_SHA}" \
+            .
+
       - name: Deploy tenant manifests
         run: |
           # Map gh-env -> manifest prefix.
@@ -222,6 +240,52 @@ jobs:
             gcloud run jobs replace "$MANIFEST" \
               --project="$GCP_PROJECT" \
               --region=europe-west2
+            echo "::endgroup::"
+          done
+
+      - name: Deploy cocoindex Services
+        # ID-28.6: Deploy the 4 per-tenant kh-cocoindex-pipeline Cloud Run Services.
+        # Uses gcloud run services replace (declarative manifest apply) — analogous
+        # to gcloud run jobs replace for Job manifests. The manifests are in
+        # cloudrun/services/{env}-{tenant}-cocoindex.yaml.
+        # Ingress: internal-only (run.googleapis.com/ingress: internal in manifests).
+        # Auth: same WIF SA used for job deploys (GCP_DEPLOY_SA_EMAIL).
+        run: |
+          # Map gh-env -> manifest prefix.
+          if [[ "$GH_ENV" == "Production" ]]; then
+            ENV_PREFIX="prod"
+          else
+            ENV_PREFIX="staging"
+          fi
+
+          for TENANT in example-client kpf; do
+            MANIFEST="cloudrun/services/${ENV_PREFIX}-${TENANT}-cocoindex.yaml"
+            echo "::group::Deploy $MANIFEST"
+            gcloud run services replace "$MANIFEST" \
+              --project="$GCP_PROJECT" \
+              --region=europe-west2
+            echo "::endgroup::"
+          done
+
+      - name: Inject IMAGE_SHA into cocoindex Services
+        # FX-2 (ID-28.6): Post-deploy step to inject the current commit SHA
+        # into IMAGE_SHA env var on each cocoindex Service.
+        # gcloud run services replace applies the static manifest as-is, so
+        # IMAGE_SHA=="" in the manifest. This step patches it post-deploy so
+        # pipeline_runs.result->'extractor_version' can cross-reference the
+        # deployed image (Inv-8 forensic correlation procedure).
+        # Uses github.sha routed via COMMIT_SHA env var (untrusted-input safety
+        # pattern per workflow header comment — no direct interpolation in run:).
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          for TENANT in example-client kpf; do
+            SERVICE_NAME="kh-cocoindex-pipeline-${TENANT}"
+            echo "::group::Inject IMAGE_SHA into $SERVICE_NAME"
+            gcloud run services update "$SERVICE_NAME" \
+              --project="$GCP_PROJECT" \
+              --region=europe-west2 \
+              --update-env-vars IMAGE_SHA="${COMMIT_SHA}"
             echo "::endgroup::"
           done
 
@@ -271,6 +335,22 @@ jobs:
               --project="$GCP_PROJECT" \
               --region=europe-west2 \
               --set-secrets="$SECRETS_FLAT"
+            echo "::endgroup::"
+          done
+
+          # ID-28.6: Mount secrets on cocoindex Services.
+          # Services need the 11 base secrets + 2 cocoindex-specific secrets:
+          #   PIPELINE_RUN_WEBHOOK_URL — webhook for pipeline_runs updates (ID-28.11)
+          #   PULLMD_SERVICE_URL — HTTP URL of the pullmd AGPL sidecar (ID-28.7)
+          COCOINDEX_SECRETS="${SECRETS_FLAT},PIPELINE_RUN_WEBHOOK_URL=PIPELINE_RUN_WEBHOOK_URL:latest,PULLMD_SERVICE_URL=PULLMD_SERVICE_URL:latest"
+
+          for TENANT in example-client kpf; do
+            SERVICE_NAME="kh-cocoindex-pipeline-${TENANT}"
+            echo "::group::Mount secrets on $SERVICE_NAME"
+            gcloud run services update "$SERVICE_NAME" \
+              --project="$GCP_PROJECT" \
+              --region=europe-west2 \
+              --set-secrets="$COCOINDEX_SECRETS"
             echo "::endgroup::"
           done
 

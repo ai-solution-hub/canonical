@@ -243,6 +243,70 @@ surface them):
   `docs/reference/test-philosophy.md` in `testStrategy` lines for behaviour-change
   Subtasks.
 
+## Pre-ratification empirical verification (OQ-3 — Q-EX2 forcing function)
+
+**Rule:** Before returning any spec ({N.1} RESEARCH / {N.2} PRODUCT / {N.3} TECH / {N.4}
+PLAN) that cites external-library APIs (cocoindex symbols, anthropic SDK shapes, supabase
+client methods, third-party Pydantic models, ts-morph / Zod / TanStack methods on
+non-pinned-major-version, etc.), you MUST run a **pre-ratification empirical
+import-and-call check** against the version pinned in `requirements.txt` (Python) /
+`package.json` (TypeScript) and record the result in the spec.
+
+**Why this is a forcing function (Q-EX2 — S252 cocoindex precedent):** Specs that cite
+external-library APIs without empirical verification drift silently. The Q-EX2 cocoindex
+extraction-contract spec cited `cocoindex.ExtractByLlm` / `LlmSpec` / `LlmApiType` based
+on a phase-B prerequisite doc that surveyed cocoindex 0.3.x. The cocoindex 1.0.0
+restructure removed those symbols, but no one re-verified against the installed pin. The
+drift propagated unchecked from S242 RESEARCH → S252 TECH → S253 PLAN → S256 Executor
+escalation. The fix (Path A) cost two sessions; an empirical check at spec-ratification
+time would have caught it on day one. Canonical record:
+`docs/research/cocoindex-1.0.3-extractbyllm-spec-reality-investigation.md`.
+
+**What to verify:**
+
+1. **Identify cited external symbols.** Grep the spec for module names (`import X from`
+   patterns in code blocks; "uses `pkg.foo()`" in prose; SDK / API references). List per
+   `module.symbol`.
+2. **Look up the pinned version.** Python:
+   `grep '^<package>' requirements.txt` for the `<package>==<version>` line. TypeScript:
+   `jq -r '.dependencies["<package>"]' package.json` (also check `devDependencies`).
+3. **Run the import-and-call check** (sandbox-disabled where needed for cocoindex or
+   other LMDB-touching packages):
+   ```
+   python3 -c "from <module> import <symbol>; print(<symbol>)"
+   ```
+   TypeScript symbols — use ast-dataflow `references` or `tsc --noEmit` against a
+   throwaway file that imports the symbol; runtime `bun --print` may not surface
+   type-only export mismatches.
+4. **Record verification in the spec.** Add an explicit verification block (typically a
+   `## Verification` section, or a footnote near each citation) capturing:
+   - Date — DD/MM/YYYY (UK English).
+   - Pinned version — e.g. `cocoindex==1.0.3`.
+   - Symbol path checked — e.g. `cocoindex.ExtractByLlm`.
+   - Result — `PRESENT` / `ABSENT` / `SIGNATURE_DRIFT` (signature differs from cited
+     shape) / `BEHAVIOUR_DRIFT` (signature matches but runtime behaviour differs from
+     spec assumption).
+
+**Escalation on failure:**
+
+- `ABSENT` or `SIGNATURE_DRIFT` → STOP. Do not return the spec for ratification. Escalate
+  to the Orchestrator with verification evidence and recommend either (a) spec revision
+  to use the actual installed API, or (b) version-pin upgrade if the cited shape exists
+  in a newer release.
+- `BEHAVIOUR_DRIFT` (signature OK, runtime semantics changed — e.g. callback shape moved,
+  async vs sync flipped) → record the drift inline and either revise the spec or surface
+  to the Orchestrator for amend-in-place. Orchestrator's call.
+
+**Scope of this check:**
+
+- **Applies to:** RESEARCH.md surveying external APIs; PRODUCT.md citing third-party
+  behaviour invariants; TECH.md citing external symbols in Proposed changes / migration
+  plans; PLAN.md Subtask `details` referencing external library calls.
+- **Does NOT apply to:** internal KH symbols (caught by ast-dataflow + gitnexus);
+  test-internal helpers; standard-library or framework-built-in calls (Next.js APIs,
+  React hooks, Node built-ins, Python stdlib). For internal symbols, rely on
+  ast-dataflow / gitnexus / Knip — those tools already index the KH corpus.
+
 ## Forbidden actions
 
 You do NOT:

@@ -93,12 +93,141 @@ describe('recordPipelineRun', () => {
     expect(typeof payload.completed_at).toBe('string');
   });
 
+  it('includes op_id in the insert payload when opId is provided', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const testOpId = '550e8400-e29b-41d4-a716-446655440000';
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'completed',
+      opId: testOpId,
+    });
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.op_id).toBe(testOpId);
+  });
+
+  it('inserts op_id as null when opId is omitted', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'content_gaps',
+      status: 'completed',
+    });
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.op_id).toBeNull();
+  });
+
+  it('inserts op_id as null when opId is explicitly null', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'content_gaps',
+      status: 'completed',
+      opId: null,
+    });
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.op_id).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // stageCounts merge (ID-28.11 — Inv-17 rollup substrate)
+  // -------------------------------------------------------------------------
+
+  it('lands stageCounts inside result.stage_counts when no result is supplied', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const stageCounts = {
+      source_walk: 5,
+      binary_conversion: 5,
+      llm_extraction: 5,
+      embedding: 5,
+      entity_resolution: 5,
+      postgres_upsert: 5,
+    };
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'completed',
+      stageCounts,
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.result).toEqual({ stage_counts: stageCounts });
+  });
+
+  it('merges stageCounts INTO caller-supplied result without dropping siblings', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const stageCounts = {
+      source_walk: 1,
+      binary_conversion: 1,
+      llm_extraction: 1,
+      embedding: 1,
+      entity_resolution: 1,
+      postgres_upsert: 1,
+    };
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'completed',
+      result: { extractor_version: 'abc123', error_class: null },
+      stageCounts,
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.result).toEqual({
+      extractor_version: 'abc123',
+      error_class: null,
+      stage_counts: stageCounts,
+    });
+  });
+
+  it('keeps result null when neither result nor stageCounts is supplied', async () => {
+    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'content_gaps',
+      status: 'completed',
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.result).toBeNull();
+  });
+
   it('does NOT fire Sentry on a completed run', async () => {
     const { client } = createMockSupabase({ data: null, error: null });
     await recordPipelineRun({
       supabase: client,
       pipelineName: 'content_gaps',
       status: 'completed',
+    });
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
+  // Regression — ID-28.11 FX-1
+  // Pipeline flow-start webhooks pass status='in_progress' (a healthy
+  // lifecycle event, not a failure). The original Sentry-guard at line
+  // 206 only short-circuited on 'completed', so every flow-start fired
+  // a spurious Sentry warning in production. The guard now covers both
+  // 'completed' AND 'in_progress'; only 'failed' / 'completed_with_errors'
+  // should trigger an alert.
+  it('does NOT fire Sentry on an in_progress run (flow-start lifecycle)', async () => {
+    const { client } = createMockSupabase({ data: null, error: null });
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'in_progress',
+      progress: { stage: 'started' },
     });
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });

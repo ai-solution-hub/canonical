@@ -139,6 +139,12 @@ export const queryKeys = {
     detail: (id: string) => ['workspaces', 'detail', id] as const,
   },
 
+  // Application types (ID-29.6 — DB-driven workspace type registry)
+  applicationTypes: {
+    all: ['application-types'] as const,
+    list: ['application-types', 'list'] as const,
+  },
+
   // Intelligence
   intelligence: {
     all: ['intelligence'] as const,

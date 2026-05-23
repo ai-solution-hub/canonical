@@ -1,14 +1,12 @@
-# Dispatch primitives composition (§5)
+# Dispatch primitives composition
 
 How the three dispatch primitives (`dispatching-parallel-agents`,
 `using-git-worktrees`, `session-driver-cmux`) layer, and how to compose a
 dispatch brief for any sub-agent.
 
-## How the primitives compose (§5)
+## How the primitives compose
 
-The three primitives are layered, not interchangeable. They were harmonised
-(per A4 ratification) so that whichever you pick, the worktree contract is
-the same:
+The three primitives are layered, not interchangeable. They were harmonised so that whichever you pick, the worktree contract is the same:
 
 - **`dispatching-parallel-agents`** — the abstract pattern. Identify
   independent task domains, compose focused sub-tasks, run in parallel,
@@ -40,9 +38,7 @@ prompt. The brief carries:
   may touch. Everything else is off-limits.
 - **Skills to invoke** — list specific KH skills (e.g.
   `test-driven-development`, `incremental-implementation`).
-- **Worktree directive** — verification gate as first action (`pwd && git branch --show-current && git fetch origin <track> && git reset --hard origin/<track> && git branch --show-current` — verbatim, no `cd` prefix). Use relative paths throughout. Commit before finishing. **Never `cd` to absolute knowledge-hub paths** — PreToolUse hook blocks this mechanically; if briefs contain the legacy `cd $(git rev-parse --show-toplevel)` pattern they must be rewritten before dispatch.
-- **Relevant gotchas** — copy specific CLAUDE.md bullets that apply; don't
-  expect the sub-agent to re-read CLAUDE.md from scratch.
+- **Worktree directive** — verification gate as first action (`pwd && git branch --show-current && git fetch origin <track> && git reset --hard origin/<track> && git branch --show-current` — verbatim, no `cd` prefix). Use relative paths throughout. Commit before finishing. **Never `cd` to absolute knowledge-hub paths.**
 - **Escalation rule** — if the sub-agent finds unexpected production
   behaviour, STOP and escalate. Do not silently work around (CLAUDE.md
   "Agent escalation rule").

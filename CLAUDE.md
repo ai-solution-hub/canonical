@@ -12,7 +12,7 @@ if import is in the main CLAUDE.md file.** @./.gitnexus/CLAUDE.md
 ## Project Overview
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
-structured data accessible by AI. The first domain applications are bid management and
+structured data accessible by AI. The first domain applications are procurement and
 sector intelligence for UK SMBs. Next application is Sales Proposals. The knowledge base
 is the foundation for these and future applications.
 
@@ -36,17 +36,10 @@ is the foundation for these and future applications.
 | `bun run build:mcp-apps`                                                                                                               | Build MCP Apps (Vite) + generate inline bundles for Vercel                                           |
 | `bun run build:plugin`                                                                                                                 | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after                             |
 | `bun run test:e2e`                                                                                                                     | Run Playwright E2E tests                                                                             |
-| `bun run test:watch`                                                                                                                   | Vitest in watch mode                                                                                 |
 | `bun run test:mcp-eval`                                                                                                                | Run MCP eval Layer 1 (protocol compliance, 42 checks)                                                |
 | `bun run test:mcp-eval:rq`                                                                                                             | Run MCP eval Layer 3 (response quality, 17 checks)                                                   |
 | `bun run test:mcp-eval:fc`                                                                                                             | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB)                                    |
-| `/opt/homebrew/bin/supabase migration new <name>`                                                                                      | Create local migration file                                                                          |
-| `/opt/homebrew/bin/supabase db push`                                                                                                   | Push local migrations to remote                                                                      |
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                         |
-| `bun run stats`                                                                                                                        | Generate codebase statistics to `docs/generated/` (run end-of-session when file counts change)       |
-| `bun run generate:mcp-inventory`                                                                                                       | Generate MCP tool/resource/prompt inventory to `docs/generated/` (run when MCP registrations change) |
-| `bun run knip`                                                                                                                         | Detect unused files, exports, types, and dependencies (run before merging large changes)             |
-| `bun run analyze`                                                                                                                      | Bundle analyzer (opens browser with bundle visualisation)                                            |
 
 ## Architecture
 
@@ -70,31 +63,17 @@ Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 | `e2e/`        | Playwright E2E specs. Config: `playwright.config.ts`                                                                                                                                                                                                                                                         |
 | `docs/`       | Reference docs, continuation prompts, design system                                                                                                                                                                                                                                                          |
 
-Current counts (routes, components, hooks, tools, migrations, tests):
-`docs/generated/codebase-stats.md` and `docs/generated/mcp-inventory.md`
-
 ## Environment
 
-Env vars in `.env.local` — the single source of truth for both TS and Python pipelines.
-
-`.env.local` points at the persistent staging Supabase branch (`turayklvaunphgbgscat`).
+`.env.local` targets persistent staging Supabase branch (`turayklvaunphgbgscat`).
 Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full guidance:
 `docs/runbooks/local-development.md`.
 
-## Supabase & Schema
+## Database
 
-- **Project ID:** `rovrymhhffssilaftdwd` (eu-west-2 London), pgvector 0.8.0
-- **Staging:** persistent branch `turayklvaunphgbgscat`. Refresh procedure:
-  `docs/runbooks/staging-refresh.md`.
-- **CLI:** `/opt/homebrew/bin/supabase`
-- **DDL via CLI only** (`supabase migration new` + `db push`), never MCP `execute_sql` or
-  `mcp__supabase__apply_migration`. MCP tools for queries and quick DML only.
-- **Function search_path:** All new PL/pgSQL functions **MUST** include
-  `SET search_path = public, extensions`
-- **Prefer proper schema** — tables and columns over JSONB for key data
-- **Schema reference:** `docs/reference/SCHEMA-QUICK-REFERENCE.md`
-- RLS: role-based via `get_user_role()`. Embeddings: `vector(1024)`
-  (text-embedding-3-large). Canonical constants: `lib/validation/schemas.ts`.
+- Uses Supabase
+- Migrations in `supabase/migrations/`
+- Schema defined in `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 
 ## Testing
 
@@ -110,14 +89,13 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 
 ## Deployment
 
-- **Platform:** Vercel (Next.js app) + Cloud Run (Python pipeline jobs)
+- **Platform:** Vercel (Next.js app) + Cloud Run
 - **Production URL:** https://www.kh.client.example
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
 - **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`. Auth via
-  WIF — no JSON keys. Deploy: `.github/workflows/cloud-run-deploy.yml`. Runbook:
+  WIF. Deploy: `.github/workflows/cloud-run-deploy.yml`. Runbook:
   `docs/runbooks/cloud-run-phase-1-handover.md`.
 - **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
-- **Region:** eu-west-2 (London)
 - **GitHub Environments:** `Production` + `Staging` (case-sensitive). Setup:
   `docs/runbooks/github-environments.md`.
 
@@ -134,17 +112,6 @@ Side workflows: `cloud-run-deploy.yml` (Python pipeline), `migration-revoke-guar
 
 `staging` branch is deploy-only (no long-lived worktree) — used for staging-mirror sync
 per `docs/runbooks/staging-refresh.md`.
-
-## Key Product Design Principles
-
-- **"One record, many views"** — no content duplication, multiple views
-- **AI is invisible infrastructure** — not a visible product feature. See
-  `docs/reference/ai-visibility-policy.md`
-- **Programmatic where possible** — deterministic functions for deterministic tasks
-- **UK English throughout** — DD/MM/YYYY, "colour", "organisation"
-- **WCAG 2.1 AA** — never colour alone for meaning
-- **Package manager: bun** (NOT npm/yarn)
-- **The KB is the product** — data quality is paramount
 
 ## Design System: Warm Meridian
 
@@ -177,31 +144,13 @@ point-in-time snapshots.
 
 Mempalace MCP server is the canonical memory system.
 
-**One wing per top-level worktree.** e.g., `knowledge-hub`,
-`knowledge-hub-production-readiness`
-
 **MCP tools:**
 
-- `mempalace_status` ✓ — wing + drawer + room counts.
 - `mempalace_list_wings` ✓ — drawer counts per wing.
-- `mempalace_kg_stats` / `mempalace_kg_query` ✓ — KG empty until seeded.
-- `mempalace_diary_write` / `mempalace_diary_read` ✓ — works for default `wing_<agent>`;
-  cross-project `wing` param errors. Use AAAK format (entity codes + emotion markers +
-  pipe-separated fields).
+- `mempalace_kg_stats` / `mempalace_kg_query` ✓
 - `mempalace_search` **PARTIAL** — default (no `wing` param) works. Any `wing` filter
-  errors `Error executing plan: Internal error: Error finding id`. Workaround: search
+  errors `Error executing plan: Internal error: Error finding id`. **Workaround:** search
   default, filter results client-side by `wing` field.
-
-## Implementation Workflow
-
-Workflow is loaded via `/start-session` skill at session start. Key rules: max 2h per
-agent, verification gates after every phase, fix ALL findings before merge, sequential
-merges only.
-
-**Parallel agent isolation:** Use `isolation: "worktree"` on Agent tool calls for parallel
-implementation work. This auto-creates a git worktree, runs the agent there, and returns
-changes on a branch. Merge sequentially on main — check `git status` for leaked files
-before each merge.
 
 ## Parallel Tracks
 
@@ -211,66 +160,48 @@ Two concurrent long-lived worktrees on this project (shared filesystem via
 - **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
 - **production-readiness**
   (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`, branch
-  `production-readiness`) — CI/CD, staging DB, structured logging, handover infra.
-  Currently implementing the new dev-workflow orchestration setup. Original Primer:
-  `docs/tracks/production-readiness.md`.
-
-Short-lived investigation branches (e.g. `content-items-investigation`) cut from `main`
-without their own worktree are fine — work in the `main` worktree directly.
+  `production-readiness`) — Implementing the new dev-workflow orchestration setup.
 
 ## Gotchas
 
-### Supabase
+### Data & Architecture
 
+- **RLS:** role-based via `get_user_role()`. Embeddings: `vector(1024)`
+  (text-embedding-3-large). Canonical constants: `lib/validation/schemas.ts`.
 - **Embedding vector serialisation:** `JSON.stringify(embedding)` for Supabase RPC vector
   params, not raw array.
-- **Metadata double-serialisation:** Pass metadata as dict not `json.dumps()` — Supabase
-  serialises it again.
-- **REST PATCH on wrong UUID:** Returns 200 OK with 0 rows (silent no-op). Always verify
-  updates by re-querying.
-- **RLS requires user_roles entry:** New users cannot write until seeded.
-- **CLI in Claude Code sandbox:** Run `supabase migration new`, `db push`, and `gen types`
-  with `dangerouslyDisableSandbox: true`. `POSTGRES_PASSWORD` must be set as a shell env
-  var.
-- **Bun fetch hangs on HTTP 204 through sandbox proxy:** supabase-js
-  `.update()`/`.insert()`/`.upsert()`/`.delete()` without `.select()` returns 204, which
-  Bun hangs on in the sandbox. Production is unaffected. **Fix:** run supabase-writing
-  scripts with `dangerouslyDisableSandbox: true`. Do NOT add `.select()` workarounds in
-  production code.
-- **`content_items.content_text_hash` is `GENERATED ALWAYS`:** explicit insert or update
-  value rejected with `cannot insert a non-DEFAULT value into column`. PG auto-computes
-  via `md5(normalised content)`. Omit the field from any payload writing `content_items`.
-- **Column-drop migrations must audit triggers / policies / views ACROSS ALL ENVS, not
-  just current-env audit.** Staging-bypass via empty result sets can mask references that
-  fire on prod. S247 W1: `sync_bid_status` trigger on `workspaces.type` survived
-  staging-apply because greenfield 0 rows matched the UPDATE; prod-apply with 3 matching
-  rows fired the trigger and tripped `NEW.type` post-column-drop (SQLSTATE 42703). Pre-
-  apply checklist before any DROP COLUMN: query `pg_trigger` / `pg_proc` / `pg_policy` /
-  `pg_views` for `relname = '<table>'` on **both** staging and prod, drop dead-code refs
-  inline in the migration (idempotent `DROP TRIGGER IF EXISTS` /
-  `DROP FUNCTION IF EXISTS`).
-- **CLI `.temp/project-ref` can silently go stale post-env-flip:** `supabase db push` may
-  push to the WRONG project (looks like silent-fail on intended project). Always
-  `cat supabase/.temp/project-ref` before any push; relink via
+- **DDL via CLI only** (`supabase migration new` + `db push`), never MCP `execute_sql` or
+  `mcp__supabase__apply_migration`.
+- **Always** `cat supabase/.temp/project-ref` before any push; relink via
   `supabase link --project-ref <correct>` if drift detected.
-- **Supabase auto-grants anon EXECUTE on every new public.\* PL/pgSQL function:**
-  `pg_default_acl` assigns a direct anon grant AND a `PUBLIC EXECUTE` grant. A single
-  `REVOKE ... FROM anon` only removes the direct grant — anon still inherits EXECUTE via
-  `PUBLIC`. A single `REVOKE ... FROM PUBLIC` only removes the PUBLIC grant — anon still
-  has its direct grant. **Both REVOKEs are required.** Canonical pattern in every
-  migration that creates or replaces a `public.*` function (S250 W1b confirmed both via
-  prod ACL inspection — `has_function_privilege('anon', ..., 'EXECUTE')` is the truth
-  check):
-  ```sql
-  REVOKE EXECUTE ON FUNCTION public.foo(...) FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.foo(...) FROM anon;
-  GRANT  EXECUTE ON FUNCTION public.foo(...) TO authenticated, service_role;
-  ```
-  Per-tenant if SECURITY DEFINER. Vector signatures use bare `vector` (no size suffix) to
-  match catalog form; migration apply session needs
-  `SET search_path = public, extensions;` at the top so unqualified `vector` resolves
-  against `extensions.vector` under CLI `db push` (MCP `apply_migration` uses a different
-  default search_path and may succeed without the explicit SET — do not rely on that).
+- **Function search_path:** All new PL/pgSQL functions **MUST** include
+  `SET search_path = public, extensions`
+- **Data fetching:** TanStack Query exclusively. Keys in `lib/query/query-keys.ts`,
+  fetchers in `lib/query/fetchers.ts`. No SWR or raw fetch in hooks.
+- **`getAuthorisedClient()` discriminated union:** Returns `{ success: boolean }` — check
+  `auth.success` not `auth.authorised`. **Always** use `authFailureResponse(auth)` helper to route each failure reason to the correct HTTP status.
+- **No barrel re-exports:** Always use direct file imports (`@/lib/procurement/helpers`),
+  never import from index files.
+- **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);
+  `lib/taxonomy/taxonomy.ts` is a 24-line re-export shim for content types and platforms
+  only — Python pipeline reads taxonomy from
+  `scripts/tests/fixtures/taxonomy_snapshot.json`.
+- **Content review vs governance review:** `/review` = content quality.
+  `/api/governance/review` = freshness/ownership. Separate workflows.
+
+### UI / Frontend
+
+- **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
+  `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
+- **React compiler memoisation:** Destructure nested properties before using in
+  `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
+- **Stable empty array/object defaults in hook returns:** Inline `data?.foo ?? []` creates
+  a new reference every render, breaking downstream deps. Hoist a module-level
+  `const EMPTY_X: T[] = [];` and wrap with
+  `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
+- **Reset local state via `key` prop:** Add `key={propId}` at the call site to force a
+  clean remount — don't write a `useEffect` that calls `setState` in response to prop
+  changes.
 
 ### Testing
 
@@ -279,28 +210,11 @@ without their own worktree are fine — work in the `main` worktree directly.
   fixtures when adding tools or changing doc paths.
 - **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions in
   `mockImplementation()` cannot be used with `new` — use `function` keyword.
-- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122. Test UUIDs
-  like `00000000-...0001` fail — use v4-compliant values.
+- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122. Use v4-compliant values.
 - **Date-sensitive tests need pinned time:** Use `vi.spyOn(Date, 'now')` with a fixed
-  timestamp — `setDate()` rounding causes midnight-boundary flakiness.
-- **Verifier diff on long-lived branches:** use `git show --stat <commit>`, not
-  `git diff main..<commit>` — the latter returns multi-session deltas and produces
-  false-positive "commit contamination" reports.
+  timestamp.
 - **Radix Select in jsdom needs pointer shims:** call `installRadixPointerShims()` from
   `@/__tests__/helpers/radix-pointer-shims` in `beforeEach`.
-
-### E2E / Playwright
-
-- **Browser install:** Must run `python3 -m playwright install chromium` after pip install
-  — version mismatches cause failures.
-- **Mobile viewports:** Pixel 5 viewport may need `click({ force: true })` or
-  `dispatchEvent('click')` for partially obscured buttons.
-- **Auth timing:** Always `waitFor({ state: 'visible' })` before `fill()` on login inputs.
-- **Browser testing:** Use `agent-browser` skill with `--session` for isolated, parallel
-  sessions.
-- **Conditional fallbacks silently pass on empty DBs:**
-  `if (await X.isVisible().catch(() => false))` skips assertions — use hard
-  `expect(X).toBeVisible()` so missing fixtures fail honestly.
 
 ### Plugin / MCP
 
@@ -314,110 +228,17 @@ without their own worktree are fine — work in the `main` worktree directly.
   `WebStandardStreamableHTTPServerTransport` directly, not `createMcpHandler`. Fresh
   server + transport per request. `mcp-handler` only for `.well-known`.
 - **`snyk-agent-scan --scan-all-users` dumps env-var values verbatim in JSON.** Never use
-  in CI. Add redaction wrapper before any v2 cloud upload. Package renamed from
-  `mcp-scan`; install via `pipx install snyk-agent-scan`.
-
-### Data & Architecture
-
-- **Silent failures in Supabase calls:** Use `sb()` (fail-fast) or `tryQuery()`
-  (Result-returning) from `@/lib/supabase/safe`. Composite responses use
-  `warningsEnvelope()` from `@/lib/supabase/warnings`. Best-effort swallows use
-  `logBestEffortWarn()` from `@/lib/supabase/telemetry`. Enforced by ESLint rules
-  `local/no-unchecked-supabase-error` and `local/no-silent-promise-catch`. Full spec:
-  `docs/specs/silent-failure-prevention-spec.md`.
-- **Cron `pipeline_runs` inserts:** Use `recordPipelineRun()` from
-  `@/lib/pipeline/record-run`, not raw insert.
-- **Data fetching:** TanStack Query exclusively. Keys in `lib/query/query-keys.ts`,
-  fetchers in `lib/query/fetchers.ts`. No SWR or raw fetch in hooks.
-- **`getAuthorisedClient()` discriminated union:** Returns `{ success: boolean }` — check
-  `auth.success` not `auth.authorised`. Three failure reasons: `unauthenticated` (→401),
-  `forbidden` (→403), `role_lookup_failed` (→500). **Always** use
-  `authFailureResponse(auth)` helper to route each reason to the correct HTTP status.
-- **No barrel re-exports:** Always use direct file imports (`@/lib/procurement/helpers`),
-  never import from index files.
-- **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);
-  `lib/taxonomy/taxonomy.ts` is a 24-line re-export shim for content types and platforms
-  only — Python pipeline reads taxonomy from
-  `scripts/tests/fixtures/taxonomy_snapshot.json`.
-- **Content review vs governance review:** `/review` = content quality.
-  `/api/governance/review` = freshness/ownership. Separate workflows.
-- **Entity classification: false positives, not type errors:** Source of truth:
-  `docs/reference/entity-type-taxonomy-spec.md`.
-
-### UI / Frontend
-
-- **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
-  `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
-- **Tailwind v4 gotchas:** (1) Dark mode is class-based via
-  `@custom-variant dark (&:is(.dark *))` in `globals.css` — don't remove. (2) Scans ALL
-  files — never put wildcard class patterns in backticks. (3) Bare `border` uses
-  `currentColor` — the `globals.css` base rule restoring `var(--border)` must not be
-  removed.
-- **`@tiptap/markdown` is NOT `tiptap-markdown`:** Official package uses
-  `editor.getMarkdown()` (not `editor.storage.markdown.getMarkdown()`), has no
-  `html`/`transformCopiedText`/`transformPastedText` options. Context7 docs show the
-  community package — verify against `node_modules/@tiptap/markdown/dist/`.
-- **React compiler memoisation:** Destructure nested properties before using in
-  `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
-- **Stable empty array/object defaults in hook returns:** Inline `data?.foo ?? []` creates
-  a new reference every render, breaking downstream deps. Hoist a module-level
-  `const EMPTY_X: T[] = [];` and wrap with
-  `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
-- **Reset local state via `key` prop:** Add `key={propId}` at the call site to force a
-  clean remount — don't write a `useEffect` that calls `setState` in response to prop
-  changes.
+  in CI. Add redaction wrapper before any v2 cloud upload.
 
 ### General
 
-- **Next.js Image rejects query-string cache-busters on local paths.**
-  `<Image src="/foo.webp?v=dev">` fails — Next.js handles its own caching.
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
-- **python-docx and Track Changes:** Use `open_document_safe()` from
-  `scripts/docx_utils.py`, not `Document(path)` directly.
-- **mammoth `convertToMarkdown()` drops tables:** Use two-step `mammoth.convertToHtml()` →
-  Turndown (with `turndown-plugin-gfm`).
-- **cocoindex 1.0.3 requires `dangerouslyDisableSandbox: true`** for both PyPI install and
-  Rust-engine LMDB startup in dev. `localfs.walk_dir` defaults `recursive=False` —
-  explicit `recursive=True` needed for nested corpora.
 - **Worktree isolation:** Use `isolation: "worktree"` on parallel Agent dispatch.
-  PreToolUse hooks (`.claude/settings.json`, `Bash|Write|Edit|MultiEdit` matchers) enforce
-  CWD-vs-path containment — trust the hooks, don't reinvent. Cherry-pick (not merge)
-  parallel branches; agents start stale, so first action is
+Cherry-pick (not merge) parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
-- **Hook propagation discipline (ID-19.4):** Sub-agent worktrees created via
-  `isolation: "worktree"` live under `/Users/liamj/.../knowledge-hub/.claude/worktrees/agent-XXX/`
-  — i.e. they inherit **main repo branch state**, not the orchestrator's branch.
-  If the Tier 2.2 hook (or any future PreToolUse guard) lives only on a non-main branch
-  (e.g. `production-readiness`-only at commit time), sub-agents will dispatch WITHOUT the
-  hook on disk. Pre-dispatch check: `git show origin/main:.claude/settings.json | grep -c
-  "Tier 2.2 hook (ID-19.3)"` must be ≥1. If 0, propagate via merge or cherry-pick to main
-  BEFORE dispatch. Full analysis: `docs/research/hook-cwd-prefix-gap-investigation.md`.
-- **Brief-authoring discipline — minimise sibling-worktree absolute paths.** When writing
-  dispatch briefs for sub-agents (Agent tool `isolation: "worktree"` or
-  `session-driver-cmux`), use **relative paths only** for file references. If absolute
-  paths are unavoidable, only the worker's OWN worktree path is acceptable. NEVER mention
-  sibling worktree absolute paths (`-production-readiness/`, `-staging/`, etc.) in
-  dispatch text — even in `git fetch` examples or hook-warning recitations — because
-  primer effect causes the sub-agent's Write tool autocomplete to emit those paths. The
-  Tier 2.2 hook is the backstop; relative-paths-only is the cheapest defense layer.
-- **Reference-doc freshness is self-policed:** the edit-coupled freshness guard
-  (`__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`) was removed S249 (commit
-  `4d4524d3`) — doc maintenance burden outweighed catch-rate benefit, and canonical
-  reference docs are stable enough to self-police. Manually bump `<!-- Last verified -->`
-  headers (UK DD/MM/YYYY) when editing canonical reference docs as a hygiene discipline;
-  no CI enforcement of same-commit migration ↔ SCHEMA-QUICK-REF coupling.
-- **Use General Purpose agents (unless otherwise specified):** These inherit the main
-  sessions 1m token context window and avoids hitting token limits.
-- **ALWAYS check worktree `git status` before removing it:** This covers any cases where
-  an agent exited mid-commit.
+- **ALWAYS check worktree `git status` before removing it**
+- **Use General Purpose agents (unless otherwise specified)**
 - **`classifyContent` userId must be a UUID:** Use pipeline service account UUID
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
-- **cmux Bash calls need `dangerouslyDisableSandbox: true`:** cmux daemon (Mac app at
-  `/Applications/cmux.app`) communicates via `/tmp/cmux.sock`, which is outside the
-  sandbox `write.allowOnly` allowlist. Without sandbox-disable every `cmux *` call fails
-  with `Failed to connect to socket at /tmp/cmux.sock` even when the app is running.
-  Permissions in `.claude/settings.json` cover `Bash(cmux *)` for auto-approval, but the
-  sandbox flag is still required for socket access. Pattern matches the Supabase CLI
-  gotcha. Verify daemon is running with `cmux ping` (returns `PONG`) before fan-out.

@@ -1,14 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { getLauncherTypes, formatTypeCount } from '@/lib/workspace-types';
+import {
+  useLauncherTypes,
+  formatTypeCount,
+} from '@/hooks/workspaces/use-application-types';
 
 interface WorkspacesContentProps {
   counts: Record<string, number>;
 }
 
 export function WorkspacesContent({ counts }: WorkspacesContentProps) {
-  const launcherTypes = getLauncherTypes();
+  // ID-29.7: migrated from static getLauncherTypes() to useLauncherTypes() hook.
+  // On first paint the hook returns [] (loading); existing grid container renders
+  // empty until the hook resolves (~50ms from cache). Acceptable per TECH.md R-1 / AC-3a.
+  const { data: launcherTypes = [] } = useLauncherTypes();
 
   return (
     <>
@@ -24,13 +30,13 @@ export function WorkspacesContent({ counts }: WorkspacesContentProps) {
       <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {launcherTypes.map((wt) => {
           const Icon = wt.icon;
-          const count = counts[wt.type] ?? 0;
-          const countText = formatTypeCount(wt.type, count);
+          const count = counts[wt.key] ?? 0;
+          const countText = formatTypeCount(wt, count);
 
           if (wt.available && wt.route) {
             return (
               <Link
-                key={wt.type}
+                key={wt.key}
                 href={wt.route}
                 className="group rounded-lg border bg-card p-6 shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={`${wt.labelPlural} — ${countText}`}
@@ -57,7 +63,7 @@ export function WorkspacesContent({ counts }: WorkspacesContentProps) {
 
           return (
             <div
-              key={wt.type}
+              key={wt.key}
               className="rounded-lg border bg-card p-6 opacity-60 shadow-sm"
               aria-disabled="true"
               aria-label={`${wt.labelPlural} — coming soon`}

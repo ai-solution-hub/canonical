@@ -30,5 +30,26 @@ supabase>=2.0.0
 # Evaluation metrics
 bert-score>=0.3.13
 
+# Cocoindex pipeline (ID-28 / T8 cocoindex sidecar)
+# cocoindex 1.0.3 requires dangerouslyDisableSandbox in Claude Code dev (CLAUDE.md gotcha).
+cocoindex[postgres]==1.0.3
+# Docling: MIT-licensed document converter + layout-heron model (1.8 GB weights).
+# Pre-warmed into image at Cloud Build time via cloudrun/cocoindex-prewarm.py.
+docling>=2.0.0,<3.0.0
+# litellm: unified LLM API abstraction used by cocoindex ExtractByLlm stage (ID-28.12).
+litellm>=1.40.0,<2.0.0
+# aiohttp: HTTP framework for cocoindex sidecar wrapper server (ID-28.15). Transitive via
+# litellm, pinned explicitly because scripts/cocoindex_pipeline/server.py treats it as a
+# first-class production dependency (Cloud Run sidecar HTTP server).
+aiohttp>=3.9.0,<4.0.0
+# asyncpg: async Postgres driver for cocoindex postgres source/sink connector.
+asyncpg>=0.30.0
+# tenacity: KH-managed retry wrapper around anthropic.AsyncAnthropic.messages.create
+# (ID-28.17). cocoindex 1.0.3 has no retry primitives around the @coco.fn LLM path
+# (empirically verified in S257 W2a + the _FlowRetryCounter docstring); KH owns the
+# retry surface, decorated via tenacity's @retry with 3 attempts + exponential backoff
+# (P-OQ2: 1 s base / 2x exponent / 30 s cap).
+tenacity==9.1.4
+
 # Testing
 pytest>=8.0.0

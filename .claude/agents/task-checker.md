@@ -169,12 +169,52 @@ For each commit, score against:
 - No new `index.ts` files inside `lib/`, `components/`, or `hooks/` that re-export from
   siblings.
 
+**`empirical-grounding`** (OQ-3 — applies when spec or Subtask `details` cite external-library APIs)
+
+- The spec-authoring Subtask ({N.1}/{N.2}/{N.3}/{N.4}) under audit (and any
+  implementation Subtask whose `details` cite external-library symbols) must include a
+  pre-ratification empirical verification block per the Planner's OQ-3 discipline.
+- The verification block must contain: date (DD/MM/YYYY), pinned version
+  (`<package>==<version>` from `requirements.txt` / `package.json`), symbol path checked,
+  and result (`PRESENT` / `ABSENT` / `SIGNATURE_DRIFT` / `BEHAVIOUR_DRIFT`).
+- **Run a fresh import-and-call check during the audit** — confirm the Planner's recorded
+  result still holds against the current pin:
+  ```
+  python3 -c "from <module> import <symbol>; print(<symbol>)"
+  ```
+  TypeScript symbols — use ast-dataflow `references` or a `tsc --noEmit` against a
+  throwaway file; runtime `bun --print` may miss type-only export drift.
+- **Missing empirical verification on a spec that cites external APIs = `blocker`
+  (in-scope) finding.** The spec cannot ratify until the check is recorded.
+- **Stale verification (different pinned version than the one recorded) = `important`
+  (in-scope) finding** requiring re-verification.
+- **Cross-check holds for implementation Subtasks too** — if an Executor commit cites an
+  external symbol that does not exist in the pinned version (`ABSENT` /
+  `SIGNATURE_DRIFT`), that's a `blocker` (in-scope) `empirical-grounding` finding even if
+  spec-compliance otherwise passes.
+- **Q-EX2 precedent (S252 cocoindex spec-vs-reality drift):** the canonical illustration
+  of why this check matters. Cite
+  `docs/research/cocoindex-1.0.3-extractbyllm-spec-reality-investigation.md` in
+  `description` when the drift shape is structurally similar.
+- **Scope of this axis:** applies to external-library symbols only — internal KH symbols
+  are caught by ast-dataflow / gitnexus / Knip already; standard-library / framework
+  built-ins (Next.js, React, Node stdlib, Python stdlib) are exempt.
+
 ### Standard workflow
 
 **Step 1 — Read the spec slice and subtask brief**
 
 Read the spec section(s) referenced in `details`. Read `testStrategy`. Read any
 `<info added on …>` journal blocks in `details`.
+
+**Step 1b — Empirical-grounding pre-check (OQ-3)**
+
+If the spec or Subtask `details` cite external-library APIs (cocoindex / anthropic /
+supabase-js / ts-morph / Zod / etc. on non-built-in versions), run the import-and-call
+check against the pinned version (`requirements.txt` / `package.json`). Cross-check that
+the Planner's recorded empirical-verification block matches the current pin. Drift =
+`empirical-grounding` finding (blocker if `ABSENT`/`SIGNATURE_DRIFT`, important if stale
+version pin). See Q-EX2 precedent above.
 
 **Step 2 — Inspect each commit**
 
@@ -293,7 +333,7 @@ skill body can route findings mechanically without re-reading prose.
     {
       "severity": "blocker | important | nit | fyi",
       "scope": "in-scope | out-of-scope",
-      "axis": "spec-compliance | code-quality | test-quality | design-tokens | type-design | silent-failure | performance | security",
+      "axis": "spec-compliance | code-quality | test-quality | design-tokens | type-design | silent-failure | empirical-grounding | performance | security",
       "location": "path/to/file.ts:42",
       "description": "Free-text description of the finding.",
       "fix_recommendation": "Free-text recommendation, or null if Curator-triage required."
@@ -312,6 +352,7 @@ skill body can route findings mechanically without re-reading prose.
     "test-quality": "PASS | NOTE | FAIL",
     "design-tokens": "PASS | NOTE | FAIL",
     "silent-failure": "PASS | NOTE | FAIL",
+    "empirical-grounding": "PASS | NOTE | FAIL | N/A",
     "type-design": "PASS | NOTE | FAIL | N/A",
     "security": "PASS | NOTE | FAIL | N/A",
     "performance": "PASS | NOTE | FAIL | N/A"

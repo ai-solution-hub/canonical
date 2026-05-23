@@ -2,12 +2,18 @@
  * WorkspaceCreateDialog Component Tests
  *
  * Tests type-aware behaviour. Post-T2:
- * - `kb_section` was retired (no rows in either env). The registry's
- *   non-custom-creation type is now `proposal` (label "Sales Proposal").
+ * - `kb_section` was retired (no rows in either env). The DB's non-custom-creation
+ *   type for sales proposals is `sales_proposal` (label "Sales Proposal").
  * - `bid` was renamed to `procurement` (label "Procurement", hasCustomCreation: true).
  * Default prop is `procurement`, which delegates to the bid wizard.
+ *
+ * Post-ID-29.7: dialog consumes `useWorkspaceType()` (TanStack hook). Tests wrap
+ * in a `QueryClientProvider` (via `createQueryWrapper()`) and stub `fetch` (via
+ * `stubApplicationTypesFetch()`) to return the 6 application_types seed rows.
+ * Assertions about `typeConfig`-derived UI use `waitFor` because the hook
+ * resolves asynchronously (~50ms in jsdom).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
@@ -38,6 +44,8 @@ vi.mock('@/components/workspace/workspace-icon-picker', () => ({
 }));
 
 import { WorkspaceCreateDialog } from '@/components/workspace/workspace-create-dialog';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
+import { stubApplicationTypesFetch } from '@/__tests__/helpers/workspace-type-fixtures';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -46,20 +54,30 @@ import { WorkspaceCreateDialog } from '@/components/workspace/workspace-create-d
 describe('WorkspaceCreateDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stubApplicationTypesFetch();
   });
 
-  describe('proposal type (no custom creation — shows form)', () => {
-    it('shows registry-driven title when type is proposal', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  describe('sales_proposal type (no custom creation — shows form)', () => {
+    // Post-ID-29.7: DB seed key is `sales_proposal` (label "Sales Proposal");
+    // the static registry's legacy `proposal` key no longer maps to a DB row.
+    it('shows registry-driven title when type is sales_proposal', async () => {
       render(
         <WorkspaceCreateDialog
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-          type="proposal"
+          type="sales_proposal"
         />,
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
-      expect(screen.getByText('New Sales Proposal')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('New Sales Proposal')).toBeInTheDocument();
+      });
       expect(
         screen.getByText(
           'Draft and manage sales proposals drawing on your knowledge base',
@@ -67,33 +85,39 @@ describe('WorkspaceCreateDialog', () => {
       ).toBeInTheDocument();
     });
 
-    it('shows the form with name input when type is proposal', () => {
+    it('shows the form with name input when type is sales_proposal', async () => {
       render(
         <WorkspaceCreateDialog
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-          type="proposal"
+          type="sales_proposal"
         />,
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
+      // The form is rendered on first paint (no async dependency); the typeConfig
+      // resolution only affects header copy and the submit-button label.
       expect(screen.getByLabelText('Name')).toBeInTheDocument();
       expect(screen.getByLabelText('Description')).toBeInTheDocument();
       expect(screen.getByText('Colour')).toBeInTheDocument();
       expect(screen.getByText('Icon')).toBeInTheDocument();
     });
 
-    it('shows Create button with registry label', () => {
+    it('shows Create button with registry label', async () => {
       render(
         <WorkspaceCreateDialog
           open={true}
           onOpenChange={mockOnOpenChange}
           onCreated={mockOnCreated}
-          type="proposal"
+          type="sales_proposal"
         />,
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
-      expect(screen.getByText('Create Sales Proposal')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('Create Sales Proposal')).toBeInTheDocument();
+      });
     });
   });
 
@@ -106,9 +130,11 @@ describe('WorkspaceCreateDialog', () => {
           onCreated={mockOnCreated}
           onBidCreate={mockOnBidCreate}
         />,
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
-      // procurement has hasCustomCreation: true — dialog closes and delegates.
+      // procurement has hasCustomCreation: true — dialog closes and delegates
+      // once the hook resolves and the effect re-runs with the new typeConfig.
       await waitFor(() => {
         expect(mockOnOpenChange).toHaveBeenCalledWith(false);
         expect(mockOnBidCreate).toHaveBeenCalledTimes(1);
@@ -124,6 +150,7 @@ describe('WorkspaceCreateDialog', () => {
           type="procurement"
           onBidCreate={mockOnBidCreate}
         />,
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -140,6 +167,7 @@ describe('WorkspaceCreateDialog', () => {
           onCreated={mockOnCreated}
           type="procurement"
         />,
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {

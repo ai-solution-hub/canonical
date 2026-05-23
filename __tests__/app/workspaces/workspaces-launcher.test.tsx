@@ -4,11 +4,19 @@
  * Tests the WorkspacesContent launcher component that replaced the old
  * workspace grid. Verifies type cards render correctly, counts display,
  * coming soon cards, accessibility landmarks, and keyboard navigation.
+ *
+ * Post-ID-29.7: launcher consumes `useLauncherTypes()` (TanStack hook). Tests
+ * wrap in a `QueryClientProvider` (via `createQueryWrapper()`) and stub
+ * `fetch` (via `stubApplicationTypesFetch()`) to return the 6
+ * application_types seed rows.
  */
-import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { WorkspacesContent } from '@/app/workspaces/workspaces-content';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
+import { stubApplicationTypesFetch } from '@/__tests__/helpers/workspace-type-fixtures';
 
 // Mock next/link to render a plain anchor for test assertions
 vi.mock('next/link', () => ({
@@ -28,8 +36,18 @@ vi.mock('next/link', () => ({
 }));
 
 describe('WorkspacesContent (launcher)', () => {
+  beforeEach(() => {
+    stubApplicationTypesFetch();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
   it('renders the page heading and description', () => {
-    render(<WorkspacesContent counts={{}} />);
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    // Header is rendered on first paint regardless of hook state.
     expect(
       screen.getByRole('heading', { level: 1, name: 'Workspaces' }),
     ).toBeInTheDocument();
@@ -40,63 +58,98 @@ describe('WorkspacesContent (launcher)', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders type cards for bid and proposal', () => {
-    render(<WorkspacesContent counts={{}} />);
-    expect(
-      screen.getByRole('heading', { level: 2, name: 'Procurements' }),
-    ).toBeInTheDocument();
+  it('renders type cards for bid and proposal', async () => {
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'Procurements' }),
+      ).toBeInTheDocument();
+    });
     expect(
       screen.getByRole('heading', { level: 2, name: 'Sales Proposals' }),
     ).toBeInTheDocument();
   });
 
-  it('shows correct count text for active procurements', () => {
+  it('shows correct count text for active procurements', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 3 }} />);
-    expect(screen.getByText('3 active procurements')).toBeInTheDocument();
+    render(<WorkspacesContent counts={{ procurement: 3 }} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
+    await waitFor(() => {
+      expect(screen.getByText('3 active procurements')).toBeInTheDocument();
+    });
   });
 
-  it('shows singular count text for 1 active procurement', () => {
+  it('shows singular count text for 1 active procurement', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 1 }} />);
-    expect(screen.getByText('1 active procurement')).toBeInTheDocument();
+    render(<WorkspacesContent counts={{ procurement: 1 }} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
+    await waitFor(() => {
+      expect(screen.getByText('1 active procurement')).toBeInTheDocument();
+    });
   });
 
-  it('does not show count text when count is zero', () => {
+  it('does not show count text when count is zero', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 0 }} />);
+    render(<WorkspacesContent counts={{ procurement: 0 }} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
+    await waitFor(() => {
+      // Confirm the hook resolved
+      expect(screen.getByText('Procurements')).toBeInTheDocument();
+    });
     expect(screen.queryByText(/active procurement/)).not.toBeInTheDocument();
   });
 
-  it('links the bid card to /bid', () => {
+  it('links the bid card to /bid', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 5 }} />);
-    const bidLink = screen.getByRole('link', {
-      name: /Procurements/,
+    render(<WorkspacesContent counts={{ procurement: 5 }} />, {
+      wrapper: createQueryWrapper().Wrapper,
     });
-    expect(bidLink).toHaveAttribute('href', '/procurement');
+    await waitFor(() => {
+      const bidLink = screen.getByRole('link', {
+        name: /Procurements/,
+      });
+      expect(bidLink).toHaveAttribute('href', '/procurement');
+    });
   });
 
-  it('marks coming soon cards as aria-disabled', () => {
-    render(<WorkspacesContent counts={{}} />);
+  it('marks coming soon cards as aria-disabled', async () => {
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText(/Sales Proposals.*coming soon/),
+      ).toBeInTheDocument();
+    });
     const proposalCard = screen.getByLabelText(/Sales Proposals.*coming soon/);
     expect(proposalCard).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('applies reduced opacity to coming soon cards', () => {
-    render(<WorkspacesContent counts={{}} />);
+  it('applies reduced opacity to coming soon cards', async () => {
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText(/Sales Proposals.*coming soon/),
+      ).toBeInTheDocument();
+    });
     const proposalCard = screen.getByLabelText(/Sales Proposals.*coming soon/);
     expect(proposalCard.className).toContain('opacity-60');
   });
 
-  it('shows "Coming soon" badge on unavailable types', () => {
-    render(<WorkspacesContent counts={{}} />);
-    // Multiple 'Coming soon' badges exist (Sales Proposals + Intelligence)
-    expect(screen.getAllByText('Coming soon').length).toBeGreaterThanOrEqual(1);
+  it('shows "Coming soon" badge on unavailable types', async () => {
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    await waitFor(() => {
+      // Multiple 'Coming soon' badges exist (Sales Proposals + Intelligence Streams + 3 unrouted seed types)
+      expect(screen.getAllByText('Coming soon').length).toBeGreaterThanOrEqual(1);
+    });
   });
 
-  it('does not render coming soon types as links', () => {
-    render(<WorkspacesContent counts={{}} />);
+  it('does not render coming soon types as links', async () => {
+    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
+    });
     // Proposal should not be a link
     const links = screen.getAllByRole('link');
     const proposalLinks = links.filter((l) =>

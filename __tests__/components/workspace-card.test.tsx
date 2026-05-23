@@ -3,10 +3,18 @@
  *
  * Tests the workspace card component: item count pill styling,
  * card structure, and accessibility.
+ *
+ * Post-ID-29.7: workspace-card consumes `useWorkspaceType()` (TanStack hook).
+ * Tests wrap renders in a `QueryClientProvider` (via the project-wide
+ * `createQueryWrapper()` helper) and stub `fetch` (via
+ * `stubApplicationTypesFetch()`) to return the 6 application_types seed rows
+ * verbatim (snake_case). The hook's `select:` callback normalises to
+ * camelCase and joins the static client config — see
+ * `hooks/workspaces/use-application-types.ts`.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('@/lib/format', () => ({
   formatRelativeDate: (date: string) => date,
@@ -16,6 +24,8 @@ import {
   WorkspaceCard,
   type WorkspaceWithCounts,
 } from '@/components/workspace/workspace-card';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
+import { stubApplicationTypesFetch } from '@/__tests__/helpers/workspace-type-fixtures';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,7 +39,7 @@ function makeWorkspace(
     name: 'Test Workspace',
     description: 'A test workspace',
     // Post-T2: workspace.type is sourced from application_types.key via JOIN.
-    // Registry keys are 'procurement' (label 'Procurement'), 'intelligence', 'proposal'.
+    // Registry keys are 'procurement' (label 'Procurement'), 'intelligence', 'sales_proposal'.
     type: 'procurement',
     status: 'active',
     icon: 'folder',
@@ -51,6 +61,7 @@ function renderCard(
   readOnly = false,
 ) {
   const workspace = makeWorkspace(overrides);
+  const { Wrapper } = createQueryWrapper();
   return render(
     <WorkspaceCard
       workspace={workspace}
@@ -58,6 +69,7 @@ function renderCard(
       onArchiveToggle={vi.fn()}
       readOnly={readOnly}
     />,
+    { wrapper: Wrapper },
   );
 }
 
@@ -66,6 +78,17 @@ function renderCard(
 // ---------------------------------------------------------------------------
 
 describe('WorkspaceCard', () => {
+  let mockFetch: ReturnType<typeof stubApplicationTypesFetch>;
+
+  beforeEach(() => {
+    mockFetch = stubApplicationTypesFetch();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
   describe('item count pill', () => {
     it('renders item count as a link', () => {
       renderCard({ item_count: 12 });
@@ -113,32 +136,52 @@ describe('WorkspaceCard', () => {
       ).toBeInTheDocument();
     });
 
-    it('shows badge label from registry for procurement type', () => {
+    it('shows badge label from registry for procurement type', async () => {
       renderCard({ type: 'procurement' });
-      expect(screen.getByText('Procurement')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('Procurement')).toBeInTheDocument();
+      });
     });
 
-    it('shows badge label from registry for intelligence type', () => {
+    it('shows badge label from registry for intelligence type', async () => {
       renderCard({ type: 'intelligence' });
-      expect(screen.getByText('Intelligence Stream')).toBeInTheDocument();
+      // Hook resolves with DB label 'Intelligence Stream'
+      await waitFor(() => {
+        expect(screen.getByText('Intelligence Stream')).toBeInTheDocument();
+      });
     });
 
-    it('shows no badge for unknown workspace type', () => {
+    it('shows no badge for unknown workspace type', async () => {
       renderCard({ type: 'unknown_type' });
+      // The hook resolves with `typeConfig === undefined` for unknown keys,
+      // producing no observable DOM transition (no badge appears at any
+      // point). Wait for the fetch to fire so we know the hook's loading
+      // phase has progressed past first paint, then assert absent.
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
       expect(screen.queryByText('Procurement')).not.toBeInTheDocument();
       expect(screen.queryByText('Intelligence Stream')).not.toBeInTheDocument();
     });
 
-    it('shows arrow icon for types with a route', () => {
+    it('shows arrow icon for types with a route', async () => {
       renderCard({ type: 'procurement' });
-      expect(
-        screen.getByTitle('Opens procurement detail page'),
-      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(
+          screen.getByTitle('Opens procurement detail page'),
+        ).toBeInTheDocument();
+      });
     });
 
-    it('does not show arrow icon for types without a route', () => {
-      // 'proposal' is registered but has route: null (Coming Soon).
-      renderCard({ type: 'proposal' });
+    it('does not show arrow icon for types without a route', async () => {
+      // Post-ID-29.7: DB seed key is 'sales_proposal' (CLIENT_CONFIG.sales_proposal
+      // has route: null, available: false). The static registry's legacy 'proposal'
+      // key no longer exists in the DB.
+      renderCard({ type: 'sales_proposal' });
+      await waitFor(() => {
+        // Confirm the hook resolved (sales_proposal label appears in the badge)
+        expect(screen.getByText('Sales Proposal')).toBeInTheDocument();
+      });
       expect(
         screen.queryByTitle(/Opens .* detail page/),
       ).not.toBeInTheDocument();
