@@ -65,7 +65,9 @@ export type BacklogItemType = z.infer<typeof BacklogItemType>;
 
 export const BacklogItemSchema = z.object({
   /** Item identifier — bare-digit canonical form after ID-15.4 migration (inv 37). */
-  id: z.string().regex(BARE_ID_REGEX, 'Backlog item id must be a bare digit string'),
+  id: z
+    .string()
+    .regex(BARE_ID_REGEX, 'Backlog item id must be a bare digit string'),
 
   /** One-sentence summary of the work item. */
   description: z.string().min(1),
@@ -119,6 +121,15 @@ export const BacklogItemSchema = z.object({
 
   /** Optional prose notes, nullable. */
   notes: z.string().nullable(),
+
+  /**
+   * Within-priority deterministic ordering. Lower integer = higher rank.
+   * Default null; pre-existing items omit. Schema does NOT enforce uniqueness
+   * or contiguity within tier (PRODUCT inv 3). Curator skill maintains
+   * discipline (Subtask 30.5 + P-OQ-3 auto-shift default). Per TECH §3.1
+   * (Subtask 30.6).
+   */
+  rank: z.number().int().nullable().optional(),
 
   // ── New optional fields per PRODUCT inv 38 ──────────────────────────────
 

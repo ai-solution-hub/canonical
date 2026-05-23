@@ -253,6 +253,98 @@ describe('BacklogItemSchema — new optional fields (inv 38)', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// BacklogItemSchema — rank field (Subtask 30.6 / TECH §3.1)
+//
+// Within-priority deterministic ordering. Lower integer = higher rank. Default
+// null; pre-existing items omit. Schema does NOT enforce uniqueness or
+// contiguity within tier (PRODUCT inv 3) — curator skill maintains discipline.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('BacklogItemSchema — rank field (Subtask 30.6 / TECH §3.1)', () => {
+  it('accepts rank: null (default)', () => {
+    const result = BacklogItemSchema.safeParse({
+      ...VALID_ITEM_BASE,
+      rank: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rank).toBeNull();
+    }
+  });
+
+  it('accepts rank as a positive integer', () => {
+    const result = BacklogItemSchema.safeParse({
+      ...VALID_ITEM_BASE,
+      rank: 5,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rank).toBe(5);
+    }
+  });
+
+  it('accepts rank omitted entirely (optional field, pre-existing items)', () => {
+    const result = BacklogItemSchema.safeParse(VALID_ITEM_BASE);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rank).toBeUndefined();
+    }
+  });
+
+  it('accepts rank: 0 (lowest non-negative integer)', () => {
+    const result = BacklogItemSchema.safeParse({
+      ...VALID_ITEM_BASE,
+      rank: 0,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects rank as a non-integer (e.g. 1.5)', () => {
+    const result = BacklogItemSchema.safeParse({
+      ...VALID_ITEM_BASE,
+      rank: 1.5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects rank as a string', () => {
+    const result = BacklogItemSchema.safeParse({
+      ...VALID_ITEM_BASE,
+      rank: '5',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rank round-trips when explicit null and when integer', () => {
+    const withNull = BacklogItemSchema.safeParse({
+      ...VALID_ITEM_BASE,
+      rank: null,
+    });
+    expect(withNull.success).toBe(true);
+    if (withNull.success) {
+      const reparsed = BacklogItemSchema.safeParse(withNull.data);
+      expect(reparsed.success).toBe(true);
+      if (reparsed.success) {
+        expect(reparsed.data.rank).toBeNull();
+      }
+    }
+
+    const withInt = BacklogItemSchema.safeParse({
+      ...VALID_ITEM_BASE,
+      rank: 42,
+    });
+    expect(withInt.success).toBe(true);
+    if (withInt.success) {
+      const reparsed = BacklogItemSchema.safeParse(withInt.data);
+      expect(reparsed.success).toBe(true);
+      if (reparsed.success) {
+        expect(reparsed.data.rank).toBe(42);
+      }
+    }
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // BacklogItemSchema — required fields enforcement
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -286,12 +378,21 @@ describe('BacklogItemSchema — required fields enforcement', () => {
   it('rejects legacy-format ids (schema tightened to bare-digit in ID-15.4)', () => {
     // After ID-15.4 migration all backlog items use bare-digit ids (e.g. "42").
     // Legacy formats such as OPS-6, AST-S10-O1, C2-PA5 are no longer valid.
-    for (const legacyId of ['OPS-6', 'AST-S10-O1', 'C2-PA5', 'RLS-P8', 'ID-17']) {
+    for (const legacyId of [
+      'OPS-6',
+      'AST-S10-O1',
+      'C2-PA5',
+      'RLS-P8',
+      'ID-17',
+    ]) {
       const result = BacklogItemSchema.safeParse({
         ...VALID_ITEM_BASE,
         id: legacyId,
       });
-      expect(result.success, `expected legacy id "${legacyId}" to be rejected`).toBe(false);
+      expect(
+        result.success,
+        `expected legacy id "${legacyId}" to be rejected`,
+      ).toBe(false);
     }
   });
 });
@@ -573,7 +674,9 @@ describe('BacklogSchema — id-uniqueness refine (ID-67)', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const messages = result.error.issues.map((issue) => issue.message).join(' ');
+      const messages = result.error.issues
+        .map((issue) => issue.message)
+        .join(' ');
       // Both duplicate ids should appear in the error message
       expect(messages).toContain('10');
       expect(messages).toContain('20');

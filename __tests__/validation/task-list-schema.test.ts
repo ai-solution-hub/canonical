@@ -104,6 +104,55 @@ describe('TaskListSchema root shape', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// last_updated freshness-marker discipline (S64 W0a — anti-bloat enforcement)
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('TaskListSchema last_updated discipline', () => {
+  it('accepts the canonical one-line marker shape', () => {
+    const result = TaskListSchema.safeParse({
+      ...VALID_TASK_LIST,
+      last_updated:
+        'kh-prod-readiness-S64 W0a close-out — schema cap + Zod regex added',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects values exceeding 200 chars (anti-bloat cap)', () => {
+    const result = TaskListSchema.safeParse({
+      ...VALID_TASK_LIST,
+      last_updated: 'kh-prod-readiness-S64 W0a close-out — ' + 'x'.repeat(200),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects multi-session-id append (diary-style concat)', () => {
+    const result = TaskListSchema.safeParse({
+      ...VALID_TASK_LIST,
+      last_updated:
+        'kh-prod-readiness-S64 W0a close-out — fix. Earlier: kh-prod-readiness-S63 WP6 — PRODUCT.md authored',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects multi-line values (newline embedded)', () => {
+    const result = TaskListSchema.safeParse({
+      ...VALID_TASK_LIST,
+      last_updated:
+        'kh-prod-readiness-S64 W0a close-out\nadditional narrative on second line',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects values without canonical kh-{track}-S{N} prefix', () => {
+    const result = TaskListSchema.safeParse({
+      ...VALID_TASK_LIST,
+      last_updated: 'session 64 wave 0a close-out — added schema cap',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // TaskSchema shape (inv 5, 6, 7, 8)
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -262,6 +311,82 @@ describe('SubtaskSchema shape', () => {
     expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '1' }).success).toBe(
       false,
     );
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TaskSchema — capability_theme field (Subtask 30.6 / TECH §3.1)
+//
+// Optional back-link to a Roadmap theme (OQ-6 ratification). Authoritative
+// direction is theme.linked_tasks[]; capability_theme is convenience back-link.
+// Absent = unaffiliated.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('TaskSchema — capability_theme field (Subtask 30.6 / TECH §3.1)', () => {
+  it('accepts capability_theme: null (default)', () => {
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.capability_theme).toBeNull();
+    }
+  });
+
+  it('accepts capability_theme as a string', () => {
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: 'roadmap-rethink',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.capability_theme).toBe('roadmap-rethink');
+    }
+  });
+
+  it('accepts capability_theme omitted entirely (optional field)', () => {
+    const result = TaskSchema.safeParse(VALID_TASK);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.capability_theme).toBeUndefined();
+    }
+  });
+
+  it('rejects capability_theme as a non-string (e.g. number)', () => {
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: 42,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('capability_theme round-trips for both null and string values', () => {
+    const withNull = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: null,
+    });
+    expect(withNull.success).toBe(true);
+    if (withNull.success) {
+      const reparsed = TaskSchema.safeParse(withNull.data);
+      expect(reparsed.success).toBe(true);
+      if (reparsed.success) {
+        expect(reparsed.data.capability_theme).toBeNull();
+      }
+    }
+
+    const withTheme = TaskSchema.safeParse({
+      ...VALID_TASK,
+      capability_theme: 'developer-velocity',
+    });
+    expect(withTheme.success).toBe(true);
+    if (withTheme.success) {
+      const reparsed = TaskSchema.safeParse(withTheme.data);
+      expect(reparsed.success).toBe(true);
+      if (reparsed.success) {
+        expect(reparsed.data.capability_theme).toBe('developer-velocity');
+      }
+    }
   });
 });
 

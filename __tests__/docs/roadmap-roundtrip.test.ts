@@ -1,5 +1,5 @@
 /**
- * Roadmap MD ↔ JSON round-trip CI guard — kh-prod-readiness-S39 W1 Phase 2.
+ * Roadmap MD ↔ JSON round-trip CI guard — Subtask 30.13 (PR-C Wave 2).
  *
  * Asserts that `docs/reference/product-roadmap.md` is in sync with the
  * authoritative `docs/reference/product-roadmap.json` per the §6.1 step 5
@@ -18,23 +18,31 @@
  * delta: pipe-padding, multi-blank collapse. Unacceptable delta: missing
  * words, dropped links, reordered phrases.
  *
+ * Idempotency probe (per TECH §7 risk row 9): render-twice-assert-equal
+ * proves the renderer produces byte-identical output across runs (no
+ * latent non-determinism from map iteration on object keys or similar).
+ *
  * Failure recovery: run `bun run roadmap:render` and commit both files.
  */
 
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { readFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
+import { renderRoadmap } from '../../scripts/roadmap-from-json';
+import { RoadmapSchema } from '@/lib/validation/roadmap-schema';
+
 const REPO_ROOT = process.cwd();
 const ROADMAP_MD = resolve(REPO_ROOT, 'docs/reference/product-roadmap.md');
+const ROADMAP_JSON = resolve(REPO_ROOT, 'docs/reference/product-roadmap.json');
 const ROADMAP_RENDER_SCRIPT = 'scripts/roadmap-from-json.ts';
 
 function renderRoadmapToTmp(): string {
   const dir = mkdtempSync(join(tmpdir(), 'roadmap-rt-'));
   const out = join(dir, 'rendered.md');
-  execFileSync(
+  const result = spawnSync(
     'bun',
     ['run', ROADMAP_RENDER_SCRIPT, '--output=' + out],
     {
@@ -43,6 +51,11 @@ function renderRoadmapToTmp(): string {
       stdio: ['ignore', 'ignore', 'inherit'],
     },
   );
+  if (result.status !== 0) {
+    throw new Error(
+      `renderRoadmapToTmp: roadmap-from-json.ts exited with status ${result.status}`,
+    );
+  }
   return readFileSync(out, 'utf-8');
 }
 
@@ -77,7 +90,7 @@ describe('product-roadmap.md round-trip with product-roadmap.json', () => {
       normalisedRendered,
       'docs/reference/product-roadmap.md is out of sync with product-roadmap.json. ' +
         'JSON is authoritative — run `bun run roadmap:render` and commit both files. ' +
-        'Per `.planning/.research/s37-housekeeping/roadmap-conversion-approach.md` §6.1 step 5.',
+        'Per Subtask 30.13 (PR-C Wave 2) the renderer emits themes-shape MD.',
     ).toEqual(normalisedOnDisk);
   });
 
@@ -112,5 +125,17 @@ describe('product-roadmap.md round-trip with product-roadmap.json', () => {
         );
       }
     }
+  });
+
+  it('render-twice produces byte-identical MD output (idempotency probe)', () => {
+    // TECH §7 risk row 9 — renderer must produce deterministic output.
+    // Latent non-determinism (e.g. iterating Object.keys on a Map) would
+    // surface as a diff here. Pure in-process call (no child process)
+    // so failures cannot be attributed to environment drift.
+    const raw = readFileSync(ROADMAP_JSON, 'utf-8');
+    const roadmap = RoadmapSchema.parse(JSON.parse(raw));
+    const md1 = renderRoadmap(roadmap);
+    const md2 = renderRoadmap(roadmap);
+    expect(md2).toBe(md1);
   });
 });
