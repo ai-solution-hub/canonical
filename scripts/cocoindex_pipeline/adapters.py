@@ -1,34 +1,25 @@
-"""Layered fn-shape per-MIME adapters for cocoindex T8 flow.
+"""Layered fn-shape per-MIME adapters for the cocoindex T8 flow.
 
-Outer tier takes the FileLike file argument (cocoindex source binding);
-inner tier takes content payload (bytes or str) so memoisation key is
-content-hash, not file-handle. Metadata-only edits (mtime, owner) MUST NOT
-re-trigger inner work.
+Outer tier takes a FileLike file (cocoindex source binding); inner tier
+takes content payload (bytes or str) so the memoisation key is content-
+hash, NOT file-handle — metadata-only edits (mtime, owner) MUST NOT
+re-trigger inner work (S9 §7.2 COCO.10 / Inv-4).
 
-Layered shape (mirrors scripts/ontology-sync/parse-flow.py):
-    convert_binary_to_markdown(file: FileLike) -> str  # outer / file-tier memo
-        ├── _docling_to_markdown(content_bytes: bytes) -> str  # inner / content-tier
-        ├── _pullmd_to_markdown(url: str) -> str               # inner / content-tier
-        └── _passthrough_markdown(content_text: str) -> str    # inner / content-tier
+Topology:
+    convert_binary_to_markdown(file: FileLike) -> str   # outer / file-tier memo
+        ├── _docling_to_markdown(content_bytes: bytes) -> str   # inner
+        ├── _pullmd_to_markdown(url: str) -> str                # inner
+        └── _passthrough_markdown(content_text: str) -> str     # inner
 
-Inner-tier extractors MUST consume bytes or str — NEVER FileLike — so their
-memoisation key is the file contents, not the file handle. This preserves
-cocoindex's per-tier idempotency: edits to host-file metadata (mtime, owner)
-do not re-trigger inner extraction work (S9 §7.2 COCO.10).
-
-MIME routing: derived from file.file_path.path.suffix (the file extension)
-because cocoindex.resources.file.FileLike does not expose a .mime_type
-attribute in version 1.0.3 (verified against .claude/skills/cocoindex/
-references/api_reference.md FileLike section).
+MIME routing uses `file.file_path.path.suffix` since cocoindex 1.0.3's
+`FileLike` exposes no `.mime_type` attribute.
 
 HTML/pullmd AGPL boundary (O-Q3): HTML extraction calls pullmd over HTTP
 rather than importing the AGPL package directly — the network-service clause
-means the AGPL licence does not propagate to KH platform code. The pullmd
-service URL is supplied via the PULLMD_SERVICE_URL env var, mounted via
-Cloud Run Secret Manager per Subtask 28.6.
+means the licence does not propagate. URL via `PULLMD_SERVICE_URL`,
+mounted via Cloud Run Secret Manager (Subtask 28.6).
 
-Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-3
-Covers: PRODUCT Inv-4 (idempotency via content-hash memoisation).
+Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-3.
 """
 
 from __future__ import annotations
@@ -39,40 +30,21 @@ import cocoindex as coco
 import httpx
 
 
-# ── Extension → MIME group mapping ──────────────────────────────────────────
-# cocoindex.resources.file.FileLike in v1.0.3 does not expose .mime_type;
-# we infer type from file extension. Lower-case suffix comparison.
-
+# Extension → MIME group mapping (lower-case suffix comparison).
 _DOCLING_EXTENSIONS = frozenset({".pdf", ".docx", ".xlsx"})
 _HTML_EXTENSIONS = frozenset({".html", ".htm"})
 _TEXT_EXTENSIONS = frozenset({".md", ".markdown", ".txt"})
 
 
-# ── Outer tier — file-handle memo ───────────────────────────────────────────
+# Outer tier — file-handle memo.
 
 
 @coco.fn(memo=True)
 async def convert_binary_to_markdown(file: "coco.resources.file.FileLike") -> str:  # type: ignore[name-defined]
-    """Outer-tier source-binding adapter. Routes by file extension to inner-tier extractor.
+    """Route a FileLike by extension to the inner-tier extractor.
 
-    PDF/DOCX/XLSX → Docling (bytes path).
-    HTML           → pullmd HTTP service (AGPL boundary per O-Q3).
-    markdown/txt   → passthrough (identity, no extraction cost).
-
-    Memoisation at this tier is on the file handle (re-triggers when file
-    bytes change). Inner-tier memoisation is on content payload (metadata
-    edits do not re-trigger inner work).
-
-    Args:
-        file: cocoindex FileLike object yielded by localfs.walk_dir().
-              Provides await file.read() -> bytes, await file.read_text() -> str,
-              and file.file_path.path (PurePath with .suffix for extension lookup).
-
-    Returns:
-        Markdown string extracted from the source file.
-
-    Raises:
-        ValueError: If the file extension is not supported.
+    PDF/DOCX/XLSX → Docling; HTML → pullmd HTTP; markdown/txt → passthrough.
+    Raises `ValueError` for unsupported extensions.
     """
     suffix = file.file_path.path.suffix.lower()
 
@@ -81,8 +53,7 @@ async def convert_binary_to_markdown(file: "coco.resources.file.FileLike") -> st
         return await _docling_to_markdown(content_bytes)
 
     if suffix in _HTML_EXTENSIONS:
-        # Pass file path as str URL reference; pullmd service resolves local paths
-        # and remote URLs transparently via its extract endpoint.
+        # Pullmd service resolves local paths and remote URLs transparently.
         url = str(file.file_path.path)
         return await _pullmd_to_markdown(url)
 
@@ -96,29 +67,16 @@ async def convert_binary_to_markdown(file: "coco.resources.file.FileLike") -> st
     )
 
 
-# ── Inner tier — content-hash memo ──────────────────────────────────────────
-# Signatures MUST take bytes or str, NEVER FileLike, per S9 §7.2 (COCO.10).
-# Breaking this invariant would make the memoisation key the file handle
-# rather than the content, defeating the idempotency guarantee.
+# Inner tier — content-hash memo. Signatures MUST take bytes or str,
+# NEVER FileLike (S9 §7.2 COCO.10); FileLike would make the memo key the
+# file handle and defeat the idempotency guarantee.
 
 
 @coco.fn(memo=True)
 async def _docling_to_markdown(content_bytes: bytes) -> str:
-    """Inner-tier Docling extractor. Memoised on content_bytes hash.
-
-    Calls the Docling DocumentConverter (pre-warmed in image layer per 28.6
-    P-1) with the raw binary payload. Supports PDF, DOCX, and XLSX.
-
-    Args:
-        content_bytes: Raw file bytes. Content-hash is the memoisation key —
-            metadata-only file edits do NOT re-trigger this function.
-
-    Returns:
-        Markdown representation of the document.
-    """
-    # Lazy import: docling is a large optional dep (~1.8 GB model weights).
-    # The Cloud Run image installs it (pre-warmed per 28.6 P-1); local dev
-    # and test environments may stub this import via unittest.mock.patch.
+    """Docling extractor — supports PDF, DOCX, XLSX. Memoised on content hash."""
+    # Lazy import: docling is a ~1.8 GB optional dep, pre-warmed in the Cloud
+    # Run image layer (28.6 P-1); test envs stub via unittest.mock.patch.
     from docling.document_converter import DocumentConverter  # noqa: PLC0415
 
     converter = DocumentConverter()
@@ -128,23 +86,7 @@ async def _docling_to_markdown(content_bytes: bytes) -> str:
 
 @coco.fn(memo=True)
 async def _pullmd_to_markdown(url: str) -> str:
-    """Inner-tier pullmd HTTP extractor. Memoised on url string.
-
-    Calls the pullmd service via HTTP rather than importing the AGPL package
-    directly (O-Q3 AGPL network-service boundary — the network-service clause
-    means AGPL does not propagate to KH platform code).
-
-    Args:
-        url: File path string or remote URL passed to the pullmd /extract
-             endpoint. Memoised on the url value — unchanged URL = memo-hit.
-
-    Returns:
-        Markdown string extracted by the pullmd service.
-
-    Raises:
-        RuntimeError: If PULLMD_SERVICE_URL env var is not set.
-        httpx.HTTPStatusError: If the pullmd service returns a non-2xx response.
-    """
+    """Pullmd HTTP extractor (AGPL boundary per O-Q3). Memoised on url."""
     pullmd_url = os.environ.get("PULLMD_SERVICE_URL")
     if not pullmd_url:
         raise RuntimeError(
@@ -162,17 +104,5 @@ async def _pullmd_to_markdown(url: str) -> str:
 
 @coco.fn(memo=True)
 async def _passthrough_markdown(content_text: str) -> str:
-    """Inner-tier markdown passthrough. Memoised on content_text hash.
-
-    Identity transform — returns the input string unchanged. Memoisation
-    buys idempotency on content-hash match: if the file contents are
-    identical on a re-ingest, this function is a memo-hit with zero cost.
-
-    Args:
-        content_text: Raw markdown or plain text string. Content-hash is
-            the memoisation key.
-
-    Returns:
-        The input string, unchanged.
-    """
+    """Identity transform for markdown/text. Memoised on content hash."""
     return content_text
