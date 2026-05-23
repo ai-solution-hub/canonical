@@ -1,136 +1,42 @@
-"""Cocoindex 1.0.3 canonical 6-stage pipeline (T8) — per
-02-data-flow.md §3.1 + cocoindex-extraction-contract TECH §3.1.
+"""Cocoindex 1.0.3 canonical 6-stage pipeline (T8).
 
 Stages (flow-scope):
   1. source walk            -> connectors.localfs.walk_dir(live=True, recursive=True)
   2. binary conversion      -> per-MIME adapters (P-3): docling for PDF/DOCX/XLSX,
                                pullmd HTTP client for HTML, passthrough for markdown
-  3. LLM extraction         -> Path A: @coco.fn(memo=True) extractors call
-                               anthropic SDK + Pydantic TypeAdapter validation
-                               (S256 W1 / WP4 — extract_classification /
-                               extract_qa_form / extract_entity_mentions).
-  4. embedding              -> TODO(28.13+) LiteLLMEmbedder stub
-  5. entity resolution      -> TODO(28.13+) entity_resolution stub
+  3. LLM extraction         -> Path A: @coco.fn(memo=True) extractors call anthropic
+                               SDK + Pydantic TypeAdapter validation
+  4. embedding              -> TODO LiteLLMEmbedder stub
+  5. entity resolution      -> TODO entity_resolution stub
   6. Postgres UPSERT        -> postgres.mount_table_target(managed_by=ManagedBy.USER)
                                for content_items, q_a_extractions, source_documents
 
 Source-binding folder: env var COCOINDEX_SOURCE_PATH (T8 ships EMPTY default;
 T7 stages files post-T8 stable per O-Q8).
 
-Latency budgets (per PRODUCT inv-2 + P-OQ4):
-  - 35-file canonical corpus end-to-end ≤120 s (S2 cold-cache baseline)
-  - per-file p95 ≤30 s
+Retry policy (P-OQ2): cocoindex defaults — 3 retries, exponential backoff,
+1 s base. KH does not override at v1; the only KH-owned retry surface is the
+Anthropic SDK call inside the @coco.fn extractors (`_anthropic_retry` in
+extraction.py — Inv-23 transient-503 wrapper).
 
 CLAUDE.md gotchas applied:
   - localfs.walk_dir(recursive=True)  (default is False)
   - cocoindex requires dangerouslyDisableSandbox in dev
   - content_items.content_text_hash is GENERATED ALWAYS — omit from TableSchema
-  - recordPipelineRun() integration via per-flow op_id sidecar webhook (P-7)
 
-Inv-13 v1 substrate (P-5):
-  Per P-OQ1 ratification, v1 does NOT populate an `audit_log` table for
-  pipeline-driven writes (DEFERRED-v1.1). The v1 audit-observability path
-  is structured logs picked up by Cloud Run's jsonPayload ingest. The
-  per-row emission contract is provided by `_emit_upsert_log()` — see
-  helper below. Real per-row invocation lands when cocoindex 1.0.3
-  exposes a Postgres-upsert completion callback at the bind_target site
-  (see API deviation note below; orchestrator-tracked for 28.12 / Wave C
-  TECH.md amendment).
-
-Retry policy (per P-OQ2): cocoindex defaults (3 retries, exponential backoff, 1 s base).
-No custom override at v1 — operational evidence post-v1 governs tuning.
-
-Empirical retry-surface note (ID-28.13 verification against cocoindex 1.0.3):
-  The spec's example "override per-stage via @coco.fn(memo=True, retries=N,
-  backoff_base_ms=N)" was a TECH-sketch fiction — cocoindex.fn 1.0.3's public
-  signature is `(fn, /, *, memo, memo_key, batching, max_batch_size, runner,
-  version, logic_tracking, deps)` with NO `retries` or `backoff_base_ms`
-  kwargs. Empirical investigation in the ID-28.13 fix-pack established:
-
-    PRESENT:   `ComponentStats.num_reprocesses` (named-tuple field on the
-               per-component stats group, mirrored from Rust's
-               `ProcessingStatsGroup`). Observable via
-               `UpdateHandle.stats().total.num_reprocesses` or
-               `UpdateHandle.stats().by_component[<name>].num_reprocesses`.
-               Returned by `App.update()` to the entrypoint that called
-               it — NOT to `app_main()` itself. Since
-               `_emit_pipeline_run_webhook()` fires from INSIDE
-               `app_main()`, this surface is not queryable at
-               webhook-emission time without an architectural refactor
-               (move the webhook emission out of `app_main()` body and
-               into a post-await caller; deferred).
-
-    PRESENT:   Connector-specific `RetryConfig` dataclasses in the Doris
-               connector (`cocoindex.connectors.doris._target.RetryConfig`,
-               defaults max_retries=3 / base_delay=1.0 / max_delay=30.0 /
-               exponential_base=2.0). Used only by Doris stream-load
-               operations. NOT used by `mount_table_target` (postgres).
-
-    ABSENT:    `@coco.fn(retries=N, backoff_base_ms=N)` — empirically
-               not in the decorator signature.
-
-    ABSENT:    Postgres-connector retry primitive of any kind. Source
-               grep across `cocoindex.connectors.postgres._target` /
-               `_source` returns ZERO retry/backoff/attempt occurrences.
-               `mount_table_target` -> `table_target` -> internal Rust
-               `_apply_actions` — no retry wrapper at any Python layer.
-
-    ABSENT:    `cocoindex._internal/*` retry primitives outside Doris
-               connector + `ops.entity_resolution.llm_resolver`. Neither
-               is used by the KH canonical 6-stage pipeline.
-
-    ABSENT:    Anthropic-SDK-call retry inside the @coco.fn extractors
-               (extraction.py). The extractor body is plain `await
-               client.messages.create(...)`; an `anthropic.APIError`
-               propagates UNRETRIED to the flow-scope except block.
-               KH must add its OWN retry wrapper (deferred to a
-               follow-up Subtask — out of scope for ID-28.13 fix-pack).
-
-  Retry-count emission per Inv-23 is therefore landed via the KH-managed
-  `_FlowRetryCounter` substrate (see class below). v1 ships the
-  contract surface (counter + webhook field + Vercel route + storage
-  location); v1.1 production wiring lands when KH adds an Anthropic
-  503-retry wrapper around the @coco.fn extractors (or when cocoindex
-  1.0.x exposes a flow-internal stats query API, whichever lands first).
-
-Failure-mode wiring (per P-8 / ID-28.13):
-  - `_classify_stage_exception()` maps Python exception types to the
-    Inv-25 6-class stage-level vocabulary (extraction_validation_failed,
-    extraction_provider_unavailable, postgres_write_failed,
-    binary_conversion_failed, embedding_failed, entity_resolution_failed).
-  - `_emit_stage_error_log()` emits one PII-redacted structured-log line
-    per stage exception per Inv-26 (event=cocoindex.stage_error;
-    error_message truncated to 200 chars; UUID substrings redacted to
-    <uuid>).
-  - `app_main()`'s except-Exception block classifies via the helper, falling
-    back to the exception class name for unmapped types so the
-    `pipeline_runs.error_class` column never lands an unaudited string.
+cocoindex 1.0.3 API deviations (load-bearing for callers — DO NOT "fix"):
+  - `coco.AppConfig` has NO `main_fn` field; use `coco.App(AppConfig(...), main_fn)`.
+  - `@coco.fn` decorator has NO `retries` / `backoff_base_ms` kwargs.
+  - `mount_table_target` exposes NO per-row UPSERT completion callback; the v1
+    `_emit_upsert_log()` substrate documents the contract; real invocation waits
+    on a public callback surface (TECH.md §P-5 amendment queue).
+  - No public retry primitive on the postgres connector or @coco.fn extractors;
+    KH-authored retry wrappers (see `_FlowRetryCounter`, `_anthropic_retry` in
+    extraction.py) own the surface.
 
 References:
-  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2, §P-5, §P-8
+  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2, §P-5, §P-7, §P-8
   docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-23..Inv-27
-  docs/plans/phase-0-investigation/architecture/02-data-flow.md §3.1
-  spike/cocoindex_s1/probe_managed_by_user.py — canonical live-wiring shape
-
-API deviation note (S254 / 28.8 discovery):
-  TECH.md sketch shows coco.AppConfig(name=..., main_fn=...) — but in
-  cocoindex 1.0.3, AppConfig has NO main_fn field. The correct pattern is
-  coco.App(name_or_config, main_fn). KH_PIPELINE_APP uses coco.App() accordingly.
-  coco.start() (no args) starts the default environment; coco.App.update() triggers
-  the pipeline update cycle. This deviation is documented for 28.9 Checker review.
-
-API deviation note (S255 / 28.10 discovery):
-  TECH.md §P-5 brief assumes cocoindex 1.0.3 exposes a per-row UPSERT
-  completion callback at the bind_target site. It does NOT — UPSERT
-  application happens inside `TableTarget._apply_actions` (private
-  cocoindex internal) via `coco.TargetActionSink.from_async_fn()`. There
-  is no public hook to register a per-row completion observer at the
-  mount_table_target API. Per established 28.8 / 28.9 spec-drift
-  discipline, this Subtask lands the v1 helper contract
-  (`_emit_upsert_log`) with the correct JSON shape + INFO-level stdlib
-  emission, and documents the call-site at Stage 6. Real invocation is
-  blocked on a public cocoindex callback surface; orchestrator-tracked
-  for TECH.md §P-5 amendment + 28.12 / Wave C carry-forward.
 """
 
 from __future__ import annotations
@@ -202,43 +108,17 @@ def _emit_upsert_log(
     row_id: uuid.UUID | str,
     operation: Literal["INSERT", "UPDATE"],
 ) -> None:
-    """Emit one Cloud-Run-parseable structured log line per Postgres UPSERT.
+    """Emit one Cloud-Run-parseable structured log per Postgres UPSERT.
 
-    Inv-13 v1 audit-observability substrate per TECH.md §P-5:
-    the Cloud Run logging surface picks up JSON-formatted log lines and
-    extracts them into `jsonPayload` automatically — no extra plumbing.
+    Inv-13 audit-observability substrate (Cloud Run picks up JSON log
+    lines into `jsonPayload` automatically). Contract shape:
 
-    Contract shape (5 keys, all required):
-      {
-        "event":     "cocoindex.upsert",
-        "op_id":     "<uuid string>",
-        "table":     "<table name>",
-        "row_id":    "<uuid string>",
-        "operation": "INSERT" | "UPDATE",
-      }
+      {"event": "cocoindex.upsert", "op_id": "<uuid>", "table": "<name>",
+       "row_id": "<uuid>", "operation": "INSERT" | "UPDATE"}
 
-    Per S254 amendment (commit 61e163d8): cocoindex 1.0.3 does NOT expose
-    `coco.logger`; emission uses stdlib `logging.getLogger(__name__)`.
-
-    Args:
-      op_id:     cocoindex per-flow op_id (UUID v4); stringified for JSON.
-      table:     Postgres table name (e.g. 'content_items').
-      row_id:    Primary-key row id (UUID); stringified for JSON.
-      operation: 'INSERT' or 'UPDATE' — cocoindex's per-row outcome.
-
-    Invocation site:
-      Per TECH.md §P-5, this helper SHOULD be called once per UPSERT at
-      cocoindex's Stage 6 bind_target completion hook. Cocoindex 1.0.3
-      does NOT expose a public per-row completion callback at this site
-      (see module docstring API deviation note S255); real per-row
-      invocation is deferred to a TECH.md §P-5 amendment + 28.12 / Wave C
-      wiring once the cocoindex callback surface is exposed. This
-      helper's CONTRACT — shape + level + logger — IS the v1 substrate;
-      the integration test in 28.14 (audit-log-shipping.integration.test.ts)
-      will exercise live emission end-to-end.
-
-    PRODUCT invariants honoured:
-      - Inv-13 v1 (structured logs substitute for DEFERRED-v1.1 audit_log).
+    Real per-row invocation waits on a cocoindex 1.0.x per-UPSERT
+    completion callback (TECH.md §P-5 amendment queue). Until then this
+    helper's contract — shape + level + logger — is the v1 substrate.
     """
     _logger.info(
         json.dumps(
@@ -386,46 +266,20 @@ def _emit_stage_error_log(
     content_items_id: uuid.UUID | str | None,
     error_message: str,
 ) -> None:
-    """Emit one Cloud-Run-parseable structured ERROR log line per stage failure.
+    """Emit one Cloud-Run-parseable structured ERROR log per stage failure.
 
-    Inv-26 v1 substrate per TECH.md §P-8: every failed pipeline invocation
-    emits at least one structured-log line at ERROR level so the failure
-    is enumerable from the Cloud Run logging surface (in addition to the
-    `pipeline_runs.status='failed'` rollup row).
+    Inv-26: every failed pipeline invocation emits at least one ERROR-level
+    structured-log line in addition to the `pipeline_runs.status='failed'`
+    rollup row. Contract shape:
 
-    Contract shape (6 keys, all required):
-      {
-        "event":            "cocoindex.stage_error",
-        "op_id":            "<uuid string>",
-        "stage":            "<stage name>",
-        "error_class":      "<one of PIPELINE_ERROR_CLASSES>",
-        "content_items_id": "<uuid string>" | null,
-        "error_message":    "<truncated, UUID-redacted>",
-      }
+      {"event": "cocoindex.stage_error", "op_id": "<uuid>",
+       "stage": "<stage>", "error_class": "<one of PIPELINE_ERROR_CLASSES>",
+       "content_items_id": "<uuid>"|null,
+       "error_message": "<truncated to 200 chars, UUIDs redacted>"}
 
-    PII redaction policy (Inv-26 + ID-28.13 brief):
-      - `error_message` is truncated to 200 characters.
-      - UUID-shaped substrings inside `error_message` are replaced with
-        the placeholder `<uuid>`. Operator forensic correlation is via
-        the structured `op_id` / `content_items_id` fields, never the
-        message body.
-
-    Args:
-      op_id:            cocoindex per-flow op_id (UUID v4); stringified for JSON.
-      stage:            Canonical stage name (one of: source_walk,
-                        binary_conversion, llm_extraction, embedding,
-                        entity_resolution, postgres_upsert).
-      error_class:      One of the 6 PIPELINE_ERROR_CLASSES.
-      content_items_id: Primary-key row id (UUID) if the failure surfaced
-                        post-binding; `None` for pre-binding failures
-                        (e.g. Stage 1 source-walk). Serialised as JSON
-                        null in the latter case.
-      error_message:    Free-form failure message; gets redacted +
-                        truncated before emission.
-
-    PRODUCT invariants honoured:
-      - Inv-26 (one structured-log line per failed invocation, JSON-parseable).
-      - Inv-13 v1 (Cloud Run structured-log substrate is the audit path).
+    PII redaction: `error_message` is truncated + has UUID-shaped
+    substrings replaced with `<uuid>`. Operator forensic correlation is
+    via the structured `op_id` / `content_items_id` fields.
     """
     payload: dict[str, object | None] = {
         "event": "cocoindex.stage_error",
@@ -444,65 +298,27 @@ def _emit_stage_error_log(
 
 
 class _FlowRetryCounter:
-    """V1 substrate for Inv-23 per-flow retry-count observability.
+    """Per-flow retry counter for Inv-23 observability.
 
-    The testStrategy criterion this satisfies (verbatim):
-      "transient 503-once mock retries successfully (retry_count=1)"
+    `.increment()` is called from `_anthropic_retry` (extraction.py) via
+    the tenacity `before_sleep` hook each time a transient Anthropic
+    error is retried; `.get()` is read at flow end and emitted via the
+    pipeline-run webhook. Instances are per-flow — one per `app_main()`
+    invocation, no shared state. Thread-safety is not required: cocoindex
+    @coco.fn execution is sequential per content row.
 
-    Empirical reality (verified against cocoindex 1.0.3 — see module
-    docstring "Empirical retry-surface note" + further investigation
-    recorded in ID-28.13 fix-pack journal):
-
-      - `@coco.fn` decorator has NO `retries` / `backoff_base_ms` kwargs.
-      - `cocoindex.connectors.postgres` source contains ZERO retry /
-        backoff / attempt strings — the postgres connector has no
-        retry primitive at all.
-      - `cocoindex._internal/` source contains ZERO retry primitives
-        beyond Doris connector + entity_resolution.llm_resolver private
-        loops (neither used by KH's canonical 6-stage pipeline).
-      - The Rust engine binary DOES expose retry-related symbols
-        (`rust/utils/src/retryable.rs`, `ComponentStats.num_reprocesses`).
-        `ComponentStats` is observable from outside `app_main()` via
-        `UpdateHandle.stats()` — but the handle is returned by
-        `App.update()`, accessible only to the entrypoint that called
-        it (i.e. `__main__.py`'s `coco.start_blocking()`), NOT to
-        `app_main()` itself. Since `_emit_pipeline_run_webhook()` fires
-        from INSIDE `app_main()`, the engine-native counter is not
-        queryable at webhook-emission time without architectural refactor
-        (move the webhook emission to the post-await caller side; deferred
-        to a follow-up Subtask, orchestrator-tracked).
-
-    The v1 substrate is a KH-managed counter whose `.increment()` is
-    called by any KH-authored retry wrapper, and whose `.get()` is read
-    at flow end and emitted via the webhook. Consistent with the
-    28.10 / 28.11 / 28.12 spec-drift discipline: land the contract
-    substrate now; the production-wiring source-of-retry-bumping comes
-    when KH adds its own retry wrapper around the @coco.fn extractors
-    (or when cocoindex 1.0.x exposes a flow-internal stats query API,
-    whichever lands first).
-
-    Instances are per-flow (one counter per `app_main()` invocation);
-    instances do NOT share state across flows. Thread-safety is not
-    required at v1 — cocoindex's @coco.fn execution is sequential
-    per-content-text per the engine semantic.
+    cocoindex 1.0.3 has no public retry primitive on either the postgres
+    connector or @coco.fn extractors; KH owns the surface here (see
+    module docstring for the empirical provenance).
     """
 
     def __init__(self) -> None:
         self._count: int = 0
 
     def increment(self) -> None:
-        """Bump the per-flow retry count by one.
-
-        Called by any KH-authored retry wrapper after a successful
-        retry. v1: no caller (the substrate is in place for future
-        wiring); v1.1 wiring lands when KH adds an Anthropic 503-retry
-        wrapper around the extractors in extraction.py (out of scope
-        for this fix-pack per file-ownership).
-        """
         self._count += 1
 
     def get(self) -> int:
-        """Return the current per-flow retry count without mutating it."""
         return self._count
 
 
@@ -584,27 +400,17 @@ def _record_extraction_failure(
 ) -> None:
     """Record one failed LLM-extraction pass.
 
-    Per the ID-28.16 brief acceptance discipline: failed extractions DO
-    NOT increment `stage_counts['llm_extraction']`. The counter is
-    success-only — failures route through the rollup webhook's
-    `error_class` field (Inv-25) and the structured-log stream
-    (`_emit_stage_error_log`, Inv-26).
+    Per Inv-25/Inv-26: failed extractions DO NOT increment
+    `stage_counts['llm_extraction']` — failures route through the rollup
+    webhook's `error_class` field and the structured-log stream
+    (`_emit_stage_error_log`).
 
-    This helper exists to make the contract explicit at the call-site:
-    when an extractor raises `ValidationError` (or any other exception),
-    the wrapper invokes `_record_extraction_failure()` to document the
-    intent (rather than silently skipping the counter). The body is a
-    no-op against the counters by design; the call-site itself is the
-    invariant guard.
-
-    The signature mirrors `_record_extraction_success()` for symmetry,
-    even though the arguments are not consulted at v1. Future versions
-    may add per-failure counters (e.g. `stage_counts['llm_extraction_failed']`)
-    without breaking the call-site contract.
+    The body is an intentional no-op; the symmetric signature mirrors
+    `_record_extraction_success()` so call-sites declare intent explicitly.
+    Future versions may add per-failure counters without breaking the
+    call-site contract.
     """
-    # Intentional no-op against the counters — see docstring.
-    # Reference the arguments to silence linters about unused kwargs:
-    _ = (stage_counts, items_created, content_items_id)
+    _ = (stage_counts, items_created, content_items_id)  # unused at v1
 
 
 async def _emit_pipeline_run_webhook(
@@ -620,56 +426,28 @@ async def _emit_pipeline_run_webhook(
     retry_count: int | None = None,
     pipeline_name: str = "kh_canonical_pipeline",
 ) -> None:
-    """POST a pipeline-run rollup to the Vercel webhook (Inv-16 / Inv-17 / Inv-18).
+    """POST a pipeline-run rollup to the Vercel webhook.
 
-    Per TECH.md §P-7 Option α (sidecar webhook callback): the cocoindex
-    sidecar emits one HTTP POST per flow lifecycle event (flow start with
-    `status='in_progress'`, flow end with one of the three terminal
-    statuses). The receiving Vercel route (`POST
-    /api/internal/pipeline-runs/record`) delegates to the TS-side
-    `recordPipelineRun()` helper — the ONLY path the sidecar uses to land
-    `pipeline_runs` rows (Inv-18 code-discipline guard).
+    Inv-16/17/18 (TECH.md §P-7 Option α): the sidecar emits one HTTP POST
+    per flow lifecycle event — `status='in_progress'` at flow start, then
+    one of the three terminal statuses at flow end. The receiving Vercel
+    route is the ONLY path used to land `pipeline_runs` rows (Inv-18
+    discipline guard).
 
-    Authentication: `Authorization: Bearer <CRON_SECRET>` (T-OQ2 ratified
-    S252 — reuse the existing cron-handler convention; `CRON_SECRET` is
-    mounted in the Cloud Run Service env via Secret Manager per ID-28.6).
+    Auth: `Authorization: Bearer <CRON_SECRET>` (T-OQ2; secret mounted via
+    Cloud Run Secret Manager).
 
-    Best-effort emission: missing env vars or HTTP errors are LOGGED but
-    do NOT raise — the pipeline must keep running even if the rollup
-    webhook is unreachable. The structured-log emission via
-    `_emit_upsert_log()` remains the per-row audit substrate; webhook
-    failure degrades to "log-only" observability rather than crashing the
-    flow. Cocoindex's own retry policy (P-OQ2 defaults) governs the data
-    plane; the rollup webhook is an out-of-band observability surface.
+    Best-effort: missing env vars or HTTP errors are logged but DO NOT
+    raise — the pipeline keeps running even if the webhook is unreachable.
 
-    Args:
-      op_id:             cocoindex per-flow op_id (UUID v4); stringified for JSON.
-      status:            'in_progress' (flow start) | 'completed' |
-                         'completed_with_errors' | 'failed' (flow end).
-      stage_counts:      Per-stage row counts — MUST contain all six canonical
-                         stage keys (see `_empty_stage_counts()`); enforced by
-                         the Vercel route's Zod schema.
-      items_processed:   Total items the pipeline observed in this run.
-      items_created:     IDs of `content_items` the pipeline created
-                         (empty list on memo-hit no-op runs per Inv-4).
-      error_message:     Human-readable failure summary (omit for non-failures).
-      error_class:       6-class error vocabulary from 28.13 (omit for non-failures).
-      extractor_version: IMAGE_SHA from Cloud Build (28.6) — Inv-8 forensic key.
-      retry_count:       Per-flow retry count (ID-28.13 — Inv-23 transient-failure
-                         observability). When provided, emitted as `retryCount` in
-                         the payload (camelCase mirrors the rest of the shape).
-                         `None` means "field omitted entirely" — distinguishable
-                         from `retry_count=0` (the no-retry happy path) by the
-                         Vercel route's `!== undefined` discriminator. Source of
-                         truth is the per-flow `_FlowRetryCounter` instance
-                         constructed in `app_main()`; v1 substrate (no production
-                         caller yet — see `_FlowRetryCounter` class docstring).
-      pipeline_name:     Defaults to 'kh_canonical_pipeline'.
+    `retry_count` semantics: `None` means "field omitted entirely",
+    distinguishable from `retry_count=0` (the no-retry happy path) by the
+    Vercel route's `!== undefined` discriminator. Source of truth is the
+    per-flow `_FlowRetryCounter`.
 
-    Env vars (must be set by Cloud Run Service manifest per ID-28.6):
-      PIPELINE_RUN_WEBHOOK_URL — full URL of the Vercel route
-                                 (e.g. https://kh.client.example/api/internal/pipeline-runs/record).
-      CRON_SECRET              — shared bearer secret with the Vercel route.
+    Env vars (set by Cloud Run Service manifest):
+      PIPELINE_RUN_WEBHOOK_URL — full URL of the Vercel route.
+      CRON_SECRET              — shared bearer secret.
     """
     url = os.environ.get("PIPELINE_RUN_WEBHOOK_URL")
     secret = os.environ.get("CRON_SECRET")
@@ -697,9 +475,8 @@ async def _emit_pipeline_run_webhook(
         payload["errorClass"] = error_class
     if extractor_version is not None:
         payload["extractorVersion"] = extractor_version
-    # `retry_count=0` is meaningful (the no-retry happy path) and MUST
-    # land verbatim — distinguishable from "field omitted" via the
-    # Vercel route's `!== undefined` check (Slice 1 of this fix-pack).
+    # `retry_count=0` is meaningful (no-retry happy path) — use `is not None`
+    # so 0 lands verbatim, mirroring the route's `!== undefined` check.
     if retry_count is not None:
         payload["retryCount"] = retry_count
 
@@ -846,47 +623,20 @@ async def app_main() -> None:
         )
         return
 
-    # ── ID-28.11 / ID-28.16 rollup state (Inv-16 / Inv-17) ────────────────────
-    # cocoindex 1.0.3 does NOT expose public per-stage completion callbacks
-    # (the same API-surface gap surfaced in 28.10 for per-row UPSERT callbacks).
-    # Per the brief's escalation rule, the contract is the JSON payload shape,
-    # not the per-stage observability source — so the rollup is aggregated via
-    # internal counters at flow scope.
-    #
-    # Per-stage counter-increment wiring (ID-28.16): the
-    # `_record_extraction_success()` / `_record_extraction_failure()` helpers
-    # land the v1 substrate. The 3-extractor `.transform()` invocations
-    # below execute on cocoindex's flow-graph evaluation path — the
-    # per-extraction success-record call-sites are wired via the
-    # FLOW_META_CTX binding so the stamping path can append to
-    # items_created without threading the dict through transform args.
-    # Real per-extractor invocation wiring lands when cocoindex 1.0.x
-    # exposes a per-`.transform()` completion callback at the flow node
-    # boundary (orchestrator-tracked).
+    # Rollup state (Inv-16 / Inv-17). cocoindex 1.0.3 exposes no per-stage
+    # completion callbacks, so counters are aggregated at flow scope via the
+    # `_record_extraction_success` / `_record_extraction_failure` helpers.
     run_op_id: uuid.UUID = uuid.uuid4()  # placeholder until cocoindex exposes flow['op_id']
     stage_counts: dict[str, int] = _empty_stage_counts()
     items_created: list[str] = []
     extractor_version = os.environ.get("IMAGE_SHA")
-    # Inv-23 retry-count substrate (ID-28.13 fix-pack + ID-28.17 wrapper +
-    # ID-28.19 binding wiring). The counter is constructed per-flow and
-    # read at flow-end webhook emission. Production wiring (ID-28.19):
-    # the counter is bound via `bind_retry_counter(flow_retry_counter)`
-    # below — nested inside the existing `bind_flow_meta(...)` block —
-    # so the tenacity `before_sleep` hook in `extraction.py`
-    # (`_bump_flow_retry_counter`) fires `.increment()` on each retry
-    # attempt of the `_anthropic_retry` wrapper around the 3 @coco.fn
-    # extractors. Result: `pipeline_runs.result.retry_count` now reports
-    # the true per-flow retry count in production runs (was always 0
-    # pre-28.19 even when retries actually fired). See `_FlowRetryCounter`
-    # class docstring for the empirical rationale + ID-28.19 brief for
-    # the wiring contract closure.
+    # Inv-23 retry-count substrate: counter is bound via `bind_retry_counter`
+    # below so the tenacity `before_sleep` hook in `extraction.py` bumps it
+    # on each Anthropic-503 retry; value is read at flow-end webhook emit.
     flow_retry_counter = _FlowRetryCounter()
 
-    # Flow start emission (Inv-16: one pipeline_runs row per invocation;
-    # in_progress row signals "pipeline accepted work, processing began").
-    # `retry_count` is NOT emitted on the flow-start row — at flow-start
-    # the count is always 0, and emitting `retryCount=0` would suggest
-    # observability data is already present when it is not yet.
+    # Flow-start emission: `retry_count` is omitted (always 0 at flow start;
+    # emitting 0 would suggest observability is present when it is not yet).
     await _emit_pipeline_run_webhook(
         op_id=run_op_id,
         status="in_progress",
@@ -919,66 +669,23 @@ async def app_main() -> None:
             content_text = source.transform(convert_binary_to_markdown)  # type: ignore[attr-defined]
 
             # ── Stage 3: LLM extraction (flow-scope) — Path A canonical ──────
-            # Per cocoindex-extraction-contract TECH §3.1 (S256 W1 amendment):
-            # KH-authored @coco.fn(memo=True) extractors call the anthropic
-            # SDK directly + validate via Pydantic TypeAdapter. The flow-scope
-            # wiring is a plain `.transform(extractor_fn)`. The extractors are
-            # imported from extraction.py (co-located per S256 WP4 architectural
-            # choice — see journal block on Subtask 28.12).
+            # KH-authored @coco.fn(memo=True) extractors (extraction.py) call
+            # the anthropic SDK + validate via Pydantic TypeAdapter. Wrapping
+            # in `bind_flow_meta` lets `stamp_extraction_base()` read op_id +
+            # content_items_id from FLOW_META_CTX without threading them
+            # through `.transform()` chain args. `bind_retry_counter` is
+            # nested INSIDE so the tenacity `before_sleep` hook in
+            # `_anthropic_retry` bumps the per-flow counter on each retry —
+            # `_bump_flow_retry_counter()` reads the counter from the same
+            # contextvar scope.
             #
-            # Memoisation: each extractor is `@coco.fn(memo=True)` keyed on
-            # `(content_text,)` per Inv-21 — unchanged content + unchanged
-            # prompt → memo hit, zero LLM call.
-            #
-            # Validation-failure path: Option A — `ValidationError` propagates
-            # to app_main()'s `except Exception` block below which sets
-            # `flow_error_class = type(exc).__name__` (== "ValidationError")
-            # and emits the rollup webhook. Per-extraction-kind structured-
-            # failure routing (via `classify_pydantic_error()`) is owned by
-            # ID-28.13 (stage-level enum + retry + atomicity).
-            #
-            # ID-28.16 FLOW_META_CTX binding: the extractor invocations are
-            # wrapped in `async with bind_flow_meta(...)` so that
-            # `stamp_extraction_base()` can read the current op_id +
-            # content_items_id from FLOW_META_CTX when stamping each
-            # extracted row's `_ExtractionBase` fields. content_items_id
-            # is None at this scope (flow-level binding); the per-row
-            # stamping path (downstream of the extractor `.transform()`
-            # results, where the source content_items_id is known) rebinds
-            # FLOW_META_CTX with the row PK and invokes the stamper.
-            #
-            # SIGNATURE_DRIFT note: the TECH.md sketch at §3.1 line 230 shows
-            # `async with coco.use_context(DB_CTX, coco_pool):` (2-arg form),
-            # but cocoindex 1.0.3's `use_context(key) -> T` is single-arg
-            # read-only — `coco.ContextKey` storage binding happens via
-            # `EnvironmentBuilder.provide()` inside a `@coco.lifespan` fn
-            # (environment-scoped, NOT per-flow-run). The KH-authored
-            # `bind_flow_meta()` async-CM uses stdlib `contextvars.ContextVar`
-            # for per-asyncio-task isolation while preserving the
-            # `coco.ContextKey[FlowRunMeta]` identity handle per the
-            # ID-28.16 brief. See `flow_context.py` for the full empirical
-            # provenance.
-            # ID-28.19 retry-counter binding (Inv-23 production wiring closure):
-            # nest `bind_retry_counter(flow_retry_counter)` INSIDE the existing
-            # `bind_flow_meta(...)` block so the per-flow `_FlowRetryCounter`
-            # instance is attached to the contextvar scope that
-            # `_bump_flow_retry_counter()` reads inside the tenacity
-            # `before_sleep` callback. Each retry the `_anthropic_retry`
-            # wrapper performs (transient InternalServerError /
-            # RateLimitError / APIConnectionError) now bumps the counter
-            # exactly once via that callback — closing the observability
-            # gap that left `pipeline_runs.result.retry_count` emitting 0
-            # in production even when retries actually fired.
-            #
-            # Scope rationale (Executor judgement): retries can only fire
-            # during `client.messages.create()` calls inside the 3
-            # extractors, which are exactly the call sites wrapped by
-            # `bind_flow_meta`. Nesting `bind_retry_counter` INSIDE
-            # `bind_flow_meta` keeps the binding tightly scoped to the
-            # extractor block (mirrors the 28.17 brief's contract that the
-            # counter is bound around the extractor invocations, not the
-            # surrounding source-walk / write-back stages where no
-            # Anthropic SDK calls occur).
+            # SIGNATURE_DRIFT note: `coco.use_context(key)` is single-arg
+            # read-only in 1.0.3; storage binding happens via
+            # `EnvironmentBuilder.provide()` inside `@coco.lifespan` (env-
+            # scoped, NOT per-flow). The KH-authored `bind_flow_meta()` async-
+            # CM uses stdlib `contextvars.ContextVar` for per-asyncio-task
+            # isolation while preserving the `coco.ContextKey[FlowRunMeta]`
+            # identity handle. See `flow_context.py`.
             async with bind_flow_meta(
                 op_id=run_op_id, content_items_id=None
             ):
@@ -987,37 +694,11 @@ async def app_main() -> None:
                     q_a_form = content_text.transform(extract_qa_form)  # type: ignore[attr-defined]
                     entity_mentions = content_text.transform(extract_entity_mentions)  # type: ignore[attr-defined]
 
-            # ── stamp_extraction_base() integration (ID-28.16 substrate) ─────
-            # Per Q-EX2 TECH §3.2, after each extractor returns its validated
-            # Pydantic object, the `_ExtractionBase` fields (op_id,
-            # content_items_id, extracted_at) must be stamped at flow scope:
-            #
-            #   stamped_classification = stamp_extraction_base(classification)
-            #
-            # ID-28.16 wires `stamp_extraction_base()` to read op_id +
-            # content_items_id from FLOW_META_CTX when no explicit kwargs
-            # are passed. The per-row stamping pattern (once cocoindex
-            # exposes a per-`.transform()` completion callback) is:
-            #
-            #   async with bind_flow_meta(
-            #       op_id=run_op_id, content_items_id=<row-pk>
-            #   ):
-            #       stamped = stamp_extraction_base(extraction_result)
-            #       _record_extraction_success(
-            #           stage_counts=stage_counts,
-            #           items_created=items_created,
-            #           content_items_id=<row-pk>,
-            #       )
-            #
-            # Cocoindex 1.0.3 does NOT yet expose `flow["op_id"]` nor
-            # `flow["content_items_id"]` as flow-scope symbols (per S254
-            # §P-4 discovery), nor a per-`.transform()` completion
-            # callback (per S255 / S256 WP4 discovery). The
-            # `_record_extraction_success` + `_record_extraction_failure`
-            # helpers above land the v1 substrate; their call-sites become
-            # live wiring when the cocoindex callback surface lands.
-            # Orchestrator-tracked for the cocoindex-ledger-api TECH §T1.3
-            # amendment queue.
+            # stamp_extraction_base() integration: per-row stamping pattern
+            # is wrap-then-stamp inside the `bind_flow_meta(op_id, row_pk)`
+            # scope. Cocoindex 1.0.3 exposes no per-`.transform()` completion
+            # callback, so the live call-sites land when that callback
+            # surface ships (orchestrator-tracked, TECH §P-5 amendment queue).
 
             # ── Stage 4: embedding (vector(1024)) — TODO(28.13+) ─────────────
             # Requires litellm package + LITELLM_API_KEY env var.
@@ -1052,18 +733,12 @@ async def app_main() -> None:
                 managed_by=ManagedBy.USER,
             )
 
-            # Flow-scope UPSERT bindings (28.9 — op_id stamping landed).
-            # op_id=flow['op_id'] passes the cocoindex per-flow op_id symbol so
-            # every UPSERT row carries the originating run's op_id (Inv-11 + Inv-12).
-            # flow['op_id'] is assigned at flow-construction time by the engine;
-            # identical across all 3 bind_target calls in one flow invocation (Inv-11).
-            #
-            # API deviation note (S254 / 28.8 + 28.9): bind_target and flow['op_id']
-            # are spec-sketch placeholders — cocoindex 1.0.3 does NOT expose a
-            # bind_target method on DirWalker/transform chains, nor a flow['op_id']
-            # subscript. Real wiring lands when the cocoindex flow-scope op_id API
-            # is finalised (28.12 Wave 2 extraction wiring). The type: ignore comments
-            # acknowledge this; the kwarg preserves design intent for the Checker.
+            # Flow-scope UPSERT bindings — op_id=flow['op_id'] stamps the
+            # per-flow op_id onto every UPSERT row (Inv-11 + Inv-12). Both
+            # `bind_target` and `flow['op_id']` are spec-sketch placeholders;
+            # cocoindex 1.0.3 exposes neither. Real wiring lands when the
+            # flow-scope op_id API is finalised. The `type: ignore` comments
+            # acknowledge this; the kwarg preserves design intent.
             content_text.bind_target(  # type: ignore[attr-defined]
                 ci_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
             )
@@ -1074,50 +749,22 @@ async def app_main() -> None:
                 sd_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
             )
 
-            # ── Inv-13 v1 substrate emission point (P-5) ─────────────────
-            # Per TECH.md §P-5, _emit_upsert_log(op_id=flow['op_id'],
-            # table=<one of 'content_items' | 'q_a_extractions' |
-            # 'source_documents'>, row_id=<pk>, operation=<'INSERT' |
-            # 'UPDATE'>) SHOULD fire once per UPSERT, post-commit, at this
-            # Stage 6 boundary. The cocoindex 1.0.3 public API does NOT
-            # expose a per-row completion callback at mount_table_target /
-            # bind_target — UPSERT application is encapsulated inside
-            # TableTarget._apply_actions (private). Per the established
-            # 28.8 / 28.9 spec-drift discipline, the v1 helper contract
-            # (`_emit_upsert_log`) lands here as the callable substrate;
-            # real per-row invocation is unblocked by a cocoindex 1.0.x
-            # public callback surface (S255 amendment queue → TECH.md §P-5
-            # + 28.12 / Wave C carry-forward).
-            # See module docstring "API deviation note (S255 / 28.10)".
+            # Inv-13 substrate: _emit_upsert_log() SHOULD fire once per
+            # UPSERT at this boundary; cocoindex 1.0.3 exposes no per-row
+            # completion callback so the live call-site lands once that
+            # surface ships (TECH.md §P-5 amendment queue).
     except Exception as exc:  # noqa: BLE001 — capture for rollup status
-        # Per Inv-16 + Inv-17 + Inv-18: failures still land a pipeline_runs
-        # row via the webhook so the cocoindex sidecar's invocation count
-        # is honest (one row per invocation, success or fail).
-        #
-        # Classification (ID-28.13): map the exception to one of the 6
-        # canonical stage-level classes per PRODUCT Inv-25 via
-        # `_classify_stage_exception()`. Unmapped exceptions fall back to
-        # the Python type name so `pipeline_runs.error_class` is never
-        # NULL on a `status='failed'` row — but the Vercel route's Zod
-        # validator will reject any unmapped class string with HTTP 400,
-        # which surfaces drift (a new exception type that bypassed the
-        # classifier) as an operator-visible 4xx rather than a silent
-        # data-quality regression. The fallback flag is wrapped in a
-        # `coco.stage_error.unclassified` log line so the drift is
-        # forensically traceable.
+        # Inv-16/17/18: failures still land a pipeline_runs row so the
+        # invocation count stays honest. Inv-25: classify the exception to
+        # one of the 6 canonical classes; unmapped types fall back to the
+        # Python class name + an `unclassified` marker log so the Vercel
+        # route's Zod validator surfaces drift as a loud 4xx.
         flow_status = "failed"
         flow_error_message = str(exc)
         classified = _classify_stage_exception(exc)
         if classified is not None:
             flow_error_class = classified
         else:
-            # Fallback: emit a marker log so operators see "unclassified
-            # exception type X reached the rollup boundary" and can amend
-            # the classifier. The webhook still gets the type-name value
-            # so the failure row lands — the Zod validator at the trust
-            # boundary will reject it with HTTP 400 if the class name is
-            # not in the 6-class enum, which is the desired loud-fail
-            # behaviour for drift detection.
             flow_error_class = type(exc).__name__
             _logger.error(
                 json.dumps(
@@ -1130,13 +777,9 @@ async def app_main() -> None:
                 )
             )
 
-        # Per-stage structured error log emission (Inv-26). The stage
-        # name is "flow" at this level — the granular per-stage handlers
-        # remain stubs until cocoindex 1.0.x exposes per-stage completion
-        # callbacks (same blocker as 28.10 / 28.11 / 28.12 stamping).
-        # Until then, the flow-scope `except` block is the single
-        # structured-log emission point; finer-grained per-stage logs
-        # land when the public callback surface is available.
+        # Inv-26: structured error-log emission. Stage is "flow" at this
+        # level; granular per-stage handlers wait on cocoindex 1.0.x
+        # per-stage completion callbacks.
         _emit_stage_error_log(
             op_id=run_op_id,
             stage="flow",
@@ -1147,23 +790,8 @@ async def app_main() -> None:
         raise
     finally:
         await coco_pool.close()
-        # Flow end emission (Inv-16: terminal pipeline_runs row).
-        # stage_counts is filled at the placeholder zero values until 28.13
-        # wires per-stage counter increments (see escalation note at the
-        # rollup-state block above). items_created is similarly empty at
-        # v1 — populated when 28.13's per-extraction-kind write path lands.
-        # `retry_count` (ID-28.13 fix-pack — Inv-23, completed by 28.19):
-        # read from the per-flow `_FlowRetryCounter` instance. Post-28.19
-        # this reflects the true retry count for the flow run: each
-        # transient Anthropic error (InternalServerError / RateLimitError /
-        # APIConnectionError) retried by `_anthropic_retry` in
-        # extraction.py bumps the counter exactly once via the
-        # `_bump_flow_retry_counter` tenacity `before_sleep` hook (active
-        # because `app_main()` binds the counter via
-        # `bind_retry_counter(flow_retry_counter)` above). Operator
-        # dashboards relying on `result.retry_count IS NOT NULL` filter
-        # see the field populated on every 28.13-onwards run; the value
-        # reflects real retry activity on every 28.19-onwards run.
+        # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
+        # real retry activity via the `bind_retry_counter` scope above.
         await _emit_pipeline_run_webhook(
             op_id=run_op_id,
             status=flow_status,
@@ -1178,14 +806,9 @@ async def app_main() -> None:
 
 
 # ── Module-level App declaration ─────────────────────────────────────────────
-# coco.App(config, main_fn) registers the pipeline with the cocoindex environment.
-# Used by __main__.py entry point and Cloud Run Service GOOGLE_ENTRYPOINT.
-#
-# API deviation from TECH.md sketch (S254 / 28.8 discovery):
-#   TECH.md shows: KH_PIPELINE_APP = coco.AppConfig(name='kh_pipeline', main_fn=app_main)
-#   Actual 1.0.3:  coco.AppConfig has NO main_fn field — main_fn goes to coco.App.
-#   Correct form:  KH_PIPELINE_APP = coco.App(coco.AppConfig(name='kh_pipeline'), app_main)
-#   This deviation is noted for Checker review; 28.9 brief should reflect corrected form.
+# `coco.App(config, main_fn)` registers the pipeline with the cocoindex
+# environment. Used by `server.py` and the local-dev `__main__.py`.
+# (cocoindex 1.0.3: `AppConfig` has NO `main_fn` field — see module docstring.)
 
 KH_PIPELINE_APP = coco.App(
     coco.AppConfig(name="kh_pipeline"),
