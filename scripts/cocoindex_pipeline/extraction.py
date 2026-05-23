@@ -1,31 +1,20 @@
-"""Pydantic shapes for the cocoindex LLM-extraction stage (Q-EX2 contract).
+"""Pydantic shapes + Path A LLM extractors for the cocoindex extraction stage.
 
-This module hosts the discriminated-union typed extraction shapes that gate
-the LLM-extraction stage of the Knowledge Hub cocoindex pipeline. The shapes
-are consumed by `scripts/cocoindex_pipeline/flow.py` at flow scope via
-`doc['content_text'].transform(ExtractByLlm(..., output_type=<Variant>))` —
-NOT inside an `@coco.fn` wrapper (per verifier B-3 ratification at
-`docs/specs/cocoindex-extraction-contract/TECH.md` §3.1).
+Hosts:
+  - The discriminated-union typed extraction shapes (Q-EX2 §2.1).
+  - The 3 `@coco.fn(memo=True)` Path A extractors that call the Anthropic
+    SDK directly + validate via Pydantic `TypeAdapter` (Q-EX2 §3.1).
+  - `stamp_extraction_base()` for post-validation flow-scope stamping
+    of `_ExtractionBase` fields.
+  - `_anthropic_retry` — KH-owned tenacity wrapper around the SDK call
+    (Inv-23; cocoindex 1.0.3 has no built-in retry primitive for
+    `@coco.fn` extractors).
 
 References:
-- `docs/specs/cocoindex-extraction-contract/TECH.md` §2.1 — Pydantic shapes
-  (verbatim).
-- `docs/specs/cocoindex-extraction-contract/TECH.md` §2.2 — content_type
-  runtime validator reading the canonical taxonomy snapshot.
-- `docs/specs/cocoindex-extraction-contract/TECH.md` §3.2 — inner-tier
-  post-processing helpers (`@coco.fn(memo=True)` + plain Python).
-- `docs/specs/cocoindex-extraction-contract/TECH.md` §4.1 — Pydantic
-  strict-mode error mapping to `error_class` strings.
+- `docs/specs/cocoindex-extraction-contract/TECH.md` §2.1, §2.2, §3.2, §4.1.
 - `lib/validation/schemas.ts:1506-1519` — `VALID_ENTITY_TYPES` (12 values).
 - `docs/ontology/26-form-type.md` lines 65-79 — 11-value `form_type` CV.
-- `scripts/tests/fixtures/taxonomy_snapshot.json` — canonical `content_types`
-  list (15 values at module-load time; resynced via `bun run sync:taxonomy`).
-
-Empirical-grounding (OQ-3): all imports verified against pinned cocoindex
-1.0.3 / pydantic 2.12.5 / anthropic 0.79.0. The legacy `ExtractByLlm` /
-`LlmSpec` / `LlmApiType` surface was removed in cocoindex 1.0.0; this module
-does NOT import it — the flow-scope wiring happens in `flow.py` via the
-`@coco.fn`-wrapped anthropic SDK path (Path A, ratified S255).
+- `scripts/tests/fixtures/taxonomy_snapshot.json` — canonical `content_types`.
 """
 
 from __future__ import annotations
@@ -53,20 +42,12 @@ from scripts.cocoindex_pipeline.prompts import (
     Q_A_FORM_PROMPT,
 )
 
-# NOTE: `current_retry_counter` from `flow_context` is intentionally NOT
-# imported at module top-level. The same dual-import-path hazard documented
-# in `stamp_extraction_base()` (lines ~398-419) applies here: when tests
-# bind the counter via `cocoindex_pipeline.flow_context` (sys.path[0]
-# injection) but `extraction.py` was imported via
-# `scripts.cocoindex_pipeline.extraction`, the top-level
-# `from scripts.cocoindex_pipeline.flow_context import current_retry_counter`
-# binds to a DIFFERENT `_retry_counter_var` ContextVar instance than the
-# test's `bind_retry_counter()` writes to — and bumps silently miss.
-#
-# We resolve the module lazily inside `_bump_flow_retry_counter` via
-# `importlib.import_module(f"{__package__}.flow_context")` — the same
-# pattern the stamping path uses to keep ContextVar identity consistent
-# across both import paths.
+# `flow_context` is imported LAZILY inside the retry hook (and inside
+# `stamp_extraction_base`) — see `_bump_flow_retry_counter` for the
+# dual-import-path rationale (test sys.path injection causes two
+# `sys.modules` entries for the same physical file, each with its own
+# ContextVar storage; lazy `importlib.import_module(f"{__package__}.…")`
+# resolves through whichever path the caller used).
 
 from tenacity import (
     AsyncRetrying,
@@ -77,27 +58,15 @@ from tenacity import (
 )
 
 
-# Production Anthropic model — mirrors lib/anthropic.ts:29 +
-# scripts/kb_pipeline/config.py:29 + cocoindex-extraction-contract TECH §3.1.
-# Centralised here so the 3 extractors below share a single source of truth;
-# flow.py re-exports the same constant for backwards-compat with existing
-# infra references (no behavioural difference).
+# Production Anthropic model — single source of truth for the 3 extractors
+# below; mirrors lib/anthropic.ts + scripts/kb_pipeline/config.py.
 ANTHROPIC_MODEL = "claude-opus-4-6"
 
 
-# ---------------------------------------------------------------------------
-# Content-type runtime validator (per Q-EX2 TECH §2.2)
-# ---------------------------------------------------------------------------
-#
-# The canonical content_types list lives in
-# `lib/ontology/content-type-registry.ts` (re-exported by
-# `lib/validation/schemas.ts:43-52`). Mirroring it as a Python `Literal` would
-# create a third source of drift. Instead, this module loads the snapshot at
-# import time and a `@field_validator` on `ClassificationExtraction` asserts
-# membership at validation time.
-#
-# Per CLAUDE.md Gotcha "Taxonomy dual-source — Python pipeline reads taxonomy
-# from `scripts/tests/fixtures/taxonomy_snapshot.json`".
+# Content-type runtime validator (Q-EX2 TECH §2.2). The canonical
+# `content_types` list lives in `lib/ontology/content-type-registry.ts`;
+# Python reads it from `scripts/tests/fixtures/taxonomy_snapshot.json` per
+# CLAUDE.md "Taxonomy dual-source" gotcha to avoid a third source of drift.
 
 _TAXONOMY_SNAPSHOT_PATH = (
     Path(__file__).parent.parent / "tests" / "fixtures" / "taxonomy_snapshot.json"
@@ -105,13 +74,7 @@ _TAXONOMY_SNAPSHOT_PATH = (
 
 
 def _load_canonical_content_types() -> frozenset[str]:
-    """Read the canonical content_types list from the taxonomy snapshot.
-
-    Raises FileNotFoundError if the snapshot is missing — this is a build-
-    breaking condition (the snapshot is committed to the repo and resynced
-    via `bun run sync:taxonomy`). A missing snapshot indicates someone has
-    deleted committed source data.
-    """
+    """Read the canonical content_types list from the taxonomy snapshot."""
     with _TAXONOMY_SNAPSHOT_PATH.open() as fh:
         snapshot = json.load(fh)
     content_types = snapshot.get("content_types")
@@ -132,62 +95,39 @@ _VALID_CONTENT_TYPES: frozenset[str] = _load_canonical_content_types()
 
 
 class _ExtractionBase(BaseModel):
-    """Shared fields populated by the outer-tier flow wrapper, not by the LLM.
+    """Shared fields stamped by the flow wrapper, NOT by the LLM (Inv-5).
 
-    Per Q-EX2 PRODUCT inv 5 — every variant carries op_id + content_items_id
-    + extracted_at. These fields are stamped by the cocoindex flow wrapper
-    *after* the LLM response is validated; they are NOT part of the LLM's
-    output_type contract (the model would otherwise hallucinate UUIDs).
-
-    Per verifier S-1 suggestion: extractor_kind (the link to
-    q_a_extractions.extractor_kind enum) is stamped at outer-tier write time,
-    not on the Pydantic shape — it is a per-target column populated by the
-    target-binding adapter in flow.py.
+    `op_id`, `content_items_id`, `extracted_at` are populated post-validation
+    by `stamp_extraction_base()` — keeping them out of the LLM's `output_type`
+    contract prevents the model hallucinating UUIDs.
     """
 
     model_config = ConfigDict(
-        # Strict mode — Pydantic refuses to coerce mismatched types. A model
-        # returning {"extraction_kind": "q_a_form", ...} where a sub-field is
-        # the wrong type fails loud per Q-EX2 PRODUCT inv 13.
+        # Strict + extra="forbid" — surfaces type drift and prompt drift loud
+        # per Q-EX2 PRODUCT inv 13.
         strict=True,
-        # Forbid unexpected fields — surfacing prompt drift early.
         extra="forbid",
     )
 
-    op_id: UUID = Field(
-        description=(
-            "Cocoindex per-flow op_id — hybrid op_id pattern per "
-            "02-data-flow.md §5.1 N7."
-        )
-    )
+    op_id: UUID = Field(description="Cocoindex per-flow op_id (02-data-flow §5.1).")
     content_items_id: UUID = Field(
-        description=(
-            "FK to content_items row whose content_text was the extraction "
-            "input — source-attribution marker."
-        )
+        description="FK to content_items row whose content_text was the input."
     )
     extracted_at: datetime = Field(
-        description=(
-            "UTC timestamp set at LLM-call time by the outer-tier flow "
-            "wrapper."
-        )
+        description="UTC timestamp set at LLM-call time by the wrapper."
     )
 
 
 class FormMetadata(BaseModel):
-    """Block carried inside the q_a_form variant per Q-EX2 PRODUCT inv 2.
+    """Block carried inside the q_a_form variant (Q-EX2 PRODUCT inv 2).
 
-    form_type values per docs/ontology/26-form-type.md lines 65-79 — the
-    full 11-value canonical CV (8 procurement + 3 non-procurement). Per
-    verifier B-2, the earlier 8-value draft omitted checklist /
-    questionnaire / sales_proposal_template; this list is the canonical
-    contract.
+    `form_type` enumerates the canonical 11-value CV per
+    `docs/ontology/26-form-type.md` lines 65-79 (8 procurement + 3 non-procurement).
     """
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
     form_type: Literal[
-        # 8 procurement form_types (Q-OQR1-02 ratification)
         "bid",
         "rfp",
         "pqq",
@@ -196,7 +136,6 @@ class FormMetadata(BaseModel):
         "framework",
         "dps",
         "gcloud",
-        # 3 non-procurement form_types
         "checklist",
         "questionnaire",
         "sales_proposal_template",
@@ -209,12 +148,11 @@ class FormMetadata(BaseModel):
 
 
 class QAPair(BaseModel):
-    """One Q&A pair extracted from a form.
+    """One Q&A pair extracted from a form (Q-EX2 PRODUCT inv 2).
 
-    Per verifier B-1: the field is named `expected_response_kind` (not
-    `question_kind`, which collides with `question_matches.question_kind` per
-    05-qa-flow.md §7.2). The Literal is the canonical 2-value
-    `["mandatory", "optional"]` — `info_only` is unratified.
+    `expected_response_kind` is named to avoid collision with
+    `question_matches.question_kind` per 05-qa-flow.md §7.2; the 2-value
+    CV is canonical (`info_only` unratified).
     """
 
     model_config = ConfigDict(strict=True, extra="forbid")
@@ -228,10 +166,10 @@ class QAPair(BaseModel):
 
 
 class QAFormExtraction(_ExtractionBase):
-    """The q_a_form discriminated-union variant per Q-EX2 PRODUCT inv 2.
+    """The q_a_form variant (Q-EX2 PRODUCT inv 2).
 
-    Maps downstream to q_a_extractions (per QAPair) + form_templates (per
-    FormMetadata).
+    Maps downstream to `q_a_extractions` (per QAPair) + `form_templates`
+    (per FormMetadata).
     """
 
     extraction_kind: Literal["q_a_form"] = "q_a_form"
@@ -240,11 +178,11 @@ class QAFormExtraction(_ExtractionBase):
 
 
 class EntityMentionExtraction(_ExtractionBase):
-    """The entity_mention variant per Q-EX2 PRODUCT inv 3.
+    """The entity_mention variant (Q-EX2 PRODUCT inv 3).
 
-    entity_type values mirror VALID_ENTITY_TYPES in
-    lib/validation/schemas.ts:1506-1519. The §5.4 parity guard asserts the
-    two lists match.
+    `entity_type` values mirror `VALID_ENTITY_TYPES` in
+    `lib/validation/schemas.ts:1506-1519`; the §5.4 parity guard asserts
+    the two lists match.
     """
 
     extraction_kind: Literal["entity_mention"] = "entity_mention"
@@ -270,16 +208,14 @@ class EntityMentionExtraction(_ExtractionBase):
 
 
 class ClassificationExtraction(_ExtractionBase):
-    """The classification variant per Q-EX2 PRODUCT inv 4.
+    """The classification variant (Q-EX2 PRODUCT inv 4).
 
-    content_type values mirror the canonical list in
-    `scripts/tests/fixtures/taxonomy_snapshot.json` (re-export shim of
-    `lib/ontology/content-type-registry.ts`). Validated at runtime via the
-    `_validate_content_type` field validator below.
+    `content_type` is constrained at runtime via `_validate_content_type`
+    below, which reads the canonical taxonomy snapshot.
     """
 
     extraction_kind: Literal["classification"] = "classification"
-    content_type: str  # Constrained at runtime — see validator below.
+    content_type: str
     primary_domain: str
     classification_confidence: float = Field(ge=0.0, le=1.0)
     secondary_classifications: list[str] = Field(default_factory=list)
@@ -288,13 +224,9 @@ class ClassificationExtraction(_ExtractionBase):
     @field_validator("content_type")
     @classmethod
     def _validate_content_type(cls, value: str) -> str:
-        """Reject content_type values not in the canonical taxonomy snapshot.
-
-        Failure raises ValueError, which Pydantic surfaces as a
-        ValidationError per Q-EX2 PRODUCT inv 13. The error 'type' is
-        'value_error' which maps to 'invalid_enum' in
-        `_PYDANTIC_ERROR_TO_ERROR_CLASS`.
-        """
+        # Pydantic surfaces this `ValueError` as a `ValidationError` with
+        # `error['type'] == 'value_error'`, mapped to `invalid_enum` in
+        # `_PYDANTIC_ERROR_TO_ERROR_CLASS` below.
         if value not in _VALID_CONTENT_TYPES:
             raise ValueError(
                 f"content_type {value!r} not in canonical taxonomy "
@@ -303,9 +235,8 @@ class ClassificationExtraction(_ExtractionBase):
         return value
 
 
-# The discriminated-union root — flow-scope `ExtractByLlm` calls reference one
-# of the three variants directly; ExtractionOutput is the type-checker handle
-# for code that wants the union (e.g. tests, mocks).
+# Discriminated-union root for code that wants the union type
+# (e.g. tests, mocks). The 3 extractors below return concrete variants.
 ExtractionOutput = Annotated[
     Union[
         QAFormExtraction,
@@ -316,14 +247,8 @@ ExtractionOutput = Annotated[
 ]
 
 
-# ---------------------------------------------------------------------------
-# Pydantic error → error_class mapping (per Q-EX2 TECH §4.1)
-# ---------------------------------------------------------------------------
-#
-# Per verifier S-2 suggestion, the helper is implemented as an explicit dict
-# mapping rather than implicit code-table. The mapping below is empirically
+# Pydantic error → error_class mapping (Q-EX2 TECH §4.1). Empirically
 # verified against pydantic 2.12.5 strict-mode error 'type' strings.
-
 _PYDANTIC_ERROR_TO_ERROR_CLASS: dict[str, str] = {
     # Missing required field
     "missing": "missing_required",
@@ -355,13 +280,10 @@ _PYDANTIC_ERROR_TO_ERROR_CLASS: dict[str, str] = {
 
 
 def classify_pydantic_error(exc: ValidationError) -> str:
-    """Map the first error in a ValidationError to an error_class string.
+    """Map the first error in a `ValidationError` to an error_class string.
 
-    Returns 'type_coercion' as the default — type-coercion errors are the
-    broadest category and the safe fallback for unmapped error types. The
-    mapping is exhaustive against Pydantic v2.12 strict-mode error types;
-    unmapped errors fall back to 'type_coercion' so the failure-write path
-    is always populated (per Q-EX2 PRODUCT inv 13).
+    Defaults to `'type_coercion'` for unmapped error types — the broadest
+    category, so the failure-write path is always populated (Q-EX2 inv 13).
     """
     if not exc.errors():
         return "type_coercion"
@@ -382,44 +304,25 @@ def stamp_extraction_base(
     op_id: UUID | None = None,
     content_items_id: UUID | None = None,
 ) -> ClassificationExtraction | QAFormExtraction | EntityMentionExtraction:
-    """Plain Python helper — NOT @coco.fn.
+    """Stamp `_ExtractionBase` fields post-validation.
 
-    Stamps the _ExtractionBase fields with op_id (from cocoindex flow
-    context), content_items_id (from the row's primary key in source-binding
-    tier), and extracted_at (now-UTC).
-
-    Per Q-EX2 TECH §3.2, this is NOT memoised — the three values change per
-    flow run, so memoisation would either stale-cache the values or
-    invalidate every run, defeating the purpose. Pydantic v2 `model_copy`
+    NOT memoised — values change per flow run; `pydantic.model_copy`
     preserves immutability semantics.
 
-    ID-28.16 flow-scope reading:
-      When `op_id` and/or `content_items_id` are omitted, the helper reads
-      them from the currently-bound `FLOW_META_CTX` via
-      `cocoindex_pipeline.flow_context.current_flow_meta()`. This is the
-      flow-scope wiring primitive — extractor outputs are stamped at
-      flow-scope without the call-site needing to thread op_id /
-      content_items_id through every `.transform()` chain argument.
-
-      Explicit kwargs ALWAYS take precedence over the FLOW_META_CTX-bound
-      values when both are present — call-site-provided values win.
-
-      If neither explicit args nor a FLOW_META_CTX binding can supply the
-      required values, `RuntimeError` is raised rather than silently
-      stamping zero UUIDs. The error message names `FLOW_META_CTX` so the
-      operator knows which binding is missing.
+    When `op_id` / `content_items_id` are omitted, reads them from the
+    currently-bound `FLOW_META_CTX` so the call-site does not have to
+    thread metadata through every `.transform()` chain. Explicit kwargs
+    take precedence. Raises `RuntimeError` rather than silently stamping
+    zero UUIDs when no binding is active.
     """
     if op_id is None or content_items_id is None:
-        # Lazy import to guarantee the *same* `flow_context` module object
-        # is reached as the caller's import path. When the caller imports
-        # via `scripts.cocoindex_pipeline.flow_context` and a test imports
-        # via `cocoindex_pipeline.flow_context` (sys.path injection), the
-        # two paths resolve to DIFFERENT `sys.modules` entries — each with
-        # its own private `_flow_meta_var` ContextVar (storage not shared).
-        # Using `__package__` here resolves through whichever import path
-        # the caller actually used, keeping the ContextVar identity consistent.
-        # (See module docstring SIGNATURE_DRIFT note in flow_context.py for
-        # background on the coco.ContextKey global-uniqueness pitfall.)
+        # Lazy import via `__package__` resolves to whichever sys.modules
+        # entry the caller actually used. Without this, tests that inject
+        # via `cocoindex_pipeline.…` (sys.path[0]) and runtime imports via
+        # `scripts.cocoindex_pipeline.…` create TWO modules with separate
+        # ContextVar storage — bound metadata in one is invisible in the
+        # other (see flow_context.py module docstring on the
+        # `coco.ContextKey` global-uniqueness pitfall).
         from importlib import import_module
 
         flow_context_module = import_module(f"{__package__}.flow_context")
@@ -461,19 +364,15 @@ async def normalise_entity_span(
     extraction: EntityMentionExtraction,
     content_text: str,
 ) -> EntityMentionExtraction:
-    """Inner-tier post-processing fn — consumes the typed extracted column
-    AND the source content_text. Adjusts span offsets so the entity_name
-    aligns with whitespace-trimmed boundaries in `content_text`.
+    """Tighten whitespace at the span boundaries on `content_text`.
 
-    Per S9 §7.2 layered fn-shape: inputs are content (typed value +
-    string), NOT FileLike. Metadata-only edits to the source file
-    (mtime, owner_change) hit memo cleanly because the memo key is
-    (extraction_payload, content_text), not the file handle.
+    Inner-tier post-processing fn (S9 §7.2): inputs are typed value + str,
+    NOT FileLike. Memo key is `(extraction_payload, content_text)` so
+    metadata-only edits to the source file (mtime, owner_change) hit
+    memo cleanly.
 
-    Behaviour: if the configured span (source_span_start..source_span_end)
-    on content_text contains leading or trailing whitespace, the offsets
-    are tightened to drop the whitespace. If the span is already tight or
-    out-of-bounds, the extraction is returned unchanged.
+    Returns the extraction unchanged when the span is already tight or
+    out-of-bounds.
     """
     start = extraction.source_span_start
     end = extraction.source_span_end
@@ -500,51 +399,23 @@ async def normalise_entity_span(
     )
 
 
-# ---------------------------------------------------------------------------
-# Path A canonical LLM extractors (S256 / Subtask 28.12 WP4)
-# ---------------------------------------------------------------------------
+# Path A canonical LLM extractors. `@coco.fn(memo=True)` content-hashes
+# the `content_text` arg so re-runs of identical content skip the LLM call
+# (Inv-21). On `ValidationError` the extractor RAISES; cocoindex's flow-
+# scope try/except in `app_main()` catches and emits the rollup webhook
+# with `error_class=type(exc).__name__` (Option A; structured per-
+# extraction-kind routing via `classify_pydantic_error()` is owned by
+# the failure-write path in 28.13).
 #
-# The 3 `@coco.fn(memo=True)`-decorated extractors below call the anthropic
-# SDK directly + validate via Pydantic `TypeAdapter`. This is the canonical
-# 1.x extraction pattern (Path A) ratified at S256 W1 — `ExtractByLlm` /
-# `LlmSpec` / `LlmApiType` were removed in cocoindex 1.0.0 (full provenance
-# in `docs/research/cocoindex-1.0.3-extractbyllm-spec-reality-investigation.md`).
-#
-# Memoisation discipline (Inv-21):
-# - `memo=True` is mandatory — cocoindex content-hashes the `content_text`
-#   argument so re-runs of the same content skip the LLM call. Per S256 W1
-#   stub-pattern verification, `@coco.fn(memo=True)` returns a directly-
-#   awaitable `AsyncFunction` instance whose body executes ONLY on memo miss.
-#
-# Validation-failure routing (Inv-13 / Inv-22):
-# - On `ValidationError`, the extractor RAISES — cocoindex's flow-scope
-#   try/except at `app_main()` (flow.py lines ~582-598) catches the
-#   exception and emits the rollup webhook with `error_class=type(exc).__name__`.
-# - This is "Option A" from the S256 WP4 brief — defers structured-error-
-#   class routing (via `classify_pydantic_error()`) to Subtask 28.13 when the
-#   per-extraction-kind failure-write path lands.
-#
-# Transient-failure retry (Inv-23 / P-OQ2 — ID-28.17):
-# - Each `client.messages.create()` call is wrapped by `_anthropic_retry`
-#   (tenacity-based). Empirically verified at S257 W2a + ID-28.13 fix-pack:
-#   cocoindex 1.0.3 has NO retry primitives around `@coco.fn` extractors
-#   — KH owns the retry surface for the Anthropic call path.
-# - 3 retries with exponential backoff (1 s base, 2x exponent, 30 s cap).
-# - Retry-on classes: `InternalServerError`, `RateLimitError`,
-#   `APIConnectionError`. Auth / bad-request / permission errors propagate
-#   immediately (deterministic operator errors).
-# - On each retry attempt, `_FlowRetryCounter.increment()` is called via
-#   `current_retry_counter()` (from `flow_context.py`). When no counter is
-#   bound (e.g. unit tests, flow-scope production wiring still pending),
-#   the wrapper gracefully skips the bump — the retry still happens.
-#
-# Prompt-template usage:
-# - The 3 prompt constants live in `scripts/cocoindex_pipeline/prompts.py`.
-# - Each extractor concatenates `f"{PROMPT}\n\n{content_text}"` per spec §3.1.
+# Each `client.messages.create()` call is wrapped by `_anthropic_retry`
+# (tenacity). cocoindex 1.0.3 has NO retry primitive around @coco.fn
+# extractors — KH owns the surface (Inv-23 / P-OQ2). 3 retries +
+# exponential backoff (1 s base, 30 s cap); retries fire on
+# `InternalServerError` / `RateLimitError` / `APIConnectionError`;
+# auth/bad-request/permission errors propagate immediately.
 
-# Module-level TypeAdapter instances — built once on import, reused per call.
-# Per pydantic 2.12.5 docs, TypeAdapter construction is non-trivial (compiles
-# the validation core); reuse is the canonical idiom.
+# Module-level TypeAdapter instances — built once on import, reused per call
+# (TypeAdapter construction compiles the validation core per pydantic v2 docs).
 _classification_adapter: TypeAdapter[ClassificationExtraction] = TypeAdapter(
     ClassificationExtraction
 )
@@ -554,34 +425,23 @@ _entity_mentions_adapter: TypeAdapter[list[EntityMentionExtraction]] = TypeAdapt
 )
 
 
-# Max-tokens budget per extraction call — 4096 is the spec §3.1 default;
-# accommodates ~3000-word classification rationales + ~50 QA-pair forms +
-# ~200 entity mentions per call. Transient anthropic.APIError cases (503,
-# rate-limit, connection) are handled by `_anthropic_retry` (below);
-# validation failures on truncated JSON raise `ValidationError` → Option A
-# failure path.
+# Max-tokens budget — accommodates ~3000-word rationales, ~50 QA-pair forms,
+# ~200 entity mentions per call. Validation failures on truncated JSON
+# raise `ValidationError` → Option A failure path.
 _MAX_TOKENS = 4096
 
 
-# ---------------------------------------------------------------------------
-# Anthropic 503-retry wrapper (ID-28.17 / PRODUCT Inv-23 / P-OQ2)
-# ---------------------------------------------------------------------------
-#
-# Per-attempt backoff bounds — exposed as module-level constants so unit
-# tests can monkeypatch them to zero (avoids the 1-2-4 s ladder in CI).
-# Production defaults match P-OQ2: 1 s minimum, 30 s maximum, 2x exponent
-# (standard tenacity `wait_exponential` semantic).
+# Anthropic 503-retry wrapper (Inv-23 / P-OQ2). Module-level constants so
+# unit tests can monkeypatch to zero (avoids the 1-2-4 s ladder in CI);
+# production defaults: 1 s base, 30 s cap, 2× exponent.
 _ANTHROPIC_RETRY_WAIT_SECONDS_MIN: float = 1.0
 _ANTHROPIC_RETRY_WAIT_SECONDS_MAX: float = 30.0
 
-# Total attempt cap — 4 means 1 initial attempt + 3 retries (the brief's
-# "3 retries on transient failures").
+# Total attempt cap — 1 initial + 3 retries.
 _ANTHROPIC_RETRY_TOTAL_ATTEMPTS: int = 4
 
-# Retry-on exception classes — per ID-28.17 brief:
-#   - Transient infrastructure failures: retry.
-#   - Deterministic operator errors (auth, bad-request, permission): NO
-#     retry — propagate immediately.
+# Retry only on transient infrastructure failures; auth / bad-request /
+# permission errors propagate immediately.
 _RETRYABLE_ANTHROPIC_EXCEPTIONS: tuple[type[BaseException], ...] = (
     anthropic.InternalServerError,
     anthropic.RateLimitError,
@@ -590,28 +450,16 @@ _RETRYABLE_ANTHROPIC_EXCEPTIONS: tuple[type[BaseException], ...] = (
 
 
 def _bump_flow_retry_counter(retry_state: RetryCallState) -> None:
-    """Tenacity `before_sleep` hook — fires once per retry attempt
-    (between the failed attempt and the next sleep), giving us the
-    canonical "a retry will be attempted" signal to bump the counter.
+    """Tenacity `before_sleep` hook — bumps the flow-bound retry counter
+    once per retry attempt.
 
-    Reads the current flow-bound retry counter via
-    `current_retry_counter()`. When no counter is bound (no flow-scope
-    wiring active — e.g. unit tests, or production flows where the
-    flow.py `app_main()` has not yet been updated to bind one), the
-    bump is silently skipped: the retry still happens (correctness is
-    not affected), only observability is omitted.
-
-    Tenacity 9.1.4 invokes `before_sleep` callbacks with the
-    `RetryCallState`; we ignore the state argument because the counter
-    bump is a simple side-effect — the callback signature is fixed by
-    the tenacity API.
+    Lazy import via `__package__` keeps ContextVar identity consistent
+    across the two import paths (see stamp_extraction_base for the
+    full rationale). When no counter is bound (e.g. unit tests outside
+    `bind_retry_counter`), the bump is silently skipped — the retry
+    still happens, only observability is omitted.
     """
-    del retry_state  # unused — callback signature requires the argument
-    # Lazy import to dodge the dual-import-path hazard documented at the
-    # top-level NOTE block (and mirrored in `stamp_extraction_base()`).
-    # `__package__` resolves to whichever path the caller imported under,
-    # so the `_retry_counter_var` ContextVar identity matches the one the
-    # caller's `bind_retry_counter()` actually wrote to.
+    del retry_state  # tenacity API requires the parameter
     from importlib import import_module
 
     flow_context_module = import_module(f"{__package__}.flow_context")
@@ -621,34 +469,18 @@ def _bump_flow_retry_counter(retry_state: RetryCallState) -> None:
 
 
 async def _anthropic_retry(call, /):
-    """Async retry helper for an `anthropic.AsyncAnthropic.messages.create`
-    awaitable. Constructs a fresh `AsyncRetrying` iterator per call so
-    each invocation independently observes the module-level constants
-    (lets unit tests monkeypatch `_ANTHROPIC_RETRY_WAIT_SECONDS_*` to
-    zero without leaking state between tests).
+    """Async retry helper for `anthropic.AsyncAnthropic.messages.create`.
 
-    Usage from an extractor:
+    The `call` parameter is a zero-arg callable returning the awaitable —
+    wrapping in a closure lets tenacity rebuild the SDK call on each
+    retry (a single pre-built awaitable would be exhausted after the
+    first await).
 
-        response = await _anthropic_retry(
-            lambda: client.messages.create(model=..., messages=...)
-        )
-
-    The `call` parameter is a zero-arg lambda/callable returning the
-    awaitable from `messages.create(...)` — wrapping in a closure lets
-    tenacity invoke the SDK afresh on each retry attempt (a single
-    pre-built awaitable would be exhausted after the first await).
-
-    Behaviour:
-      - Up to 4 total attempts (1 initial + 3 retries).
-      - Exponential backoff between attempts: 1 s base, 2x multiplier,
-        30 s cap (tenacity's `wait_exponential` defaults match P-OQ2).
-      - Retries on `InternalServerError`, `RateLimitError`,
-        `APIConnectionError`.
-      - All other exceptions (incl. `AuthenticationError`,
-        `BadRequestError`, `PermissionDeniedError`, pydantic
-        `ValidationError`) propagate immediately on the first occurrence.
-      - On each retry attempt, `_bump_flow_retry_counter` fires via
-        the tenacity `before_sleep` hook.
+    Up to 4 attempts (1 + 3 retries), exponential backoff via
+    `_ANTHROPIC_RETRY_WAIT_SECONDS_*`. Retries on the 3
+    `_RETRYABLE_ANTHROPIC_EXCEPTIONS`; everything else (auth, bad-request,
+    `ValidationError`) propagates immediately. `_bump_flow_retry_counter`
+    fires via the `before_sleep` hook on each retry attempt.
     """
     retrying = AsyncRetrying(
         stop=stop_after_attempt(_ANTHROPIC_RETRY_TOTAL_ATTEMPTS),
@@ -668,26 +500,10 @@ async def _anthropic_retry(call, /):
 
 @coco.fn(memo=True)
 async def extract_classification(content_text: str) -> ClassificationExtraction:
-    """Path A canonical classification extractor (S256 WP4).
+    """Classification extractor — validates LLM JSON into `ClassificationExtraction`.
 
-    Calls anthropic.AsyncAnthropic().messages.create() with the
-    CLASSIFICATION_PROMPT + content_text user-message, extracts the
-    response text, validates via `TypeAdapter(ClassificationExtraction)`.
-
-    Returns the validated `ClassificationExtraction` instance with the
-    LLM-provided fields populated; `_ExtractionBase` fields (op_id,
-    content_items_id, extracted_at) remain at their default `Field(...)`
-    placeholders and are stamped post-validation by
-    `stamp_extraction_base()` at flow-scope wiring time (28.13+ owns the
-    per-row flow-scope stamping; v1 substrate documented in flow.py).
-
-    Validation-failure path: `ValidationError` propagates per Option A
-    (S256 WP4 brief). Cocoindex flow-scope try/except in `app_main()`
-    catches + emits the rollup webhook.
-
-    Memoisation: `memo=True` keys on `(content_text,)` per cocoindex
-    content-hash determinism (Inv-21). Unchanged content + unchanged
-    prompt → memo hit, zero LLM call.
+    `_ExtractionBase` fields remain at placeholders; stamped post-validation
+    by `stamp_extraction_base()`. Memo key is `(content_text,)` per Inv-21.
     """
     client = anthropic.AsyncAnthropic()  # picks up ANTHROPIC_API_KEY from env
     response = await _anthropic_retry(
@@ -708,19 +524,12 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
 
 @coco.fn(memo=True)
 async def extract_qa_form(content_text: str) -> QAFormExtraction:
-    """Path A canonical Q&A form extractor (S256 WP4).
+    """Q&A form extractor — validates LLM JSON into `QAFormExtraction`.
 
-    Calls anthropic.AsyncAnthropic().messages.create() with the
-    Q_A_FORM_PROMPT + content_text user-message, validates via
-    `TypeAdapter(QAFormExtraction)`. Returns the typed extraction with
-    `form_metadata` + `qa_pairs[]` populated.
-
-    Per PRODUCT inv 2: if the document is NOT a form, the LLM is
-    instructed to return a valid JSON object with `qa_pairs: []` (rather
-    than synthesising Q&A pairs). The prompt enforces this.
-
-    Validation-failure + memoisation: same Option A / Inv-21 contract as
-    `extract_classification` above.
+    Per PRODUCT inv 2 the prompt instructs the LLM to return
+    `qa_pairs: []` for non-form documents (rather than synthesising
+    pairs). Same memoisation + validation-failure contract as
+    `extract_classification`.
     """
     client = anthropic.AsyncAnthropic()
     response = await _anthropic_retry(
@@ -743,21 +552,11 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
 async def extract_entity_mentions(
     content_text: str,
 ) -> list[EntityMentionExtraction]:
-    """Path A canonical entity-mentions extractor (S256 WP4).
+    """Entity-mentions extractor — returns a list (empty if no entities).
 
-    Calls anthropic.AsyncAnthropic().messages.create() with the
-    ENTITY_MENTION_PROMPT + content_text user-message, validates via
-    `TypeAdapter(list[EntityMentionExtraction])`. Returns a list of typed
-    entity mentions — empty list when the document contains no entities
-    (per PRODUCT inv 3 + prompt instruction).
-
-    Per spec §3.1 + prompts.py: the LLM is instructed to return a JSON
-    array (not an object containing an array), so the TypeAdapter is
-    `list[EntityMentionExtraction]` — pydantic handles list-typed
-    extraction per docs §2 (nested-schema support).
-
-    Validation-failure + memoisation: same Option A / Inv-21 contract as
-    `extract_classification` above.
+    The LLM is instructed to return a JSON array (not an object wrapping
+    an array), so the TypeAdapter is `list[EntityMentionExtraction]`.
+    Same memoisation + validation-failure contract as `extract_classification`.
     """
     client = anthropic.AsyncAnthropic()
     response = await _anthropic_retry(
