@@ -1,0 +1,173 @@
+worker: kh-prod-readiness-S62F-sub-o-id9-wave1
+scope: ID-9 Astro+Starlight Phase 1+2 — Subtasks 9.5-9.10
+branch: cmux-worker-s62f-sub-o-id9-wave1-f4550744
+base: production-readiness @ f4550744
+commits_total: 23
+
+subtasks_completed:
+  - id: "9.5"
+    title: Docs-site scaffold (Astro + Starlight + Vercel + content collection schema)
+    status: done
+    commits:
+      - sha: 2cfe7c7c
+        msg: "feat(docs-site): ID-9.5 — Astro + Starlight foundation scaffold"
+      - sha: 0236460e
+        msg: "chore(s62f-id9.5-journal): append <info added on...> block to Subtask 9.5"
+      - sha: ba22a623
+        msg: "fix(docs-site): ID-9.5 — render last-updated as DD/MM/YYYY (en-GB) + assert in test"
+      - sha: 26b91bf0
+        msg: "chore(s62f-id9.5-fix-journal): append <info added on...> block for Inv-14 fix"
+      - sha: 399f99f0
+        msg: "chore(s62f-id9.5-close): promote Subtask 9.5 to done — Checker PASS post Inv-14 fix"
+    checker_verdict: PASS (after fix-Executor remediated Inv-14 DD/MM/YYYY rendered-output FAIL)
+    notes: 27/27 tests pass; Inv-14 numeric DD/MM/YYYY via en-GB LastUpdated.astro component override.
+
+  - id: "9.6"
+    title: Sync script + manifest + divergence-flag honour
+    status: done
+    commits:
+      - sha: 1d02c8c4
+        msg: "feat(docs-site): ID-9.6 — build-time sync script + manifest + kh_docubot_owned honour"
+      - sha: 77406fac
+        msg: "chore(s62f-id9.6-journal): append <info added on...> block to Subtask 9.6"
+      - sha: 0f434086
+        msg: "chore(s62f-id9.6-close): promote Subtask 9.6 to done — Checker PASS_WITH_NOTES"
+    checker_verdict: PASS_WITH_NOTES (1 nit; 78/78 tests; sync-content.ts 245 LOC ≤ 250 budget).
+
+  - id: "9.7"
+    title: Warm Meridian theming + token-drift guard + code/tables/callouts
+    status: done
+    commits:
+      - sha: 7b90eca0
+        msg: "feat(docs-site): ID-9.7 — Warm Meridian token mirror + drift guard"
+      - sha: 6a652a69
+        msg: "feat(docs-site): ID-9.7 — Instrument Sans + expressive-code line numbers"
+      - sha: 5df3fe9f
+        msg: "test(docs-site): ID-9.7 — code block + callout shape tests"
+      - sha: a84afe6a
+        msg: "chore(s62f-id9.7-journal): append <info added on...> block to Subtask 9.7"
+      - sha: 7d417f7b
+        msg: "chore(s62f-id9.7-close): promote Subtask 9.7 to done — Checker PASS_WITH_NOTES"
+    checker_verdict: PASS_WITH_NOTES (92/92 tests; 6 mirror tokens verbatim; drift guard verified).
+
+  - id: "9.8"
+    title: AI-invisibility + UK English CI guards + 404 + empty states
+    status: done
+    commits:
+      - sha: d4ac4dd3
+        msg: "feat(docs-site): ID-9.8 — AI-invisibility + broken-link CI guards + 404/empty-state shape tests"
+      - sha: e712bd5c
+        msg: "chore(s62f-id9.8-journal): backfill commit SHA in ID-9.8 journal block"
+      - sha: 6fe39808
+        msg: "fix(docs-site): ID-9.8 — broaden 404 home-link regex to handle Starlight sr-only span structure"
+      - sha: 51bb43a4
+        msg: "chore(s62f-id9.8-fix-journal): append <info added on...> block for 404 home-link regex fix"
+      - sha: 60685092
+        msg: "chore(s62f-id9.8-close): promote Subtask 9.8 to done — Checker re-PASS"
+    checker_verdict: PASS (after fix-Executor remediated 404 home-link regex FAIL; 158/158 tests).
+
+  - id: "9.9"
+    title: AGENTS.md at repo root (5-section style guide)
+    status: done
+    commits:
+      - sha: ba0eee1c
+        msg: "feat(agents-md): ID-9.9 — 5-section style guide with code-intelligence cross-reference"
+      - sha: 58b459c0
+        msg: "chore(s62f-id9.9-journal): append <info added on...> block to Subtask 9.9"
+      - sha: 45a9961f
+        msg: "chore(s62f-id9.9-close): promote Subtask 9.9 to done — Checker PASS_WITH_NOTES"
+    checker_verdict: PASS_WITH_NOTES (6/6 shape tests; POST-S65-W1 amendment cross-reference verbatim).
+    notes: 372 LOC AGENTS.md at repo root; one-sentence cross-reference to .gitnexus/CLAUDE.md + .ast-dataflow/CLAUDE.md per POST-S65-W1 amendment; canonical for UK English + AI-invisibility per OQ-PLAN-3 Option A.
+
+  - id: "9.10"
+    title: keep-docs-in-sync skill at .claude/skills/keep-docs-in-sync/SKILL.md
+    status: done
+    commits:
+      - sha: 5ac8734a
+        msg: "feat(skills): ID-9.10 — keep-docs-in-sync skill body (7-section)"
+      - sha: 15600d35
+        msg: "chore(s62f-id9.10-journal): append <info added on...> block to Subtask 9.10"
+    checker_verdict: PASS (9/9 shape tests; 203 LOC ≤ 250 budget; cross-references AGENTS.md §1 + §5 per OQ-PLAN-3).
+
+subtasks_deferred: []
+
+findings_curated:
+  # Resolved in-flight via fix-Executor cycles (no carryover required):
+  - id: 9.5-blocker-inv14
+    resolution: fix-Executor (commits ba22a623 + 26b91bf0); Inv-14 DD/MM/YYYY rendered DOM + test-quality remediated.
+  - id: 9.8-blocker-404-regex
+    resolution: fix-Executor (commits 6fe39808 + 51bb43a4); 404 home-link regex broadened for Starlight 0.36 sr-only span.
+
+findings_oos:
+  # Carryover for parent (S62F main orchestrator) triage post-cherry-pick:
+  - source: 9.6 Checker nit (in-scope, non-blocking)
+    summary: docs-site/package.json places `gray-matter` in devDependencies. Vercel default install includes devDeps so non-blocking; recommend move to `dependencies` for safety against `--production` install modes.
+    recommendation: nit fix-Subtask (1-line move) OR no-action.
+
+  - source: 9.6 + 9.7 + 9.8 + 9.9 Executor OOS (important)
+    summary: `astro check` over real synced ../docs fails on source files lacking required `title` front-matter (e.g. docs/ontology/01-taxonomy-domains.md, docs/runbooks/ast-dataflow-merge-S11.md, docs/product-functionality/README.md). Blocks `bun run build` end-to-end against real docs/ corpus. Pre-existing infrastructure debt.
+    recommendation: new Subtask under ID-9 (likely 9.6-follow-up scope — sync ownership). Options (a) sync-content.ts derives default `title` from H1/filename when absent, (b) docubot-driven backfill sweep of docs/, (c) README.md deny-list extension.
+
+  - source: 9.8 Executor OOS (fyi)
+    summary: 182 pre-existing broken internal links across 6 source files now SOURCE_DENY_LISTed in check-broken-links.ts (reference/state-of-the-product.md, reference/product-roadmap.md, reference/data-entry-points.md, runbooks/database-rebuild-runbook.md, runbooks/two-stage-re-ingestion-runbook.md, decisions/astro-starlight-docs-foundation/TECH.md). Sync-rewriter Inv-6 gaps + stale references to deny-listed JSON ledgers.
+    recommendation: route to ID-9.17 (check-for-broken-links skill Subtask) as canonical cleanup site.
+
+  - source: 9.8 Executor OOS (fyi)
+    summary: DENY_LIST in check-ai-invisibility.ts has 7 entries beyond the spec-default ai-visibility-policy.md (ai-integration-strategy.md, product-differentiation-audit.md, client-personas.md, warm-meridian-audit-report.md, ai-integration/technical.md, PRODUCT.md + TECH.md ID-9 spec docs). All auditor-traceable with inline comments. Inv-23-companion follow-up to reframe quoted AI-strategy/audit content to platform-feature language could reduce deny-list reliance over time.
+    recommendation: Inv-23 companion follow-up (low priority; foundation OK).
+
+  - source: 9.5 Checker OOS (important)
+    summary: PRODUCT Inv-16 unknown-field rejection is PARTIAL. Starlight `docsSchema({extend})` composes via z.intersection(StarlightDefault, UserExtension); applying .strict() to UserExtension rejects legitimate Starlight base fields. Malformed-field rejection (regex on declared) IS enforced; unknown-field rejection is not. Documented honestly in AGENTS.md §3.4 + docs-site/src/content.config.ts:65-73.
+    recommendation: defer until Starlight schema-stability is better understood OR upstream `strict:true` option to @astrojs/starlight.
+
+  - source: 9.9 Executor OOS (fyi)
+    summary: Pre-existing __tests__/validation/doc-freshness.test.ts:270 references `docs/operations/taxonomy-change-runbook.md` vs actual `docs/runbooks/taxonomy-change-runbook.md`. NOT a 9.9 regression. 1-line test path fix OR broader rename audit (`docs/operations/` → `docs/runbooks/` historical rename inbound-reference sweep) needed.
+    recommendation: discrete fix-Subtask; also grep corpus for `docs/operations/` literal strings.
+
+  - source: 9.7 Executor OOS (fyi)
+    summary: --sl-font-mono left at Starlight system-mono default. Inv-11 informational; parity with KH app convention.
+    recommendation: no-action (TECH §2.8 preserves Starlight defaults).
+
+  - source: 9.7 Executor OOS (fyi)
+    summary: Table header styling at Starlight default (header bold, left-aligned). Inv-11 informational; TECH §2.8 explicitly preserves.
+    recommendation: no-action (future Subtask if stronger header treatment warranted).
+
+  - source: 9.5 Executor OOS (fyi)
+    summary: Vercel default subdomain placeholder (`vercel-default-subdomain.vercel.app`) needs swap pre-first-deploy. Liam confirms actual Vercel-allocated subdomain when project provisioned.
+    recommendation: deploy-time action (no code change in 9.5-9.10 scope).
+
+  - source: 9.5 Executor OOS (fyi)
+    summary: docs-site/e2e/edit-link.spec.ts + e2e/404-page.spec.ts authored as Vitest config-level tests (not Playwright DOM) because Vercel preview URL is post-scaffold. Foundation acceptable; convert to Playwright once preview live.
+    recommendation: follow-up Subtask post-deploy.
+
+notes: |
+  ## Phase 1+2 close — Sub-O sequential execution
+
+  All 6 in-scope Subtasks (9.5-9.10) closed `done` after Executor → Checker → (fix-Executor → re-Checker)* cycles.
+  Two of six required fix-Executor cycles (9.5 Inv-14, 9.8 404 regex); both remediated with minimal in-scope fixes.
+
+  ## Worker branch state
+
+  Branch `cmux-worker-s62f-sub-o-id9-wave1-f4550744` is 23 commits ahead of production-readiness HEAD `f4550744`.
+  Branch is clean (only untracked `.cmux-brief.md` + this `final_report.yaml`).
+
+  Parent S62F main orchestrator should cherry-pick worker branch commits onto production-readiness sequentially.
+  Recommended cherry-pick order: ID order (9.5 commits → 9.6 → 9.7 → 9.8 → 9.9 → 9.10), preserving the journal
+  audit trail. Each promote-done commit can be cherry-picked atomically with its Subtask's substantive commits.
+
+  Parent should be aware that production-readiness has moved forward since this sub-O dispatched
+  (origin/production-readiness is at a9390042 / further as of last fetch). Cherry-pick conflicts on task-list.json
+  are likely on Subtask 9.5-9.8 details fields if parent track has touched ID-9; resolve by taking the sub-O
+  journal blocks + final status flips (the canonical source for these Subtasks' status transitions).
+
+  ## Hook propagation observation
+
+  Pre-dispatch check `git show origin/main:.claude/settings.json | grep -c "Tier 2.2 hook (ID-19.3)"` returned 1.
+  No worktree CWD leak observed across 8 Agent dispatches (each task-executor / task-checker landed in its own
+  auto-allocated worktree-agent-<id> branch and was cherry-picked onto worker branch).
+
+  ## Carryover triage priority for parent
+
+  HIGH: `astro check` real-docs title front-matter gap (blocks end-to-end build).
+  MEDIUM: 182 broken-link cleanup → ID-9.17 routing.
+  LOW: nit fixes (gray-matter dep move; doc-freshness test path; Inv-23 reframe; Starlight strict-schema upstream).
