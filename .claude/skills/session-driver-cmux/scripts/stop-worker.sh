@@ -13,7 +13,7 @@ set -euo pipefail
 # 6. Delete the events directory.
 # 7. Optionally delete the worker branch (--delete-branch).
 #
-# Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch]
+# Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--delete-branch-force]
 #
 # Flags:
 #   --force          Remove the worktree even if it has uncommitted changes
@@ -24,6 +24,15 @@ set -euo pipefail
 #                    list` lookup when meta file is absent (post-failure
 #                    re-run scenario). Default: branch retained, parent
 #                    orchestrator owns its lifecycle.
+#                    SAFETY (kh-S260): deletion is GATED on an unmerged-commit
+#                    pre-check against the integration ref (default `main`,
+#                    override via $KH_CMUX_INTEGRATION_REF). If the branch has
+#                    commits not in that ref (by patch-id), deletion is REFUSED
+#                    and the orphan SHAs are printed — preventing the
+#                    "cherry-pick BEFORE stop" data-loss footgun.
+#   --delete-branch-force
+#                    Bypass the unmerged-commit gate and force-delete (git
+#                    branch -D). Use only to deliberately discard unwanted work.
 
 USAGE="Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch]"
 WORKER_NAME="${1:?$USAGE}"
@@ -32,6 +41,7 @@ shift 2
 
 FORCE=0
 DELETE_BRANCH=0
+FORCE_DELETE_BRANCH=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --force)
@@ -40,6 +50,11 @@ while [ $# -gt 0 ]; do
       ;;
     --delete-branch)
       DELETE_BRANCH=1
+      shift
+      ;;
+    --delete-branch-force)
+      DELETE_BRANCH=1
+      FORCE_DELETE_BRANCH=1
       shift
       ;;
     *)
@@ -217,8 +232,30 @@ if [ "$DELETE_BRANCH" -eq 1 ]; then
   elif ! git -C "$PROJECT_ROOT" show-ref --verify --quiet "refs/heads/${BRANCH_NAME}"; then
     echo "Note: branch '$BRANCH_NAME' already gone — nothing to delete." >&2
   else
-    if ! git -C "$PROJECT_ROOT" branch -D "$BRANCH_NAME" >/dev/null 2>&1; then
-      echo "Warning: git branch -D '$BRANCH_NAME' failed (may have unmerged commits not reachable from any other ref)." >&2
+    # P1 SAFETY (kh-S260 hardening of the S61 carryover --delete-branch gap):
+    # gate the default delete on an explicit unmerged-commit pre-check so a
+    # clean stop can never silently destroy worker SHAs that were never
+    # cherry-picked / merged. `git cherry <ref> <branch>` flags commits absent
+    # (by patch-id) from the integration ref with '+'. --delete-branch-force
+    # bypasses the gate for a deliberate discard.
+    DO_DELETE=1
+    if [ "$FORCE_DELETE_BRANCH" -eq 0 ]; then
+      INTEGRATION_REF="${KH_CMUX_INTEGRATION_REF:-main}"
+      if git -C "$PROJECT_ROOT" show-ref --verify --quiet "refs/heads/${INTEGRATION_REF}"; then
+        UNMERGED=$(git -C "$PROJECT_ROOT" cherry "$INTEGRATION_REF" "$BRANCH_NAME" 2>/dev/null | grep '^+' || true)
+      else
+        UNMERGED="(integration ref '$INTEGRATION_REF' not found — cannot verify merge state)"
+      fi
+      if [ -n "$UNMERGED" ]; then
+        DO_DELETE=0
+        echo "Refusing to delete '$BRANCH_NAME': it has commits not in '$INTEGRATION_REF' — cherry-pick/merge first, or pass --delete-branch-force to discard:" >&2
+        printf '%s\n' "$UNMERGED" | sed 's/^/  /' >&2
+      fi
+    fi
+    if [ "$DO_DELETE" -eq 1 ]; then
+      if ! git -C "$PROJECT_ROOT" branch -D "$BRANCH_NAME" >/dev/null 2>&1; then
+        echo "Warning: git branch -D '$BRANCH_NAME' failed (may have unmerged commits not reachable from any other ref)." >&2
+      fi
     fi
   fi
 fi
