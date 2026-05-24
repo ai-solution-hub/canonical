@@ -37,12 +37,17 @@ If a top-level worktree exists outside `.claude/worktrees/`, this prompt is
 
 ## Step 2 — Determine session number + filename
 
-Highest existing session number for this track + 1.
+Highest existing main-track session number + 1 (single canonical counter since
+the S71 worktree collapse — ID-24).
 
-| Track                   | Filename pattern                                                             |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| main                    | `continuation-prompt-kh-s{NNN}-main-{slug}.md`                               |
-| `production-readiness`  | `continuation-prompt-kh-prod-readiness-s{N}-{slug}.md` (track-local counter) |
+| Track                       | Filename pattern                                |
+| --------------------------- | ----------------------------------------------- |
+| main (single track, S261+)  | `continuation-prompt-kh-s{NNN}-main-{slug}.md`  |
+
+**Retired:** the former `production-readiness` track-local pattern
+(`continuation-prompt-kh-prod-readiness-s{N}-{slug}.md`) is no longer used —
+existing files retain their historical names; new prompts use the single
+main-track counter above.
 
 ---
 

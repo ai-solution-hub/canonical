@@ -12,34 +12,34 @@ if import is in the main CLAUDE.md file.** @./.gitnexus/CLAUDE.md
 ## Project Overview
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
-structured data accessible by AI. The first domain applications are procurement and
-sector intelligence for UK SMBs. Next application is Sales Proposals. The knowledge base
-is the foundation for these and future applications.
+structured data accessible by AI. The first domain applications are procurement and sector
+intelligence for UK SMBs. Next application is Sales Proposals. The knowledge base is the
+foundation for these and future applications.
 
 **Team:** Liam (product owner) + Claude Code as development partner.
 
 ## Commands
 
-| Command                                                                                                                                | Description                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `bun install`                                                                                                                          | Install Node dependencies                                                                            |
-| `bun dev`                                                                                                                              | Start Next.js dev server (Turbopack) - default port is localhost:3000                                |
-| `bun run dev:clean`                                                                                                                    | Clear `.next` cache + start dev server (use when OOM)                                                |
-| `bun build`                                                                                                                            | Production build                                                                                     |
-| `bun run test`                                                                                                                         | Run Vitest tests (NOT `bun test` — see Gotchas)                                                      |
-| `bun run test:integration`                                                                                                             | Integration suite — `__tests__/integration/**.integration.test.ts`, real Anthropic + Supabase        |
-| `bun lint`                                                                                                                             | ESLint                                                                                               |
-| `pip install -r requirements.txt`                                                                                                      | Install Python pipeline dependencies                                                                 |
-| `python3 -m pytest scripts/tests/`                                                                                                     | Run Python tests                                                                                     |
-| `bun run format`                                                                                                                       | Prettier format all files                                                                            |
-| `bun run format:check`                                                                                                                 | Check Prettier formatting                                                                            |
-| `bun run build:mcp-apps`                                                                                                               | Build MCP Apps (Vite) + generate inline bundles for Vercel                                           |
-| `bun run build:plugin`                                                                                                                 | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after                             |
-| `bun run test:e2e`                                                                                                                     | Run Playwright E2E tests                                                                             |
-| `bun run test:mcp-eval`                                                                                                                | Run MCP eval Layer 1 (protocol compliance, 42 checks)                                                |
-| `bun run test:mcp-eval:rq`                                                                                                             | Run MCP eval Layer 3 (response quality, 17 checks)                                                   |
-| `bun run test:mcp-eval:fc`                                                                                                             | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB)                                    |
-| `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                         |
+| Command                                                                                                                                | Description                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `bun install`                                                                                                                          | Install Node dependencies                                                                     |
+| `bun dev`                                                                                                                              | Start Next.js dev server (Turbopack) - default port is localhost:3000                         |
+| `bun run dev:clean`                                                                                                                    | Clear `.next` cache + start dev server (use when OOM)                                         |
+| `bun build`                                                                                                                            | Production build                                                                              |
+| `bun run test`                                                                                                                         | Run Vitest tests (NOT `bun test` — see Gotchas)                                               |
+| `bun run test:integration`                                                                                                             | Integration suite — `__tests__/integration/**.integration.test.ts`, real Anthropic + Supabase |
+| `bun lint`                                                                                                                             | ESLint                                                                                        |
+| `pip install -r requirements.txt`                                                                                                      | Install Python pipeline dependencies                                                          |
+| `python3 -m pytest scripts/tests/`                                                                                                     | Run Python tests                                                                              |
+| `bun run format`                                                                                                                       | Prettier format all files                                                                     |
+| `bun run format:check`                                                                                                                 | Check Prettier formatting                                                                     |
+| `bun run build:mcp-apps`                                                                                                               | Build MCP Apps (Vite) + generate inline bundles for Vercel                                    |
+| `bun run build:plugin`                                                                                                                 | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after                      |
+| `bun run test:e2e`                                                                                                                     | Run Playwright E2E tests                                                                      |
+| `bun run test:mcp-eval`                                                                                                                | Run MCP eval Layer 1 (protocol compliance, 42 checks)                                         |
+| `bun run test:mcp-eval:rq`                                                                                                             | Run MCP eval Layer 3 (response quality, 17 checks)                                            |
+| `bun run test:mcp-eval:fc`                                                                                                             | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB)                             |
+| `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                  |
 
 ## Architecture
 
@@ -152,15 +152,18 @@ Mempalace MCP server is the canonical memory system.
   errors `Error executing plan: Internal error: Error finding id`. **Workaround:** search
   default, filter results client-side by `wing` field.
 
-## Parallel Tracks
+## Development Workflow (single-track)
 
-Two concurrent long-lived worktrees on this project (shared filesystem via
-`git worktree`):
+Single-track since the S71 worktree collapse (ID-24). All work happens on `main`
+(`/Users/liamj/Documents/development/knowledge-hub`). The former long-lived
+`production-readiness` top-level worktree was retired (S261, ID-24.1); its branch ref
+survives on `origin` for history only.
 
-- **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
-- **production-readiness**
-  (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`, branch
-  `production-readiness`) — Implementing the new dev-workflow orchestration setup.
+Parallel work now uses **transient, worktree-isolated agents** under `.claude/worktrees/`
+— the built-in `Agent` tool with `isolation: "worktree"` or `session-driver-cmux` fleet
+workers — whose commits are cherry-picked back onto `main` per the
+`workflow-orchestration` merge cadence. There are no other long-lived top-level worktrees;
+`git worktree list` should show `main` plus only transient agent worktrees.
 
 ## Gotchas
 
@@ -179,7 +182,8 @@ Two concurrent long-lived worktrees on this project (shared filesystem via
 - **Data fetching:** TanStack Query exclusively. Keys in `lib/query/query-keys.ts`,
   fetchers in `lib/query/fetchers.ts`. No SWR or raw fetch in hooks.
 - **`getAuthorisedClient()` discriminated union:** Returns `{ success: boolean }` — check
-  `auth.success` not `auth.authorised`. **Always** use `authFailureResponse(auth)` helper to route each failure reason to the correct HTTP status.
+  `auth.success` not `auth.authorised`. **Always** use `authFailureResponse(auth)` helper
+  to route each failure reason to the correct HTTP status.
 - **No barrel re-exports:** Always use direct file imports (`@/lib/procurement/helpers`),
   never import from index files.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);
@@ -210,7 +214,8 @@ Two concurrent long-lived worktrees on this project (shared filesystem via
   fixtures when adding tools or changing doc paths.
 - **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions in
   `mockImplementation()` cannot be used with `new` — use `function` keyword.
-- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122. Use v4-compliant values.
+- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122. Use
+  v4-compliant values.
 - **Date-sensitive tests need pinned time:** Use `vi.spyOn(Date, 'now')` with a fixed
   timestamp.
 - **Radix Select in jsdom needs pointer shims:** call `installRadixPointerShims()` from
@@ -234,7 +239,7 @@ Two concurrent long-lived worktrees on this project (shared filesystem via
 
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
 - **Worktree isolation:** Use `isolation: "worktree"` on parallel Agent dispatch.
-Cherry-pick (not merge) parallel branches; agents start stale, so first action is
+  Cherry-pick (not merge) parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
 - **ALWAYS check worktree `git status` before removing it**
 - **Use General Purpose agents (unless otherwise specified)**

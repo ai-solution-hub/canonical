@@ -85,8 +85,11 @@ SD_SCRIPTS=".claude/skills/session-driver-cmux/scripts"
 ```
 
 Use relative paths throughout (KH gotcha: "Sub-agent instructions must always
-use relative paths"). Absolute paths resolve to the main repo, not the
-worktree, when the orchestrator itself runs in a worktree.
+use relative paths"). Since the S71 worktree collapse (ID-24) the orchestrator
+runs on `main` (the single top-level tree); absolute paths baked into a worker
+brief resolve to the main repo's tree, not the worker's transient worktree under
+`.claude/worktrees/`, so a worker following an absolute path silently reads or
+writes the wrong tree.
 
 ---
 
