@@ -14,6 +14,7 @@ breaks the workflow's evidence chain.
 | `in_progress`| Executor                | Executor accepts the dispatch brief |
 | `done`       | **Checker only**        | PASS verdict with zero further-action findings |
 | `deferred`   | Orchestrator            | Subtask parked (e.g. blocked on external precondition) |
+| `cancelled`  | Orchestrator            | Subtask dropped (scope removed, made redundant, etc.) |
 
 The Executor moves `pending` → `in_progress` only. The Checker is the only role that can move a Subtask to
 `done` — and only when the verdict is PASS with no findings requiring
@@ -31,7 +32,7 @@ Executor action.
 The Orchestrator is the only role that closes a Task.
 
 The schema enforces the subtask-status subset via
-`SubtaskStatus = TaskListStatus.exclude(['cancelled', 'spec_needed', 'imp_deferred'])`
-in `lib/validation/task-list-schema.ts`. Task-level-only states cannot be
-written to subtasks at all — `parseTaskListWithWarnings` will throw if they
-appear.
+`SubtaskStatus = TaskListStatus.exclude(['spec_needed', 'imp_deferred'])`
+in `lib/validation/task-list-schema.ts`. `spec_needed` and `imp_deferred` remain
+Task-level-only and cannot be written to subtasks. `cancelled` is valid at
+both Task and Subtask level (PRODUCT inv 21 amended, S261 Liam request).

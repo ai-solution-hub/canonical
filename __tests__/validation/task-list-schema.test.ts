@@ -429,12 +429,12 @@ describe('TaskListStatus enum membership (inv 21, 22)', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects cancelled at Subtask level (Subtask subset excludes cancelled — inv 21)', () => {
+  it('accepts cancelled at Subtask level (Subtask subset now includes cancelled — inv 21 amended, S261)', () => {
     const result = SubtaskSchema.safeParse({
       ...VALID_SUBTASK,
       status: 'cancelled',
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('rejects spec_needed at Subtask level (Subtask subset excludes spec_needed — inv 21)', () => {
@@ -453,13 +453,14 @@ describe('TaskListStatus enum membership (inv 21, 22)', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts done, pending, in_progress, blocked, deferred at Subtask level', () => {
+  it('accepts done, pending, in_progress, blocked, deferred, cancelled at Subtask level', () => {
     const subtaskValues = [
       'done',
       'pending',
       'in_progress',
       'blocked',
       'deferred',
+      'cancelled',
     ] as const;
     for (const status of subtaskValues) {
       const result = SubtaskSchema.safeParse({ ...VALID_SUBTASK, status });
@@ -635,5 +636,27 @@ describe('parseTaskListWithWarnings — PRODUCT inv 20', () => {
     const { value } = parseTaskListWithWarnings(input);
     expect(value.document_name).toBe('Knowledge Hub Task List');
     expect(value.tasks[0].subtasks).toHaveLength(26);
+  });
+
+  it('parses a subtask with status "cancelled" without throwing (S261 workaround reversal)', () => {
+    // Regression guard: prior to this change SubtaskStatus excluded 'cancelled',
+    // causing parseTaskListWithWarnings to throw on any subtask with that status.
+    // Four ID-25 subtasks were manually changed to 'deferred' as a workaround (S261).
+    // This test asserts the schema now accepts 'cancelled' at the subtask level.
+    const input = {
+      ...VALID_TASK_LIST,
+      tasks: [
+        {
+          ...VALID_TASK,
+          subtasks: [
+            { ...VALID_SUBTASK, id: 1, status: 'cancelled', dependencies: [] },
+          ],
+        },
+      ],
+    };
+    expect(() => parseTaskListWithWarnings(input)).not.toThrow();
+    const { value, warnings } = parseTaskListWithWarnings(input);
+    expect(value.tasks[0].subtasks[0].status).toBe('cancelled');
+    expect(warnings).toHaveLength(0);
   });
 });

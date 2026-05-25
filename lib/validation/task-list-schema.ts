@@ -38,11 +38,11 @@ export { TaskListStatus } from '@/lib/validation/work-status';
 
 /**
  * Subtask-level status — strict subset of TaskListStatus.
- * Drops: cancelled | spec_needed | imp_deferred (Task-level-only values).
- * Per PRODUCT inv 21.
+ * Drops: spec_needed | imp_deferred (Task-level-only values).
+ * 'cancelled' is intentionally retained at Subtask level (Liam request, S261).
+ * Per PRODUCT inv 21 (amended).
  */
 export const SubtaskStatus = TaskListStatus.exclude([
-  'cancelled',
   'spec_needed',
   'imp_deferred',
 ]);
@@ -73,7 +73,7 @@ export const SubtaskSchema = z
      * Append-extensible via <info added on ...> blocks (inv 13).
      */
     details: z.string(),
-    /** Subtask-level subset: done | pending | in_progress | blocked | deferred. */
+    /** Subtask-level subset: done | pending | in_progress | blocked | deferred | cancelled. */
     status: SubtaskStatus,
     /**
      * Sibling integer ids. Validated at TaskSchema level via superRefine (inv 14).
