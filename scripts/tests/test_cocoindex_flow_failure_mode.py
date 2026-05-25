@@ -74,23 +74,23 @@ def _stub_module(name: str) -> MagicMock:
     return sys.modules[name]
 
 
+from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
+
 _coco_stub = _make_coco_stub()
-sys.modules.setdefault("cocoindex", _coco_stub)
+# Guarantee a working `@coco.fn` so flow.py's `extraction` import keeps
+# `extract_classification` awaitable regardless of import order (ID-44.5).
+_coco_stub.fn = passthrough_coco_fn
 _localfs_stub = MagicMock(name="cocoindex.connectors.localfs")
-sys.modules.setdefault(
-    "cocoindex.connectors", MagicMock(name="cocoindex.connectors")
-)
-sys.modules.setdefault("cocoindex.connectors.localfs", _localfs_stub)
 _pg_stub = MagicMock(name="cocoindex.connectors.postgres")
 _pg_stub.ColumnDef = MagicMock(name="ColumnDef")
 _pg_stub.TableSchema = MagicMock(name="TableSchema")
 _pg_stub.mount_table_target = MagicMock(name="mount_table_target")
-sys.modules.setdefault("cocoindex.connectors.postgres", _pg_stub)
 _connectorkits_stub = MagicMock(name="cocoindex.connectorkits")
 _target_stub = MagicMock(name="cocoindex.connectorkits.target")
 _target_stub.ManagedBy = MagicMock(name="ManagedBy")
-sys.modules.setdefault("cocoindex.connectorkits", _connectorkits_stub)
-sys.modules.setdefault("cocoindex.connectorkits.target", _target_stub)
+# docling is inert (no process-global state, no real-package consumer) so it
+# stays resident in sys.modules. asyncpg is installed below as a resident stub
+# because this file's tests re-`import asyncpg` at RUN time.
 _stub_module("docling")
 _stub_module("docling.document_converter")
 
@@ -157,7 +157,6 @@ class _StubSession:
 _aiohttp_stub = MagicMock(name="aiohttp")
 _aiohttp_stub.ClientSession = _StubSession
 _aiohttp_stub.ClientTimeout = MagicMock(name="ClientTimeout")
-sys.modules.setdefault("aiohttp", _aiohttp_stub)
 
 # asyncpg stub — but we need a PostgresError that's a real exception
 # class (the sibling tests install `asyncpg` as a bare MagicMock with no
@@ -166,7 +165,10 @@ sys.modules.setdefault("aiohttp", _aiohttp_stub)
 # a type, which would break the classifier's `isinstance` check). Force-
 # install a real Exception subclass on whichever asyncpg module is in
 # residence so the classification logic + classifier tests both see a
-# proper class.
+# proper class. asyncpg stays RESIDENT in sys.modules (this file's tests
+# re-`import asyncpg` at run time) — it registers no process-global state and
+# no sibling consumes the real package, so it is not a cross-contamination
+# source (ID-44.5).
 
 
 class _PostgresError(Exception):
@@ -185,7 +187,25 @@ else:
 
 
 # ── Import the module under test ─────────────────────────────────────────────
-from cocoindex_pipeline import flow  # noqa: E402
+# cocoindex (+ connector submodules) and aiohttp register / shadow
+# process-global state, so they are scoped to this import via
+# `stubbed_sys_modules()` and removed from sys.modules afterwards (ID-44.5),
+# leaving sibling files (e.g. test_cocoindex_server.py) to resolve the real
+# aiohttp. `flow` captures the stub references at import time; the
+# webhook-emission tests below introspect whichever `flow.aiohttp.ClientSession`
+# is in residence (cooperative-stub discipline — see NOTE after the import).
+with stubbed_sys_modules(
+    {
+        "cocoindex": _coco_stub,
+        "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
+        "cocoindex.connectors.localfs": _localfs_stub,
+        "cocoindex.connectors.postgres": _pg_stub,
+        "cocoindex.connectorkits": _connectorkits_stub,
+        "cocoindex.connectorkits.target": _target_stub,
+        "aiohttp": _aiohttp_stub,
+    }
+):
+    from cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
 
 # NOTE: we deliberately do NOT pin `flow.aiohttp = _aiohttp_stub` at module
 # scope — the sibling `test_cocoindex_flow_pipeline_run_webhook.py` also

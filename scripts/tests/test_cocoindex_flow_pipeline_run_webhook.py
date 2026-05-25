@@ -57,21 +57,22 @@ def _stub_module(name: str) -> MagicMock:
     return sys.modules[name]
 
 
+from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
+
 _coco_stub = _make_coco_stub()
-sys.modules.setdefault("cocoindex", _coco_stub)
+# Guarantee a working `@coco.fn` so flow.py's `extraction` import keeps
+# `extract_classification` awaitable regardless of import order (ID-44.5).
+_coco_stub.fn = passthrough_coco_fn
 _localfs_stub = MagicMock(name="cocoindex.connectors.localfs")
-sys.modules.setdefault("cocoindex.connectors", MagicMock(name="cocoindex.connectors"))
-sys.modules.setdefault("cocoindex.connectors.localfs", _localfs_stub)
 _pg_stub = MagicMock(name="cocoindex.connectors.postgres")
 _pg_stub.ColumnDef = MagicMock(name="ColumnDef")
 _pg_stub.TableSchema = MagicMock(name="TableSchema")
 _pg_stub.mount_table_target = MagicMock(name="mount_table_target")
-sys.modules.setdefault("cocoindex.connectors.postgres", _pg_stub)
 _connectorkits_stub = MagicMock(name="cocoindex.connectorkits")
 _target_stub = MagicMock(name="cocoindex.connectorkits.target")
 _target_stub.ManagedBy = MagicMock(name="ManagedBy")
-sys.modules.setdefault("cocoindex.connectorkits", _connectorkits_stub)
-sys.modules.setdefault("cocoindex.connectorkits.target", _target_stub)
+# asyncpg + docling are inert (no process-global state, no real-package
+# consumer) so they stay resident in sys.modules.
 _stub_module("asyncpg")
 _stub_module("docling")
 _stub_module("docling.document_converter")
@@ -141,11 +142,28 @@ class _StubSession:
 
 _aiohttp_stub = MagicMock(name="aiohttp")
 _aiohttp_stub.ClientSession = _StubSession
-sys.modules.setdefault("aiohttp", _aiohttp_stub)
 
 
 # ── Import the module under test ─────────────────────────────────────────────
-from cocoindex_pipeline import flow  # noqa: E402  (post-stub injection)
+# cocoindex (+ connector submodules) and aiohttp register / shadow
+# process-global state, so they are scoped to this import via
+# `stubbed_sys_modules()` and removed from sys.modules afterwards (ID-44.5).
+# `flow` captures the stub references at import time; the `flow.aiohttp` pin
+# below re-asserts the aiohttp stub on the flow module attribute (independent
+# of sys.modules), so the webhook-payload introspection tests keep working and
+# sibling files (e.g. test_cocoindex_server.py) resolve the real aiohttp.
+with stubbed_sys_modules(
+    {
+        "cocoindex": _coco_stub,
+        "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
+        "cocoindex.connectors.localfs": _localfs_stub,
+        "cocoindex.connectors.postgres": _pg_stub,
+        "cocoindex.connectorkits": _connectorkits_stub,
+        "cocoindex.connectorkits.target": _target_stub,
+        "aiohttp": _aiohttp_stub,
+    }
+):
+    from cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
 
 
 # Pin the aiohttp symbol on the imported module to the stub — without this

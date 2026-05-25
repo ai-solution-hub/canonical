@@ -1,12 +1,96 @@
 """Shared pytest fixtures for KB pipeline tests."""
 
+import contextlib
 import json
 import os
+import sys
+from collections.abc import Iterator, Mapping
+from types import ModuleType
 
 import pytest
 
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 SNAPSHOT_PATH = os.path.join(FIXTURE_DIR, "taxonomy_snapshot.json")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Cross-file stub isolation (ID-44.5)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# Several cocoindex pipeline test files must import their module-under-test
+# (e.g. `from cocoindex_pipeline import flow`) with `cocoindex` / `aiohttp` /
+# `docling` / connector submodules replaced by `MagicMock` stubs — booting the
+# real cocoindex Rust/LMDB engine at test-collection time is both slow and
+# requires a disabled sandbox.
+#
+# The historical pattern installed those stubs via module-scope
+# `sys.modules.setdefault(name, MagicMock(...))` and NEVER removed them. Because
+# pytest collects every test file into ONE process, the stubs leaked across
+# files: cocoindex 1.0.3 keeps a process-global `ContextKey` registry + `@coco.fn`
+# stub, so a stub installed by file A was still resident when file B ran. Two
+# concrete failure modes resulted:
+#
+#   * `test_cocoindex_server.py` resolves the REAL `aiohttp` — a leaked
+#     `aiohttp` MagicMock stub broke its `make_mocked_request` / `web` imports
+#     (previously papered over by a defensive `del sys.modules[...]` block).
+#   * `test_cocoindex_flow_context.py::...test_flow_meta_ctx_is_a_coco_context_key`
+#     silently downgraded to a weaker assertion whenever a leaked `cocoindex`
+#     stub was resident, so its strict `ContextKey.key == "..."` check never ran
+#     in the combined suite.
+#
+# `stubbed_sys_modules()` fixes the root cause: it installs the stubs ONLY for
+# the duration of the `with` block (which wraps the module-under-test import),
+# then restores `sys.modules` to its prior state — the real module if one was
+# present, or absence otherwise. The imported module keeps the stub references
+# it captured at import time, so its own tests still run stub-backed; sibling
+# files see a clean `sys.modules` and resolve the real packages.
+
+
+def passthrough_coco_fn(**_kwargs: object):
+    """A working stand-in for cocoindex's `@coco.fn(memo=True)` decorator.
+
+    `flow.py` imports `extraction.py`, whose Path-A extractors are decorated
+    `@coco.fn(memo=True)`. A bare `MagicMock` `.fn` turns those coroutines into
+    un-awaitable MagicMocks. Every cocoindex stub used by a flow-importing test
+    file therefore installs THIS pass-through so `extract_classification(...)`
+    stays the real awaitable coroutine, regardless of which file triggers the
+    (cached) `extraction` import first — making cocoindex residency
+    order-independent (ID-44.5).
+    """
+
+    def _wrap(func: object) -> object:
+        return func
+
+    return _wrap
+
+
+@contextlib.contextmanager
+def stubbed_sys_modules(stubs: Mapping[str, ModuleType]) -> Iterator[None]:
+    """Install `stubs` into `sys.modules` for the block, then restore.
+
+    Snapshots each key's prior value (or its absence) on entry and restores it
+    on exit — including the exception path — so no stub leaks past the `with`
+    block into sibling test modules sharing the pytest process.
+
+    Intended usage wraps the module-under-test import::
+
+        with stubbed_sys_modules({"cocoindex": _coco_stub, ...}):
+            from cocoindex_pipeline import flow  # captures the stub at import
+    """
+    sentinel = object()
+    saved: dict[str, object] = {}
+    for name, module in stubs.items():
+        saved[name] = sys.modules.get(name, sentinel)
+        sys.modules[name] = module
+    try:
+        yield
+    finally:
+        for name in stubs:
+            prior = saved[name]
+            if prior is sentinel:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = prior  # type: ignore[assignment]
 
 
 @pytest.fixture(scope="session")

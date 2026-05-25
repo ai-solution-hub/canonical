@@ -84,6 +84,24 @@ from scripts.cocoindex_pipeline.extraction import (
     extract_qa_form,
     stamp_extraction_base,
 )
+
+# Production LLM model tier per cocoindex-extraction-contract TECH §3.1.
+# Single source of truth lives in extraction.py (ID-44.3 dedup); re-exported
+# here so `flow.ANTHROPIC_MODEL` resolves for the idle-mode test pin and any
+# flow-scope consumer. Not referenced in flow.py's body — hence the F401
+# suppression (matches the re-export convention in __main__.py / server.py).
+#
+# RELATIVE import is load-bearing: `scripts` is on sys.path under pytest
+# (pyproject pythonpath), so the same physical extraction.py lands in
+# sys.modules under BOTH `cocoindex_pipeline.extraction` AND
+# `scripts.cocoindex_pipeline.extraction`, each with its own module-level
+# objects (the hyphenated "claude-opus-4-6" literal is not interned, so the
+# two copies are NOT identical). A `.extraction` relative import resolves
+# through flow.__package__ — i.e. whichever namespace flow itself was imported
+# under — keeping `flow.ANTHROPIC_MODEL is extraction.ANTHROPIC_MODEL` true for
+# any single-namespace caller. This mirrors the `importlib.import_module(
+# f"{__package__}.flow_context")` lazy-import rationale in extraction.py.
+from .extraction import ANTHROPIC_MODEL  # noqa: F401 — re-export, single source of truth
 from scripts.cocoindex_pipeline.flow_context import (
     FLOW_META_CTX,
     bind_flow_meta,
@@ -93,9 +111,6 @@ from scripts.cocoindex_pipeline.flow_context import (
 # ────────────────────────────────────────────────────────────────────────────
 
 _logger = logging.getLogger(__name__)
-
-# Production LLM model tier per cocoindex-extraction-contract TECH §3.1
-ANTHROPIC_MODEL = "claude-opus-4-6"
 
 
 # ── Inv-13 v1 substrate helper (P-5) ─────────────────────────────────────────

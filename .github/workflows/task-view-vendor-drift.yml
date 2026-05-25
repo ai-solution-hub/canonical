@@ -1,0 +1,189 @@
+# ID-20.12 — task-view vendor-drift reminder (TECH §3.5, §6.4; PRODUCT inv 39).
+#
+# The external `task-view` ledger editor (https://github.com/liam-jons/task-view)
+# vendors KH's four ledger-schema sources into its `packages/schemas/src/`:
+#   - lib/validation/task-list-schema.ts
+#   - lib/validation/roadmap-schema.ts
+#   - lib/validation/backlog-schema.ts
+#   - lib/validation/work-status.ts
+# task-view consumes the canonical ledgers (task-list / product-roadmap /
+# product-backlog) and generates the per-record `.md` mirrors committed under
+# docs/reference/{tasks,roadmap,backlog}. If KH edits a ledger schema without
+# re-vendoring task-view, the two drift and mirror generation can desync.
+#
+# This workflow is a NON-BLOCKING REMINDER (ratified OQ-T2 default): when a PR
+# touches any of the four schema sources, it fetches the tagged task-view
+# release vendor bundle and diffs it against the KH sources, emitting a
+# `::warning::` annotation on substantive drift. It NEVER fails the PR — the
+# author is simply reminded to re-vendor task-view (run its re-vendor
+# procedure + cut a new tag) in a follow-up.
+#
+# Vendor bundle source: the `packages/schemas/src/*.ts` files published as
+# assets on the `v0.1.0-task-view` GitHub release of the task-view repo. That
+# tag is published in Subtask 20.13; until then the fetch step soft-skips
+# (release-not-found is a notice, never a failure), so this workflow is safe to
+# land ahead of the tag.
+#
+# Workflow-injection mitigation: all github / external context values arrive via
+# env, never inline ${{ }} in run: blocks (mirrors supabase-advisors.yml +
+# migration-revoke-guard.yml discipline).
+#
+# Spec: docs/specs/per-task-mirror/TECH.md §3.5 + §6.4.
+
+name: task-view vendor drift
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "lib/validation/task-list-schema.ts"
+      - "lib/validation/roadmap-schema.ts"
+      - "lib/validation/backlog-schema.ts"
+      - "lib/validation/work-status.ts"
+      - ".github/workflows/task-view-vendor-drift.yml"
+
+concurrency:
+  group:
+    task-view-vendor-drift-${{ github.event_name }}-${{
+    github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vendor-drift:
+    name: task-view vendor-drift reminder
+    # PR-only; the paths filter already scopes this, but guard explicitly so a
+    # future trigger cannot accidentally fail closed.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # No env-scoped secrets: the only network call is a GitHub release fetch
+    # against a public repo using the default GITHUB_TOKEN. `environment:`
+    # omitted intentionally so Dependabot PRs run the reminder too.
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # The tagged release of the task-view repo. Bump TASK_VIEW_TAG here when
+      # task-view cuts a new schema-bearing release (OQ-T1 / OQ-T2).
+      - name: Fetch task-view vendor bundle + diff
+        env:
+          # GITHUB_TOKEN read scope authenticates `gh release` against the
+          # same-owner public task-view repo (raises the rate limit).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TASK_VIEW_REPO: liam-jons/task-view
+          TASK_VIEW_TAG: v0.1.0-task-view
+        run: |
+          set -uo pipefail
+
+          # Four vendored schema files. KH path: lib/validation/<name>.
+          # task-view vendor path: packages/schemas/src/<name> (basename-equal),
+          # published as release assets named <name>.
+          SCHEMAS=(
+            "task-list-schema.ts"
+            "roadmap-schema.ts"
+            "backlog-schema.ts"
+            "work-status.ts"
+          )
+
+          VENDOR_DIR="$(mktemp -d)"
+
+          # Soft-skip if the tag does not exist yet (pre-20.13). Never block.
+          if ! gh release view "$TASK_VIEW_TAG" --repo "$TASK_VIEW_REPO" >/dev/null 2>&1; then
+            echo "::notice title=task-view vendor drift::Release '$TASK_VIEW_TAG' not found in $TASK_VIEW_REPO (expected before Subtask 20.13 publishes it). Skipping drift comparison."
+            exit 0
+          fi
+
+          for name in "${SCHEMAS[@]}"; do
+            gh release download "$TASK_VIEW_TAG" \
+              --repo "$TASK_VIEW_REPO" \
+              --pattern "$name" \
+              --dir "$VENDOR_DIR" \
+              --clobber >/dev/null 2>&1 \
+              || echo "::notice title=task-view vendor drift::Release asset '$name' not present on '$TASK_VIEW_TAG'; skipping that file."
+          done
+
+          if [ -z "$(ls -A "$VENDOR_DIR")" ]; then
+            echo "::notice title=task-view vendor drift::No vendor schema assets retrievable from '$TASK_VIEW_TAG'. Skipping drift comparison."
+            exit 0
+          fi
+
+          # Normalisation: the vendored copies intentionally differ from KH in
+          # known structural ways (task-view CONTRIBUTING.md re-vendor
+          # procedure) that are NOT schema drift and must not trip a warning:
+          #   1. a leading "VENDORED into task-view ..." JSDoc header block;
+          #   2. rewritten import specifiers (KH uses `@/lib/validation/...`
+          #      aliases; the bundle uses relative / `@task-view/schemas/...`);
+          #   3. re-export specifiers (`export … from '…'`) whose paths diverge;
+          #   4. inlined module-level regex consts (e.g. BARE_ID_REGEX, which KH
+          #      imports from lib/validation/schemas.ts but the 4-file bundle
+          #      inlines);
+          #   5. equivalent re-export forms (`export { Foo };` vs
+          #      `export type Foo = z.infer<…>` vs a re-export-from line).
+          # We strip all of the above from BOTH sides so the diff reflects only
+          # substantive Zod-schema-body drift — the kind that warrants a
+          # re-vendor. (Verified: the post-20.19 bundle normalises to in-sync
+          # against KH lib/validation across all four files.)
+          normalise() {
+            awk '
+              BEGIN { inblock = 0; inimport = 0 }
+              {
+                line = $0
+                if (inblock) {
+                  if (line ~ /\*\//) { sub(/.*\*\//, "", line); inblock = 0 }
+                  else { next }
+                }
+                while (match(line, /\/\*/)) {
+                  if (match(line, /\/\*.*\*\//)) { sub(/\/\*.*\*\//, "", line) }
+                  else { sub(/\/\*.*/, "", line); inblock = 1; break }
+                }
+                sub(/\/\/.*/, "", line)
+                if (inimport) { if (line ~ /;/) { inimport = 0 } next }
+                if (line ~ /^[[:space:]]*import[[:space:]]/) {
+                  if (line !~ /;/) { inimport = 1 }
+                  next
+                }
+                if (line ~ /^[[:space:]]*export[[:space:]].*[[:space:]]from[[:space:]]/) { next }
+                if (line ~ /^[[:space:]]*const[[:space:]]+[A-Za-z_]+[[:space:]]*=[[:space:]]*\//) { next }
+                if (line ~ /^[[:space:]]*export[[:space:]]*\{[^}]*\}[[:space:]]*;?[[:space:]]*$/) { next }
+                if (line ~ /^[[:space:]]*export[[:space:]]+type[[:space:]]+[A-Za-z_]+[[:space:]]*=[[:space:]]*z\.infer/) { next }
+                gsub(/^[[:space:]]+/, "", line)
+                gsub(/[[:space:]]+$/, "", line)
+                if (line == "") next
+                print line
+              }
+            ' "$1"
+          }
+
+          drift_found=0
+          for name in "${SCHEMAS[@]}"; do
+            kh_file="lib/validation/$name"
+            vendor_file="$VENDOR_DIR/$name"
+            if [ ! -f "$kh_file" ]; then
+              echo "::warning title=task-view vendor drift::KH source '$kh_file' missing — expected one of the four vendored schemas."
+              continue
+            fi
+            [ -f "$vendor_file" ] || continue
+            if ! diff -u <(normalise "$vendor_file") <(normalise "$kh_file") >/tmp/drift.diff 2>&1; then
+              drift_found=1
+              echo "::warning title=task-view vendor drift::Schema body drift in '$name' between KH lib/validation and task-view@$TASK_VIEW_TAG. Re-vendor task-view (run its re-vendor procedure + cut a new tag), then bump TASK_VIEW_TAG in this workflow."
+              echo "----- normalised diff: $name (vendor <-> KH) -----"
+              cat /tmp/drift.diff || true
+              echo "---------------------------------------------------"
+            else
+              echo "No substantive drift in $name."
+            fi
+          done
+
+          if [ "$drift_found" -eq 0 ]; then
+            echo "task-view vendor bundle is in sync with KH lib/validation schema sources (modulo header + import normalisation)."
+          fi
+
+          # NON-BLOCKING (OQ-T2): always succeed. Drift surfaces as a
+          # ::warning:: annotation only — the author is reminded, not blocked.
+          exit 0

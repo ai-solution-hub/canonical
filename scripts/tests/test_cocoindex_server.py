@@ -10,10 +10,15 @@ contract specified in Subtask 28.15 dispatch brief:
   - cocoindex `coco.start_blocking()` invoked in a background daemon thread
     (mock + assert thread spawn).
 
-Test philosophy: every test asserts real behaviour. The HTTP `/health` path
-is exercised through aiohttp's `TestClient` / `TestServer` wrappers driven
-by `asyncio.run()` — matching the project-established pattern in
-test_cocoindex_extraction.py (no pytest-asyncio plugin dependency). The
+Test philosophy: every test asserts real behaviour. The HTTP `/health`
+path is exercised by invoking the registered route handler IN-PROCESS via
+`aiohttp.test_utils.make_mocked_request()` — no `TestClient`/`TestServer`,
+so NO real listening TCP socket is bound (honouring the fixture docstring's
+stated contract and keeping the test green in sandboxed runs). The real
+`GET /health` round-trip against the deployed Cloud Run sidecar is covered
+separately by
+`__tests__/integration/cocoindex/agpl-boundary.integration.test.ts`, so no
+coverage gap is introduced by dropping the socket-level client here. The
 cocoindex `coco.start_blocking()` call is patched out because (a) we do
 NOT want to boot the cocoindex Rust engine inside the test process, and
 (b) the unit under test is the wrapper, not cocoindex.
@@ -29,32 +34,20 @@ import asyncio
 import json
 import os
 import signal
-import sys
 import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-# ──────────────────────────────────────────────────────────────────────────
-# Test-isolation: pop any sys.modules stubs of aiohttp / aiohttp.* installed
-# by sibling test modules (specifically
-# `test_cocoindex_flow_pipeline_run_webhook.py` which sets
-# `sys.modules['aiohttp'] = MagicMock(...)` at module load via
-# `setdefault()`). pytest collection runs all test files into the same
-# Python process, so once the webhook test runs the MagicMock entry is
-# present and a fresh `from aiohttp import web` resolves to the MagicMock,
-# breaking with `'aiohttp' is not a package`. Popping the stub forces
-# Python's import machinery to find the real `aiohttp` package on disk.
-for _stubbed in [
-    "aiohttp",
-    "aiohttp.test_utils",
-    "aiohttp.web",
-]:
-    if _stubbed in sys.modules and isinstance(sys.modules[_stubbed], MagicMock):
-        del sys.modules[_stubbed]
-
-from aiohttp import web  # noqa: E402 — must follow the sys.modules cleanup above
-from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
+# Sibling cocoindex test modules used to leak MagicMock `aiohttp` stubs into
+# sys.modules via module-scope `setdefault()`, which broke this file's real
+# `from aiohttp import web` import (`'aiohttp' is not a package`). That root
+# cause is fixed in ID-44.5: the sibling stubs are now scoped to their
+# module-under-test import via `stubbed_sys_modules()` and removed from
+# sys.modules afterwards, so a fresh `from aiohttp import web` here resolves the
+# real package directly — no defensive `del sys.modules[...]` cleanup needed.
+from aiohttp import web  # noqa: E402
+from aiohttp.test_utils import make_mocked_request  # noqa: E402
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -77,12 +70,20 @@ def aiohttp_app() -> web.Application:
 
 
 async def _exercise_health(aiohttp_app: web.Application) -> tuple[int, dict, str]:
-    """Helper — boot a TestServer, GET /health, return (status, body, ctype)."""
-    async with TestClient(TestServer(aiohttp_app)) as client:
-        resp = await client.get("/health")
-        body = await resp.json()
-        ctype = resp.headers.get("Content-Type", "")
-        return resp.status, body, ctype
+    """Helper — invoke the /health route handler in-process, NO real socket.
+
+    Resolves the registered route for `GET /health` against the app's
+    router using a `make_mocked_request()`-built request (which binds no
+    TCP socket), awaits the matched handler coroutine directly, and reads
+    the returned `web.Response`. Asserts against `resp.status`, the parsed
+    JSON body, and `resp.content_type` — semantically identical to the
+    previous TestClient round-trip, minus the socket bind.
+    """
+    request = make_mocked_request("GET", "/health", app=aiohttp_app)
+    match_info = await aiohttp_app.router.resolve(request)
+    resp = await match_info.handler(request)
+    body = json.loads(resp.body)
+    return resp.status, body, resp.content_type
 
 
 # ──────────────────────────────────────────────────────────────────────────

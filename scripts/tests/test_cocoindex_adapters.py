@@ -72,20 +72,32 @@ def _make_filelike(suffix: str, content_bytes: bytes | None = None, content_text
 
 
 # ── Module-level cocoindex injection ────────────────────────────────────────
-# Inject stub before any import of adapters (module-level import is cached).
-_coco_stub = _make_coco_stub()
-sys.modules.setdefault("cocoindex", _coco_stub)
+# `cocoindex` is the cross-contamination culprit: cocoindex 1.0.3 keeps a
+# process-global ContextKey registry + `@coco.fn` stub, so a resident
+# `cocoindex` MagicMock leaks into sibling files (notably
+# test_cocoindex_flow_context.py, which silently downgrades its strict
+# ContextKey assertion under a leaked stub). Scope the cocoindex stub to the
+# import below via `stubbed_sys_modules()` and restore sys.modules afterwards;
+# `adapters` captures the stub reference at import time, so its tests still run
+# stub-backed (ID-44.5).
+from conftest import stubbed_sys_modules  # noqa: E402
 
-# Stub docling at module boundary so the import in adapters.py does not fail
-# when docling is not installed (1.8 GB dep, Cloud Run only in dev).
+_coco_stub = _make_coco_stub()
+
+# docling (a 1.8 GB Cloud-Run-only dep) is stubbed so adapters.py imports
+# cleanly. Unlike cocoindex it is inert — it registers no process-global state
+# and no sibling file consumes the real package — and `_docling_to_markdown`
+# lazy-imports `docling.document_converter` at RUN time (patched per-test).
+# It therefore stays resident in sys.modules rather than being import-scoped.
 _docling_stub = MagicMock(name="docling")
 _docling_dc_stub = MagicMock(name="docling.document_converter")
 sys.modules.setdefault("docling", _docling_stub)
 sys.modules.setdefault("docling.document_converter", _docling_dc_stub)
 
 
-# ── Import the module under test ─────────────────────────────────────────────
-from cocoindex_pipeline import adapters  # noqa: E402  (must come after stub injection)
+with stubbed_sys_modules({"cocoindex": _coco_stub}):
+    # ── Import the module under test ──────────────────────────────────────────
+    from cocoindex_pipeline import adapters  # noqa: E402  (stub-scoped import)
 
 
 # ============================================================================

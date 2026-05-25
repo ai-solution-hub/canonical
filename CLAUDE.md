@@ -39,6 +39,7 @@ foundation for these and future applications.
 | `bun run test:mcp-eval:rq`                                                                                                             | Run MCP eval Layer 3 (response quality, 17 checks)                                            |
 | `bun run test:mcp-eval:fc`                                                                                                             | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB)                             |
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                  |
+| `task-view <ledger.json>`                                                                                                              | Open a workflow ledger in the task-view editor (https://github.com/liam-jons/task-view)       |
 
 ## Architecture
 
@@ -105,7 +106,9 @@ CI. Full topology + per-step failure-mode table: `docs/runbooks/ci.md`.
 
 Side workflows: `cloud-run-deploy.yml` (Python pipeline), `migration-revoke-guard.yml`
 (anon-EXECUTE lint), `schema-parity.yml` (prod ↔ staging diff),
-`staging-reference-refresh.yml`, `supabase-advisors.yml`, `taxonomy-sync.yml`.
+`staging-reference-refresh.yml`, `supabase-advisors.yml`, `taxonomy-sync.yml`,
+`task-view-vendor-drift.yml` (non-blocking re-vendor reminder when
+`lib/validation/{task-list,roadmap,backlog}-schema.ts` or `work-status.ts` change).
 
 `staging` branch is deploy-only (no long-lived worktree) — used for staging-mirror sync
 per `docs/runbooks/staging-refresh.md`.

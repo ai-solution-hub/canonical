@@ -66,37 +66,47 @@ def _stub_module(name: str) -> MagicMock:
     return sys.modules[name]
 
 
-# Stub cocoindex + connector submodules BEFORE any import of flow.py
+# Build the cocoindex stub family. `cocoindex` + its connector submodules
+# register process-global ContextKeys / App entries in cocoindex 1.0.3, so a
+# resident stub leaks across test files (ID-44.5) — they are scoped to the
+# flow.py import below via `stubbed_sys_modules()` and removed afterwards.
+# `flow` captures the stub references at import time, so its tests still run
+# stub-backed once sys.modules is restored.
+from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
+
 _coco_stub = _make_coco_stub()
-sys.modules.setdefault("cocoindex", _coco_stub)
+# Guarantee a working `@coco.fn` so flow.py's `extraction` import keeps
+# `extract_classification` awaitable regardless of import order (ID-44.5).
+_coco_stub.fn = passthrough_coco_fn
 
-# cocoindex.connectors.localfs
 _localfs_stub = MagicMock(name="cocoindex.connectors.localfs")
-sys.modules.setdefault("cocoindex.connectors", MagicMock(name="cocoindex.connectors"))
-sys.modules.setdefault("cocoindex.connectors.localfs", _localfs_stub)
-
-# cocoindex.connectors.postgres — TableSchema, ColumnDef, mount_table_target
 _pg_stub = MagicMock(name="cocoindex.connectors.postgres")
 _pg_stub.ColumnDef = MagicMock(name="ColumnDef")
 _pg_stub.TableSchema = MagicMock(name="TableSchema")
 _pg_stub.mount_table_target = MagicMock(name="mount_table_target")
-sys.modules.setdefault("cocoindex.connectors.postgres", _pg_stub)
-
-# cocoindex.connectorkits.target.ManagedBy
 _connectorkits_stub = MagicMock(name="cocoindex.connectorkits")
 _target_stub = MagicMock(name="cocoindex.connectorkits.target")
 _target_stub.ManagedBy = MagicMock(name="ManagedBy")
-sys.modules.setdefault("cocoindex.connectorkits", _connectorkits_stub)
-sys.modules.setdefault("cocoindex.connectorkits.target", _target_stub)
 
-# asyncpg + docling-adjacent stubs (adapters import chain)
+# asyncpg + docling are inert (no process-global state, no sibling consumes the
+# real package) so they stay resident in sys.modules.
 _stub_module("asyncpg")
 _stub_module("docling")
 _stub_module("docling.document_converter")
 
 
 # ── Import the module under test ─────────────────────────────────────────────
-from cocoindex_pipeline import flow  # noqa: E402  (must come after stub injection)
+with stubbed_sys_modules(
+    {
+        "cocoindex": _coco_stub,
+        "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
+        "cocoindex.connectors.localfs": _localfs_stub,
+        "cocoindex.connectors.postgres": _pg_stub,
+        "cocoindex.connectorkits": _connectorkits_stub,
+        "cocoindex.connectorkits.target": _target_stub,
+    }
+):
+    from cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
 
 
 # ============================================================================

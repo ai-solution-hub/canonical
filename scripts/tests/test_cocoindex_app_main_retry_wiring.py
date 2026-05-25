@@ -36,10 +36,14 @@ Contract under test:
      remains intact (the new wrapper must not introduce a raise on the
      early-return path).
 
-Stub strategy (mirrors test_cocoindex_extractor_retry.py): cocoindex 1.0.3
-and aiohttp are real packages — no top-level MagicMock substitution. Only
-`flow.aiohttp.ClientSession` is pinned to an in-memory stub AFTER the
-flow import so webhook emissions are captured without a live HTTP server.
+Stub strategy: `cocoindex` (with a pass-through `@coco.fn`) and `aiohttp` are
+injected ONLY for the duration of the flow / extraction imports below via
+`stubbed_sys_modules()`, then removed from sys.modules so they do not leak
+across the shared pytest process (ID-44.5). The captured `flow.aiohttp` stub
+has its `ClientSession` pinned to `_StubSession` AFTER import so webhook
+emissions are captured without a live HTTP server — and crucially WITHOUT
+mutating the real `aiohttp.ClientSession` (the prior code pinned onto the real
+package when this file imported flow first, leaking into sibling tests).
 
 Reference: docs/reference/task-list.json → ID-28 → Subtask 19
 """
@@ -153,37 +157,29 @@ def _stub_module(name: str) -> MagicMock:
     return sys.modules[name]
 
 
-# Use setdefault so any sibling-installed stub wins (we OVERRIDE .fn after).
-_coco_stub = sys.modules.setdefault("cocoindex", _build_coco_stub())
-# Force the pass-through decorator regardless of sibling state — without
-# this, a sibling stub's MagicMock .fn turns extract_classification into
-# an un-awaitable MagicMock and the behavioural tests fail.
+# Build this file's OWN cocoindex stub with a working pass-through `@coco.fn`
+# decorator — without it, a sibling stub's MagicMock `.fn` turns
+# `extract_classification` into an un-awaitable MagicMock and the behavioural
+# tests fail. The stub (+ connector submodules) is scoped to the flow /
+# extraction imports below via `stubbed_sys_modules()` and removed from
+# sys.modules afterwards, so it neither leaks into nor inherits from sibling
+# files (ID-44.5) — making this file's cocoindex residency deterministic
+# regardless of collection order.
+from conftest import stubbed_sys_modules  # noqa: E402
+
+_coco_stub = _build_coco_stub()
 _coco_stub.fn = _pass_through_fn_decorator
 
-# cocoindex sub-packages — only inject if missing (sibling tests may already
-# have installed them).
-sys.modules.setdefault(
-    "cocoindex.connectors", MagicMock(name="cocoindex.connectors")
-)
-sys.modules.setdefault(
-    "cocoindex.connectors.localfs",
-    MagicMock(name="cocoindex.connectors.localfs"),
-)
-_pg_stub = sys.modules.setdefault(
-    "cocoindex.connectors.postgres",
-    MagicMock(name="cocoindex.connectors.postgres"),
-)
+_localfs_stub = MagicMock(name="cocoindex.connectors.localfs")
+_pg_stub = MagicMock(name="cocoindex.connectors.postgres")
 _pg_stub.ColumnDef = MagicMock(name="ColumnDef")
 _pg_stub.TableSchema = MagicMock(name="TableSchema")
 _pg_stub.mount_table_target = MagicMock(name="mount_table_target")
-sys.modules.setdefault(
-    "cocoindex.connectorkits", MagicMock(name="cocoindex.connectorkits")
-)
-_target_stub = sys.modules.setdefault(
-    "cocoindex.connectorkits.target",
-    MagicMock(name="cocoindex.connectorkits.target"),
-)
+_connectorkits_stub = MagicMock(name="cocoindex.connectorkits")
+_target_stub = MagicMock(name="cocoindex.connectorkits.target")
 _target_stub.ManagedBy = MagicMock(name="ManagedBy")
+# asyncpg + docling are inert (no process-global state, no real-package
+# consumer) so they stay resident in sys.modules.
 _stub_module("asyncpg")
 _stub_module("docling")
 _stub_module("docling.document_converter")
@@ -251,6 +247,13 @@ class _StubSession:
         )
 
 
+# aiohttp module stub captured as `flow.aiohttp` at import time so the webhook
+# helper's `aiohttp.ClientSession(...)` / `aiohttp.ClientTimeout(...)` calls hit
+# our in-memory stub rather than the real package.
+_aiohttp_stub = MagicMock(name="aiohttp")
+_aiohttp_stub.ClientSession = _StubSession
+
+
 # ── Import the modules under test (real cocoindex 1.0.3 + extraction) ──────
 #
 # Use the SAME absolute import path that `flow.py` itself uses
@@ -259,19 +262,36 @@ class _StubSession:
 # share a single ContextVar identity. Mixing this path with the short
 # `cocoindex_pipeline.*` form triggers the dual-import-path hazard
 # documented in `flow_context.py` lines 91-126.
-from scripts.cocoindex_pipeline import flow  # noqa: E402
-from scripts.cocoindex_pipeline import flow_context  # noqa: E402
-from scripts.cocoindex_pipeline.extraction import (  # noqa: E402
-    ClassificationExtraction,
-    extract_classification,
-)
+#
+# The stubs are scoped to these imports and removed from sys.modules
+# afterwards (ID-44.5); flow / extraction capture the stub references at import
+# time, so the tests still run stub-backed once sys.modules is restored.
+with stubbed_sys_modules(
+    {
+        "cocoindex": _coco_stub,
+        "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
+        "cocoindex.connectors.localfs": _localfs_stub,
+        "cocoindex.connectors.postgres": _pg_stub,
+        "cocoindex.connectorkits": _connectorkits_stub,
+        "cocoindex.connectorkits.target": _target_stub,
+        "aiohttp": _aiohttp_stub,
+    }
+):
+    from scripts.cocoindex_pipeline import flow  # noqa: E402  (stub-scoped)
+    from scripts.cocoindex_pipeline import flow_context  # noqa: E402
+    from scripts.cocoindex_pipeline.extraction import (  # noqa: E402
+        ClassificationExtraction,
+        extract_classification,
+    )
 
 
-# Pin the aiohttp.ClientSession class on the imported flow module so the
-# webhook emission helper sees our in-memory stub rather than firing live
-# HTTP. We replace ONLY the ClientSession attribute, leaving the rest of
-# `flow.aiohttp` (the real package) intact — the helper only calls
-# `aiohttp.ClientSession(...)`.
+# Pin `_StubSession` onto the captured `flow.aiohttp` stub so the webhook
+# emission helper sees our in-memory session rather than firing live HTTP. We
+# pin onto the STUB module object captured at import — never the real aiohttp
+# package — so nothing leaks into sibling tests (e.g. test_cocoindex_server.py
+# resolves the real aiohttp). If a sibling imported `flow` first under its own
+# aiohttp stub, `flow.aiohttp` is that cooperative stub (same surface); pinning
+# `ClientSession` here keeps this file's `_StubSession.last_json` capture working.
 flow.aiohttp.ClientSession = _StubSession  # type: ignore[assignment]
 
 
