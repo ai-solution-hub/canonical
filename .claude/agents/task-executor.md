@@ -30,7 +30,7 @@ description: |
   </commentary>
   </example>
 model: opus
-effort: max
+effort: high
 color: blue
 isolation: worktree
 ---

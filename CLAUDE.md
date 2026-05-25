@@ -26,13 +26,12 @@ foundation for these and future applications.
 | `bun dev`                                                                                                                              | Start Next.js dev server (Turbopack) - default port is localhost:3000                         |
 | `bun run dev:clean`                                                                                                                    | Clear `.next` cache + start dev server (use when OOM)                                         |
 | `bun build`                                                                                                                            | Production build                                                                              |
-| `bun run test`                                                                                                                         | Run Vitest tests (NOT `bun test` — see Gotchas)                                               |
+| `bun run test`                                                                                                                         | Run Vitest tests                                               |
 | `bun run test:integration`                                                                                                             | Integration suite — `__tests__/integration/**.integration.test.ts`, real Anthropic + Supabase |
 | `bun lint`                                                                                                                             | ESLint                                                                                        |
 | `pip install -r requirements.txt`                                                                                                      | Install Python pipeline dependencies                                                          |
 | `python3 -m pytest scripts/tests/`                                                                                                     | Run Python tests                                                                              |
 | `bun run format`                                                                                                                       | Prettier format all files                                                                     |
-| `bun run format:check`                                                                                                                 | Check Prettier formatting                                                                     |
 | `bun run build:mcp-apps`                                                                                                               | Build MCP Apps (Vite) + generate inline bundles for Vercel                                    |
 | `bun run build:plugin`                                                                                                                 | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after                      |
 | `bun run test:e2e`                                                                                                                     | Run Playwright E2E tests                                                                      |
@@ -42,8 +41,6 @@ foundation for these and future applications.
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                  |
 
 ## Architecture
-
-Full directory layout with file-level detail: `.planning/codebase/STRUCTURE.md`
 
 Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 (auto-discovered, not imported)
@@ -125,9 +122,6 @@ adding or modifying UI elements.
 | Document               | Location                                                                    |
 | ---------------------- | --------------------------------------------------------------------------- |
 | State of the Product   | `docs/reference/state-of-the-product.md`                                    |
-| Roadmap                | `docs/reference/product-roadmap.json`                                       |
-| Product backlog        | `docs/reference/product-backlog.json`                                       |
-| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                  |
 | Skill routing map      | `docs/reference/skill-routing-map.md`                                       |
 | CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
 | Session handoffs       | `docs/continuation-prompts/`                                                |
@@ -140,6 +134,16 @@ Historical planning: `.planning/.archive/{doc-type}` (`.specs/`, `.audits/`, `.r
 `.coninuation-prompts/` etc.) Grep explicitly when researching past decisions; treat as
 point-in-time snapshots.
 
+## Key Ledgers
+
+Used for managing and tracking platform development activities.
+
+| Document               | Location                                                                    |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Task List        | `docs/reference/task-list.json`                                       |
+| Backlog        | `docs/reference/product-backlog.json`                                       |
+| Roadmap                | `docs/reference/product-roadmap.json`                                       |
+
 ## Memory (MemPalace)
 
 Mempalace MCP server is the canonical memory system.
@@ -151,19 +155,6 @@ Mempalace MCP server is the canonical memory system.
 - `mempalace_search` **PARTIAL** — default (no `wing` param) works. Any `wing` filter
   errors `Error executing plan: Internal error: Error finding id`. **Workaround:** search
   default, filter results client-side by `wing` field.
-
-## Development Workflow (single-track)
-
-Single-track since the S71 worktree collapse (ID-24). All work happens on `main`
-(`/Users/liamj/Documents/development/knowledge-hub`). The former long-lived
-`production-readiness` top-level worktree was retired (S261, ID-24.1); its branch ref
-survives on `origin` for history only.
-
-Parallel work now uses **transient, worktree-isolated agents** under `.claude/worktrees/`
-— the built-in `Agent` tool with `isolation: "worktree"` or `session-driver-cmux` fleet
-workers — whose commits are cherry-picked back onto `main` per the
-`workflow-orchestration` merge cadence. There are no other long-lived top-level worktrees;
-`git worktree list` should show `main` plus only transient agent worktrees.
 
 ## Gotchas
 

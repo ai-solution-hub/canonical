@@ -1,6 +1,6 @@
 ---
 name: session-driver-cmux
-description: Dispatches sub-Claude workers in isolated cmux terminals + git worktrees. Use when the orchestrator needs to fan out work to one or more independent Claude Code sessions, monitor their lifecycle through emitted events, optionally gate every tool call, and collect their output. Project-local KH adaptation of superpowers/claude-session-driver. Trigger phrases include "spawn worker", "fan out", "dispatch sub-Claude", "session-driver", "orchestrator-of-orchestrators".
+description: Dispatches sub-Claude workers in isolated cmux terminals + git worktrees. Use when the orchestrator needs to fan out work to one or more independent Claude Code sessions, monitor their lifecycle through emitted events, optionally gate every tool call, and collect their output. Trigger phrases include "spawn worker", "fan out", "dispatch sub-Claude", "session-driver", "orchestrator-of-orchestrators".
 allowed-tools: Bash, Read
 ---
 
@@ -10,17 +10,8 @@ Dispatch primitive that lets a Claude Code session act as an
 "orchestrator-of-orchestrators": spawn sub-Claude workers, each pinned to its
 own cmux terminal and git worktree, then converse with them programmatically.
 
-Hard-forked from `superpowers/claude-session-driver` 1.0.1 — swaps tmux for
-cmux, moves events out of `/tmp/claude-workers/` into a per-worktree
-`.claude/cmux-events/<worker-id>/` directory (gitignored), wraps every worker
-in its own git worktree, and adds a `wait-for-fleet` primitive for multi-worker
-coordination. No longer tracks upstream; see
-`docs/plans/phase-0-investigation/session-driver-cmux-divergence.md` for the
-divergence audit.
-
-This skill is **taxonomy-agnostic**: it does not know about Taskmaster, tasks,
-or KH-specific workflow roles. Layer task-management concepts on top in a
-separate skill (e.g. `workflow-orchestration`).
+Wraps every worker in its own git worktree, and adds a `wait-for-fleet` primitive for multi-worker
+coordination.
 
 ---
 
@@ -85,11 +76,7 @@ SD_SCRIPTS=".claude/skills/session-driver-cmux/scripts"
 ```
 
 Use relative paths throughout (KH gotcha: "Sub-agent instructions must always
-use relative paths"). Since the S71 worktree collapse (ID-24) the orchestrator
-runs on `main` (the single top-level tree); absolute paths baked into a worker
-brief resolve to the main repo's tree, not the worker's transient worktree under
-`.claude/worktrees/`, so a worker following an absolute path silently reads or
-writes the wrong tree.
+use relative paths").
 
 ---
 
@@ -225,9 +212,6 @@ KH "Worktree isolation rules" from CLAUDE.md apply unchanged:
   advances before the worker finishes, the worker is implicitly stale (this
   is normal — the orchestrator decides whether to rebase or accept the
   divergence at merge time).
-
-The CLAUDE.md "Worktree isolation rules" section is the authoritative source.
-This skill is the dispatch primitive — it does not reimplement those rules.
 
 ---
 

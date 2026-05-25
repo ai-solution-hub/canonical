@@ -10,7 +10,7 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 # Session Handoff — Continuation Prompt Generator
 
-Generates `docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-{slug}.md`
+Generates `docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
 at session close. The prompt is consumed by the **next session's
 orchestrator-of-orchestrators** — never by an individual cmux terminal. So it is a
 **routing + deltas** document: it points to canonical sources and carries only what
@@ -24,12 +24,9 @@ is NOT already in them.
 | Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`docs/continuation-prompts/cmux-brief-*.md`)      |
 | Recency-weighted multi-session history                           | Mempalace diary (`mempalace_diary_read agent=claude`)                          |
 
-Reproducing any of these in the prompt is a duplicate read — the failure mode this
-structure exists to prevent.
-
 ---
 
-## Step 1 — Read context (lean)
+## Step 1 — Read context
 
 ```bash
 ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -3
@@ -40,19 +37,14 @@ git log --oneline -12
 - Identify this session's Task/Subtask status flips from `task-list.json` — the
   `<info added on …>` journals are the canonical record. Do **not** re-compress them
   into the prompt; the diary already holds session history.
-- Do **not** read a prior prompt to copy its "completed work" forward.
 
 ---
 
 ## Step 2 — Session number + filename
 
-Filename uses the **writing session's** number = highest existing main-track number
-+ 1. That same number is the title and the build-status session (`end of S{NNN}`).
-The prompt's **body addresses the next session** (the reader). One counter, one
-convention — no `{NNN-1}` offset.
+Filename uses the highest existing number + 1. 
 
-`continuation-prompt-kh-s{NNN}-main-{slug}.md` — single canonical counter since the
-S71 collapse (ID-24). The retired `prod-readiness-s{N}` pattern is historical only.
+Filename format: `continuation-prompt-kh-s{NNN}-{slug}.md`
 
 ---
 
@@ -61,10 +53,9 @@ S71 collapse (ID-24). The retired `prod-readiness-s{N}` pattern is historical on
 ```bash
 bun run test 2>&1 | tail -3   # pass / fail / skip headline
 bun lint 2>&1 | tail -3
-git rev-parse --short HEAD
 ```
 
-Record the headline counts + HEAD only. Flag whether failures are pre-existing/tracked
+Record the headline counts. Flag whether failures are pre-existing/tracked
 or new this session.
 
 ---
@@ -81,24 +72,27 @@ Confirm before drafting (ask Liam if unsure):
 
 ---
 
-## Step 5 — Write the prompt (lean — target 60-100 lines)
+## Step 5 — Write the prompt (target 60-100 lines)
+
+The prompt's **body addresses the next session** (the reader).
 
 ````markdown
-# {Next-session purpose} — Knowledge Hub Continuation Prompt
+# Knowledge Hub Continuation Prompt - {Next-session purpose}
 
 _Authored at the close of S{NNN}; for the next session._
 
-Working directory: `{cwd}` (single-track `main`, HEAD `{sha}`).
+Working directory: `{cwd}` ({branch}).
 
-> **Lean prompt.** Routing + deltas only — task state is in `task-list.json`,
-> per-terminal scope in the cmux briefs, history in the Mempalace diary.
+## Build status (end of S{NNN})
+
+{One line: test headline + lint; note pre-existing vs new failures.}
 
 ## Next-session focus
 
 {3-4 lines: what the next session orchestrates + the O-of-O operating mode —
 delegate heavy lifting to subagents/terminals, keep main-session context lean.}
 
-## Terminals to deploy (pointers, not re-specs)
+## Terminals to deploy
 
 {Table: Terminal | brief file | sequence/gate one-liner. The brief + ledger hold
 the detail.}
@@ -112,37 +106,27 @@ ratifications, schema/process changes, gotchas, strategic options.}
 
 {Tasks explicitly out of the next session's scope + where they go.}
 
-## Build status (end of S{NNN})
-
-{One line: test headline + lint + HEAD; note pre-existing vs new failures.}
-
 ## Pre-reqs (Liam)
 
 {Only items needing Liam action before the next session starts. Omit if none.}
 ````
 
-**Do not add:** a "Completed work" recap (→ diary + ledger journals), per-WP
-Source/Files/Acceptance/Effort blocks (→ cmux briefs + Subtask `details` /
-`testStrategy`), a file-ownership matrix (→ briefs), or per-WP "documents to read"
-tables (→ each brief's bootstrap). If the next session needs per-Task detail it reads
-the brief + the ledger — that is the design.
-
 ---
 
 ## Step 6 — Write the file
 
-`docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-{slug}.md`
+`docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
 
-## Step 7 — Prettier sweep (single file)
+## Step 7 — Prettier sweep
 
 ```bash
-bunx prettier --write docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-*.md
+bun run format
 ```
 
 ## Step 8 — Commit and push
 
 ```bash
-git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-*.md
+git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-*.md
 git commit -m "docs: S{NNN} continuation prompt — {slug}"
 git push
 ```
@@ -167,7 +151,6 @@ partially blocked). ~600-1500 chars; one event per segment; entity codes + `.✓
       session-history recaps reproduced (those are pointers).
 - [ ] Build status from an actual run; pre-existing vs new failures distinguished.
 - [ ] Terminals listed as brief pointers + sequence/gates, not re-specified.
-- [ ] Session number = previous + 1 (writing session); body addresses the next session.
 - [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
 - [ ] Total length ≤ ~100 lines (longer needs explicit justification).
 - [ ] A fresh orchestrator can start from this prompt + the ledger + the briefs alone.
