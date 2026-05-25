@@ -1,195 +1,149 @@
 ---
 name: handoff
 description:
-  Generate a continuation prompt for the current session. Triggers on "handoff",
-  "continuation prompt", "session handoff", "wrap up session", "create handoff".
-  Automates the structured document that enables seamless session-to-session
-  context transfer.
+  Generate the lean orchestrator-of-orchestrators continuation prompt at session
+  close. Triggers on "handoff", "continuation prompt", "session handoff", "wrap up
+  session", "create handoff". Produces a routing + deltas document that points to
+  the canonical ledger / cmux briefs / Mempalace diary instead of reproducing them.
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Session Handoff — Continuation Prompt Generator
 
-Generates
-`docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}-{slug}.md`.
+Generates `docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-{slug}.md`
+at session close. The prompt is consumed by the **next session's
+orchestrator-of-orchestrators** — never by an individual cmux terminal. So it is a
+**routing + deltas** document: it points to canonical sources and carries only what
+is NOT already in them.
+
+**Canonical sources — point to these, never reproduce them:**
+
+| Content                                                          | Lives in                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Task / Subtask state, `details`, `testStrategy`, what shipped + SHAs | `docs/reference/task-list.json` (`<info added on …>` journals)             |
+| Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`docs/continuation-prompts/cmux-brief-*.md`)      |
+| Recency-weighted multi-session history                           | Mempalace diary (`mempalace_diary_read agent=claude`)                          |
+
+Reproducing any of these in the prompt is a duplicate read — the failure mode this
+structure exists to prevent.
 
 ---
 
-## Step 1 — Read context
+## Step 1 — Read context (lean)
 
 ```bash
-ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -5
+ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -3
 git worktree list
+git log --oneline -12
 ```
 
-- Read the most recent prompt for this track in full — gives the "Completed
-  Work" section to compress + the prior objectives to confirm shipped.
-- Read `docs/reference/task-list.json` to identify Tasks closed this session
-  (status changes pending→done) and Subtasks that landed (status changes
-  pending→in_progress→done). Their `details` field `<info added on YYYY-MM-DD>`
-  journal blocks are the canonical record of what shipped — quote relevant
-  SHAs from there.
-
-If a top-level worktree exists outside `.claude/worktrees/`, this prompt is
-**for the active track only**. Use the track-suffixed filename below.
+- Identify this session's Task/Subtask status flips from `task-list.json` — the
+  `<info added on …>` journals are the canonical record. Do **not** re-compress them
+  into the prompt; the diary already holds session history.
+- Do **not** read a prior prompt to copy its "completed work" forward.
 
 ---
 
-## Step 2 — Determine session number + filename
+## Step 2 — Session number + filename
 
-Highest existing main-track session number + 1 (single canonical counter since
-the S71 worktree collapse — ID-24).
+Filename uses the **writing session's** number = highest existing main-track number
++ 1. That same number is the title and the build-status session (`end of S{NNN}`).
+The prompt's **body addresses the next session** (the reader). One counter, one
+convention — no `{NNN-1}` offset.
 
-| Track                       | Filename pattern                                |
-| --------------------------- | ----------------------------------------------- |
-| main (single track, S261+)  | `continuation-prompt-kh-s{NNN}-main-{slug}.md`  |
-
-**Retired:** the former `production-readiness` track-local pattern
-(`continuation-prompt-kh-prod-readiness-s{N}-{slug}.md`) is no longer used —
-existing files retain their historical names; new prompts use the single
-main-track counter above.
+`continuation-prompt-kh-s{NNN}-main-{slug}.md` — single canonical counter since the
+S71 collapse (ID-24). The retired `prod-readiness-s{N}` pattern is historical only.
 
 ---
 
-## Step 3 — Capture build status
+## Step 3 — Build status (one line)
 
 ```bash
-bun run test 2>&1 | tail -20
-bun lint 2>&1 | tail -10
+bun run test 2>&1 | tail -3   # pass / fail / skip headline
+bun lint 2>&1 | tail -3
+git rev-parse --short HEAD
 ```
 
-Record actual numbers — pass/skip/fail counts, lint errors/warnings.
+Record the headline counts + HEAD only. Flag whether failures are pre-existing/tracked
+or new this session.
 
 ---
 
 ## Step 4 — Confirm next-session focus
 
-Confirm before drafting:
+Confirm before drafting (ask Liam if unsure):
 
-1. What was completed this session (frees capacity for next priority)?
-2. What was started but not completed (carries forward)?
-3. What is the next session's purpose (3-4 areas max per session)?
-4. Any decisions made this session that aren't yet captured in roadmap /
-   state-of-product?
-5. Any Task or Subtask status flips this session that should be summarised in
-   the continuation prompt's "Completed work" section?
-6. Any gotchas to flag that aren't yet in CLAUDE.md or memory?
-
-If unsure on next-session focus, ask Liam.
+1. What did this session complete / leave in-flight?
+2. The next session's purpose (≤ 3-4 areas)?
+3. Which terminals does the next session deploy, and in what sequence/gates?
+4. Decisions made this session not yet in the ledger / specs / memory?
+5. Gotchas not yet in CLAUDE.md or memory?
 
 ---
 
-## Step 5 — Write the prompt
+## Step 5 — Write the prompt (lean — target 60-100 lines)
 
-### Structure (target: 200-250 lines total)
+````markdown
+# {Next-session purpose} — Knowledge Hub Continuation Prompt
 
-`Section rules` section below outlines the required structure for `Completed work`, `What This Session Does`, and `Agent Allocation` sections of the prompt.
+_Authored at the close of S{NNN}; for the next session._
 
-```markdown
-# {Session Purpose} — Knowledge Hub Session {NNN} Continuation Prompt
+Working directory: `{cwd}` (single-track `main`, HEAD `{sha}`).
 
-## Context
+> **Lean prompt.** Routing + deltas only — task state is in `task-list.json`,
+> per-terminal scope in the cmux briefs, history in the Mempalace diary.
 
-Working directory: `{cwd}`
-Track: {track}
-Read first: `docs/plans/phase-0-investigation/architecture/01-vision.md`
+## Next-session focus
 
-## Completed work (recency-weighted)
+{3-4 lines: what the next session orchestrates + the O-of-O operating mode —
+delegate heavy lifting to subagents/terminals, keep main-session context lean.}
 
-{As per `Section rules`}
+## Terminals to deploy (pointers, not re-specs)
 
-## Build status (end of S{NNN-1})
+{Table: Terminal | brief file | sequence/gate one-liner. The brief + ledger hold
+the detail.}
 
-- `bun run test` — {N} pass / {N} skip / 0 fail
-- `bun lint` — {N} errors / {N} warnings
+## Session deltas / decisions NOT in the ledger
 
-## What This Session Does: {Session Purpose}
+{Bullets: only what a fresh orchestrator cannot derive from the ledger/specs —
+ratifications, schema/process changes, gotchas, strategic options.}
 
-### WP{N}: {Title} (Must-Fix)
+## Deferred / separate focus
 
-{Numbered WPs. As per `Section rules`}
+{Tasks explicitly out of the next session's scope + where they go.}
 
-## Agent allocation
+## Build status (end of S{NNN})
 
-{Table + file ownership boundaries. As per `Section rules`.}
+{One line: test headline + lint + HEAD; note pre-existing vs new failures.}
 
-## Documents to read before starting
+## Pre-reqs (Liam)
 
-{Must-read + per-WP tables.}
+{Only items needing Liam action before the next session starts. Omit if none.}
+````
 
-## Pre-requisites (Liam)
-
-{Only items needing Liam action before Wave 1 dispatches. Omit section if none.}
-```
-
-#### Section rules
-
-**Completed work — recency-weighted compression:**
-
-- Sessions older than N-3: collapse to a single 1-2 line paragraph for the whole
-  range.
-- N-3, N-2: one paragraph each, 3-4 lines, what shipped + key SHA.
-- N-1 (this session): one paragraph per WP, 1-3 lines each. No fluff. If the WP
-  closed a Subtask, reference its ID-N.M and quote the commit SHA from the
-  `<info added on …>` journal block in `task-list.json`. If the WP only made
-  progress (no state flip), say so.
-
-**Per-WP fields** (in this order, one block per WP):
-
-- Priority: `(MUST)` / `(SHOULD)` / `(COULD)`
-- Source: spec or plan path + section refs (one line)
-- What: 1-3 lines describing the change
-- Files: exact paths (NEW vs EXTEND)
-- Acceptance criteria: bullet list
-- Effort: estimate
-
-Skip: phase-by-phase prose if already in the spec/plan; "why this matters" if
-already obvious from roadmap context; restating CLAUDE.md gotchas.
-
-**Agent allocation table** — columns: Agent | Work Package | Scope | Type |
-Wave. Then "File ownership boundaries" listing every WP's owned paths. No
-overlap allowed across parallel WPs in the same wave.
-
-**Documents to read** — split into "Must read first" (CLAUDE.md, roadmap,
-STATUS.md, relevant reference document(s)) and "Read per work package" (per-WP
-table).
+**Do not add:** a "Completed work" recap (→ diary + ledger journals), per-WP
+Source/Files/Acceptance/Effort blocks (→ cmux briefs + Subtask `details` /
+`testStrategy`), a file-ownership matrix (→ briefs), or per-WP "documents to read"
+tables (→ each brief's bootstrap). If the next session needs per-Task detail it reads
+the brief + the ledger — that is the design.
 
 ---
 
 ## Step 6 — Write the file
 
-```
-docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}-{slug}.md
-```
+`docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-{slug}.md`
 
----
-
-## Step 7 - Prettier Sweep
+## Step 7 — Prettier sweep (single file)
 
 ```bash
-# Run format check; capture unformatted file list if it fails.
-ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
-if ! bun run format:check >/tmp/fmt-check.log 2>&1; then
-  echo "Prettier drift detected — files:"
-  grep -E '^\[warn\] ' /tmp/fmt-check.log | awk '{print $2}'
-  # Surgical fix — only the files Prettier flagged (avoid full-repo reformat).
-  files=$(grep -E '^\[warn\] ' /tmp/fmt-check.log | awk '{print $2}' | tr '\n' ' ')
-  if [ -n "$files" ]; then
-    bunx prettier --write $files
-    git add $files
-    git commit -m "chore(format): prettier sweep at session close"
-  fi
-else
-  echo "Prettier clean — no sweep needed."
-fi
+bunx prettier --write docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-*.md
 ```
 
 ## Step 8 — Commit and push
 
 ```bash
-git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}*.md
-git commit -m "docs: draft session {NNN} continuation prompt"
+git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-main-*.md
+git commit -m "docs: S{NNN} continuation prompt — {slug}"
 git push
 ```
 
@@ -197,44 +151,23 @@ If Liam edits, he creates a new commit (not amend).
 
 ## Step 9 — Add MemPalace diary entry
 
-**Required structure** (passed via `mempalace_diary_write`):
-
-- `agent_name`: `claude` (single wing for the assistant across all KH work).
-- `topic`: one of `kh-prod-readiness-SNN` / `main-track` / `workflow-orchestration`
-  / `general` — names the session's primary focus.
-- `content`: pipe-separated facts in this order:
-  1. `SESSION:YYYY-MM-DD.SXX` — date + session counter.
-  2. Top-line summary (one segment).
-  3. Per-WP segments — each summarising what shipped, key files touched,
-     ratifications applied, gotchas surfaced.
-  4. Build status (`test.baseline.N.pass/N.fail/N.skip`).
-  5. Push refs (`push:short-sha1+short-sha2`).
-  6. Forward-look (`SXX+1.continuation.<bullet count>.lines.<WP count>.WPs`).
-  7. `★rating` — 1–5 ★ self-assessment of session quality (writer's call;
-     ★★★★+ for clean shipping sessions, ★★★ for sessions with workarounds,
-     ★★ for partially-blocked sessions).
-
-**Length**: ~600–1500 chars. One logical event per pipe-delimited segment.
-Use entity codes (e.g. `WP1.work-status.ts`) and emotion markers (e.g.
-`.✓` / `.fail`) for AAAK-compatible search.
-
-**Example** (from S50 close):
-
-```
-SESSION:2026-05-18.S50|surface.migration.impl.complete.24commits.production-readiness|WP0.spec.re-ratification.drop.aliases+unified.WorkStatus+Priority.master.enums|WP1.work-status.ts+task-list-schema.ts+task-list.json.dogfood.Tasks.2-5.seeded|...|test.baseline.12546.pass.1.fail.FU-9.only.24.skip|S51.continuation.298.lines.5.WPs|★★★★
-```
+Via `mempalace_diary_write` (`agent_name: claude`; `topic`: `main-track` /
+`workflow-orchestration` / `general`). `content` = pipe-separated AAAK facts:
+`SESSION:YYYY-MM-DD.SXX` → top-line summary → per-area segments (what shipped, key
+SHAs, ratifications, gotchas surfaced) → build status (`test.N.pass/N.fail/N.skip`) →
+push refs → forward-look → `★rating` (★★★★+ clean ship, ★★★ workarounds, ★★
+partially blocked). ~600-1500 chars; one event per segment; entity codes + `.✓` /
+`.fail` markers for AAAK search.
 
 ---
 
 ## Quality checklist (before presenting)
 
-- [ ] All paths relative to project root
-- [ ] Build status from actual runs, not assumed
-- [ ] Recency-weighted compression applied (older = shorter)
-- [ ] Every WP has acceptance criteria + effort
-- [ ] Every WP in agent allocation has file ownership populated
-- [ ] Session number = previous + 1 for this track
-- [ ] No emojis
-- [ ] A future Claude session can start work immediately from this prompt alone
-- [ ] Plain English (Liam-readable)
-- [ ] Total length 200-250 lines (longer needs justification)
+- [ ] Routing + deltas only — no task state, per-WP specs, file ownership, or
+      session-history recaps reproduced (those are pointers).
+- [ ] Build status from an actual run; pre-existing vs new failures distinguished.
+- [ ] Terminals listed as brief pointers + sequence/gates, not re-specified.
+- [ ] Session number = previous + 1 (writing session); body addresses the next session.
+- [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
+- [ ] Total length ≤ ~100 lines (longer needs explicit justification).
+- [ ] A fresh orchestrator can start from this prompt + the ledger + the briefs alone.
