@@ -162,9 +162,6 @@ export const BacklogSchema = z
     /** One-paragraph human-readable purpose. */
     document_purpose: z.string().min(1),
 
-    /** Freetext one-liner matching the Roadmap convention. */
-    last_updated: z.string().min(1),
-
     /** Repo-relative paths to related documents. */
     related_documents: z.array(z.string()),
 

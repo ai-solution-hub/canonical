@@ -273,7 +273,7 @@ canonical scope) — write the right shape into the right field:
 
 | Field | Shape | Load-bearing for |
 |---|---|---|
-| `last_updated` (file-level) | Single-line `kh-{track}-S{N} {wave} close-out — {short marker}` (max 200 chars; Zod-enforced on `task-list.json`) | Freshness guard only. NEVER narrative — see `update-roadmap-backlog/SKILL.md` §`last_updated` field-discipline. |
+| `last_updated` (roadmap file-level) | Single-line `kh-{track}-S{N} {wave} close-out — {short marker}` | Freshness guard on roadmap only. |
 | Subtask `details` `<info added on …>` blocks | Multi-line narrative permitted; structured journal blocks per PRODUCT inv 13 | Per-Subtask traceability. THE canonical home for session-by-session narrative (commits, test counts, OQ ratifications, Checker verdicts, Curator decisions). |
 | Task `description` | One-paragraph human-readable purpose; updated only on scope amendment | Cross-doc cross-reference target. NOT a journal. |
 | Task `status_note` | Short rationale for current status (`blocked: waiting on X`); ≤300 chars | Status-line context only. Bump on status flip. |
@@ -284,8 +284,7 @@ canonical scope) — write the right shape into the right field:
 | Mempalace diary (`mempalace_diary_write`) | AAAK pipe-delimited per-WP segments | Cross-session recall. |
 
 **When in doubt about which field carries which content**: per-Subtask
-`details` journal block is the catch-all. `last_updated` is ONLY the
-session/wave freshness stamp.
+`details` journal block is the catch-all.
 
 ---
 

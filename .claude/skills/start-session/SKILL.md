@@ -80,8 +80,6 @@ record of what shipped, NOT a per-session test/check artefact.
   journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
   in-flight discoveries the previous Executor / Checker left behind that may
   have been omitted from the continuation prompt.
-- Verify the `last_updated` field date aligns with the previous session's
-  close-out.
 - Tasks are removed only when `cancelled` or reclassified (e.g. promoted to
   backlog); `done` Tasks stay in place.
 

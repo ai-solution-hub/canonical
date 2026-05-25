@@ -439,7 +439,6 @@ describe('BacklogSchema — root document', () => {
   const VALID_ROOT = {
     document_name: 'Product Backlog',
     document_purpose: 'Items not currently on the roadmap.',
-    last_updated: 'kh-prod-readiness-S50 Wave A.1',
     related_documents: ['docs/reference/product-roadmap.json'],
     items: [],
   };
@@ -611,7 +610,6 @@ describe('BacklogSchema — id-uniqueness refine (ID-67)', () => {
   const VALID_ROOT = {
     document_name: 'Product Backlog',
     document_purpose: 'Items not currently on the roadmap.',
-    last_updated: 'kh-prod-readiness-S60',
     related_documents: ['docs/reference/product-roadmap.json'],
     items: [],
   };

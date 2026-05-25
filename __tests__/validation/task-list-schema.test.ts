@@ -56,8 +56,6 @@ const VALID_TASK = {
 const VALID_TASK_LIST = {
   document_name: 'Knowledge Hub Task List',
   document_purpose: 'Active structured work following TM JSON shape.',
-  last_updated:
-    'kh-prod-readiness-S50 W1 close-out — surface migration creation',
   related_documents: ['docs/reference/product-roadmap.json'],
   tasks: [],
 } as const;
@@ -100,55 +98,6 @@ describe('TaskListSchema root shape', () => {
       tasks: [VALID_TASK],
     });
     expect(result.success).toBe(true);
-  });
-});
-
-// ──────────────────────────────────────────────────────────────────────────────
-// last_updated freshness-marker discipline (S64 W0a — anti-bloat enforcement)
-// ──────────────────────────────────────────────────────────────────────────────
-
-describe('TaskListSchema last_updated discipline', () => {
-  it('accepts the canonical one-line marker shape', () => {
-    const result = TaskListSchema.safeParse({
-      ...VALID_TASK_LIST,
-      last_updated:
-        'kh-prod-readiness-S64 W0a close-out — schema cap + Zod regex added',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects values exceeding 200 chars (anti-bloat cap)', () => {
-    const result = TaskListSchema.safeParse({
-      ...VALID_TASK_LIST,
-      last_updated: 'kh-prod-readiness-S64 W0a close-out — ' + 'x'.repeat(200),
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects multi-session-id append (diary-style concat)', () => {
-    const result = TaskListSchema.safeParse({
-      ...VALID_TASK_LIST,
-      last_updated:
-        'kh-prod-readiness-S64 W0a close-out — fix. Earlier: kh-prod-readiness-S63 WP6 — PRODUCT.md authored',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects multi-line values (newline embedded)', () => {
-    const result = TaskListSchema.safeParse({
-      ...VALID_TASK_LIST,
-      last_updated:
-        'kh-prod-readiness-S64 W0a close-out\nadditional narrative on second line',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects values without canonical kh-{track}-S{N} prefix', () => {
-    const result = TaskListSchema.safeParse({
-      ...VALID_TASK_LIST,
-      last_updated: 'session 64 wave 0a close-out — added schema cap',
-    });
-    expect(result.success).toBe(false);
   });
 });
 

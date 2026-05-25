@@ -49,54 +49,6 @@ The curator invokes this skill with:
 
 ---
 
-## `last_updated` field-discipline (load-bearing)
-
-The `last_updated` field on every ledger (`product-roadmap.json` /
-`product-backlog.json` / `task-list.json`) is a **single-line freshness marker only**.
-It is NOT a session-log, NOT a diary, NOT a place to record narrative. The
-Zod schema (`lib/validation/task-list-schema.ts`) enforces:
-
-- `max(200)` chars hard cap
-- `^kh-(prod-readiness|main)-S\d+` prefix
-- single-line (no embedded newlines)
-- **exactly one session-id** (rejects diary-style "Earlier: kh-..." concat)
-
-### Canonical shape
-
-```
-kh-{track}-S{N}[letter] {wave} close-out — curator {verb} {item_id}[ ({short reason})]
-```
-
-`{verb}` ∈ `added | updated | deleted | promoted`. `{short reason}` is bounded
-to ≤80 chars and OPTIONAL — omit if the verb + item_id is self-explanatory.
-
-### Examples (Create / Update / Delete / Promote)
-
-```
-kh-prod-readiness-S64 W0c close-out — curator added 35 (ledger-CLI Task stub)
-kh-prod-readiness-S64 W1 close-out — curator updated 32 (status flip)
-kh-prod-readiness-S64 W2 close-out — curator deleted 99 (cancelled, superseded)
-kh-prod-readiness-S64 W3 close-out — curator promoted backlog/12 → task-list/36
-```
-
-### MUST NOT
-
-- Narrative (test counts, finding SHAs, multi-paragraph summaries) — those belong
-  in per-Subtask `details` `<info added on ...>` journal blocks (PRODUCT inv 13),
-  commit messages, continuation prompts, or the mempalace diary.
-- Concatenated prior-session narrative (`. Earlier: kh-...`). The root cause of
-  S64 W0 remediation was the historical convention of prepending prior values
-  on cherry-pick conflict — DO NOT continue that pattern.
-- Multi-line values (embedded `\n`).
-- `{summary}` freetext placeholders inviting unbounded prose. Wherever a
-  format-string template appears below, the slot is bounded by the rule above.
-
-If a write violates the shape, the schema parse fails at session-start
-(`parseTaskListWithWarnings` throws), surfacing the violation before any
-downstream work begins.
-
----
-
 ## Step 1: Resolve target → file
 
 | Target semantics | File |
@@ -159,7 +111,7 @@ Required fields per `RoadmapThemeSchema`:
 | `cross_doc_links` | If the finding cites a spec, populate with `[{ path, anchor, raw }]`. Else `[]`. |
 | `notes` | Free text; default `null`. |
 
-**Provenance lives in `session_refs` + `commit_refs`** because `RoadmapThemeSchema` is `.strict()` and does not accept a separate `metadata.source` field — the existing convention is for `last_updated` and item-level `session_refs` / `commit_refs` to carry tracing data.
+**Provenance lives in `session_refs` + `commit_refs`** because `RoadmapThemeSchema` is `.strict()` and does not accept a separate `metadata.source` field — the existing convention is for item-level `session_refs` / `commit_refs` to carry tracing data.
 
 **Soft-cap awareness (PRODUCT inv 8 + failure-modes bullet 8):** Before appending the theme, count `themes[].length`. If the new entry would push the count to 13+, surface a warning to the curator (the `parseRoadmapWithWarnings()` helper will emit a warning at write-time; consider whether two existing themes should merge first per PRODUCT inv 8 soft cap).
 
@@ -224,15 +176,15 @@ Use `Edit` to insert the new item into the target section's `items` array. Maint
 - Trailing commas: no (JSON, not JSON5).
 - Field order: match the schema field order seen in other items in the same section.
 
-After the entry append, update the roadmap-level `last_updated` field per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator added {new-id}[ ({≤80-char reason})]"`.
+After the entry append, update the roadmap-level `last_updated` field per the roadmap convention. Format: `"{session-counter} {wave} close-out — curator added {new-id}[ ({≤80-char reason})]"`.
 
 ### For backlog
 
-Use `Edit` to insert the new item into `items[]`. Same JSON-formatting rules. Update the `last_updated` field per the same field-discipline rule above (no diary-style append).
+Use `Edit` to insert the new item into `items[]`. Same JSON-formatting rules.
 
 ### For task-list
 
-Use `Edit` to insert the new Task into `tasks[]` of `docs/reference/task-list.json`. Same JSON-formatting rules (2-space indent, no trailing commas, field-order match). Update the file-level `last_updated` field per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator added {new-task-id}[ ({≤80-char reason})]"`.
+Use `Edit` to insert the new Task into `tasks[]` of `docs/reference/task-list.json`. Same JSON-formatting rules (2-space indent, no trailing commas, field-order match).
 
 ---
 
@@ -284,7 +236,6 @@ target: roadmap | backlog | task-list
 file: docs/reference/product-{roadmap|backlog}.json | docs/reference/task-list.json
 new_item_id: "{id}"
 section_id_or_track: "{section or track}"
-last_updated_field: "{new last_updated value}"
 md_render: rendered | n/a
 validation: passed | failed
 provenance:
@@ -310,7 +261,7 @@ After the existing Create-mode (or Promote-mode) write completes:
 2. **Parse** via `UmbrellasSchema` (import: `import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema'`). On parse failure, abort and report `STEP 8 ABORTED: umbrellas.json failed UmbrellasSchema parse — {error}`. Do NOT proceed; the curator must repair `umbrellas.json` first.
 3. **Find** the umbrella entry with `id === input.umbrella_id`. If not found, abort and report `STEP 8 ABORTED: umbrella_id "{id}" not found in umbrellas.json#/umbrellas[]`. Do NOT auto-create the umbrella entry — umbrella creation is a curator decision, not a Create-side-effect.
 4. **Append the destination Task id** to that umbrella's `task_ids[]` array. **Idempotent:** if the id is already present, skip the append (the membership write is a no-op; the rest of the step still runs).
-5. **Bump `last_updated`** on `umbrellas.json` per the §`last_updated` field-discipline rule above (single line, ≤200 chars, single session-id, `kh-{prod-readiness|main}-S{N}` prefix). Format: `"{session-counter} {wave} close-out — curator added task {new-task-id} to umbrella {umbrella-id}"`.
+5. **Bump `last_updated`** on `umbrellas.json` per the `last_updated` convention (single line, ≤200 chars, single session-id, `kh-{prod-readiness|main}-S{N}` prefix). Format: `"{session-counter} {wave} close-out — curator added task {new-task-id} to umbrella {umbrella-id}"`.
 6. **Re-validate** the modified `umbrellas.json` via `UmbrellasSchema.parse(...)`. On failure, abort and revert the `umbrellas.json` edit; report `STEP 8 ABORTED: post-edit UmbrellasSchema.parse failed — {error}`.
 7. **Commit-coupling (PRODUCT inv 17 — load-bearing):** the caller (Orchestrator or curator) MUST include BOTH `docs/reference/task-list.json` AND `docs/reference/umbrellas.json` edits in a **single commit**. This is procedural — there is no automated guard. The umbrella round-trip test (`__tests__/docs/umbrellas-task-list-roundtrip.test.ts`) catches broken references (orphans warn but don't fail per P-OQ-2).
 
@@ -338,7 +289,7 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
 | `target` | `roadmap` or `backlog` |
 | `item_id` | The ID of the existing item to edit (e.g. `"ID-11"`, `"9.15"`, `"28"`). |
 | `field_edits` | Map of allowed mutable fields. Backlog: `{ status?, priority?, notes?, rank? }`. Roadmap (Shape A theme): `{ status?, notes?, time_horizon? }`. Only allowed fields are mutable via this skill. |
-| `provenance.session_counter` | Session ID for the `last_updated` stamp. |
+| `provenance.session_counter` | Session ID for provenance. |
 | `provenance.source_commit_sha` | Optional, appended to `commit_refs` (roadmap) or `notes` (backlog) if supplied. |
 
 ### Update flow
@@ -371,7 +322,7 @@ Used to transition an existing item's `status`, `priority`, or `notes` field. **
 
    Items with `rank: null` in the same tier are NOT touched by auto-shift (they have no ordering signal to preserve).
 
-5. **Update `last_updated`** at the file level per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator updated {item_id}[ ({≤80-char field-summary, e.g. status flip})]"`. **Do NOT** embed multi-sentence prose or test counts — that violates the rule.
+5. **Update `last_updated`** at the file level (roadmap only — task-list and backlog no longer carry this field). Format: `"{session-counter} {wave} close-out — curator updated {item_id}[ ({≤80-char field-summary, e.g. status flip})]"`.
 6. **Run the same validation gate as Step 5 of Create** (`bun run roadmap:render` for roadmap; JSON well-formedness check for backlog). Revert and report on failure.
 7. **Report:**
 
@@ -391,7 +342,6 @@ auto_shifted:  # backlog rank Update only; null if no collisions
   tier: "{priority}"
   count: {N}
   items: ["{id1}", "{id2}"]
-last_updated_field: "{new last_updated value}"
 md_render: rendered | n/a
 validation: passed | failed
 ```
@@ -419,7 +369,7 @@ Used **only** for `cancelled` items (work that was abandoned or superseded) and 
 | `target` | `roadmap` or `backlog` |
 | `item_id` | The ID of the item to remove. |
 | `reason` | One of: `cancelled`, `reclassified_to_roadmap`, `reclassified_to_backlog`, `superseded_by_{other_id}`. **No other reasons accepted.** |
-| `provenance.session_counter` | Session ID for the `last_updated` stamp. |
+| `provenance.session_counter` | Session ID for provenance. |
 | `reclassification_target` | If `reason` starts with `reclassified_`, the new `target` for the Create that will follow. |
 
 ### Delete flow
@@ -429,7 +379,7 @@ Used **only** for `cancelled` items (work that was abandoned or superseded) and 
 3. **Read the file** and locate the item by `id`. If not found, abort and report `DELETE FAILED: item_id "{id}" not found in {file}`.
 4. **Capture the item's body** (read the full JSON object) before removing — needed for the audit trail.
 5. **Remove the item** with `Edit`. Be careful with the trailing comma on the preceding item (or the leading comma on the next item) — JSON has no trailing-comma tolerance.
-6. **Update `last_updated`** at the file level per the §`last_updated` field-discipline rule above. Format: `"{session-counter} {wave} close-out — curator deleted {item_id} (reason: {reason})"`. `{reason}` is one of the enum values from the Inputs table; do not append narrative.
+6. **Update `last_updated`** at the file level (roadmap only — task-list and backlog no longer carry this field). Format: `"{session-counter} {wave} close-out — curator deleted {item_id} (reason: {reason})"`. `{reason}` is one of the enum values from the Inputs table; do not append narrative.
 7. **Run the same validation gate as Step 5 of Create.** Revert and report on failure.
 8. **If reason is `reclassified_*`**, the curator's caller is responsible for the follow-up Create on the destination ledger. Pass the captured item body forward so provenance is preserved.
 9. **Report:**
@@ -442,7 +392,6 @@ file: docs/reference/product-{roadmap|backlog}.json
 item_id: "{id}"
 reason: cancelled | reclassified_to_roadmap | reclassified_to_backlog | superseded_by_{id}
 captured_body: { ... }  # full JSON of the deleted item, for audit
-last_updated_field: "{new last_updated value}"
 md_render: rendered | n/a
 validation: passed | failed
 follow_up_create_required: true | false
@@ -470,7 +419,7 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
 | `source_backlog_id` | The bare-digit id of the backlog item being promoted (e.g. `"67"`). |
 | `destination_shape` | One of: `new_top_level_task` (creates a new Task ID-N on task-list) or `new_subtask_under_task_id` (appends a Subtask to an existing Task). |
 | `destination_task_id` | Required if `destination_shape = new_subtask_under_task_id` — the parent Task's id (e.g. `"15"`). The new Subtask gets `id: N` where N = next-available integer in that Task's subtasks array. |
-| `provenance.session_counter` | Session ID for `last_updated` stamps (both surfaces). |
+| `provenance.session_counter` | Session ID for provenance (both surfaces). |
 | `provenance.source_commit_sha` | If the promotion is occurring after the underlying work has already shipped (rare but valid — e.g. ID-67 promoted post-impl during S60), include the commit SHA so the journal block captures it. Else null. |
 | `provenance.promotion_rationale` | One-line `notes` explaining why this item is being picked up now. |
 | `umbrella_id` | Optional. `string` (kebab-case) or `null` (default `null`) — Subtask 31.9 / T-OQ-2 RATIFIED. When non-null AND `destination_shape === 'new_top_level_task'`: triggers Step 8 above (same-commit `umbrellas.json` membership edit). When `destination_shape === 'new_subtask_under_task_id'`: ignored (subtasks inherit parent Task's umbrella membership). When `null`: no umbrella edit (Task lands as orphan per P-OQ-2 soft warning). Coexists peacefully with `capability_theme` — combined signature: `Promote(source_backlog_id, dest_task_id, [capability_theme], [umbrella_id])`. |
@@ -505,8 +454,8 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
    {provenance.source_commit_sha}.
    </info added on 2026-05-21T14:15:00.000Z>
    ```
-4. **Delete source entry.** Remove the backlog item from `items[]`. Bump backlog `last_updated` per the §`last_updated` field-discipline rule. Format: `"{session-counter} {wave} close-out — curator promoted backlog/{src-id} → task-list/{dst-id}"`.
-5. **Write destination entry.** Append the new Task/Subtask. Bump task-list `last_updated` per the same field-discipline rule (single line, ≤200 chars, no diary). Bump the parent Task's `updatedAt` if `destination_shape = new_subtask_under_task_id`.
+4. **Delete source entry.** Remove the backlog item from `items[]`. Bump the parent Task's `updatedAt` if `destination_shape = new_subtask_under_task_id`.
+5. **Write destination entry.** Append the new Task/Subtask.
 6. **Validate.** Run `BacklogSchema.parse()` against the new backlog state and `TaskSchema.parse()` against the new task-list state. If either fails, abort + restore source entry (the write order [delete first, then add] makes this rollback-safe; if add fails, source is gone — re-stage from git).
 7. **Umbrella membership (optional — Step 8 above).** If `umbrella_id` is non-null AND `destination_shape === 'new_top_level_task'`, run Step 8 (umbrella membership edit). The caller MUST include the resulting `umbrellas.json` edit in the same commit as the backlog/task-list edits (PRODUCT inv 17 commit-coupling, per `docs/specs/canonical-pipeline-task-list-migration/PRODUCT.md` Inv 17).
 8. **Report back.** YAML packet:
@@ -550,7 +499,7 @@ Used when a backlog item is picked up for implementation. The item is REMOVED fr
 
 ## Failure modes to avoid
 
-1. **Forgetting provenance.** Every Create entry must have at least a `session_counter`. Update / Delete operations bump `last_updated` with the session counter. Without provenance, edits can't be traced — the curator's primary value (clean ledger discipline) is lost.
+1. **Forgetting provenance.** Every Create entry must have at least a `session_counter`. Without provenance, edits can't be traced — the curator's primary value (clean ledger discipline) is lost.
 2. **Adding a `metadata` field to roadmap.** The schema is `.strict()` — extra fields fail Zod validation and break the round-trip.
 3. **Committing from this skill.** The orchestrator owns commit sequencing. Edit the file, report back, let the orchestrator commit. Applies to Create, Update, and Delete equally.
 4. **Writing to both files for one finding.** A finding goes to exactly one of roadmap or backlog. The triage decision is binary. (Reclassifications use Delete-then-Create across files, not concurrent writes.)
