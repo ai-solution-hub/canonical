@@ -36,9 +36,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -71,46 +69,50 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-2 — per-file latency budget (markdown direct ingest within p95)',
   () => {
-    it('lands a content_items row within the per-file budget after fixture drop', async () => {
-      const client = await createLiveServiceClient();
-      const startTime = Date.now();
-      const deadline = startTime + TOTAL_BUDGET_MS;
+    it(
+      'lands a content_items row within the per-file budget after fixture drop',
+      async () => {
+        const client = await createLiveServiceClient();
+        const startTime = Date.now();
+        const deadline = startTime + TOTAL_BUDGET_MS;
 
-      let landedRow: { id: string; created_at: string } | null = null;
+        let landedRow: { id: string; created_at: string } | null = null;
 
-      while (Date.now() < deadline) {
-        const { data, error } = await client
-          .from('content_items')
-          .select('id, created_at')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .order('created_at', { ascending: false })
-          .limit(1);
+        while (Date.now() < deadline) {
+          const { data, error } = await client
+            .from('content_items')
+            .select('id, created_at')
+            .ilike('title', `${TEST_PREFIX}%`)
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-        expect(error).toBeNull();
+          expect(error).toBeNull();
 
-        if (data && data.length > 0) {
-          landedRow = {
-            id: data[0]!.id as string,
-            created_at: data[0]!.created_at as string,
-          };
-          seededContentIds.push(landedRow.id);
-          break;
+          if (data && data.length > 0) {
+            landedRow = {
+              id: data[0]!.id as string,
+              created_at: data[0]!.created_at as string,
+            };
+            seededContentIds.push(landedRow.id);
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
+        // Per Inv-2 verifiability: the content_items row MUST be present
+        // within the budget. Absence proves either: (a) the budget is being
+        // violated (caching / cold-start / load issue), or (b) the pipeline
+        // didn't fire on the fixture drop (which would also break Inv-1).
+        expect(landedRow).not.toBeNull();
 
-      // Per Inv-2 verifiability: the content_items row MUST be present
-      // within the budget. Absence proves either: (a) the budget is being
-      // violated (caching / cold-start / load issue), or (b) the pipeline
-      // didn't fire on the fixture drop (which would also break Inv-1).
-      expect(landedRow).not.toBeNull();
-
-      const elapsedMs = Date.now() - startTime;
-      // Per P-OQ4 default — per-file p95 ≤ 30 s. We allow grace for the
-      // first-call cold-start tail; subsequent runs in CI should converge
-      // on a tighter distribution that the per-file p95 polices.
-      expect(elapsedMs).toBeLessThanOrEqual(TOTAL_BUDGET_MS);
-    }, TOTAL_BUDGET_MS + 30_000);
+        const elapsedMs = Date.now() - startTime;
+        // Per P-OQ4 default — per-file p95 ≤ 30 s. We allow grace for the
+        // first-call cold-start tail; subsequent runs in CI should converge
+        // on a tighter distribution that the per-file p95 polices.
+        expect(elapsedMs).toBeLessThanOrEqual(TOTAL_BUDGET_MS);
+      },
+      TOTAL_BUDGET_MS + 30_000,
+    );
   },
 );

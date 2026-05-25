@@ -126,14 +126,12 @@ describe('Inv-9 — pullmd licence boundary preservation (image-content inspecti
     // sidecar installs. The boundary is HTTP, not in-process.
     // Allow the literal `pullmd` to appear in comments but NOT as an
     // installable line — check line-by-line.
-    const installableLines = lowerContent
-      .split('\n')
-      .filter((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return false;
-        if (trimmed.startsWith('#')) return false;
-        return true;
-      });
+    const installableLines = lowerContent.split('\n').filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      if (trimmed.startsWith('#')) return false;
+      return true;
+    });
 
     for (const line of installableLines) {
       // No "pullmd" package install.

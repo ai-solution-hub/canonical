@@ -48,8 +48,10 @@ vi.mock('@/lib/validation/layer-schemas', async () => {
 });
 
 // Import routes AFTER mocks are registered
-const { GET: digestLatestGet } = await import('@/app/api/change-reports/latest/route');
-const { GET: digestListGet } = await import('@/app/api/change-reports/list/route');
+const { GET: digestLatestGet } =
+  await import('@/app/api/change-reports/latest/route');
+const { GET: digestListGet } =
+  await import('@/app/api/change-reports/list/route');
 const { GET: tagsSuggestGet } = await import('@/app/api/tags/suggest/route');
 const { GET: coverageGuidesGet } =
   await import('@/app/api/coverage/guides/route');

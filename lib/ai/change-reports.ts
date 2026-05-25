@@ -473,8 +473,8 @@ export async function generateChangeReport(
   }
 
   // Merge Claude output with actual item data for domain_summaries
-  const domainSummaries: ChangeReportDomainSummary[] = parsed.domain_summaries.map(
-    (ds) => {
+  const domainSummaries: ChangeReportDomainSummary[] =
+    parsed.domain_summaries.map((ds) => {
       const domainItems = domainGroups.get(ds.domain) ?? [];
       const topItems = ds.top_items
         .map((topItem) => {
@@ -496,8 +496,7 @@ export async function generateChangeReport(
         top_items: topItems,
         key_themes: ds.key_themes,
       };
-    },
-  );
+    });
 
   // Calculate tokens used
   const tokensUsed =

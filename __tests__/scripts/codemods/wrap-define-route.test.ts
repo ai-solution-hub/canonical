@@ -1442,7 +1442,9 @@ describe('wrap-define-route rewriteMultiMethod — Subtask 32.11', () => {
     const rewritten = sf.getFullText();
 
     // Exactly one TODO comment is emitted (only PATCH falls back).
-    const todoHits = rewritten.match(/\/\/ TODO\(OPS-T1\): author ResponseSchema/g);
+    const todoHits = rewritten.match(
+      /\/\/ TODO\(OPS-T1\): author ResponseSchema/g,
+    );
     expect(todoHits).toHaveLength(1);
 
     // The TODO sits immediately above PATCH's export — not GET's, not DELETE's.

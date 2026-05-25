@@ -48,9 +48,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -60,7 +58,7 @@ const ENABLED =
 // skips cleanly per the dispatch brief.
 const PULLMD_READY = Boolean(
   process.env.PULLMD_SERVICE_URL &&
-    !process.env.PULLMD_SERVICE_URL.includes('not-yet-deployed'),
+  !process.env.PULLMD_SERVICE_URL.includes('not-yet-deployed'),
 );
 
 const TEST_PREFIX = `[28.18-INV07-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;

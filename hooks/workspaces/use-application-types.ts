@@ -20,12 +20,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import {
-  Briefcase,
-  FileSignature,
-  Folder,
-  Newspaper,
-} from 'lucide-react';
+import { Briefcase, FileSignature, Folder, Newspaper } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { queryKeys } from '@/lib/query/query-keys';
@@ -163,7 +158,9 @@ function resolveIcon(iconName: string | null): LucideIcon {
 // Internal selector — joins wire row + static config + resolved icon
 // ---------------------------------------------------------------------------
 
-function toWorkspaceTypeConfig(row: ApplicationTypeRowWire): WorkspaceTypeConfig {
+function toWorkspaceTypeConfig(
+  row: ApplicationTypeRowWire,
+): WorkspaceTypeConfig {
   const clientConfig = CLIENT_CONFIG[row.key] ?? PERMISSIVE_DEFAULT;
   return {
     // Normalised camelCase DB fields
@@ -196,7 +193,8 @@ function useApplicationTypesQuery<T>(
 ) {
   return useQuery({
     queryKey: queryKeys.applicationTypes.list,
-    queryFn: () => fetchJson<ApplicationTypeRowWire[]>('/api/application-types'),
+    queryFn: () =>
+      fetchJson<ApplicationTypeRowWire[]>('/api/application-types'),
     select,
     staleTime: APPLICATION_TYPES_STALE_TIME_MS,
   });
@@ -230,7 +228,9 @@ export function useWorkspaceType(type: string) {
  */
 export function useLauncherTypes() {
   return useApplicationTypesQuery((rows) =>
-    rows.map(toWorkspaceTypeConfig).filter((t) => t.route !== null || !t.available),
+    rows
+      .map(toWorkspaceTypeConfig)
+      .filter((t) => t.route !== null || !t.available),
   );
 }
 

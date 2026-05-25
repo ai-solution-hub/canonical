@@ -98,7 +98,11 @@ export const VALID_REVIEW_STATUSES = [
 ] as const;
 
 /** @public */
-export const VALID_CHANGE_REPORT_FREQUENCIES = ['weekly', 'daily', 'custom'] as const;
+export const VALID_CHANGE_REPORT_FREQUENCIES = [
+  'weekly',
+  'daily',
+  'custom',
+] as const;
 
 // ──────────────────────────────────────────
 // API Route Schemas
@@ -248,7 +252,9 @@ export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('mark_read'),
     item_id: z.string().uuid('item_id must be a valid UUID'),
-    source: z.enum(['manual', 'review', 'change_report', 'bulk']).default('manual'),
+    source: z
+      .enum(['manual', 'review', 'change_report', 'bulk'])
+      .default('manual'),
   }),
   z.object({
     action: z.literal('mark_unread'),
@@ -257,7 +263,9 @@ export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('mark_bulk_read'),
     item_ids: z.array(z.string().uuid()).min(1).max(500),
-    source: z.enum(['manual', 'review', 'change_report', 'bulk']).default('bulk'),
+    source: z
+      .enum(['manual', 'review', 'change_report', 'bulk'])
+      .default('bulk'),
   }),
 ]);
 

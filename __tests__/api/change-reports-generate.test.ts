@@ -27,7 +27,8 @@ vi.mock('next/headers', () => ({
 // Mock the AI change report service
 const mockGenerateChangeReport = vi.fn();
 vi.mock('@/lib/ai/change-reports', () => ({
-  generateChangeReport: (...args: unknown[]) => mockGenerateChangeReport(...args),
+  generateChangeReport: (...args: unknown[]) =>
+    mockGenerateChangeReport(...args),
 }));
 
 // Mock rate-limit — allow by default
@@ -227,9 +228,7 @@ describe('POST /api/change-reports/generate', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'frequency' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'frequency' })]),
     );
   });
 

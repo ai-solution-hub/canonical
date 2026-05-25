@@ -81,7 +81,9 @@ function setupFetch(
       }
       return {
         ok: true,
-        json: async () => ({ digest: options.generateResult ?? makeChangeReport() }),
+        json: async () => ({
+          digest: options.generateResult ?? makeChangeReport(),
+        }),
       };
     }
 
@@ -116,7 +118,9 @@ describe('useChangeReportsData', () => {
     setupFetch({ latest: digest, list: [digest] });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useChangeReportsData(), { wrapper: Wrapper });
+    const { result } = renderHook(() => useChangeReportsData(), {
+      wrapper: Wrapper,
+    });
 
     // Initially loading
     expect(result.current.loading).toBe(true);
@@ -133,7 +137,9 @@ describe('useChangeReportsData', () => {
     setupFetch({ latest: null, list: [] });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useChangeReportsData(), { wrapper: Wrapper });
+    const { result } = renderHook(() => useChangeReportsData(), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -148,7 +154,9 @@ describe('useChangeReportsData', () => {
     setupFetch({ latest: null, list: [], generateResult: generated });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useChangeReportsData(), { wrapper: Wrapper });
+    const { result } = renderHook(() => useChangeReportsData(), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -175,7 +183,9 @@ describe('useChangeReportsData', () => {
     setupFetch({ latest: null, list: [], generateError: 'Not enough content' });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useChangeReportsData(), { wrapper: Wrapper });
+    const { result } = renderHook(() => useChangeReportsData(), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -197,20 +207,28 @@ describe('useChangeReportsData', () => {
     setupFetch({ latest: null, list: [] });
     // Make generate hang
     mockFetch.mockImplementation(async (url: string) => {
-      if (typeof url === 'string' && url.includes('/api/change-reports/latest')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/latest')
+      ) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
       if (typeof url === 'string' && url.includes('/api/change-reports/list')) {
         return { ok: true, json: async () => ({ digests: [] }) };
       }
-      if (typeof url === 'string' && url.includes('/api/change-reports/generate')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/generate')
+      ) {
         return new Promise(() => {}); // never resolves
       }
       return { ok: true, json: async () => ({}) };
     });
 
     const { Wrapper } = createQueryWrapper();
-    const { result } = renderHook(() => useChangeReportsData(), { wrapper: Wrapper });
+    const { result } = renderHook(() => useChangeReportsData(), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -245,7 +263,9 @@ describe('useChangeReportsData', () => {
     });
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useChangeReportsData(), { wrapper: Wrapper });
+    const { result } = renderHook(() => useChangeReportsData(), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -285,7 +305,9 @@ describe('useChangeReportsData', () => {
     });
 
     const { Wrapper } = createQueryWrapper();
-    const { result } = renderHook(() => useChangeReportsData(), { wrapper: Wrapper });
+    const { result } = renderHook(() => useChangeReportsData(), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);

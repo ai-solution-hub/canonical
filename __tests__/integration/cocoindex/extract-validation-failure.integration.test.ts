@@ -221,7 +221,10 @@ afterAll(async () => {
   await client.from('content_items').delete().in('id', seededContentIds);
   // pipeline_runs cleanup is keyed on op_id (the per-flow-invocation UUID).
   if (observedOpIdRef.current) {
-    await client.from('pipeline_runs').delete().eq('op_id', observedOpIdRef.current);
+    await client
+      .from('pipeline_runs')
+      .delete()
+      .eq('op_id', observedOpIdRef.current);
   }
 }, 30_000);
 
@@ -288,9 +291,7 @@ describe.skipIf(!ENABLED)(
       // empty per Inv-22 "structured failure" contract.
       expect(terminalRow!.error_message).toBeTruthy();
       expect(typeof terminalRow!.error_message).toBe('string');
-      expect((terminalRow!.error_message as string).length).toBeGreaterThan(
-        0,
-      );
+      expect((terminalRow!.error_message as string).length).toBeGreaterThan(0);
     });
 
     it('no partial extraction rows written for the failed content_items_id', async () => {

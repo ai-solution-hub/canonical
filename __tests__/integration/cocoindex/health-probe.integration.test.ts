@@ -50,38 +50,42 @@ const PROBE_TIMEOUT_MS = 30_000;
 describe.skipIf(!ENABLED)(
   'Inv-6 — sidecar Service availability (HTTP /health probe returns 200)',
   () => {
-    it('GET /health returns 200 OK within the warm-start window', async () => {
-      const serviceUrl = process.env.COCOINDEX_STAGING_URL!;
-      const healthUrl = `${serviceUrl.replace(/\/$/, '')}/health`;
+    it(
+      'GET /health returns 200 OK within the warm-start window',
+      async () => {
+        const serviceUrl = process.env.COCOINDEX_STAGING_URL!;
+        const healthUrl = `${serviceUrl.replace(/\/$/, '')}/health`;
 
-      const controller = new AbortController();
-      const timeoutHandle = setTimeout(
-        () => controller.abort(),
-        PROBE_TIMEOUT_MS,
-      );
+        const controller = new AbortController();
+        const timeoutHandle = setTimeout(
+          () => controller.abort(),
+          PROBE_TIMEOUT_MS,
+        );
 
-      let response: Response;
-      try {
-        response = await fetch(healthUrl, {
-          method: 'GET',
-          signal: controller.signal,
-          // Allow Cloud Run to issue any caching headers it likes — we
-          // assert on the status code only.
-        });
-      } finally {
-        clearTimeout(timeoutHandle);
-      }
+        let response: Response;
+        try {
+          response = await fetch(healthUrl, {
+            method: 'GET',
+            signal: controller.signal,
+            // Allow Cloud Run to issue any caching headers it likes — we
+            // assert on the status code only.
+          });
+        } finally {
+          clearTimeout(timeoutHandle);
+        }
 
-      // Inv-6 verifiability: HTTP 200 OK proves the sidecar is reachable
-      // and the wrapper process is up. Any non-200 indicates either a
-      // deploy failure or a runtime crash; both break Inv-6.
-      expect(response.status).toBe(200);
+        // Inv-6 verifiability: HTTP 200 OK proves the sidecar is reachable
+        // and the wrapper process is up. Any non-200 indicates either a
+        // deploy failure or a runtime crash; both break Inv-6.
+        expect(response.status).toBe(200);
 
-      // Defensive: the response body should be valid JSON or a non-empty
-      // string — empty body suggests a Cloud Run proxy returned the 200
-      // before the Service actually emitted anything (broken wrapper).
-      const body = await response.text();
-      expect(body.length).toBeGreaterThan(0);
-    }, PROBE_TIMEOUT_MS + 10_000);
+        // Defensive: the response body should be valid JSON or a non-empty
+        // string — empty body suggests a Cloud Run proxy returned the 200
+        // before the Service actually emitted anything (broken wrapper).
+        const body = await response.text();
+        expect(body.length).toBeGreaterThan(0);
+      },
+      PROBE_TIMEOUT_MS + 10_000,
+    );
   },
 );

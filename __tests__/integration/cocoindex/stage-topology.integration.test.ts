@@ -52,9 +52,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -96,61 +94,65 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-3 + Inv-17 — six-stage topology + per-stage counters in pipeline_runs',
   () => {
-    it('pipeline_runs.result.stage_counts contains all six canonical stages with nonneg int values', async () => {
-      const client = await createLiveServiceClient();
+    it(
+      'pipeline_runs.result.stage_counts contains all six canonical stages with nonneg int values',
+      async () => {
+        const client = await createLiveServiceClient();
 
-      // Poll for the pipeline_runs row corresponding to the fixture drop.
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      let stageCounts: Record<string, unknown> | null = null;
-      let pipelineRunId: string | null = null;
+        // Poll for the pipeline_runs row corresponding to the fixture drop.
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        let stageCounts: Record<string, unknown> | null = null;
+        let pipelineRunId: string | null = null;
 
-      while (Date.now() < deadline) {
-        const { data: items } = await client
-          .from('content_items')
-          .select('id, op_id')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
-
-        if (items && items.length > 0 && items[0]!.op_id) {
-          const opId = items[0]!.op_id as string;
-          seededContentIds.push(items[0]!.id as string);
-          const { data: runs } = await client
-            .from('pipeline_runs')
-            .select('id, result, status')
-            .eq('op_id', opId)
-            .eq('status', 'succeeded')
+        while (Date.now() < deadline) {
+          const { data: items } = await client
+            .from('content_items')
+            .select('id, op_id')
+            .ilike('title', `${TEST_PREFIX}%`)
             .limit(1);
 
-          if (runs && runs.length > 0) {
-            pipelineRunId = runs[0]!.id as string;
-            seededRunIds.push(pipelineRunId);
-            const result = runs[0]!.result as Record<string, unknown> | null;
-            stageCounts = (result?.stage_counts ?? null) as Record<
-              string,
-              unknown
-            > | null;
-            break;
+          if (items && items.length > 0 && items[0]!.op_id) {
+            const opId = items[0]!.op_id as string;
+            seededContentIds.push(items[0]!.id as string);
+            const { data: runs } = await client
+              .from('pipeline_runs')
+              .select('id, result, status')
+              .eq('op_id', opId)
+              .eq('status', 'succeeded')
+              .limit(1);
+
+            if (runs && runs.length > 0) {
+              pipelineRunId = runs[0]!.id as string;
+              seededRunIds.push(pipelineRunId);
+              const result = runs[0]!.result as Record<string, unknown> | null;
+              stageCounts = (result?.stage_counts ?? null) as Record<
+                string,
+                unknown
+              > | null;
+              break;
+            }
           }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
+        expect(pipelineRunId).not.toBeNull();
+        expect(stageCounts).not.toBeNull();
 
-      expect(pipelineRunId).not.toBeNull();
-      expect(stageCounts).not.toBeNull();
-
-      // Inv-17 verifiability: all six canonical stages MUST be present.
-      // A missing stage proves partial-payload (broken contract); a row
-      // with stage_counts === null proves the webhook bridge never landed
-      // the success rollup (broken Inv-16).
-      for (const stage of CANONICAL_STAGES) {
-        expect(stageCounts).toHaveProperty(stage);
-        const count = stageCounts![stage];
-        expect(typeof count).toBe('number');
-        expect(count).toBeGreaterThanOrEqual(0);
-        expect(Number.isInteger(count)).toBe(true);
-      }
-    }, POLL_TIMEOUT_MS + 30_000);
+        // Inv-17 verifiability: all six canonical stages MUST be present.
+        // A missing stage proves partial-payload (broken contract); a row
+        // with stage_counts === null proves the webhook bridge never landed
+        // the success rollup (broken Inv-16).
+        for (const stage of CANONICAL_STAGES) {
+          expect(stageCounts).toHaveProperty(stage);
+          const count = stageCounts![stage];
+          expect(typeof count).toBe('number');
+          expect(count).toBeGreaterThanOrEqual(0);
+          expect(Number.isInteger(count)).toBe(true);
+        }
+      },
+      POLL_TIMEOUT_MS + 30_000,
+    );
 
     it('content_items.embedding is non-null when status is succeeded (Inv-3 embedding-stage verifiability)', async () => {
       const client = await createLiveServiceClient();

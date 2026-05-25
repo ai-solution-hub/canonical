@@ -63,8 +63,7 @@ const CANONICAL_SECTION_TITLES = [
 
 // §3 cross-reference to AGENTS.md §5 (AI-invisibility) per OQ-PLAN-3
 // Option A. `\s+` tolerates markdown soft-wrap between words.
-const AGENTS_MD_AI_INVISIBILITY_REF_RE =
-  /AGENTS\.md\s+§5/;
+const AGENTS_MD_AI_INVISIBILITY_REF_RE = /AGENTS\.md\s+§5/;
 
 // §4 cross-reference to AGENTS.md §1 (UK English) per OQ-PLAN-3
 // Option A. `\s+` tolerates markdown soft-wrap between words.
@@ -82,7 +81,9 @@ describe('keep-docs-in-sync SKILL.md — Inv-52 shape guard', () => {
     const raw = existsSync(SKILL_MD_PATH)
       ? readFileSync(SKILL_MD_PATH, 'utf8')
       : '';
-    const parsed = raw ? matter(raw) : { data: {} as Record<string, unknown>, content: '' };
+    const parsed = raw
+      ? matter(raw)
+      : { data: {} as Record<string, unknown>, content: '' };
 
     it('parses (gray-matter) without throwing', () => {
       expect(parsed.data).toBeTypeOf('object');
@@ -94,9 +95,9 @@ describe('keep-docs-in-sync SKILL.md — Inv-52 shape guard', () => {
 
     it('has a non-empty `description:`', () => {
       expect(parsed.data.description).toBeTypeOf('string');
-      expect(((parsed.data.description as string) ?? '').trim().length).toBeGreaterThan(
-        0,
-      );
+      expect(
+        ((parsed.data.description as string) ?? '').trim().length,
+      ).toBeGreaterThan(0);
     });
   });
 

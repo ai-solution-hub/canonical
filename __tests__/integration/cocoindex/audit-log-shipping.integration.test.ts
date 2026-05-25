@@ -64,9 +64,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -91,45 +89,49 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-13 — audit-log shipping (v1 substrate: op_id-via-pipeline_runs; v1.1 future: audit_log table)',
   () => {
-    it('v1 substrate: pipeline_runs.op_id is recoverable for every pipeline-driven content_items row', async () => {
-      const client = await createLiveServiceClient();
+    it(
+      'v1 substrate: pipeline_runs.op_id is recoverable for every pipeline-driven content_items row',
+      async () => {
+        const client = await createLiveServiceClient();
 
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      let contentItem: { id: string; op_id: string } | null = null;
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        let contentItem: { id: string; op_id: string } | null = null;
 
-      while (Date.now() < deadline) {
-        const { data } = await client
-          .from('content_items')
-          .select('id, op_id')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
+        while (Date.now() < deadline) {
+          const { data } = await client
+            .from('content_items')
+            .select('id, op_id')
+            .ilike('title', `${TEST_PREFIX}%`)
+            .limit(1);
 
-        if (data && data.length > 0 && data[0]!.op_id) {
-          contentItem = {
-            id: data[0]!.id as string,
-            op_id: data[0]!.op_id as string,
-          };
-          seededContentIds.push(contentItem.id);
-          break;
+          if (data && data.length > 0 && data[0]!.op_id) {
+            contentItem = {
+              id: data[0]!.id as string,
+              op_id: data[0]!.op_id as string,
+            };
+            seededContentIds.push(contentItem.id);
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
+        expect(contentItem).not.toBeNull();
 
-      expect(contentItem).not.toBeNull();
+        // V1 substrate: the op_id is observable on the row (Inv-11 anchor)
+        // AND resolves to a pipeline_runs row (Inv-12 anchor). At v1.1
+        // this same op_id will be recoverable from audit_log entries.
+        const { data: run } = await client
+          .from('pipeline_runs')
+          .select('id, op_id')
+          .eq('op_id', contentItem!.op_id)
+          .limit(1);
 
-      // V1 substrate: the op_id is observable on the row (Inv-11 anchor)
-      // AND resolves to a pipeline_runs row (Inv-12 anchor). At v1.1
-      // this same op_id will be recoverable from audit_log entries.
-      const { data: run } = await client
-        .from('pipeline_runs')
-        .select('id, op_id')
-        .eq('op_id', contentItem!.op_id)
-        .limit(1);
-
-      expect(run).not.toBeNull();
-      expect(run!.length).toBe(1);
-    }, POLL_TIMEOUT_MS + 30_000);
+        expect(run).not.toBeNull();
+        expect(run!.length).toBe(1);
+      },
+      POLL_TIMEOUT_MS + 30_000,
+    );
 
     it('v1.1 substrate (FUTURE): audit_log row carries op_id matching pipeline_runs.op_id', async () => {
       const client = await createLiveServiceClient();

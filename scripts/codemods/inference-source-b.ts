@@ -122,9 +122,7 @@ export function inferSchemaSourceB(
   // Source A.
   const fnDecl = sf
     .getFunctions()
-    .find(
-      (fn) => fn.isExported() && fn.getName() === method,
-    );
+    .find((fn) => fn.isExported() && fn.getName() === method);
   if (!fnDecl) return null;
 
   // Step 2 — return-type annotation present?
@@ -138,7 +136,11 @@ export function inferSchemaSourceB(
   // Step 4 — resolve `${interfaceName}Schema` via Source A's name-convention
   // lookup. Re-use `findSchemaConstant` so the semantics (preference for
   // `Schema` over `ZodSchema`) stay symmetrical with Source A.
-  const schemaConstant = findSchemaConstant(interfaceName, project, schemasPath);
+  const schemaConstant = findSchemaConstant(
+    interfaceName,
+    project,
+    schemasPath,
+  );
   if (schemaConstant) {
     return { schema: schemaConstant };
   }

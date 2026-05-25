@@ -5,7 +5,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson, ApiError } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
-import type { ChangeReport, ChangeReportGenerateResponse } from '@/types/change-reports';
+import type {
+  ChangeReport,
+  ChangeReportGenerateResponse,
+} from '@/types/change-reports';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,15 +68,16 @@ export function useChangeReportsData() {
 
   // ─── Past change reports list ───
 
-  const { data: pastChangeReports = [], isLoading: loadingPastChangeReports } = useQuery({
-    queryKey: queryKeys.changeReports.list(10, 0),
-    queryFn: async () => {
-      const data = await fetchJson<{ digests: PastChangeReportEntry[] }>(
-        '/api/change-reports/list?limit=10&offset=0',
-      );
-      return data.digests;
-    },
-  });
+  const { data: pastChangeReports = [], isLoading: loadingPastChangeReports } =
+    useQuery({
+      queryKey: queryKeys.changeReports.list(10, 0),
+      queryFn: async () => {
+        const data = await fetchJson<{ digests: PastChangeReportEntry[] }>(
+          '/api/change-reports/list?limit=10&offset=0',
+        );
+        return data.digests;
+      },
+    });
 
   // ─── Generate mutation ───
 
@@ -143,7 +147,10 @@ export function useChangeReportsData() {
         });
 
         if (changeReport) {
-          queryClient.setQueryData(queryKeys.changeReports.latest, changeReport);
+          queryClient.setQueryData(
+            queryKeys.changeReports.latest,
+            changeReport,
+          );
         }
       } catch {
         toast.error('Failed to load report');

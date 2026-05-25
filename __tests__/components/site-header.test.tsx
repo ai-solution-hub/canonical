@@ -270,7 +270,10 @@ describe('SiteHeader', () => {
     const nav = screen.getByLabelText('Main navigation');
     const changeReportsLink = within(nav).getByText('Change Reports');
     expect(changeReportsLink).toBeInTheDocument();
-    expect(changeReportsLink.closest('a')).toHaveAttribute('href', '/change-reports');
+    expect(changeReportsLink.closest('a')).toHaveAttribute(
+      'href',
+      '/change-reports',
+    );
   });
 
   it('no longer exposes a direct "Claude" link in the header or drawer', async () => {

@@ -25,7 +25,9 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('application_types')
-      .select('key, label, label_plural, description, default_icon, default_colour')
+      .select(
+        'key, label, label_plural, description, default_icon, default_colour',
+      )
       .order('label');
 
     if (error) {

@@ -54,7 +54,10 @@ export interface BaselineEntry {
  */
 export type InferSchemaResult =
   | { schema: string; reason?: undefined }
-  | { schema: 'z.unknown()'; reason: Extract<NeedsManualReason, 'NEEDS_SCHEMA'> };
+  | {
+      schema: 'z.unknown()';
+      reason: Extract<NeedsManualReason, 'NEEDS_SCHEMA'>;
+    };
 
 /**
  * Injection points for the test harness. In production the baseline is
@@ -216,14 +219,18 @@ function collectFetcherCalls(
     let url: string | null = null;
     const argKind = firstArg.getKind();
     if (argKind === SyntaxKind.StringLiteral) {
-      url = (firstArg as unknown as { getLiteralValue(): string }).getLiteralValue();
+      url = (
+        firstArg as unknown as { getLiteralValue(): string }
+      ).getLiteralValue();
     } else if (argKind === SyntaxKind.NoSubstitutionTemplateLiteral) {
-      url = (firstArg as unknown as { getLiteralValue(): string }).getLiteralValue();
+      url = (
+        firstArg as unknown as { getLiteralValue(): string }
+      ).getLiteralValue();
     } else if (argKind === SyntaxKind.TemplateExpression) {
       // Extract the static prefix up to the first `${`.
       const text = firstArg.getText();
       const prefixMatch = text.match(/^`([^$`]*)/);
-      url = prefixMatch ? prefixMatch[1] ?? null : null;
+      url = prefixMatch ? (prefixMatch[1] ?? null) : null;
     }
     if (!url) continue;
     calls.push({ typeArg, url });

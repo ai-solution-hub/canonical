@@ -37,9 +37,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -72,57 +70,61 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-5 — nested-corpus coverage (3-level-deep file produces content_items row)',
   () => {
-    it('produces a content_items row for a file at <source>/a/b/c/file.md', async () => {
-      const client = await createLiveServiceClient();
+    it(
+      'produces a content_items row for a file at <source>/a/b/c/file.md',
+      async () => {
+        const client = await createLiveServiceClient();
 
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      let landedRow: { id: string; metadata: unknown } | null = null;
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        let landedRow: { id: string; metadata: unknown } | null = null;
 
-      while (Date.now() < deadline) {
-        const { data } = await client
-          .from('content_items')
-          .select('id, metadata')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
+        while (Date.now() < deadline) {
+          const { data } = await client
+            .from('content_items')
+            .select('id, metadata')
+            .ilike('title', `${TEST_PREFIX}%`)
+            .limit(1);
 
-        if (data && data.length > 0) {
-          landedRow = {
-            id: data[0]!.id as string,
-            metadata: data[0]!.metadata,
-          };
-          seededContentIds.push(landedRow.id);
-          break;
+          if (data && data.length > 0) {
+            landedRow = {
+              id: data[0]!.id as string,
+              metadata: data[0]!.metadata,
+            };
+            seededContentIds.push(landedRow.id);
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
+        // Inv-5 verifiability: nested file MUST produce a row. Absence
+        // proves the source-binding adapter is configured with
+        // `recursive=False` (the cocoindex localfs default) and is silently
+        // skipping nested files.
+        expect(landedRow).not.toBeNull();
 
-      // Inv-5 verifiability: nested file MUST produce a row. Absence
-      // proves the source-binding adapter is configured with
-      // `recursive=False` (the cocoindex localfs default) and is silently
-      // skipping nested files.
-      expect(landedRow).not.toBeNull();
+        // Defensive sanity check: the row's metadata should include the
+        // nested path (the per-document source_uri / file_path is part of
+        // the FlowRowMetadata shape stamped during the postgres_upsert stage).
+        const metadata = landedRow!.metadata as Record<string, unknown> | null;
+        if (metadata) {
+          // Common fields the metadata might carry — check whichever is
+          // present without asserting exclusively on any one (the source
+          // landing shape may evolve across 28.14 / 28.15 / 28.16 wiring).
+          const sourcePath =
+            (metadata.source_uri as string | undefined) ??
+            (metadata.file_path as string | undefined) ??
+            (metadata.path as string | undefined);
 
-      // Defensive sanity check: the row's metadata should include the
-      // nested path (the per-document source_uri / file_path is part of
-      // the FlowRowMetadata shape stamped during the postgres_upsert stage).
-      const metadata = landedRow!.metadata as Record<string, unknown> | null;
-      if (metadata) {
-        // Common fields the metadata might carry — check whichever is
-        // present without asserting exclusively on any one (the source
-        // landing shape may evolve across 28.14 / 28.15 / 28.16 wiring).
-        const sourcePath =
-          (metadata.source_uri as string | undefined) ??
-          (metadata.file_path as string | undefined) ??
-          (metadata.path as string | undefined);
-
-        if (sourcePath) {
-          // Nested-fixture path must appear somewhere in the source-path
-          // metadata field.
-          expect(sourcePath).toContain('/a/b/c/');
+          if (sourcePath) {
+            // Nested-fixture path must appear somewhere in the source-path
+            // metadata field.
+            expect(sourcePath).toContain('/a/b/c/');
+          }
         }
-      }
-    }, POLL_TIMEOUT_MS + 30_000);
+      },
+      POLL_TIMEOUT_MS + 30_000,
+    );
   },
 );
 

@@ -72,9 +72,7 @@ function buildFixture(opts: {
     importLines.push("import { withRequestContext } from '@/lib/logger';");
   }
 
-  const bodyExpression = hasBody
-    ? "const body = await request.json();\n"
-    : '';
+  const bodyExpression = hasBody ? 'const body = await request.json();\n' : '';
 
   const methodBlocks = methods
     .map((method) => {
@@ -428,10 +426,7 @@ export async function POST(request) {
   return new Response(JSON.stringify(parsed));
 }
 `;
-    const sf = project.createSourceFile(
-      '/repo/app/api/items/route.ts',
-      source,
-    );
+    const sf = project.createSourceFile('/repo/app/api/items/route.ts', source);
     expectShape(sf, 'BODY_VALIDATED');
   });
 });

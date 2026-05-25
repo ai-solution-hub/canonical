@@ -134,10 +134,7 @@ describe('Inv-18 — cocoindex pipeline_runs writes go through recordPipelineRun
     // Defensive sweep — the canonical helper IS the only sanctioned raw
     // insert site. If a sibling file in lib/pipeline/ introduces another
     // raw insert, Inv-18's "code-discipline" contract is weakened.
-    const recordRunPath = path.join(
-      REPO_ROOT,
-      'lib/pipeline/record-run.ts',
-    );
+    const recordRunPath = path.join(REPO_ROOT, 'lib/pipeline/record-run.ts');
     const recordRunContent = await readFile(recordRunPath, 'utf-8');
 
     // Confirm the canonical helper contains the canonical insert call

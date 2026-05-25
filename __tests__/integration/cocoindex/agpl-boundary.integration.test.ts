@@ -51,7 +51,7 @@ import { describe, expect, it } from 'vitest';
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_PULLMD_URL = Boolean(
   process.env.PULLMD_SERVICE_URL &&
-    !process.env.PULLMD_SERVICE_URL.includes('not-yet-deployed'),
+  !process.env.PULLMD_SERVICE_URL.includes('not-yet-deployed'),
 );
 
 const ENABLED = HAS_STAGING_URL && HAS_PULLMD_URL;
@@ -102,7 +102,9 @@ describe.skipIf(!ENABLED)(
       // We don't fail on "playwright" alone — too many false positives.
       // We DO fail on a clear in-process signal like "playwright module
       // loaded" or "playwright initialised".
-      expect(lowerBody).not.toMatch(/playwright\s+(loaded|initialised|imported)/);
+      expect(lowerBody).not.toMatch(
+        /playwright\s+(loaded|initialised|imported)/,
+      );
     });
   },
 );

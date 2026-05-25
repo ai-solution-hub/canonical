@@ -47,9 +47,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -94,56 +92,60 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-11 + Inv-12 — op_id per-row stamping AND op_id round-trip',
   () => {
-    it('content_items.op_id matches q_a_extractions.op_id for rows from the same run', async () => {
-      const client = await createLiveServiceClient();
+    it(
+      'content_items.op_id matches q_a_extractions.op_id for rows from the same run',
+      async () => {
+        const client = await createLiveServiceClient();
 
-      // Poll until the fixture lands.
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      let contentRow: { id: string; op_id: string } | null = null;
+        // Poll until the fixture lands.
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        let contentRow: { id: string; op_id: string } | null = null;
 
-      while (Date.now() < deadline) {
-        const { data } = await client
-          .from('content_items')
+        while (Date.now() < deadline) {
+          const { data } = await client
+            .from('content_items')
+            .select('id, op_id')
+            .ilike('title', `${TEST_PREFIX}%`)
+            .limit(1);
+
+          if (data && data.length > 0 && data[0]!.op_id) {
+            contentRow = {
+              id: data[0]!.id as string,
+              op_id: data[0]!.op_id as string,
+            };
+            seededContentIds.push(contentRow.id);
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
+        }
+
+        expect(contentRow).not.toBeNull();
+
+        // Inv-11 verifiability part 1: op_id is a valid UUID v4 (not NULL,
+        // not a placeholder string).
+        expect(contentRow!.op_id).toMatch(UUID_V4_REGEX);
+
+        // Inv-11 verifiability part 2: q_a_extractions rows for the same
+        // content_item_id carry the SAME op_id value.
+        const { data: extractions } = await client
+          .from('q_a_extractions')
           .select('id, op_id')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
+          .eq('content_item_id', contentRow!.id);
 
-        if (data && data.length > 0 && data[0]!.op_id) {
-          contentRow = {
-            id: data[0]!.id as string,
-            op_id: data[0]!.op_id as string,
-          };
-          seededContentIds.push(contentRow.id);
-          break;
+        // If the fixture is a form-type (q_a_form extraction kind), there
+        // MUST be ≥1 q_a_extractions row. If it's classification-only or
+        // entity-only, ≥0 q_a_extractions rows. Per-row op_id assertion
+        // skips when no rows are produced (the broader content_items op_id
+        // assertion remains the load-bearing check).
+        if (extractions && extractions.length > 0) {
+          for (const row of extractions) {
+            expect(row.op_id).toBe(contentRow!.op_id);
+          }
         }
-
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
-
-      expect(contentRow).not.toBeNull();
-
-      // Inv-11 verifiability part 1: op_id is a valid UUID v4 (not NULL,
-      // not a placeholder string).
-      expect(contentRow!.op_id).toMatch(UUID_V4_REGEX);
-
-      // Inv-11 verifiability part 2: q_a_extractions rows for the same
-      // content_item_id carry the SAME op_id value.
-      const { data: extractions } = await client
-        .from('q_a_extractions')
-        .select('id, op_id')
-        .eq('content_item_id', contentRow!.id);
-
-      // If the fixture is a form-type (q_a_form extraction kind), there
-      // MUST be ≥1 q_a_extractions row. If it's classification-only or
-      // entity-only, ≥0 q_a_extractions rows. Per-row op_id assertion
-      // skips when no rows are produced (the broader content_items op_id
-      // assertion remains the load-bearing check).
-      if (extractions && extractions.length > 0) {
-        for (const row of extractions) {
-          expect(row.op_id).toBe(contentRow!.op_id);
-        }
-      }
-    }, POLL_TIMEOUT_MS + 30_000);
+      },
+      POLL_TIMEOUT_MS + 30_000,
+    );
 
     it('op_id resolves back to exactly one pipeline_runs row (Inv-12 round-trip)', async () => {
       const client = await createLiveServiceClient();

@@ -24,7 +24,9 @@ interface ChangeReportExportMenuProps {
   digest: ChangeReport;
 }
 
-export function ChangeReportExportMenu({ digest }: ChangeReportExportMenuProps) {
+export function ChangeReportExportMenu({
+  digest,
+}: ChangeReportExportMenuProps) {
   const [downloadingDocx, setDownloadingDocx] = useState(false);
 
   async function handleCopyMarkdown() {

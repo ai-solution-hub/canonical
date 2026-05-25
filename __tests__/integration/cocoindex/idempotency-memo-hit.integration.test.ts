@@ -44,9 +44,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -81,64 +79,68 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-4 — idempotency on content-hash match (no new derivation rows on re-ingest)',
   () => {
-    it('re-ingest of an unchanged file produces zero new q_a_extractions / entity_mentions rows', async () => {
-      const client = await createLiveServiceClient();
+    it(
+      're-ingest of an unchanged file produces zero new q_a_extractions / entity_mentions rows',
+      async () => {
+        const client = await createLiveServiceClient();
 
-      // Wait for first ingest to land (TEST_PREFIX title appears in content_items).
-      const firstIngestDeadline = Date.now() + POLL_TIMEOUT_MS;
-      let contentItemId: string | null = null;
+        // Wait for first ingest to land (TEST_PREFIX title appears in content_items).
+        const firstIngestDeadline = Date.now() + POLL_TIMEOUT_MS;
+        let contentItemId: string | null = null;
 
-      while (Date.now() < firstIngestDeadline) {
-        const { data } = await client
-          .from('content_items')
-          .select('id')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
-        if (data && data.length > 0) {
-          contentItemId = data[0]!.id as string;
-          seededContentIds.push(contentItemId);
-          break;
+        while (Date.now() < firstIngestDeadline) {
+          const { data } = await client
+            .from('content_items')
+            .select('id')
+            .ilike('title', `${TEST_PREFIX}%`)
+            .limit(1);
+          if (data && data.length > 0) {
+            contentItemId = data[0]!.id as string;
+            seededContentIds.push(contentItemId);
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
 
-      expect(contentItemId).not.toBeNull();
+        expect(contentItemId).not.toBeNull();
 
-      // Capture pre-bump derivation-row counts.
-      const { count: extractionsBefore } = await client
-        .from('q_a_extractions')
-        .select('id', { count: 'exact', head: true })
-        .eq('content_item_id', contentItemId!);
+        // Capture pre-bump derivation-row counts.
+        const { count: extractionsBefore } = await client
+          .from('q_a_extractions')
+          .select('id', { count: 'exact', head: true })
+          .eq('content_item_id', contentItemId!);
 
-      const { count: mentionsBefore } = await client
-        .from('entity_mentions')
-        .select('id', { count: 'exact', head: true })
-        .eq('content_item_id', contentItemId!);
+        const { count: mentionsBefore } = await client
+          .from('entity_mentions')
+          .select('id', { count: 'exact', head: true })
+          .eq('content_item_id', contentItemId!);
 
-      // Trigger a re-ingest cycle. FUTURE: touch the file via the fixture
-      // staging endpoint so cocoindex observes a modification event but
-      // the content_text hash remains identical (file timestamp changes;
-      // body bytes do not).
-      //
-      // Wait the polling-cadence window so the second poll fires.
-      await new Promise((resolve) => setTimeout(resolve, 10_000));
+        // Trigger a re-ingest cycle. FUTURE: touch the file via the fixture
+        // staging endpoint so cocoindex observes a modification event but
+        // the content_text hash remains identical (file timestamp changes;
+        // body bytes do not).
+        //
+        // Wait the polling-cadence window so the second poll fires.
+        await new Promise((resolve) => setTimeout(resolve, 10_000));
 
-      // Re-capture post-bump counts.
-      const { count: extractionsAfter } = await client
-        .from('q_a_extractions')
-        .select('id', { count: 'exact', head: true })
-        .eq('content_item_id', contentItemId!);
+        // Re-capture post-bump counts.
+        const { count: extractionsAfter } = await client
+          .from('q_a_extractions')
+          .select('id', { count: 'exact', head: true })
+          .eq('content_item_id', contentItemId!);
 
-      const { count: mentionsAfter } = await client
-        .from('entity_mentions')
-        .select('id', { count: 'exact', head: true })
-        .eq('content_item_id', contentItemId!);
+        const { count: mentionsAfter } = await client
+          .from('entity_mentions')
+          .select('id', { count: 'exact', head: true })
+          .eq('content_item_id', contentItemId!);
 
-      // Inv-4 verifiability: counts MUST be byte-identical post-second-
-      // ingest. Any delta proves the memoisation short-circuit didn't
-      // fire — the extractor body re-ran and produced duplicate rows.
-      expect(extractionsAfter).toBe(extractionsBefore);
-      expect(mentionsAfter).toBe(mentionsBefore);
-    }, POLL_TIMEOUT_MS + 60_000);
+        // Inv-4 verifiability: counts MUST be byte-identical post-second-
+        // ingest. Any delta proves the memoisation short-circuit didn't
+        // fire — the extractor body re-ran and produced duplicate rows.
+        expect(extractionsAfter).toBe(extractionsBefore);
+        expect(mentionsAfter).toBe(mentionsBefore);
+      },
+      POLL_TIMEOUT_MS + 60_000,
+    );
   },
 );

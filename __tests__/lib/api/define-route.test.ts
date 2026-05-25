@@ -62,15 +62,17 @@ describe('defineRoute', () => {
   it('returns a 500 envelope when the handler payload does not match the schema', async () => {
     const Schema = z.object({ items: z.array(z.string()), total: z.number() });
 
-    const route = defineRoute(Schema, async () =>
-      // Force a runtime shape mismatch — `total` is a string, not a number.
-      // Cast through `as unknown as` so the compile-time generic does not
-      // pre-empt this test (the schema's job is to catch shapes that escape
-      // the type system at runtime: untyped Supabase clients, JSON parsing,
-      // upstream bugs, etc.).
-      ({ items: ['x'], total: 'not-a-number' }) as unknown as z.infer<
-        typeof Schema
-      >,
+    const route = defineRoute(
+      Schema,
+      async () =>
+        // Force a runtime shape mismatch — `total` is a string, not a number.
+        // Cast through `as unknown as` so the compile-time generic does not
+        // pre-empt this test (the schema's job is to catch shapes that escape
+        // the type system at runtime: untyped Supabase clients, JSON parsing,
+        // upstream bugs, etc.).
+        ({ items: ['x'], total: 'not-a-number' }) as unknown as z.infer<
+          typeof Schema
+        >,
     );
 
     const response = await route(makeRequest());

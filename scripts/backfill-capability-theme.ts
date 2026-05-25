@@ -109,7 +109,9 @@ function main(): void {
   const taskListPath = resolve(process.cwd(), flags.taskList);
 
   if (!existsSync(roadmapPath)) {
-    console.error('backfill-capability-theme: roadmap not found: ' + roadmapPath);
+    console.error(
+      'backfill-capability-theme: roadmap not found: ' + roadmapPath,
+    );
     process.exit(1);
   }
   if (!existsSync(taskListPath)) {
@@ -140,7 +142,9 @@ function main(): void {
 
   const taskListValidation = TaskListSchema.safeParse(taskListParsed);
   if (!taskListValidation.success) {
-    console.error('backfill-capability-theme: task-list Zod validation failed:');
+    console.error(
+      'backfill-capability-theme: task-list Zod validation failed:',
+    );
     console.error(JSON.stringify(taskListValidation.error.format(), null, 2));
     process.exit(1);
   }
@@ -181,7 +185,9 @@ function main(): void {
   // Validate the back-filled task-list before write.
   const writeValidation = TaskListSchema.safeParse(taskList);
   if (!writeValidation.success) {
-    console.error('backfill-capability-theme: post-backfill validation failed:');
+    console.error(
+      'backfill-capability-theme: post-backfill validation failed:',
+    );
     console.error(JSON.stringify(writeValidation.error.format(), null, 2));
     process.exit(1);
   }

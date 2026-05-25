@@ -49,9 +49,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -92,57 +90,59 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-8 — sidecar version metadata in pipeline_runs.result',
   () => {
-    it('pipeline_runs row from successful flow carries at least one canonical extractor-identification field', async () => {
-      const client = await createLiveServiceClient();
+    it(
+      'pipeline_runs row from successful flow carries at least one canonical extractor-identification field',
+      async () => {
+        const client = await createLiveServiceClient();
 
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      let pipelineRunResult: Record<string, unknown> | null = null;
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        let pipelineRunResult: Record<string, unknown> | null = null;
 
-      while (Date.now() < deadline) {
-        const { data: items } = await client
-          .from('content_items')
-          .select('id, op_id')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
-
-        if (items && items.length > 0 && items[0]!.op_id) {
-          seededContentIds.push(items[0]!.id as string);
-          const opId = items[0]!.op_id as string;
-          const { data: runs } = await client
-            .from('pipeline_runs')
-            .select('id, result')
-            .eq('op_id', opId)
-            .eq('status', 'succeeded')
+        while (Date.now() < deadline) {
+          const { data: items } = await client
+            .from('content_items')
+            .select('id, op_id')
+            .ilike('title', `${TEST_PREFIX}%`)
             .limit(1);
 
-          if (runs && runs.length > 0) {
-            seededRunIds.push(runs[0]!.id as string);
-            pipelineRunResult = runs[0]!.result as Record<
-              string,
-              unknown
-            > | null;
-            break;
+          if (items && items.length > 0 && items[0]!.op_id) {
+            seededContentIds.push(items[0]!.id as string);
+            const opId = items[0]!.op_id as string;
+            const { data: runs } = await client
+              .from('pipeline_runs')
+              .select('id, result')
+              .eq('op_id', opId)
+              .eq('status', 'succeeded')
+              .limit(1);
+
+            if (runs && runs.length > 0) {
+              seededRunIds.push(runs[0]!.id as string);
+              pipelineRunResult = runs[0]!.result as Record<
+                string,
+                unknown
+              > | null;
+              break;
+            }
           }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
+        expect(pipelineRunResult).not.toBeNull();
 
-      expect(pipelineRunResult).not.toBeNull();
+        // Inv-8 verifiability: at LEAST ONE of the canonical extractor-
+        // identification keys MUST be present. Missing ALL of them proves
+        // the webhook bridge isn't stamping extractor metadata onto
+        // pipeline_runs.result — no way to cross-reference a corpus row to
+        // its producing build.
+        const hasExtractorId = EXTRACTOR_ID_KEYS.some((key) => {
+          const value = pipelineRunResult![key];
+          return typeof value === 'string' && (value as string).length > 0;
+        });
 
-      // Inv-8 verifiability: at LEAST ONE of the canonical extractor-
-      // identification keys MUST be present. Missing ALL of them proves
-      // the webhook bridge isn't stamping extractor metadata onto
-      // pipeline_runs.result — no way to cross-reference a corpus row to
-      // its producing build.
-      const hasExtractorId = EXTRACTOR_ID_KEYS.some((key) => {
-        const value = pipelineRunResult![key];
-        return (
-          typeof value === 'string' && (value as string).length > 0
-        );
-      });
-
-      expect(hasExtractorId).toBe(true);
-    }, POLL_TIMEOUT_MS + 30_000);
+        expect(hasExtractorId).toBe(true);
+      },
+      POLL_TIMEOUT_MS + 30_000,
+    );
   },
 );

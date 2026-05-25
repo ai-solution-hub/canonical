@@ -20,7 +20,10 @@ export async function GET(request: NextRequest) {
     const { supabase } = auth;
 
     const { searchParams } = new URL(request.url);
-    const parsed = parseSearchParams(ChangeReportListParamsSchema, searchParams);
+    const parsed = parseSearchParams(
+      ChangeReportListParamsSchema,
+      searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { limit, offset } = parsed.data;
 

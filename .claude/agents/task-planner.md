@@ -267,32 +267,32 @@ time would have caught it on day one. Canonical record:
 1. **Identify cited external symbols.** Grep the spec for module names (`import X from`
    patterns in code blocks; "uses `pkg.foo()`" in prose; SDK / API references). List per
    `module.symbol`.
-2. **Look up the pinned version.** Python:
-   `grep '^<package>' requirements.txt` for the `<package>==<version>` line. TypeScript:
+2. **Look up the pinned version.** Python: `grep '^<package>' requirements.txt` for the
+   `<package>==<version>` line. TypeScript:
    `jq -r '.dependencies["<package>"]' package.json` (also check `devDependencies`).
-3. **Run the import-and-call check** (sandbox-disabled where needed for cocoindex or
-   other LMDB-touching packages):
+3. **Run the import-and-call check** (sandbox-disabled where needed for cocoindex or other
+   LMDB-touching packages):
    ```
    python3 -c "from <module> import <symbol>; print(<symbol>)"
    ```
    TypeScript symbols — use ast-dataflow `references` or `tsc --noEmit` against a
-   throwaway file that imports the symbol; runtime `bun --print` may not surface
-   type-only export mismatches.
+   throwaway file that imports the symbol; runtime `bun --print` may not surface type-only
+   export mismatches.
 4. **Record verification in the spec.** Add an explicit verification block (typically a
    `## Verification` section, or a footnote near each citation) capturing:
    - Date — DD/MM/YYYY (UK English).
    - Pinned version — e.g. `cocoindex==1.0.3`.
    - Symbol path checked — e.g. `cocoindex.ExtractByLlm`.
    - Result — `PRESENT` / `ABSENT` / `SIGNATURE_DRIFT` (signature differs from cited
-     shape) / `BEHAVIOUR_DRIFT` (signature matches but runtime behaviour differs from
-     spec assumption).
+     shape) / `BEHAVIOUR_DRIFT` (signature matches but runtime behaviour differs from spec
+     assumption).
 
 **Escalation on failure:**
 
 - `ABSENT` or `SIGNATURE_DRIFT` → STOP. Do not return the spec for ratification. Escalate
-  to the Orchestrator with verification evidence and recommend either (a) spec revision
-  to use the actual installed API, or (b) version-pin upgrade if the cited shape exists
-  in a newer release.
+  to the Orchestrator with verification evidence and recommend either (a) spec revision to
+  use the actual installed API, or (b) version-pin upgrade if the cited shape exists in a
+  newer release.
 - `BEHAVIOUR_DRIFT` (signature OK, runtime semantics changed — e.g. callback shape moved,
   async vs sync flipped) → record the drift inline and either revise the spec or surface
   to the Orchestrator for amend-in-place. Orchestrator's call.
@@ -303,9 +303,9 @@ time would have caught it on day one. Canonical record:
   behaviour invariants; TECH.md citing external symbols in Proposed changes / migration
   plans; PLAN.md Subtask `details` referencing external library calls.
 - **Does NOT apply to:** internal KH symbols (caught by ast-dataflow + gitnexus);
-  test-internal helpers; standard-library or framework-built-in calls (Next.js APIs,
-  React hooks, Node built-ins, Python stdlib). For internal symbols, rely on
-  ast-dataflow / gitnexus / Knip — those tools already index the KH corpus.
+  test-internal helpers; standard-library or framework-built-in calls (Next.js APIs, React
+  hooks, Node built-ins, Python stdlib). For internal symbols, rely on ast-dataflow /
+  gitnexus / Knip — those tools already index the KH corpus.
 
 ## Forbidden actions
 

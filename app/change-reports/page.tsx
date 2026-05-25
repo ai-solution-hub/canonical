@@ -643,7 +643,8 @@ export default function ChangeReportsPage() {
 
       {/* Past change reports */}
       {(loadingPastChangeReports ||
-        pastChangeReports.filter((d) => d.id !== currentChangeReport?.id).length > 0) && (
+        pastChangeReports.filter((d) => d.id !== currentChangeReport?.id)
+          .length > 0) && (
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Previous Reports

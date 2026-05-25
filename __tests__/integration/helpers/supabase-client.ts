@@ -72,7 +72,11 @@ export function hasRealLiveDbCredentials(): boolean {
  *   // ... assertions
  */
 export function isNetworkIsolationError(
-  error: { message?: string | null; details?: string | null; code?: string | null } | null,
+  error: {
+    message?: string | null;
+    details?: string | null;
+    code?: string | null;
+  } | null,
 ): boolean {
   if (!error) return false;
   const probe = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();

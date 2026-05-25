@@ -26,7 +26,7 @@ foundation for these and future applications.
 | `bun dev`                                                                                                                              | Start Next.js dev server (Turbopack) - default port is localhost:3000                         |
 | `bun run dev:clean`                                                                                                                    | Clear `.next` cache + start dev server (use when OOM)                                         |
 | `bun build`                                                                                                                            | Production build                                                                              |
-| `bun run test`                                                                                                                         | Run Vitest tests                                               |
+| `bun run test`                                                                                                                         | Run Vitest tests                                                                              |
 | `bun run test:integration`                                                                                                             | Integration suite — `__tests__/integration/**.integration.test.ts`, real Anthropic + Supabase |
 | `bun lint`                                                                                                                             | ESLint                                                                                        |
 | `pip install -r requirements.txt`                                                                                                      | Install Python pipeline dependencies                                                          |
@@ -119,14 +119,14 @@ adding or modifying UI elements.
 
 ## Key Reference Documents
 
-| Document               | Location                                                                    |
-| ---------------------- | --------------------------------------------------------------------------- |
-| State of the Product   | `docs/reference/state-of-the-product.md`                                    |
-| Skill routing map      | `docs/reference/skill-routing-map.md`                                       |
-| CI runbook             | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
-| Session handoffs       | `docs/continuation-prompts/`                                                |
-| Codebase mapping       | `.planning/codebase/`                                                       |
-| Runbooks               | `docs/runbooks/` — local-development, staging-refresh, github-environments  |
+| Document             | Location                                                                    |
+| -------------------- | --------------------------------------------------------------------------- |
+| State of the Product | `docs/reference/state-of-the-product.md`                                    |
+| Skill routing map    | `docs/reference/skill-routing-map.md`                                       |
+| CI runbook           | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
+| Session handoffs     | `docs/continuation-prompts/`                                                |
+| Codebase mapping     | `.planning/codebase/`                                                       |
+| Runbooks             | `docs/runbooks/` — local-development, staging-refresh, github-environments  |
 
 Full inventory of all reference docs: `docs/reference/documentation-inventory.md`
 
@@ -138,11 +138,11 @@ point-in-time snapshots.
 
 Used for managing and tracking platform development activities.
 
-| Document               | Location                                                                    |
-| ---------------------- | --------------------------------------------------------------------------- |
-| Task List        | `docs/reference/task-list.json`                                       |
-| Backlog        | `docs/reference/product-backlog.json`                                       |
-| Roadmap                | `docs/reference/product-roadmap.json`                                       |
+| Document  | Location                              |
+| --------- | ------------------------------------- |
+| Task List | `docs/reference/task-list.json`       |
+| Backlog   | `docs/reference/product-backlog.json` |
+| Roadmap   | `docs/reference/product-roadmap.json` |
 
 ## Memory (MemPalace)
 

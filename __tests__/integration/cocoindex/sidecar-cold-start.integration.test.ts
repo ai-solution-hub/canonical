@@ -60,9 +60,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 // Operator hint: COCOINDEX_COLD_START=true means the operator has
 // scaled the Service to zero before running this test. Without this hint
@@ -107,41 +105,45 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-10 — sidecar cold-start latency budget (first PDF ingest ≤ 60 s)',
   () => {
-    it('first PDF ingest after cold-start lands content_items.embedding within 60 s', async () => {
-      const client = await createLiveServiceClient();
-      const startTime = Date.now();
-      const deadline = startTime + TOTAL_BUDGET_MS;
+    it(
+      'first PDF ingest after cold-start lands content_items.embedding within 60 s',
+      async () => {
+        const client = await createLiveServiceClient();
+        const startTime = Date.now();
+        const deadline = startTime + TOTAL_BUDGET_MS;
 
-      let landedRow: { id: string; embedding: unknown } | null = null;
+        let landedRow: { id: string; embedding: unknown } | null = null;
 
-      while (Date.now() < deadline) {
-        const { data } = await client
-          .from('content_items')
-          .select('id, embedding')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
+        while (Date.now() < deadline) {
+          const { data } = await client
+            .from('content_items')
+            .select('id, embedding')
+            .ilike('title', `${TEST_PREFIX}%`)
+            .limit(1);
 
-        if (data && data.length > 0 && data[0]!.embedding !== null) {
-          landedRow = {
-            id: data[0]!.id as string,
-            embedding: data[0]!.embedding,
-          };
-          seededContentIds.push(landedRow.id);
-          break;
+          if (data && data.length > 0 && data[0]!.embedding !== null) {
+            landedRow = {
+              id: data[0]!.id as string,
+              embedding: data[0]!.embedding,
+            };
+            seededContentIds.push(landedRow.id);
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
+        // Inv-10 verifiability: the FIRST PDF ingest after cold-start MUST
+        // complete with embedding populated within the budget. Failure
+        // proves the Docling model is NOT pre-warmed in the container
+        // image — O-Q4 ratification is violated.
+        expect(landedRow).not.toBeNull();
+        expect(landedRow!.embedding).not.toBeNull();
 
-      // Inv-10 verifiability: the FIRST PDF ingest after cold-start MUST
-      // complete with embedding populated within the budget. Failure
-      // proves the Docling model is NOT pre-warmed in the container
-      // image — O-Q4 ratification is violated.
-      expect(landedRow).not.toBeNull();
-      expect(landedRow!.embedding).not.toBeNull();
-
-      const elapsedMs = Date.now() - startTime;
-      expect(elapsedMs).toBeLessThanOrEqual(TOTAL_BUDGET_MS);
-    }, TOTAL_BUDGET_MS + 30_000);
+        const elapsedMs = Date.now() - startTime;
+        expect(elapsedMs).toBeLessThanOrEqual(TOTAL_BUDGET_MS);
+      },
+      TOTAL_BUDGET_MS + 30_000,
+    );
   },
 );

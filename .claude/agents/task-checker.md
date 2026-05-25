@@ -169,11 +169,12 @@ For each commit, score against:
 - No new `index.ts` files inside `lib/`, `components/`, or `hooks/` that re-export from
   siblings.
 
-**`empirical-grounding`** (OQ-3 — applies when spec or Subtask `details` cite external-library APIs)
+**`empirical-grounding`** (OQ-3 — applies when spec or Subtask `details` cite
+external-library APIs)
 
-- The spec-authoring Subtask ({N.1}/{N.2}/{N.3}/{N.4}) under audit (and any
-  implementation Subtask whose `details` cite external-library symbols) must include a
-  pre-ratification empirical verification block per the Planner's OQ-3 discipline.
+- The spec-authoring Subtask ({N.1}/{N.2}/{N.3}/{N.4}) under audit (and any implementation
+  Subtask whose `details` cite external-library symbols) must include a pre-ratification
+  empirical verification block per the Planner's OQ-3 discipline.
 - The verification block must contain: date (DD/MM/YYYY), pinned version
   (`<package>==<version>` from `requirements.txt` / `package.json`), symbol path checked,
   and result (`PRESENT` / `ABSENT` / `SIGNATURE_DRIFT` / `BEHAVIOUR_DRIFT`).

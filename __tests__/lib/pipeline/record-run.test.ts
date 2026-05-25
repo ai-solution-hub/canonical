@@ -94,7 +94,10 @@ describe('recordPipelineRun', () => {
   });
 
   it('includes op_id in the insert payload when opId is provided', async () => {
-    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
     const testOpId = '550e8400-e29b-41d4-a716-446655440000';
 
     await recordPipelineRun({
@@ -110,7 +113,10 @@ describe('recordPipelineRun', () => {
   });
 
   it('inserts op_id as null when opId is omitted', async () => {
-    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
 
     await recordPipelineRun({
       supabase: client,
@@ -124,7 +130,10 @@ describe('recordPipelineRun', () => {
   });
 
   it('inserts op_id as null when opId is explicitly null', async () => {
-    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
 
     await recordPipelineRun({
       supabase: client,
@@ -143,7 +152,10 @@ describe('recordPipelineRun', () => {
   // -------------------------------------------------------------------------
 
   it('lands stageCounts inside result.stage_counts when no result is supplied', async () => {
-    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
     const stageCounts = {
       source_walk: 5,
       binary_conversion: 5,
@@ -165,7 +177,10 @@ describe('recordPipelineRun', () => {
   });
 
   it('merges stageCounts INTO caller-supplied result without dropping siblings', async () => {
-    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
     const stageCounts = {
       source_walk: 1,
       binary_conversion: 1,
@@ -192,7 +207,10 @@ describe('recordPipelineRun', () => {
   });
 
   it('keeps result null when neither result nor stageCounts is supplied', async () => {
-    const { client, insertSpy } = createMockSupabase({ data: null, error: null });
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
 
     await recordPipelineRun({
       supabase: client,

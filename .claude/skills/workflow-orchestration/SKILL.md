@@ -21,6 +21,8 @@ and finding routing. The four other roles (Task Planner, Task Executor, Task
 Checker, Workflow Curator) live in `.claude/agents/` and are dispatched via the
 built-in `Agent` tool or `session-driver-cmux` (fleet).
 
+If the continuation prompt includes usage of cmux terminals, chain from this `workflow-orchestration` to the `session-driver-cmux` skill to prepare and deploy sub-orchestrators.
+
 ---
 
 ## Backlog pickup → Promote

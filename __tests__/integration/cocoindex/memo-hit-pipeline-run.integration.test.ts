@@ -59,9 +59,7 @@ import {
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
-const HAS_FIXTURE_STAGING = Boolean(
-  process.env.COCOINDEX_FIXTURE_STAGING_URL,
-);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_LIVE_DB = hasLiveDbCredentials();
 
 const ENABLED =
@@ -92,98 +90,59 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-15 + Inv-16 — memo-hit pipeline_runs landing AND audit-log silence on no-op',
   () => {
-    it('Inv-16: re-poll of unchanged fixture produces +1 pipeline_runs row (memo-hit invocation still counts)', async () => {
-      const client = await createLiveServiceClient();
+    it(
+      'Inv-16: re-poll of unchanged fixture produces +1 pipeline_runs row (memo-hit invocation still counts)',
+      async () => {
+        const client = await createLiveServiceClient();
 
-      // Wait for first ingest to land.
-      const firstIngestDeadline = Date.now() + POLL_TIMEOUT_MS;
-      let contentItem: { id: string; op_id: string } | null = null;
+        // Wait for first ingest to land.
+        const firstIngestDeadline = Date.now() + POLL_TIMEOUT_MS;
+        let contentItem: { id: string; op_id: string } | null = null;
 
-      while (Date.now() < firstIngestDeadline) {
-        const { data } = await client
-          .from('content_items')
-          .select('id, op_id')
-          .ilike('title', `${TEST_PREFIX}%`)
-          .limit(1);
+        while (Date.now() < firstIngestDeadline) {
+          const { data } = await client
+            .from('content_items')
+            .select('id, op_id')
+            .ilike('title', `${TEST_PREFIX}%`)
+            .limit(1);
 
-        if (data && data.length > 0 && data[0]!.op_id) {
-          contentItem = {
-            id: data[0]!.id as string,
-            op_id: data[0]!.op_id as string,
-          };
-          seededContentIds.push(contentItem.id);
-          break;
+          if (data && data.length > 0 && data[0]!.op_id) {
+            contentItem = {
+              id: data[0]!.id as string,
+              op_id: data[0]!.op_id as string,
+            };
+            seededContentIds.push(contentItem.id);
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
+        expect(contentItem).not.toBeNull();
 
-      expect(contentItem).not.toBeNull();
+        // Capture pipeline_runs count for THIS content's lineage. We can't
+        // use content_item_id directly (pipeline_runs doesn't reference
+        // content_items by FK; it stores the op_id). Instead query by the
+        // pipeline_name='kh_canonical_pipeline' + a time window covering the
+        // test prefix's lifetime — but that's noisy.
+        //
+        // A cleaner approach: use the workspace_id / file_path metadata
+        // landing on pipeline_runs.result to scope. The result.context.
+        // file_path (or equivalent) should match the test fixture's path
+        // suffix. Per the recordPipelineRun helper this lands in
+        // pipeline_runs.result.context.
+        //
+        // Fallback (used here): count rows with the first run's op_id (one
+        // row) AND any subsequent rows whose op_id resolves to a row with
+        // a fixture-suffix file_path. For Inv-16 the strict assertion is
+        // simpler — count rows by file_path stamped in result.context.
+        const { data: runsBefore } = await client
+          .from('pipeline_runs')
+          .select('id, op_id, result')
+          .eq('pipeline_name', 'kh_canonical_pipeline');
 
-      // Capture pipeline_runs count for THIS content's lineage. We can't
-      // use content_item_id directly (pipeline_runs doesn't reference
-      // content_items by FK; it stores the op_id). Instead query by the
-      // pipeline_name='kh_canonical_pipeline' + a time window covering the
-      // test prefix's lifetime — but that's noisy.
-      //
-      // A cleaner approach: use the workspace_id / file_path metadata
-      // landing on pipeline_runs.result to scope. The result.context.
-      // file_path (or equivalent) should match the test fixture's path
-      // suffix. Per the recordPipelineRun helper this lands in
-      // pipeline_runs.result.context.
-      //
-      // Fallback (used here): count rows with the first run's op_id (one
-      // row) AND any subsequent rows whose op_id resolves to a row with
-      // a fixture-suffix file_path. For Inv-16 the strict assertion is
-      // simpler — count rows by file_path stamped in result.context.
-      const { data: runsBefore } = await client
-        .from('pipeline_runs')
-        .select('id, op_id, result')
-        .eq('pipeline_name', 'kh_canonical_pipeline');
-
-      const beforeCount =
-        runsBefore?.filter((r) => {
-          const result = r.result as Record<string, unknown> | null;
-          const context = (result?.context ?? null) as Record<
-            string,
-            unknown
-          > | null;
-          const filePath = (context?.file_path ?? '') as string;
-          return filePath.includes(TEST_PREFIX);
-        }).length ?? 0;
-
-      expect(beforeCount).toBeGreaterThanOrEqual(1);
-
-      // Trigger second poll cycle on the unchanged file. Wait one
-      // polling-cadence window.
-      await new Promise((resolve) => setTimeout(resolve, POLL_CYCLE_WAIT_MS));
-
-      const { data: runsAfter } = await client
-        .from('pipeline_runs')
-        .select('id, op_id, result')
-        .eq('pipeline_name', 'kh_canonical_pipeline');
-
-      const afterCount =
-        runsAfter?.filter((r) => {
-          const result = r.result as Record<string, unknown> | null;
-          const context = (result?.context ?? null) as Record<
-            string,
-            unknown
-          > | null;
-          const filePath = (context?.file_path ?? '') as string;
-          return filePath.includes(TEST_PREFIX);
-        }).length ?? 0;
-
-      // Inv-16 verifiability: every invocation (including memo-hit polls)
-      // produces +1 row. The exact delta depends on how many poll cycles
-      // fired in the wait window — assert ≥ +1 (the floor) since the
-      // test's poll-cycle wait may overlap multiple cocoindex polls.
-      expect(afterCount).toBeGreaterThanOrEqual(beforeCount + 1);
-
-      // Track the new rows for cleanup.
-      const newRunIds =
-        runsAfter
-          ?.filter((r) => {
+        const beforeCount =
+          runsBefore?.filter((r) => {
             const result = r.result as Record<string, unknown> | null;
             const context = (result?.context ?? null) as Record<
               string,
@@ -191,10 +150,53 @@ describe.skipIf(!ENABLED)(
             > | null;
             const filePath = (context?.file_path ?? '') as string;
             return filePath.includes(TEST_PREFIX);
-          })
-          .map((r) => r.id as string) ?? [];
-      newRunIds.forEach((id) => seededRunIds.push(id));
-    }, POLL_TIMEOUT_MS + 60_000);
+          }).length ?? 0;
+
+        expect(beforeCount).toBeGreaterThanOrEqual(1);
+
+        // Trigger second poll cycle on the unchanged file. Wait one
+        // polling-cadence window.
+        await new Promise((resolve) => setTimeout(resolve, POLL_CYCLE_WAIT_MS));
+
+        const { data: runsAfter } = await client
+          .from('pipeline_runs')
+          .select('id, op_id, result')
+          .eq('pipeline_name', 'kh_canonical_pipeline');
+
+        const afterCount =
+          runsAfter?.filter((r) => {
+            const result = r.result as Record<string, unknown> | null;
+            const context = (result?.context ?? null) as Record<
+              string,
+              unknown
+            > | null;
+            const filePath = (context?.file_path ?? '') as string;
+            return filePath.includes(TEST_PREFIX);
+          }).length ?? 0;
+
+        // Inv-16 verifiability: every invocation (including memo-hit polls)
+        // produces +1 row. The exact delta depends on how many poll cycles
+        // fired in the wait window — assert ≥ +1 (the floor) since the
+        // test's poll-cycle wait may overlap multiple cocoindex polls.
+        expect(afterCount).toBeGreaterThanOrEqual(beforeCount + 1);
+
+        // Track the new rows for cleanup.
+        const newRunIds =
+          runsAfter
+            ?.filter((r) => {
+              const result = r.result as Record<string, unknown> | null;
+              const context = (result?.context ?? null) as Record<
+                string,
+                unknown
+              > | null;
+              const filePath = (context?.file_path ?? '') as string;
+              return filePath.includes(TEST_PREFIX);
+            })
+            .map((r) => r.id as string) ?? [];
+        newRunIds.forEach((id) => seededRunIds.push(id));
+      },
+      POLL_TIMEOUT_MS + 60_000,
+    );
 
     it('Inv-15: memo-hit cycle produces no new audit_log rows for the content_item (v1.1 substrate)', async () => {
       const client = await createLiveServiceClient();

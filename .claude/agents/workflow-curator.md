@@ -78,7 +78,12 @@ CURRENT ROADMAP/BACKLOG STATE (read by you):
   - docs/reference/product-backlog.json
 ```
 
-The Orchestrator dispatcher **MUST** populate `Parent Task acceptance criteria` and `Sibling Subtask file ownership` at every dispatch — especially at wave close when the source Subtask has already promoted to `done`. These fields back Branch A predicate 3 (the parent-Task-AC predicate) in `triage-finding`; omitting them causes the curator to vacuously fail Branch A and false-negative-route wave-close findings to backlog (per S62F-WP3 audit).
+The Orchestrator dispatcher **MUST** populate `Parent Task acceptance criteria` and
+`Sibling Subtask file ownership` at every dispatch — especially at wave close when the
+source Subtask has already promoted to `done`. These fields back Branch A predicate 3 (the
+parent-Task-AC predicate) in `triage-finding`; omitting them causes the curator to
+vacuously fail Branch A and false-negative-route wave-close findings to backlog (per
+S62F-WP3 audit).
 
 ## Operating principles
 

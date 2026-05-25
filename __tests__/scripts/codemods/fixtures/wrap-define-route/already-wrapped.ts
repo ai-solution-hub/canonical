@@ -23,8 +23,11 @@ import { defineRoute } from '@/lib/api/define-route';
 
 const ResponseSchema = z.object({ ok: z.boolean() });
 
-export const GET = defineRoute(ResponseSchema, async (_request: NextRequest) => {
-  const auth = await getAuthorisedClient(['admin', 'editor']);
-  if (!auth.success) return authFailureResponse(auth);
-  return NextResponse.json({ ok: true });
-});
+export const GET = defineRoute(
+  ResponseSchema,
+  async (_request: NextRequest) => {
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth.success) return authFailureResponse(auth);
+    return NextResponse.json({ ok: true });
+  },
+);

@@ -7,7 +7,10 @@ import { ChangeReportDomainSection } from '@/components/change-reports/change-re
 import { formatDate } from '@/lib/format';
 import { changeReportFrequencyLabel } from '@/lib/change-reports/change-reports-helpers';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
-import type { ChangeReport, ChangeReportGovernanceSummary } from '@/types/change-reports';
+import type {
+  ChangeReport,
+  ChangeReportGovernanceSummary,
+} from '@/types/change-reports';
 import { cn } from '@/lib/utils';
 
 const ChangeReportExportMenu = dynamic(
@@ -89,7 +92,6 @@ export function ChangeReportView({ digest, className }: ChangeReportViewProps) {
           freshnessBreakdown={digest.governance_summary.freshness_breakdown}
         />
       )}
-
     </div>
   );
 }

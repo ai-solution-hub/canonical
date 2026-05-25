@@ -202,8 +202,12 @@ describe('parseJsonbArray', () => {
 
   it('should return empty array for non-array input', () => {
     expect(parseJsonbArray(ChangeReportDomainSummarySchema, null)).toEqual([]);
-    expect(parseJsonbArray(ChangeReportDomainSummarySchema, undefined)).toEqual([]);
-    expect(parseJsonbArray(ChangeReportDomainSummarySchema, 'string')).toEqual([]);
+    expect(parseJsonbArray(ChangeReportDomainSummarySchema, undefined)).toEqual(
+      [],
+    );
+    expect(parseJsonbArray(ChangeReportDomainSummarySchema, 'string')).toEqual(
+      [],
+    );
     expect(parseJsonbArray(ChangeReportDomainSummarySchema, 42)).toEqual([]);
     expect(parseJsonbArray(ChangeReportDomainSummarySchema, {})).toEqual([]);
   });
@@ -214,10 +218,7 @@ describe('parseJsonbArray', () => {
   });
 
   it('should return empty array when all items are invalid', () => {
-    const allInvalid = [
-      { domain: 123 },
-      { item_count: 'not-a-number' },
-    ];
+    const allInvalid = [{ domain: 123 }, { item_count: 'not-a-number' }];
 
     const result = parseJsonbArray(ChangeReportDomainSummarySchema, allInvalid);
     expect(result).toEqual([]);

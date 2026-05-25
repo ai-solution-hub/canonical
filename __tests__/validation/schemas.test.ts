@@ -210,7 +210,9 @@ describe('ChangeReportGenerateBodySchema', () => {
   });
 
   it('should accept custom period_days within bounds', () => {
-    const result = ChangeReportGenerateBodySchema.safeParse({ period_days: 30 });
+    const result = ChangeReportGenerateBodySchema.safeParse({
+      period_days: 30,
+    });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.period_days).toBe(30);
@@ -227,7 +229,9 @@ describe('ChangeReportGenerateBodySchema', () => {
   });
 
   it('should reject period_days above 90', () => {
-    const result = ChangeReportGenerateBodySchema.safeParse({ period_days: 91 });
+    const result = ChangeReportGenerateBodySchema.safeParse({
+      period_days: 91,
+    });
     expect(result.success).toBe(false);
   });
 
@@ -237,7 +241,9 @@ describe('ChangeReportGenerateBodySchema', () => {
   });
 
   it('should reject non-integer period_days', () => {
-    const result = ChangeReportGenerateBodySchema.safeParse({ period_days: 7.5 });
+    const result = ChangeReportGenerateBodySchema.safeParse({
+      period_days: 7.5,
+    });
     expect(result.success).toBe(false);
   });
 

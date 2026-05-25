@@ -43,7 +43,9 @@ describe('WorkspacesContent', () => {
   });
 
   it('renders page description', () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     // Header is rendered on first paint regardless of hook state.
     expect(
       screen.getByText(
@@ -64,7 +66,9 @@ describe('WorkspacesContent', () => {
   });
 
   it('renders Sales Proposals as coming soon', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     await waitFor(() => {
       expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
     });
@@ -85,7 +89,9 @@ describe('WorkspacesContent', () => {
   });
 
   it('marks coming soon cards as aria-disabled', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     await waitFor(() => {
       expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
     });

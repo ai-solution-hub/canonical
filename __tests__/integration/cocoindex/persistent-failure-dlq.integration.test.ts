@@ -173,8 +173,9 @@ describe.skipIf(!ENABLED)(
         // result.context.stage. Accept either landing convention.
         const stage =
           (result!.failed_stage as string | undefined) ??
-          ((result!.context as Record<string, unknown> | undefined)
-            ?.stage as string | undefined) ??
+          ((result!.context as Record<string, unknown> | undefined)?.stage as
+            | string
+            | undefined) ??
           // Fallback: look for the stage hint in stage_counts (the LAST
           // non-zero stage is the one that fired before the failure).
           (() => {

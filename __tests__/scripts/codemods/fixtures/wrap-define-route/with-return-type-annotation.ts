@@ -36,7 +36,9 @@ export async function GET(
     // surface as `unknown` to the framework. Modelled here with a typed cast
     // so the annotation extraction (Subtask 32.9) sees a clean
     // `NextResponse<ReviewQueueResponse>` at the return-type position.
-    return authFailureResponse(auth) as unknown as NextResponse<ReviewQueueResponse>;
+    return authFailureResponse(
+      auth,
+    ) as unknown as NextResponse<ReviewQueueResponse>;
   }
   return NextResponse.json<ReviewQueueResponse>({ items: [], total: 0 });
 }

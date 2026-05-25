@@ -46,7 +46,9 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('renders the page heading and description', () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     // Header is rendered on first paint regardless of hook state.
     expect(
       screen.getByRole('heading', { level: 1, name: 'Workspaces' }),
@@ -59,7 +61,9 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('renders type cards for bid and proposal', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     await waitFor(() => {
       expect(
         screen.getByRole('heading', { level: 2, name: 'Procurements' }),
@@ -116,7 +120,9 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('marks coming soon cards as aria-disabled', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     await waitFor(() => {
       expect(
         screen.getByLabelText(/Sales Proposals.*coming soon/),
@@ -127,7 +133,9 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('applies reduced opacity to coming soon cards', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     await waitFor(() => {
       expect(
         screen.getByLabelText(/Sales Proposals.*coming soon/),
@@ -138,15 +146,21 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('shows "Coming soon" badge on unavailable types', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     await waitFor(() => {
       // Multiple 'Coming soon' badges exist (Sales Proposals + Intelligence Streams + 3 unrouted seed types)
-      expect(screen.getAllByText('Coming soon').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Coming soon').length).toBeGreaterThanOrEqual(
+        1,
+      );
     });
   });
 
   it('does not render coming soon types as links', async () => {
-    render(<WorkspacesContent counts={{}} />, { wrapper: createQueryWrapper().Wrapper });
+    render(<WorkspacesContent counts={{}} />, {
+      wrapper: createQueryWrapper().Wrapper,
+    });
     await waitFor(() => {
       expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
     });

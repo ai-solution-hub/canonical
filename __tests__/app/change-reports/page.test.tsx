@@ -247,7 +247,9 @@ function setupFetch(
       }
       return {
         ok: true,
-        json: async () => ({ digest: options.generateResult ?? makeChangeReport() }),
+        json: async () => ({
+          digest: options.generateResult ?? makeChangeReport(),
+        }),
       };
     }
 
@@ -498,13 +500,19 @@ describe('ChangeReportsPage', () => {
           }),
         };
       }
-      if (typeof url === 'string' && url.includes('/api/change-reports/latest')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/latest')
+      ) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
       if (typeof url === 'string' && url.includes('/api/change-reports/list')) {
         return { ok: true, json: async () => ({ digests: [] }) };
       }
-      if (typeof url === 'string' && url.includes('/api/change-reports/generate')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/generate')
+      ) {
         return new Promise(() => {}); // never resolves
       }
       return { ok: true, json: async () => ({}) };
@@ -598,7 +606,9 @@ describe('ChangeReportsPage', () => {
   // 13. Mark all as read
   it('calls markBulkRead with item IDs when mark all as read is clicked', async () => {
     const user = userEvent.setup();
-    const digest = makeChangeReport({ item_ids: ['item-1', 'item-2', 'item-3'] });
+    const digest = makeChangeReport({
+      item_ids: ['item-1', 'item-2', 'item-3'],
+    });
     setupFetch({ latest: digest, list: [] });
     renderChangeReportsPage();
 
@@ -699,13 +709,19 @@ describe('ChangeReportsPage', () => {
           }),
         };
       }
-      if (typeof url === 'string' && url.includes('/api/change-reports/latest')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/latest')
+      ) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
       if (typeof url === 'string' && url.includes('/api/change-reports/list')) {
         return { ok: true, json: async () => ({ digests: [] }) };
       }
-      if (typeof url === 'string' && url.includes('/api/change-reports/generate')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/generate')
+      ) {
         return new Promise(() => {});
       }
       return { ok: true, json: async () => ({}) };
@@ -818,13 +834,19 @@ describe('ChangeReportsPage', () => {
           }),
         };
       }
-      if (typeof url === 'string' && url.includes('/api/change-reports/latest')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/latest')
+      ) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
       if (typeof url === 'string' && url.includes('/api/change-reports/list')) {
         return { ok: true, json: async () => ({ digests: [] }) };
       }
-      if (typeof url === 'string' && url.includes('/api/change-reports/generate')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/change-reports/generate')
+      ) {
         return new Promise(() => {});
       }
       return { ok: true, json: async () => ({}) };

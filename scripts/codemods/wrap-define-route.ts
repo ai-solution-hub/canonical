@@ -45,7 +45,12 @@
 import { parseArgs } from 'node:util';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { type Expression, Project, type SourceFile, SyntaxKind } from 'ts-morph';
+import {
+  type Expression,
+  Project,
+  type SourceFile,
+  SyntaxKind,
+} from 'ts-morph';
 import {
   inferSchemaSourceA,
   type InferSchemaOptions,
