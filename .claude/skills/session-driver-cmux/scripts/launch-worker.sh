@@ -41,6 +41,7 @@ shift 2
 # Parse optional flags
 BRANCH_REF=""
 BRIEF_FILE=""
+GATED=0
 EXTRA_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -51,6 +52,10 @@ while [ $# -gt 0 ]; do
     --brief)
       BRIEF_FILE="${2:?--brief requires a file path}"
       shift 2
+      ;;
+    --gated)
+      GATED=1
+      shift
       ;;
     *)
       EXTRA_ARGS+=("$1")
@@ -257,7 +262,18 @@ jq -n \
 
 # --- Create cmux workspace ---
 
-APPROVAL_TIMEOUT="${CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT:-30}"
+# Default: ungated (APPROVAL_TIMEOUT=0) so workers auto-allow tool calls
+# immediately (the PreToolUse hook short-circuits after emitting the event) —
+# no 30s/tool-call poll tax and no background auto-approver needed. Pass
+# --gated to enable orchestrator gating (the hook polls for a tool-decision).
+# An explicit CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT env var always wins.
+if [ -n "${CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT:-}" ]; then
+  APPROVAL_TIMEOUT="$CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT"
+elif [ "$GATED" -eq 1 ]; then
+  APPROVAL_TIMEOUT=30
+else
+  APPROVAL_TIMEOUT=0
+fi
 
 # Capture workspace list before creation so we can identify the new one
 BEFORE=$(cmux list-workspaces 2>/dev/null | grep -oE 'workspace:[0-9]+' | sort)

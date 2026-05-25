@@ -184,10 +184,15 @@ to `.claude/cmux-events/<SESSION_ID>/events.jsonl`:
 | `stop`               | `Stop`             | —                      |
 | `session_end`        | `SessionEnd`       | —                      |
 
-The `PreToolUse` hook also blocks the worker for up to
-`CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT` seconds (default: 30) waiting for the
-orchestrator to write a decision to `<events-dir>/<SESSION_ID>/tool-decision`.
-If no decision arrives, the tool call auto-approves.
+The `PreToolUse` hook gates tool calls only when the worker is launched
+`--gated` (`CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT > 0`): it then blocks the
+worker for up to that many seconds waiting for the orchestrator to write a
+decision to `<events-dir>/<SESSION_ID>/tool-decision`, auto-approving if none
+arrives. The **default is ungated** (`APPROVAL_TIMEOUT=0`): the hook still
+emits the `pre_tool_use` event for observability, then allows immediately —
+no per-tool-call poll tax and no background auto-approver needed. An explicit
+`CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT` env var always wins over the
+`--gated` default.
 
 To actively gate tool calls, tail `<events-dir>/<SESSION_ID>/events.jsonl`
 for `pre_tool_use` events and write `allow` or `deny` to the

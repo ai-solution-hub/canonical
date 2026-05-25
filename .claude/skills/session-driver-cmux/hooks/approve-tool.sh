@@ -22,7 +22,7 @@ set -euo pipefail
 # 7. Return the decision (or auto-approve on timeout)
 # 8. Clean up pending/decision files
 
-APPROVAL_TIMEOUT="${CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT:-30}"
+APPROVAL_TIMEOUT="${CLAUDE_SESSION_DRIVER_APPROVAL_TIMEOUT:-0}"
 
 INPUT=$(cat)
 
@@ -50,6 +50,15 @@ mkdir -p "$EVENTS_DIR"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 jq -cn --arg ts "$TIMESTAMP" --arg event "pre_tool_use" --arg tool "$TOOL_NAME" --arg input "$TOOL_INPUT" \
   '{ts: $ts, event: $event, tool: $tool, tool_input: ($input | fromjson)}' >> "$EVENT_FILE"
+
+# Ungated (default, APPROVAL_TIMEOUT<=0): allow immediately. The pre_tool_use
+# event is already emitted above for observability; skip the pending-file write
+# + poll so the worker is never taxed (no 30s/tool-call hook latency, no
+# background auto-approver needed). Launch --gated (APPROVAL_TIMEOUT>0) to gate.
+if [ "$APPROVAL_TIMEOUT" -le 0 ]; then
+  echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+  exit 0
+fi
 
 # Write pending approval request
 jq -cn --arg tool "$TOOL_NAME" --arg input "$TOOL_INPUT" \
