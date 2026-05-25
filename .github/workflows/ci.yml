@@ -962,15 +962,24 @@ jobs:
         with:
           bun-version: "1.3.4"
 
-      - name: Install task-view (tagged release)
-        # OQ-T1: pin task-view by tag. Bump on a new task-view release.
-        run: bun install -g github:liam-jons/task-view@v0.1.0-task-view
+      - name: Install task-view (clone @ tag)
+        # OQ-T1: pin task-view by tag. Bump TASK_VIEW_TAG on a new release.
+        # NB: `bun install -g github:liam-jons/task-view@<tag>` mis-resolves the
+        # specifier (emits api.github.com/repos//<tag>/tarball → 404), so we
+        # clone the public repo at the tag and invoke its bin shim instead.
+        # TASK_VIEW_TAG is a static literal (not external context) — safe in run:.
+        env:
+          TASK_VIEW_TAG: v0.1.0-task-view
+        run: |
+          git clone --depth 1 --branch "$TASK_VIEW_TAG" \
+            https://github.com/liam-jons/task-view.git "$RUNNER_TEMP/task-view"
+          (cd "$RUNNER_TEMP/task-view" && bun install)
 
       - name: Regenerate ledger mirrors (--check)
         run: |
-          task-view --check docs/reference/task-list.json
-          task-view --check docs/reference/product-roadmap.json
-          task-view --check docs/reference/product-backlog.json
+          node "$RUNNER_TEMP/task-view/bin/task-view.js" --check docs/reference/task-list.json
+          node "$RUNNER_TEMP/task-view/bin/task-view.js" --check docs/reference/product-roadmap.json
+          node "$RUNNER_TEMP/task-view/bin/task-view.js" --check docs/reference/product-backlog.json
 
       - name: Fail on mirror drift
         # The committed mirrors must be byte-identical to a fresh regen
