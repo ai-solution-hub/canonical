@@ -31,10 +31,13 @@
  * Downstream Subtasks add:
  *   - 32.9 Source B inference (return-type annotation, optional) — DONE
  *   - 32.10 / 32.11 handler rewrite (single / multi-method) — DONE
- *   - 32.13 idempotency check (`isAlreadyWrapped`) — DONE (this Subtask)
- *   - 32.14 apply mode + format pass
+ *   - 32.13 idempotency check (`isAlreadyWrapped`) — DONE
+ *   - 32.14 apply mode + format pass (`applyAll` / `runFormatPass`) — DONE
+ *     (this Subtask)
  *
- * This module still performs NO file rewrite — only artefact emission to
+ * Under `--apply` the module rewrites + `sf.saveSync()`s the MECHANISABLE /
+ * NEEDS-REVIEW routes, then runs `bun run format` over the modified set; in
+ * dry-run mode it performs NO file rewrite — only artefact emission to
  * `docs/generated/` (or the test-injected `CODEMOD_OUTPUT_DIR` override).
  *
  * Usage:
@@ -43,6 +46,7 @@
  */
 
 import { parseArgs } from 'node:util';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import {
@@ -139,11 +143,11 @@ Override the output directory via the CODEMOD_OUTPUT_DIR environment
 variable; tests redirect emission to a tmpdir().
 
 Status: rewrite emitters (Subtasks 32.10 / 32.11), inference wiring
-(32.8 + 32.9), idempotency (32.13) have all landed. Apply-mode (32.14)
-is the remaining gap — --apply currently prints a notice and runs the
-discovery loop only. The discovery loop captures shape + methods +
-reason + SKIPPED idempotency action; the emitters render whatever
-metadata is present.
+(32.8 + 32.9), idempotency (32.13), and apply-mode (32.14) have all
+landed. With --apply the codemod rewrites + saves the MECHANISABLE /
+NEEDS-REVIEW routes and runs 'bun run format' over the modified set;
+MANUAL (CRON / NAKED_NO_AUTH / MCP) and already-wrapped routes are left
+byte-identical. Both artefacts are still emitted on every run (AC-4).
 `;
 
 // ── CLI argv parsing ──────────────────────────────────────────────────────
@@ -777,6 +781,139 @@ export function buildRouteRecords(routeFiles: readonly SourceFile[]): {
   return { reportEntries, needsManualEntries };
 }
 
+// ── Apply mode (Subtask 32.14) ────────────────────────────────────────────
+
+/**
+ * Options forwarded to `applyAll`'s per-method `inferSchema()` calls. Tests
+ * inject `baseline` / `schemasPath` so Source A/B resolution can be exercised
+ * deterministically; production callers omit it and the chain falls through to
+ * the on-disk `docs/generated/type-drift-baseline.json` (or the `z.unknown()`
+ * + `NEEDS_SCHEMA` fall-back when no source resolves).
+ */
+type ApplyOptions = InferSchemaOptions;
+
+/**
+ * Apply the codemod to disk for every MECHANISABLE (`TRANSFORM`) and
+ * NEEDS-REVIEW route, then persist each modified file via `sf.save()`.
+ *
+ * Disposition mirrors `buildRouteRecords()`: a route is classified, mapped to
+ * a SHAPE-derived action via `shapeToAction()`, then the idempotency overlay
+ * (Subtask 32.13) flips any all-methods-wrapped route to SKIPPED. Only
+ * TRANSFORM + NEEDS_REVIEW routes are rewritten and saved:
+ *
+ *   - MANUAL shapes (`CRON` / `NAKED_NO_AUTH` / `MCP`) are NOT rewritten and
+ *     NOT saved — left byte-identical on disk per PRODUCT §6.1 / AC-2.
+ *   - SKIPPED routes (every exported method already wrapped) are NOT saved —
+ *     left byte-identical per PRODUCT §4 / AC-3 (re-apply is a no-op).
+ *
+ * Rewrite dispatch is by shape per the Subtask 32.14 brief:
+ *   - `MULTI_*` shapes → `rewriteMultiMethod()` (per-method delegation).
+ *   - every other rewritable shape (single-method MECHANISABLE + the
+ *     single-method `+WRC` NEEDS_REVIEW sub-variant) → `rewriteSingleMethod()`
+ *     once per exported method.
+ *
+ * Per-method `ResponseSchema` inference runs via `inferSchema()` (Source B →
+ * Source A → `z.unknown()` fall-back). A route that yields only `z.unknown()`
+ * fall-backs is still rewritten (AC-6 attaches the TODO comment) and still
+ * saved — the apply path does not gate on schema confidence.
+ *
+ * Import ordering: `sf.organizeImports()` is invoked before `sf.save()` per
+ * TECH §8.5 so the freshly-added `defineRoute` import lands in a
+ * Prettier-compatible position; `runFormatPass()` then normalises quoting /
+ * spacing across the saved set.
+ *
+ * Dry-run mode never calls this function — `runScaffold()` only invokes it
+ * when `args.apply === true`. In dry-run the diff preview is computed from the
+ * report entries instead (no `sf.save()`).
+ *
+ * @param routes  The route `SourceFile`s to consider (already enumerated +
+ *                scope-filtered by `enumerateRouteFiles()`).
+ * @param project The owning ts-morph `Project` — required by `inferSchema()`
+ *                for the Source A/B cross-file walks.
+ * @param options Optional inference overrides (test injection).
+ * @returns The absolute paths of the files mutated + saved, in route iteration
+ *          order, for `runFormatPass()` to format. SKIPPED + MANUAL routes are
+ *          omitted.
+ */
+export function applyAll(
+  routes: readonly SourceFile[],
+  project: Project,
+  options?: ApplyOptions,
+): string[] {
+  const modifiedFilePaths: string[] = [];
+
+  for (const sf of routes) {
+    const shape = classifyRoute(sf);
+    const shapeAction = shapeToAction(shape);
+
+    // MANUAL shapes are never rewritten — leave the file untouched on disk.
+    if (shapeAction === 'MANUAL') continue;
+
+    const methods = getExportedMethods(sf);
+    if (methods.length === 0) continue;
+
+    // Idempotency overlay (Subtask 32.13): a route whose EVERY exported method
+    // is already wrapped is a no-op — skip the rewrite + save so re-applying
+    // an already-migrated tree produces zero further file changes (AC-3).
+    const isIdempotentSkip = methods.every((m) => isAlreadyWrapped(sf, m));
+    if (isIdempotentSkip) continue;
+
+    const route = toRepoRelativePosixPath(sf.getFilePath());
+
+    if (shape.startsWith('MULTI_')) {
+      // Multi-method: resolve each method's schema independently, then let
+      // rewriteMultiMethod() delegate per-method to rewriteSingleMethod().
+      const schemas: Record<string, InferSchemaResult> = {};
+      for (const method of methods) {
+        schemas[method] = inferSchema(sf, method, project, options);
+      }
+      rewriteMultiMethod(sf, methods, schemas, route, shape);
+    } else {
+      // Single-method MECHANISABLE shapes + the single-method +WRC NEEDS_REVIEW
+      // sub-variant: rewrite each exported method in place. A genuinely
+      // single-method route has one entry; the loop is defensive against a
+      // shape that exports more than one method without being MULTI_*.
+      for (const method of methods) {
+        const schema = inferSchema(sf, method, project, options);
+        rewriteSingleMethod(sf, method, schema);
+      }
+    }
+
+    // Normalise import ordering before persisting (TECH §8.5) so the
+    // freshly-added `defineRoute` import does not land in a non-Prettier
+    // position; runFormatPass() handles quoting + spacing across the set.
+    sf.organizeImports();
+    sf.saveSync();
+    modifiedFilePaths.push(sf.getFilePath());
+  }
+
+  return modifiedFilePaths;
+}
+
+/**
+ * Run `bun run format` against the modified file set after the apply save
+ * loop completes (TECH §8.5 / AC-9). Prettier normalises the quoting +
+ * spacing of ts-morph's emitted output so the post-apply tree lands lint-clean.
+ *
+ * No-op when `modifiedFilePaths` is empty (a fully-idempotent or all-MANUAL
+ * run produces nothing to format). Returns the spawn status so the caller can
+ * surface a non-zero formatter exit without aborting the run (the files are
+ * already saved; a formatter failure is a quality-of-output issue, not a
+ * correctness one).
+ *
+ * @param modifiedFilePaths Absolute paths returned by `applyAll()`.
+ * @returns The `bun run format` exit status, or `0` when there is nothing to
+ *          format.
+ */
+export function runFormatPass(modifiedFilePaths: readonly string[]): number {
+  if (modifiedFilePaths.length === 0) return 0;
+  const result = spawnSync('bun', ['run', 'format', ...modifiedFilePaths], {
+    encoding: 'utf8',
+    stdio: 'inherit',
+  });
+  return result.status ?? 0;
+}
+
 // ── Output-path resolution ────────────────────────────────────────────────
 
 /**
@@ -837,22 +974,30 @@ export async function runScaffold(
   args: ParsedCliArgs,
   options: { outputDir?: string } = {},
 ): Promise<RunScaffoldResult> {
-  if (args.apply) {
-    // Apply mode is not implemented in the scaffold — emit a notice and
-    // continue with dry-run enumeration so the scaffold's exit-code-0
-    // contract is preserved. Downstream Subtask 32.14 wires real apply
-    // behaviour.
-    console.log(
-      '[scaffold] --apply not yet implemented (Subtask 32.14); running discovery only.',
-    );
-  }
-
   const project = createCodemodProject();
   const routeFiles = enumerateRouteFiles(project, args.scope);
 
   console.log(
     `${routeFiles.length} route(s) discovered${args.scope ? ` (scoped to ${args.scope})` : ''}.`,
   );
+
+  // Apply mode (Subtask 32.14): rewrite + save the MECHANISABLE / NEEDS-REVIEW
+  // routes to disk, then run the format pass over the modified set. The
+  // discovery + artefact emission below still runs on every invocation
+  // (PRODUCT AC-4), so the dry-run report reflects the just-applied tree.
+  // MANUAL + SKIPPED routes are left byte-identical by `applyAll()`.
+  if (args.apply) {
+    const modifiedFilePaths = applyAll(routeFiles, project);
+    console.log(
+      `Applied defineRoute() to ${modifiedFilePaths.length} route file(s).`,
+    );
+    const formatStatus = runFormatPass(modifiedFilePaths);
+    if (formatStatus !== 0) {
+      console.warn(
+        `[wrap-define-route] format pass exited ${formatStatus} — files were saved but may need a manual 'bun run format'.`,
+      );
+    }
+  }
 
   const { reportEntries, needsManualEntries } = buildRouteRecords(routeFiles);
 

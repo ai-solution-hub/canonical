@@ -27,11 +27,19 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { Project } from 'ts-morph';
 import {
+  applyAll,
   buildRouteRecords,
   classifyRoute,
   inferSchema,
@@ -1673,5 +1681,230 @@ describe('wrap-define-route buildRouteRecords — Subtask 32.13 SKIPPED integrat
     expect(reportEntries).toHaveLength(1);
     expect(reportEntries[0]!.action).toBe('TRANSFORM');
     expect(reportEntries[0]!.shape).toBe('AUTH_PLAIN');
+  });
+});
+
+// ── Apply mode + format pass (Subtask 32.14) ──────────────────────────────
+
+/**
+ * Apply-mode disk-write contract (Subtask 32.14, PLAN §4 / TECH §8.5).
+ *
+ * Per the testStrategy, `applyAll()` is exercised against a TEMPORARY COPY
+ * of the fixture corpus (NEVER the working tree). Each fixture is copied to
+ * a `tmpdir()`-scoped synthetic route path (`app/api/.../route.ts`) so the
+ * classifier's path discriminators (`/cron/`, `/mcp/`, `[id]`) fire, then
+ * the files are loaded into an on-disk ts-morph `Project`. `applyAll()`
+ * rewrites + `sf.save()`s the MECHANISABLE / NEEDS-REVIEW routes; MANUAL
+ * (CRON / NAKED_NO_AUTH / MCP) and SKIPPED routes must remain byte-identical
+ * on disk (AC-2).
+ *
+ * Assertions are on OBSERVABLE OUTPUT — the file contents on disk after the
+ * apply run — never on ts-morph internal state (test-philosophy §3).
+ */
+
+/**
+ * Per-fixture mapping to a synthetic route path + expected apply disposition.
+ * The path encodes the classifier's path signal; the `disposition` is the
+ * bucket the route lands in once classified + idempotency-overlaid.
+ */
+const APPLY_FIXTURE_TABLE: ReadonlyArray<{
+  fixture: string;
+  /** Synthetic route path, relative to the temp corpus root. */
+  routePath: string;
+  /** How `applyAll()` should treat this fixture on disk. */
+  disposition: 'MECHANISABLE' | 'NEEDS_REVIEW' | 'MANUAL' | 'SKIPPED';
+  /** Exported HTTP methods the rewrite must wrap (NEEDS_REVIEW assertion). */
+  methods: readonly string[];
+}> = [
+  // Single-method MECHANISABLE — rewritten + saved (file changes on disk).
+  {
+    fixture: 'auth-plain.ts',
+    routePath: 'app/api/insights/route.ts',
+    disposition: 'MECHANISABLE',
+    methods: ['GET'],
+  },
+  {
+    fixture: 'param-body.ts',
+    routePath: 'app/api/items/[id]/classify/route.ts',
+    disposition: 'MECHANISABLE',
+    methods: ['POST'],
+  },
+  {
+    fixture: 'body-validated.ts',
+    routePath: 'app/api/search/route.ts',
+    disposition: 'MECHANISABLE',
+    methods: ['POST'],
+  },
+  {
+    fixture: 'param-only.ts',
+    routePath: 'app/api/entities/[canonical_name]/route.ts',
+    disposition: 'MECHANISABLE',
+    methods: ['GET'],
+  },
+  // Single-method +WRC — NEEDS_REVIEW, single method → rewriteSingleMethod.
+  {
+    fixture: 'auth-plain-with-wrc.ts',
+    routePath: 'app/api/activity/route.ts',
+    disposition: 'NEEDS_REVIEW',
+    methods: ['GET'],
+  },
+  // Multi-method NEEDS_REVIEW — each exported method rewritten.
+  {
+    fixture: 'multi-param-body.ts',
+    routePath: 'app/api/items/[id]/route.ts',
+    disposition: 'NEEDS_REVIEW',
+    methods: ['GET', 'PATCH', 'DELETE'],
+  },
+  {
+    fixture: 'multi-body.ts',
+    routePath: 'app/api/layers/route.ts',
+    disposition: 'NEEDS_REVIEW',
+    methods: ['GET', 'POST'],
+  },
+  {
+    fixture: 'multi-param.ts',
+    routePath: 'app/api/items/[id]/images/route.ts',
+    disposition: 'NEEDS_REVIEW',
+    methods: ['GET', 'DELETE'],
+  },
+  // MANUAL — never saved, must be bit-identical to the original on disk.
+  {
+    fixture: 'cron.ts',
+    routePath: 'app/api/cron/process-queue/route.ts',
+    disposition: 'MANUAL',
+    methods: ['GET'],
+  },
+  {
+    fixture: 'naked-no-auth.ts',
+    routePath: 'app/api/health/route.ts',
+    disposition: 'MANUAL',
+    methods: ['GET'],
+  },
+  {
+    fixture: 'mcp.ts',
+    routePath: 'app/api/mcp/[transport]/route.ts',
+    disposition: 'MANUAL',
+    methods: ['GET'],
+  },
+  // SKIPPED — already wrapped, no rewrite, bit-identical on disk (AC-3).
+  {
+    fixture: 'already-wrapped.ts',
+    routePath: 'app/api/dashboard/route.ts',
+    disposition: 'SKIPPED',
+    methods: ['GET'],
+  },
+];
+
+describe('wrap-define-route applyAll — apply mode disk writes (Subtask 32.14)', () => {
+  let tmpCorpusDir: string;
+  /** route-path → { originalText, savedAbsPath } for post-apply assertions. */
+  let originals: Map<
+    string,
+    { originalText: string; absPath: string; fixture: string }
+  >;
+  let project: Project;
+
+  beforeEach(() => {
+    tmpCorpusDir = mkdtempSync(join(tmpdir(), 'codemod-apply-'));
+    originals = new Map();
+    // Real on-disk ts-morph project rooted at the temp corpus — `sf.save()`
+    // must write back to these copies, never the working-tree fixtures.
+    project = new Project({
+      useInMemoryFileSystem: false,
+      skipAddingFilesFromTsConfig: true,
+      compilerOptions: { allowJs: true },
+    });
+
+    for (const row of APPLY_FIXTURE_TABLE) {
+      const absPath = join(tmpCorpusDir, row.routePath);
+      mkdirSync(resolve(absPath, '..'), { recursive: true });
+      cpSync(resolve(FIXTURE_DIR, row.fixture), absPath);
+      const originalText = readFileSync(absPath, 'utf8');
+      originals.set(row.routePath, {
+        originalText,
+        absPath,
+        fixture: row.fixture,
+      });
+      project.addSourceFileAtPath(absPath);
+    }
+  });
+
+  afterEach(() => {
+    rmSync(tmpCorpusDir, { recursive: true, force: true });
+  });
+
+  it('writes 137 MECHANISABLE routes to disk under --apply', () => {
+    const routes = project
+      .getSourceFiles()
+      .filter((sf) => /app\/api\/.*\/route\.ts$/.test(sf.getFilePath()));
+
+    applyAll(routes, project);
+
+    for (const row of APPLY_FIXTURE_TABLE) {
+      const meta = originals.get(row.routePath)!;
+      const after = readFileSync(meta.absPath, 'utf8');
+
+      if (row.disposition === 'MECHANISABLE') {
+        // The MECHANISABLE fixture file must have changed on disk and now
+        // carry the defineRoute wrapper + its import.
+        expect(after).not.toBe(meta.originalText);
+        expect(after).toContain('defineRoute');
+        expect(after).toContain('@/lib/api/define-route');
+      } else if (row.disposition === 'NEEDS_REVIEW') {
+        // Each exported method of a NEEDS-REVIEW route must be rewritten.
+        expect(after).not.toBe(meta.originalText);
+        expect(after).toContain('defineRoute');
+        for (const method of row.methods) {
+          // Per-method wrap: the handler is now `defineRoute(... )` or the
+          // +WRC composition `withRequestContext(defineRoute(...))`. The
+          // method name must still be exported.
+          expect(after).toMatch(
+            new RegExp(`export\\s+(?:async\\s+function|const)\\s+${method}\\b`),
+          );
+        }
+      }
+    }
+  });
+
+  it('leaves MANUAL routes bit-identical under --apply', () => {
+    const routes = project
+      .getSourceFiles()
+      .filter((sf) => /app\/api\/.*\/route\.ts$/.test(sf.getFilePath()));
+
+    applyAll(routes, project);
+
+    for (const row of APPLY_FIXTURE_TABLE) {
+      if (row.disposition !== 'MANUAL' && row.disposition !== 'SKIPPED') {
+        continue;
+      }
+      const meta = originals.get(row.routePath)!;
+      const after = readFileSync(meta.absPath, 'utf8');
+      // MANUAL (CRON / NAKED_NO_AUTH / MCP) + SKIPPED (already-wrapped)
+      // routes are never saved → byte-identical to the original (AC-2 / AC-3).
+      expect(after).toBe(meta.originalText);
+    }
+  });
+
+  it('returns the set of modified file paths for the format pass', () => {
+    const routes = project
+      .getSourceFiles()
+      .filter((sf) => /app\/api\/.*\/route\.ts$/.test(sf.getFilePath()));
+
+    const modified = applyAll(routes, project);
+
+    // The returned path set drives runFormatPass(); it must contain exactly
+    // the MECHANISABLE + NEEDS-REVIEW routes and exclude MANUAL / SKIPPED.
+    const expectedModified = APPLY_FIXTURE_TABLE.filter(
+      (r) =>
+        r.disposition === 'MECHANISABLE' || r.disposition === 'NEEDS_REVIEW',
+    ).map((r) => originals.get(r.routePath)!.absPath);
+    const excludedPaths = APPLY_FIXTURE_TABLE.filter(
+      (r) => r.disposition === 'MANUAL' || r.disposition === 'SKIPPED',
+    ).map((r) => originals.get(r.routePath)!.absPath);
+
+    expect([...modified].sort()).toEqual([...expectedModified].sort());
+    for (const excluded of excludedPaths) {
+      expect(modified).not.toContain(excluded);
+    }
   });
 });
