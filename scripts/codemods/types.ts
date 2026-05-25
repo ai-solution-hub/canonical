@@ -54,6 +54,14 @@ export type RouteShape =
   | 'CRON'
   | 'NAKED_NO_AUTH'
   | 'MCP'
+  // Unknown outer wrapper (MANUAL) — an `export const METHOD = <Call>(...)`
+  // whose outer callee is neither `withRequestContext` (the recognised +WRC
+  // wrapper) nor `defineRoute` (the codemod's own output). The codemod cannot
+  // safely transform a wrapper it does not understand (e.g.
+  // `withRequestContextBare`), so the route is skipped + flagged for manual
+  // migration. Added by the S262 fix B1 — see route-shape-inventory.md and the
+  // `UNKNOWN_WRAPPER` reason below.
+  | 'UNKNOWN_WRAPPER'
   // withRequestContext sub-variants (NEEDS-REVIEW per PRODUCT §6.2)
   | 'AUTH_PLAIN+WRC'
   | 'PARAM_BODY+WRC'
@@ -86,4 +94,13 @@ export type NeedsManualReason =
   | 'MCP_TRANSPORT'
   | 'MULTI_METHOD_SCHEMA'
   | 'WRC_COMPOSITION'
-  | 'NEEDS_SCHEMA';
+  | 'NEEDS_SCHEMA'
+  // The route wraps its handler in an outer call the codemod does not
+  // recognise (e.g. `withRequestContextBare`) — it is skipped during apply and
+  // flagged for manual migration (S262 fix B1).
+  | 'UNKNOWN_WRAPPER'
+  // A per-route rewrite threw during `--apply` and was absorbed by the apply
+  // loop so the run could continue. The route is recorded here for manual
+  // follow-up rather than aborting the entire apply (S262 fix B1,
+  // defense-in-depth).
+  | 'APPLY_ERROR';

@@ -1,12 +1,12 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md §6.",
-  "capturedAt": "2026-05-20",
-  "capturedFromCommit": "a2c5ccf8 (chore/outstanding-cleanup-investigation, post-prod-readiness merge S57) — types 34→78 (+44): 34 are deliberate ast-dataflow public-API surface re-exported from lib/ast-dataflow/index.ts per HANDOVER.md §10 (BaseResult, CallSiteResult, the *Args set, etc.); the remaining ~10 from Zod schema work in lib/validation/*-schema.ts (S52 WP3) where exported types are not consumed outside the file. exports 52→60 (+8): public surfaces added by S245 WP2A intelligence work (lib/intelligence/workspace-context.ts) plus same Zod-schema work. unlisted 2→3 (+1): @tiptap/core in __tests__/components/item-detail/content-editor.test.tsx. All wired end-to-end; knip flags because consumers reach for concrete query functions / Zod parsers rather than the public type surface. Previously: capturedAt 2026-05-14 (S237 WP6 D1, commit a258d144) — exports 47→52.",
+  "capturedAt": "2026-05-25",
+  "capturedFromCommit": "S263 (id32 integration, 2nd consolidation) — exports 60→94 (+34): 37 R-WP17 response-schema constants authored in lib/validation/schemas.ts by ID-32.20 (OPS-T1 codemod); they are intentional API-response schemas awaiting --apply route wiring (deferred to a post-merge ID-32 subtask), so currently unconsumed by app runtime and flagged by knip. types 78→73 (-5): backlog-schema BacklogStatus re-export dedup + lib/ast-dataflow excluded from build tsconfig. Previously: a2c5ccf8 (chore/outstanding-cleanup-investigation, post-prod-readiness merge S57) — types 34→78 (+44): 34 are deliberate ast-dataflow public-API surface re-exported from lib/ast-dataflow/index.ts per HANDOVER.md §10 (BaseResult, CallSiteResult, the *Args set, etc.); the remaining ~10 from Zod schema work in lib/validation/*-schema.ts (S52 WP3) where exported types are not consumed outside the file. exports 52→60 (+8): public surfaces added by S245 WP2A intelligence work (lib/intelligence/workspace-context.ts) plus same Zod-schema work. unlisted 2→3 (+1): @tiptap/core in __tests__/components/item-detail/content-editor.test.tsx. All wired end-to-end; knip flags because consumers reach for concrete query functions / Zod parsers rather than the public type surface. Previously: capturedAt 2026-05-14 (S237 WP6 D1, commit a258d144) — exports 47→52.",
   "counts": {
     "dependencies": 3,
     "devDependencies": 0,
-    "exports": 60,
-    "types": 78,
+    "exports": 94,
+    "types": 73,
     "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,

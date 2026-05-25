@@ -88,6 +88,10 @@ export function reasonForShape(shape: RouteShape): NeedsManualReason | null {
   if (shape === 'CRON') return 'CRON_AUTH_MODEL';
   if (shape === 'NAKED_NO_AUTH') return 'NAKED_NO_AUTH';
   if (shape === 'MCP') return 'MCP_TRANSPORT';
+  // Unknown outer wrapper (S262 fix B1) — the codemod cannot safely transform
+  // an `export const METHOD = <unrecognisedCall>(...)` outer wrapper, so the
+  // route is skipped during apply and flagged for manual migration.
+  if (shape === 'UNKNOWN_WRAPPER') return 'UNKNOWN_WRAPPER';
   // Multi-method shapes (PRODUCT §6.2) — both with and without +WRC carry the
   // same reason because the multi-method concern dominates.
   if (shape.startsWith('MULTI_')) return 'MULTI_METHOD_SCHEMA';

@@ -88,6 +88,37 @@ const NEEDS_SCHEMA_TODO_COMMENT = '// TODO(OPS-T1): author ResponseSchema';
  */
 const DEFINE_ROUTE_NAMED_IMPORT = 'defineRoute';
 
+/**
+ * Module specifier for the Zod runtime. The emitted `defineRoute(...)`
+ * argument expression references `z` whenever the inferred schema is the
+ * `z.unknown()` fall-back or a `z.array(<Schema>)` wrapper (Source A's
+ * `schemaExpression`). Without this import the rewritten route throws
+ * `ReferenceError: z is not defined` at module load (S262 fix B3).
+ */
+const ZOD_MODULE_SPECIFIER = 'zod';
+
+/** The single named import pulled from `zod` — the `z` namespace object. */
+const ZOD_NAMED_IMPORT = 'z';
+
+/**
+ * Module specifier for the response-schema registry. Every bound
+ * `${Interface}Schema` identifier emitted into a `defineRoute(...)` call is
+ * declared here (`lib/validation/schemas.ts`). Without the import the
+ * rewritten route throws `ReferenceError: <Schema> is not defined` at
+ * module load (S262 fix B3).
+ */
+const SCHEMAS_MODULE_SPECIFIER = '@/lib/validation/schemas';
+
+/**
+ * Matches the response-schema identifiers Source A emits into the
+ * `defineRoute(<schemaExpr>, …)` argument — PascalCase tokens ending in
+ * `Schema` (e.g. `PipelineRunsRecentResponseSchema`, or the inner
+ * `CompanyProfileSchema` of a `z.array(CompanyProfileSchema)` expression).
+ * `\b` word boundaries keep the match from straddling adjacent tokens; the
+ * leading `[A-Z]` excludes the lower-case `z` namespace.
+ */
+const SCHEMA_IDENTIFIER_RE = /\b[A-Z]\w*Schema\b/g;
+
 // ── Public entry point ─────────────────────────────────────────────────────
 
 /**
@@ -124,6 +155,16 @@ export function rewriteSingleMethod(
   // that already has the import is a no-op (the same guard covers Subtask
   // 32.13's idempotency contract for re-applies).
   ensureDefineRouteImport(sf);
+
+  // Step A (cont.) — idempotently add EVERY import the emitted
+  // `defineRoute(<schemaExpr>, …)` argument references (S262 fix B3). Without
+  // this the rewriter emits `defineRoute(z.unknown(), …)` /
+  // `defineRoute(PipelineRunsRecentResponseSchema, …)` against files that
+  // never imported `z` / the schema constant, throwing `ReferenceError` at
+  // module load. Runs BEFORE the function/variable replace so the inserted
+  // imports survive any `replaceWithText` on the export statement, and BOTH
+  // the FunctionDeclaration and +WRC VariableStatement forms inherit it.
+  ensureSchemaExpressionImports(sf, schema.schema);
 
   // Step B — locate the exported handler. Two AST forms are recognised:
   //   (1) FunctionDeclaration — `export async function METHOD(...)`
@@ -172,6 +213,88 @@ function ensureDefineRouteImport(sf: SourceFile): void {
     moduleSpecifier: DEFINE_ROUTE_MODULE_SPECIFIER,
     namedImports: [DEFINE_ROUTE_NAMED_IMPORT],
   });
+}
+
+/**
+ * Ensure every identifier the emitted `defineRoute(<schemaExpr>, …)`
+ * argument references is imported (S262 fix B3). Idempotent, mirroring
+ * `ensureDefineRouteImport`'s existence-guard contract:
+ *
+ *   - If `<schemaExpr>` uses the `z.` namespace (e.g. `z.unknown()`,
+ *     `z.array(CompanyProfileSchema)`) → ensure `import { z } from 'zod'`.
+ *   - For each `${Interface}Schema` token in `<schemaExpr>` (the bare
+ *     `XSchema` happy path AND the inner `XSchema` of `z.array(XSchema)`) →
+ *     ensure a named specifier on the `@/lib/validation/schemas` import,
+ *     merging into an existing import declaration when one is present rather
+ *     than emitting a duplicate.
+ *
+ * Ordering / unrelated imports are left untouched — Subtask 32.14's format
+ * pass + `organizeImports` normalises the final ordering. This helper only
+ * guarantees presence, never position.
+ */
+function ensureSchemaExpressionImports(
+  sf: SourceFile,
+  schemaExpr: string,
+): void {
+  if (referencesZodNamespace(schemaExpr)) {
+    ensureNamedImport(sf, ZOD_MODULE_SPECIFIER, ZOD_NAMED_IMPORT);
+  }
+
+  for (const schemaIdentifier of extractSchemaIdentifiers(schemaExpr)) {
+    ensureNamedImport(sf, SCHEMAS_MODULE_SPECIFIER, schemaIdentifier);
+  }
+}
+
+/**
+ * `true` when the schema expression uses the `z` namespace — matched on a
+ * `z.` member-access token at a word boundary so it fires for `z.unknown()`
+ * and `z.array(...)` but not for a hypothetical `Fooz.bar` identifier.
+ */
+function referencesZodNamespace(schemaExpr: string): boolean {
+  return /\bz\./.test(schemaExpr);
+}
+
+/**
+ * Extract the de-duplicated set of `${Interface}Schema` identifiers a schema
+ * expression references, in first-seen order. Handles the bare `XSchema`
+ * happy path and the nested `z.array(XSchema)` case (which yields `XSchema`
+ * here and `z` via `referencesZodNamespace`).
+ */
+function extractSchemaIdentifiers(schemaExpr: string): string[] {
+  const matches = schemaExpr.match(SCHEMA_IDENTIFIER_RE) ?? [];
+  return [...new Set(matches)];
+}
+
+/**
+ * Idempotently ensure `import { <namedImport> } from '<moduleSpecifier>'` is
+ * present. If an import declaration for the module already exists, the named
+ * specifier is appended to it only when absent (no duplicate specifiers, no
+ * clobbering of sibling specifiers). If no such declaration exists, a new one
+ * is added. Mirrors `ensureDefineRouteImport`'s existence-guard semantics.
+ */
+function ensureNamedImport(
+  sf: SourceFile,
+  moduleSpecifier: string,
+  namedImport: string,
+): void {
+  const existing = sf.getImportDeclaration(
+    (decl) => decl.getModuleSpecifierValue() === moduleSpecifier,
+  );
+
+  if (!existing) {
+    sf.addImportDeclaration({
+      moduleSpecifier,
+      namedImports: [namedImport],
+    });
+    return;
+  }
+
+  const alreadyNamed = existing
+    .getNamedImports()
+    .some((spec) => spec.getName() === namedImport);
+  if (alreadyNamed) return;
+
+  existing.addNamedImport(namedImport);
 }
 
 // ── Step B — FunctionDeclaration form ─────────────────────────────────────

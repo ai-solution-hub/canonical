@@ -70,8 +70,13 @@ export interface InferSchemaOptions {
   /** Pre-loaded baseline entries. If omitted, loaded from
    *  `docs/generated/type-drift-baseline.json` via `loadBaseline()`. */
   baseline?: BaselineEntry[];
-  /** Path (POSIX) to the fetcher source file inside `project`. Defaults to
-   *  the conventional location. */
+  /**
+   * Retained for back-compat with pre-32.21 callers. The fetcher walk is now
+   * driven by a path-pattern file-set (`hooks/**`, `components/**`,
+   * `lib/query/**` — see `collectFetcherCalls`) rather than a single injected
+   * file, so this value is NO LONGER consulted. Left on the type so existing
+   * call sites that pass it keep compiling.
+   */
   fetchersPath?: string;
   /** Path (POSIX) to the schemas registry inside `project`. Defaults to
    *  the conventional location. */
@@ -80,10 +85,15 @@ export interface InferSchemaOptions {
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-/** Canonical schemas-registry path inside the ts-morph project. */
-const DEFAULT_SCHEMAS_PATH = '/repo/lib/validation/schemas.ts';
-/** Canonical fetcher source path inside the ts-morph project. */
-const DEFAULT_FETCHERS_PATH = '/repo/lib/query/fetchers.ts';
+/**
+ * Conventional repo-relative suffix of the schemas registry. Used to locate
+ * the file inside the ts-morph project when no `schemasPath` is injected —
+ * see `resolveLookupPath`. NOT a literal absolute path: the in-memory test
+ * harness mounts the file at `/repo/lib/validation/schemas.ts` while the real
+ * disk-loaded project mounts it at `<projectRoot>/lib/validation/schemas.ts`,
+ * and both end with this suffix.
+ */
+const SCHEMAS_PATH_SUFFIX = 'lib/validation/schemas.ts';
 /** Default on-disk baseline location, repo-relative. */
 const DEFAULT_BASELINE_PATH = 'docs/generated/type-drift-baseline.json';
 
@@ -113,6 +123,37 @@ export function loadBaseline(path = DEFAULT_BASELINE_PATH): BaselineEntry[] {
   return parsed as BaselineEntry[];
 }
 
+// ── Project-relative lookup-path resolution ───────────────────────────────
+
+/**
+ * Resolve the in-project path of a lookup file (schemas registry / fetcher
+ * source) for the NO-OPTIONS (production) default path.
+ *
+ * Why not a literal default: a disk-loaded ts-morph `Project`
+ * (`createCodemodProject()`) reports file paths anchored on the real project
+ * root (e.g. `/Users/.../knowledge-hub/lib/validation/schemas.ts`), while the
+ * in-memory test harness mounts the same file at `/repo/lib/validation/schemas.ts`.
+ * A single literal default cannot satisfy both. Instead we find the source
+ * file whose POSIX path ENDS WITH the conventional repo-relative suffix —
+ * which is unambiguous in both project styles (only one such file exists per
+ * suffix in the corpus).
+ *
+ * `getSourceFile` accepts a predicate, so we match on the path suffix and
+ * return the file's actual in-project path. Returns `null` when the file is
+ * absent (the caller's `getSourceFile(path)` then yields no source file and
+ * the lookup degrades gracefully to the `z.unknown()` fall-back).
+ *
+ * Callers that DO inject an explicit `schemasPath` (the in-memory 32.8 /
+ * 32.20 harnesses and any production caller that wants to pin the path)
+ * bypass this helper entirely — see `inferSchemaSourceA`.
+ */
+function resolveLookupPath(project: Project, suffix: string): string | null {
+  const match = project.getSourceFile((sf) =>
+    sf.getFilePath().replace(/\\/g, '/').endsWith(`/${suffix}`),
+  );
+  return match ? match.getFilePath() : null;
+}
+
 // ── Route-path ⇄ URL mapping ──────────────────────────────────────────────
 
 /**
@@ -130,10 +171,19 @@ export function loadBaseline(path = DEFAULT_BASELINE_PATH): BaselineEntry[] {
  */
 export function routePathToCandidateUrl(routeRelPath: string): string {
   const posix = routeRelPath.replace(/\\/g, '/');
-  // Strip leading `/repo/` prefix used by in-memory test projects, then any
-  // remaining leading slash, then strip the trailing `/route.ts`.
+  // Anchor the derivation on the FIRST `/app/` boundary so both path styles
+  // collapse to the same `api/...` tail:
+  //   - in-memory test projects   `/repo/app/api/review/queue/route.ts`
+  //   - real absolute on-disk     `/Users/.../knowledge-hub/app/api/review/queue/route.ts`
+  // both yield `api/review/queue`. The non-greedy `^.*?\/app\/` consumes
+  // everything up to and including the first `/app/` segment; the trailing
+  // `/route.ts` is then stripped. Dynamic Next.js segments (`[id]`,
+  // `[...slug]`, `[[...catchAll]]`) are left untouched so the matcher can still
+  // wildcard-compare them, preserving the round-trip contract with
+  // `urlToRoutePath` documented above. A path with no `/app/` boundary falls
+  // back to the bare trailing-`/route.ts` strip plus leading-slash trim.
   const trimmed = posix
-    .replace(/^\/repo\//, '')
+    .replace(/^.*?\/app\//, '')
     .replace(/^app\//, '')
     .replace(/\/route\.ts$/, '');
   return `/${trimmed}`;
@@ -152,9 +202,8 @@ export function routeUrlMatches(
   candidateRouteUrl: string,
   fetcherUrl: string,
 ): boolean {
-  const normalise = (u: string) => u.replace(/[?#].*$/, '').replace(/\/$/, '');
-  const route = normalise(candidateRouteUrl);
-  const fetcher = normalise(fetcherUrl);
+  const route = normaliseUrl(candidateRouteUrl);
+  const fetcher = normaliseUrl(fetcherUrl);
   const routeParts = route.split('/');
   const fetcherParts = fetcher.split('/');
   if (routeParts.length !== fetcherParts.length) return false;
@@ -162,80 +211,340 @@ export function routeUrlMatches(
     const fp = fetcherParts[i];
     if (rp === undefined || fp === undefined) return false;
     // Route side: a Next.js dynamic segment is a wildcard.
-    if (rp.startsWith('[') && rp.endsWith(']')) return true;
+    if (isRouteWildcard(rp)) return true;
     // Fetcher side: a template-literal substitution prefix is a wildcard.
-    if (fp.includes('${')) return true;
+    if (isFetcherWildcard(fp)) return true;
     return rp === fp;
   });
+}
+
+/** Strip query/hash and a trailing slash so segment counts align. */
+function normaliseUrl(u: string): string {
+  return u.replace(/[?#].*$/, '').replace(/\/$/, '');
+}
+
+/** A Next.js dynamic route segment (`[id]`, `[...slug]`, `[[...c]]`). */
+function isRouteWildcard(segment: string): boolean {
+  return segment.startsWith('[') && segment.endsWith(']');
+}
+
+/** A fetcher URL segment carrying a template-literal substitution. */
+function isFetcherWildcard(segment: string): boolean {
+  return segment.includes('${');
+}
+
+/**
+ * Specificity score for a (route, fetcher) segment alignment — higher is a
+ * more confident match. Used to break ties when the broadened walk surfaces
+ * more than one baseline fetcher URL matching the same route (Subtask 32.21).
+ *
+ * Per the dispatch brief: on a tie between a literal-segment match and a
+ * wildcard match, PREFER the literal-segment route. The score encodes that
+ * preference transitively across all segments:
+ *   - literal == literal      → +2  (strongest: both sides concrete + equal)
+ *   - route `[x]` ↔ fetcher `${}`  → +1  (aligned wildcard — same dynamic slot)
+ *   - route literal ↔ fetcher `${}` → +1  (fetcher fills a concrete route seg)
+ *   - route `[x]` ↔ fetcher literal → 0   (route wildcard merely ABSORBS a
+ *                                          sibling literal fetcher — weakest;
+ *                                          this is how `/content-dedup/[id]`
+ *                                          spuriously matches the `/queue`
+ *                                          and `/near-duplicates` fetchers)
+ *
+ * A non-matching concrete-vs-concrete pair returns `NO_MATCH` (the caller
+ * only scores pairs that already passed `routeUrlMatches`, so this guards
+ * against a logic drift between the two functions).
+ */
+const NO_MATCH = Number.NEGATIVE_INFINITY;
+function matchSpecificity(
+  candidateRouteUrl: string,
+  fetcherUrl: string,
+): number {
+  const routeParts = normaliseUrl(candidateRouteUrl).split('/');
+  const fetcherParts = normaliseUrl(fetcherUrl).split('/');
+  if (routeParts.length !== fetcherParts.length) return NO_MATCH;
+
+  let score = 0;
+  for (let i = 0; i < routeParts.length; i += 1) {
+    const rp = routeParts[i] ?? '';
+    const fp = fetcherParts[i] ?? '';
+    const rWild = isRouteWildcard(rp);
+    const fWild = isFetcherWildcard(fp);
+    if (!rWild && !fWild) {
+      if (rp !== fp) return NO_MATCH;
+      score += 2;
+    } else if (rWild && fWild) {
+      score += 1; // aligned wildcard
+    } else if (rWild && !fWild) {
+      score += 0; // route wildcard absorbs a concrete fetcher literal (weak)
+    } else {
+      score += 1; // fetcher wildcard fills a concrete route segment
+    }
+  }
+  return score;
+}
+
+// ── Schema-expression shaping ─────────────────────────────────────────────
+
+/**
+ * Build the schema EXPRESSION a matched fetcher call binds to. A scalar
+ * `fetchJson<X>` yields the bare `XSchema` identifier; an array
+ * `fetchJson<X[]>` yields `z.array(XSchema)` so the rewriter emits
+ * `defineRoute(z.array(XSchema), handler)`. `InferSchemaResult.schema` is an
+ * expression string, so both forms are valid verbatim.
+ */
+function schemaExpression(schemaConstant: string, isArray: boolean): string {
+  return isArray ? `z.array(${schemaConstant})` : schemaConstant;
 }
 
 // ── Fetcher-corpus walk ──────────────────────────────────────────────────
 
 /**
- * Walk the fetcher source file in `project` and collect every
- * `fetchJson<T>(url)` call site as a `{ typeArg, url }` pair.
+ * The fetch KIND a harvested call site represents (Subtask 32.22).
  *
- * The walk is intentionally narrow: only the conventional fetchers
- * registry (`lib/query/fetchers.ts`) is inspected. Per CLAUDE.md "Data
- * fetching", TanStack Query keys + fetchers live there exclusively, so any
- * baseline interface that maps to a route has at least one call site in
- * that file. Tests inject a synthetic fetcher at the same path.
+ * - `read`  — `fetchJson<T>(url)`, the GET-style read helper. Bound when the
+ *             route is being inferred for a `GET`/`HEAD` method.
+ * - `write` — `mutationFetchJson<T>(url, body, …)`, the POST/PATCH/etc helper
+ *             from `lib/query/fetchers.ts`. Bound when the route is being
+ *             inferred for a `POST`/`PUT`/`PATCH`/`DELETE` method.
  *
- * Static URLs (string literals + no-substitute template literals) and
- * template-prefix URLs (the static portion before the first `${`) are
- * both extracted; computed/identifier URLs are skipped (the matcher has
- * nothing to bind against).
+ * The KIND is the discriminator that makes binding HTTP-method-aware: a route
+ * may export BOTH a GET (`fetchJson<GetT>`) and a write method
+ * (`mutationFetchJson<PostT>`) at the same URL, and they must bind DIFFERENT
+ * schemas per method (see `inferSchemaSourceA`).
  */
-function collectFetcherCalls(
-  project: Project,
-  fetchersPath: string,
-): ReadonlyArray<{ typeArg: string; url: string }> {
-  const fetcherSf = project.getSourceFile(fetchersPath);
-  if (!fetcherSf) return [];
+type FetchKind = 'read' | 'write';
 
-  const calls: { typeArg: string; url: string }[] = [];
-  const callExprs = fetcherSf.getDescendantsOfKind(SyntaxKind.CallExpression);
+/**
+ * One `fetchJson<T>(url)` / `mutationFetchJson<T>(url, …)` call site harvested
+ * from the corpus walk.
+ *
+ * `typeArg` is the BARE baseline-candidate interface name — the trailing
+ * `[]` / `Array<…>` wrapper (if any) is stripped and recorded separately
+ * in `isArray`. `isArray` drives the schema-expression shape at bind time:
+ * a `fetchJson<X[]>` site infers `z.array(XSchema)`, a scalar `fetchJson<X>`
+ * infers the bare `XSchema`.
+ */
+interface FetcherCall {
+  /** Bare interface name (array/readonly wrappers stripped). */
+  typeArg: string;
+  /** `true` when the type arg was `X[]` / `readonly X[]` / `Array<X>`. */
+  isArray: boolean;
+  /**
+   * The URL path the fetch targets. String/no-substitution literals yield
+   * their literal value; template literals retain `${…}` PATH substitutions
+   * verbatim (treated as wildcards by `routeUrlMatches`) but drop any query
+   * string — see `extractFetchUrl`.
+   */
+  url: string;
+  /**
+   * Whether this is a read (`fetchJson`) or write (`mutationFetchJson`) call.
+   * Drives method-aware filtering in `inferSchemaSourceA` (Subtask 32.22).
+   */
+  kind: FetchKind;
+}
 
-  for (const callExpr of callExprs) {
-    const expr = callExpr.getExpression();
-    // Match `fetchJson<T>(url)` — identifier name `fetchJson`.
-    if (expr.getKind() !== SyntaxKind.Identifier) continue;
-    if (expr.getText() !== 'fetchJson') continue;
+/**
+ * The broad file-set the corpus walk scans for `fetchJson<T>(url)` sites
+ * (Subtask 32.21). The original Source-A walk inspected ONLY the central
+ * `lib/query/fetchers.ts`; the ~30 still-unbound baseline interfaces are
+ * fetched via `fetchJson<T>(url)` INSIDE hooks/components (e.g.
+ * `hooks/intelligence/use-company-profiles.ts`), so the narrow walk never
+ * reached them. We broaden to the three file-classes that carry static-URL
+ * `fetchJson` reads:
+ *   - `hooks/**\/*.ts(x)`      — the dominant location for hook-fetched reads.
+ *   - `components/**\/*.tsx`   — a handful of components fetch inline.
+ *   - `lib/query/**\/*.ts`     — the original `fetchers.ts` registry (kept).
+ *
+ * Tests / `__tests__` files are excluded so synthetic fetch fixtures never
+ * leak into the production bind set. The in-memory 32.8 / 32.20 harness
+ * mounts its synthetic fetcher at `lib/query/fetchers.ts`, which this
+ * predicate still matches — so the broadening is backward-compatible.
+ */
+function isFetchWalkFile(sf: SourceFile): boolean {
+  const p = sf.getFilePath().replace(/\\/g, '/');
+  if (p.includes('/node_modules/')) return false;
+  if (p.includes('/__tests__/')) return false;
+  return (
+    /\/hooks\/[^?]*\.tsx?$/.test(p) ||
+    /\/components\/[^?]*\.tsx$/.test(p) ||
+    /\/lib\/query\/[^?]*\.ts$/.test(p)
+  );
+}
 
-    const typeArgs = callExpr.getTypeArguments();
-    if (typeArgs.length === 0) continue;
+/**
+ * Extract the bind-relevant URL path from a `fetchJson` first argument.
+ *
+ * - `StringLiteral` / `NoSubstitutionTemplateLiteral` → the literal value.
+ * - `TemplateExpression` → the path portion of the template, preserving
+ *   PATH-position `${…}` substitutions (wildcards for `routeUrlMatches`) but
+ *   cutting at the query string. The query boundary is the FIRST of either a
+ *   literal `?` OR a `${…}` group whose contents include `?` — the latter
+ *   covers the `…${qs ? `?${qs}` : ''}` query-suffix idiom used throughout
+ *   `lib/query/fetchers.ts`. Without that cut the query-suffix `${…}` would
+ *   be misread as a path wildcard, collapsing a literal segment
+ *   (`/content-dedup/queue${…}`) into a spurious wildcard that collides with
+ *   sibling routes (the `[id]`-vs-`/queue` collision the B2 work surfaced).
+ * - Anything else (computed/identifier URL) → `null` (nothing to bind).
+ *
+ * Returns `null` when no usable path can be derived.
+ */
+function extractFetchUrl(firstArg: {
+  getKind(): SyntaxKind;
+  getText(): string;
+  getLiteralValue?: () => string;
+}): string | null {
+  const argKind = firstArg.getKind();
+  if (
+    argKind === SyntaxKind.StringLiteral ||
+    argKind === SyntaxKind.NoSubstitutionTemplateLiteral
+  ) {
+    return (
+      firstArg as unknown as { getLiteralValue(): string }
+    ).getLiteralValue();
+  }
+  if (argKind !== SyntaxKind.TemplateExpression) return null;
 
-    // Type-arg may be the bare interface name (`fetchJson<X>`) or an
-    // array of it (`fetchJson<X[]>`). Strip the trailing `[]` so the
-    // baseline lookup uses the bare name.
-    const rawTypeArg = typeArgs[0]?.getText() ?? '';
-    const typeArg = rawTypeArg.replace(/\[\]$/, '');
-    if (!typeArg) continue;
+  const text = firstArg.getText();
+  if (!text.startsWith('`') || !text.endsWith('`')) return null;
+  const body = text.slice(1, -1);
 
-    const args = callExpr.getArguments();
-    const firstArg = args[0];
-    if (!firstArg) continue;
-
-    let url: string | null = null;
-    const argKind = firstArg.getKind();
-    if (argKind === SyntaxKind.StringLiteral) {
-      url = (
-        firstArg as unknown as { getLiteralValue(): string }
-      ).getLiteralValue();
-    } else if (argKind === SyntaxKind.NoSubstitutionTemplateLiteral) {
-      url = (
-        firstArg as unknown as { getLiteralValue(): string }
-      ).getLiteralValue();
-    } else if (argKind === SyntaxKind.TemplateExpression) {
-      // Extract the static prefix up to the first `${`.
-      const text = firstArg.getText();
-      const prefixMatch = text.match(/^`([^$`]*)/);
-      url = prefixMatch ? (prefixMatch[1] ?? null) : null;
+  let out = '';
+  let i = 0;
+  while (i < body.length) {
+    const ch = body[i];
+    if (ch === '?') break; // literal query-string boundary
+    if (ch === '$' && body[i + 1] === '{') {
+      // Capture the `${…}` group with brace-depth tracking (handles the
+      // nested template in `${qs ? `?${qs}` : ''}`).
+      let depth = 0;
+      let group = '';
+      let j = i;
+      for (; j < body.length; j += 1) {
+        const c = body[j] ?? '';
+        group += c;
+        if (c === '{') depth += 1;
+        else if (c === '}') {
+          depth -= 1;
+          if (depth === 0) {
+            j += 1;
+            break;
+          }
+        }
+      }
+      if (group.includes('?')) break; // query-suffix template — drop the rest
+      out += group; // genuine path-position wildcard — keep verbatim
+      i = j;
+      continue;
     }
-    if (!url) continue;
-    calls.push({ typeArg, url });
+    out += ch;
+    i += 1;
+  }
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * Split a `fetchJson<…>` type-argument into its bare interface name and an
+ * `isArray` flag, recognising the three array forms the corpus uses:
+ * `X[]`, `readonly X[]`, and `Array<X>`. Returns `null` for an empty arg.
+ */
+function parseTypeArg(
+  rawTypeArg: string,
+): { name: string; isArray: boolean } | null {
+  const trimmed = rawTypeArg.trim();
+  if (!trimmed) return null;
+
+  const suffixMatch = trimmed.match(/^(?:readonly\s+)?(.+?)\[\]$/);
+  if (suffixMatch?.[1]) {
+    return { name: suffixMatch[1].trim(), isArray: true };
+  }
+  const genericMatch = trimmed.match(/^(?:readonly\s+)?Array<(.+)>$/);
+  if (genericMatch?.[1]) {
+    return { name: genericMatch[1].trim(), isArray: true };
+  }
+  return { name: trimmed, isArray: false };
+}
+
+/**
+ * Per-project memoisation of the broad fetcher walk. The walk result is
+ * invariant for a given `Project` (it depends only on the project's source
+ * files, not on the route being inferred), but `inferSchemaSourceA` runs once
+ * per route — re-walking the entire `hooks/**` + `components/**` +
+ * `lib/query/**` file-set for each of ~195 routes is O(routes × files) and
+ * dominates runtime. Caching keyed on the `Project` identity collapses it to a
+ * single walk. A `WeakMap` lets the cache entry be reclaimed when the project
+ * is GC'd, so long-lived test runs that build many in-memory projects do not
+ * leak.
+ */
+const fetcherCallCache = new WeakMap<Project, readonly FetcherCall[]>();
+
+/**
+ * Maps a fetch-helper identifier to its `FetchKind`. Both helpers live in
+ * `lib/query/fetchers.ts` and take the target URL as their FIRST argument,
+ * so the same `extractFetchUrl` + `parseTypeArg` logic applies to each — only
+ * the KIND tag differs (Subtask 32.22).
+ */
+const FETCH_HELPER_KIND: Readonly<Record<string, FetchKind>> = {
+  fetchJson: 'read',
+  mutationFetchJson: 'write',
+};
+
+/**
+ * Walk the broad fetch file-set in `project` (see `isFetchWalkFile`) and
+ * collect every `fetchJson<T>(url)` and `mutationFetchJson<T>(url, …)` call
+ * site as a `FetcherCall`. Memoised per `Project` via `fetcherCallCache`.
+ *
+ * Subtask 32.21 broadened this from the single `lib/query/fetchers.ts`
+ * file to `hooks/**`, `components/**`, and `lib/query/**`, reusing the
+ * SAME static-URL extraction (`extractFetchUrl`) and type-arg parsing
+ * (`parseTypeArg`). Per CLAUDE.md "Data fetching" the central registry is
+ * still the dominant source, but ~30 baseline interfaces are fetched via
+ * `fetchJson<T>(url)` inside hooks/components and were previously
+ * unreachable. The baseline filter applied downstream (per AC-5) keeps
+ * non-baseline reads out of the bind set.
+ *
+ * Subtask 32.22 extends the walk to `mutationFetchJson<T>(url, …)` write-side
+ * call sites. `mutationFetchJson` shares `fetchJson`'s first-argument-is-URL
+ * shape, so the same URL/type-arg extraction is reused; each collected call is
+ * tagged with its `kind` (`read` for `fetchJson`, `write` for
+ * `mutationFetchJson`) so `inferSchemaSourceA` can match method-appropriately.
+ * The 15 write-response baseline interfaces (`MutationResult`,
+ * `ChangeReportGenerateResponse`, `CreateFeedSourceResponse`, …) are fetched
+ * EXCLUSIVELY via `mutationFetchJson`, so this is what makes them bindable.
+ */
+function collectFetcherCalls(project: Project): readonly FetcherCall[] {
+  const cached = fetcherCallCache.get(project);
+  if (cached) return cached;
+
+  const calls: FetcherCall[] = [];
+
+  for (const sf of project.getSourceFiles()) {
+    if (!isFetchWalkFile(sf)) continue;
+
+    for (const callExpr of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+      const expr = callExpr.getExpression();
+      // Match `fetchJson<T>(url)` / `mutationFetchJson<T>(url, …)` — both are
+      // plain identifier callees with the URL as the FIRST argument.
+      if (expr.getKind() !== SyntaxKind.Identifier) continue;
+      const kind = FETCH_HELPER_KIND[expr.getText()];
+      if (!kind) continue;
+
+      const typeArgs = callExpr.getTypeArguments();
+      if (typeArgs.length === 0) continue;
+
+      const parsed = parseTypeArg(typeArgs[0]?.getText() ?? '');
+      if (!parsed) continue;
+
+      const firstArg = callExpr.getArguments()[0];
+      if (!firstArg) continue;
+
+      const url = extractFetchUrl(firstArg);
+      if (!url) continue;
+
+      calls.push({ typeArg: parsed.name, isArray: parsed.isArray, url, kind });
+    }
   }
 
+  fetcherCallCache.set(project, calls);
   return calls;
 }
 
@@ -273,64 +582,170 @@ export function findSchemaConstant(
   return null;
 }
 
+// ── HTTP-method ⇄ fetch-kind mapping ──────────────────────────────────────
+
+/**
+ * Map an HTTP method to the fetch KIND whose call sites are eligible to bind
+ * it (Subtask 32.22). A route handler's response schema must be inferred from
+ * the call that READS that method's response:
+ *   - `GET` / `HEAD`                    → `read`  (`fetchJson<T>`)
+ *   - `POST` / `PUT` / `PATCH` / `DELETE` → `write` (`mutationFetchJson<T>`)
+ *
+ * Returns `null` for any unrecognised method (e.g. `OPTIONS`) — such a method
+ * has no fetcher-derived response shape and falls through to the
+ * `z.unknown()` fall-back. The comparison is case-insensitive for robustness,
+ * though `getExportedMethods` already yields canonical upper-case names.
+ */
+function methodFetchKind(method: string): FetchKind | null {
+  switch (method.toUpperCase()) {
+    case 'GET':
+    case 'HEAD':
+      return 'read';
+    case 'POST':
+    case 'PUT':
+    case 'PATCH':
+    case 'DELETE':
+      return 'write';
+    default:
+      return null;
+  }
+}
+
 // ── Public entry point ────────────────────────────────────────────────────
 
 /**
  * Infer the `ResponseSchema` argument for a route handler via Source A.
  *
- * Strategy (per TECH §3.A):
+ * Strategy (per TECH §3.A, broadened in Subtask 32.21):
  *
  *   1. Convert the route file path to a candidate URL pattern.
- *   2. Walk `lib/query/fetchers.ts` for `fetchJson<T>(url)` calls whose
- *      URL matches the route's candidate URL.
- *   3. Filter the resulting `T` set against the baseline — only baseline
- *      interfaces are considered (per AC-5).
- *   4. For the first qualifying interface (deterministic order: fetcher
- *      walk order, which is source order):
- *      a. Look up `${T}Schema` or `${T}ZodSchema` in
- *         `lib/validation/schemas.ts`.
- *      b. If found, return that identifier.
- *      c. If not, return `z.unknown()` + `NEEDS_SCHEMA` (per AC-6 the
- *         32.12 emitter then adds the `// TODO(OPS-T1): author
- *         ResponseSchema` comment).
- *   5. If no qualifying interface is found (route not in baseline, or
- *      fetcher URL did not match), return the same fall-back so Sources B
- *      and C — owned by 32.9 / post-32 backlog — can attempt their own
- *      lookups via the downstream chain.
+ *   2. Walk the broad fetch file-set (`hooks/**`, `components/**`,
+ *      `lib/query/**` — see `collectFetcherCalls`) for `fetchJson<T>(url)`
+ *      calls whose URL matches the route's candidate URL. The original walk
+ *      saw only `lib/query/fetchers.ts`; broadening reaches the ~30 baseline
+ *      interfaces fetched INSIDE hooks/components.
+ *   3. Filter the matched `T` set against the baseline — only baseline
+ *      interfaces are considered (per AC-5). Non-baseline `fetchJson` reads
+ *      (e.g. `ProcurementSummary`) are dropped here.
+ *   4. RESOLVE collisions. Broadening means a route can match more than one
+ *      baseline fetcher URL. Score each match by segment specificity
+ *      (`matchSpecificity`) and keep only the highest-scoring candidates —
+ *      this implements the brief's "prefer the literal-segment route over a
+ *      wildcard match" rule. Then:
+ *      a. If the surviving candidates resolve to a SINGLE schema expression,
+ *         bind it: `XSchema` for a scalar `fetchJson<X>`, `z.array(XSchema)`
+ *         for an array `fetchJson<X[]>`.
+ *      b. If they resolve to MORE THAN ONE distinct schema expression (a
+ *         genuine ambiguity the score could not break), REPORT it via
+ *         `console.warn` and fall back to `z.unknown()` + `NEEDS_SCHEMA`
+ *         rather than silently picking — the 32.12 emitter then surfaces the
+ *         route for manual review.
+ *   5. The chosen interface's `${T}Schema` / `${T}ZodSchema` is looked up in
+ *      `lib/validation/schemas.ts`; a missing constant falls back to
+ *      `z.unknown()` + `NEEDS_SCHEMA` (per AC-6 the 32.12 emitter then adds
+ *      the `// TODO(OPS-T1): author ResponseSchema` comment).
+ *   6. No baseline match → the same fall-back so Sources B / C (owned by
+ *      32.9 / post-32 backlog) can attempt their own lookups downstream.
  *
- * `method` is currently unused by Source A (all baseline interfaces
- * correspond to GET-style fetcher reads), but kept on the signature so
- * Sources B / C can chain through the same `inferSchema(sf, method,
- * project)` call site in `wrap-define-route.ts` without breaking the API.
+ * `method` drives HTTP-method-aware binding (Subtask 32.22). A route may
+ * export BOTH a GET (read via `fetchJson<GetT>`) and a write method (POST /
+ * PUT / PATCH / DELETE via `mutationFetchJson<PostT>`) at the SAME URL — they
+ * must bind DIFFERENT schemas. We map the method to its eligible fetch KIND
+ * (`methodFetchKind`) and only score call sites of that KIND, so a GET binds
+ * the read-fetched interface and a POST binds the mutation-fetched interface.
+ * A method with no fetch-kind mapping (e.g. `OPTIONS`) yields no candidates
+ * and falls through to the `z.unknown()` fall-back.
  */
 export function inferSchemaSourceA(
   sf: SourceFile,
-  _method: string,
+  method: string,
   project: Project,
   options: InferSchemaOptions = {},
 ): InferSchemaResult {
   const baseline = options.baseline ?? loadBaseline();
-  const fetchersPath = options.fetchersPath ?? DEFAULT_FETCHERS_PATH;
-  const schemasPath = options.schemasPath ?? DEFAULT_SCHEMAS_PATH;
+  // When a path is NOT injected (the production / no-options path), resolve
+  // the schemas-registry path by its conventional suffix against the
+  // project's actual file paths — the `/repo/...` literal default never
+  // resolved in a disk-loaded project. Injected paths (in-memory 32.8 / 32.20
+  // harnesses) are honoured verbatim. A `null` resolution falls through to an
+  // empty lookup and the `z.unknown()` fall-back. The fetcher-walk file-set is
+  // now path-pattern driven (`collectFetcherCalls`), so `options.fetchersPath`
+  // is no longer consulted for the walk — the in-memory harness mounts its
+  // synthetic fetcher at `lib/query/fetchers.ts`, which the walk still scans.
+  const schemasPath =
+    options.schemasPath ??
+    resolveLookupPath(project, SCHEMAS_PATH_SUFFIX) ??
+    SCHEMAS_PATH_SUFFIX;
+
+  // The method's eligible fetch KIND. `null` (e.g. OPTIONS) → no candidate
+  // call sites match, so we short-circuit to the fall-back below.
+  const eligibleKind = methodFetchKind(method);
 
   const candidateUrl = routePathToCandidateUrl(sf.getFilePath());
-  const fetcherCalls = collectFetcherCalls(project, fetchersPath);
-
+  const fetcherCalls = collectFetcherCalls(project);
   const baselineInterfaces = new Set(baseline.map((b) => b.interface));
 
-  for (const { typeArg, url } of fetcherCalls) {
-    if (!routeUrlMatches(candidateUrl, url)) continue;
-    if (!baselineInterfaces.has(typeArg)) continue;
+  // Collect every baseline fetcher call whose URL matches this route AND whose
+  // fetch KIND is eligible for the requested method (read↔GET, write↔mutation),
+  // tagged with its segment-specificity score so wildcard collisions can be
+  // broken. The method filter keeps a GET from cross-binding a write-side
+  // mutation schema and vice versa, even when both target the same URL.
+  const scored = fetcherCalls
+    .filter(
+      (c) =>
+        c.kind === eligibleKind &&
+        baselineInterfaces.has(c.typeArg) &&
+        routeUrlMatches(candidateUrl, c.url),
+    )
+    .map((c) => ({ call: c, score: matchSpecificity(candidateUrl, c.url) }))
+    .filter((m) => m.score !== NO_MATCH);
 
-    const schemaConstant = findSchemaConstant(typeArg, project, schemasPath);
-    if (schemaConstant) {
-      return { schema: schemaConstant };
-    }
+  if (scored.length === 0) {
+    // No baseline binding for this route — fall-back per AC-6.
     return { schema: Z_UNKNOWN_PLACEHOLDER, reason: 'NEEDS_SCHEMA' };
   }
 
-  // No baseline binding for this route — fall-back per AC-6. Downstream
-  // sources (32.9 / post-32 backlog) chain through the same `inferSchema`
-  // contract in `wrap-define-route.ts`.
+  // Prefer the most specific (literal-segment-aligned) match(es).
+  const bestScore = Math.max(...scored.map((m) => m.score));
+  const winners = scored
+    .filter((m) => m.score === bestScore)
+    .map((m) => m.call);
+
+  // De-duplicate to DISTINCT schema expressions. A route fetched as both a
+  // scalar and an array of the same interface (none observed, but guarded)
+  // would surface as two expressions; so would two genuinely different
+  // baseline interfaces tied on specificity.
+  const distinct = new Map<string, FetcherCall>();
+  for (const w of winners) {
+    distinct.set(`${w.typeArg}::${w.isArray ? 'array' : 'scalar'}`, w);
+  }
+
+  if (distinct.size > 1) {
+    // Genuine ambiguity the specificity score could not break — report rather
+    // than silently pick (per the dispatch brief's collision-safety rule).
+    const detail = winners
+      .map((w) => `${w.isArray ? `${w.typeArg}[]` : w.typeArg} <- ${w.url}`)
+      .join(', ');
+    console.warn(
+      `[inference-source-a] AMBIGUOUS bind for ${candidateUrl}: ` +
+        `${distinct.size} equally-specific baseline matches [${detail}]. ` +
+        `Falling back to z.unknown() — resolve manually.`,
+    );
+    return { schema: Z_UNKNOWN_PLACEHOLDER, reason: 'NEEDS_SCHEMA' };
+  }
+
+  const chosen = winners[0];
+  if (!chosen) {
+    return { schema: Z_UNKNOWN_PLACEHOLDER, reason: 'NEEDS_SCHEMA' };
+  }
+
+  const schemaConstant = findSchemaConstant(
+    chosen.typeArg,
+    project,
+    schemasPath,
+  );
+  if (schemaConstant) {
+    return { schema: schemaExpression(schemaConstant, chosen.isArray) };
+  }
   return { schema: Z_UNKNOWN_PLACEHOLDER, reason: 'NEEDS_SCHEMA' };
 }

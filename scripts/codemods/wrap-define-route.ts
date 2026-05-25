@@ -77,7 +77,15 @@ import type { NeedsManualReason, RouteShape } from './types';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const ROUTE_FILE_PATTERN = /app\/api\/.*\/route\.ts$/;
+/**
+ * Repo-root-anchored route matcher (S262 fix B3). The path RELATIVE to the
+ * enumeration root must begin with `app/api/` and end with `/route.ts`. Anchored
+ * with `^` so it matches the repo-root `app/api/` directory ONLY — NOT fixture
+ * routes nested under `__tests__/lib/ast-dataflow/fixtures/.../app/api/.../route.ts`,
+ * which the pre-fix unanchored `app/api/.*\/route\.ts$` swept in (inflating the
+ * live corpus 195 → 198).
+ */
+const ROUTE_FILE_PATTERN = /^app\/api\/.*\/route\.ts$/;
 
 /**
  * Valid HTTP method names recognised as route exports per TECH §8.3.
@@ -106,6 +114,28 @@ const MANUAL_SHAPES: ReadonlySet<RouteShape> = new Set<RouteShape>([
   'CRON',
   'NAKED_NO_AUTH',
   'MCP',
+  'UNKNOWN_WRAPPER',
+]);
+
+/**
+ * The outer-wrapper callee identifiers the codemod knows how to handle when an
+ * exported method is bound as `export const METHOD = <Call>(...)`:
+ *
+ *   - `withRequestContext` — the recognised +WRC wrapper; the rewrite
+ *     surgically wraps the INNER argument with `defineRoute(...)` while
+ *     preserving the outer call (TECH §8.1 / AC-7).
+ *   - `defineRoute` — the codemod's own output; an already-wrapped route the
+ *     idempotency overlay (Subtask 32.13) treats as SKIPPED.
+ *
+ * Any OTHER outer callee (e.g. `withRequestContextBare`) is an unknown wrapper
+ * the codemod cannot safely transform — see `hasUnknownOuterWrapper()` (S262
+ * fix B1). The pre-fix bug was a `getFullText().includes('withRequestContext')`
+ * substring scan that matched `withRequestContextBare`, mis-flagging such
+ * routes as `+WRC` and then aborting `--apply` when the rewrite threw.
+ */
+const RECOGNISED_OUTER_WRAPPERS: ReadonlySet<string> = new Set<string>([
+  'withRequestContext',
+  'defineRoute',
 ]);
 
 const EXIT_OK = 0;
@@ -201,18 +231,38 @@ export function createCodemodProject(
  * Enumerate the API route files in the project, optionally filtered by a
  * path-fragment scope.
  *
- * Per TECH §2.2 the regex `app/api/.*\/route\.ts$` is the canonical route
- * matcher (excludes pages, page-route segments, and non-route helpers
- * inside `app/api/`). Match against the file's POSIX path so the same
- * filter works on macOS / Linux CI / Windows-style paths uniformly.
+ * Per TECH §2.2 the canonical route matcher excludes pages, page-route
+ * segments, and non-route helpers inside `app/api/`. Match against the file's
+ * POSIX path so the same filter works on macOS / Linux CI / Windows-style
+ * paths uniformly.
+ *
+ * Repo-root anchoring (S262 fix B3): the matcher is applied to the path made
+ * RELATIVE to `rootDir` (default `process.cwd()`, the repo root in production).
+ * Only paths that sit directly under `<rootDir>/app/api/` qualify — fixture
+ * routes nested under `__tests__/lib/ast-dataflow/fixtures/.../app/api/.../route.ts`
+ * are excluded because their root-relative path starts with `__tests__/`, not
+ * `app/api/`. The pre-fix unanchored regex `app/api/.*\/route\.ts$` matched
+ * those fixtures as a substring, inflating the live corpus 195 → 198.
+ *
+ * Tests that build a tmpdir-rooted corpus pass that tmpdir as `rootDir` so the
+ * anchoring fires against the synthetic root.
  */
 export function enumerateRouteFiles(
   project: Project,
   scope?: string,
+  rootDir: string = process.cwd(),
 ): SourceFile[] {
+  const rootPosix = rootDir.replace(/\\/g, '/').replace(/\/+$/, '');
+  const toRootRelative = (absolute: string): string => {
+    const posixPath = absolute.replace(/\\/g, '/');
+    return posixPath.startsWith(`${rootPosix}/`)
+      ? posixPath.slice(rootPosix.length + 1)
+      : posixPath;
+  };
+
   const all = project.getSourceFiles().filter((sf) => {
-    const posixPath = sf.getFilePath().replace(/\\/g, '/');
-    return ROUTE_FILE_PATTERN.test(posixPath);
+    const relativePath = toRootRelative(sf.getFilePath());
+    return ROUTE_FILE_PATTERN.test(relativePath);
   });
   if (!scope) return all;
   const scopeNormalised = scope.replace(/\\/g, '/');
@@ -333,6 +383,83 @@ function hasBodyCall(sf: SourceFile): boolean {
 }
 
 /**
+ * The outer-call callee identifier of an `export const METHOD = <Call>(...)`
+ * binding, or `null` when the method is not an exported `const` initialised by
+ * a direct `CallExpression` (e.g. a `FunctionDeclaration` form, a bare arrow,
+ * or an identifier reference).
+ *
+ * "Outer call" means the topmost `CallExpression` initialiser — for
+ * `withRequestContext(defineRoute(...))` this returns `'withRequestContext'`,
+ * not `'defineRoute'`. Used by the +WRC detector and the unknown-wrapper guard
+ * (S262 fix B1).
+ */
+function exportedMethodOuterCallee(
+  sf: SourceFile,
+  method: string,
+): string | null {
+  for (const stmt of sf.getVariableStatements()) {
+    if (!stmt.isExported()) continue;
+    const decl = stmt.getDeclarations().find((d) => d.getName() === method);
+    if (!decl) continue;
+    const initialiser = decl.getInitializer();
+    if (!initialiser || initialiser.getKind() !== SyntaxKind.CallExpression) {
+      return null;
+    }
+    const callExpr = initialiser.asKind(SyntaxKind.CallExpression);
+    if (!callExpr) return null;
+    return callExpr.getExpression().getText();
+  }
+  return null;
+}
+
+/**
+ * Detect whether any exported HTTP-method handler on `sf` is bound as
+ * `export const METHOD = withRequestContext(...)` with `withRequestContext` as
+ * the EXACT outer callee (S262 fix B1).
+ *
+ * Replaces the pre-fix `sf.getFullText().includes('withRequestContext')`
+ * substring scan, which matched the DIFFERENT `withRequestContextBare`
+ * function (and any comment / string-literal occurrence of the substring). The
+ * exact AST-callee match never matches `withRequestContextBare` — the callee
+ * text is compared with `===`, not `includes`.
+ *
+ * Mirrors the body-detection AST precedent from Subtask 32.17 (`hasBodyCall`):
+ * detection is anchored to executable AST nodes, never raw file text.
+ */
+function hasWithRequestContextWrapper(
+  sf: SourceFile,
+  methods: string[],
+): boolean {
+  return methods.some(
+    (m) => exportedMethodOuterCallee(sf, m) === 'withRequestContext',
+  );
+}
+
+/**
+ * Detect whether any exported HTTP-method handler on `sf` is bound as
+ * `export const METHOD = <unknownCall>(...)` where the outer callee is neither
+ * a recognised wrapper (`withRequestContext`) nor the codemod's own output
+ * (`defineRoute`) — see `RECOGNISED_OUTER_WRAPPERS` (S262 fix B1).
+ *
+ * The canonical example is `withRequestContextBare` (used by
+ * `app/api/freshness/recalculate-all/route.ts`): a single-argument decorator
+ * the codemod cannot mechanically rewrite without understanding its wrapping
+ * contract. Such routes classify as `UNKNOWN_WRAPPER` (MANUAL) so the apply
+ * loop skips them instead of throwing.
+ *
+ * `FunctionDeclaration`-form methods (`export async function METHOD(...)`) and
+ * bare-arrow / identifier initialisers return `null` from
+ * `exportedMethodOuterCallee()` and are NOT treated as unknown wrappers — they
+ * are the codemod's normal mechanisable inputs.
+ */
+function hasUnknownOuterWrapper(sf: SourceFile, methods: string[]): boolean {
+  return methods.some((m) => {
+    const callee = exportedMethodOuterCallee(sf, m);
+    return callee !== null && !RECOGNISED_OUTER_WRAPPERS.has(callee);
+  });
+}
+
+/**
  * Classify a route source file into one of the 17 `RouteShape` variants per
  * TECH §2.3.
  *
@@ -344,10 +471,19 @@ function hasBodyCall(sf: SourceFile): boolean {
  *      by `isParameterised × hasBody`.
  *   5. Single-method → sub-discriminated by `isParameterised × hasBody`.
  *
- * `+WRC` is appended for MECHANISABLE / NEEDS-REVIEW shapes whose source
- * contains a `withRequestContext` substring (TECH §2.3 / §8.1). It is
- * NEVER appended to MANUAL shapes because the codemod does not rewrite
- * those routes — the outer-wrap concern is moot.
+ * `+WRC` is appended for MECHANISABLE / NEEDS-REVIEW shapes whose exported
+ * method is wrapped with `withRequestContext` as its EXACT outer callee
+ * (TECH §2.3 / §8.1; S262 fix B1 made this an AST match rather than a
+ * `getFullText()` substring scan, so `withRequestContextBare` and comment /
+ * string-literal occurrences no longer taint the suffix). It is NEVER appended
+ * to MANUAL shapes because the codemod does not rewrite those routes — the
+ * outer-wrap concern is moot.
+ *
+ * A route whose exported method uses an UNRECOGNISED outer wrapper (any outer
+ * callee that is neither `withRequestContext` nor `defineRoute`, e.g.
+ * `withRequestContextBare`) classifies as `UNKNOWN_WRAPPER` (MANUAL) — the
+ * codemod skips it during apply rather than attempting a transform it cannot
+ * safely perform (S262 fix B1).
  *
  * Body detection per Subtask 32.17 (AST refactor of the TECH §2.3 sample):
  * a `CallExpression` walk over the source file matching `<receiver>.json(...)`
@@ -385,16 +521,31 @@ export function classifyRoute(sf: SourceFile): RouteShape {
 
   // Mechanisable + needs-review classification signals
   const methods = getExportedMethods(sf);
+
+  // Priority 3.5 — UNKNOWN_WRAPPER (MANUAL), S262 fix B1.
+  //
+  // A route whose exported method is bound as
+  // `export const METHOD = <unrecognisedCall>(...)` (an outer callee that is
+  // neither `withRequestContext` nor `defineRoute`) cannot be mechanically
+  // rewritten — the codemod does not know how to preserve the wrapping
+  // contract. The canonical example is `withRequestContextBare` (used by
+  // `app/api/freshness/recalculate-all/route.ts`). Classify it MANUAL so the
+  // apply loop skips it instead of throwing. This check sits AFTER the auth
+  // gate (the route has auth) and BEFORE the mechanisable / +WRC branches.
+  if (hasUnknownOuterWrapper(sf, methods)) return 'UNKNOWN_WRAPPER';
+
   const isParameterised = path.includes('[');
   // Body detection now walks the AST (CallExpression-only) per Subtask 32.17 —
   // discriminator substrings in JSDoc / comments / string literals no longer
   // taint classification.
   const hasBody = hasBodyCall(sf);
-  // `withRequestContext` import detection is orthogonal and remains a
-  // substring scan: the +WRC suffix tracks "does the source IMPORT the
-  // helper" which captures both call-site and outer-wrap usage in a single
-  // signal. Switching to an AST walk here is out of scope for 32.17.
-  const hasWithRequestContext = sf.getFullText().includes('withRequestContext');
+  // +WRC detection is an EXACT AST outer-callee match (S262 fix B1), NOT the
+  // pre-fix `getFullText().includes('withRequestContext')` substring scan. The
+  // substring scan matched the DIFFERENT `withRequestContextBare` function (and
+  // any comment / string-literal occurrence), mis-flagging bare-wrapped routes
+  // as `+WRC` and aborting `--apply` when the rewrite threw. The exact match
+  // only fires for `export const METHOD = withRequestContext(...)`.
+  const hasWithRequestContext = hasWithRequestContextWrapper(sf, methods);
 
   // Priority 4 — multi-method.
   //
@@ -666,7 +817,7 @@ export function isAlreadyWrapped(sf: SourceFile, method: string): boolean {
  * method already calls `defineRoute(...)`.
  */
 function shapeToAction(shape: RouteShape): RouteReportEntry['action'] {
-  if (shape === 'CRON' || shape === 'NAKED_NO_AUTH' || shape === 'MCP') {
+  if (MANUAL_SHAPES.has(shape)) {
     return 'MANUAL';
   }
   if (shape.startsWith('MULTI_') || shape.endsWith('+WRC')) {
@@ -793,6 +944,38 @@ export function buildRouteRecords(routeFiles: readonly SourceFile[]): {
 type ApplyOptions = InferSchemaOptions;
 
 /**
+ * A per-route apply failure absorbed by `applyAll()` (S262 fix B1,
+ * defense-in-depth). Records the route whose rewrite threw plus the error
+ * message so the caller can surface it in the needs-manual report instead of
+ * aborting the whole apply run. The route's file is left in whatever state the
+ * partial rewrite produced (not saved) — `applyAll()` does NOT `sf.save()` a
+ * route whose rewrite threw, so the on-disk file stays byte-identical.
+ */
+export interface ApplyError {
+  /** Repo-relative POSIX path of the route whose rewrite threw. */
+  route: string;
+  /** The thrown error message (or stringified non-Error throw). */
+  message: string;
+}
+
+/**
+ * Result of an `applyAll()` run (S262 fix B1). The modified-path set drives
+ * `runFormatPass()`; the apply-error set is merged into the needs-manual report
+ * by `runScaffold()` so a per-route rewrite failure is recorded for manual
+ * follow-up rather than aborting the run.
+ */
+export interface ApplyResult {
+  /**
+   * Absolute paths of the files mutated + saved, in route iteration order, for
+   * `runFormatPass()` to format. SKIPPED + MANUAL routes are omitted, as are
+   * routes whose rewrite threw (recorded in `applyErrors` instead).
+   */
+  modifiedFilePaths: string[];
+  /** Per-route rewrite failures absorbed during the run (empty on a clean run). */
+  applyErrors: ApplyError[];
+}
+
+/**
  * Apply the codemod to disk for every MECHANISABLE (`TRANSFORM`) and
  * NEEDS-REVIEW route, then persist each modified file via `sf.save()`.
  *
@@ -826,27 +1009,41 @@ type ApplyOptions = InferSchemaOptions;
  * when `args.apply === true`. In dry-run the diff preview is computed from the
  * report entries instead (no `sf.save()`).
  *
+ * Apply-loop resilience (S262 fix B1): each route's rewrite + save is wrapped
+ * in a try/catch. A single route's rewrite failure NO LONGER aborts the whole
+ * run — the failure is recorded to `applyErrors` (with an `APPLY_ERROR`-style
+ * reason surfaced by `runScaffold()`) and the loop continues. This guarantees
+ * one pathological route can never lose the other good rewrites. The
+ * `rewriteSingleMethod` throw stays as a last-resort invariant guard; this
+ * loop absorbs it per-route. A route whose rewrite throws is NOT saved, so its
+ * on-disk file stays byte-identical.
+ *
  * @param routes  The route `SourceFile`s to consider (already enumerated +
  *                scope-filtered by `enumerateRouteFiles()`).
  * @param project The owning ts-morph `Project` — required by `inferSchema()`
  *                for the Source A/B cross-file walks.
  * @param options Optional inference overrides (test injection).
- * @returns The absolute paths of the files mutated + saved, in route iteration
- *          order, for `runFormatPass()` to format. SKIPPED + MANUAL routes are
- *          omitted.
+ * @returns An {@link ApplyResult}: the absolute paths of files mutated + saved
+ *          (in route iteration order, for `runFormatPass()`) plus any per-route
+ *          apply errors absorbed during the run. SKIPPED + MANUAL routes are
+ *          omitted from `modifiedFilePaths`.
  */
 export function applyAll(
   routes: readonly SourceFile[],
   project: Project,
   options?: ApplyOptions,
-): string[] {
+): ApplyResult {
   const modifiedFilePaths: string[] = [];
+  const applyErrors: ApplyError[] = [];
 
   for (const sf of routes) {
     const shape = classifyRoute(sf);
     const shapeAction = shapeToAction(shape);
 
     // MANUAL shapes are never rewritten — leave the file untouched on disk.
+    // This now includes UNKNOWN_WRAPPER (S262 fix B1): a route wrapped in an
+    // outer call the codemod does not recognise (e.g. withRequestContextBare)
+    // is skipped here, never reaching the rewrite path that would throw.
     if (shapeAction === 'MANUAL') continue;
 
     const methods = getExportedMethods(sf);
@@ -860,34 +1057,47 @@ export function applyAll(
 
     const route = toRepoRelativePosixPath(sf.getFilePath());
 
-    if (shape.startsWith('MULTI_')) {
-      // Multi-method: resolve each method's schema independently, then let
-      // rewriteMultiMethod() delegate per-method to rewriteSingleMethod().
-      const schemas: Record<string, InferSchemaResult> = {};
-      for (const method of methods) {
-        schemas[method] = inferSchema(sf, method, project, options);
+    // Apply-loop resilience (S262 fix B1): absorb a per-route rewrite/save
+    // failure so one pathological route cannot abort the whole run. A genuine
+    // throw from the rewrite helpers (last-resort invariant guard) is recorded
+    // and the loop continues; the route's file is left unsaved (byte-identical).
+    try {
+      if (shape.startsWith('MULTI_')) {
+        // Multi-method: resolve each method's schema independently, then let
+        // rewriteMultiMethod() delegate per-method to rewriteSingleMethod().
+        const schemas: Record<string, InferSchemaResult> = {};
+        for (const method of methods) {
+          schemas[method] = inferSchema(sf, method, project, options);
+        }
+        rewriteMultiMethod(sf, methods, schemas, route, shape);
+      } else {
+        // Single-method MECHANISABLE shapes + the single-method +WRC
+        // NEEDS_REVIEW sub-variant: rewrite each exported method in place. A
+        // genuinely single-method route has one entry; the loop is defensive
+        // against a shape that exports more than one method without being
+        // MULTI_*.
+        for (const method of methods) {
+          const schema = inferSchema(sf, method, project, options);
+          rewriteSingleMethod(sf, method, schema);
+        }
       }
-      rewriteMultiMethod(sf, methods, schemas, route, shape);
-    } else {
-      // Single-method MECHANISABLE shapes + the single-method +WRC NEEDS_REVIEW
-      // sub-variant: rewrite each exported method in place. A genuinely
-      // single-method route has one entry; the loop is defensive against a
-      // shape that exports more than one method without being MULTI_*.
-      for (const method of methods) {
-        const schema = inferSchema(sf, method, project, options);
-        rewriteSingleMethod(sf, method, schema);
-      }
-    }
 
-    // Normalise import ordering before persisting (TECH §8.5) so the
-    // freshly-added `defineRoute` import does not land in a non-Prettier
-    // position; runFormatPass() handles quoting + spacing across the set.
-    sf.organizeImports();
-    sf.saveSync();
-    modifiedFilePaths.push(sf.getFilePath());
+      // Normalise import ordering before persisting (TECH §8.5) so the
+      // freshly-added `defineRoute` import does not land in a non-Prettier
+      // position; runFormatPass() handles quoting + spacing across the set.
+      sf.organizeImports();
+      sf.saveSync();
+      modifiedFilePaths.push(sf.getFilePath());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[wrap-define-route] apply skipped ${route}: ${message} — recorded as APPLY_ERROR; continuing.`,
+      );
+      applyErrors.push({ route, message });
+    }
   }
 
-  return modifiedFilePaths;
+  return { modifiedFilePaths, applyErrors };
 }
 
 /**
@@ -986,12 +1196,19 @@ export async function runScaffold(
   // discovery + artefact emission below still runs on every invocation
   // (PRODUCT AC-4), so the dry-run report reflects the just-applied tree.
   // MANUAL + SKIPPED routes are left byte-identical by `applyAll()`.
+  let applyErrors: ApplyError[] = [];
   if (args.apply) {
-    const modifiedFilePaths = applyAll(routeFiles, project);
+    const applyResult = applyAll(routeFiles, project);
+    applyErrors = applyResult.applyErrors;
     console.log(
-      `Applied defineRoute() to ${modifiedFilePaths.length} route file(s).`,
+      `Applied defineRoute() to ${applyResult.modifiedFilePaths.length} route file(s).`,
     );
-    const formatStatus = runFormatPass(modifiedFilePaths);
+    if (applyErrors.length > 0) {
+      console.warn(
+        `[wrap-define-route] ${applyErrors.length} route(s) recorded as APPLY_ERROR (skipped, not aborted) — see codemod-needs-manual.json.`,
+      );
+    }
+    const formatStatus = runFormatPass(applyResult.modifiedFilePaths);
     if (formatStatus !== 0) {
       console.warn(
         `[wrap-define-route] format pass exited ${formatStatus} — files were saved but may need a manual 'bun run format'.`,
@@ -1000,6 +1217,27 @@ export async function runScaffold(
   }
 
   const { reportEntries, needsManualEntries } = buildRouteRecords(routeFiles);
+
+  // Merge per-route apply failures (S262 fix B1) into the needs-manual report
+  // so a rewrite that threw mid-apply is recorded for manual follow-up rather
+  // than silently lost (the apply loop already absorbed the throw to keep the
+  // run going). De-duplicated against any shape-derived entry for the same
+  // route — the APPLY_ERROR signal is the more actionable one.
+  for (const applyError of applyErrors) {
+    const existingIndex = needsManualEntries.findIndex(
+      (e) => e.route === applyError.route,
+    );
+    const entry: NeedsManualEntry = {
+      route: applyError.route,
+      shape: 'UNKNOWN_WRAPPER',
+      reason: 'APPLY_ERROR',
+    };
+    if (existingIndex >= 0) {
+      needsManualEntries[existingIndex] = entry;
+    } else {
+      needsManualEntries.push(entry);
+    }
+  }
 
   // Artefact emission per AC-4 — on EVERY run, dry-run or apply.
   const outputDir = resolveOutputDir(options.outputDir);
