@@ -17,7 +17,9 @@ describe('sb()', () => {
       status: 200,
       statusText: 'OK',
     });
-    const rows = await sb(query);
+    const rows = await sb(
+      query as unknown as Parameters<typeof sb<{ id: number }[]>>[0],
+    );
     expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
@@ -75,7 +77,7 @@ describe('sb()', () => {
       status: 200,
       statusText: 'OK',
     });
-    const result = await sb(query);
+    const result = await sb(query as unknown as Parameters<typeof sb<null>>[0]);
     expect(result).toBeNull();
   });
 });
@@ -89,7 +91,9 @@ describe('tryQuery()', () => {
       status: 200,
       statusText: 'OK',
     });
-    const result = await tryQuery(query);
+    const result = await tryQuery(
+      query as unknown as Parameters<typeof tryQuery<{ id: number }[]>>[0],
+    );
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
       expect(result.data).toEqual([{ id: 1 }]);
@@ -117,13 +121,7 @@ describe('tryQuery()', () => {
   it('wraps thrown network errors as SupabaseError', async () => {
     const query = Promise.reject(new Error('fetch failed'));
     const result = await tryQuery(
-      query as unknown as Promise<{
-        data: null;
-        error: null;
-        count: null;
-        status: number;
-        statusText: string;
-      }>,
+      query as unknown as Parameters<typeof tryQuery<null>>[0],
       'test',
     );
     if (!isOk(result)) {

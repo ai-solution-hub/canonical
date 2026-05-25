@@ -23,5 +23,14 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
-  "exclude": ["node_modules", "scripts", "supabase", "mcp-apps", "vitest.integration.config.ts"]
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "supabase",
+    "mcp-apps",
+    "docs-site",
+    "lib/ast-dataflow",
+    "__tests__/lib/ast-dataflow",
+    "vitest.integration.config.ts"
+  ]
 }

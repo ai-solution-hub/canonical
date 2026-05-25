@@ -39,6 +39,7 @@ function createMockMessage(
     model: 'claude-sonnet-4-6-20250514',
     stop_reason: 'end_turn',
     stop_sequence: null,
+    stop_details: null,
     usage: {
       input_tokens: 100,
       output_tokens: 50,

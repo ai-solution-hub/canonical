@@ -28,7 +28,6 @@ import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 // ──────────────────────────────────────────────────────────────────────────────
 
 export { BacklogStatus };
-export type BacklogStatus = z.infer<typeof BacklogStatus>;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Backlog item type enum — values observed in the live data.
