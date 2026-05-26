@@ -185,12 +185,33 @@ export type TaskList = z.infer<typeof TaskListSchema>;
 
 /**
  * A warning raised by `parseTaskListWithWarnings` when a Task exceeds the
- * 25-Subtask soft ceiling defined in PRODUCT inv 20.
+ * 25-Subtask soft ceiling (PRODUCT inv 20) or a field-length budget
+ * (ID-34 task-list field discipline).
  */
 export interface TaskListWarning {
   taskId: string;
   message: string;
 }
+
+/**
+ * Advisory char budgets per the task-list field discipline
+ * (`docs/reference/task-list-discipline.md`, ID-34 PRODUCT §2). These are
+ * SOFT warnings, never schema rejections — over-budget records still parse,
+ * so the live ledger is never broken and the vendored schema shape stays
+ * identical to task-view's source (no `.max()` added; warning logic lives in
+ * the function body only, vendor-drift safe — ID-34 TECH §3).
+ *
+ * `Subtask.details` is intentionally NOT budgeted — it is the append-only
+ * dispatch-brief + journal home; length there is legitimate.
+ */
+export const FIELD_BUDGETS = {
+  taskDescription: 1500,
+  taskStatusNote: 300,
+  subtaskDescription: 250,
+  subtaskTestStrategy: 300,
+} as const;
+
+const DISCIPLINE_DOC = 'docs/reference/task-list-discipline.md';
 
 /**
  * Parse a TaskList and surface warnings for any Task that exceeds the
@@ -224,6 +245,53 @@ export function parseTaskListWithWarnings(input: unknown): {
           `Task "${task.id}" has ${task.subtasks.length} subtasks (>25). ` +
           `Per PRODUCT inv 20, consider splitting into multiple Tasks linked by Task.dependencies[].`,
       });
+    }
+
+    // ── Field-length discipline (ID-34) — soft warnings, never rejections ──
+    if (task.description.length > FIELD_BUDGETS.taskDescription) {
+      warnings.push({
+        taskId: task.id,
+        message:
+          `Task "${task.id}" description is ${task.description.length} chars ` +
+          `(budget ${FIELD_BUDGETS.taskDescription}). Move design rationale to docs/ ` +
+          `and reference it via cross_doc_links (see ${DISCIPLINE_DOC}).`,
+      });
+    }
+    if (
+      task.status_note &&
+      task.status_note.length > FIELD_BUDGETS.taskStatusNote
+    ) {
+      warnings.push({
+        taskId: task.id,
+        message:
+          `Task "${task.id}" status_note is ${task.status_note.length} chars ` +
+          `(budget ${FIELD_BUDGETS.taskStatusNote}). Keep acute current-status context only; ` +
+          `move session narrative to the relevant Subtask details journal (see ${DISCIPLINE_DOC}).`,
+      });
+    }
+
+    for (const subtask of task.subtasks) {
+      if (subtask.description.length > FIELD_BUDGETS.subtaskDescription) {
+        warnings.push({
+          taskId: task.id,
+          message:
+            `Subtask ${task.id}.${subtask.id} description is ${subtask.description.length} chars ` +
+            `(budget ${FIELD_BUDGETS.subtaskDescription}). Keep it a one-sentence summary; ` +
+            `the dispatch brief lives in details (see ${DISCIPLINE_DOC}).`,
+        });
+      }
+      if (
+        subtask.testStrategy &&
+        subtask.testStrategy.length > FIELD_BUDGETS.subtaskTestStrategy
+      ) {
+        warnings.push({
+          taskId: task.id,
+          message:
+            `Subtask ${task.id}.${subtask.id} testStrategy is ${subtask.testStrategy.length} chars ` +
+            `(budget ${FIELD_BUDGETS.subtaskTestStrategy}). Reduce to a one-line acceptance ` +
+            `criterion the Checker gates against (see ${DISCIPLINE_DOC}).`,
+        });
+      }
     }
   }
   return { value, warnings };

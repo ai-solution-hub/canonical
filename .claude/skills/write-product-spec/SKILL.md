@@ -215,6 +215,12 @@ be published as user-facing docs via the Gitbook sync. The checked-in
 `PRODUCT.md` remains the canonical source of truth; Gitbook is the publishing
 surface.
 
+**Ledger field discipline (ID-34):** this `PRODUCT.md` is the canonical home
+for behaviour rationale. When the spec is tracked by a task-list Task, the
+Task's `description` field carries a compact one-paragraph what+why (≤1500
+chars) plus a `cross_doc_links` pointer to this spec — **never** a copy of the
+rationale. See [`docs/reference/task-list-discipline.md`](../../../docs/reference/task-list-discipline.md).
+
 ## Related Skills
 
 - `write-tech-spec` — companion implementation spec.

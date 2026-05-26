@@ -1,0 +1,50 @@
+name: sync-source-docs — KH docs maintenance
+on:
+  workflow_dispatch:
+    inputs:
+      target_pr_number:
+        description: "Optional PR number to scope the skill to"
+        required: false
+      prompt_override:
+        description: "Optional bespoke prompt override"
+        required: false
+  # Weekly Monday 06:00 UTC (OQ-T2 ratified default).
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  sync-source-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run skill via Claude Agent SDK
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_PR_NUMBER: ${{ inputs.target_pr_number }}
+          PROMPT_OVERRIDE: ${{ inputs.prompt_override }}
+        run: |
+          bun scripts/skills/run-skill.ts \
+            --skill sync-source-docs \
+            --skill-md .claude/skills/sync-source-docs/SKILL.md
+      - name: Upload run artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-source-docs-run-${{ github.run_id }}
+          path: |
+            .skills/sync-source-docs/run.log
+            .skills/sync-source-docs/output/**
+          retention-days: 30

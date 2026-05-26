@@ -139,6 +139,15 @@ author-facing contract; the file remains the runtime source of truth.
 - `title` — string, required. Comes from Starlight's base `docsSchema()`. The page H1 is
   rendered from this; do not also write an H1 in the body.
 
+  Source files under `docs/` SHOULD declare an explicit `title:`. As a safety net,
+  `docs-site/scripts/sync-content.ts` derives a fallback title at build time for any
+  source missing one — first from the document's first H1 heading (`# …`), otherwise from
+  the filename converted to Title Case — so `astro check` is not blocked by an omitted
+  title. This derivation is a backstop, not the primary mechanism: it lives in the sync
+  layer and never mutates the source file, and it emits a
+  `[sync-content] derived title for …` log line for traceability. Always prefer an
+  explicit `title:` over relying on the fallback.
+
 ### 3.2 Optional author-facing fields
 
 - `description` — string. Shown in search results and in some navigation surfaces.

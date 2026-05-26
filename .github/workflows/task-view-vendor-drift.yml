@@ -40,6 +40,12 @@ on:
       - "lib/validation/roadmap-schema.ts"
       - "lib/validation/backlog-schema.ts"
       - "lib/validation/work-status.ts"
+      # ID-35.10: vendored task-view patch primitives (lib/ledger/) — the
+      # task-view→KH direction. Editing one triggers the primitive-drift step.
+      - "lib/ledger/atomic-write.ts"
+      - "lib/ledger/detect-schema.ts"
+      - "lib/ledger/patch-apply.ts"
+      - "lib/ledger/record-mutate.ts"
       - ".github/workflows/task-view-vendor-drift.yml"
 
 concurrency:
@@ -186,4 +192,109 @@ jobs:
 
           # NON-BLOCKING (OQ-T2): always succeed. Drift surfaces as a
           # ::warning:: annotation only — the author is reminded, not blocked.
+          exit 0
+
+      # ID-35.10 — vendored PATCH PRIMITIVES drift (task-view → KH direction).
+      # The schema step above diffs release assets (KH → task-view). The
+      # primitives live the other way round: task-view's packages/server/* is
+      # upstream; KH vendors them into lib/ledger/. We shallow-clone task-view
+      # @ the same pinned tag, re-format each upstream file with KH's prettier
+      # config (so quote-style + line-wrap are canonicalised — task-view uses
+      # double quotes, KH single), strip comments + import lines (the only
+      # intentional difference is the @task-view/schemas → @/lib/validation
+      # import rewire), and diff. NON-BLOCKING — ::warning:: only.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
+      - name: Clone task-view + diff vendored primitives
+        env:
+          # Static literals (not external context) — safe in run:.
+          TASK_VIEW_REPO_URL: https://github.com/liam-jons/task-view.git
+          TASK_VIEW_TAG: v0.2.0-task-view
+        run: |
+          set -uo pipefail
+
+          PRIMITIVES=(
+            "atomic-write.ts"
+            "detect-schema.ts"
+            "patch-apply.ts"
+            "record-mutate.ts"
+          )
+
+          CLONE_DIR="$(mktemp -d)"
+          if ! git clone --depth 1 --branch "$TASK_VIEW_TAG" \
+              "$TASK_VIEW_REPO_URL" "$CLONE_DIR" >/dev/null 2>&1; then
+            echo "::notice title=task-view primitive drift::Could not clone task-view @ '$TASK_VIEW_TAG'. Skipping primitive drift comparison."
+            exit 0
+          fi
+
+          # Canonicalise the upstream copies with KH's prettier config so only
+          # substantive (non-formatting) body drift survives the diff.
+          FMT_DIR="$(mktemp -d)"
+          for name in "${PRIMITIVES[@]}"; do
+            [ -f "$CLONE_DIR/packages/server/$name" ] \
+              && cp "$CLONE_DIR/packages/server/$name" "$FMT_DIR/$name"
+          done
+          bunx prettier --config prettier.config.mjs --write "$FMT_DIR"/*.ts >/dev/null 2>&1 \
+            || echo "::notice title=task-view primitive drift::prettier normalisation step soft-failed; diff may show formatting noise."
+
+          # Strip block + line comments and import / re-export lines so only the
+          # post-prettier body remains (the import rewire is the only expected diff).
+          normalise() {
+            awk '
+              BEGIN { inblock = 0; inimport = 0 }
+              {
+                line = $0
+                if (inblock) {
+                  if (line ~ /\*\//) { sub(/.*\*\//, "", line); inblock = 0 }
+                  else { next }
+                }
+                while (match(line, /\/\*/)) {
+                  if (match(line, /\/\*.*\*\//)) { sub(/\/\*.*\*\//, "", line) }
+                  else { sub(/\/\*.*/, "", line); inblock = 1; break }
+                }
+                sub(/\/\/.*/, "", line)
+                if (inimport) { if (line ~ /;/) { inimport = 0 } next }
+                if (line ~ /^[[:space:]]*import[[:space:]]/) {
+                  if (line !~ /;/) { inimport = 1 }
+                  next
+                }
+                if (line ~ /^[[:space:]]*export[[:space:]].*[[:space:]]from[[:space:]]/) { next }
+                gsub(/^[[:space:]]+/, "", line)
+                gsub(/[[:space:]]+$/, "", line)
+                if (line == "") next
+                print line
+              }
+            ' "$1"
+          }
+
+          prim_drift=0
+          for name in "${PRIMITIVES[@]}"; do
+            kh_file="lib/ledger/$name"
+            up_file="$FMT_DIR/$name"
+            if [ ! -f "$kh_file" ]; then
+              echo "::warning title=task-view primitive drift::Vendored primitive '$kh_file' missing."
+              continue
+            fi
+            if [ ! -f "$up_file" ]; then
+              echo "::notice title=task-view primitive drift::Upstream '$name' not present at '$TASK_VIEW_TAG'; skipping."
+              continue
+            fi
+            if ! diff -u <(normalise "$up_file") <(normalise "$kh_file") >/tmp/prim.diff 2>&1; then
+              prim_drift=1
+              echo "::warning title=task-view primitive drift::Body drift in '$name' between lib/ledger and task-view@$TASK_VIEW_TAG. Re-vendor per lib/ledger/README.md (copy the file + re-apply the @/lib/validation import rewire)."
+              echo "----- normalised diff: $name (upstream <-> KH) -----"
+              cat /tmp/prim.diff || true
+              echo "----------------------------------------------------"
+            else
+              echo "No substantive drift in $name."
+            fi
+          done
+
+          if [ "$prim_drift" -eq 0 ]; then
+            echo "Vendored lib/ledger primitives are in sync with task-view@$TASK_VIEW_TAG (modulo import rewire)."
+          fi
+
+          # NON-BLOCKING: drift is a ::warning:: only.
           exit 0

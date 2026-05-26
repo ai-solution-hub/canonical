@@ -1,0 +1,193 @@
+/**
+ * VENDORED from task-view @ v0.2.0-task-view (packages/server/record-mutate.ts).
+ * Body byte-faithful; only schema import specifiers rewired
+ * `@task-view/schemas/*` → `@/lib/validation/*`. Re-vendor per
+ * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
+ *
+ * ── original header ──────────────────────────────────────────────────────────
+ * record-mutate.ts — ID-20.15 record-level CREATE / DELETE primitives.
+ *
+ * Sibling to `patch-apply.ts` (FIELD-level edits). This module handles
+ * WHOLE-record mutations:
+ *   - `insertRecord` — append a new record (Task / roadmap theme / backlog
+ *     item) to the matching collection, then re-parse the whole ledger via
+ *     the Zod schema. Duplicate id is rejected.
+ *   - `removeRecord` — drop a record by id, then re-parse. Absent id is a
+ *     not-found result.
+ *
+ * Both follow the same all-or-nothing discipline as `applyPatches`: mutate a
+ * single in-memory snapshot, run ONE Zod parse, surface a discriminated-union
+ * result. The caller owns serialise + atomic-write + mirror regen.
+ *
+ * Per-kind collection key:
+ *   - task-list → `tasks[]`,  id is a bare-digit STRING (e.g. "42")
+ *   - roadmap   → `themes[]`, id is a bare-digit STRING
+ *   - backlog   → `items[]`,  id is a bare-digit STRING
+ */
+
+import {
+  TaskListSchema,
+  type TaskList,
+} from '@/lib/validation/task-list-schema';
+import { RoadmapSchema, type Roadmap } from '@/lib/validation/roadmap-schema';
+import {
+  BacklogSchema,
+  type BacklogDocument,
+} from '@/lib/validation/backlog-schema';
+import { ZodError } from 'zod';
+
+import type { DetectSchemaResult } from './detect-schema';
+
+type KnownDetected = Exclude<DetectSchemaResult, { kind: 'unknown' }>;
+
+/**
+ * Result of a record-level mutation.
+ */
+export type RecordMutateResult =
+  | { ok: true; detected: KnownDetected; recordId: string }
+  | { ok: false; kind: 'duplicate-id'; recordId: string }
+  | { ok: false; kind: 'record-not-found'; recordId: string }
+  | { ok: false; kind: 'schema-error'; zodError: ZodError }
+  | { ok: false; kind: 'invalid-body'; detail: string };
+
+// ── id extraction ─────────────────────────────────────────────────────────────
+
+/**
+ * Pull the `id` field off an arbitrary record body. Used to detect
+ * duplicates BEFORE the schema parse. Returns null when the body is not an
+ * object or has no string/number id.
+ */
+function extractId(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null;
+  const id = (body as { id?: unknown }).id;
+  if (typeof id === 'string') return id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return null;
+}
+
+function existingIds(detected: KnownDetected): Set<string> {
+  if (detected.kind === 'task-list') {
+    return new Set(detected.data.tasks.map((t) => t.id));
+  }
+  if (detected.kind === 'roadmap') {
+    return new Set(detected.data.themes.map((t) => t.id));
+  }
+  return new Set(detected.data.items.map((it) => it.id));
+}
+
+// ── re-parse helper ─────────────────────────────────────────────────────────
+
+function reparse(
+  kind: KnownDetected['kind'],
+  raw: unknown,
+):
+  | { ok: true; data: TaskList | Roadmap | BacklogDocument }
+  | { ok: false; zodError: ZodError } {
+  try {
+    if (kind === 'task-list')
+      return { ok: true, data: TaskListSchema.parse(raw) };
+    if (kind === 'roadmap') return { ok: true, data: RoadmapSchema.parse(raw) };
+    return { ok: true, data: BacklogSchema.parse(raw) };
+  } catch (err) {
+    if (err instanceof ZodError) return { ok: false, zodError: err };
+    throw err;
+  }
+}
+
+function rebuildDetected(
+  kind: KnownDetected['kind'],
+  data: TaskList | Roadmap | BacklogDocument,
+): KnownDetected {
+  if (kind === 'task-list')
+    return { kind: 'task-list', data: data as TaskList };
+  if (kind === 'roadmap') return { kind: 'roadmap', data: data as Roadmap };
+  return { kind: 'backlog', data: data as BacklogDocument };
+}
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+/**
+ * Insert a new record into the detected ledger. Clones the raw data, appends
+ * the record, then re-parses the WHOLE document so document-level invariants
+ * (unique-id / sibling-dep superRefines) run. Duplicate id is rejected before
+ * the parse.
+ */
+export function insertRecord(
+  detected: KnownDetected,
+  record: unknown,
+): RecordMutateResult {
+  const newId = extractId(record);
+  if (newId === null) {
+    return {
+      ok: false,
+      kind: 'invalid-body',
+      detail:
+        'Record body must be an object carrying a string or numeric `id` field.',
+    };
+  }
+  if (existingIds(detected).has(newId)) {
+    return { ok: false, kind: 'duplicate-id', recordId: newId };
+  }
+
+  const rawClone = structuredClone(detected.data) as Record<string, unknown>;
+  const collectionKey =
+    detected.kind === 'task-list'
+      ? 'tasks'
+      : detected.kind === 'roadmap'
+        ? 'themes'
+        : 'items';
+  const collection = rawClone[collectionKey];
+  if (!Array.isArray(collection)) {
+    return {
+      ok: false,
+      kind: 'invalid-body',
+      detail: `Ledger is missing its "${collectionKey}" collection.`,
+    };
+  }
+  collection.push(record);
+
+  const parsed = reparse(detected.kind, rawClone);
+  if (!parsed.ok)
+    return { ok: false, kind: 'schema-error', zodError: parsed.zodError };
+  return {
+    ok: true,
+    detected: rebuildDetected(detected.kind, parsed.data),
+    recordId: newId,
+  };
+}
+
+/**
+ * Remove a record by id from the detected ledger. Returns `record-not-found`
+ * when no record carries the id. On success the mutated document is re-parsed.
+ */
+export function removeRecord(
+  detected: KnownDetected,
+  recordId: string,
+): RecordMutateResult {
+  if (!existingIds(detected).has(recordId)) {
+    return { ok: false, kind: 'record-not-found', recordId };
+  }
+  const rawClone = structuredClone(detected.data) as Record<string, unknown>;
+  const collectionKey =
+    detected.kind === 'task-list'
+      ? 'tasks'
+      : detected.kind === 'roadmap'
+        ? 'themes'
+        : 'items';
+  const collection = rawClone[collectionKey];
+  if (!Array.isArray(collection)) {
+    return { ok: false, kind: 'record-not-found', recordId };
+  }
+  rawClone[collectionKey] = collection.filter(
+    (rec) => extractId(rec) !== recordId,
+  );
+
+  const parsed = reparse(detected.kind, rawClone);
+  if (!parsed.ok)
+    return { ok: false, kind: 'schema-error', zodError: parsed.zodError };
+  return {
+    ok: true,
+    detected: rebuildDetected(detected.kind, parsed.data),
+    recordId,
+  };
+}

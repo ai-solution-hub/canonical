@@ -170,6 +170,12 @@ Once Gitbook integration is wired (planned), approved + shipped specs may also
 be published as engineering docs via the Gitbook sync. The checked-in `TECH.md`
 remains the canonical source of truth; Gitbook is the publishing surface.
 
+**Ledger field discipline (ID-34):** REJECTED-alternatives analysis, migration
+trade-offs, and design rationale live here in `TECH.md`. When the work is
+tracked by a task-list Task, the Task's `description` points at this spec via
+`cross_doc_links` — it does not inline the rationale (that is the drift ID-34
+corrects). See [`docs/reference/task-list-discipline.md`](../../../docs/reference/task-list-discipline.md).
+
 ## Related Skills
 
 - `write-product-spec` — companion product spec.

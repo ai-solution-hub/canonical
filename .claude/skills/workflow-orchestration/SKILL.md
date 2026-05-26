@@ -271,13 +271,18 @@ The Orchestrator does not declare a Task `done` without:
 
 The Orchestrator owns ledger writes for status transitions, journal-block
 appends, Subtask additions, and Task opens. Per-field discipline (ID-34
-canonical scope) — write the right shape into the right field:
+canonical scope) — write the right shape into the right field. **Canonical
+reference:** [`docs/reference/task-list-discipline.md`](../../../docs/reference/task-list-discipline.md)
+(full per-field table + the canonical-ref-vs-traceability boundary rule;
+over-budget fields surface as soft warnings from `parseTaskListWithWarnings`,
+never schema rejections).
 
 | Field | Shape | Load-bearing for |
 |---|---|---|
 | `last_updated` (roadmap file-level) | Single-line `kh-{track}-S{N} {wave} close-out — {short marker}` | Freshness guard on roadmap only. |
 | Subtask `details` `<info added on …>` blocks | Multi-line narrative permitted; structured journal blocks per PRODUCT inv 13 | Per-Subtask traceability. THE canonical home for session-by-session narrative (commits, test counts, OQ ratifications, Checker verdicts, Curator decisions). |
-| Task `description` | One-paragraph human-readable purpose; updated only on scope amendment | Cross-doc cross-reference target. NOT a journal. |
+| Task `description` | One paragraph: compact what+why, ≤1500 chars; rationale → `docs/` + `cross_doc_links` pointer, not inlined; updated only on scope amendment | Cross-doc cross-reference target. NOT a journal. |
+| Subtask `description` | One-sentence summary, ≤250 chars; not a copy of `details` | Subtask scan label. |
 | Task `status_note` | Short rationale for current status (`blocked: waiting on X`); ≤300 chars | Status-line context only. Bump on status flip. |
 | `testStrategy` (Subtask) | One-line acceptance criterion the Checker verifies against | Checker contract. |
 | `cross_doc_links` | Repo-relative path + anchor + raw text per `DocLinkSchema` | Doc-graph traversal. |
