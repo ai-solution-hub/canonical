@@ -118,7 +118,8 @@ a historical artefact.
 ### 2.1 Where to find more canonical terms
 
 - Taxonomy: `docs/reference/entity-type-taxonomy-spec.md`.
-- Schema entity names: `docs/reference/SCHEMA-QUICK-REFERENCE.md`.
+- Schema entity names: the generated types in `supabase/types/database.types.ts` (consume
+  via `Tables<'x'>` / `Enums<'x'>`; see CLAUDE.md "TypeScript conventions").
 - State-of-the-product nouns: `docs/reference/state-of-the-product.md`.
 - AI-visibility resolutions: `docs/reference/ai-visibility-policy.md`.
 
@@ -250,7 +251,7 @@ Structural shape:
 Voice rules: no prose for prose's sake. A reference doc reads like a data sheet. Headings
 and table cells; sentences only where definition requires.
 
-Examples: `docs/reference/SCHEMA-QUICK-REFERENCE.md`,
+Examples: `docs/reference/state-of-the-product.md`,
 `docs/reference/entity-type-taxonomy-spec.md`.
 
 ### 4.4 Troubleshooting docs

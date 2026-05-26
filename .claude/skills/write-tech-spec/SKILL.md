@@ -57,9 +57,10 @@ Knowledge Hub conventions to ground the plan in:
 - **Architecture map:** `.planning/codebase/STRUCTURE.md` is the authoritative
   directory layout. `docs/generated/codebase-stats.md` +
   `docs/generated/mcp-inventory.md` are auto-generated current counts.
-- **Schema:** `docs/reference/SCHEMA-QUICK-REFERENCE.md` +
-  `supabase/types/database.types.ts` (auto-generated; never hand-edit). New DDL:
-  `supabase migration new` + `db push`, not MCP `execute_sql`.
+- **Schema:** `supabase/types/database.types.ts` (auto-generated; never
+  hand-edit) + `supabase/types/database-overrides.ts` for JSONB domain types —
+  consume via `Tables<'x'>` / `Enums<'x'>`. New DDL: `supabase migration new` +
+  `db push`, not MCP `execute_sql`.
 - **Function search_path:** every new PL/pgSQL function MUST include
   `SET search_path = public, extensions`.
 - **Anon EXECUTE grants:** every new `public.*()` function needs an explicit

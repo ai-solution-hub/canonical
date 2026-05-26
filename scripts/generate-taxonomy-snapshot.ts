@@ -81,7 +81,9 @@ async function main() {
       return res;
     });
 
-  // Fallback: extract from SCHEMA-QUICK-REFERENCE if RPC not available
+  // Primary source is the `get_check_constraint_values` RPC, which reads the
+  // live CHECK constraint values from `information_schema` server-side. The
+  // fallback below is a hardcoded mirror used only when the RPC is unavailable.
   let contentTypes: string[] = [];
   let platforms: string[] = [];
 

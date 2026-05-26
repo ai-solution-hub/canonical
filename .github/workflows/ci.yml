@@ -989,6 +989,80 @@ jobs:
           git diff --exit-code -- docs/reference/tasks docs/reference/roadmap
           docs/reference/backlog
 
+  supabase-types-parity:
+    # ID-47.6 (S265 / type-safety-pipeline OQ6) — DB-axis generated-types parity
+    # gate. Regenerates `supabase/types/database.types.ts` from the live schema
+    # via `supabase gen types` and FAILS on any diff against the committed file.
+    # This closes the silent-drift gap between `supabase/migrations/**.sql` (the
+    # source of truth) and the committed TypeScript types. It is a DIFFERENT axis
+    # from `type-drift-parity` (which gates fetcher-only interface regressions via
+    # the ast-dataflow CLI, not the Supabase schema).
+    #
+    # Uses the persistent Staging branch (`turayklvaunphgbgscat`) — Liam RATIFIED
+    # staging (OQ-4), mirroring `schema-parity.yml`. STAGING_PROJECT_REF is a
+    # workflow-level constant to sidestep the `.temp/project-ref` drift gotcha
+    # (CLAUDE.md "Always cat supabase/.temp/project-ref before any push").
+    #
+    # Diff, not regenerate-and-commit: the auto-commit pattern bypasses review for
+    # schema drift; diff-and-fail forces a PR to explicitly include the regenerated
+    # types, matching CLAUDE.md's `supabase migration new` + `db push` + `gen types`
+    # workflow. The MergeDeep override (`lib/supabase/database-overrides.ts`, 47.5)
+    # is a SEPARATE file the generated types never contain, so the diff is
+    # override-blind by construction — no override-aware diff path needed.
+    #
+    # FIRST-RUN RISK: the committed types file may have been prod-generated
+    # (CLAUDE.md's regen command targets prod `rovrymhhffssilaftdwd`); a
+    # staging-generated diff fails spuriously if staging != prod schema. Mitigation:
+    # `schema-parity.yml` confirms prod <-> staging parity, or regenerate the
+    # committed file from staging. Do NOT switch the project-ref to prod to dodge
+    # this — Liam ratified staging.
+    #
+    # Spec: docs/specs/ast-dataflow-tool/type-safety-pipeline/TECH.md OQ6 (lines 640-679).
+    name: Supabase generated types parity
+    runs-on: ubuntu-latest
+    # Staging env scope per docs/runbooks/github-environments.md §2 —
+    # carries staging Supabase URL/keys + TEST_USER_1/2/3 credentials.
+    # Case-sensitive: must exactly match `Staging`.
+    # Dependabot drops env binding (no env-scoped secret access for
+    # bot-triggered runs) — uses repo Dependabot namespace instead.
+    environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      STAGING_PROJECT_REF: turayklvaunphgbgscat
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Install Supabase CLI
+        run: |
+          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.deb -o /tmp/supabase.deb
+          sudo dpkg -i /tmp/supabase.deb
+
+      - name: Generate types from staging branch
+        # STAGING_PROJECT_REF is a static workflow constant (not external context)
+        # — safe to reference in run:.
+        run: |
+          supabase gen types typescript \
+            --project-id "$STAGING_PROJECT_REF" \
+            --schema public \
+            > /tmp/database.types.generated.ts
+
+      - name: Diff against checked-in types
+        run: |
+          if ! diff -q supabase/types/database.types.ts /tmp/database.types.generated.ts; then
+            echo "::error::Generated Supabase types differ from supabase/types/database.types.ts."
+            echo "::error::Run: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts"
+            diff -u supabase/types/database.types.ts /tmp/database.types.generated.ts | head -200
+            exit 1
+          fi
+          echo "Generated types match committed types."
+
   ci-summary:
     # OPS-58 (S33 W1) — single fixed-name aggregator. Posts on every PR
     # (including Dependabot) regardless of which upstream jobs ran.
@@ -1026,6 +1100,7 @@ jobs:
       - integration
       - type-drift-parity
       - ledger-mirror-parity
+      - supabase-types-parity
     runs-on: ubuntu-latest
     timeout-minutes: 1
     permissions:
@@ -1048,6 +1123,7 @@ jobs:
           INTEGRATION: ${{ needs.integration.result }}
           TYPE_DRIFT_PARITY: ${{ needs.type-drift-parity.result }}
           LEDGER_MIRROR_PARITY: ${{ needs.ledger-mirror-parity.result }}
+          SUPABASE_TYPES_PARITY: ${{ needs.supabase-types-parity.result }}
         run: |
           set -euo pipefail
           fail=0
@@ -1060,7 +1136,8 @@ jobs:
             "mcp-eval=$MCP_EVAL" \
             "integration=$INTEGRATION" \
             "type-drift-parity=$TYPE_DRIFT_PARITY" \
-            "ledger-mirror-parity=$LEDGER_MIRROR_PARITY"; do
+            "ledger-mirror-parity=$LEDGER_MIRROR_PARITY" \
+            "supabase-types-parity=$SUPABASE_TYPES_PARITY"; do
             name="${entry%%=*}"
             res="${entry##*=}"
             echo "  $name -> $res"

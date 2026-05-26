@@ -582,6 +582,30 @@ export function findSchemaConstant(
   return null;
 }
 
+/**
+ * Confirm an EXACT exported constant name exists in the schemas registry.
+ *
+ * Unlike `findSchemaConstant` (which appends the `Schema`/`ZodSchema` name
+ * convention to an interface name), this checks for the verbatim identifier —
+ * used by the defect-B5 override (Subtask 32.28), whose entries already name
+ * the full schema constant. Returns the name when exported, else `null` so a
+ * stale override degrades to the `z.unknown()` fall-back.
+ */
+export function findExactSchemaConstant(
+  constantName: string,
+  project: Project,
+  schemasPath: string,
+): string | null {
+  const schemasSf = project.getSourceFile(schemasPath);
+  if (!schemasSf) return null;
+  const exported = schemasSf
+    .getVariableStatements()
+    .filter((stmt) => stmt.isExported())
+    .flatMap((stmt) => stmt.getDeclarations())
+    .some((decl) => decl.getName() === constantName);
+  return exported ? constantName : null;
+}
+
 // ── HTTP-method ⇄ fetch-kind mapping ──────────────────────────────────────
 
 /**
@@ -609,6 +633,113 @@ function methodFetchKind(method: string): FetchKind | null {
     default:
       return null;
   }
+}
+
+// ── Defect-B5 binding-correction override (route+method precedence) ────────
+
+/**
+ * Explicit route+method → ResponseSchema overrides (Subtask 32.28, defect-B5).
+ *
+ * The 32.20 Source-A URL-matcher binds a route to the FIRST baseline
+ * `fetchJson`/`mutationFetchJson` type-arg whose URL aligns. For 5 routes (6
+ * method-bindings) that type-arg's `${interface}Schema` describes a DIFFERENT
+ * entity than the route's real 2xx body — its required top-level keys are
+ * entirely absent, so under the {32.25} pass-through wrapper the bound schema
+ * rejects LOUD regardless of `.loose()` strictness. That is a binding-
+ * correctness defect (logically PRIOR to {32.26}'s nullable/strictness drift),
+ * so it cannot be fixed by tightening; the correct schema must be bound at
+ * inference time.
+ *
+ * Rather than re-architect the heuristic URL matcher (which shares its
+ * round-trip contract with the canonical, MUST-NOT-MODIFY
+ * `lib/ast-dataflow/queries/type-drift-detect.ts`), we override the offending
+ * (route-suffix, method) pairs to their hand-authored schemas in
+ * `lib/validation/schemas.ts` (authored OUTSIDE the {32.26} generated block).
+ * The override is consulted with PRECEDENCE over the heuristic chain, so the
+ * {32.27} temp-copy `--apply` emits the CORRECT `defineRoute(<schema>, …)`.
+ *
+ * Method-keyed (not route-keyed) so the correctly-bound sibling methods are
+ * untouched — e.g. `GET /api/coverage/targets` genuinely returns the
+ * `{ targets }` shape `TargetsResponseSchema` describes and is NOT overridden;
+ * only the `PUT` (which returns `{ success, count }`) is.
+ *
+ * The route is matched by POSIX path SUFFIX so the same map resolves under
+ * both a disk-loaded project (absolute paths) and the in-memory test harness
+ * (`/repo/...`). Each entry names a real exported constant from
+ * `lib/validation/schemas.ts`; a missing constant (e.g. a future rename)
+ * surfaces via `findSchemaConstant` returning `null` and the standard
+ * `z.unknown()` + `NEEDS_SCHEMA` fall-back, so a stale override degrades
+ * gracefully rather than emitting a dangling identifier.
+ *
+ * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
+ *       ID-32.28 (RE-SCOPED, OQ-10). The corpus rollout that wraps the live
+ *       route files with these bindings is Task ID-49.
+ */
+interface BindingOverride {
+  /** Route file POSIX path suffix (matched via `endsWith`). */
+  routeSuffix: string;
+  /** Upper-case HTTP method this override applies to. */
+  method: string;
+  /** Bare exported constant name in `lib/validation/schemas.ts`. */
+  schemaConstant: string;
+}
+
+const DEFECT_B5_BINDING_OVERRIDES: readonly BindingOverride[] = [
+  // GET /api/entities/co-occurrence → `{ pairs, total }` (was EntityDetailSchema).
+  {
+    routeSuffix: 'app/api/entities/co-occurrence/route.ts',
+    method: 'GET',
+    schemaConstant: 'EntityCoOccurrenceResponseSchema',
+  },
+  // PUT /api/coverage/targets → `{ success, count }` (was TargetsResponseSchema;
+  // the GET on this route is CORRECTLY bound and intentionally NOT overridden).
+  {
+    routeSuffix: 'app/api/coverage/targets/route.ts',
+    method: 'PUT',
+    schemaConstant: 'CoverageTargetsPutResponseSchema',
+  },
+  // PATCH /api/items/[id] → `{ success, ... }` polymorphic (was PatchResponseSchema).
+  {
+    routeSuffix: 'app/api/items/[id]/route.ts',
+    method: 'PATCH',
+    schemaConstant: 'ItemPatchResponseSchema',
+  },
+  // DELETE /api/items/[id] → `{ deleted, id }` (was PatchResponseSchema).
+  {
+    routeSuffix: 'app/api/items/[id]/route.ts',
+    method: 'DELETE',
+    schemaConstant: 'ItemDeleteResponseSchema',
+  },
+  // POST /api/items/batch-review → `{ updated }` (was PatchResponseSchema).
+  {
+    routeSuffix: 'app/api/items/batch-review/route.ts',
+    method: 'POST',
+    schemaConstant: 'BatchReviewResponseSchema',
+  },
+  // POST /api/items/batch-workspaces → `{ assignments }` (was PatchResponseSchema).
+  {
+    routeSuffix: 'app/api/items/batch-workspaces/route.ts',
+    method: 'POST',
+    schemaConstant: 'BatchWorkspacesResponseSchema',
+  },
+];
+
+/**
+ * Look up the defect-B5 binding override for a (route file, method) pair.
+ * Returns the bare schema-constant name when an override applies, else `null`
+ * (the heuristic chain then runs as before). Matching is POSIX-suffix +
+ * case-insensitive method, mirroring the rest of this module's path handling.
+ */
+export function lookupBindingOverride(
+  routeFilePath: string,
+  method: string,
+): string | null {
+  const posix = routeFilePath.replace(/\\/g, '/');
+  const upper = method.toUpperCase();
+  const hit = DEFECT_B5_BINDING_OVERRIDES.find(
+    (o) => o.method === upper && posix.endsWith(`/${o.routeSuffix}`),
+  );
+  return hit ? hit.schemaConstant : null;
 }
 
 // ── Public entry point ────────────────────────────────────────────────────
@@ -676,6 +807,27 @@ export function inferSchemaSourceA(
     options.schemasPath ??
     resolveLookupPath(project, SCHEMAS_PATH_SUFFIX) ??
     SCHEMAS_PATH_SUFFIX;
+
+  // Defect-B5 binding-correction override (Subtask 32.28). A handful of routes
+  // were bound a schema describing a DIFFERENT entity by the 32.20 URL-matcher;
+  // an explicit (route-suffix, method) override takes PRECEDENCE over the
+  // heuristic walk below and binds the hand-authored corrected schema. We still
+  // confirm the named constant is actually exported from `schemas.ts` via
+  // `findSchemaConstant` so a stale override (e.g. a future rename) degrades to
+  // the standard `z.unknown()` + `NEEDS_SCHEMA` fall-back rather than emitting a
+  // dangling identifier.
+  const overrideConstant = lookupBindingOverride(sf.getFilePath(), method);
+  if (overrideConstant) {
+    const resolved = findExactSchemaConstant(
+      overrideConstant,
+      project,
+      schemasPath,
+    );
+    if (resolved) {
+      return { schema: resolved };
+    }
+    return { schema: Z_UNKNOWN_PLACEHOLDER, reason: 'NEEDS_SCHEMA' };
+  }
 
   // The method's eligible fetch KIND. `null` (e.g. OPTIONS) → no candidate
   // call sites match, so we short-circuit to the fall-back below.

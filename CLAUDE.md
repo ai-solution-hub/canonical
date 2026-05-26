@@ -71,7 +71,10 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 
 - Uses Supabase
 - Migrations in `supabase/migrations/`
-- Schema defined in `docs/reference/SCHEMA-QUICK-REFERENCE.md`
+- Schema is canonically defined by the generated types in
+  `supabase/types/database.types.ts` (+ JSONB domain types in
+  `supabase/types/database-overrides.ts`). Consume row/enum shapes via `Tables<'x'>` /
+  `Enums<'x'>` — see the "TypeScript conventions" note under Gotchas below.
 
 ## Testing
 
@@ -178,6 +181,13 @@ Mempalace MCP server is the canonical memory system.
 - **`getAuthorisedClient()` discriminated union:** Returns `{ success: boolean }` — check
   `auth.success` not `auth.authorised`. **Always** use `authFailureResponse(auth)` helper
   to route each failure reason to the correct HTTP status.
+- **TypeScript conventions (canonical type sources):** DB / row shapes come from
+  `Tables<'x'>` / `QueryData<>` off `@/supabase/types/database.types` (or
+  `supabase/types/database-overrides.ts` for JSONB-typed columns). Composed / API response
+  shapes come from `z.infer<typeof schema>`. `database.types.ts` is generated (never
+  hand-edited) and CI-guarded by `supabase-types-parity`. The structural override at
+  `supabase/types/database-overrides.ts` is where JSONB column domain types live (e.g.
+  `workspaces.domain_metadata` → `ProcurementMetadata`).
 - **No barrel re-exports:** Always use direct file imports (`@/lib/procurement/helpers`),
   never import from index files.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);

@@ -198,7 +198,7 @@ See `docs/reference/test-philosophy.md` before writing or remediating tests.
 - Keep product specs behavior-oriented and implementation-light.
 - Keep tech specs implementation-oriented and grounded in current codebase
   patterns (`.planning/codebase/STRUCTURE.md`,
-  `docs/reference/SCHEMA-QUICK-REFERENCE.md`,
+  `supabase/types/database.types.ts` for schema shapes,
   `docs/generated/codebase-stats.md`).
 - Use review time to validate specs and behavior, not to over-index on code
   style nits.

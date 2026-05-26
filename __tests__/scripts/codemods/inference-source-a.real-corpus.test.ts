@@ -480,3 +480,99 @@ describe('inferSchema binds mutationFetchJson write-response baseline interfaces
     expect(readBinds + writeBinds).toBeGreaterThanOrEqual(34);
   });
 });
+
+// ── 32.28 — defect-B5 binding-correction override (route+method precedence) ─
+
+/**
+ * DEFECT-B5: the 32.20 Source-A URL-matcher bound a schema describing a
+ * DIFFERENT entity to 5 routes (6 method-bindings). The matcher associates a
+ * route with the FIRST baseline `fetchJson`/`mutationFetchJson` type-arg whose
+ * URL aligns — for these routes that type-arg's `${interface}Schema` is the
+ * WRONG shape (its required top-level keys are entirely absent from the
+ * route's real 2xx body, so it rejects LOUD under the {32.25} pass-through
+ * wrapper regardless of `.loose()` strictness — a binding-correctness defect,
+ * NOT the nullable/strictness drift {32.26} owns).
+ *
+ * The correction is a route+method → schema override consulted with
+ * PRECEDENCE over the heuristic chain (Source B → Source A) — surgical, so the
+ * canonical `type-drift-detect.ts` URL matcher is never touched. The override
+ * binds the 6 hand-authored schemas (lib/validation/schemas.ts, OUTSIDE the
+ * {32.26} generated block) verified against each handler's real success
+ * return. NO working-tree routes are wrapped here — the corpus rollout that
+ * applies these correct bindings to the working tree is Task ID-49.
+ *
+ * These tests assert on the OBSERVABLE `inferSchema` output for each of the 6
+ * method-bindings, plus the critical no-regression invariant that the
+ * coverage/targets GET (which was CORRECTLY bound to `TargetsResponseSchema`)
+ * is NOT disturbed by the method-keyed PUT override.
+ *
+ * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
+ *       ID-32.28 (RE-SCOPED, OQ-10).
+ */
+describe('inferSchema applies the defect-B5 binding-correction override (32.28)', () => {
+  it('binds EntityCoOccurrenceResponseSchema for GET /api/entities/co-occurrence (was EntityDetailSchema)', () => {
+    const project = createCodemodProject();
+    const routes = enumerateRouteFiles(project);
+    const sf = routeBySuffix(routes, 'app/api/entities/co-occurrence/route.ts');
+    expect(inferSchema(sf, 'GET', project)).toEqual({
+      schema: 'EntityCoOccurrenceResponseSchema',
+    });
+  });
+
+  it('binds CoverageTargetsPutResponseSchema for PUT /api/coverage/targets (was TargetsResponseSchema)', () => {
+    const project = createCodemodProject();
+    const routes = enumerateRouteFiles(project);
+    const sf = routeBySuffix(routes, 'app/api/coverage/targets/route.ts');
+    expect(inferSchema(sf, 'PUT', project)).toEqual({
+      schema: 'CoverageTargetsPutResponseSchema',
+    });
+  });
+
+  it('does NOT disturb the CORRECT GET /api/coverage/targets binding (still TargetsResponseSchema)', () => {
+    // The GET genuinely returns `{ targets }` and was correctly bound. The
+    // method-keyed PUT override must not leak onto the GET — this guards the
+    // override against a route-level (method-blind) regression.
+    const project = createCodemodProject();
+    const routes = enumerateRouteFiles(project);
+    const sf = routeBySuffix(routes, 'app/api/coverage/targets/route.ts');
+    expect(inferSchema(sf, 'GET', project)).toEqual({
+      schema: 'TargetsResponseSchema',
+    });
+  });
+
+  it('binds ItemPatchResponseSchema for PATCH /api/items/[id] (was PatchResponseSchema)', () => {
+    const project = createCodemodProject();
+    const routes = enumerateRouteFiles(project);
+    const sf = routeBySuffix(routes, 'app/api/items/[id]/route.ts');
+    expect(inferSchema(sf, 'PATCH', project)).toEqual({
+      schema: 'ItemPatchResponseSchema',
+    });
+  });
+
+  it('binds ItemDeleteResponseSchema for DELETE /api/items/[id] (was PatchResponseSchema)', () => {
+    const project = createCodemodProject();
+    const routes = enumerateRouteFiles(project);
+    const sf = routeBySuffix(routes, 'app/api/items/[id]/route.ts');
+    expect(inferSchema(sf, 'DELETE', project)).toEqual({
+      schema: 'ItemDeleteResponseSchema',
+    });
+  });
+
+  it('binds BatchReviewResponseSchema for POST /api/items/batch-review (was PatchResponseSchema)', () => {
+    const project = createCodemodProject();
+    const routes = enumerateRouteFiles(project);
+    const sf = routeBySuffix(routes, 'app/api/items/batch-review/route.ts');
+    expect(inferSchema(sf, 'POST', project)).toEqual({
+      schema: 'BatchReviewResponseSchema',
+    });
+  });
+
+  it('binds BatchWorkspacesResponseSchema for POST /api/items/batch-workspaces (was PatchResponseSchema)', () => {
+    const project = createCodemodProject();
+    const routes = enumerateRouteFiles(project);
+    const sf = routeBySuffix(routes, 'app/api/items/batch-workspaces/route.ts');
+    expect(inferSchema(sf, 'POST', project)).toEqual({
+      schema: 'BatchWorkspacesResponseSchema',
+    });
+  });
+});

@@ -2320,1016 +2320,990 @@ export type PublicationBulkActionBody = z.infer<
 // matching route handler's return payload (AC-8) and is resolved by
 // Source-A inference via the `${interface}Schema` name convention.
 //
+// Strictness derives from the REAL source interfaces (INV-S, TECH §3.1a):
+// bare z.object strips additive wire fields but REJECTS a renamed/removed/
+// retyped declared field. .loose()/z.unknown() appear ONLY where allow-listed.
+//
 
-/** R-WP17 ResponseSchema for `ChangeReportGenerateResponse` (types/change-reports.ts). Generated; permissive per AC-8. */
-export const ChangeReportGenerateResponseSchema = z
-  .object({
-    digest: z
-      .object({
-        id: z.string(),
-        frequency: z.string(),
-        period_start: z.string(),
-        period_end: z.string(),
+// ── INV-S allow-list manifest (TECH §3.1a) ──
+// Every .loose() and z.unknown() below is justified by a real source
+// property: a genuine [k: string]: T index signature, an opaque Json/DB
+// member, a bare `unknown`, or an un-narrowable external/generic type.
+// The INV-S static guard asserts one entry per permissive token (8).
+// ALLOW: z.unknown @ ReviewQueueResponse.items[].metadata{} — unknown (unknown)
+// ALLOW: z.unknown @ DedupQueueResponse.items[].metadata{} — unknown (unknown)
+// ALLOW: z.unknown @ DedupItemResponse.subject.metadata{} — unknown (unknown)
+// ALLOW: z.unknown @ DedupItemResponse.canonical.metadata{} — unknown (unknown)
+// ALLOW: z.unknown @ EntityDetail.metadata{} — unknown (unknown)
+// ALLOW: z.unknown @ IntelligenceWorkspace.domain_metadata — Json (supabase-Json)
+// ALLOW: .loose @ PipelineRunRow.progress — index-signature ([k: string]: unknown)
+// ALLOW: z.unknown @ PipelineRunRow.result — unknown (unknown)
+
+/** R-WP17 ResponseSchema for `ChangeReportGenerateResponse` (types/change-reports.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const ChangeReportGenerateResponseSchema = z.object({
+  digest: z.object({
+    id: z.string(),
+    frequency: z.string(),
+    period_start: z.string(),
+    period_end: z.string(),
+    item_count: z.number(),
+    domain_summaries: z.array(
+      z.object({
+        domain: z.string(),
         item_count: z.number(),
-        domain_summaries: z.array(
-          z
-            .object({
-              domain: z.string(),
-              item_count: z.number(),
-              summary: z.string(),
-              top_items: z.array(
-                z
-                  .object({
-                    id: z.string(),
-                    title: z.string(),
-                    content_type: z.unknown().optional(),
-                    why_notable: z.unknown().optional(),
-                    summary: z.unknown().nullable().optional(),
-                  })
-                  .loose(),
-              ),
-              key_themes: z.array(z.string()),
-            })
-            .loose(),
+        summary: z.string(),
+        top_items: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            content_type: z.string().optional(),
+            why_notable: z.string().optional(),
+            summary: z.string().nullable().optional(),
+          }),
         ),
-        narrative_summary: z.string().nullable(),
-        generated_at: z.string(),
-        generated_by: z.string(),
-        tokens_used: z.number().nullable(),
-        item_ids: z.array(z.string()).optional(),
-        filters: z
-          .object({
-            domain: z.string().optional(),
-            keywords: z.array(z.string()).optional(),
-            date_from: z.string().optional(),
-            date_to: z.string().optional(),
-          })
-          .loose()
-          .nullable()
-          .optional(),
-        governance_summary: z
-          .object({
-            items_modified: z.number(),
-            items_verified: z.number(),
-            items_flagged: z.number(),
-            freshness_breakdown: z
-              .object({
-                fresh: z.number(),
-                aging: z.number(),
-                stale: z.number(),
-                expired: z.number(),
-              })
-              .loose()
-              .optional(),
-          })
-          .loose()
-          .nullable()
-          .optional(),
-        created_at: z.string(),
-      })
-      .loose(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `RescoringPreviewResponse` (types/intelligence-refinement.ts). Generated; permissive per AC-8. */
-export const RescoringPreviewResponseSchema = z
-  .object({
-    samples: z.number(),
-    mean_delta: z.number(),
-    improved: z.number(),
-    regressed: z.number(),
-    results: z.array(
-      z
-        .object({
-          article_id: z.string(),
-          title: z.string(),
-          existing_score: z.number().nullable(),
-          candidate_score: z.number(),
-          score_delta: z.number(),
-          existing_reasoning: z.string().nullable().optional(),
-          candidate_reasoning: z.string().optional(),
-        })
-        .loose(),
+        key_themes: z.array(z.string()),
+      }),
     ),
-    warnings: z.array(z.string()).optional(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `ResolveFlagsResponse` (types/intelligence-refinement.ts). Generated; permissive per AC-8. */
-export const ResolveFlagsResponseSchema = z
-  .object({
-    resolved_count: z.number(),
-    requested_count: z.number(),
-    warnings: z.array(z.string()).optional(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `AnalyseFlagsResponse` (types/intelligence-refinement.ts). Generated; permissive per AC-8. */
-export const AnalyseFlagsResponseSchema = z
-  .object({
-    summary: z.string(),
-    falsePositivePatterns: z.array(
-      z
-        .object({
-          pattern: z.string(),
-          articleCount: z.number(),
-          articles: z.array(z.string()),
-          rootCause: z.string(),
-        })
-        .loose(),
-    ),
-    falseNegativePatterns: z.array(
-      z
-        .object({
-          pattern: z.string(),
-          articleCount: z.number(),
-          articles: z.array(z.string()),
-          rootCause: z.string(),
-        })
-        .loose(),
-    ),
-    recommendations: z.array(
-      z
-        .object({
-          type: z.enum(['add', 'remove', 'reword']),
-          section: z.string(),
-          currentText: z.string().nullable(),
-          proposedText: z.string(),
-          reasoning: z.string(),
-          affectedFlags: z.number(),
-        })
-        .loose(),
-    ),
-    proposedPromptText: z.string(),
-    confidenceNotes: z.string(),
-    analysedFlagCount: z.number(),
-    truncated: z.boolean(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `ReviewQueueResponse` (types/review.ts). Generated; permissive per AC-8. */
-export const ReviewQueueResponseSchema = z
-  .object({
-    items: z.array(
-      z
-        .object({
-          content: z.string().nullable(),
-          source_url: z.string().nullable(),
-          verified_at: z.string().nullable(),
-          verified_by: z.string().nullable(),
-          secondary_domain: z.string().nullable(),
-          secondary_subtopic: z.string().nullable(),
-          quality_score: z.number().nullable(),
-          last_reviewed_at: z.string().nullable(),
-          id: z.string(),
-          title: z.string(),
-          suggested_title: z.string().nullable(),
-          summary: z.string().nullable(),
-          primary_domain: z.string().nullable(),
-          primary_subtopic: z.string().nullable(),
-          content_type: z.string(),
-          platform: z.string().nullable(),
-          author_name: z.string().nullable(),
-          source_domain: z.string().nullable(),
-          thumbnail_url: z.string().nullable(),
-          captured_date: z.string().nullable(),
-          ai_keywords: z.array(z.string()).nullable(),
-          classification_confidence: z.number().nullable(),
-          priority: z.string().nullable(),
-          freshness: z.string().nullable(),
-          user_tags: z.array(z.string()).nullable(),
-          governance_review_status: z.string().nullable(),
-          metadata: z.record(z.string(), z.unknown()).nullable(),
-          source_document: z.string().nullable().optional(),
-          brief: z.string().nullable().optional(),
-          answer_standard: z.string().nullable().optional(),
-          answer_advanced: z.string().nullable().optional(),
-          content_owner_id: z.string().nullable().optional(),
-          source_document_id: z.string().nullable().optional(),
-          citation_count: z.number().nullable().optional(),
-          source_file: z.string().nullable().optional(),
-          layer: z.string().nullable().optional(),
-          starred: z.boolean().optional(),
-          next_review_date: z.string().nullable().optional(),
-          review_cadence_days: z.number().nullable().optional(),
-          publication_status: z
-            .enum(['draft', 'in_review', 'published', 'archived'])
-            .nullable(),
-        })
-        .loose(),
-    ),
-    total: z.number(),
-    verified_count: z.number(),
-    flagged_count: z.number(),
-    has_more: z.boolean(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `ReviewStatsResponse` (types/review.ts). Generated; permissive per AC-8. */
-export const ReviewStatsResponseSchema = z
-  .object({
-    total: z.number(),
-    verified: z.number(),
-    flagged: z.number(),
-    unverified: z.number(),
-    draft: z.number(),
-    overdue: z.number(),
-    awaiting_publication: z.number(),
-    by_domain: z.record(
-      z.string(),
-      z
-        .object({
-          total: z.number(),
-          verified: z.number(),
-        })
-        .loose(),
-    ),
-    by_content_type: z.record(
-      z.string(),
-      z
-        .object({
-          total: z.number(),
-          verified: z.number(),
-        })
-        .loose(),
-    ),
-    by_source_file: z.record(
-      z.string(),
-      z
-        .object({
-          total: z.number(),
-          verified: z.number(),
-        })
-        .loose(),
-    ),
-    by_source_document: z.record(
-      z.string(),
-      z
-        .object({
-          total: z.number(),
-          verified: z.number(),
-          name: z.string(),
-        })
-        .loose(),
-    ),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `DedupQueueResponse` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const DedupQueueResponseSchema = z
-  .object({
-    items: z.array(
-      z
-        .object({
-          id: z.string(),
-          title: z.string().nullable(),
-          content: z.string().nullable(),
-          dedup_status: z.string(),
-          created_at: z.string(),
-          primary_domain: z.string().nullable(),
-          content_owner_id: z.string().nullable(),
-          ingest_source: z.string().nullable(),
-          superseded_by: z.string().nullable(),
-          publication_status: z.string(),
-          metadata: z.record(z.string(), z.unknown()).nullable(),
-        })
-        .loose(),
-    ),
-    hasMore: z.boolean(),
-    nextCursor: z.string().nullable(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `DedupItemResponse` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const DedupItemResponseSchema = z
-  .object({
-    subject: z
+    narrative_summary: z.string().nullable(),
+    generated_at: z.string(),
+    generated_by: z.string(),
+    tokens_used: z.number().nullable(),
+    item_ids: z.array(z.string()).optional(),
+    filters: z
       .object({
+        domain: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+        date_from: z.string().optional(),
+        date_to: z.string().optional(),
+      })
+      .nullable()
+      .optional(),
+    governance_summary: z
+      .object({
+        items_modified: z.number(),
+        items_verified: z.number(),
+        items_flagged: z.number(),
+        freshness_breakdown: z
+          .object({
+            fresh: z.number(),
+            aging: z.number(),
+            stale: z.number(),
+            expired: z.number(),
+          })
+          .optional(),
+      })
+      .nullable()
+      .optional(),
+    created_at: z.string(),
+  }),
+});
+
+/** R-WP17 ResponseSchema for `RescoringPreviewResponse` (types/intelligence-refinement.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const RescoringPreviewResponseSchema = z.object({
+  samples: z.number(),
+  mean_delta: z.number(),
+  improved: z.number(),
+  regressed: z.number(),
+  results: z.array(
+    z.object({
+      article_id: z.string(),
+      title: z.string(),
+      existing_score: z.number().nullable(),
+      candidate_score: z.number(),
+      score_delta: z.number(),
+      existing_reasoning: z.string().nullable().optional(),
+      candidate_reasoning: z.string().optional(),
+    }),
+  ),
+  warnings: z.array(z.string()).optional(),
+});
+
+/** R-WP17 ResponseSchema for `ResolveFlagsResponse` (types/intelligence-refinement.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const ResolveFlagsResponseSchema = z.object({
+  resolved_count: z.number(),
+  requested_count: z.number(),
+  warnings: z.array(z.string()).optional(),
+});
+
+/** R-WP17 ResponseSchema for `AnalyseFlagsResponse` (types/intelligence-refinement.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const AnalyseFlagsResponseSchema = z.object({
+  summary: z.string(),
+  falsePositivePatterns: z.array(
+    z.object({
+      pattern: z.string(),
+      articleCount: z.number(),
+      articles: z.array(z.string()),
+      rootCause: z.string(),
+    }),
+  ),
+  falseNegativePatterns: z.array(
+    z.object({
+      pattern: z.string(),
+      articleCount: z.number(),
+      articles: z.array(z.string()),
+      rootCause: z.string(),
+    }),
+  ),
+  recommendations: z.array(
+    z.object({
+      type: z.enum(['add', 'remove', 'reword']),
+      section: z.string(),
+      currentText: z.string().nullable(),
+      proposedText: z.string(),
+      reasoning: z.string(),
+      affectedFlags: z.number(),
+    }),
+  ),
+  proposedPromptText: z.string(),
+  confidenceNotes: z.string(),
+  analysedFlagCount: z.number(),
+  truncated: z.boolean(),
+});
+
+/** R-WP17 ResponseSchema for `ReviewQueueResponse` (types/review.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const ReviewQueueResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      content: z.string().nullable(),
+      source_url: z.string().nullable(),
+      verified_at: z.string().nullable(),
+      verified_by: z.string().nullable(),
+      secondary_domain: z.string().nullable(),
+      secondary_subtopic: z.string().nullable(),
+      quality_score: z.number().nullable(),
+      last_reviewed_at: z.string().nullable(),
+      id: z.string(),
+      title: z.string(),
+      suggested_title: z.string().nullable(),
+      summary: z.string().nullable(),
+      primary_domain: z.string().nullable(),
+      primary_subtopic: z.string().nullable(),
+      content_type: z.string(),
+      platform: z.string().nullable(),
+      author_name: z.string().nullable(),
+      source_domain: z.string().nullable(),
+      thumbnail_url: z.string().nullable(),
+      captured_date: z.string().nullable(),
+      ai_keywords: z.array(z.string()).nullable(),
+      classification_confidence: z.number().nullable(),
+      priority: z.string().nullable(),
+      freshness: z.string().nullable(),
+      user_tags: z.array(z.string()).nullable(),
+      governance_review_status: z.string().nullable(),
+      metadata: z.record(z.string(), z.unknown()).nullable(),
+      source_document: z.string().nullable().optional(),
+      brief: z.string().nullable().optional(),
+      answer_standard: z.string().nullable().optional(),
+      answer_advanced: z.string().nullable().optional(),
+      content_owner_id: z.string().nullable().optional(),
+      source_document_id: z.string().nullable().optional(),
+      citation_count: z.number().nullable().optional(),
+      source_file: z.string().nullable().optional(),
+      layer: z.string().nullable().optional(),
+      starred: z.boolean().optional(),
+      next_review_date: z.string().nullable().optional(),
+      review_cadence_days: z.number().nullable().optional(),
+      publication_status: z
+        .enum(['draft', 'in_review', 'published', 'archived'])
+        .nullable(),
+    }),
+  ),
+  total: z.number(),
+  verified_count: z.number(),
+  flagged_count: z.number(),
+  has_more: z.boolean(),
+});
+
+/** R-WP17 ResponseSchema for `ReviewStatsResponse` (types/review.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const ReviewStatsResponseSchema = z.object({
+  total: z.number(),
+  verified: z.number(),
+  flagged: z.number(),
+  unverified: z.number(),
+  draft: z.number(),
+  overdue: z.number(),
+  awaiting_publication: z.number(),
+  by_domain: z.record(
+    z.string(),
+    z.object({
+      total: z.number(),
+      verified: z.number(),
+    }),
+  ),
+  by_content_type: z.record(
+    z.string(),
+    z.object({
+      total: z.number(),
+      verified: z.number(),
+    }),
+  ),
+  by_source_file: z.record(
+    z.string(),
+    z.object({
+      total: z.number(),
+      verified: z.number(),
+    }),
+  ),
+  by_source_document: z.record(
+    z.string(),
+    z.object({
+      total: z.number(),
+      verified: z.number(),
+      name: z.string(),
+    }),
+  ),
+});
+
+/** R-WP17 ResponseSchema for `DedupQueueResponse` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const DedupQueueResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().nullable(),
+      content: z.string().nullable(),
+      dedup_status: z.string(),
+      created_at: z.string(),
+      primary_domain: z.string().nullable(),
+      content_owner_id: z.string().nullable(),
+      ingest_source: z.string().nullable(),
+      superseded_by: z.string().nullable(),
+      publication_status: z.string(),
+      metadata: z.record(z.string(), z.unknown()).nullable(),
+    }),
+  ),
+  hasMore: z.boolean(),
+  nextCursor: z.string().nullable(),
+});
+
+/** R-WP17 ResponseSchema for `DedupItemResponse` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const DedupItemResponseSchema = z.object({
+  subject: z.object({
+    id: z.string(),
+    title: z.string().nullable(),
+    content: z.string().nullable(),
+    dedup_status: z.string(),
+    created_at: z.string(),
+    primary_domain: z.string().nullable(),
+    content_owner_id: z.string().nullable(),
+    ingest_source: z.string().nullable(),
+    superseded_by: z.string().nullable(),
+    publication_status: z.string(),
+    metadata: z.record(z.string(), z.unknown()).nullable(),
+  }),
+  canonical: z
+    .object({
+      id: z.string(),
+      title: z.string().nullable(),
+      content: z.string().nullable(),
+      dedup_status: z.string(),
+      created_at: z.string(),
+      primary_domain: z.string().nullable(),
+      content_owner_id: z.string().nullable(),
+      ingest_source: z.string().nullable(),
+      superseded_by: z.string().nullable(),
+      publication_status: z.string(),
+      metadata: z.record(z.string(), z.unknown()).nullable(),
+    })
+    .nullable(),
+  similarity: z.number(),
+});
+
+/** R-WP17 ResponseSchema for `NearDupPairsResponse` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const NearDupPairsResponseSchema = z.object({
+  pairs: z.array(
+    z.object({
+      pairId: z.string(),
+      similarity: z.number(),
+      left: z.object({
         id: z.string(),
         title: z.string().nullable(),
-        content: z.string().nullable(),
-        dedup_status: z.string(),
-        created_at: z.string(),
-        primary_domain: z.string().nullable(),
-        content_owner_id: z.string().nullable(),
-        ingest_source: z.string().nullable(),
-        superseded_by: z.string().nullable(),
-        publication_status: z.string(),
-        metadata: z.record(z.string(), z.unknown()).nullable(),
-      })
-      .loose(),
-    canonical: z
-      .object({
+        contentType: z.string().nullable(),
+        primaryDomain: z.string().nullable(),
+      }),
+      right: z.object({
         id: z.string(),
         title: z.string().nullable(),
-        content: z.string().nullable(),
-        dedup_status: z.string(),
-        created_at: z.string(),
-        primary_domain: z.string().nullable(),
-        content_owner_id: z.string().nullable(),
-        ingest_source: z.string().nullable(),
-        superseded_by: z.string().nullable(),
-        publication_status: z.string(),
-        metadata: z.record(z.string(), z.unknown()).nullable(),
-      })
-      .loose()
-      .nullable(),
-    similarity: z.number(),
-  })
-  .loose();
+        contentType: z.string().nullable(),
+        primaryDomain: z.string().nullable(),
+      }),
+    }),
+  ),
+  threshold: z.number(),
+  total: z.number(),
+});
 
-/** R-WP17 ResponseSchema for `NearDupPairsResponse` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const NearDupPairsResponseSchema = z
+/** R-WP17 ResponseSchema for `NearDupMergeResult` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const NearDupMergeResultSchema = z.object({
+  pairId: z.string(),
+  oldId: z.string(),
+  newId: z.string(),
+  dedup_status: z.literal('superseded'),
+});
+
+/** R-WP17 ResponseSchema for `NearDupConfirmUniqueResult` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const NearDupConfirmUniqueResultSchema = z.object({
+  pairId: z.string(),
+  leftDedupStatus: z.literal('confirmed_unique'),
+  rightDedupStatus: z.literal('confirmed_unique'),
+});
+
+/** R-WP17 ResponseSchema for `PipelineRunsRecentResponse` (app/api/admin/pipeline-runs/recent/route.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const PipelineRunsRecentResponseSchema = z.object({
+  windowHours: z.number(),
+  generatedAt: z.string(),
+  summaries: z.array(
+    z.object({
+      pipelineName: z.string(),
+      runCount: z.number(),
+      failureCount: z.number(),
+      completedWithErrorsCount: z.number(),
+      lastRunAt: z.string().nullable(),
+      lastRunStatus: z.string().nullable(),
+      lastFailureAt: z.string().nullable(),
+      lastFailureMessage: z.string().nullable(),
+    }),
+  ),
+  totalRuns: z.number(),
+  totalFailures: z.number(),
+  hasAnyFailures: z.boolean(),
+});
+
+/** R-WP17 ResponseSchema for `BatchCreateResult` (hooks/use-batch-create.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const BatchCreateResultSchema = z.object({
+  created: z.number(),
+  failed: z.number(),
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      status: z.enum(['created', 'failed']),
+      error: z.string().optional(),
+    }),
+  ),
+  pipeline_run_id: z.string().nullable(),
+  batch_id: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `TargetsResponse` (hooks/use-coverage-targets.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const TargetsResponseSchema = z.object({
+  targets: z.array(
+    z.object({
+      id: z.string(),
+      domain_id: z.string(),
+      metric_name: z.enum(['item_count', 'fresh_pct', 'max_expired']),
+      target_value: z.number(),
+      domain_name: z.string().nullable(),
+    }),
+  ),
+});
+
+/** R-WP17 ResponseSchema for `SendToReviewResult` (hooks/use-diff-review.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const SendToReviewResultSchema = z.object({
+  sent: z.number(),
+  already_pending: z.number(),
+  skipped_draft: z.number(),
+  review_url: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `EntityDetail` (hooks/use-entity-detail.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const EntityDetailSchema = z.object({
+  canonical_name: z.string(),
+  entity_type: z.string(),
+  effective_type: z.string(),
+  has_type_override: z.boolean(),
+  mention_count: z.number(),
+  variant_names: z.array(z.string()),
+  variant_count: z.number(),
+  types_seen: z.array(z.string()),
+  has_type_conflict: z.boolean(),
+  content_items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      content_type: z.string().nullable(),
+    }),
+  ),
+  content_item_count: z.number(),
+  relationships: z.array(
+    z.object({
+      source_entity: z.string(),
+      relationship_type: z.string(),
+      target_entity: z.string(),
+      confidence: z.number(),
+    }),
+  ),
+  relationship_count: z.number(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+/** R-WP17 ResponseSchema for `NotificationsResponse` (hooks/use-notifications.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const NotificationsResponseSchema = z.object({
+  notifications: z.array(
+    z.object({
+      id: z.string(),
+      user_id: z.string(),
+      type: z.string(),
+      entity_type: z.string(),
+      entity_id: z.string(),
+      title: z.string(),
+      message: z.string().nullable(),
+      read_at: z.string().nullable(),
+      dismissed_at: z.string().nullable(),
+      expires_at: z.string().nullable(),
+      created_at: z.string().nullable(),
+    }),
+  ),
+  unreadCount: z.number(),
+});
+
+/** R-WP17 ResponseSchema for `MutationResult` (hooks/use-tags-data.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const MutationResultSchema = z.object({
+  affected: z.number(),
+});
+
+/** R-WP17 ResponseSchema for `PatchResponse` (components/review/publication-review-action-bar.tsx). Generated; strict per INV-S (TECH §3.1a). */
+export const PatchResponseSchema = z.object({
+  success: z.boolean(),
+  previousStatus: z.string(),
+  newStatus: z.string(),
+  transition: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `ReadinessData` (hooks/procurement/use-procurement-readiness.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const ReadinessDataSchema = z.object({
+  ready: z.boolean(),
+  summary: z.object({
+    total_questions: z.number(),
+    answered: z.number(),
+    approved: z.number(),
+    quality_checked: z.number(),
+    passing_quality: z.number(),
+  }),
+  criteria: z.array(
+    z.object({
+      name: z.string(),
+      passed: z.boolean(),
+      details: z.string(),
+    }),
+  ),
+  issues: z.array(
+    z.object({
+      question_number: z.number(),
+      question_title: z.string(),
+      issues: z.array(z.string()),
+    }),
+  ),
+});
+
+/** R-WP17 ResponseSchema for `ProcurementResponse` (hooks/streaming/use-stream-coordination.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const ProcurementResponseSchema = z.object({
+  id: z.string(),
+  question_id: z.string(),
+  response_text: z.string().nullable(),
+  response_text_advanced: z.string().nullable(),
+  version: z.number(),
+  citations: z.array(
+    z.object({
+      cited_text: z.string(),
+      source_index: z.number(),
+      source_id: z.string(),
+      source_title: z.string(),
+      source_url: z.string(),
+      start_block_index: z.number(),
+      end_block_index: z.number(),
+    }),
+  ),
+  source_content: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().nullable(),
+      content_type: z.string().nullable(),
+      primary_domain: z.string().nullable(),
+      primary_subtopic: z.string().nullable(),
+      summary: z.string().nullable(),
+      similarity: z.number().optional(),
+    }),
+  ),
+  quality_check: z
+    .object({
+      overall_score: z.number(),
+      word_count: z.number(),
+      word_limit_compliance: z.boolean(),
+      citation_count: z.number(),
+      unsupported_claims: z.array(z.string()),
+      suggestions: z.array(z.string()),
+      issues: z.array(
+        z.object({
+          type: z.enum([
+            'word_limit',
+            'unsupported_claim',
+            'weak_language',
+            'missing_section',
+          ]),
+          severity: z.enum(['error', 'warning', 'info']),
+          message: z.string(),
+          location: z.string().optional(),
+        }),
+      ),
+    })
+    .nullable(),
+  review_status: z.string(),
+  question: z.object({
+    question_text: z.string(),
+    word_limit: z.number().nullable(),
+    section_name: z.string().nullable(),
+    confidence_posture: z.string().nullable(),
+  }),
+});
+
+/** R-WP17 ResponseSchema for `CompanyProfile` (hooks/intelligence/use-company-profiles.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const CompanyProfileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  description: z.string().nullable(),
+  website_url: z.string().nullable(),
+  sectors: z.array(z.string()),
+  services: z.array(z.string()),
+  certifications: z.array(z.string()),
+  geographic_scope: z.array(z.string()),
+  competitors: z.array(
+    z.object({
+      name: z.string(),
+      website: z.string().optional(),
+      notes: z.string().optional(),
+    }),
+  ),
+  target_customers: z.string().nullable(),
+  value_proposition: z.string().nullable(),
+  key_topics: z.array(z.string()),
+  is_active: z.boolean(),
+  created_by: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `ArticlesResponse` (hooks/intelligence/use-feed-articles.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const ArticlesResponseSchema = z.object({
+  articles: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      external_url: z.string(),
+      relevance_score: z.number().nullable(),
+      relevance_category: z
+        .enum(['high', 'medium', 'low', 'irrelevant'])
+        .nullable(),
+      relevance_reasoning: z.string().nullable(),
+      ai_summary: z.string().nullable(),
+      ingested_at: z.string(),
+      published_at: z.string().nullable(),
+      content_item_id: z.string().nullable(),
+      passed: z.boolean(),
+      source_name: z.string().nullable(),
+      flag_count: z.number(),
+    }),
+  ),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+});
+
+/** R-WP17 ResponseSchema for `FeedFlag` (hooks/intelligence/use-feed-articles.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const FeedFlagSchema = z.object({
+  id: z.string(),
+  feed_article_id: z.string(),
+  flag_type: z.enum(['false_positive', 'false_negative']),
+  flagged_by: z.string(),
+  notes: z.string().nullable(),
+  resolved: z.boolean(),
+  resolved_at: z.string().nullable(),
+  prompt_version_id: z.string().nullable(),
+  created_at: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `FeedPrompt` (hooks/intelligence/use-feed-prompts.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const FeedPromptSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  version: z.number(),
+  prompt_text: z.string(),
+  is_active: z.boolean(),
+  performance_snapshot: z
+    .object({
+      total_articles: z.number(),
+      passed_articles: z.number(),
+      filtered_articles: z.number(),
+      pass_rate: z.number(),
+      captured_at: z.string(),
+      period: z.string(),
+    })
+    .nullable(),
+  change_notes: z.string().nullable(),
+  created_at: z.string(),
+  created_by: z.string().nullable(),
+});
+
+/** R-WP17 ResponseSchema for `CreateFeedSourceResponse` (hooks/intelligence/use-feed-sources.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const CreateFeedSourceResponseSchema = z.object({
+  feed_title: z.string().optional(),
+  initial_article_count: z.number().optional(),
+  id: z.string(),
+  workspace_id: z.string(),
+  name: z.string(),
+  url: z.string(),
+  source_type: z.enum(['rss', 'web', 'api']).optional(),
+  polling_interval_minutes: z.number(),
+  is_active: z.boolean(),
+  last_polled_at: z.string().nullable(),
+  last_status: z.string().nullable(),
+  consecutive_failures: z.number(),
+  etag: z.string().nullable(),
+  last_modified: z.string().nullable(),
+  created_by: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `FeedSource` (hooks/intelligence/use-feed-sources.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const FeedSourceSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  name: z.string(),
+  url: z.string(),
+  source_type: z.enum(['rss', 'web', 'api']).optional(),
+  polling_interval_minutes: z.number(),
+  is_active: z.boolean(),
+  last_polled_at: z.string().nullable(),
+  last_status: z.string().nullable(),
+  consecutive_failures: z.number(),
+  etag: z.string().nullable(),
+  last_modified: z.string().nullable(),
+  created_by: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `TestPollResult` (hooks/intelligence/use-feed-sources.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const TestPollResultSchema = z.object({
+  success: z.boolean(),
+  itemCount: z.number(),
+  sampleTitles: z.array(z.string()),
+  error: z.string().optional(),
+});
+
+/** R-WP17 ResponseSchema for `MetricsSummary` (hooks/intelligence/use-intelligence-metrics.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const MetricsSummarySchema = z.object({
+  total_articles: z.number(),
+  passed_articles: z.number(),
+  filtered_articles: z.number(),
+  filter_ratio: z.number(),
+  total_flags: z.number(),
+  false_positive_flags: z.number(),
+  false_negative_flags: z.number(),
+  unresolved_flags: z.number(),
+  last_poll_time: z.string().nullable(),
+  active_sources: z.number(),
+  sources_with_errors: z.number(),
+  recent_flags: z.array(
+    z.object({
+      id: z.string(),
+      flag_type: z.enum(['false_positive', 'false_negative']),
+      notes: z.string().nullable(),
+      created_at: z.string(),
+      article_title: z.string(),
+    }),
+  ),
+  period: z.string(),
+});
+
+/** R-WP17 ResponseSchema for `IntelligenceWorkspace` (hooks/intelligence/use-intelligence-workspaces.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const IntelligenceWorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  application_type_id: z.string(),
+  company_profile_id: z.string().nullable(),
+  guide_id: z.string().nullable(),
+  relevance_threshold: z.number().nullable(),
+  domain_metadata: z.unknown(),
+  is_archived: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  company_profile_name: z.string().optional(),
+  source_count: z.number().optional(),
+  article_count: z.number().optional(),
+  passed_article_count: z.number().optional(),
+});
+
+/** R-WP17 ResponseSchema for `SeedStarterPackResult` (hooks/intelligence/use-seed-starter-pack.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const SeedStarterPackResultSchema = z.object({
+  starter_pack_id: z.string(),
+  starter_pack_name: z.string(),
+  seeded: z.array(z.string()),
+  skipped_existing: z.array(z.string()),
+  failed: z.array(
+    z.object({
+      url: z.string(),
+      error: z.string(),
+    }),
+  ),
+  warnings: z.array(z.string()).optional(),
+});
+
+/** R-WP17 ResponseSchema for `TriggerPollResponse` (hooks/intelligence/use-trigger-poll.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const TriggerPollResponseSchema = z.object({
+  success: z.boolean(),
+  runId: z.string(),
+  startedAt: z.string(),
+  completedAt: z.string(),
+  sourcesProcessed: z.number(),
+  totalArticlesFound: z.number(),
+  totalArticlesNew: z.number(),
+  totalArticlesPassed: z.number(),
+  errors: z.array(z.string()),
+});
+
+/** R-WP17 ResponseSchema for `WorkspaceHealthResponse` (hooks/intelligence/use-workspace-health.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const WorkspaceHealthResponseSchema = z.object({
+  pipeline: z.object({
+    lastSuccessfulRun: z.string().nullable(),
+    timeSinceLastRunMs: z.number().nullable(),
+    sourcesWithFailures: z.number(),
+    sourcesAtFailureLimit: z.number(),
+    totalActiveSources: z.number(),
+    healthy: z.boolean(),
+    statusMessage: z.string(),
+  }),
+  sources: z.object({
+    workspaceId: z.string(),
+    sources: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        url: z.string(),
+        lastPolledAt: z.string().nullable(),
+        lastPolledStatus: z.string().nullable(),
+        lastPolledError: z.string().nullable(),
+        consecutiveFailures: z.number(),
+        pollingIntervalMinutes: z.number(),
+        articleCount: z.number(),
+      }),
+    ),
+    healthySources: z.number(),
+    failingSources: z.number(),
+    disabledSources: z.number(),
+  }),
+});
+
+/** R-WP17 ResponseSchema for `AssignmentsResponse` (hooks/review/use-review-queue-data.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const AssignmentsResponseSchema = z.object({
+  assignments: z.array(
+    z.object({
+      id: z.string(),
+      notes: z.string().nullable(),
+      filter_domains: z.array(z.string()).nullable(),
+      filter_content_types: z.array(z.string()).nullable(),
+      filter_freshness: z.array(z.string()).nullable(),
+      filter_date_from: z.string().nullable(),
+      filter_date_to: z.string().nullable(),
+      item_count: z.number().nullable(),
+      due_date: z.string().nullable(),
+    }),
+  ),
+});
+
+/** R-WP17 ResponseSchema for `TaxonomySyncStatus` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const TaxonomySyncStatusSchema = z.object({
+  in_sync: z.boolean(),
+  last_sync_at: z.string().nullable(),
+  current_hash: z.string(),
+  synced_hash: z.string().nullable(),
+});
+
+/** R-WP17 ResponseSchema for `PipelineRunRow` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const PipelineRunRowSchema = z.object({
+  id: z.string(),
+  pipeline_name: z.string(),
+  status: z.enum([
+    'failed',
+    'running',
+    'completed',
+    'completed_with_errors',
+    'cancelled',
+  ]),
+  progress: z
+    .object({
+      step: z.string().optional(),
+      steps_completed: z.number().optional(),
+      steps_total: z.number().optional(),
+      files_completed: z.number().optional(),
+      files_total: z.number().optional(),
+      detail: z.string().optional(),
+    })
+    .loose()
+    .nullable(),
+  source_filename: z.string().nullable(),
+  items_created: z.array(z.string()).nullable(),
+  items_processed: z.number().nullable(),
+  workspace_id: z.string().nullable(),
+  error_message: z.string().nullable(),
+  started_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
+  created_at: z.string().nullable(),
+  created_by: z.string().nullable(),
+  result: z.unknown(),
+});
+
+/** R-WP17 ResponseSchema for `NearDupPairDetail` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
+export const NearDupPairDetailSchema = z.object({
+  left: z.object({
+    id: z.string(),
+    title: z.string().nullable(),
+    content: z.string().nullable(),
+    dedup_status: z.string(),
+    created_at: z.string(),
+    primary_domain: z.string().nullable(),
+    content_type: z.string().nullable(),
+    content_owner_id: z.string().nullable(),
+    ingest_source: z.string().nullable(),
+    superseded_by: z.string().nullable(),
+    archived_at: z.string().nullable(),
+    publication_status: z.string(),
+  }),
+  right: z.object({
+    id: z.string(),
+    title: z.string().nullable(),
+    content: z.string().nullable(),
+    dedup_status: z.string(),
+    created_at: z.string(),
+    primary_domain: z.string().nullable(),
+    content_type: z.string().nullable(),
+    content_owner_id: z.string().nullable(),
+    ingest_source: z.string().nullable(),
+    superseded_by: z.string().nullable(),
+    archived_at: z.string().nullable(),
+    publication_status: z.string(),
+  }),
+  similarity: z.number(),
+});
+
+// ──────────────────────────────────────────
+// END generated: R-WP17 ResponseSchema constants (ID-32.20)
+// ──────────────────────────────────────────
+
+// ──────────────────────────────────────────
+// HAND-AUTHORED ResponseSchema constants (ID-32.28 — defect-B5 binding fix)
+// ──────────────────────────────────────────
+//
+// These correct the wrong bindings the 32.20 Source-A URL-matcher produced for
+// routes whose real 2xx body describes a DIFFERENT entity than the inferred
+// `${interface}Schema`. They live OUTSIDE the generated block above (which
+// {32.26} regenerates) and are bound to their routes via a route+method
+// override in `scripts/codemods/inference-source-a.ts` (precedence over the
+// heuristic chain) so the {32.27} temp-copy `--apply` emits the CORRECT
+// `defineRoute(...)` schema. Each shape is verified against the handler's
+// success return — no invented fields, no `.loose()`-masking of a real
+// mismatch (where `.loose()` IS used it permits genuinely-heterogeneous-but-
+// valid sibling fields, never papers over an absent required key). Permissive
+// on extra keys per AC-8.
+//
+// NOTE (OQ-10 re-scope): the working-tree routes are deliberately NOT wrapped
+// in this Subtask — the full corpus rollout that applies these bindings to the
+// live route files is Task ID-49. These schemas are consumed by the {32.27}
+// temp-copy gate, the codemod override, and the ID-32.28 binding-correctness
+// test today.
+//
+// Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
+// ID-32.28.
+
+/**
+ * ResponseSchema for `GET /api/entities/co-occurrence` (defect-B5 fix). The
+ * route returns `{ pairs, total }` where each pair is a row from the
+ * `get_entity_co_occurrence` RPC (`{ entity_a, entity_b, shared_count, type_a,
+ * type_b }` per `supabase/types/database.types.ts`). The 32.20 codemod
+ * wrongly bound `EntityDetailSchema` (an unrelated single-entity-detail shape).
+ */
+export const EntityCoOccurrenceResponseSchema = z
   .object({
     pairs: z.array(
       z
         .object({
-          pairId: z.string(),
-          similarity: z.number(),
-          left: z
-            .object({
-              id: z.string(),
-              title: z.string().nullable(),
-              contentType: z.string().nullable(),
-              primaryDomain: z.string().nullable(),
-            })
-            .loose(),
-          right: z
-            .object({
-              id: z.string(),
-              title: z.string().nullable(),
-              contentType: z.string().nullable(),
-              primaryDomain: z.string().nullable(),
-            })
-            .loose(),
-        })
-        .loose(),
-    ),
-    threshold: z.number(),
-    total: z.number(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `NearDupMergeResult` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const NearDupMergeResultSchema = z
-  .object({
-    pairId: z.string(),
-    oldId: z.string(),
-    newId: z.string(),
-    dedup_status: z.literal('superseded'),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `NearDupConfirmUniqueResult` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const NearDupConfirmUniqueResultSchema = z
-  .object({
-    pairId: z.string(),
-    leftDedupStatus: z.literal('confirmed_unique'),
-    rightDedupStatus: z.literal('confirmed_unique'),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `PipelineRunsRecentResponse` (app/api/admin/pipeline-runs/recent/route.ts). Generated; permissive per AC-8. */
-export const PipelineRunsRecentResponseSchema = z
-  .object({
-    windowHours: z.number(),
-    generatedAt: z.string(),
-    summaries: z.array(
-      z
-        .object({
-          pipelineName: z.string(),
-          runCount: z.number(),
-          failureCount: z.number(),
-          completedWithErrorsCount: z.number(),
-          lastRunAt: z.string().nullable(),
-          lastRunStatus: z.string().nullable(),
-          lastFailureAt: z.string().nullable(),
-          lastFailureMessage: z.string().nullable(),
-        })
-        .loose(),
-    ),
-    totalRuns: z.number(),
-    totalFailures: z.number(),
-    hasAnyFailures: z.boolean(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `BatchCreateResult` (hooks/use-batch-create.ts). Generated; permissive per AC-8. */
-export const BatchCreateResultSchema = z
-  .object({
-    created: z.number(),
-    failed: z.number(),
-    items: z.array(
-      z
-        .object({
-          id: z.string(),
-          title: z.string(),
-          status: z.enum(['created', 'failed']),
-          error: z.string().optional(),
-        })
-        .loose(),
-    ),
-    pipeline_run_id: z.string().nullable(),
-    batch_id: z.string(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `TargetsResponse` (hooks/use-coverage-targets.ts). Generated; permissive per AC-8. */
-export const TargetsResponseSchema = z
-  .object({
-    targets: z.array(
-      z
-        .object({
-          id: z.string(),
-          domain_id: z.string(),
-          metric_name: z.enum(['item_count', 'fresh_pct', 'max_expired']),
-          target_value: z.number(),
-          domain_name: z.string().nullable(),
-        })
-        .loose(),
-    ),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `SendToReviewResult` (hooks/use-diff-review.ts). Generated; permissive per AC-8. */
-export const SendToReviewResultSchema = z
-  .object({
-    sent: z.number(),
-    already_pending: z.number(),
-    skipped_draft: z.number(),
-    review_url: z.string(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `EntityDetail` (hooks/use-entity-detail.ts). Generated; permissive per AC-8. */
-export const EntityDetailSchema = z
-  .object({
-    canonical_name: z.string(),
-    entity_type: z.string(),
-    effective_type: z.string(),
-    has_type_override: z.boolean(),
-    mention_count: z.number(),
-    variant_names: z.array(z.string()),
-    variant_count: z.number(),
-    types_seen: z.array(z.string()),
-    has_type_conflict: z.boolean(),
-    content_items: z.array(
-      z
-        .object({
-          id: z.string(),
-          title: z.string(),
-          content_type: z.string().nullable(),
-        })
-        .loose(),
-    ),
-    content_item_count: z.number(),
-    relationships: z.array(
-      z
-        .object({
-          source_entity: z.string(),
-          relationship_type: z.string(),
-          target_entity: z.string(),
-          confidence: z.number(),
-        })
-        .loose(),
-    ),
-    relationship_count: z.number(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `NotificationsResponse` (hooks/use-notifications.ts). Generated; permissive per AC-8. */
-export const NotificationsResponseSchema = z
-  .object({
-    notifications: z.array(
-      z
-        .object({
-          id: z.string(),
-          user_id: z.string(),
-          type: z.string(),
-          entity_type: z.string(),
-          entity_id: z.string(),
-          title: z.string(),
-          message: z.string().nullable(),
-          read_at: z.string().nullable(),
-          dismissed_at: z.string().nullable(),
-          expires_at: z.string().nullable(),
-          created_at: z.string().nullable(),
-        })
-        .loose(),
-    ),
-    unreadCount: z.number(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `MutationResult` (hooks/use-tags-data.ts). Generated; permissive per AC-8. */
-export const MutationResultSchema = z
-  .object({
-    affected: z.number(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `PatchResponse` (components/review/publication-review-action-bar.tsx). Generated; permissive per AC-8. */
-export const PatchResponseSchema = z
-  .object({
-    success: z.boolean(),
-    previousStatus: z.string(),
-    newStatus: z.string(),
-    transition: z.string(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `ReadinessData` (hooks/procurement/use-procurement-readiness.ts). Generated; permissive per AC-8. */
-export const ReadinessDataSchema = z
-  .object({
-    ready: z.boolean(),
-    summary: z
-      .object({
-        total_questions: z.number(),
-        answered: z.number(),
-        approved: z.number(),
-        quality_checked: z.number(),
-        passing_quality: z.number(),
-      })
-      .loose(),
-    criteria: z.array(
-      z
-        .object({
-          name: z.string(),
-          passed: z.boolean(),
-          details: z.string(),
-        })
-        .loose(),
-    ),
-    issues: z.array(
-      z
-        .object({
-          question_number: z.number(),
-          question_title: z.string(),
-          issues: z.array(z.string()),
-        })
-        .loose(),
-    ),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `ProcurementResponse` (hooks/streaming/use-stream-coordination.ts). Generated; permissive per AC-8. */
-export const ProcurementResponseSchema = z
-  .object({
-    id: z.string(),
-    question_id: z.string(),
-    response_text: z.string().nullable(),
-    response_text_advanced: z.string().nullable(),
-    version: z.number(),
-    citations: z.array(
-      z
-        .object({
-          cited_text: z.string(),
-          source_index: z.number(),
-          source_id: z.string(),
-          source_title: z.string(),
-          source_url: z.string(),
-          start_block_index: z.number(),
-          end_block_index: z.number(),
-        })
-        .loose(),
-    ),
-    source_content: z.array(
-      z
-        .object({
-          id: z.string(),
-          title: z.string().nullable(),
-          content_type: z.string().nullable(),
-          primary_domain: z.string().nullable(),
-          primary_subtopic: z.string().nullable(),
-          summary: z.string().nullable(),
-          similarity: z.number().optional(),
-        })
-        .loose(),
-    ),
-    quality_check: z
-      .object({
-        overall_score: z.number(),
-        word_count: z.number(),
-        word_limit_compliance: z.boolean(),
-        citation_count: z.number(),
-        unsupported_claims: z.array(z.string()),
-        suggestions: z.array(z.string()),
-        issues: z.array(
-          z
-            .object({
-              type: z.enum([
-                'word_limit',
-                'unsupported_claim',
-                'weak_language',
-                'missing_section',
-              ]),
-              severity: z.enum(['error', 'warning', 'info']),
-              message: z.string(),
-              location: z.string().optional(),
-            })
-            .loose(),
-        ),
-      })
-      .loose()
-      .nullable(),
-    review_status: z.string(),
-    question: z
-      .object({
-        question_text: z.string(),
-        word_limit: z.number().nullable(),
-        section_name: z.string().nullable(),
-        confidence_posture: z.string().nullable(),
-      })
-      .loose(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `CompanyProfile` (hooks/intelligence/use-company-profiles.ts). Generated; permissive per AC-8. */
-export const CompanyProfileSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    slug: z.string(),
-    description: z.string().nullable(),
-    website_url: z.string().nullable(),
-    sectors: z.array(z.string()),
-    services: z.array(z.string()),
-    certifications: z.array(z.string()),
-    geographic_scope: z.array(z.string()),
-    competitors: z.array(
-      z
-        .object({
-          name: z.string(),
-          website: z.string().optional(),
-          notes: z.string().optional(),
-        })
-        .loose(),
-    ),
-    target_customers: z.string().nullable(),
-    value_proposition: z.string().nullable(),
-    key_topics: z.array(z.string()),
-    is_active: z.boolean(),
-    created_by: z.string().nullable(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `ArticlesResponse` (hooks/intelligence/use-feed-articles.ts). Generated; permissive per AC-8. */
-export const ArticlesResponseSchema = z
-  .object({
-    articles: z.array(
-      z
-        .object({
-          id: z.string(),
-          title: z.string(),
-          external_url: z.string(),
-          relevance_score: z.number().nullable(),
-          relevance_category: z
-            .enum(['high', 'medium', 'low', 'irrelevant'])
-            .nullable(),
-          relevance_reasoning: z.string().nullable(),
-          ai_summary: z.string().nullable(),
-          ingested_at: z.string(),
-          published_at: z.string().nullable(),
-          content_item_id: z.string().nullable(),
-          passed: z.boolean(),
-          source_name: z.string().nullable(),
-          flag_count: z.number(),
+          entity_a: z.string(),
+          entity_b: z.string(),
+          shared_count: z.number(),
+          type_a: z.string(),
+          type_b: z.string(),
         })
         .loose(),
     ),
     total: z.number(),
-    page: z.number(),
-    limit: z.number(),
   })
   .loose();
 
-/** R-WP17 ResponseSchema for `FeedFlag` (hooks/intelligence/use-feed-articles.ts). Generated; permissive per AC-8. */
-export const FeedFlagSchema = z
-  .object({
-    id: z.string(),
-    feed_article_id: z.string(),
-    flag_type: z.enum(['false_positive', 'false_negative']),
-    flagged_by: z.string(),
-    notes: z.string().nullable(),
-    resolved: z.boolean(),
-    resolved_at: z.string().nullable(),
-    prompt_version_id: z.string().nullable(),
-    created_at: z.string(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `FeedPrompt` (hooks/intelligence/use-feed-prompts.ts). Generated; permissive per AC-8. */
-export const FeedPromptSchema = z
-  .object({
-    id: z.string(),
-    workspace_id: z.string(),
-    version: z.number(),
-    prompt_text: z.string(),
-    is_active: z.boolean(),
-    performance_snapshot: z
-      .object({
-        total_articles: z.number(),
-        passed_articles: z.number(),
-        filtered_articles: z.number(),
-        pass_rate: z.number(),
-        captured_at: z.string(),
-        period: z.string(),
-      })
-      .loose()
-      .nullable(),
-    change_notes: z.string().nullable(),
-    created_at: z.string(),
-    created_by: z.string().nullable(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `CreateFeedSourceResponse` (hooks/intelligence/use-feed-sources.ts). Generated; permissive per AC-8. */
-export const CreateFeedSourceResponseSchema = z
-  .object({
-    feed_title: z.string().optional(),
-    initial_article_count: z.number().optional(),
-    id: z.string(),
-    workspace_id: z.string(),
-    name: z.string(),
-    url: z.string(),
-    source_type: z.enum(['rss', 'web', 'api']).optional(),
-    polling_interval_minutes: z.number(),
-    is_active: z.boolean(),
-    last_polled_at: z.string().nullable(),
-    last_status: z.string().nullable(),
-    consecutive_failures: z.number(),
-    etag: z.string().nullable(),
-    last_modified: z.string().nullable(),
-    created_by: z.string().nullable(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `FeedSource` (hooks/intelligence/use-feed-sources.ts). Generated; permissive per AC-8. */
-export const FeedSourceSchema = z
-  .object({
-    id: z.string(),
-    workspace_id: z.string(),
-    name: z.string(),
-    url: z.string(),
-    source_type: z.enum(['rss', 'web', 'api']).optional(),
-    polling_interval_minutes: z.number(),
-    is_active: z.boolean(),
-    last_polled_at: z.string().nullable(),
-    last_status: z.string().nullable(),
-    consecutive_failures: z.number(),
-    etag: z.string().nullable(),
-    last_modified: z.string().nullable(),
-    created_by: z.string().nullable(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `TestPollResult` (hooks/intelligence/use-feed-sources.ts). Generated; permissive per AC-8. */
-export const TestPollResultSchema = z
+/**
+ * ResponseSchema for `PUT /api/coverage/targets` (defect-B5 fix). The PUT
+ * upsert returns `{ success, count }`; only the GET on this route returns the
+ * `{ targets }` shape that `TargetsResponseSchema` describes. The 32.20 codemod
+ * bound `TargetsResponseSchema` to BOTH methods, so the PUT threw LOUD.
+ */
+export const CoverageTargetsPutResponseSchema = z
   .object({
     success: z.boolean(),
-    itemCount: z.number(),
-    sampleTitles: z.array(z.string()),
-    error: z.string().optional(),
+    count: z.number(),
   })
   .loose();
 
-/** R-WP17 ResponseSchema for `MetricsSummary` (hooks/intelligence/use-intelligence-metrics.ts). Generated; permissive per AC-8. */
-export const MetricsSummarySchema = z
+/**
+ * ResponseSchema for `POST /api/items/batch-review` (defect-B5 fix). Returns
+ * `{ updated }` — the count of items whose governance_review_status changed.
+ * The 32.20 codemod wrongly bound `PatchResponseSchema`
+ * (`{ success, previousStatus, newStatus, transition }`).
+ */
+export const BatchReviewResponseSchema = z
   .object({
-    total_articles: z.number(),
-    passed_articles: z.number(),
-    filtered_articles: z.number(),
-    filter_ratio: z.number(),
-    total_flags: z.number(),
-    false_positive_flags: z.number(),
-    false_negative_flags: z.number(),
-    unresolved_flags: z.number(),
-    last_poll_time: z.string().nullable(),
-    active_sources: z.number(),
-    sources_with_errors: z.number(),
-    recent_flags: z.array(
-      z
-        .object({
-          id: z.string(),
-          flag_type: z.enum(['false_positive', 'false_negative']),
-          notes: z.string().nullable(),
-          created_at: z.string(),
-          article_title: z.string(),
-        })
-        .loose(),
-    ),
-    period: z.string(),
+    updated: z.number(),
   })
   .loose();
 
-/** R-WP17 ResponseSchema for `IntelligenceWorkspace` (hooks/intelligence/use-intelligence-workspaces.ts). Generated; permissive per AC-8. */
-export const IntelligenceWorkspaceSchema = z
+/**
+ * ResponseSchema for `POST /api/items/batch-workspaces` (defect-B5 fix).
+ * Returns `{ assignments }`, a `Record<string, string[]>` grouping
+ * content-item ids to their workspace ids. The 32.20 codemod wrongly bound
+ * `PatchResponseSchema`.
+ */
+export const BatchWorkspacesResponseSchema = z
   .object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string().nullable(),
-    application_type_id: z.string(),
-    company_profile_id: z.string().nullable(),
-    guide_id: z.string().nullable(),
-    relevance_threshold: z.number().nullable(),
-    domain_metadata: z.unknown(),
-    is_archived: z.boolean(),
-    created_at: z.string(),
-    updated_at: z.string(),
-    company_profile_name: z.string().optional(),
-    source_count: z.number().optional(),
-    article_count: z.number().optional(),
-    passed_article_count: z.number().optional(),
+    assignments: z.record(z.string(), z.array(z.string())),
   })
   .loose();
 
-/** R-WP17 ResponseSchema for `SeedStarterPackResult` (hooks/intelligence/use-seed-starter-pack.ts). Generated; permissive per AC-8. */
-export const SeedStarterPackResultSchema = z
-  .object({
-    starter_pack_id: z.string(),
-    starter_pack_name: z.string(),
-    seeded: z.array(z.string()),
-    skipped_existing: z.array(z.string()),
-    failed: z.array(
-      z
-        .object({
-          url: z.string(),
-          error: z.string(),
-        })
-        .loose(),
-    ),
-    warnings: z.array(z.string()).optional(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `TriggerPollResponse` (hooks/intelligence/use-trigger-poll.ts). Generated; permissive per AC-8. */
-export const TriggerPollResponseSchema = z
+/**
+ * ResponseSchema for `PATCH /api/items/[id]` (defect-B5 fix). The handler is
+ * polymorphic: every 2xx branch returns `{ success: true, ... }`, with the
+ * remaining fields varying by branch — status-transition
+ * (`previousStatus`/`newStatus`/`transition`), supersession-clear
+ * (`superseded_by`/`dedup_status`), supersession-set (`old_item`/`new_item`),
+ * or a plain `{ success: true }` (+ optional `warnings`) via
+ * `warningsEnvelope`. `success` is the genuine shared invariant; `.loose()`
+ * admits the legitimate per-branch sibling fields (NOT a masked mismatch). The
+ * 32.20 codemod bound `PatchResponseSchema`, which forced
+ * `previousStatus`/`newStatus`/`transition` on every branch.
+ */
+export const ItemPatchResponseSchema = z
   .object({
     success: z.boolean(),
-    runId: z.string(),
-    startedAt: z.string(),
-    completedAt: z.string(),
-    sourcesProcessed: z.number(),
-    totalArticlesFound: z.number(),
-    totalArticlesNew: z.number(),
-    totalArticlesPassed: z.number(),
-    errors: z.array(z.string()),
   })
   .loose();
 
-/** R-WP17 ResponseSchema for `WorkspaceHealthResponse` (hooks/intelligence/use-workspace-health.ts). Generated; permissive per AC-8. */
-export const WorkspaceHealthResponseSchema = z
+/**
+ * ResponseSchema for `DELETE /api/items/[id]` (defect-B5 fix). Returns
+ * `{ deleted, id }`. The 32.20 codemod bound `PatchResponseSchema`.
+ */
+export const ItemDeleteResponseSchema = z
   .object({
-    pipeline: z
-      .object({
-        lastSuccessfulRun: z.string().nullable(),
-        timeSinceLastRunMs: z.number().nullable(),
-        sourcesWithFailures: z.number(),
-        sourcesAtFailureLimit: z.number(),
-        totalActiveSources: z.number(),
-        healthy: z.boolean(),
-        statusMessage: z.string(),
-      })
-      .loose(),
-    sources: z
-      .object({
-        workspaceId: z.string(),
-        sources: z.array(
-          z
-            .object({
-              id: z.string(),
-              name: z.string(),
-              url: z.string(),
-              lastPolledAt: z.string().nullable(),
-              lastPolledStatus: z.string().nullable(),
-              lastPolledError: z.string().nullable(),
-              consecutiveFailures: z.number(),
-              pollingIntervalMinutes: z.number(),
-              articleCount: z.number(),
-            })
-            .loose(),
-        ),
-        healthySources: z.number(),
-        failingSources: z.number(),
-        disabledSources: z.number(),
-      })
-      .loose(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `AssignmentsResponse` (hooks/review/use-review-queue-data.ts). Generated; permissive per AC-8. */
-export const AssignmentsResponseSchema = z
-  .object({
-    assignments: z.array(
-      z
-        .object({
-          id: z.string(),
-          notes: z.string().nullable(),
-          filter_domains: z.array(z.string()).nullable(),
-          filter_content_types: z.array(z.string()).nullable(),
-          filter_freshness: z.array(z.string()).nullable(),
-          filter_date_from: z.string().nullable(),
-          filter_date_to: z.string().nullable(),
-          item_count: z.number().nullable(),
-          due_date: z.string().nullable(),
-        })
-        .loose(),
-    ),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `TaxonomySyncStatus` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const TaxonomySyncStatusSchema = z
-  .object({
-    in_sync: z.boolean(),
-    last_sync_at: z.string().nullable(),
-    current_hash: z.string(),
-    synced_hash: z.string().nullable(),
-  })
-  .loose();
-
-/** R-WP17 ResponseSchema for `PipelineRunRow` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const PipelineRunRowSchema = z
-  .object({
+    deleted: z.boolean(),
     id: z.string(),
-    pipeline_name: z.string(),
-    status: z.enum([
-      'failed',
-      'running',
-      'completed',
-      'completed_with_errors',
-      'cancelled',
-    ]),
-    progress: z
-      .object({
-        step: z.string().optional(),
-        steps_completed: z.number().optional(),
-        steps_total: z.number().optional(),
-        files_completed: z.number().optional(),
-        files_total: z.number().optional(),
-        detail: z.string().optional(),
-      })
-      .loose()
-      .nullable(),
-    source_filename: z.string().nullable(),
-    items_created: z.array(z.string()).nullable(),
-    items_processed: z.number().nullable(),
-    workspace_id: z.string().nullable(),
-    error_message: z.string().nullable(),
-    started_at: z.string().nullable(),
-    completed_at: z.string().nullable(),
-    created_at: z.string().nullable(),
-    created_by: z.string().nullable(),
-    result: z.unknown(),
   })
   .loose();
-
-/** R-WP17 ResponseSchema for `NearDupPairDetail` (lib/query/fetchers.ts). Generated; permissive per AC-8. */
-export const NearDupPairDetailSchema = z
-  .object({
-    left: z
-      .object({
-        id: z.string(),
-        title: z.string().nullable(),
-        content: z.string().nullable(),
-        dedup_status: z.string(),
-        created_at: z.string(),
-        primary_domain: z.string().nullable(),
-        content_type: z.string().nullable(),
-        content_owner_id: z.string().nullable(),
-        ingest_source: z.string().nullable(),
-        superseded_by: z.string().nullable(),
-        archived_at: z.string().nullable(),
-        publication_status: z.string(),
-      })
-      .loose(),
-    right: z
-      .object({
-        id: z.string(),
-        title: z.string().nullable(),
-        content: z.string().nullable(),
-        dedup_status: z.string(),
-        created_at: z.string(),
-        primary_domain: z.string().nullable(),
-        content_type: z.string().nullable(),
-        content_owner_id: z.string().nullable(),
-        ingest_source: z.string().nullable(),
-        superseded_by: z.string().nullable(),
-        archived_at: z.string().nullable(),
-        publication_status: z.string(),
-      })
-      .loose(),
-    similarity: z.number(),
-  })
-  .loose();
-
-// ──────────────────────────────────────────
-// END generated: R-WP17 ResponseSchema constants (ID-32.20)
 // ──────────────────────────────────────────

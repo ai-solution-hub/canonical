@@ -52,9 +52,9 @@ validation plan before writing code. Also read the Knowledge Hub conventions the
 tech spec is grounded in:
 
 - `.planning/codebase/STRUCTURE.md` — authoritative directory layout
-- `docs/reference/SCHEMA-QUICK-REFERENCE.md` and
-  `supabase/types/database.types.ts` — current schema (never hand-edit the
-  generated types file)
+- `supabase/types/database.types.ts` (+ `supabase/types/database-overrides.ts`
+  for JSONB domain types) — current schema; consume via `Tables<'x'>` /
+  `Enums<'x'>` (never hand-edit the generated types file)
 - `CLAUDE.md` Gotchas — especially Supabase, Testing, and Worktree sections
 
 ### 2. Offer optional implementation aids for large features

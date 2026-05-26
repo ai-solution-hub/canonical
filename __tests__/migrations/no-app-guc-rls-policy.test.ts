@@ -155,7 +155,9 @@ describe('OPS-64 guard — RLS policies must not read session-set app.* GUCs', (
           `  3. Refactor any non-policy callers (e.g. ` +
           `app/api/bids/[id]/responses/[rId]/route.ts:250 audit-trail ` +
           `trigger pattern) so they do not depend on session-set GUCs.\n` +
-          `  4. Document closure in SCHEMA-QUICK-REFERENCE.md §32.1.x.\n\n` +
+          `  4. Document closure against the canonical schema type sources ` +
+          `(\`database.types.ts\` / \`database-overrides.ts\`; see CLAUDE.md ` +
+          `"TypeScript conventions").\n\n` +
           `Investigation reference: kh-prod-readiness-S38 W2 OPS-64.\n` +
           `Escape hatch: add \`-- ${EXEMPTION_MARKER}: <reason>\` to the ` +
           `migration file (review-gated).`,

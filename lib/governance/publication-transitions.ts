@@ -38,9 +38,11 @@ export const VALID_PUBLICATION_STATUSES = [
 export type PublicationStatus = (typeof VALID_PUBLICATION_STATUSES)[number];
 
 /**
- * The three application roles. Mirrors `get_user_role()` return values per
- * `docs/reference/SCHEMA-QUICK-REFERENCE.md`. Sourced fresh from
- * `auth.success.role` at the route handler — never trust client-side claims.
+ * The three application roles. Mirrors `get_user_role()` return values; the
+ * canonical type source is `Enums<'user_role'>` off
+ * `@/supabase/types/database.types` (see CLAUDE.md "TypeScript conventions").
+ * Sourced fresh from `auth.success.role` at the route handler — never trust
+ * client-side claims.
  */
 export type UserRole = 'admin' | 'editor' | 'viewer';
 

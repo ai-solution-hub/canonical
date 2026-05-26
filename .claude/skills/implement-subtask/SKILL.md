@@ -73,8 +73,9 @@ sections. Read additionally:
   (Supabase / Testing / Frontend / etc.).
 - `.planning/codebase/STRUCTURE.md` when you don't know where a module
   lives.
-- `docs/reference/SCHEMA-QUICK-REFERENCE.md` when the change touches
-  the database schema.
+- `supabase/types/database.types.ts` (+ `supabase/types/database-overrides.ts`
+  for JSONB domain types) when the change touches the database schema — consume
+  via `Tables<'x'>` / `Enums<'x'>`, see CLAUDE.md "TypeScript conventions".
 
 Move the Subtask status `pending → in_progress` (per §6.3 + B12). This
 is the only state transition you may set — the Checker owns `done`.
