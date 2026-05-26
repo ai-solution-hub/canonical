@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     '.planning/**',
     'scripts/**',
     'supabase/**',
+    '.cache/**',
   ]),
   {
     // Downgrade new React 19 / React Compiler rules to warnings for now.
