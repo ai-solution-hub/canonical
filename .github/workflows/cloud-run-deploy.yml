@@ -417,31 +417,31 @@ jobs:
             echo "OK: $JOB_NAME deployed"
           done
 
-      - name: Smoke verify pullmd (describe + HTTP + image pin)
+      - name: Smoke verify pullmd (revision Ready + image pin)
         # ID-42.7: Verify the kh-pullmd-example-client Service is live and correctly pinned.
-        #   1. Resolve the deployed Service URL via `services describe`.
-        #   2. GET <url>/ and assert HTTP 200. pullmd exposes NO /health endpoint —
-        #      the root path is the liveness signal (see docs/runbooks/pullmd-deploy.md).
-        #   3. Assert the deployed image is NOT :latest — pullmd images must be
+        #   1. Assert the latest-created revision became Ready. Cloud Run only
+        #      promotes a revision to latestReadyRevisionName after its startup
+        #      probe (httpGet GET / on :3000) passes IN-POD — so Ready == pullmd is
+        #      serving on /. We deliberately do NOT curl the URL from the runner:
+        #      the Service is ingress: internal, so an external GitHub-hosted runner
+        #      gets 403 (not 200) even when the Service is healthy — see
+        #      docs/runbooks/pullmd-deploy.md §2.3. The in-pod probe is the
+        #      authoritative liveness signal; pullmd exposes no /health endpoint.
+        #   2. Assert the deployed image is NOT :latest — pullmd images must be
         #      pinned (manifest bakes aeternalabshq/pullmd:2.0.0) so a floating tag
         #      can never reach prod silently.
         run: |
-          PULLMD_URL=$(gcloud run services describe kh-pullmd-example-client \
-            --project="$GCP_PROJECT" \
-            --region=europe-west2 \
-            --format='value(status.url)')
-          if [[ -z "$PULLMD_URL" ]]; then
-            echo "ERROR: could not resolve kh-pullmd-example-client Service URL" >&2
+          READY_REV=$(gcloud run services describe kh-pullmd-example-client \
+            --project="$GCP_PROJECT" --region=europe-west2 \
+            --format='value(status.latestReadyRevisionName)')
+          CREATED_REV=$(gcloud run services describe kh-pullmd-example-client \
+            --project="$GCP_PROJECT" --region=europe-west2 \
+            --format='value(status.latestCreatedRevisionName)')
+          if [[ -z "$READY_REV" || "$READY_REV" != "$CREATED_REV" ]]; then
+            echo "ERROR: kh-pullmd-example-client latest revision not Ready (created=$CREATED_REV ready=$READY_REV) — the in-pod startup probe (GET / on :3000) failed; inspect the revision logs" >&2
             exit 1
           fi
-          echo "pullmd URL: $PULLMD_URL"
-
-          HTTP_CODE=$(curl -fsS -o /dev/null -w '%{http_code}' "${PULLMD_URL}/" || true)
-          if [[ "$HTTP_CODE" != "200" ]]; then
-            echo "ERROR: GET ${PULLMD_URL}/ returned HTTP $HTTP_CODE, expected 200" >&2
-            exit 1
-          fi
-          echo "OK: GET ${PULLMD_URL}/ -> 200"
+          echo "OK: $READY_REV is Ready (in-pod startup probe GET / on :3000 passed)"
 
           PULLMD_IMAGE=$(gcloud run services describe kh-pullmd-example-client \
             --project="$GCP_PROJECT" \
