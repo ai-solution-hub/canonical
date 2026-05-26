@@ -39,9 +39,14 @@
 #   secretAccessor grant (docs/runbooks/cloud-run-phase-1-handover.md §3).
 # region: europe-west2 (D-RUN-20 deferred).
 #
-# Secrets PULLMD_ADMIN_EMAIL / PULLMD_ADMIN_PASSWORD are mounted declaratively at
-#   deploy time — see docs/runbooks/pullmd-deploy.md §1 (mint) + §2 (deploy /
-#   set-secrets). They are NOT inlined here.
+# Secrets PULLMD_ADMIN_EMAIL / PULLMD_ADMIN_PASSWORD / PULLMD_API_TOKEN are
+#   referenced via secretKeyRef in the env block below (the secret VALUES stay in
+#   Secret Manager — only name+version live in source). They are inlined rather
+#   than mounted by a follow-up `--set-secrets` because PULLMD_AUTH_MODE=single-admin
+#   makes pullmd exit(1) at boot if the admin creds are absent
+#   (server.js ERR_BOOTSTRAP_MISSING_CREDENTIALS), so a credential-less
+#   `gcloud run services replace` revision can never pass its startup probe.
+#   Mint the secrets out-of-band first — see docs/runbooks/pullmd-deploy.md §1.
 
 apiVersion: serving.knative.dev/v1
 kind: Service
@@ -98,10 +103,37 @@ spec:
               value: http://localhost:8002/render
             - name: TRAFILATURA_URL
               value: http://localhost:8001/extract
-            # Admin credentials mounted from Secret Manager at deploy time
-            # (--set-secrets) — see runbook §1 (mint) + §2 (deploy).
-            #   PULLMD_ADMIN_EMAIL=PULLMD_ADMIN_EMAIL:latest
-            #   PULLMD_ADMIN_PASSWORD=PULLMD_ADMIN_PASSWORD:latest
+            # pullmd opens a better-sqlite3 cache at CACHE_DB (server.js:576 —
+            # `createCache(process.env.CACHE_DB || './data/cache.db')`). The
+            # upstream default ./data is a docker-compose bind-mount that does NOT
+            # exist on Cloud Run, and better-sqlite3 will not create the parent
+            # dir → boot crash ("Cannot open database because the directory does
+            # not exist", exit 1). Point it at /tmp — the Cloud Run in-memory
+            # writable path. Cache is ephemeral (cleared on cold start), which is
+            # fine: 1h re-fetch TTL, and minScale=1 holds the instance warm so the
+            # cache survives between deploys.
+            - name: CACHE_DB
+              value: /tmp/pullmd-cache.db
+            # Admin creds + API token from Secret Manager (secretKeyRef — values
+            # stay in Secret Manager). Inlined, NOT a follow-up --set-secrets:
+            # PULLMD_AUTH_MODE=single-admin makes pullmd exit(1) at boot without
+            # them (ERR_BOOTSTRAP_MISSING_CREDENTIALS), so the credential-less
+            # `replace` revision would fail its startup probe. Mint first (§1).
+            - name: PULLMD_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: PULLMD_ADMIN_EMAIL
+                  key: latest
+            - name: PULLMD_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: PULLMD_ADMIN_PASSWORD
+                  key: latest
+            - name: PULLMD_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: PULLMD_API_TOKEN
+                  key: latest
           # No /health probe — pullmd has none (RESEARCH §2.4). Probe GET / (root,
           # 200) instead. Generous startup window covers the Playwright warm-up.
           startupProbe:
