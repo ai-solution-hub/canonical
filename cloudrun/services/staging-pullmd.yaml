@@ -1,0 +1,143 @@
+# Cloud Run Service manifest — staging — pullmd HTML→Markdown extractor.
+#
+# ID-42.6: pullmd Cloud Run Service deploy infra (example-client-only; kpf decommissioned).
+# Spec: docs/specs/pullmd-deploy/TECH.md §WP-C (deploy mechanics);
+#       RESEARCH §2.1 (pullmd v2.x HTTP contract), §2.4 (no /health probe),
+#       §4.3 (sidecar topology α).
+# Runbook: docs/runbooks/pullmd-deploy.md (out-of-band secret-mint + deploy).
+#
+# Why a separate Service (O-Q3 / AGPL boundary):
+#   pullmd is AGPL v3. It ships as a separately-deployed network service so the
+#   AGPL binary never lands inside the MIT + proprietary kh-cocoindex-pipeline
+#   image. The cocoindex Service (itself ingress: internal) is the only consumer
+#   and reaches pullmd over HTTP via the PULLMD_SERVICE_URL Secret Manager mount.
+#
+# Topology α (RESEARCH §4.3): single Service, multi-container. pullmd + a
+#   Playwright sidecar (~3.7 GB, JS render) + a Trafilatura sidecar (fallback
+#   extractor) run as additional containers in the SAME pod. pullmd reaches them
+#   over in-pod localhost (PLAYWRIGHT_URL / TRAFILATURA_URL) — no extra Service
+#   ingress or auth surface. Closest to the upstream docker-compose shape.
+#
+# Auth posture (defence-in-depth):
+#   run.googleapis.com/ingress: internal — network-isolated to the project, same
+#   posture as the cocoindex Service. PLUS PULLMD_AUTH_MODE=single-admin so the
+#   /api endpoint is also Bearer-token-gated (Authorization: Bearer pmd_…). Both
+#   layers, not either/or.
+#
+# minScale=maxScale=1: the 3.7 GB Playwright container makes cold-start painful,
+#   so a single warm instance is held (matches the cocoindex minScale:1
+#   precedent). Public-web extraction also benefits from cross-request cache reuse
+#   on one instance.
+#
+# Image is PINNED to a concrete 2.x tag, NOT :latest — the bake-off found :latest
+#   lagged behind 2.0.0. See docs/runbooks/pullmd-deploy.md §4 (image-tag
+#   confirmation) before first deploy: confirm/bump the pinned tag against the
+#   published aeternalabshq/pullmd images, and confirm the sidecar image tags +
+#   listen ports against the upstream compose file.
+#
+# SA: reuses existing example-client-pipeline-sa@kh-staging-494815 — same Secret Manager
+#   secretAccessor grant (docs/runbooks/cloud-run-phase-1-handover.md §3).
+# region: europe-west2 (D-RUN-20 deferred).
+#
+# Secrets PULLMD_ADMIN_EMAIL / PULLMD_ADMIN_PASSWORD are mounted declaratively at
+#   deploy time — see docs/runbooks/pullmd-deploy.md §1 (mint) + §2 (deploy /
+#   set-secrets). They are NOT inlined here.
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: kh-pullmd-example-client
+  labels:
+    tenant: example-client
+    env: staging
+    component: pullmd-service
+  annotations:
+    run.googleapis.com/ingress: internal
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: example-client-pipeline-sa@kh-staging-494815.iam.gserviceaccount.com
+      containerConcurrency: 10
+      timeoutSeconds: 900
+      containers:
+        # ----------------------------------------------------------------------
+        # Ingress container — pullmd. The only container with a Cloud Run port;
+        # the sidecars are reached over in-pod localhost.
+        # ----------------------------------------------------------------------
+        - name: pullmd
+          # PINNED tag — NOT :latest. Upstream README documents :latest as the
+          # v1.x line (kept for backward-compat); the v2.x family uses the :2
+          # major tag. 2.0.0 is the concrete v2.x version the bake-off exercised.
+          image: aeternalabshq/pullmd:2.0.0
+          # pullmd listens on 3000 inside the container (${PORT:-3000}, upstream
+          # README + compose). Cloud Run sets PORT and routes ingress here.
+          ports:
+            - name: http1
+              containerPort: 3000
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          env:
+            - name: PULLMD_AUTH_MODE
+              value: single-admin
+            # PUBLIC_URL is the Service URL. Cloud Run resolves the real URL only
+            # after first deploy; this placeholder is swapped for the live URL via
+            # the redeploy in docs/runbooks/pullmd-deploy.md §3.
+            - name: PUBLIC_URL
+              value: https://kh-pullmd-example-client-staging.example.invalid
+            # In-pod sidecars (topology α) — localhost, not separate Services.
+            # Ports + paths are the upstream compose contract (README):
+            # Playwright :8002/render, Trafilatura :8001/extract.
+            - name: PLAYWRIGHT_URL
+              value: http://localhost:8002/render
+            - name: TRAFILATURA_URL
+              value: http://localhost:8001/extract
+            # Admin credentials mounted from Secret Manager at deploy time
+            # (--set-secrets) — see runbook §1 (mint) + §2 (deploy).
+            #   PULLMD_ADMIN_EMAIL=PULLMD_ADMIN_EMAIL:latest
+            #   PULLMD_ADMIN_PASSWORD=PULLMD_ADMIN_PASSWORD:latest
+          # No /health probe — pullmd has none (RESEARCH §2.4). Probe GET / (root,
+          # 200) instead. Generous startup window covers the Playwright warm-up.
+          startupProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            periodSeconds: 30
+            failureThreshold: 3
+        # ----------------------------------------------------------------------
+        # Sidecar — Playwright (JS render, ~3.7 GB). Upstream image
+        # aeternalabshq/pullmd-playwright; listens on :8002 (/render).
+        # Pinned to the :2 major tag (upstream publishes no concrete sidecar
+        # version) — runbook §4: resolve :2 to a digest before first deploy.
+        # ----------------------------------------------------------------------
+        - name: playwright
+          image: aeternalabshq/pullmd-playwright:2
+          resources:
+            limits:
+              cpu: "1"
+              memory: 4Gi
+        # ----------------------------------------------------------------------
+        # Sidecar — Trafilatura (fallback extractor). Upstream image
+        # aeternalabshq/pullmd-trafilatura; listens on :8001 (/extract).
+        # Pinned to the :2 major tag (upstream publishes no concrete sidecar
+        # version) — runbook §4: resolve :2 to a digest before first deploy.
+        # ----------------------------------------------------------------------
+        - name: trafilatura
+          image: aeternalabshq/pullmd-trafilatura:2
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi

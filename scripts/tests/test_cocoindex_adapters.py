@@ -283,12 +283,23 @@ class TestOuterTierMimeDispatch:
         assert result == "# Docling XLSX"
 
     def test_html_routes_to_pullmd_with_str_arg(self):
-        """HTML extension triggers _pullmd_to_markdown with a str argument (not FileLike)."""
+        """HTML routes to _pullmd_to_markdown(str); outer fn returns the markdown str.
+
+        The inner tier returns a structured PullmdResult (carrying provenance
+        headers), but the OUTER convert_binary_to_markdown keeps its `str`
+        contract for the downstream content_text flow — it extracts `.markdown`.
+        """
         mock_file = _make_filelike(".html")
+        inner_result = adapters.PullmdResult(
+            markdown="# PullMD HTML",
+            x_source="readability",
+            x_quality=0.88,
+            share_id="deadbeef",
+        )
 
         async def run():
             with patch.object(
-                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value="# PullMD HTML")
+                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
             ) as mock_pullmd:
                 result = await adapters.convert_binary_to_markdown(mock_file)
             # Inner tier must be called with a str (url or path string), not a FileLike
@@ -301,7 +312,9 @@ class TestOuterTierMimeDispatch:
             return result
 
         result = asyncio.run(run())
+        # Outer contract is unchanged: a bare markdown str (the .markdown field).
         assert result == "# PullMD HTML"
+        assert isinstance(result, str)
 
     def test_markdown_routes_to_passthrough(self):
         """Markdown extension triggers _passthrough_markdown with file text content."""
@@ -396,51 +409,216 @@ class TestDoclingInnerTier:
 
 
 class TestPullmdInnerTier:
-    """_pullmd_to_markdown smoke tests (mocked httpx)."""
+    """_pullmd_to_markdown unit tests against the pullmd v2.x contract.
 
-    def test_posts_to_correct_endpoint_and_returns_markdown(self):
-        """POSTs to PULLMD_SERVICE_URL/extract and returns markdown from response JSON."""
-        test_url = "https://example.com/article"
+    Contract (docs/specs/pullmd-deploy/TECH.md §WP-A + RESEARCH §2.1):
+      - GET {PULLMD_SERVICE_URL}/api with params={"url": <target>} (httpx URL-encodes).
+      - Authorization: Bearer <PULLMD_API_TOKEN> header.
+      - Body is raw text/markdown (resp.text), NOT JSON.
+      - Provenance headers X-Source / X-Quality / X-Share-Id captured onto the result.
+      - Fail-fast RuntimeError when PULLMD_SERVICE_URL OR PULLMD_API_TOKEN is unset.
+      - HTTP errors propagate via raise_for_status().
+
+    Transport is mocked at httpx.AsyncClient (NOT httpx.post — the contract is async
+    GET). The non-mocked end-to-end proof against the deployed Service is a later
+    subtask (WP-F / 42.10), per docs/reference/test-philosophy.md these unit tests
+    assert observable BEHAVIOUR, not implementation shape.
+    """
+
+    @staticmethod
+    def _install_async_client(mock_httpx, mock_response):
+        """Wire mock_httpx so `async with httpx.AsyncClient(...) as client` yields a
+        client whose awaitable `.get(...)` returns `mock_response`.
+
+        Returns the AsyncMock standing in for the client so callers can assert on
+        `.get` call args.
+        """
+        mock_client = MagicMock(name="async_client")
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        # `async with httpx.AsyncClient(...) as client` -> the context manager's
+        # __aenter__ must yield the client; __aexit__ must be awaitable.
+        async_cm = MagicMock(name="async_client_cm")
+        async_cm.__aenter__ = AsyncMock(return_value=mock_client)
+        async_cm.__aexit__ = AsyncMock(return_value=False)
+
+        mock_httpx.AsyncClient = MagicMock(return_value=async_cm)
+        return mock_client
+
+    @staticmethod
+    def _make_markdown_response(markdown, headers=None):
+        """Build a mock httpx.Response returning raw markdown text + headers."""
+        import httpx as _real_httpx
+
+        mock_response = MagicMock(name="response")
+        mock_response.text = markdown
+        mock_response.raise_for_status = MagicMock()
+        # Real httpx.Headers is case-insensitive — use it so the test proves the
+        # adapter reads the headers via case-insensitive lookup, not by luck.
+        mock_response.headers = _real_httpx.Headers(headers or {})
+        return mock_response
+
+    def test_gets_api_endpoint_with_url_param_and_bearer_auth(self):
+        """GETs {url}/api with params={'url': target} + Authorization: Bearer header."""
+        test_url = "https://example.com/article?q=1&x=2"
         expected_markdown = "# Article Title\n\nBody text."
         pullmd_service_url = "http://pullmd-service:8080"
+        api_token = "pmd_testtoken0123456789abcdefghij"
 
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
-        mock_response.json.return_value = {"markdown": expected_markdown}
+        mock_response = self._make_markdown_response(expected_markdown)
 
         async def run():
-            with patch.dict(os.environ, {"PULLMD_SERVICE_URL": pullmd_service_url}):
+            with patch.dict(
+                os.environ,
+                {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
+            ):
                 with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
-                    mock_httpx.post = MagicMock(return_value=mock_response)
+                    mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
+                    mock_client = self._install_async_client(mock_httpx, mock_response)
                     result = await adapters._pullmd_to_markdown(test_url)
-                    mock_httpx.post.assert_called_once_with(
-                        f"{pullmd_service_url}/extract",
-                        json={"url": test_url},
-                        timeout=60.0,
+
+                    # GET /api (NOT POST /extract).
+                    assert mock_client.get.await_count == 1
+                    call = mock_client.get.await_args
+                    assert call.args[0] == f"{pullmd_service_url}/api"
+                    # url passed as a query param so httpx URL-encodes it.
+                    assert call.kwargs["params"] == {"url": test_url}
+                    # Bearer auth header present.
+                    assert (
+                        call.kwargs["headers"]["Authorization"]
+                        == f"Bearer {api_token}"
                     )
                     return result
 
         result = asyncio.run(run())
-        assert result == expected_markdown
+        # Body is raw text/markdown (resp.text), surfaced as .markdown on the result.
+        assert result.markdown == expected_markdown
+
+    def test_captures_provenance_headers_onto_result(self):
+        """X-Source / X-Quality / X-Share-Id from the response are captured (case-insensitive)."""
+        pullmd_service_url = "http://pullmd-service:8080"
+        api_token = "pmd_testtoken0123456789abcdefghij"
+
+        # Mixed-case header keys prove the lookup is case-insensitive.
+        mock_response = self._make_markdown_response(
+            "# Body",
+            headers={
+                "x-source": "playwright",
+                "X-Quality": "0.92",
+                "X-SHARE-ID": "a1b2c3d4",
+            },
+        )
+
+        async def run():
+            with patch.dict(
+                os.environ,
+                {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
+            ):
+                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                    mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
+                    self._install_async_client(mock_httpx, mock_response)
+                    return await adapters._pullmd_to_markdown("https://example.com/p")
+
+        result = asyncio.run(run())
+        assert result.markdown == "# Body"
+        assert result.x_source == "playwright"
+        assert result.x_quality == 0.92
+        assert result.share_id == "a1b2c3d4"
+
+    def test_non_numeric_x_quality_header_yields_none(self):
+        """A malformed X-Quality header (e.g. 'high') yields x_quality=None, not a crash.
+
+        A raw ValueError from float() would bypass the structured failure log +
+        flow.py _classify_stage_exception path; the adapter must degrade the bad
+        quality signal to None (consistent with the missing-header→None behaviour).
+        """
+        pullmd_service_url = "http://pullmd-service:8080"
+        api_token = "pmd_testtoken0123456789abcdefghij"
+        mock_response = self._make_markdown_response(
+            "# Body",
+            headers={"X-Source": "readability", "X-Quality": "high", "X-Share-Id": "abcd1234"},
+        )
+
+        async def run():
+            with patch.dict(
+                os.environ,
+                {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
+            ):
+                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                    mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
+                    self._install_async_client(mock_httpx, mock_response)
+                    return await adapters._pullmd_to_markdown("https://example.com/p")
+
+        result = asyncio.run(run())
+        # Markdown + other provenance still captured; only the bad quality degrades.
+        assert result.markdown == "# Body"
+        assert result.x_source == "readability"
+        assert result.share_id == "abcd1234"
+        assert result.x_quality is None
+
+    def test_missing_headers_yield_none_on_result(self):
+        """Absent provenance headers leave the result fields as None (no crash)."""
+        pullmd_service_url = "http://pullmd-service:8080"
+        api_token = "pmd_testtoken0123456789abcdefghij"
+        mock_response = self._make_markdown_response("# Body", headers={})
+
+        async def run():
+            with patch.dict(
+                os.environ,
+                {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
+            ):
+                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                    mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
+                    self._install_async_client(mock_httpx, mock_response)
+                    return await adapters._pullmd_to_markdown("https://example.com/p")
+
+        result = asyncio.run(run())
+        assert result.x_source is None
+        assert result.x_quality is None
+        assert result.share_id is None
 
     def test_raises_when_pullmd_service_url_missing(self):
         """Raises RuntimeError when PULLMD_SERVICE_URL env var is not set."""
-        env_without_pullmd = {k: v for k, v in os.environ.items() if k != "PULLMD_SERVICE_URL"}
+        env_without = {
+            k: v
+            for k, v in os.environ.items()
+            if k != "PULLMD_SERVICE_URL"
+        }
+        env_without["PULLMD_API_TOKEN"] = "pmd_token"
 
         async def run():
-            with patch.dict(os.environ, env_without_pullmd, clear=True):
+            with patch.dict(os.environ, env_without, clear=True):
                 with pytest.raises(RuntimeError, match="PULLMD_SERVICE_URL"):
                     await adapters._pullmd_to_markdown("https://example.com/page")
 
         asyncio.run(run())
 
+    def test_raises_when_pullmd_api_token_missing(self):
+        """Raises RuntimeError when PULLMD_API_TOKEN env var is not set (fail-fast auth)."""
+        env_without = {
+            k: v
+            for k, v in os.environ.items()
+            if k != "PULLMD_API_TOKEN"
+        }
+        env_without["PULLMD_SERVICE_URL"] = "http://pullmd-service:8080"
+
+        async def run():
+            with patch.dict(os.environ, env_without, clear=True):
+                with pytest.raises(RuntimeError, match="PULLMD_API_TOKEN"):
+                    await adapters._pullmd_to_markdown("https://example.com/page")
+
+        asyncio.run(run())
+
     def test_raises_on_http_error(self):
-        """raise_for_status() is called — HTTP errors propagate."""
+        """raise_for_status() is called — HTTP errors propagate to the caller."""
         pullmd_service_url = "http://pullmd-service:8080"
+        api_token = "pmd_testtoken0123456789abcdefghij"
 
         import httpx as _real_httpx
 
-        mock_response = MagicMock()
+        mock_response = MagicMock(name="response")
+        mock_response.text = ""
+        mock_response.headers = _real_httpx.Headers({})
         mock_response.raise_for_status.side_effect = _real_httpx.HTTPStatusError(
             "500 Server Error",
             request=MagicMock(),
@@ -448,12 +626,50 @@ class TestPullmdInnerTier:
         )
 
         async def run():
-            with patch.dict(os.environ, {"PULLMD_SERVICE_URL": pullmd_service_url}):
+            with patch.dict(
+                os.environ,
+                {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
+            ):
                 with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
-                    mock_httpx.post = MagicMock(return_value=mock_response)
+                    mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
+                    # Real exception classes so the adapter's `except httpx.HTTPError`
+                    # is a genuine class, not a MagicMock attribute.
+                    mock_httpx.HTTPError = _real_httpx.HTTPError
                     mock_httpx.HTTPStatusError = _real_httpx.HTTPStatusError
+                    self._install_async_client(mock_httpx, mock_response)
                     with pytest.raises(_real_httpx.HTTPStatusError):
                         await adapters._pullmd_to_markdown("https://example.com/fail")
+
+        asyncio.run(run())
+
+    def test_request_error_propagates(self):
+        """httpx.RequestError (connect/timeout) propagates to flow exception classification."""
+        pullmd_service_url = "http://pullmd-service:8080"
+        api_token = "pmd_testtoken0123456789abcdefghij"
+
+        import httpx as _real_httpx
+
+        async def run():
+            with patch.dict(
+                os.environ,
+                {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
+            ):
+                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                    mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
+                    # Real exception classes so the adapter's `except httpx.HTTPError`
+                    # is a genuine class, not a MagicMock attribute.
+                    mock_httpx.HTTPError = _real_httpx.HTTPError
+                    mock_httpx.RequestError = _real_httpx.RequestError
+                    mock_client = MagicMock(name="async_client")
+                    mock_client.get = AsyncMock(
+                        side_effect=_real_httpx.ConnectError("connection refused")
+                    )
+                    async_cm = MagicMock(name="async_client_cm")
+                    async_cm.__aenter__ = AsyncMock(return_value=mock_client)
+                    async_cm.__aexit__ = AsyncMock(return_value=False)
+                    mock_httpx.AsyncClient = MagicMock(return_value=async_cm)
+                    with pytest.raises(_real_httpx.RequestError):
+                        await adapters._pullmd_to_markdown("https://example.com/down")
 
         asyncio.run(run())
 

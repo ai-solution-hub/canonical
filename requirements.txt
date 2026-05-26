@@ -44,6 +44,7 @@ litellm>=1.40.0,<2.0.0
 aiohttp>=3.9.0,<4.0.0
 # asyncpg: async Postgres driver for cocoindex postgres source/sink connector.
 asyncpg>=0.30.0
+httpx==0.28.1  # explicit pin — adapters.py uses httpx.AsyncClient; transitive via cocoindex today (fragile)
 # tenacity: KH-managed retry wrapper around anthropic.AsyncAnthropic.messages.create
 # (ID-28.17). cocoindex 1.0.3 has no retry primitives around the @coco.fn LLM path
 # (empirically verified in S257 W2a + the _FlowRetryCounter docstring); KH owns the

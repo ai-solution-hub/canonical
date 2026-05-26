@@ -103,10 +103,10 @@ from scripts.cocoindex_pipeline.extraction import (
 # f"{__package__}.flow_context")` lazy-import rationale in extraction.py.
 from .extraction import ANTHROPIC_MODEL  # noqa: F401 — re-export, single source of truth
 from scripts.cocoindex_pipeline.flow_context import (
-    FLOW_META_CTX,
+    FLOW_META_CTX,  # noqa: F401 — re-exported flow-context surface (28.13 wiring + tests)
     bind_flow_meta,
     bind_retry_counter,
-    current_flow_meta,
+    current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it via __package__
 )
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -525,6 +525,7 @@ async def _emit_pipeline_run_webhook(
 
 
 # asyncpg.Pool context key — shared across mount_table_target calls in app_main()
+# and provided env-scope by `kh_pipeline_lifespan` (28.22).
 DB_CTX: coco.ContextKey[asyncpg.Pool] = coco.ContextKey("kh_pipeline_db")
 
 # ── TableSchema declarations ─────────────────────────────────────────────────
@@ -604,6 +605,164 @@ def _build_dsn() -> str:
     return f"postgresql://{user}:{pw_quoted}@{host}:{port}/postgres"
 
 
+# ── Per-source-item ingest component (Stage 1→6 for one file) ────────────────
+
+
+def _field(obj: object, name: str, default: Any = None) -> Any:
+    """Read ``name`` off a Pydantic model (attribute) or a plain dict (key).
+
+    The Path A extractors return Pydantic models in production
+    (`ClassificationExtraction` / `QAFormExtraction` / `EntityMentionExtraction`);
+    the deterministic write-path test stubs return plain dicts. Reading through
+    this helper keeps `ingest_file` agnostic to which shape it receives — the
+    write-path SHAPE is what this slice proves, not the extraction internals.
+    """
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+# Fixed namespace for deterministic per-DOCUMENT primary keys. The PK is a
+# uuid5 of (this namespace, the document's rel_path) — a function of the
+# DOCUMENT identity ONLY, independent of the per-run op_id. This is the
+# substrate for PRODUCT Inv-4 idempotency + ratified OQ-A: re-ingesting the
+# same document on a LATER run mints the SAME PK, so `declare_row` UPSERTs
+# (UPDATEs) the existing row and re-stamps its op_id field — it does NOT
+# insert a duplicate. Seeding the PK with the per-run op_id (a fresh uuid4
+# each run) would mint a new PK every run → duplicate rows, breaking re-ingest.
+# Derived once as uuid5(NAMESPACE_DNS, "kh-pipeline.cocoindex.document-identity.v1")
+# and pinned here so the value is stable across processes and deploys.
+_KH_PIPELINE_DOC_NS = uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1")
+
+
+@coco.fn(memo=True)
+async def ingest_file(
+    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    ci_target: Any,
+    qa_target: Any,
+    sd_target: Any,
+) -> None:
+    """Ingest ONE source file: convert → extract → declare rows on each target.
+
+    Mounted once per source item by `coco.mount_each`. cocoindex 1.0.3 calls
+    this component as `ingest_file(File, ci, qa, sd)` — the item VALUE (the
+    `File`) is the first positional arg, followed by the extra args
+    (`ci/qa/sd` targets) passed positionally to `mount_each`. The (key,value)
+    pair from `walk_dir().items()` is `(relative_path_str, File)`; the KEY is
+    consumed by `mount_each` for per-item subpath routing only and is NOT
+    passed to `fn` (verified against installed cocoindex 1.0.3
+    `_internal/api.py` `_mount_one`: `fn(item, *extra_args)`). The stable
+    per-document identity is therefore derived INSIDE the body from
+    `file.file_path.path` — there is no `rel_path` parameter.
+
+    This is the reactive 1.0.3 write path proven in RESEARCH.md §R2/§R3 — the
+    per-MIME conversion (Stage 2, P-3) and Path A extraction (Stage 3) run as
+    plain awaits INSIDE the component body (NOT flow-scope `.transform()`
+    chaining, which is fictional in 1.0.3), and each row lands via
+    `TableTarget.declare_row(row=...)` (Stage 6).
+
+    `op_id` is a PLAIN ROW FIELD, read from the currently-bound `FLOW_META_CTX`
+    via `current_flow_meta()` — NOT the fictional `bind_target(op_id=flow['op_id'])`.
+    `content_text_hash` is OMITTED (GENERATED ALWAYS column). `embedding` is left
+    NULL at this slice — Stage-4 embedding (28.24) and per-row upsert logging
+    (28.25) are deferred and wired in later subtasks.
+
+    @coco.fn(memo=True): the component is skipped on unchanged source bytes, so
+    `declare_row` is not re-invoked and the row's op_id retains the value from the
+    run that last materially changed it (RESEARCH.md §R4 — Inv-11 refinement).
+    """
+    # Resolve current_flow_meta via flow's OWN package namespace. flow.py may be
+    # imported under BOTH `scripts.cocoindex_pipeline.flow` (runtime) AND
+    # `cocoindex_pipeline.flow` (pytest pythonpath) — each pulls its own
+    # flow_context module object with separate ContextVar storage. Reading
+    # through `__package__` resolves to whichever namespace the caller bound the
+    # meta under (same rationale as `stamp_extraction_base` in extraction.py).
+    from importlib import import_module
+
+    flow_context_module = import_module(f"{__package__}.flow_context")
+    meta = flow_context_module.current_flow_meta()
+    if meta is None:
+        raise RuntimeError(
+            "ingest_file invoked without an active FLOW_META_CTX binding — "
+            "app_main must wrap mount_each in `async with bind_flow_meta(op_id=...)`."
+        )
+    op_id = meta.op_id
+
+    # Stable per-document path identity, derived FROM the `File` (NOT a phantom
+    # param). `mount_each` passes only the item VALUE (the `File`) to `fn`; the
+    # (key,value) key — the relative-path string from `walk_dir().items()` — is
+    # consumed by mount_each for subpath routing and never reaches `fn` (1.0.3
+    # `_internal/api.py` `_mount_one`: `fn(item, *extra_args)`). `file_path.path`
+    # is the path relative to the source base dir (cocoindex `FilePath.path`);
+    # `.as_posix()` gives the stable string used as the storage_path and the
+    # seed of the deterministic per-file UUIDs below.
+    rel_path = file.file_path.path.as_posix()
+
+    # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
+    content_text = await convert_binary_to_markdown(file)
+
+    # ── Stage 3: Path A extraction (direct anthropic inside @coco.fn) ───────
+    classification = await extract_classification(content_text)
+    qa_form = await extract_qa_form(content_text)
+    # entity_mentions extraction runs here for memo coverage; entity-table
+    # persistence is a downstream concern (28.13+), so the result is not yet
+    # declared into a target at this slice.
+    await extract_entity_mentions(content_text)
+
+    # ── Stage 6: declare rows (managed_by=USER row-level upserts) ───────────
+    # Deterministic per-DOCUMENT UUIDs seeded on the FIXED namespace + rel_path
+    # (NOT op_id), so re-ingesting the same document on any LATER run declares
+    # the SAME primary keys → declare_row UPSERTs the existing row and re-stamps
+    # its op_id field (PRODUCT Inv-4 idempotency + ratified OQ-A). op_id stays a
+    # plain ROW FIELD that identifies the run; it is NOT part of the PK.
+    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
+    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
+
+    # content_fingerprint is an ASYNC METHOD on FileLike returning bytes
+    # (cocoindex resources/file.py L172 → connectorkits.fingerprint); await it
+    # and encode to hex so it lands in the `text` content_fingerprint column.
+    content_fingerprint = (await file.content_fingerprint()).hex()
+
+    sd_target.declare_row(
+        row={
+            "id": source_document_id,
+            "storage_path": rel_path,
+            "content_fingerprint": content_fingerprint,
+            "op_id": op_id,
+        }
+    )
+
+    # content_text_hash OMITTED (GENERATED ALWAYS); embedding left NULL (28.24).
+    ci_target.declare_row(
+        row={
+            "id": content_item_id,
+            "content_text": content_text,
+            "embedding": None,
+            "source_document_id": source_document_id,
+            "op_id": op_id,
+        }
+    )
+
+    content_type = _field(classification, "content_type")
+    qa_pairs = _field(qa_form, "qa_pairs", []) or []
+    for idx, pair in enumerate(qa_pairs):
+        qa_target.declare_row(
+            row={
+                "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"),
+                "source_content_item_id": content_item_id,
+                "extractor_kind": content_type or "q_a_form",
+                "extracted_question_text": _field(pair, "question_text", ""),
+                "extracted_answer_text": _field(pair, "answer_text"),
+                "extraction_metadata": {
+                    "extraction_kind": _field(qa_form, "extraction_kind", "q_a_form"),
+                    "qa_index": idx,
+                    "rel_path": rel_path,
+                },
+                "op_id": op_id,
+            }
+        )
+
+
 # ── Main pipeline function ───────────────────────────────────────────────────
 
 
@@ -641,7 +800,9 @@ async def app_main() -> None:
     # Rollup state (Inv-16 / Inv-17). cocoindex 1.0.3 exposes no per-stage
     # completion callbacks, so counters are aggregated at flow scope via the
     # `_record_extraction_success` / `_record_extraction_failure` helpers.
-    run_op_id: uuid.UUID = uuid.uuid4()  # placeholder until cocoindex exposes flow['op_id']
+    # KH generates the run op_id (cocoindex does NOT emit one — RESEARCH §R9);
+    # it is written as a plain row field by ingest_file via current_flow_meta().
+    run_op_id: uuid.UUID = uuid.uuid4()
     stage_counts: dict[str, int] = _empty_stage_counts()
     items_created: list[str] = []
     extractor_version = os.environ.get("IMAGE_SHA")
@@ -665,109 +826,77 @@ async def app_main() -> None:
     flow_error_message: str | None = None
     flow_error_class: str | None = None
 
-    coco_pool = await asyncpg.create_pool(_build_dsn(), min_size=2, max_size=10)
     try:
-        async with coco.use_context(DB_CTX, coco_pool):
-            # ── Stage 1: source walk (live fs-watch, nested recursive) ─────
-            # recursive=True required — default is False (CLAUDE.md gotcha).
-            # live=True enables fs-watch for continuous incremental updates.
-            source = localfs.walk_dir(
-                source_path,
-                live=True,
-                recursive=True,
-            )
+        # ── Stage 6 prep: mount the 3 row-level targets (managed_by=USER) ──
+        # mount_table_target reads the asyncpg pool env-scope from DB_CTX
+        # (provided by `kh_pipeline_lifespan` via EnvironmentBuilder.provide —
+        # 28.22). managed_by=ManagedBy.USER: cocoindex writes rows only, never
+        # DDL. KH migrations own the schema.
+        ci_target = await mount_table_target(
+            DB_CTX,
+            "content_items",
+            CONTENT_ITEMS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
+        qa_target = await mount_table_target(
+            DB_CTX,
+            "q_a_extractions",
+            Q_A_EXTRACTIONS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
+        sd_target = await mount_table_target(
+            DB_CTX,
+            "source_documents",
+            SOURCE_DOCUMENTS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
 
-            # ── Stage 2: binary conversion (delegates to per-MIME adapter) ─
-            # convert_binary_to_markdown is @coco.fn(memo=True) from 28.7 (P-3).
-            # Outer-tier: memoised on file handle (re-triggers when bytes change).
-            # Inner-tier: memoised on content payload (metadata edits no-op).
-            content_text = source.transform(convert_binary_to_markdown)  # type: ignore[attr-defined]
+        # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
+        # recursive=True required — default is False (CLAUDE.md gotcha).
+        # live=True enables fs-watch for continuous incremental updates.
+        source = localfs.walk_dir(
+            source_path,
+            live=True,
+            recursive=True,
+        )
 
-            # ── Stage 3: LLM extraction (flow-scope) — Path A canonical ──────
-            # KH-authored @coco.fn(memo=True) extractors (extraction.py) call
-            # the anthropic SDK + validate via Pydantic TypeAdapter. Wrapping
-            # in `bind_flow_meta` lets `stamp_extraction_base()` read op_id +
-            # content_items_id from FLOW_META_CTX without threading them
-            # through `.transform()` chain args. `bind_retry_counter` is
-            # nested INSIDE so the tenacity `before_sleep` hook in
-            # `_anthropic_retry` bumps the per-flow counter on each retry —
-            # `_bump_flow_retry_counter()` reads the counter from the same
-            # contextvar scope.
-            #
-            # SIGNATURE_DRIFT note: `coco.use_context(key)` is single-arg
-            # read-only in 1.0.3; storage binding happens via
-            # `EnvironmentBuilder.provide()` inside `@coco.lifespan` (env-
-            # scoped, NOT per-flow). The KH-authored `bind_flow_meta()` async-
-            # CM uses stdlib `contextvars.ContextVar` for per-asyncio-task
-            # isolation while preserving the `coco.ContextKey[FlowRunMeta]`
-            # identity handle. See `flow_context.py`.
-            async with bind_flow_meta(
-                op_id=run_op_id, content_items_id=None
-            ):
-                async with bind_retry_counter(flow_retry_counter):
-                    classification = content_text.transform(extract_classification)  # type: ignore[attr-defined]
-                    q_a_form = content_text.transform(extract_qa_form)  # type: ignore[attr-defined]
-                    entity_mentions = content_text.transform(extract_entity_mentions)  # type: ignore[attr-defined]
+        # ── Stages 2→6: reactive per-item fan-out via mount_each ───────────
+        # One independent component PER source item (RESEARCH §R2/§R3, proven).
+        # `ingest_file` runs Stage 2 (conversion) + Stage 3 (Path A extraction)
+        # as plain awaits inside its body, then declares rows on each target
+        # (Stage 6). Extra args (ci/qa/sd targets) are passed positionally after
+        # the item value per the mount_each signature.
+        #
+        # `bind_flow_meta` makes the run's op_id available to `current_flow_meta()`
+        # inside `ingest_file` (op_id is a plain row field — NOT a flow-scope
+        # target binding, which is fictional in 1.0.3). `bind_retry_counter`
+        # exposes the
+        # per-flow retry counter that the tenacity `before_sleep` hook in
+        # `extraction.py:_anthropic_retry` bumps on each Anthropic-503 retry.
+        async with bind_flow_meta(op_id=run_op_id, content_items_id=None):
+            async with bind_retry_counter(flow_retry_counter):
+                handle = await coco.mount_each(
+                    ingest_file,
+                    source.items(),
+                    ci_target,
+                    qa_target,
+                    sd_target,
+                )
+                # Wait until every per-item component has processed (cold run)
+                # so the rollup webhook below reflects a settled state.
+                await handle.ready()
 
-            # stamp_extraction_base() integration: per-row stamping pattern
-            # is wrap-then-stamp inside the `bind_flow_meta(op_id, row_pk)`
-            # scope. Cocoindex 1.0.3 exposes no per-`.transform()` completion
-            # callback, so the live call-sites land when that callback
-            # surface ships (orchestrator-tracked, TECH §P-5 amendment queue).
+        # ── Stage 4: embedding (vector(1024)) — deferred to 28.24 ──────────
+        # `ingest_file` declares `embedding=None` today; the Stage-4 wiring
+        # (embed inside ingest_file + ci_target.declare_vector_index(...)) lands
+        # in 28.24. A corpus written with NULL embedding cannot serve vector
+        # search, so 28.24 is REQUIRED before search over the re-ingest corpus.
 
-            # ── Stage 4: embedding (vector(1024)) — TODO(28.13+) ─────────────
-            # Requires litellm package + LITELLM_API_KEY env var.
-            # embedding = content_text.transform(
-            #     LiteLLMEmbedder(model="openai/text-embedding-3-large")
-            # )
+        # ── Stage 5: entity resolution — deferred (needs faiss; RESEARCH §R5)─
 
-            # ── Stage 5: entity resolution — TODO(28.13+) ────────────────────
-            # Selectively adopted per COCO.1. Requires faiss + entity_resolution.
-            # resolved_entities = entity_mentions.transform(entity_resolution())
-
-            # ── Stage 6: Postgres UPSERT (per-table; managed_by=USER) ────────
-            # mount_table_target registers each table for cocoindex-managed upserts.
-            # managed_by=ManagedBy.USER: cocoindex does NOT alter DDL (no
-            # CREATE/DROP/ALTER). KH migrations own the schema; cocoindex writes rows.
-            ci_target = await mount_table_target(
-                DB_CTX,
-                "content_items",
-                CONTENT_ITEMS_SCHEMA,
-                managed_by=ManagedBy.USER,
-            )
-            qa_target = await mount_table_target(
-                DB_CTX,
-                "q_a_extractions",
-                Q_A_EXTRACTIONS_SCHEMA,
-                managed_by=ManagedBy.USER,
-            )
-            sd_target = await mount_table_target(
-                DB_CTX,
-                "source_documents",
-                SOURCE_DOCUMENTS_SCHEMA,
-                managed_by=ManagedBy.USER,
-            )
-
-            # Flow-scope UPSERT bindings — op_id=flow['op_id'] stamps the
-            # per-flow op_id onto every UPSERT row (Inv-11 + Inv-12). Both
-            # `bind_target` and `flow['op_id']` are spec-sketch placeholders;
-            # cocoindex 1.0.3 exposes neither. Real wiring lands when the
-            # flow-scope op_id API is finalised. The `type: ignore` comments
-            # acknowledge this; the kwarg preserves design intent.
-            content_text.bind_target(  # type: ignore[attr-defined]
-                ci_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
-            )
-            content_text.bind_target(  # type: ignore[attr-defined]
-                qa_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
-            )
-            source.bind_target(  # type: ignore[attr-defined]
-                sd_target, key_fields=("id",), op_id=flow["op_id"]  # type: ignore[name-defined]
-            )
-
-            # Inv-13 substrate: _emit_upsert_log() SHOULD fire once per
-            # UPSERT at this boundary; cocoindex 1.0.3 exposes no per-row
-            # completion callback so the live call-site lands once that
-            # surface ships (TECH.md §P-5 amendment queue).
+        # ── Inv-13: per-row upsert logging — deferred to 28.25 ─────────────
+        # cocoindex 1.0.3 exposes no per-row UPSERT completion callback
+        # (RESEARCH §R8); the `_emit_upsert_log()` substrate stays unwired here.
     except Exception as exc:  # noqa: BLE001 — capture for rollup status
         # Inv-16/17/18: failures still land a pipeline_runs row so the
         # invocation count stays honest. Inv-25: classify the exception to
@@ -804,7 +933,8 @@ async def app_main() -> None:
         )
         raise
     finally:
-        await coco_pool.close()
+        # NOTE: the asyncpg pool is NOT created/closed here — it is provisioned
+        # env-scope by `kh_pipeline_lifespan` (28.22) and closed on App teardown.
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
         await _emit_pipeline_run_webhook(
@@ -818,6 +948,42 @@ async def app_main() -> None:
             extractor_version=extractor_version,
             retry_count=flow_retry_counter.get(),
         )
+
+
+# ── Env-scope DB pool provisioning (28.22) ───────────────────────────────────
+# `coco.use_context(key)` is SINGLE-ARG read-only in 1.0.3 (RESEARCH §R1.7); the
+# 2-arg async-CM form `use_context(DB_CTX, pool)` does not exist. Writes happen
+# env-scope via `EnvironmentBuilder.provide(key, value)` inside a `@coco.lifespan`
+# fn. `mount_table_target(DB_CTX, ...)` in `app_main` then resolves the pool from
+# the environment.
+#
+# IDIOM (verified against the installed engine, not the §R2 sketch): the engine
+# consumes async-generator lifespans natively — `LazyEnvironment._get_env` branches
+# on `isasyncgenfunction(fn)` and `await anext(...)`s it on its OWN event loop. So
+# the correct shape for an ASYNC asyncpg pool is an `async def` generator that
+# `await asyncpg.create_pool(...)` directly. The §R2 sketch's
+# `run_until_complete`-inside-a-sync-lifespan is WRONG here — it would attempt a
+# nested `run_until_complete` on the already-running engine loop and raise
+# `RuntimeError: This event loop is already running`. The async-gen form is both
+# correct and simpler; `builder.provide_async_with` is reserved for a CM whose
+# lifetime the engine should own directly (not needed — we close the pool in the
+# generator's `finally`).
+
+
+@coco.lifespan
+async def kh_pipeline_lifespan(builder: coco.EnvironmentBuilder):
+    """Provision the asyncpg pool env-scope for the App's lifetime.
+
+    Creates the pool once on environment start, provides it under `DB_CTX` (so
+    `mount_table_target` can resolve it), yields for the App lifetime, then closes
+    the pool on teardown.
+    """
+    pool = await asyncpg.create_pool(_build_dsn(), min_size=2, max_size=10)
+    try:
+        builder.provide(DB_CTX, pool)
+        yield
+    finally:
+        await pool.close()
 
 
 # ── Module-level App declaration ─────────────────────────────────────────────

@@ -41,6 +41,9 @@ on:
       - "!scripts/tests/**"
       - "requirements.txt"
       - "cloudrun/**"
+      # ID-42.7: belt-and-braces — cloudrun/** already matches the pullmd
+      # Service manifests; this explicit entry documents the deploy coupling.
+      - "cloudrun/services/*pullmd*"
       - ".gcloudignore"
       - ".github/workflows/cloud-run-deploy.yml"
   workflow_dispatch:
@@ -267,6 +270,31 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Deploy pullmd Service
+        # ID-42.7: Deploy the single kh-pullmd-example-client Cloud Run Service (pullmd AGPL
+        # extractor — replaces the retired HTML extraction path). NON-LOOPED and
+        # example-client-only by design: pullmd is a shared example-client-tenant Service the cocoindex
+        # adapter reaches over HTTP via PULLMD_SERVICE_URL — there is no per-tenant
+        # kpf pullmd Service (do NOT add a `for TENANT in example-client kpf` loop here).
+        # Uses gcloud run services replace (declarative manifest apply), mirroring
+        # the cocoindex Services step. Manifest: cloudrun/services/{env}-pullmd.yaml.
+        # Image is pinned in the manifest (aeternalabshq/pullmd:2.0.0) — the
+        # smoke-verify step below asserts it is not :latest.
+        run: |
+          # Map gh-env -> manifest prefix (same mechanism as the cocoindex step).
+          if [[ "$GH_ENV" == "Production" ]]; then
+            ENV_PREFIX="prod"
+          else
+            ENV_PREFIX="staging"
+          fi
+
+          MANIFEST="cloudrun/services/${ENV_PREFIX}-pullmd.yaml"
+          echo "::group::Deploy $MANIFEST"
+          gcloud run services replace "$MANIFEST" \
+            --project="$GCP_PROJECT" \
+            --region=europe-west2
+          echo "::endgroup::"
+
       - name: Inject IMAGE_SHA into cocoindex Services
         # FX-2 (ID-28.6): Post-deploy step to inject the current commit SHA
         # into IMAGE_SHA env var on each cocoindex Service.
@@ -290,8 +318,12 @@ jobs:
           done
 
       - name: Mount Secret Manager secrets (Phase 2 / T2.2)
-        # Phase 2 / T2.2 per spec §2.5 — mount the 11 always-required Secret
-        # Manager secrets onto each tenant Job. NEXT_PUBLIC_CLIENT_ID is NOT
+        # Phase 2 / T2.2 per spec §2.5 — mount the 10 always-required Secret
+        # Manager secrets onto each tenant Job. (Was 11; FIRECRAWL_API_KEY
+        # dropped per ID-42.7 — vestigial Cloud Run mount, Inv-10-safe: no
+        # scripts/ Python reader, lib/env-server.ts treats it as optional, and
+        # the live Firecrawl cascade is Vercel-side via process.env.)
+        # NEXT_PUBLIC_CLIENT_ID is NOT
         # mounted here (deploy-time bake per D-RUN-12.1 + F-29). Optional
         # SUPABASE_AUTH_{EMAIL,PASSWORD} pair (used only by batch-reclassify.ts)
         # are NOT mounted by default — add them here if the batch-reclassify
@@ -321,7 +353,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL=NEXT_PUBLIC_SUPABASE_URL:latest
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:latest
           NEXT_PUBLIC_APP_URL=NEXT_PUBLIC_APP_URL:latest
-          FIRECRAWL_API_KEY=FIRECRAWL_API_KEY:latest
           CRON_SECRET=CRON_SECRET:latest
           SENTRY_AUTH_TOKEN=SENTRY_AUTH_TOKEN:latest
           SECRETS_EOF
@@ -339,10 +370,14 @@ jobs:
           done
 
           # ID-28.6: Mount secrets on cocoindex Services.
-          # Services need the 11 base secrets + 2 cocoindex-specific secrets:
+          # Services need the 10 base secrets + cocoindex-specific secrets:
           #   PIPELINE_RUN_WEBHOOK_URL — webhook for pipeline_runs updates (ID-28.11)
           #   PULLMD_SERVICE_URL — HTTP URL of the pullmd AGPL sidecar (ID-28.7)
-          COCOINDEX_SECRETS="${SECRETS_FLAT},PIPELINE_RUN_WEBHOOK_URL=PIPELINE_RUN_WEBHOOK_URL:latest,PULLMD_SERVICE_URL=PULLMD_SERVICE_URL:latest"
+          #   PULLMD_API_TOKEN — Bearer token the cocoindex adapter sends to pullmd
+          #     (ID-42.7). Appended IN PLACE here, NOT via a separate partial
+          #     `update` — `--set-secrets` is declarative and replaces the whole
+          #     mount set, so a separate call would silently drop the others.
+          COCOINDEX_SECRETS="${SECRETS_FLAT},PIPELINE_RUN_WEBHOOK_URL=PIPELINE_RUN_WEBHOOK_URL:latest,PULLMD_SERVICE_URL=PULLMD_SERVICE_URL:latest,PULLMD_API_TOKEN=PULLMD_API_TOKEN:latest"
 
           for TENANT in example-client kpf; do
             SERVICE_NAME="kh-cocoindex-pipeline-${TENANT}"
@@ -353,6 +388,19 @@ jobs:
               --set-secrets="$COCOINDEX_SECRETS"
             echo "::endgroup::"
           done
+
+          # ID-42.7: Mount secrets on the pullmd Service (kh-pullmd-example-client).
+          # The pullmd container reads its single-admin credentials + API token at
+          # bootstrap (PULLMD_AUTH_MODE=single-admin in the manifest). NON-LOOPED,
+          # example-client-only — there is no kpf pullmd Service. `--set-secrets` is
+          # declarative; this is the pullmd Service's only secret-mount call, so it
+          # carries the full set in one invocation.
+          echo "::group::Mount secrets on kh-pullmd-example-client"
+          gcloud run services update kh-pullmd-example-client \
+            --project="$GCP_PROJECT" \
+            --region=europe-west2 \
+            --set-secrets=PULLMD_ADMIN_EMAIL=PULLMD_ADMIN_EMAIL:latest,PULLMD_ADMIN_PASSWORD=PULLMD_ADMIN_PASSWORD:latest,PULLMD_API_TOKEN=PULLMD_API_TOKEN:latest
+          echo "::endgroup::"
 
       - name: Smoke verify (jobs describe)
         run: |
@@ -368,6 +416,43 @@ jobs:
             fi
             echo "OK: $JOB_NAME deployed"
           done
+
+      - name: Smoke verify pullmd (describe + HTTP + image pin)
+        # ID-42.7: Verify the kh-pullmd-example-client Service is live and correctly pinned.
+        #   1. Resolve the deployed Service URL via `services describe`.
+        #   2. GET <url>/ and assert HTTP 200. pullmd exposes NO /health endpoint —
+        #      the root path is the liveness signal (see docs/runbooks/pullmd-deploy.md).
+        #   3. Assert the deployed image is NOT :latest — pullmd images must be
+        #      pinned (manifest bakes aeternalabshq/pullmd:2.0.0) so a floating tag
+        #      can never reach prod silently.
+        run: |
+          PULLMD_URL=$(gcloud run services describe kh-pullmd-example-client \
+            --project="$GCP_PROJECT" \
+            --region=europe-west2 \
+            --format='value(status.url)')
+          if [[ -z "$PULLMD_URL" ]]; then
+            echo "ERROR: could not resolve kh-pullmd-example-client Service URL" >&2
+            exit 1
+          fi
+          echo "pullmd URL: $PULLMD_URL"
+
+          HTTP_CODE=$(curl -fsS -o /dev/null -w '%{http_code}' "${PULLMD_URL}/" || true)
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "ERROR: GET ${PULLMD_URL}/ returned HTTP $HTTP_CODE, expected 200" >&2
+            exit 1
+          fi
+          echo "OK: GET ${PULLMD_URL}/ -> 200"
+
+          PULLMD_IMAGE=$(gcloud run services describe kh-pullmd-example-client \
+            --project="$GCP_PROJECT" \
+            --region=europe-west2 \
+            --format='value(spec.template.spec.containers[0].image)')
+          echo "pullmd image: $PULLMD_IMAGE"
+          if [[ "$PULLMD_IMAGE" == *:latest ]]; then
+            echo "ERROR: kh-pullmd-example-client deployed with a :latest image tag ($PULLMD_IMAGE) — must be pinned" >&2
+            exit 1
+          fi
+          echo "OK: kh-pullmd-example-client image is pinned ($PULLMD_IMAGE)"
 
       # WP-G4.7 — Vercel deploy gate. Dispatches the workflow status to
       # Vercel so prod deploys can be gated on the Cloud Run pipeline-
