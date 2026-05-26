@@ -66,11 +66,14 @@ spec:
           env:
             - name: PULLMD_AUTH_MODE
               value: single-admin
-            # PUBLIC_URL is the Service URL. Cloud Run resolves the real URL only
-            # after first deploy; this placeholder is swapped for the live URL via
-            # the redeploy in docs/runbooks/pullmd-deploy.md §3.
+            # PUBLIC_URL is the Service's own canonical status.url (feeds /help +
+            # the skill zip). Cloud Run only assigns it on first deploy, so this
+            # was a placeholder until the Service existed; now pinned to the real
+            # status.url — the per-project *.a.run.app form, NOT the project-number
+            # form gcloud's deploy output prints. Re-confirm if the Service is
+            # ever deleted + recreated (the hash can change).
             - name: PUBLIC_URL
-              value: https://kh-pullmd-example-client-prod.example.invalid
+              value: https://kh-pullmd-example-client-ntci7gsyqq-nw.a.run.app
             # In-pod sidecars (topology α) — localhost, not separate Services.
             # Ports + paths are the upstream compose contract (README):
             # Playwright :8002/render, Trafilatura :8001/extract.
