@@ -405,9 +405,15 @@ S1=$(echo "$R1" | jq -r '.session_id')
 S2=$(echo "$R2" | jq -r '.session_id')
 S3=$(echo "$R3" | jq -r '.session_id')
 
-# Each brief: "Load workflow-orchestration. Drive ID-N Task end-to-end —
-# planning chain, impl wave, checker, curator. Commit on your worker branch.
-# Surface Open Questions via the OQ-escalation channel (see Escalation below)."
+# Each brief MUST carry the explicit dispatch cadence — a bare "load the skill"
+# made S267 workers act as leaf executors (direct authoring, no Checker):
+# "Load workflow-orchestration. You are a SUB-ORCHESTRATOR, not a leaf worker:
+# for every Subtask DISPATCH a task-planner and/or task-executor via the Agent
+# tool, then GATE each with a task-checker (FAIL→fix→PASS) BEFORE committing.
+# Do NOT author specs/plans or edit code/docs directly as your own deliverable —
+# this holds for doc-only / spec-only / ASSESS-only Tasks too (spec & plan
+# authoring is the Planner's role). Commit on your worker branch; surface Open
+# Questions via the OQ-escalation channel (see Escalation below)."
 "$SD_SCRIPTS/send-prompt.sh" subo-id-23 "$(cat briefs/id-23.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-24 "$(cat briefs/id-24.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-25 "$(cat briefs/id-25.md)"
