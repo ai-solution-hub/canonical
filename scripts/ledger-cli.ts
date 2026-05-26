@@ -29,7 +29,17 @@
  *     create-backlog <itemJson>
  *     delete-backlog <itemId>
  *     promote        <backlogId> <taskJson>
- *   flags: --dry-run --pretty --regen-mirrors --ledger-dir <path>
+ *   flags: --dry-run --pretty --regen-mirrors --scoped --ledger-dir <path>
+ *
+ * `--scoped` (ID-35.11): minimal-diff write for the field-edit subcommands
+ * (flip-task | flip-subtask | append-journal). Instead of re-emitting the whole
+ * Zod-reparsed document (which normalises key order AND emits raw UTF-8, turning a
+ * one-field edit into a ~1600-line diff that collides with sibling cmux writers),
+ * scoped mode mutates the JSON.parse of the ORIGINAL on-disk text in place and
+ * escape-serialises it (lib/ledger/scoped-serialise.ts) — every untouched record
+ * stays byte-for-byte identical, on-disk \\uXXXX escaping preserved. Zod still
+ * validates the mutated document before any byte is written. The non-scoped path
+ * keeps the existing whole-file serialise() unchanged.
  */
 
 import { resolve } from 'node:path';
@@ -43,6 +53,7 @@ import {
   type DetectSchemaResult,
 } from '@/lib/ledger/detect-schema';
 import { applyPatches, type FieldPatch } from '@/lib/ledger/patch-apply';
+import { scopedSerialise } from '@/lib/ledger/scoped-serialise';
 import { insertRecord, removeRecord } from '@/lib/ledger/record-mutate';
 import {
   atomicWriteFile,
@@ -93,6 +104,12 @@ interface ParsedArgs {
     dryRun: boolean;
     pretty: boolean;
     regenMirrors: boolean;
+    /**
+     * ID-35.11 scoped-write flag. Optional so pre-existing callers that build a
+     * `ParsedArgs.flags` literal stay valid; absent reads as falsy → the
+     * unchanged whole-file write path. `parseArgs` always sets it explicitly.
+     */
+    scoped?: boolean;
     ledgerDir: string;
   };
 }
@@ -103,6 +120,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     dryRun: false,
     pretty: false,
     regenMirrors: false,
+    scoped: false,
     ledgerDir: 'docs/reference',
   };
   for (let i = 0; i < argv.length; i++) {
@@ -110,6 +128,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     if (a === '--dry-run') flags.dryRun = true;
     else if (a === '--pretty') flags.pretty = true;
     else if (a === '--regen-mirrors') flags.regenMirrors = true;
+    else if (a === '--scoped') flags.scoped = true;
     else if (a === '--ledger-dir') {
       flags.ledgerDir = argv[++i] ?? flags.ledgerDir;
     } else if (a.startsWith('--')) {
@@ -130,7 +149,10 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   create-backlog <itemJson>
   delete-backlog <itemId>
   promote        <backlogId> <taskJson>
-flags: --dry-run --pretty --regen-mirrors --ledger-dir <path>`;
+flags: --dry-run --pretty --regen-mirrors --scoped --ledger-dir <path>
+  --scoped : minimal-diff write — re-emit only the mutated record, preserving
+             untouched-record bytes + on-disk \\uXXXX escaping (field edits only:
+             flip-task | flip-subtask | append-journal).`;
 
 function emit(result: CliResult, pretty: boolean): never {
   const stream = result.ok ? process.stdout : process.stderr;
@@ -180,7 +202,8 @@ type KnownDetected = Exclude<DetectSchemaResult, { kind: 'unknown' }>;
 async function loadLedger(
   path: string,
 ): Promise<
-  { ok: true; detected: KnownDetected } | { ok: false; result: CliResult }
+  | { ok: true; detected: KnownDetected; originalText: string }
+  | { ok: false; result: CliResult }
 > {
   let text: string;
   try {
@@ -229,9 +252,24 @@ async function loadLedger(
       ),
     };
   }
-  return { ok: true, detected };
+  return { ok: true, detected, originalText: text };
 }
 
+/**
+ * Whole-file serialiser. NON-CONFORMING on two axes vs the on-disk ledger
+ * convention (ID-35.11 finding):
+ *   1. Key order — `detected.data` is the Zod-reparsed document, so its records
+ *      come back in schema-declared key order, normalising EVERY record.
+ *   2. Escaping — plain `JSON.stringify` emits raw UTF-8, whereas the on-disk
+ *      ledgers escape all non-ASCII to `\uXXXX`.
+ * Either defect alone turns a one-field edit into a ~1600-line diff. The
+ * field-edit subcommands therefore prefer the `--scoped` path
+ * (lib/ledger/scoped-serialise.ts) during the parallel-cmux phase. A one-time
+ * whole-file key-order + escaping normalisation pass that makes THIS function
+ * conforming is DEFERRED to the CLI-becomes-sole-writer transition
+ * (docs/specs/ledger-cli/PLAN.md {35.11}); running it now would collide with the
+ * concurrent sibling writers of the shared task-list.json.
+ */
 function serialise(detected: KnownDetected): string {
   return `${JSON.stringify(detected.data, null, 2)}\n`;
 }
@@ -272,9 +310,30 @@ function maybeRegenMirrors(regen: boolean): void {
 }
 
 /**
+ * A scoped-write descriptor: the ORIGINAL on-disk text (as read by loadLedger)
+ * plus the single FieldPatch applied. When passed to {@link commitMutation} with
+ * `--scoped`, the written bytes come from re-emitting only the mutated record
+ * into the original text (lib/ledger/scoped-serialise.ts), so untouched records
+ * stay byte-identical. Available for field-edit subcommands only (those whose
+ * mutation is a single FieldPatch).
+ */
+interface ScopedWrite {
+  originalText: string;
+  patch: FieldPatch;
+}
+
+/**
  * Commit a mutated single-ledger snapshot: serialise + atomicWriteFile, unless
  * `dryRun` (then print the post-mutation document + write nothing). Returns the
  * success envelope.
+ *
+ * When `scoped` is true AND a {@link ScopedWrite} descriptor is supplied, the
+ * written bytes come from {@link scopedSerialise} (minimal diff, on-disk escaping
+ * preserved) instead of the non-conforming whole-file {@link serialise}. The
+ * scoped path re-derives its bytes from the original text threaded in by the
+ * caller — it never re-reads the file after mutation. If the scoped serialiser
+ * unexpectedly rejects (it re-validates), the error surfaces as `{ok:false}` and
+ * nothing is written.
  */
 async function commitMutation(
   subcommand: string,
@@ -283,6 +342,8 @@ async function commitMutation(
   resultPayload: unknown,
   dryRun: boolean,
   regenMirrors: boolean,
+  scoped: boolean = false,
+  scopedWrite?: ScopedWrite,
 ): Promise<CliResult> {
   const warnings = disciplineWarnings(detected);
   if (dryRun) {
@@ -293,7 +354,35 @@ async function commitMutation(
       warnings: warnings.length ? warnings : undefined,
     };
   }
-  await atomicWriteFile(path, serialise(detected));
+
+  let content: string;
+  if (scoped && scopedWrite) {
+    const r = scopedSerialise(scopedWrite.originalText, scopedWrite.patch);
+    if (!r.ok) {
+      // The whole-file path already validated via applyPatches, so a scoped
+      // failure here is unexpected — surface it rather than silently falling
+      // back to a wide whole-file write.
+      if (r.kind === 'schema-error') {
+        return {
+          ok: false,
+          subcommand,
+          error: 'scoped-schema-error',
+          detail:
+            r.error instanceof Error ? r.error.message : String(r.error),
+        };
+      }
+      return cliErr(
+        subcommand,
+        `scoped-${r.kind}`,
+        'detail' in r ? r.detail : undefined,
+      );
+    }
+    content = r.text;
+  } else {
+    content = serialise(detected);
+  }
+
+  await atomicWriteFile(path, content);
   maybeRegenMirrors(regenMirrors);
   return {
     ok: true,
@@ -397,10 +486,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
-      const m = fieldPatchMutation('flip-task', loaded.detected, {
+      const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'status'],
         newValue: status,
-      });
+      };
+      const m = fieldPatchMutation('flip-task', loaded.detected, patch);
       if (!m.ok) return m.result;
       return commitMutation(
         'flip-task',
@@ -409,6 +499,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         { taskId, status },
         flags.dryRun,
         flags.regenMirrors,
+        flags.scoped,
+        { originalText: loaded.originalText, patch },
       );
     }
 
@@ -422,10 +514,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
-      const m = fieldPatchMutation('flip-subtask', loaded.detected, {
+      const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'subtasks', subId, 'status'],
         newValue: status,
-      });
+      };
+      const m = fieldPatchMutation('flip-subtask', loaded.detected, patch);
       if (!m.ok) return m.result;
       return commitMutation(
         'flip-subtask',
@@ -434,6 +527,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         { taskId, subId, status },
         flags.dryRun,
         flags.regenMirrors,
+        flags.scoped,
+        { originalText: loaded.originalText, patch },
       );
     }
 
@@ -461,10 +556,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const next = existing
         ? `${existing}\n\n${journalBlock(text)}`
         : journalBlock(text);
-      const m = fieldPatchMutation('append-journal', loaded.detected, {
+      const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'subtasks', subId, 'details'],
         newValue: next,
-      });
+      };
+      const m = fieldPatchMutation('append-journal', loaded.detected, patch);
       if (!m.ok) return m.result;
       return commitMutation(
         'append-journal',
@@ -473,6 +569,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         { taskId, subId, appended: true },
         flags.dryRun,
         flags.regenMirrors,
+        flags.scoped,
+        { originalText: loaded.originalText, patch },
       );
     }
 

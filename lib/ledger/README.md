@@ -39,6 +39,34 @@ the consistent, CI-safe choice. See `docs/specs/ledger-cli/RESEARCH.md` §3.
   file stays byte-faithful for drift-checking. The CLI glue cites `ledger-transaction.ts`
   as the algorithm of record.
 
+## KH-authored (NOT vendored)
+
+- `scoped-serialise.ts` (ID-35.11) — KH-specific minimal-diff write primitive. It is
+  **not** a task-view vendor and must **never** be added to the
+  `task-view-vendor-drift.yml` primitive-diff list. Exports `escapeNonAscii(s)`,
+  `escapeSerialise(parsedValue)`, and `scopedSerialise(originalText, patch)`.
+
+  **Why it exists.** The whole-file `serialise()` in `scripts/ledger-cli.ts`
+  (`JSON.stringify(detected.data, null, 2)`) is non-conforming on two axes vs the on-disk
+  ledger convention: (1) it emits the Zod-reparsed document, so every record's keys are
+  reordered into schema-declared order; and (2) it emits raw UTF-8 whereas the on-disk
+  ledgers escape all non-ASCII to `\uXXXX`. Either defect alone turns a single-field edit
+  into a ~1600-line diff (verified: ~1417 lines on the live `task-list.json`), which
+  collides with sibling cmux terminals editing the same shared file.
+
+  **Contract.** `scopedSerialise` mutates the `JSON.parse` of the **original on-disk text**
+  in place (preserving every record's on-disk key order) and escape-serialises it, so a
+  one-field edit touches only the mutated record's lines (verified: 1 line on the live
+  ledger) and every untouched record stays byte-for-byte identical. A no-op
+  `escapeSerialise(JSON.parse(text))` round-trip is byte-identical to the source file. Zod
+  still validates (via `detectSchema`) before any byte is emitted. Wired into the CLI behind
+  `--scoped` for `flip-task` / `flip-subtask` / `append-journal`.
+
+  **Deferred.** A one-time whole-file key-order + escaping normalisation pass that makes the
+  CLI's `serialise()` itself conforming is **deferred** to the CLI-becomes-sole-writer
+  transition (see `docs/specs/ledger-cli/PLAN.md` {35.11}); running it during the
+  parallel-cmux phase would collide with the concurrent sibling writers.
+
 ## Re-vendor procedure
 
 When task-view cuts a new schema- or primitive-bearing release:

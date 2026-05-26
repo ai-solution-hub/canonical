@@ -51,6 +51,7 @@ function args(
       dryRun: false,
       pretty: false,
       regenMirrors: false,
+      scoped: false,
       ledgerDir: dir,
       ...extra,
     },
@@ -276,6 +277,119 @@ describe('ledger-cli — dispatch (inv 1, 4)', () => {
     const r = await run(args('frobnicate', []));
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('unknown-subcommand');
+  });
+});
+
+// ── ID-35.11 scoped-write mode ────────────────────────────────────────────────────
+//
+// --scoped re-emits ONLY the mutated record into the original on-disk text,
+// preserving every untouched record byte-for-byte (incl. its \uXXXX escapes).
+// Built from an ASCII-only source to dodge high-char mangling.
+const RAW_NON_ASCII = new RegExp('[\\u0080-\\uffff]');
+
+function changedLineIndices(before: string, after: string): number[] {
+  const b = before.split('\n');
+  const a = after.split('\n');
+  expect(a.length).toBe(b.length);
+  return b
+    .map((line, i) => (line === a[i] ? null : i))
+    .filter((i): i is number => i !== null);
+}
+
+describe('ledger-cli — --scoped write mode (ID-35.11)', () => {
+  it('flip-task --scoped changes ONLY the mutated record status line', async () => {
+    const taskId = firstTaskId();
+    const path = join(dir, 'task-list.json');
+    const before = readFileSync(path, 'utf8');
+    const current = read('task-list').tasks.find(
+      (t: { id: string; status: string }) => t.id === taskId,
+    ).status;
+    const newStatus = current === 'done' ? 'pending' : 'done';
+    const r = await run(args('flip-task', [taskId, newStatus], { scoped: true }));
+    expect(r.ok).toBe(true);
+    const after = readFileSync(path, 'utf8');
+    // Exactly one line differs across the whole 1.4MB file.
+    expect(changedLineIndices(before, after)).toHaveLength(1);
+  });
+
+  it('flip-subtask --scoped introduces no raw non-ASCII; escapes survive', async () => {
+    const taskId = firstTaskId();
+    const subId = String(read('task-list').tasks[0].subtasks[0].id);
+    const path = join(dir, 'task-list.json');
+    const before = readFileSync(path, 'utf8');
+    // Precondition: the real ledger uses escaped em-dashes, never raw ones.
+    expect(RAW_NON_ASCII.test(before)).toBe(false);
+    expect(before).toContain('\\u2014');
+    const r = await run(
+      args('flip-subtask', [taskId, subId, 'done'], { scoped: true }),
+    );
+    expect(r.ok).toBe(true);
+    const after = readFileSync(path, 'utf8');
+    expect(RAW_NON_ASCII.test(after)).toBe(false);
+    expect(after).toContain('\\u2014');
+    expect(read('task-list').tasks[0].subtasks[0].status).toBe('done');
+  });
+
+  it('append-journal --scoped touches only the mutated subtask details', async () => {
+    const taskId = firstTaskId();
+    const subId = String(read('task-list').tasks[0].subtasks[0].id);
+    const path = join(dir, 'task-list.json');
+    const before = readFileSync(path, 'utf8');
+    const r = await run(
+      args('append-journal', [taskId, subId, 'Scoped note.'], {
+        scoped: true,
+      }),
+    );
+    expect(r.ok).toBe(true);
+    const after = readFileSync(path, 'utf8');
+    expect(after).not.toBe(before);
+    expect(RAW_NON_ASCII.test(after)).toBe(false);
+    const detailsAfter = read('task-list').tasks[0].subtasks[0]
+      .details as string;
+    expect(detailsAfter).toContain('Scoped note.');
+    expect(detailsAfter).toMatch(/<info added on .+Z>/);
+    // The mutated details is one record; the change is bounded to its block —
+    // every line OUTSIDE the first task's subtask[0] details remains stable.
+    // Assert the second task's record block survives verbatim.
+    const tasks = read('task-list').tasks as { id: string }[];
+    if (tasks.length > 1) {
+      const secondId = tasks[1].id;
+      const idx = before.indexOf(`"id": "${secondId}"`);
+      const block = before.slice(idx, idx + 200);
+      expect(after).toContain(block);
+    }
+  });
+
+  it('the scoped result re-parses (detectSchema succeeds)', async () => {
+    const taskId = firstTaskId();
+    const r = await run(args('flip-task', [taskId, 'in_progress'], { scoped: true }));
+    expect(r.ok).toBe(true);
+    // read() throws on invalid JSON; detectSchema is exercised inside the CLI
+    // before write, and the file remains a valid task-list.
+    expect(read('task-list').document_name).toBe('Knowledge Hub Task List');
+  });
+
+  it('non-scoped flip-task still uses the whole-file path (unchanged behaviour)', async () => {
+    const taskId = firstTaskId();
+    const path = join(dir, 'task-list.json');
+    const r = await run(args('flip-task', [taskId, 'in_progress']));
+    expect(r.ok).toBe(true);
+    // Whole-file path normalises (raw UTF-8 + key reorder), so it touches many
+    // lines — the diff is NOT bounded to one line. This documents the contrast
+    // the --scoped flag exists to avoid.
+    const after = readFileSync(path, 'utf8');
+    expect(RAW_NON_ASCII.test(after)).toBe(true); // raw em-dashes now present
+  });
+
+  it('--scoped --dry-run writes nothing', async () => {
+    const taskId = firstTaskId();
+    const path = join(dir, 'task-list.json');
+    const before = readFileSync(path, 'utf8');
+    const r = await run(
+      args('flip-task', [taskId, 'done'], { scoped: true, dryRun: true }),
+    );
+    expect(r.ok).toBe(true);
+    expect(readFileSync(path, 'utf8')).toBe(before);
   });
 });
 
