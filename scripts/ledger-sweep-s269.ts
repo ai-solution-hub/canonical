@@ -50,14 +50,26 @@ interface Rewrite {
   description?: string;
   /** New acute current-status status_note (<= 300). Omit to leave untouched. */
   statusNote?: string;
+  /**
+   * When true, append a `cross_doc_links` pointer for the relocated
+   * status_note overflow EVEN IF the description was not relocated. Set for
+   * the status_note-only swept Tasks (ID-35/47/48/50) whose excised text lives
+   * under `## ID-{N} > ### status_note overflow` in the relocation doc. Tasks
+   * that also relocated a description already get a (description) pointer, so
+   * this flag is omitted for them to avoid a duplicate link.
+   */
+  statusNoteOnlyLink?: boolean;
 }
 
-function reloLink(id: string): DocLink {
-  return {
-    path: RELO_DOC,
-    anchor: `id-${id}`,
-    raw: 'Relocated over-budget description rationale (ID-34 {34.8} sweep, S269)',
-  };
+function reloLink(
+  id: string,
+  kind: 'description' | 'status_note',
+): DocLink {
+  const raw =
+    kind === 'description'
+      ? 'Relocated over-budget description rationale (ID-34 {34.8} sweep, S269)'
+      : 'Relocated over-budget status_note (ID-34 {34.8} sweep, S269)';
+  return { path: RELO_DOC, anchor: `id-${id}`, raw };
 }
 
 // ── Per-Task rewrites ───────────────────────────────────────────────────────
@@ -137,21 +149,25 @@ const REWRITES: Rewrite[] = [
   },
   {
     id: '35',
+    statusNoteOnlyLink: true,
     statusNote:
       'S266: PRIORITISED for the next-session parallel-cmux phase (Liam) — spec-review the 35.1-35.4 chain against task-view’s shipped patch primitives, then build as one cmux terminal, replacing the hand-written python ledger-splice with `bun scripts/ledger-cli.ts`. Dep ID-20 now DONE; ID-34 still gating.',
   },
   {
     id: '47',
+    statusNoteOnlyLink: true,
     statusNote:
       'All 7 subtasks done (S265, ast track). DB-layer warp analog complete: structural JSONB override + supabase-types-parity CI staging gate + CLAUDE.md TypeScript conventions + 11 consumers migrated + SCHEMA-QUICK-REFERENCE retired. Opaque-Json + caller-less RPC deletes deferred (OQ-6/7).',
   },
   {
     id: '48',
+    statusNoteOnlyLink: true,
     statusNote:
       'Opened S264 (main-track O-of-O) per Liam — workflow-evaluation programme. Seeded from docs/specs/workflow-evaluation/feedback-dossier-S264.md (ID-32 blind-spec lessons + Liam’s 9 notes). Paired with ID-23; next-session terminal runs {48.1} RESEARCH.',
   },
   {
     id: '50',
+    statusNoteOnlyLink: true,
     statusNote:
       'S267 (ops-rollout cmux sub-o): {50.1} ASSESS + {50.2} PLAN DONE -> ASSESS-S267.md + PLAN.md §4b + {50.3}-{50.11} records spliced. NO routes wrapped (HARD SCOPE = 50.1+50.2). Regenerated scope: 177 wrapped (132 TRANSFORM + 45 NEEDS_REVIEW), 18 MANUAL excluded. Impl waves {50.3+} are a FUTURE session.',
   },
@@ -235,14 +251,30 @@ function main() {
       changed = true;
     }
 
-    // Append the relocation pointer once (idempotent).
-    if (rw.description !== undefined) {
-      const links = (task.cross_doc_links ??= []) as DocLink[];
-      const link = reloLink(rw.id);
+    // Append the relocation pointer once (idempotent). The dedup key is
+    // path + anchor + raw, so a description pointer and a status_note pointer
+    // to the same `## ID-{N}` section coexist without either being suppressed.
+    function ensureLink(link: DocLink): void {
+      const links = (task!.cross_doc_links ??= []) as DocLink[];
       const exists = links.some(
-        (l) => l.path === link.path && l.anchor === link.anchor,
+        (l) =>
+          l.path === link.path &&
+          l.anchor === link.anchor &&
+          l.raw === link.raw,
       );
       if (!exists) links.push(link);
+    }
+
+    // Description relocations get a (description) pointer.
+    if (rw.description !== undefined) {
+      ensureLink(reloLink(rw.id, 'description'));
+    }
+    // Status_note-only relocations (ID-35/47/48/50) get a (status_note)
+    // pointer to their `### status_note overflow` subsection. Tasks that also
+    // relocated a description are already reachable via the description
+    // pointer, so they do NOT set statusNoteOnlyLink (avoids a duplicate).
+    if (rw.statusNoteOnlyLink) {
+      ensureLink(reloLink(rw.id, 'status_note'));
     }
 
     if (changed) touched.push(rw.id);
