@@ -1,8 +1,10 @@
 """HTTP wrapper server for the cocoindex sidecar Cloud Run Service.
 
-Listens on `$PORT` (default 8080), serves `GET /health` → 200 +
-`{"status": "ok"}`, and runs `coco.start_blocking()` in a daemon thread
-so the cocoindex fs-watch loop runs concurrently with aiohttp.
+Listens on `$PORT` (default 8080), serves `GET /health` (200 +
+`{"status": "ok"}` while the cocoindex worker thread is alive; 503 +
+`{"status": "error", ...}` once the worker has crashed — ID-49.8 / audit
+§7.5), and runs `coco.start_blocking()` in a daemon thread so the cocoindex
+fs-watch loop runs concurrently with aiohttp.
 
 Concurrency model: cocoindex 1.0.3 has no public non-blocking start
 variant, so the Rust-engine loop spawns on a daemon thread; aiohttp owns
@@ -36,6 +38,37 @@ from aiohttp import web
 # cocoindex's global key registry refuses the duplicate registration).
 
 _logger = logging.getLogger(__name__)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Worker-liveness state (ID-49.8 / audit §7.5)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# The cocoindex worker runs on a daemon thread (start_cocoindex_thread). Before
+# ID-49.8, /health was unconditionally 200 on the aiohttp thread, so a crashed
+# worker (the asyncpg gaierror boot crash) still reported the revision Ready —
+# a green revision with a dead pipeline. This shared Event lets the worker
+# thread signal a crash so /health can return non-200, making the Cloud Run
+# liveness probe fail the revision when the pipeline is actually down.
+#
+# See docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md §7.5.
+
+_WORKER_CRASHED = threading.Event()
+
+
+def mark_worker_crashed() -> None:
+    """Flag the cocoindex worker as crashed (set by the worker thread on death)."""
+    _WORKER_CRASHED.set()
+
+
+def reset_worker_state() -> None:
+    """Clear the crash flag — used by tests and at a fresh worker (re)start."""
+    _WORKER_CRASHED.clear()
+
+
+def worker_is_healthy() -> bool:
+    """True while the cocoindex worker thread has not signalled a crash."""
+    return not _WORKER_CRASHED.is_set()
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -84,8 +117,19 @@ def install_signal_handlers() -> threading.Event:
 
 
 async def _health_handler(request: web.Request) -> web.Response:  # noqa: ARG001 — request unused
-    """GET /health — Cloud Run startupProbe + livenessProbe target."""
-    return web.json_response({"status": "ok"})
+    """GET /health — Cloud Run startupProbe + livenessProbe target.
+
+    Reflects the cocoindex worker thread, not just aiohttp (ID-49.8 / audit
+    §7.5). Returns 503 when the worker has crashed so the Cloud Run liveness
+    probe fails the revision — a green revision now means the pipeline is
+    actually up, not merely that the HTTP thread survived.
+    """
+    if worker_is_healthy():
+        return web.json_response({"status": "ok"})
+    return web.json_response(
+        {"status": "error", "reason": "cocoindex worker thread crashed"},
+        status=503,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -129,6 +173,11 @@ def start_cocoindex_thread() -> threading.Thread:
         try:
             coco.start_blocking()
         except Exception:  # noqa: BLE001 — top-level boundary, must log + reraise
+            # ID-49.8: flag the worker as crashed so /health returns non-200 and
+            # the Cloud Run liveness probe fails the revision (audit §7.5). The
+            # daemon thread dies after this; the crash flag is the only signal
+            # the aiohttp /health handler has to observe the dead pipeline.
+            mark_worker_crashed()
             _logger.exception("cocoindex background thread crashed")
             raise
 

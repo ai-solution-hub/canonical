@@ -377,7 +377,14 @@ jobs:
           #     (ID-42.7). Appended IN PLACE here, NOT via a separate partial
           #     `update` — `--set-secrets` is declarative and replaces the whole
           #     mount set, so a separate call would silently drop the others.
-          COCOINDEX_SECRETS="${SECRETS_FLAT},PIPELINE_RUN_WEBHOOK_URL=PIPELINE_RUN_WEBHOOK_URL:latest,PULLMD_SERVICE_URL=PULLMD_SERVICE_URL:latest,PULLMD_API_TOKEN=PULLMD_API_TOKEN:latest"
+          #   COCOINDEX_DB_DSN — explicit Supabase pooler connection string read by
+          #     flow.py:_build_dsn() (ID-49.8). Carries host + user + password +
+          #     port, so NO host reconstruction (the old `<ref>.pooler.supabase.com`
+          #     derivation was NXDOMAIN and crashed the worker at boot). The secret
+          #     VALUE — the region-qualified pooler URL (aws-<n>-<region>) + the
+          #     Postgres/pooler password — is minted out-of-band; this only mounts
+          #     it. See docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md.
+          COCOINDEX_SECRETS="${SECRETS_FLAT},PIPELINE_RUN_WEBHOOK_URL=PIPELINE_RUN_WEBHOOK_URL:latest,PULLMD_SERVICE_URL=PULLMD_SERVICE_URL:latest,PULLMD_API_TOKEN=PULLMD_API_TOKEN:latest,COCOINDEX_DB_DSN=COCOINDEX_DB_DSN:latest"
 
           for TENANT in example-client kpf; do
             SERVICE_NAME="kh-cocoindex-pipeline-${TENANT}"

@@ -46,7 +46,6 @@ import json
 import logging
 import os
 import re
-import urllib.parse
 import uuid
 from pathlib import Path
 from typing import Any, Literal
@@ -572,37 +571,53 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
 # ── DSN helper ───────────────────────────────────────────────────────────────
 
 
+# Region-qualified Supabase pooler host shape. Supavisor hosts are
+# `aws-<n>-<region>.pooler.supabase.com` (e.g. aws-1-eu-west-2.pooler.supabase.com).
+# The previous code fabricated `<project-ref>.pooler.supabase.com`, which has
+# never existed in DNS (NXDOMAIN -> asyncpg gaierror -2, crashing the worker at
+# boot). This regex is the regression guard: a valid pooler host MUST match it;
+# the old ref-derived host MUST NOT. See ID-49.8 +
+# docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md.
+POOLER_HOST_RE = r"^aws-\d+-[a-z0-9-]+\.pooler\.supabase\.com$"
+
+
 def _build_dsn() -> str:
-    """Build a Postgres DSN from Cloud Run Secret Manager env vars.
+    """Return the Postgres DSN from the COCOINDEX_DB_DSN env var.
 
-    Mirrors spike/cocoindex_s1/probe_managed_by_user.py:build_dsn() shape.
-    Reads SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY; both are mounted via
-    Cloud Run Secret Manager per Subtask 28.6 (P-1 sidecar manifest).
+    Reads an EXPLICIT, fully-formed pooler connection string mounted via Cloud
+    Run Secret Manager (audit §7.1 "preferred"). The DSN already carries host +
+    user + password + port, so there is NO host reconstruction — the previous
+    `<project-ref>.pooler.supabase.com` derivation was the root cause of the
+    boot crash (NXDOMAIN -> asyncpg gaierror -2) and the wrong-password defect
+    (it used SUPABASE_SERVICE_ROLE_KEY, a PostgREST JWT, as the Postgres
+    password). Both are subsumed by reading the explicit DSN directly.
 
-    SUPABASE_URL format: https://<project-ref>.supabase.co
-    The pooler host is derived: <project-ref>.pooler.supabase.com:5432
+    The real value (region-qualified pooler URL + the Postgres/pooler password)
+    is minted out-of-band and mounted as the COCOINDEX_DB_DSN secret in
+    .github/workflows/cloud-run-deploy.yml.
+
+    No silent fallback: an unset/empty COCOINDEX_DB_DSN raises RuntimeError
+    rather than reconstructing the broken host (KH no-silent-failure ethos).
+
+    References:
+      docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md §7.1
+      ID-49.8 (task-list.json task 49, subtask 8)
     """
-    supabase_url = os.environ.get("SUPABASE_URL", "")
-    service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    dsn = os.environ.get("COCOINDEX_DB_DSN", "")
 
-    if not supabase_url or not service_role_key:
+    if not dsn:
         raise RuntimeError(
-            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars are required. "
-            "Mount via Cloud Run Secret Manager per Subtask 28.6 "
-            "(docs/specs/cocoindex-flow-scaffolding/TECH.md §P-1)."
+            "COCOINDEX_DB_DSN env var is required and must be a fully-formed "
+            "Supabase pooler connection string "
+            "(postgresql://postgres.<ref>:<password>@aws-<n>-<region>.pooler.supabase.com:5432/postgres). "
+            "Mount via Cloud Run Secret Manager per ID-49.8 "
+            "(.github/workflows/cloud-run-deploy.yml cocoindex-secrets block). "
+            "Do NOT derive the host from SUPABASE_URL — "
+            "`<ref>.pooler.supabase.com` is NXDOMAIN (see "
+            "docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md)."
         )
 
-    # Extract project ref from: https://<project-ref>.supabase.co
-    host_part = supabase_url.removeprefix("https://").removesuffix("/")
-    project_ref = host_part.split(".")[0]
-
-    # Supabase pooler for asyncpg: <project-ref>.pooler.supabase.com:5432
-    host = f"{project_ref}.pooler.supabase.com"
-    port = 5432
-    user = f"postgres.{project_ref}"
-    pw_quoted = urllib.parse.quote(service_role_key, safe="")
-
-    return f"postgresql://{user}:{pw_quoted}@{host}:{port}/postgres"
+    return dsn
 
 
 # ── Per-source-item ingest component (Stage 1→6 for one file) ────────────────

@@ -212,6 +212,74 @@ class TestCocoindexBackgroundThread:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# §3b — worker-liveness: /health reflects the cocoindex thread (ID-49.8)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestWorkerLiveness:
+    """ID-49.8 / audit §7.5 — /health must reflect the cocoindex worker thread,
+    not just aiohttp.
+
+    Root cause context: the worker crashed at boot (asyncpg gaierror) while
+    /health stayed 200 on a separate thread, so Cloud Run reported the revision
+    Ready while the pipeline was dead. The fix wires a shared crash flag the
+    worker thread sets on crash; /health returns non-200 when the worker is
+    dead, so a green revision means the pipeline is actually up.
+    """
+
+    def test_health_200_when_worker_healthy(
+        self, aiohttp_app: web.Application
+    ) -> None:
+        """Default (no crash) — /health returns 200 + {"status": "ok"}."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        status, body, _ = asyncio.run(_exercise_health(aiohttp_app))
+        assert status == 200
+        assert body["status"] == "ok"
+
+    def test_health_503_when_worker_crashed(
+        self, aiohttp_app: web.Application
+    ) -> None:
+        """After the worker thread marks itself crashed, /health returns a
+        non-200 status (503) so the Cloud Run liveness probe fails the
+        revision rather than reporting a dead pipeline as Ready."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            server_mod.mark_worker_crashed()
+            status, body, _ = asyncio.run(_exercise_health(aiohttp_app))
+            assert status == 503, (
+                "/health must return non-200 when the cocoindex worker is dead"
+            )
+            assert body["status"] != "ok"
+        finally:
+            # Leave global state clean for sibling tests.
+            server_mod.reset_worker_state()
+
+    def test_thread_crash_sets_worker_flag(self) -> None:
+        """When coco.start_blocking() raises, start_cocoindex_thread()'s target
+        must mark the worker crashed (so /health can observe it)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            with patch.object(
+                server_mod.coco,
+                "start_blocking",
+                side_effect=RuntimeError("boom"),
+            ):
+                thread = server_mod.start_cocoindex_thread()
+                thread.join(timeout=2.0)
+            assert not server_mod.worker_is_healthy(), (
+                "a crashed coco.start_blocking() must flip the worker to unhealthy"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # §4 — PORT env var honoured
 # ──────────────────────────────────────────────────────────────────────────
 
