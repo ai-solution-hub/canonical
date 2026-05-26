@@ -77,7 +77,7 @@ jobs:
           # same-owner public task-view repo (raises the rate limit).
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TASK_VIEW_REPO: liam-jons/task-view
-          TASK_VIEW_TAG: v0.1.0-task-view
+          TASK_VIEW_TAG: v0.2.0-task-view
         run: |
           set -uo pipefail
 
