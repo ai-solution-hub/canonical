@@ -123,3 +123,6 @@ entities.json
 !.ast-dataflow/CLAUDE.md
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+
+# Ledger-mirror regen cache (scripts/regen-mirrors.sh — task-view clones)
+/.cache/
