@@ -383,8 +383,312 @@ function nextId(
   return String(nums.length === 0 ? 1 : Math.max(...nums) + 1);
 }
 
+// ── ID-35.22 discoverability: schema / per-subcommand --help / get ────────────
+//
+// The "prevent guessing" fix (RESEARCH §5.2 + §3). Agents kept guessing the
+// id/deps TYPES every session — `subtask.id` is a NUMBER but `task.id` is a
+// STRING (a Taskmaster mandate, NOT a KH oversight — RESEARCH §3), so
+// `subtask.dependencies` is `number[]` and `task.dependencies` is `string[]`.
+// Nothing documented this at the point of use. `schema` / `--help` now print,
+// per record kind, every field's name + type + budget + required/optional +
+// enum values, DERIVED FROM `Schema.shape` so the surface can never drift from
+// the schema. No type change; no migration (RESEARCH §3 — functional-keep).
+
+/** The four documented record kinds, each backed by a Zod object schema. */
+type SchemaRecordKind = 'task' | 'subtask' | 'theme' | 'item';
+
+/** Schemas keyed by record kind. Zod v4 exposes `.shape` directly even with a
+ * trailing `.superRefine` (TaskSchema) — so all four shapes are introspectable. */
+const SCHEMA_SHAPES: Record<
+  SchemaRecordKind,
+  { shape: Record<string, ZodTypeAny> }
+> = {
+  task: TaskSchema,
+  subtask: SubtaskSchema,
+  theme: RoadmapThemeSchema,
+  item: BacklogItemSchema,
+};
+
+/** The label each record kind reads as at the point of use (RESEARCH §5.2):
+ * a backlog item field is documented as `backlog.title`, not `item.title`. */
+const KIND_LABEL: Record<SchemaRecordKind, string> = {
+  task: 'task',
+  subtask: 'subtask',
+  theme: 'theme',
+  item: 'backlog',
+};
+
+/** Budget registry key per record kind (the registry is keyed by record kind,
+ * not by the `backlog` display label). */
+const KIND_BUDGET_KEY: Record<SchemaRecordKind, LedgerRecordKind> = {
+  task: 'task',
+  subtask: 'subtask',
+  theme: 'theme',
+  item: 'item',
+};
+
+/** Per-field human annotations layered on top of the derived type label. */
+const FIELD_NOTES: Partial<
+  Record<SchemaRecordKind, Record<string, string>>
+> = {
+  subtask: {
+    dependencies: 'sibling-only',
+  },
+};
+
+/** Read a Zod v4 schema's internal def (the `_zod.def` discriminated record). */
+interface ZodDef {
+  type?: string;
+  innerType?: ZodTypeAny;
+  element?: ZodTypeAny;
+  entries?: Record<string, unknown>;
+}
+function zodDef(schema: ZodTypeAny): ZodDef {
+  // Zod v4 stores the def under `_zod.def`; fall back to the legacy `_def`.
+  const s = schema as unknown as {
+    _zod?: { def?: ZodDef };
+    _def?: ZodDef;
+  };
+  return s._zod?.def ?? s._def ?? {};
+}
+
+/**
+ * Map a Zod field schema to a readable type label, recursing through the v4
+ * wrapper types (`optional` / `nullable` → `innerType`, `array` → `element`,
+ * `enum` → its values). Falls back to the raw Zod `type` discriminator for any
+ * unmapped shape so the renderer never crashes on a novel field (watch-out).
+ * Returns the base type label; the `(optional)` / `(nullable)` markers are
+ * appended by the caller (which tracks them separately).
+ */
+function zodTypeLabel(schema: ZodTypeAny): string {
+  const def = zodDef(schema);
+  switch (def.type) {
+    case 'optional':
+    case 'nullable':
+      // Unwrap — the marker is recorded by labelField, not embedded here.
+      return def.innerType ? zodTypeLabel(def.innerType) : (def.type ?? '?');
+    case 'array': {
+      const el = def.element ? zodTypeLabel(def.element) : 'unknown';
+      return `${el}[]`;
+    }
+    case 'enum': {
+      const values = def.entries ? Object.keys(def.entries) : [];
+      return `enum(${values.join(' | ')})`;
+    }
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'object':
+    case 'literal':
+      return def.type;
+    default:
+      // Unmapped — fall back to the raw typeName rather than crashing.
+      return def.type ?? 'unknown';
+  }
+}
+
+/** Walk a field schema's wrappers to record whether it is optional / nullable. */
+function fieldModifiers(schema: ZodTypeAny): {
+  optional: boolean;
+  nullable: boolean;
+} {
+  let optional = false;
+  let nullable = false;
+  let cur: ZodTypeAny | undefined = schema;
+  while (cur) {
+    const def = zodDef(cur);
+    if (def.type === 'optional') optional = true;
+    else if (def.type === 'nullable') nullable = true;
+    else break;
+    cur = def.innerType;
+  }
+  return { optional, nullable };
+}
+
+/** Render one field's documentation line, e.g.
+ * `  subtask.dependencies: number[] (sibling-only)` or
+ * `  backlog.title: string ≤80 (optional)`. */
+function labelField(
+  kind: SchemaRecordKind,
+  field: string,
+  schema: ZodTypeAny,
+): string {
+  const base = zodTypeLabel(schema);
+  const { optional, nullable } = fieldModifiers(schema);
+  const budgets = LEDGER_BUDGETS[KIND_BUDGET_KEY[kind]] as Record<
+    string,
+    number
+  >;
+  const budget = budgets[field];
+
+  const parts = [`${base}`];
+  if (budget !== undefined) parts.push(`≤${budget}`);
+  const suffixes: string[] = [];
+  const note = FIELD_NOTES[kind]?.[field];
+  if (note) suffixes.push(note);
+  if (optional) suffixes.push('optional');
+  if (nullable) suffixes.push('nullable');
+
+  let line = `  ${KIND_LABEL[kind]}.${field}: ${parts.join(' ')}`;
+  if (suffixes.length) line += ` (${suffixes.join(', ')})`;
+  return line;
+}
+
+/** Render a full record-kind schema slice (header + every field line). */
+function renderKind(kind: SchemaRecordKind): string {
+  const { shape } = SCHEMA_SHAPES[kind];
+  const lines = [`${KIND_LABEL[kind]} record (${kind}):`];
+  for (const [field, fieldSchema] of Object.entries(shape)) {
+    lines.push(labelField(kind, field, fieldSchema as ZodTypeAny));
+  }
+  return lines.join('\n');
+}
+
+/** Map a `schema`/help target token to the record kind(s) it documents.
+ * A ledger name resolves to ALL its record kinds (task → task + subtask). */
+const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
+  // ledger names
+  task: ['task', 'subtask'],
+  roadmap: ['theme'],
+  backlog: ['item'],
+  // record-kind aliases
+  subtask: ['subtask'],
+  theme: ['theme'],
+  item: ['item'],
+};
+
+/**
+ * Render the `schema [target]` output. No target → every record kind. A ledger
+ * name (`task`) → its record kinds (task + subtask, so the deps-type asymmetry
+ * is visible side-by-side). A record kind (`subtask`) → that kind only. Returns
+ * null for an unknown target so the caller can emit `bad-schema-target`.
+ */
+function renderSchema(target?: string): string | null {
+  let kinds: SchemaRecordKind[];
+  if (target === undefined) {
+    kinds = ['task', 'subtask', 'theme', 'item'];
+  } else {
+    const resolved = SCHEMA_TARGETS[target];
+    if (!resolved) return null;
+    kinds = resolved;
+  }
+  return kinds.map(renderKind).join('\n\n');
+}
+
+/**
+ * Per-subcommand `--help` (RESEARCH §5.2). Returns the command's argv shape +
+ * flags + its target record's schema slice, or null for an unknown command
+ * (caller falls back to the global USAGE). Replaces the old bare-USAGE
+ * fall-through where `add-subtask --help` returned only the global usage line.
+ */
+function subcommandHelp(command: string): string | null {
+  const spec = SUBCOMMAND_HELP[command];
+  if (!spec) return null;
+  const lines = [`${command} — ${spec.synopsis}`];
+  if (spec.flags) lines.push(`  flags: ${spec.flags}`);
+  if (spec.kinds && spec.kinds.length) {
+    lines.push('', 'schema:');
+    lines.push(...spec.kinds.map(renderKind));
+  }
+  return lines.join('\n');
+}
+
+/** Per-subcommand help registry: argv synopsis, command-relevant flags, and
+ * the record kind(s) whose schema slice the command operates on. */
+const SUBCOMMAND_HELP: Record<
+  string,
+  { synopsis: string; flags?: string; kinds?: SchemaRecordKind[] }
+> = {
+  show: { synopsis: 'show <ledger> <id> — print a full record (read-only)' },
+  get: {
+    synopsis: 'get <ledger> <id> [field] — read one field (or the whole record)',
+  },
+  schema: {
+    synopsis: 'schema [ledger|recordKind] — print field names + types + budgets',
+  },
+  'flip-task': {
+    synopsis: 'flip-task <taskId> <status> — set a Task status',
+    flags: '--scoped --dry-run --pretty --no-regen-mirrors',
+    kinds: ['task'],
+  },
+  'flip-subtask': {
+    synopsis: 'flip-subtask <taskId> <subId> <status> — set a Subtask status',
+    flags: '--scoped --dry-run --pretty --no-regen-mirrors',
+    kinds: ['subtask'],
+  },
+  'update-task': {
+    synopsis: 'update-task <taskId> <field> <value> — edit a Task field',
+    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['task'],
+  },
+  'update-subtask': {
+    synopsis:
+      'update-subtask <taskId.subId> <field> <value> — edit a Subtask field',
+    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['subtask'],
+  },
+  'update-roadmap': {
+    synopsis: 'update-roadmap <themeId> <field> <value> — edit a Theme field',
+    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['theme'],
+  },
+  'update-backlog': {
+    synopsis: 'update-backlog <itemId> <field> <value> — edit a backlog field',
+    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['item'],
+  },
+  'append-journal': {
+    synopsis: 'append-journal <taskId> <subId> <text> — append a journal block',
+    flags: '--scoped --dry-run --pretty --no-regen-mirrors',
+    kinds: ['subtask'],
+  },
+  'add-subtask': {
+    synopsis: 'add-subtask <taskId> <subtaskJson | --title …> — insert a Subtask',
+    flags:
+      'input: positional JSON | --file <path> (- = stdin) | named flags ' +
+      '(--title --description --status --depends 1,2 …); --id forces an id; ' +
+      '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['subtask'],
+  },
+  'open-task': {
+    synopsis: 'open-task <taskJson | --title …> — insert a Task',
+    flags:
+      'input: positional JSON | --file <path> (- = stdin) | named flags; ' +
+      '--id forces an id; --force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['task'],
+  },
+  'create-theme': {
+    synopsis: 'create-theme <themeJson | --title …> — insert a roadmap Theme',
+    flags:
+      'input: positional JSON | --file <path> (- = stdin) | named flags; ' +
+      '--id forces an id; --force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['theme'],
+  },
+  'create-backlog': {
+    synopsis: 'create-backlog <itemJson | --title …> — insert a backlog item',
+    flags:
+      'input: positional JSON | --file <path> (- = stdin) | named flags ' +
+      '(--title --description --type --track …); --id forces an id; ' +
+      '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['item'],
+  },
+  'delete-backlog': {
+    synopsis: 'delete-backlog <itemId> — remove a backlog item',
+    flags: '--dry-run --pretty --no-regen-mirrors',
+    kinds: ['item'],
+  },
+  promote: {
+    synopsis:
+      'promote <backlogId> <taskJson> — atomically promote a backlog item to a Task',
+    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['task', 'item'],
+  },
+};
+
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
   show           <ledger> <id>                 (ledger: task|roadmap|backlog)
+  get            <ledger> <id> [field]         (single-field read; no field = show)
+  schema         [ledger|recordKind]           (print field names + types + budgets)
   flip-task      <taskId> <status>
   flip-subtask   <taskId> <subId> <status>
   update-subtask <taskId.subId> <field> <value>
@@ -407,6 +711,10 @@ flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path
   --no-regen-mirrors : skip the default-on mirror regen (e.g. batch edits — run
              \`bash scripts/regen-mirrors.sh\` once at the end).
   --regen-mirrors : DEPRECATED no-op alias — regen is now the default.
+discoverability: \`schema [ledger|recordKind]\` prints each field's name + type +
+  budget (so subtask.dependencies:number[] vs task.dependencies:string[] is
+  explicit — never guess). \`<command> --help\` prints that command's flags + its
+  target record's schema slice.
 input (record-creating commands): positional JSON | --file <path> (- = stdin) |
   named flags (--title --description --status --depends 1,2 --priority --id …).
 errors (exit 1, nothing written): schema-error, walk-error, duplicate-id,
@@ -1175,6 +1483,52 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       return { ok: true, subcommand: 'show', result: record };
     }
 
+    // ── ID-35.22 single-field read (RESEARCH §5.1) ──────────────────────────
+    // `get <ledger> <id> [field]` extends `show` with single-field reads:
+    // `get backlog 100 status` prints just the status value; no field behaves
+    // exactly like `show`. Read-only — no write gate.
+    case 'get': {
+      const [ledger, id, field] = p;
+      if (!ledger || !id)
+        return cliErr('get', 'missing-args', 'get <ledger> <id> [field]');
+      if (!(ledger in LEDGER_FILES))
+        return cliErr('get', 'bad-ledger', `ledger must be task|roadmap|backlog`);
+      const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
+      if (!loaded.ok) return loaded.result;
+      const d = loaded.detected;
+      const record =
+        d.kind === 'task-list'
+          ? d.data.tasks.find((t) => t.id === id)
+          : d.kind === 'roadmap'
+            ? d.data.themes.find((t) => t.id === id)
+            : d.data.items.find((it) => it.id === id);
+      if (!record)
+        return cliErr('get', 'record-not-found', `${ledger} id ${id}`);
+      // No field → whole record (parity with `show`).
+      if (field == null)
+        return { ok: true, subcommand: 'get', result: record };
+      const rec = record as Record<string, unknown>;
+      if (!(field in rec))
+        return cliErr('get', 'field-not-found', `${ledger} ${id} has no field "${field}"`);
+      return { ok: true, subcommand: 'get', result: rec[field] };
+    }
+
+    // ── ID-35.22 schema discoverability (RESEARCH §5.2 — prevent guessing) ───
+    // `schema [ledger|recordKind]` prints, per record kind, every field's
+    // name + type + budget + required/optional + enum values — derived from
+    // `Schema.shape` so it cannot drift. Read-only; touches no ledger file.
+    case 'schema': {
+      const target = p[0];
+      const out = renderSchema(target);
+      if (out === null)
+        return cliErr(
+          'schema',
+          'bad-schema-target',
+          `target must be one of: task|roadmap|backlog|subtask|theme|item (got "${target}")`,
+        );
+      return { ok: true, subcommand: 'schema', result: out };
+    }
+
     // ── task-list field edits ───────────────────────────────────────────────
     case 'flip-task': {
       const [taskId, status] = p;
@@ -1912,7 +2266,26 @@ async function promote(
 // ── entry ───────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const parsedResult = parseArgs(process.argv.slice(2));
+  const rawArgv = process.argv.slice(2);
+
+  // ID-35.22 per-subcommand --help dispatch (RESEARCH §5.2). Intercept BEFORE
+  // parseArgs, which rejects `--help` as an unknown value-flag. If `--help`/`-h`
+  // is present, the first non-flag token is the subcommand: print that
+  // command's flags + target-record schema slice (or the global USAGE for a
+  // bare/unknown `--help`). This replaces the old bare-USAGE fall-through where
+  // `add-subtask --help` returned only the global usage line.
+  if (rawArgv.includes('--help') || rawArgv.includes('-h')) {
+    const subcommand = rawArgv.find((a) => !a.startsWith('-'));
+    if (subcommand) {
+      const help = subcommandHelp(subcommand);
+      process.stdout.write(`${help ?? USAGE}\n`);
+      process.exit(0);
+    }
+    process.stdout.write(`${USAGE}\n`);
+    process.exit(0);
+  }
+
+  const parsedResult = parseArgs(rawArgv);
   if (!parsedResult.ok) {
     // ID-35.15 reject-unknown-flags: structured envelope to stderr, exit 1.
     process.stderr.write(
@@ -1921,13 +2294,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const args = parsedResult.parsed;
-  if (
-    !args.subcommand ||
-    args.subcommand === '--help' ||
-    args.subcommand === '-h'
-  ) {
+  if (!args.subcommand) {
     process.stdout.write(`${USAGE}\n`);
-    process.exit(args.subcommand ? 0 : 1);
+    process.exit(1);
   }
   const result = await run(args);
   emit(result, args.flags.pretty);
@@ -1953,5 +2322,7 @@ export {
   journalBlock,
   ledgerPath,
   LEDGER_FILES,
+  renderSchema,
+  subcommandHelp,
 };
 export type { CliResult, ParsedArgs };
