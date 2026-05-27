@@ -373,7 +373,10 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
 flags: --dry-run --pretty --regen-mirrors --scoped --ledger-dir <path>
   --scoped : minimal-diff write — re-emit only the mutated record, preserving
              untouched-record bytes + on-disk \\uXXXX escaping (field edits only:
-             flip-task | flip-subtask | append-journal).`;
+             flip-task | flip-subtask | append-journal).
+errors (exit 1, nothing written): schema-error, walk-error, duplicate-id,
+  record-not-found, record-set-violation (a write that would silently drop or
+  duplicate a record — the post-write id-set did not match the intended delta).`;
 
 function emit(result: CliResult, pretty: boolean): never {
   const stream = result.ok ? process.stdout : process.stderr;
@@ -503,6 +506,173 @@ function cliErr(subcommand: string, error: string, detail?: string): CliResult {
   return { ok: false, subcommand, error, detail };
 }
 
+// ── ID-35.16 record-set-preservation write gate (RESEARCH §2.6) ──────────────
+//
+// The single most severe wrong-shape write is a SILENTLY DROPPED (or
+// duplicated) record: Zod re-validates the survivors and passes, the mirror
+// regen renders the smaller set, and the only trace is a record that ceased to
+// exist. The §2.3 budget gate cannot catch this — it inspects the changed
+// record's fields, not the collection's membership. This gate asserts the
+// post-write id-set + count equal the pre-write set under the intended delta,
+// and CRUCIALLY derives the post-write ids from the BYTES ABOUT TO BE WRITTEN
+// (parsing the serialiser output string), so a serialise-side defect
+// (key-reorder / escaping / clone bug) is caught one step before it lands.
+
+/** Intended change to a collection's id-set across a single write. */
+type RecordSetDelta =
+  | { kind: 'none' }
+  | { kind: 'add'; id: string | number }
+  | { kind: 'remove'; id: string | number };
+
+type IdValue = string | number;
+
+/**
+ * A collection descriptor: which id-set inside a parsed ledger document the
+ * gate guards. Top-level collections (`tasks` / `themes` / `items`) guard the
+ * record-level id-set; `subtasks` guards one task's subtask id-set (for
+ * `add-subtask`, a +1 on the addressed task's subtasks).
+ */
+type CollectionDescriptor =
+  | { collection: 'tasks' | 'themes' | 'items' }
+  | { collection: 'subtasks'; taskId: string };
+
+/**
+ * Extract the id-set of the descriptor's collection from an arbitrary parsed
+ * ledger document (plain JSON — the parse of the bytes about to be written, NOT
+ * the Zod-reparsed `detected.data`). Returns null when the collection cannot be
+ * located (itself a violation the gate surfaces).
+ */
+function collectionIds(
+  parsed: unknown,
+  descriptor: CollectionDescriptor,
+): Set<IdValue> | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const doc = parsed as Record<string, unknown>;
+  if (descriptor.collection === 'subtasks') {
+    const tasks = doc.tasks;
+    if (!Array.isArray(tasks)) return null;
+    const task = tasks.find(
+      (t) => (t as { id?: unknown }).id === descriptor.taskId,
+    ) as { subtasks?: unknown } | undefined;
+    if (!task || !Array.isArray(task.subtasks)) return null;
+    return new Set(
+      task.subtasks.map((s) => (s as { id: IdValue }).id),
+    );
+  }
+  const arr = doc[descriptor.collection];
+  if (!Array.isArray(arr)) return null;
+  return new Set(arr.map((r) => (r as { id: IdValue }).id));
+}
+
+/**
+ * Capture the pre-write id-set from the typed `detected` document at
+ * `loadLedger` time. Must be called BEFORE the in-memory mutation for
+ * collections whose membership changes (e.g. `add-subtask` replaces the
+ * `subtasks` array); for field-edits the id-set is unchanged either way, but
+ * capturing before is the safe discipline.
+ */
+function beforeCollectionIds(
+  detected: KnownDetected,
+  descriptor: CollectionDescriptor,
+): Set<IdValue> {
+  if (descriptor.collection === 'subtasks') {
+    if (detected.kind !== 'task-list') return new Set();
+    const task = detected.data.tasks.find((t) => t.id === descriptor.taskId);
+    return new Set((task?.subtasks ?? []).map((s) => s.id));
+  }
+  if (descriptor.collection === 'tasks' && detected.kind === 'task-list') {
+    return new Set(detected.data.tasks.map((t) => t.id));
+  }
+  if (descriptor.collection === 'themes' && detected.kind === 'roadmap') {
+    return new Set(detected.data.themes.map((t) => t.id));
+  }
+  if (descriptor.collection === 'items' && detected.kind === 'backlog') {
+    return new Set(detected.data.items.map((it) => it.id));
+  }
+  return new Set();
+}
+
+type RecordSetCheck = { ok: true } | { ok: false; detail: string };
+
+/**
+ * The core gate (ID-35.16). Assert `afterIds` equals `beforeIds` transformed by
+ * `expectedDelta`. Reports the unexpectedly-missing and unexpectedly-present
+ * ids on violation, so the operator sees exactly which record was dropped or
+ * inserted.
+ */
+function assertRecordSet(
+  beforeIds: Set<IdValue>,
+  afterIds: Set<IdValue>,
+  expectedDelta: RecordSetDelta,
+): RecordSetCheck {
+  // The expected post-write id-set, derived from beforeIds + the intended delta.
+  const expected = new Set<IdValue>(beforeIds);
+  if (expectedDelta.kind === 'add') expected.add(expectedDelta.id);
+  else if (expectedDelta.kind === 'remove') expected.delete(expectedDelta.id);
+
+  const missing = [...expected].filter((id) => !afterIds.has(id));
+  const unexpected = [...afterIds].filter((id) => !expected.has(id));
+
+  if (missing.length === 0 && unexpected.length === 0) return { ok: true };
+
+  const parts: string[] = [];
+  if (missing.length) parts.push(`missing [${missing.join(', ')}]`);
+  if (unexpected.length) parts.push(`unexpected [${unexpected.join(', ')}]`);
+  return { ok: false, detail: parts.join(' / ') };
+}
+
+/**
+ * Run the record-set gate for one ledger write at the write gate: parse the
+ * `content` about to be written, extract the descriptor's id-set, and assert it
+ * against `beforeIds` under `expectedDelta`. Returns a `record-set-violation`
+ * CliResult on mismatch (caller writes nothing) or `{ ok: true }` to proceed.
+ */
+function checkRecordSet(
+  subcommand: string,
+  ledger: LedgerName,
+  content: string,
+  beforeIds: Set<IdValue>,
+  descriptor: CollectionDescriptor,
+  expectedDelta: RecordSetDelta,
+): { ok: true } | { ok: false; result: CliResult } {
+  let afterParsed: unknown;
+  try {
+    afterParsed = JSON.parse(content);
+  } catch (err) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'record-set-violation',
+        `${ledger}: serialised output is not valid JSON (${msg(err)})`,
+      ),
+    };
+  }
+  const afterIds = collectionIds(afterParsed, descriptor);
+  if (afterIds === null) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'record-set-violation',
+        `${ledger}: could not locate the ${descriptor.collection} collection in the serialised output`,
+      ),
+    };
+  }
+  const check = assertRecordSet(beforeIds, afterIds, expectedDelta);
+  if (!check.ok) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'record-set-violation',
+        `${ledger}: ${check.detail}`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
 /**
  * Surface ID-34 field-discipline warnings for a task-list mutation. Non-fatal:
  * the warnings flow to stderr; the command still succeeds. (Only task-list has
@@ -544,6 +714,20 @@ interface ScopedWrite {
 }
 
 /**
+ * ID-35.16 record-set-preservation gate inputs for one ledger write: the
+ * ledger name (for the error detail), the collection guarded, the pre-write
+ * id-set (captured at `loadLedger` time, BEFORE the mutation), and the intended
+ * delta. `commitMutation`/`promote` derive `afterIds` from the bytes about to
+ * be written and assert the invariant before any byte lands.
+ */
+interface RecordSetGate {
+  ledger: LedgerName;
+  descriptor: CollectionDescriptor;
+  beforeIds: Set<IdValue>;
+  expectedDelta: RecordSetDelta;
+}
+
+/**
  * Commit a mutated single-ledger snapshot: serialise + atomicWriteFile, unless
  * `dryRun` (then print the post-mutation document + write nothing). Returns the
  * success envelope.
@@ -555,6 +739,11 @@ interface ScopedWrite {
  * caller — it never re-reads the file after mutation. If the scoped serialiser
  * unexpectedly rejects (it re-validates), the error surfaces as `{ok:false}` and
  * nothing is written.
+ *
+ * ID-35.16: when a {@link RecordSetGate} is supplied, the record-set-
+ * preservation gate runs on the SERIALISED OUTPUT (scoped or whole-file) before
+ * `atomicWriteFile` — a serialise-side drop/duplicate is rejected with
+ * `record-set-violation` and nothing is written.
  */
 async function commitMutation(
   subcommand: string,
@@ -565,6 +754,7 @@ async function commitMutation(
   regenMirrors: boolean,
   scoped: boolean = false,
   scopedWrite?: ScopedWrite,
+  gate?: RecordSetGate,
 ): Promise<CliResult> {
   const warnings = disciplineWarnings(detected);
   if (dryRun) {
@@ -601,6 +791,21 @@ async function commitMutation(
     content = r.text;
   } else {
     content = serialise(detected);
+  }
+
+  // ID-35.16 record-set-preservation gate — runs on the bytes ABOUT TO BE
+  // WRITTEN (scoped or whole-file), so a serialise-side drop/duplicate is
+  // caught one step before it lands. Composes with the §2.3 budget gate.
+  if (gate) {
+    const g = checkRecordSet(
+      subcommand,
+      gate.ledger,
+      content,
+      gate.beforeIds,
+      gate.descriptor,
+      gate.expectedDelta,
+    );
+    if (!g.ok) return g.result;
   }
 
   await atomicWriteFile(path, content);
@@ -707,6 +912,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
+      const descriptor: CollectionDescriptor = { collection: 'tasks' };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'status'],
         newValue: status,
@@ -722,6 +929,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         flags.regenMirrors,
         flags.scoped,
         { originalText: loaded.originalText, patch },
+        {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'none' },
+        },
       );
     }
 
@@ -735,6 +948,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
+      // The flip is a subtask-field edit; the addressed task's subtask id-set
+      // is unchanged (∅), so guard that task's subtasks collection.
+      const descriptor: CollectionDescriptor = {
+        collection: 'subtasks',
+        taskId,
+      };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'subtasks', subId, 'status'],
         newValue: status,
@@ -750,6 +970,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         flags.regenMirrors,
         flags.scoped,
         { originalText: loaded.originalText, patch },
+        {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'none' },
+        },
       );
     }
 
@@ -773,6 +999,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'record-not-found',
           `subtask ${taskId}.${subId}`,
         );
+      const descriptor: CollectionDescriptor = {
+        collection: 'subtasks',
+        taskId,
+      };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const existing = sub.details ?? '';
       const next = existing
         ? `${existing}\n\n${journalBlock(text)}`
@@ -792,6 +1023,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         flags.regenMirrors,
         flags.scoped,
         { originalText: loaded.originalText, patch },
+        {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'none' },
+        },
       );
     }
 
@@ -812,6 +1049,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const task = loaded.detected.data.tasks.find((t) => t.id === taskId);
       if (!task)
         return cliErr('add-subtask', 'record-not-found', `task ${taskId}`);
+      const descriptor: CollectionDescriptor = {
+        collection: 'subtasks',
+        taskId,
+      };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
+      const newSubId = (parsedArg.value as { id?: IdValue }).id;
       const nextSubtasks = [...task.subtasks, parsedArg.value];
       const m = fieldPatchMutation('add-subtask', loaded.detected, {
         fieldPath: ['tasks', taskId, 'subtasks'],
@@ -825,6 +1068,16 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         { taskId, subtaskCount: nextSubtasks.length },
         flags.dryRun,
         flags.regenMirrors,
+        false,
+        undefined,
+        newSubId !== undefined
+          ? {
+              ledger: 'task',
+              descriptor,
+              beforeIds,
+              expectedDelta: { kind: 'add', id: newSubId },
+            }
+          : undefined,
       );
     }
 
@@ -839,6 +1092,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'backlog'));
       if (!loaded.ok) return loaded.result;
+      const descriptor: CollectionDescriptor = { collection: 'items' };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       // value may be JSON (for non-string fields) or a bare string.
       let newValue: unknown = value;
       try {
@@ -858,6 +1113,14 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         { itemId, field },
         flags.dryRun,
         flags.regenMirrors,
+        false,
+        undefined,
+        {
+          ledger: 'backlog',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'none' },
+        },
       );
     }
 
@@ -871,6 +1134,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(subcommand, 'missing-args', `${subcommand} <json>`);
       const loaded = await loadLedger(ledgerPath(dir, ledger));
       if (!loaded.ok) return loaded.result;
+      const descriptor: CollectionDescriptor = {
+        collection: ledger === 'task' ? 'tasks' : 'items',
+      };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const parsedArg = parseJsonArg(subcommand, recordJson);
       if (!parsedArg.ok) return parsedArg.result;
       const ins = insertRecord(loaded.detected, parsedArg.value);
@@ -897,6 +1164,14 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         { recordId: ins.recordId },
         flags.dryRun,
         flags.regenMirrors,
+        false,
+        undefined,
+        {
+          ledger,
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'add', id: ins.recordId },
+        },
       );
     }
 
@@ -910,6 +1185,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'backlog'));
       if (!loaded.ok) return loaded.result;
+      const descriptor: CollectionDescriptor = { collection: 'items' };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const rem = removeRecord(loaded.detected, itemId);
       if (!rem.ok) {
         if (rem.kind === 'schema-error')
@@ -930,6 +1207,14 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         { recordId: rem.recordId },
         flags.dryRun,
         flags.regenMirrors,
+        false,
+        undefined,
+        {
+          ledger: 'backlog',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'remove', id: rem.recordId },
+        },
       );
     }
 
@@ -988,6 +1273,12 @@ async function promote(
   if (blLoad.detected.kind !== 'backlog')
     return cliErr('promote', 'wrong-ledger', 'backlog');
 
+  // ID-35.16 record-set gate: capture pre-write id-sets BEFORE both mutations.
+  const taskDescriptor: CollectionDescriptor = { collection: 'tasks' };
+  const backlogDescriptor: CollectionDescriptor = { collection: 'items' };
+  const taskBeforeIds = beforeCollectionIds(tlLoad.detected, taskDescriptor);
+  const backlogBeforeIds = beforeCollectionIds(blLoad.detected, backlogDescriptor);
+
   const ins = insertRecord(tlLoad.detected, taskRecord.value);
   if (!ins.ok) {
     if (ins.kind === 'schema-error')
@@ -1021,6 +1312,29 @@ async function promote(
 
   const newTaskContent = serialise(ins.detected);
   const newBacklogContent = serialise(rem.detected);
+
+  // ID-35.16 record-set gate, run twice (once per ledger) on the bytes ABOUT
+  // TO BE WRITTEN: task-list +1 (the new Task id) AND backlog −1 (the source
+  // item id). A serialise-side drop/duplicate on either ledger is rejected with
+  // `record-set-violation` before either staged write commits.
+  const taskGate = checkRecordSet(
+    'promote',
+    'task',
+    newTaskContent,
+    taskBeforeIds,
+    taskDescriptor,
+    { kind: 'add', id: ins.recordId },
+  );
+  if (!taskGate.ok) return taskGate.result;
+  const backlogGate = checkRecordSet(
+    'promote',
+    'backlog',
+    newBacklogContent,
+    backlogBeforeIds,
+    backlogDescriptor,
+    { kind: 'remove', id: rem.recordId },
+  );
+  if (!backlogGate.ok) return backlogGate.result;
 
   // Hoist the discipline scan once (it re-parses the task-list) — reused by
   // both the dry-run and the success return.
@@ -1112,6 +1426,7 @@ export {
   parseArgs,
   readRecordInput,
   nextId,
+  assertRecordSet,
   run,
   journalBlock,
   ledgerPath,
