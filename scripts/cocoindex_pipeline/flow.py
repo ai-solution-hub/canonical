@@ -525,7 +525,34 @@ async def _emit_pipeline_run_webhook(
 
 # asyncpg.Pool context key — shared across mount_table_target calls in app_main()
 # and provided env-scope by `kh_pipeline_lifespan` (28.22).
-DB_CTX: coco.ContextKey[asyncpg.Pool] = coco.ContextKey("kh_pipeline_db")
+
+
+def _build_db_ctx() -> "coco.ContextKey[asyncpg.Pool]":
+    """Build (or reuse) the DB_CTX ContextKey defensively.
+
+    Mirrors the `_build_flow_meta_ctx()` pattern in flow_context.py.
+
+    `cocoindex.ContextKey` enforces process-global uniqueness on the key string.
+    If `flow.py` is imported under two package paths in one process (e.g.
+    `scripts.cocoindex_pipeline.flow` AND `cocoindex_pipeline.flow` via
+    `sys.path.insert`), the second `ContextKey(...)` call trips the registry.
+    We catch the resulting `ValueError` and rebuild an identity-equivalent
+    instance via `__new__` so both sys.modules entries share the same logical
+    handle. (ID-49.7 duplicate-key defence.)
+    """
+    key_str = "kh_pipeline_db"
+    try:
+        return coco.ContextKey(key_str)
+    except ValueError:
+        ck: coco.ContextKey[asyncpg.Pool] = coco.ContextKey.__new__(  # type: ignore[assignment]
+            coco.ContextKey
+        )
+        ck._key = key_str  # type: ignore[attr-defined]
+        ck._detect_change = False  # type: ignore[attr-defined]
+        return ck
+
+
+DB_CTX: coco.ContextKey[asyncpg.Pool] = _build_db_ctx()
 
 # ── TableSchema declarations ─────────────────────────────────────────────────
 # NOTE: content_text_hash is GENERATED ALWAYS in Postgres — OMIT from
@@ -1005,6 +1032,7 @@ async def kh_pipeline_lifespan(builder: coco.EnvironmentBuilder):
 # `coco.App(config, main_fn)` registers the pipeline with the cocoindex
 # environment. Used by `server.py` and the local-dev `__main__.py`.
 # (cocoindex 1.0.3: `AppConfig` has NO `main_fn` field — see module docstring.)
+
 
 KH_PIPELINE_APP = coco.App(
     coco.AppConfig(name="kh_pipeline"),

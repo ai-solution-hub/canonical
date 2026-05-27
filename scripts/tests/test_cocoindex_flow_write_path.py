@@ -86,7 +86,25 @@ def _make_coco_stub() -> MagicMock:
 
 
 def _flow_module():
-    """Import flow under stubbed cocoindex (no global registry contamination)."""
+    """Load flow under this file's stubbed cocoindex (per-file reload isolation).
+
+    Uses `importlib.reload()` under `stubbed_sys_modules()` so that each call
+    re-executes `flow.py`'s module body with the write-path stubs active —
+    giving this file a fresh `@coco.lifespan` passthrough and a fresh
+    `_StubContextKey`-backed `DB_CTX` regardless of which sibling test file
+    imported flow first (ID-49.7 per-file reload isolation).
+
+    `importlib.reload()` updates the MODULE OBJECT IN-PLACE (unlike
+    `sys.modules.pop + re-import`, which hits Python's package-attribute cache
+    and silently returns the old module when a sibling file already imported it).
+
+    To protect sibling files' `flow.aiohttp` stub pin (set as a module-level
+    attribute by test_cocoindex_flow_pipeline_run_webhook.py), we snapshot the
+    current `flow.aiohttp` value before reload and restore it afterwards. This
+    preserves cooperative-stub discipline (ID-44.5) across collection order.
+    """
+    import importlib  # noqa: PLC0415
+
     coco_stub = _make_coco_stub()
     localfs_stub = MagicMock(name="cocoindex.connectors.localfs")
     pg_stub = MagicMock(name="cocoindex.connectors.postgres")
@@ -105,11 +123,26 @@ def _flow_module():
         "docling": MagicMock(name="docling"),
         "docling.document_converter": MagicMock(name="docling.document_converter"),
     }
-    sys.modules.pop("cocoindex_pipeline.flow", None)
+    # Ensure flow is imported at least once so the module object exists.
     with stubbed_sys_modules(stubs):
-        from cocoindex_pipeline import flow  # noqa: PLC0415
+        from cocoindex_pipeline import flow  # noqa: PLC0415  (first import only)
 
-        return flow
+    # Snapshot any flow.aiohttp pin set by a sibling test file at collection
+    # time (test_cocoindex_flow_pipeline_run_webhook.py pins its _StubSession).
+    # reload() resets this attribute; we must restore it to preserve the
+    # cooperative-stub discipline across collection orderings (ID-44.5).
+    _prior_aiohttp = getattr(flow, "aiohttp", None)
+
+    # reload() re-executes flow.py with our stubs in sys.modules — the
+    # @coco.lifespan passthrough + _StubContextKey DB_CTX land correctly.
+    with stubbed_sys_modules(stubs):
+        importlib.reload(flow)
+
+    # Restore the sibling's aiohttp pin if one was set before the reload.
+    if _prior_aiohttp is not None and isinstance(_prior_aiohttp, MagicMock):
+        flow.aiohttp = _prior_aiohttp
+
+    return flow
 
 
 # ── Fakes ────────────────────────────────────────────────────────────────────

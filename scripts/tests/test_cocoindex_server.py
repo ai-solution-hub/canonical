@@ -50,6 +50,37 @@ from aiohttp import web  # noqa: E402
 from aiohttp.test_utils import make_mocked_request  # noqa: E402
 
 
+def _reset_cocoindex_app_registry() -> None:
+    """Drop any `kh_pipeline` entry from cocoindex's global App registry.
+
+    Test-isolation fix (ID-49.7): cocoindex 1.0.3 keeps a process-global App
+    registry. When this file shares a pytest process with
+    `test_cocoindex_flow_idle_mode.py` (which imports `cocoindex_pipeline.flow`
+    with the REAL cocoindex), the `kh_pipeline` App is already registered when
+    `start_cocoindex_thread()` lazily imports `scripts.cocoindex_pipeline.flow`
+    (a second sys.modules path for the same file) — tripping
+    `ValueError: An app named 'kh_pipeline' is already registered`.
+
+    Per the Checker's guidance, duplicate-App tolerance belongs TEST-SIDE
+    (registry reset), not in production `flow.py`. We clear the registry entry
+    here so the lazy flow import can re-register cleanly. Best-effort: if the
+    cocoindex internals are stubbed (sibling MagicMock) or the API moves, the
+    reset is skipped silently — the import then either succeeds (stub) or the
+    original behaviour is preserved.
+    """
+    try:
+        from cocoindex._internal.environment import (  # type: ignore[import]
+            _default_env,
+        )
+
+        registry = _default_env._info._app_registry
+        with _default_env._info._app_registry_lock:
+            registry.pop("kh_pipeline", None)
+    except (ImportError, AttributeError):
+        # cocoindex internals unavailable/stubbed — nothing to reset.
+        pass
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Fixtures
 # ──────────────────────────────────────────────────────────────────────────
@@ -185,6 +216,11 @@ class TestCocoindexBackgroundThread:
         calls `coco.start_blocking()`."""
         from scripts.cocoindex_pipeline import server as server_mod
 
+        # Clear any cross-file kh_pipeline App registration so the lazy flow
+        # import inside start_cocoindex_thread() can re-register cleanly
+        # (ID-49.7 test-side registry reset).
+        _reset_cocoindex_app_registry()
+
         with patch.object(
             server_mod.coco, "start_blocking", return_value=None
         ) as mock_start:
@@ -258,12 +294,25 @@ class TestWorkerLiveness:
             # Leave global state clean for sibling tests.
             server_mod.reset_worker_state()
 
+    @pytest.mark.filterwarnings(
+        "ignore::pytest.PytestUnhandledThreadExceptionWarning"
+    )
     def test_thread_crash_sets_worker_flag(self) -> None:
         """When coco.start_blocking() raises, start_cocoindex_thread()'s target
-        must mark the worker crashed (so /health can observe it)."""
+        must mark the worker crashed (so /health can observe it).
+
+        The intentional daemon-thread crash emits PytestUnhandledThreadExceptionWarning
+        under pytest 9.x. Suppressed here with a SCOPED filterwarnings marker — the
+        warning is expected behaviour for this test and must NOT bleed globally.
+        (ID-49.7 folded finding 1.)
+        """
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_worker_state()
+        # Clear any cross-file kh_pipeline App registration so the lazy flow
+        # import inside start_cocoindex_thread() can re-register cleanly
+        # (ID-49.7 test-side registry reset).
+        _reset_cocoindex_app_registry()
         try:
             with patch.object(
                 server_mod.coco,
