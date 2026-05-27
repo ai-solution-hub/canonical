@@ -208,9 +208,17 @@ const REWRITES: Rewrite[] = [
     description:
       'Implement the durable Open-Question (OQ) escalation/decision channel specified in docs/specs/oq-escalation/PRODUCT.md (33 invariants): a cmux sub-worker emits a self-contained immutable OQ record (oq_id, worker_id, urgency, blocking flag, context_ref) to its parent orchestrator and receives an addressed decision back. Covers blocking vs non-blocking semantics, per-worker FIFO ordering, atomic durable append-only idempotent emission, cancellation, at-least-once decision delivery with a 10s latency bound, an awaiting-decision worker state, and crash/restart safety. PRODUCT shipped S62 (a47066c4) but was orphaned (no TECH, untracked) until re-instated S260. Provenance + acceptance criteria + dependencies relocated to docs/research/ledger-field-sweep-s269.md#id-43.',
   },
+  // ── OQ-LS-3 (S270): ID-49 released from EXCLUDED + swept ─────────────────────
+  {
+    id: '49',
+    description:
+      'Follow-on to ID-28. ID-28 landed the critical-path CORE on the installed cocoindex 1.0.3 REACTIVE App/mount_each/declare_row API: the functional Stage-6 declare_row write path (ID-28.21), env-scope @coco.lifespan DB pool (ID-28.22), and the re-grounded specs (ID-28.20) — this unblocked the ID-42 ingest proof. THIS Task completes the remaining canonical-pipeline stages that were decomposed but deferred: App boot wiring (sidecar can launch the App), Stage-4 embedding (vector search), _emit_upsert_log live wiring, layered-retry alignment, Stage-5 entity resolution (+faiss pin), the real-Supabase integration tests, and per-file importlib.reload test isolation. Full grounding + subtask provenance relocated to docs/research/ledger-field-sweep-s269.md#id-49.',
+    statusNote:
+      'Created S265 (sub-orchestrator subo-id28) per Liam land-core/defer decision (ast-pattern). ID-28 core write path landed+gated; remaining pipeline stages tracked here for a DEDICATED future orchestrator. CAVEAT detail relocated to docs/research/ledger-field-sweep-s269.md#id-49.',
+  },
 ];
 
-const EXCLUDED = new Set(['20', '49']);
+const EXCLUDED = new Set(['20']);
 
 function main() {
   const checkOnly = process.argv.includes('--check');
