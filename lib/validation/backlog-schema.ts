@@ -21,6 +21,10 @@ import { z } from 'zod';
 import { BacklogStatus, Priority } from '@/lib/validation/work-status';
 import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
+import {
+  LEDGER_BUDGETS,
+  DISCIPLINE_DOC,
+} from '@/lib/validation/ledger-budgets';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Re-export surface-level status enum (consumers import from here, not from
@@ -185,3 +189,52 @@ export const BacklogSchema = z
   });
 
 export type BacklogDocument = z.infer<typeof BacklogSchema>;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// parseBacklogWithWarnings — field-length budget warnings ({35.13})
+//
+// Mirrors `parseTaskListWithWarnings` / `parseRoadmapWithWarnings`. Surfaces a
+// SOFT warning for any item field that exceeds its char budget in the unified
+// registry (`lib/validation/ledger-budgets.ts`). NOT a schema rejection — no
+// `.max()` is added, so the live ledger keeps parsing and the vendored schema
+// shape is unchanged (RESEARCH §2.3/§7). The CLI write-time pre-check ({35.17})
+// is the prevent-at-source gate; this helper is the read-side advisory.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A warning raised by `parseBacklogWithWarnings` when an item field exceeds its
+ * char budget. `itemId` scopes the warning to the offending item.
+ */
+export interface BacklogWarning {
+  itemId: string;
+  message: string;
+}
+
+/**
+ * Parse a Backlog document and surface soft field-length warnings sourced from
+ * the unified budget registry. Throws `ZodError` on hard validation failure
+ * (same behaviour as `BacklogSchema.parse()`). On success, returns the parsed
+ * document plus a `warnings` array — empty when every item is within budget.
+ */
+export function parseBacklogWithWarnings(input: unknown): {
+  value: BacklogDocument;
+  warnings: BacklogWarning[];
+} {
+  const value = BacklogSchema.parse(input);
+  const warnings: BacklogWarning[] = [];
+
+  for (const item of value.items) {
+    if (item.description.length > LEDGER_BUDGETS.item.description) {
+      warnings.push({
+        itemId: item.id,
+        message:
+          `Backlog item "${item.id}" description is ${item.description.length} chars ` +
+          `(budget ${LEDGER_BUDGETS.item.description}). Keep it a one-sentence summary; ` +
+          `move detail to a spec/research doc and reference via cross_doc_links ` +
+          `(see ${DISCIPLINE_DOC}).`,
+      });
+    }
+  }
+
+  return { value, warnings };
+}

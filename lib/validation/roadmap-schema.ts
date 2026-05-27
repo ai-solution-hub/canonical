@@ -28,6 +28,10 @@
 import { z } from 'zod';
 import { Priority } from '@/lib/validation/work-status';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
+import {
+  LEDGER_BUDGETS,
+  DISCIPLINE_DOC,
+} from '@/lib/validation/ledger-budgets';
 
 // ──────────────────────────────────────────
 // Enums
@@ -200,10 +204,16 @@ export type Roadmap = z.infer<typeof RoadmapSchema>;
 
 /**
  * A warning raised by `parseRoadmapWithWarnings` when a document exceeds the
- * 12-theme soft ceiling defined in PRODUCT inv 8.
+ * 12-theme soft ceiling (PRODUCT inv 8) or a theme field exceeds its char
+ * budget ({35.13} — sourced from `lib/validation/ledger-budgets.ts`).
+ *
+ * `themeCount` is set on the per-document ceiling warning; `themeId` is set on
+ * a per-theme field-budget warning. Soft warnings only — never schema
+ * rejections (no `.max()`; the registry is plain data — RESEARCH §2.3/§7).
  */
 export interface RoadmapWarning {
   themeCount?: number;
+  themeId?: string;
   message: string;
 }
 
@@ -238,5 +248,29 @@ export function parseRoadmapWithWarnings(input: unknown): {
         `Per PRODUCT inv 8, consider merging.`,
     });
   }
+
+  // ── Theme field-length budgets ({35.13}) — soft warnings, never rejections.
+  // Sourced from the unified registry; `notes` is nullable so guard for null.
+  for (const theme of value.themes) {
+    if (theme.description.length > LEDGER_BUDGETS.theme.description) {
+      warnings.push({
+        themeId: theme.id,
+        message:
+          `Roadmap theme "${theme.id}" description is ${theme.description.length} chars ` +
+          `(budget ${LEDGER_BUDGETS.theme.description}). Move detail to docs/ and reference ` +
+          `it via cross_doc_links (see ${DISCIPLINE_DOC}).`,
+      });
+    }
+    if (theme.notes && theme.notes.length > LEDGER_BUDGETS.theme.notes) {
+      warnings.push({
+        themeId: theme.id,
+        message:
+          `Roadmap theme "${theme.id}" notes is ${theme.notes.length} chars ` +
+          `(budget ${LEDGER_BUDGETS.theme.notes}). Keep notes to acute context only ` +
+          `(see ${DISCIPLINE_DOC}).`,
+      });
+    }
+  }
+
   return { value, warnings };
 }

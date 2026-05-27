@@ -25,6 +25,10 @@ import { z } from 'zod';
 import { TaskListStatus, Priority } from '@/lib/validation/work-status';
 import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
+import {
+  FIELD_BUDGETS,
+  DISCIPLINE_DOC,
+} from '@/lib/validation/ledger-budgets';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Re-export surface-specific status and priority for consumers
@@ -203,15 +207,13 @@ export interface TaskListWarning {
  *
  * `Subtask.details` is intentionally NOT budgeted — it is the append-only
  * dispatch-brief + journal home; length there is legitimate.
+ *
+ * As of {35.13} the canonical budget numbers live in the unified 3-ledger
+ * registry `lib/validation/ledger-budgets.ts`; `FIELD_BUDGETS` is re-exported
+ * here so the existing named import (`parseTaskListWithWarnings`,
+ * `scripts/ledger-sweep-s269.ts`) keeps working unchanged.
  */
-export const FIELD_BUDGETS = {
-  taskDescription: 1500,
-  taskStatusNote: 300,
-  subtaskDescription: 250,
-  subtaskTestStrategy: 300,
-} as const;
-
-const DISCIPLINE_DOC = 'docs/reference/task-list-discipline.md';
+export { FIELD_BUDGETS } from '@/lib/validation/ledger-budgets';
 
 /**
  * Parse a TaskList and surface warnings for any Task that exceeds the
