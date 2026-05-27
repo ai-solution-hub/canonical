@@ -49,6 +49,15 @@ spec:
             # Correlates pipeline_runs.result->'extractor_version' to deployed image (Inv-8).
             - name: IMAGE_SHA
               value: ""
+            # COCOINDEX_DB_DSN is mounted HERE (not via the workflow --set-secrets
+            # step like the other secrets) because flow.py:_build_dsn() needs it at
+            # BOOT — the @coco.lifespan asyncpg pool is created before /health can
+            # serve, so a post-replace mount races the health-gated deploy (ID-49.8).
+            - name: COCOINDEX_DB_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: COCOINDEX_DB_DSN
+                  key: latest
           startupProbe:
             httpGet:
               path: /health
