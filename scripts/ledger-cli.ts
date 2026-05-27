@@ -375,11 +375,14 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   flip-task      <taskId> <status>
   flip-subtask   <taskId> <subId> <status>
   update-subtask <taskId.subId> <field> <value>
+  update-task    <taskId> <field> <value>
+  update-roadmap <themeId> <field> <value>
   append-journal <taskId> <subId> <text>
   add-subtask    <taskId> <subtaskJson>
   update-backlog <itemId> <field> <value>
   open-task      <taskJson>
   create-backlog <itemJson>
+  create-theme   <themeJson>
   delete-backlog <itemId>
   promote        <backlogId> <taskJson>
 flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
@@ -1118,6 +1121,57 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       );
     }
 
+    // ── ID-35.20 task field editor (RESEARCH §4) ────────────────────────────
+    case 'update-task': {
+      const [taskId, field, value] = p;
+      if (!taskId || !field || value == null)
+        return cliErr(
+          'update-task',
+          'missing-args',
+          'update-task <taskId> <field> <value>',
+        );
+      const loaded = await loadLedger(ledgerPath(dir, 'task'));
+      if (!loaded.ok) return loaded.result;
+      const descriptor: CollectionDescriptor = { collection: 'tasks' };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
+      const newValue = coerceFieldValue('task', field, value);
+      const patch: FieldPatch = {
+        fieldPath: ['tasks', taskId, field],
+        newValue,
+      };
+      const m = fieldPatchMutation('update-task', loaded.detected, patch);
+      if (!m.ok) return m.result;
+      const changedTask =
+        loaded.detected.kind === 'task-list'
+          ? loaded.detected.data.tasks.find((t) => t.id === taskId)
+          : undefined;
+      return commitMutation(
+        'update-task',
+        ledgerPath(dir, 'task'),
+        loaded.detected,
+        { taskId, field },
+        flags.dryRun,
+        !flags.noRegenMirrors,
+        flags.scoped,
+        { originalText: loaded.originalText, patch },
+        {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'none' },
+        },
+        changedTask
+          ? {
+              ledger: 'task',
+              recordKind: 'task',
+              recordId: taskId,
+              record: changedTask as unknown as Record<string, unknown>,
+            }
+          : undefined,
+        flags.force,
+      );
+    }
+
     case 'flip-subtask': {
       const [taskId, subId, status] = p;
       if (!taskId || !subId || !status)
@@ -1394,19 +1448,78 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       );
     }
 
+    // ── ID-35.20 roadmap field editor (RESEARCH §4 — no editor existed) ──────
+    case 'update-roadmap': {
+      const [themeId, field, value] = p;
+      if (!themeId || !field || value == null)
+        return cliErr(
+          'update-roadmap',
+          'missing-args',
+          'update-roadmap <themeId> <field> <value>',
+        );
+      const loaded = await loadLedger(ledgerPath(dir, 'roadmap'));
+      if (!loaded.ok) return loaded.result;
+      const descriptor: CollectionDescriptor = { collection: 'themes' };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
+      const newValue = coerceFieldValue('theme', field, value);
+      const m = fieldPatchMutation('update-roadmap', loaded.detected, {
+        fieldPath: ['themes', themeId, field],
+        newValue,
+      });
+      if (!m.ok) return m.result;
+      const changedTheme =
+        loaded.detected.kind === 'roadmap'
+          ? loaded.detected.data.themes.find((t) => t.id === themeId)
+          : undefined;
+      return commitMutation(
+        'update-roadmap',
+        ledgerPath(dir, 'roadmap'),
+        loaded.detected,
+        { themeId, field },
+        flags.dryRun,
+        !flags.noRegenMirrors,
+        false,
+        undefined,
+        {
+          ledger: 'roadmap',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'none' },
+        },
+        changedTheme
+          ? {
+              ledger: 'roadmap',
+              recordKind: 'theme',
+              recordId: themeId,
+              record: changedTheme as unknown as Record<string, unknown>,
+            }
+          : undefined,
+        flags.force,
+      );
+    }
+
     // ── record CREATE / DELETE ───────────────────────────────────────────────
     case 'open-task':
-    case 'create-backlog': {
+    case 'create-backlog':
+    case 'create-theme': {
+      // ID-35.20 adds `create-theme` alongside the existing open-task /
+      // create-backlog creators (RESEARCH §4 — roadmap had no creator).
       const ledger: LedgerName =
-        subcommand === 'open-task' ? 'task' : 'backlog';
+        subcommand === 'open-task'
+          ? 'task'
+          : subcommand === 'create-theme'
+            ? 'roadmap'
+            : 'backlog';
+      const collection: 'tasks' | 'themes' | 'items' =
+        ledger === 'task' ? 'tasks' : ledger === 'roadmap' ? 'themes' : 'items';
+      const recordKind: LedgerRecordKind =
+        ledger === 'task' ? 'task' : ledger === 'roadmap' ? 'theme' : 'item';
       const [recordJson] = p;
       if (!recordJson)
         return cliErr(subcommand, 'missing-args', `${subcommand} <json>`);
       const loaded = await loadLedger(ledgerPath(dir, ledger));
       if (!loaded.ok) return loaded.result;
-      const descriptor: CollectionDescriptor = {
-        collection: ledger === 'task' ? 'tasks' : 'items',
-      };
+      const descriptor: CollectionDescriptor = { collection };
       const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const parsedArg = parseJsonArg(subcommand, recordJson);
       if (!parsedArg.ok) return parsedArg.result;
@@ -1444,7 +1557,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         },
         {
           ledger,
-          recordKind: ledger === 'task' ? 'task' : 'item',
+          recordKind,
           recordId: ins.recordId,
           record: parsedArg.value as Record<string, unknown>,
         },

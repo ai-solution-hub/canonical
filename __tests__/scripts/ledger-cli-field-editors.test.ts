@@ -55,6 +55,9 @@ function args(
 function readTask() {
   return JSON.parse(readFileSync(join(dir, 'task-list.json'), 'utf8'));
 }
+function readRoadmap() {
+  return JSON.parse(readFileSync(join(dir, 'product-roadmap.json'), 'utf8'));
+}
 
 // A task/subtask known to exist in the live fixture for editing.
 function firstTaskWithSubtask(): { taskId: string; subId: number } {
@@ -165,6 +168,79 @@ describe('update-subtask — {35.19} subtask field editor', () => {
 
   it('errors on a malformed (non-dotted) id', async () => {
     const r = await run(args('update-subtask', ['35', 'status', 'done']));
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('update-task — {35.20} task field editor', () => {
+  it('edits a task field (status_note) and persists', async () => {
+    const tl = readTask();
+    const taskId = tl.tasks[0].id;
+    const r = await run(
+      args('update-task', [taskId, 'status_note', 'Edited by test.']),
+    );
+    expect(r.ok).toBe(true);
+    const after = readTask();
+    const task = after.tasks.find((t: { id: string }) => t.id === taskId);
+    expect(task.status_note).toBe('Edited by test.');
+  });
+
+  it('rejects an unknown task field', async () => {
+    const tl = readTask();
+    const taskId = tl.tasks[0].id;
+    const r = await run(args('update-task', [taskId, 'nonsense', 'x']));
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('update-roadmap — {35.20} theme field editor (gap: no editor today)', () => {
+  it('edits a theme field (notes) and persists', async () => {
+    const rm = readRoadmap();
+    const themeId = rm.themes[0].id;
+    const r = await run(
+      args('update-roadmap', [themeId, 'notes', 'Edited theme note.']),
+    );
+    expect(r.ok).toBe(true);
+    const after = readRoadmap();
+    const theme = after.themes.find((t: { id: string }) => t.id === themeId);
+    expect(theme.notes).toBe('Edited theme note.');
+  });
+
+  it('rejects an unknown theme field', async () => {
+    const rm = readRoadmap();
+    const themeId = rm.themes[0].id;
+    const r = await run(args('update-roadmap', [themeId, 'nonsense', 'x']));
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('create-theme — {35.20} roadmap record create', () => {
+  const NEW_THEME = {
+    id: '9991',
+    title: 'Test theme',
+    description: 'A theme created by the test.',
+    time_horizon: 'later',
+    status: 'pending',
+    linked_tasks: [],
+    linked_backlog: [],
+    session_refs: [],
+    commit_refs: [],
+    cross_doc_links: [],
+    notes: null,
+  };
+
+  it('inserts a new theme and persists', async () => {
+    const r = await run(args('create-theme', [JSON.stringify(NEW_THEME)]));
+    expect(r.ok).toBe(true);
+    const after = readRoadmap();
+    expect(after.themes.some((t: { id: string }) => t.id === '9991')).toBe(
+      true,
+    );
+  });
+
+  it('rejects an unknown field on the new theme', async () => {
+    const bad = { ...NEW_THEME, id: '9992', nonsense: true };
+    const r = await run(args('create-theme', [JSON.stringify(bad)]));
     expect(r.ok).toBe(false);
   });
 });
