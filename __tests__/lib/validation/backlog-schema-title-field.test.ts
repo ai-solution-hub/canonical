@@ -125,16 +125,32 @@ describe('parseBacklogWithWarnings — title budget ({35.14})', () => {
 });
 
 describe('live product-backlog.json — still parses with the title field added', () => {
-  it('parses the current 149-item live ledger unchanged (optional title)', () => {
+  // The "title is OPTIONAL" concern is proven above with a CONSTRUCTED fixture
+  // (BacklogItemSchema.title — parses an item with NO title) — decoupled from the
+  // live ledger so it cannot re-break as the live data evolves. This block only
+  // proves the LIVE ledger still parses. {35.23} backfilled a title onto all 149
+  // live items, so we assert the post-backfill reality: every item carries a
+  // non-empty title within the ≤80 soft budget. (Pre-{35.24} this asserted
+  // `title === undefined`, which {35.23}'s backfill correctly invalidated.)
+  it('parses the current live ledger; every backfilled item has a non-empty title ≤80', () => {
     const raw = readFileSync('docs/reference/product-backlog.json', 'utf8');
     const parsed = JSON.parse(raw);
-    // Hard parse must not throw — the live items have no title.
     const result = BacklogSchema.safeParse(parsed);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.items.length).toBeGreaterThanOrEqual(149);
-      // None of the live items carry a title yet (backfill is {35.23}).
-      expect(result.data.items.every((i) => i.title === undefined)).toBe(true);
+      // Post-{35.23} backfill: every live item now carries a title.
+      expect(
+        result.data.items.every(
+          (i) => typeof i.title === 'string' && i.title.length > 0,
+        ),
+      ).toBe(true);
+      // The backfill respected the ≤80 soft budget (none over-budget).
+      expect(
+        result.data.items.every(
+          (i) => (i.title?.length ?? 0) <= LEDGER_BUDGETS.item.title,
+        ),
+      ).toBe(true);
     }
   });
 });
