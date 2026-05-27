@@ -43,7 +43,7 @@
 
 import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { renameSync } from 'node:fs';
+import { renameSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { ZodError } from 'zod';
 
@@ -112,32 +112,251 @@ interface ParsedArgs {
      * unchanged whole-file write path. `parseArgs` always sets it explicitly.
      */
     scoped?: boolean;
+    /**
+     * ID-35.18 mirror-regen opt-out. When set, the default-on regen
+     * (`maybeRegenMirrors(true)`) is suppressed. Optional for back-compat with
+     * pre-existing `ParsedArgs.flags` literals; absent reads as falsy.
+     */
+    noRegenMirrors?: boolean;
+    /**
+     * ID-35.15 escape hatch — downgrades the budget-exceeded rejection
+     * ({35.17}) to the existing soft warning and proceeds. Optional for
+     * back-compat.
+     */
+    force?: boolean;
     ledgerDir: string;
+    /**
+     * ID-35.15 named value-flags. Each consumes the next argv token. Absent
+     * when not supplied; consumed by `readRecordInput` to build a record from
+     * flags, and (for `--file`/`--id`) by the input/auto-id plumbing. Optional
+     * so pre-existing `ParsedArgs.flags` literals stay valid.
+     */
+    file?: string;
+    id?: string;
+    title?: string;
+    description?: string;
+    status?: string;
+    depends?: string;
+    priority?: string;
+    notes?: string;
+    testStrategy?: string;
+    statusNote?: string;
   };
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
+/**
+ * ID-35.15 value-flag registry. Each maps an argv `--flag` to the
+ * `ParsedArgs.flags` key it populates with the NEXT argv token. Drives both
+ * `parseArgs` (which token-pairs them) and `readRecordInput` (which assembles a
+ * record from the named-flag subset).
+ */
+const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
+  '--ledger-dir': 'ledgerDir',
+  '--file': 'file',
+  '--id': 'id',
+  '--title': 'title',
+  '--description': 'description',
+  '--status': 'status',
+  '--depends': 'depends',
+  '--priority': 'priority',
+  '--notes': 'notes',
+  '--test-strategy': 'testStrategy',
+  '--status-note': 'statusNote',
+};
+
+/** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
+const BOOLEAN_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
+  '--dry-run': 'dryRun',
+  '--pretty': 'pretty',
+  '--regen-mirrors': 'regenMirrors',
+  '--no-regen-mirrors': 'noRegenMirrors',
+  '--scoped': 'scoped',
+  '--force': 'force',
+};
+
+/** Sorted union of every known flag — surfaced in the reject-unknown error. */
+const KNOWN_FLAGS = [
+  ...Object.keys(BOOLEAN_FLAGS),
+  ...Object.keys(VALUE_FLAGS),
+].sort();
+
+type ParseArgsResult =
+  | { ok: true; parsed: ParsedArgs }
+  | { ok: false; error: string };
+
+/**
+ * ID-35.15 hand-rolled parser (zero new deps; Node ≥22). Splits argv into
+ * positionals, boolean flags, and named value-flags (each consuming the next
+ * token). Unknown `--flags` are REJECTED (RESEARCH §5.3) — the old silent-drop
+ * behaviour turned a `--titel` typo into a confusing downstream schema error.
+ */
+function parseArgs(argv: string[]): ParseArgsResult {
   const positionals: string[] = [];
-  const flags = {
+  const flags: ParsedArgs['flags'] = {
     dryRun: false,
     pretty: false,
     regenMirrors: false,
     scoped: false,
+    noRegenMirrors: false,
+    force: false,
     ledgerDir: 'docs/reference',
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--dry-run') flags.dryRun = true;
-    else if (a === '--pretty') flags.pretty = true;
-    else if (a === '--regen-mirrors') flags.regenMirrors = true;
-    else if (a === '--scoped') flags.scoped = true;
-    else if (a === '--ledger-dir') {
-      flags.ledgerDir = argv[++i] ?? flags.ledgerDir;
+    if (a in BOOLEAN_FLAGS) {
+      (flags as Record<string, unknown>)[BOOLEAN_FLAGS[a]] = true;
+    } else if (a in VALUE_FLAGS) {
+      const next = argv[++i];
+      if (next === undefined) {
+        return { ok: false, error: `flag ${a} requires a value` };
+      }
+      (flags as Record<string, unknown>)[VALUE_FLAGS[a]] = next;
     } else if (a.startsWith('--')) {
-      // unknown flag — ignored (positional parsing is strict instead)
-    } else positionals.push(a);
+      return {
+        ok: false,
+        error: `unknown flag ${a}. Known flags: ${KNOWN_FLAGS.join(' ')}`,
+      };
+    } else {
+      positionals.push(a);
+    }
   }
-  return { subcommand: positionals.shift(), positionals, flags };
+  return {
+    ok: true,
+    parsed: { subcommand: positionals.shift(), positionals, flags },
+  };
+}
+
+// ── ID-35.15 record-input layer ─────────────────────────────────────────────
+
+type RecordInputResult =
+  | { ok: true; value: unknown }
+  | { ok: false; result: CliResult };
+
+/**
+ * ID-35.15. Resolve a record-creating command's body in precedence order:
+ *
+ *   1. positional JSON   (back-compat — `create-backlog '{"…"}'`)
+ *   2. `--file <path>`   (`-` reads stdin; the manual temp-file workaround,
+ *                         made first-class for multi-line `details`)
+ *   3. named flags       (`--title --description --status --depends 1,2 …`)
+ *
+ * Returns the parsed record object (NOT yet schema-validated — the vendored
+ * `insertRecord`/`applyPatches` primitives own that). `--depends` is split on
+ * commas into a numeric array (subtask `dependencies` are `number[]`). When no
+ * input source is supplied at all, returns `missing-args`.
+ */
+function readRecordInput(args: ParsedArgs): RecordInputResult {
+  const subcommand = args.subcommand ?? '<none>';
+  const { flags } = args;
+
+  // 1. positional JSON.
+  const positional = args.positionals[0];
+  if (positional !== undefined) {
+    try {
+      return { ok: true, value: JSON.parse(positional) };
+    } catch (err) {
+      return {
+        ok: false,
+        result: cliErr(subcommand, 'invalid-json-arg', msg(err)),
+      };
+    }
+  }
+
+  // 2. --file <path> (`-` = stdin).
+  if (flags.file !== undefined) {
+    let text: string;
+    try {
+      text = flags.file === '-' ? readFileSync(0, 'utf8') : readFileSync(flags.file, 'utf8');
+    } catch (err) {
+      return {
+        ok: false,
+        result: cliErr(subcommand, 'input-read-failed', `${flags.file}: ${msg(err)}`),
+      };
+    }
+    try {
+      return { ok: true, value: JSON.parse(text) };
+    } catch (err) {
+      return {
+        ok: false,
+        result: cliErr(subcommand, 'invalid-json-arg', `${flags.file}: ${msg(err)}`),
+      };
+    }
+  }
+
+  // 3. named flags → record object.
+  const record: Record<string, unknown> = {};
+  if (flags.id !== undefined) record.id = flags.id;
+  if (flags.title !== undefined) record.title = flags.title;
+  if (flags.description !== undefined) record.description = flags.description;
+  if (flags.status !== undefined) record.status = flags.status;
+  if (flags.priority !== undefined) record.priority = flags.priority;
+  if (flags.notes !== undefined) record.notes = flags.notes;
+  if (flags.testStrategy !== undefined) record.testStrategy = flags.testStrategy;
+  if (flags.statusNote !== undefined) record.status_note = flags.statusNote;
+  if (flags.depends !== undefined) {
+    record.dependencies = flags.depends
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .map((s) => {
+        const n = Number(s);
+        return Number.isNaN(n) ? s : n;
+      });
+  }
+
+  if (Object.keys(record).length === 0) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'missing-args',
+        `${subcommand} expects a positional JSON body, --file <path> (- = stdin), or named flags (--title …)`,
+      ),
+    };
+  }
+  return { ok: true, value: record };
+}
+
+/**
+ * ID-35.15 CLI-layer auto-id (RESEARCH §2.2). Computes `max(existingIds) + 1`
+ * for a collection, returning the correct primitive TYPE:
+ *   - `tasks` / `themes` / `items` → bare-digit STRING (`"186"`)
+ *   - `subtasks`                    → NUMBER (`13`), scoped to `taskId`
+ *
+ * `max+1` is the monotonic semantics (never reuses a freed id; does NOT fill
+ * gaps). Lives in the CLI, NOT the vendored `insertRecord`, which must stay
+ * byte-faithful to task-view (RESEARCH §2.2).
+ */
+function nextId(
+  detected: KnownDetected,
+  collectionKey: 'tasks' | 'themes' | 'items' | 'subtasks',
+  taskId?: string,
+): string | number {
+  if (collectionKey === 'subtasks') {
+    if (detected.kind !== 'task-list') {
+      throw new Error('nextId(subtasks) requires a task-list ledger');
+    }
+    if (taskId === undefined) {
+      throw new Error('nextId(subtasks) requires a taskId');
+    }
+    const task = detected.data.tasks.find((t) => t.id === taskId);
+    const ids = (task?.subtasks ?? []).map((s) => s.id);
+    return ids.length === 0 ? 1 : Math.max(...ids) + 1;
+  }
+  let ids: string[] = [];
+  if (collectionKey === 'tasks' && detected.kind === 'task-list') {
+    ids = detected.data.tasks.map((t) => t.id);
+  } else if (collectionKey === 'themes' && detected.kind === 'roadmap') {
+    ids = detected.data.themes.map((t) => t.id);
+  } else if (collectionKey === 'items' && detected.kind === 'backlog') {
+    ids = detected.data.items.map((it) => it.id);
+  } else {
+    throw new Error(
+      `nextId(${collectionKey}) does not match detected ledger kind ${detected.kind}`,
+    );
+  }
+  const nums = ids.map((id) => Number(id)).filter((n) => !Number.isNaN(n));
+  return String(nums.length === 0 ? 1 : Math.max(...nums) + 1);
 }
 
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
@@ -858,7 +1077,15 @@ async function promote(
 // ── entry ───────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const parsedResult = parseArgs(process.argv.slice(2));
+  if (!parsedResult.ok) {
+    // ID-35.15 reject-unknown-flags: structured envelope to stderr, exit 1.
+    process.stderr.write(
+      `${JSON.stringify({ ok: false, subcommand: '<parse>', error: 'unknown-flag', detail: parsedResult.error })}\n`,
+    );
+    process.exit(1);
+  }
+  const args = parsedResult.parsed;
   if (
     !args.subcommand ||
     args.subcommand === '--help' ||
@@ -881,5 +1108,13 @@ if (import.meta.main) {
   });
 }
 
-export { parseArgs, run, journalBlock, ledgerPath, LEDGER_FILES };
+export {
+  parseArgs,
+  readRecordInput,
+  nextId,
+  run,
+  journalBlock,
+  ledgerPath,
+  LEDGER_FILES,
+};
 export type { CliResult, ParsedArgs };
