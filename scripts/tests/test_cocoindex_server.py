@@ -285,15 +285,28 @@ class TestCocoindexBackgroundThread:
         enters the lifespan without running the pipeline)."""
         from scripts.cocoindex_pipeline import server as server_mod
 
+        server_mod.reset_worker_state()
         # Clear any cross-file kh_pipeline App registration so the lazy flow
         # import inside start_cocoindex_thread() can re-register cleanly
         # (ID-49.7 test-side registry reset).
         _reset_cocoindex_app_registry()
 
-        from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
+        # Patch via the MODULE-CACHED reference, not a locally-imported
+        # instance. A sibling test (test_cocoindex_extractor_retry.py) imports
+        # `cocoindex_pipeline.flow_context` UNQUALIFIED (after inserting
+        # scripts/ on sys.path), which can leave flow loaded under both the
+        # qualified `scripts.cocoindex_pipeline.flow` and the unqualified
+        # `cocoindex_pipeline.flow` paths — two distinct module objects with two
+        # distinct `KH_PIPELINE_APP` instances. The daemon thread inside
+        # `start_cocoindex_thread()` resolves the QUALIFIED
+        # `scripts.cocoindex_pipeline.flow.KH_PIPELINE_APP`; patching that exact
+        # object (rather than `from … import KH_PIPELINE_APP`, which may bind the
+        # unqualified instance depending on collection order) makes the test
+        # order-stable in both directions (Checker FAIL fix, ID-49.1).
+        import scripts.cocoindex_pipeline.flow as _flow
 
         with patch.object(
-            KH_PIPELINE_APP, "update_blocking", return_value=None
+            _flow.KH_PIPELINE_APP, "update_blocking", return_value=None
         ) as mock_update:
             # Guard: the worker must NOT take the lifespan-only boot path.
             with patch.object(
@@ -310,6 +323,13 @@ class TestCocoindexBackgroundThread:
 
             mock_update.assert_called_once_with(live=True)
             mock_start_blocking.assert_not_called()
+            # Secondary behavioural assertion: a successful boot (mocked
+            # update_blocking returns cleanly) must NOT flip the worker
+            # unhealthy — proves the daemon thread's success path does not
+            # spuriously trip the crash flag.
+            assert server_mod.worker_is_healthy(), (
+                "a clean App boot must leave the worker healthy"
+            )
         # Side-effect verification: flow.py landed in sys.modules via
         # the lazy import (mirrors the contract test originally split
         # into a second test case; collapsed here to keep both
@@ -442,7 +462,7 @@ class TestIdleModeBoot:
         "ignore::pytest.PytestUnhandledThreadExceptionWarning"
     )
     def test_idle_mode_boot_returns_clean_worker_stays_healthy(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from unittest.mock import AsyncMock, MagicMock
 
@@ -472,19 +492,22 @@ class TestIdleModeBoot:
         # in prod); without it environment.start raises. Point it at a tmp dir.
         # A valid-shaped DSN so the lifespan's _build_dsn() fail-fast passes
         # without dialling a real pooler host.
-        env_patch = {
-            "COCOINDEX_DB": str(tmp_path / "lmdb"),
-            "COCOINDEX_DB_DSN": (
-                "postgresql://postgres.fake:pw@"
-                "aws-0-eu-west-2.pooler.supabase.com:5432/postgres"
-            ),
-        }
+        #
+        # monkeypatch.{setenv,delenv} so EVERY env mutation — including the
+        # COCOINDEX_SOURCE_PATH removal that puts app_main in idle mode — is
+        # restored on teardown (the prior manual os.environ.pop inside a
+        # patch.dict leaked the deletion to sibling tests; Checker NIT fix).
+        monkeypatch.setenv("COCOINDEX_DB", str(tmp_path / "lmdb"))
+        monkeypatch.setenv(
+            "COCOINDEX_DB_DSN",
+            "postgresql://postgres.fake:pw@"
+            "aws-0-eu-west-2.pooler.supabase.com:5432/postgres",
+        )
+        monkeypatch.delenv("COCOINDEX_SOURCE_PATH", raising=False)
         try:
-            with patch.dict(os.environ, env_patch, clear=False):
-                os.environ.pop("COCOINDEX_SOURCE_PATH", None)
-                with patch("asyncpg.create_pool", side_effect=_fake_create_pool):
-                    thread = server_mod.start_cocoindex_thread()
-                    thread.join(timeout=10.0)
+            with patch("asyncpg.create_pool", side_effect=_fake_create_pool):
+                thread = server_mod.start_cocoindex_thread()
+                thread.join(timeout=10.0)
 
             assert not thread.is_alive(), (
                 "idle-mode boot must complete (app_main returns early); the "
