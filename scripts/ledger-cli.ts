@@ -64,6 +64,10 @@ import {
   abortStagedWrite,
 } from '@/lib/ledger/atomic-write';
 import { parseTaskListWithWarnings } from '@/lib/validation/task-list-schema';
+import {
+  LEDGER_BUDGETS,
+  type LedgerRecordKind,
+} from '@/lib/validation/ledger-budgets';
 
 // ── ledger resolution ─────────────────────────────────────────────────────────
 
@@ -673,6 +677,58 @@ function checkRecordSet(
   return { ok: true };
 }
 
+// ── ID-35.17 write-time budget pre-check (RESEARCH §2.3 — the north star) ─────
+//
+// PREVENT-AT-SOURCE: the CLI refuses to AUTHOR an over-budget record. After the
+// in-memory mutation but BEFORE any byte is written, the CHANGED record's
+// budgeted fields are checked against `LEDGER_BUDGETS`. Over-budget → reject
+// (exit 1, write nothing); `--force` downgrades to the existing soft warning
+// and proceeds (escape hatch). The message is SCOPED to the changed record —
+// one line naming field + actual length + budget — NEVER the ~135 KB
+// whole-ledger `parseTaskListWithWarnings` dump.
+//
+// Budgets are PLAIN DATA, never a Zod `.max()` (RESEARCH §2.3/§7): the schema
+// stays cap-free so the live over-budget ledger keeps parsing and a `--force`
+// write still validates. `subtask.details` is intentionally absent from the
+// registry → automatically EXEMPT (the append-only journal home).
+
+/**
+ * Budget-gate inputs for the single CHANGED record of a write: which registry
+ * record-kind to budget against, the record id (for the message), and the
+ * post-mutation record object whose budgeted fields are measured.
+ */
+interface BudgetGate {
+  ledger: LedgerName;
+  recordKind: LedgerRecordKind;
+  recordId: string | number;
+  record: Record<string, unknown>;
+}
+
+/**
+ * Check the changed record's budgeted fields against `LEDGER_BUDGETS`. Returns
+ * the FIRST over-budget violation (one scoped line) or `{ ok: true }`. Fields
+ * absent from the registry for the kind (e.g. `subtask.details`) are not
+ * budgeted, so they never flag. Non-string field values are skipped (budgets
+ * are char-length on text fields).
+ */
+function checkBudget(
+  gate: BudgetGate,
+): { ok: true } | { ok: false; detail: string } {
+  if (!gate.record || typeof gate.record !== 'object') return { ok: true };
+  const budgets = LEDGER_BUDGETS[gate.recordKind] as Record<string, number>;
+  for (const [field, budget] of Object.entries(budgets)) {
+    const value = gate.record[field];
+    if (typeof value !== 'string') continue;
+    if (value.length > budget) {
+      return {
+        ok: false,
+        detail: `${field} is ${value.length} chars (budget ${budget}) on ${gate.ledger} ${gate.recordId}`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
 /**
  * Surface ID-34 field-discipline warnings for a task-list mutation. Non-fatal:
  * the warnings flow to stderr; the command still succeeds. (Only task-list has
@@ -755,8 +811,26 @@ async function commitMutation(
   scoped: boolean = false,
   scopedWrite?: ScopedWrite,
   gate?: RecordSetGate,
+  budgetGate?: BudgetGate,
+  force: boolean = false,
 ): Promise<CliResult> {
   const warnings = disciplineWarnings(detected);
+
+  // ID-35.17 budget pre-check — on the CHANGED record's budgeted fields, after
+  // the in-memory mutation, BEFORE any byte is written. Over-budget → reject
+  // (scoped one-line message); `--force` downgrades to a soft warning and
+  // proceeds. Runs ahead of serialisation so an over-budget write does no I/O.
+  if (budgetGate) {
+    const b = checkBudget(budgetGate);
+    if (!b.ok) {
+      if (force) {
+        warnings.push(`(forced) budget-exceeded: ${b.detail}`);
+      } else {
+        return cliErr(subcommand, 'budget-exceeded', b.detail);
+      }
+    }
+  }
+
   if (dryRun) {
     return {
       ok: true,
@@ -1078,6 +1152,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               expectedDelta: { kind: 'add', id: newSubId },
             }
           : undefined,
+        {
+          ledger: 'task',
+          recordKind: 'subtask',
+          recordId: newSubId ?? '<new>',
+          record: parsedArg.value as Record<string, unknown>,
+        },
+        flags.force,
       );
     }
 
@@ -1106,6 +1187,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         newValue,
       });
       if (!m.ok) return m.result;
+      const changedItem =
+        loaded.detected.kind === 'backlog'
+          ? loaded.detected.data.items.find((it) => it.id === itemId)
+          : undefined;
       return commitMutation(
         'update-backlog',
         ledgerPath(dir, 'backlog'),
@@ -1121,6 +1206,15 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
+        changedItem
+          ? {
+              ledger: 'backlog',
+              recordKind: 'item',
+              recordId: itemId,
+              record: changedItem as unknown as Record<string, unknown>,
+            }
+          : undefined,
+        flags.force,
       );
     }
 
@@ -1172,6 +1266,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'add', id: ins.recordId },
         },
+        {
+          ledger,
+          recordKind: ledger === 'task' ? 'task' : 'item',
+          recordId: ins.recordId,
+          record: parsedArg.value as Record<string, unknown>,
+        },
+        flags.force,
       );
     }
 
@@ -1233,6 +1334,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         taskJson,
         flags.dryRun,
         flags.regenMirrors,
+        flags.force,
       );
     }
 
@@ -1256,6 +1358,7 @@ async function promote(
   taskJson: string,
   dryRun: boolean,
   regenMirrors: boolean,
+  force: boolean = false,
 ): Promise<CliResult> {
   const taskListP = ledgerPath(dir, 'task');
   const backlogP = ledgerPath(dir, 'backlog');
@@ -1336,9 +1439,27 @@ async function promote(
   );
   if (!backlogGate.ok) return backlogGate.result;
 
+  // ID-35.17 budget pre-check on the new Task record (the changed record). The
+  // backlog item is removed, not authored, so only the Task is budgeted.
+  // Over-budget → reject unless `--force` (then a soft warning).
+  const budgetCheck = checkBudget({
+    ledger: 'task',
+    recordKind: 'task',
+    recordId: ins.recordId,
+    record: taskRecord.value as Record<string, unknown>,
+  });
+  const forcedBudgetWarnings: string[] = [];
+  if (!budgetCheck.ok) {
+    if (force) {
+      forcedBudgetWarnings.push(`(forced) budget-exceeded: ${budgetCheck.detail}`);
+    } else {
+      return cliErr('promote', 'budget-exceeded', budgetCheck.detail);
+    }
+  }
+
   // Hoist the discipline scan once (it re-parses the task-list) — reused by
   // both the dry-run and the success return.
-  const warnings = disciplineWarnings(ins.detected);
+  const warnings = [...disciplineWarnings(ins.detected), ...forcedBudgetWarnings];
 
   if (dryRun) {
     return {
