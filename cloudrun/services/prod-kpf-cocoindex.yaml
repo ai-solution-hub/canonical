@@ -83,9 +83,29 @@ spec:
                 secretKeyRef:
                   name: COCOINDEX_DB_DSN
                   key: latest
+            # COCOINDEX_DB is the cocoindex ENGINE's internal LMDB state-store
+            # path — NOT a Postgres DSN (that is COCOINDEX_DB_DSN above, the app's
+            # asyncpg pool). environment.start_sync() raises ValueError("...must
+            # provide Settings.db_path (or set COCOINDEX_DB ...)") when unset,
+            # crashing the worker at boot AFTER the DSN pool. So it lives in the
+            # applied manifest (same boot-gated discipline as COCOINDEX_DB_DSN /
+            # prod-pullmd.yaml), pointing at the in-memory volume below (ID-49.9).
+            # True cross-cold-start persistence is deferred — see
+            # docs/runbooks/cocoindex-deploy.md (idle mode = no memo state to lose
+            # yet; GCS FUSE is LMDB-incompatible; Filestore is the costed option).
+            - name: COCOINDEX_DB
+              value: /cocoindex-state/lmdb
+            # Bound the LMDB map below the volume sizeLimit (engine default is
+            # 4 GiB, which over-reserves the tmpfs). Idle-mode footprint is tiny;
+            # revisit when the pipeline is activated (ID-42 T7).
+            - name: COCOINDEX_LMDB_MAP_SIZE
+              value: "268435456"  # 256 MiB
             # PIPELINE_RUN_WEBHOOK_URL and PULLMD_SERVICE_URL are mounted from
             # Secret Manager at deploy time — see workflow --set-secrets step.
             # Secret Manager mounts wired declaratively at deploy time.
+          volumeMounts:
+            - name: cocoindex-state
+              mountPath: /cocoindex-state
           # Startup probe: allow up to 5 min for LMDB cold-start + Docling
           # model load after first deploy (pre-warmed at build time via
           # cocoindex-prewarm.py, but LMDB still requires ~7s rebuild on new
@@ -103,3 +123,14 @@ spec:
               port: 8080
             periodSeconds: 30
             failureThreshold: 3
+      # In-memory (tmpfs) volume backing the cocoindex LMDB state store. gen2
+      # supports emptyDir medium: Memory; tmpfs is a real local FS so LMDB's
+      # mmap + file locking work (GCS FUSE does NOT support these — that is why
+      # this is an emptyDir, not a Cloud Storage volume). RAM-backed, so it
+      # counts against the 4Gi container memory — 512Mi is safe idle-mode
+      # headroom and bounds COCOINDEX_LMDB_MAP_SIZE above (ID-49.9).
+      volumes:
+        - name: cocoindex-state
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi
