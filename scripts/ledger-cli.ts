@@ -63,11 +63,18 @@ import {
   commitStagedWrite,
   abortStagedWrite,
 } from '@/lib/ledger/atomic-write';
-import { parseTaskListWithWarnings } from '@/lib/validation/task-list-schema';
+import {
+  parseTaskListWithWarnings,
+  SubtaskSchema,
+  TaskSchema,
+} from '@/lib/validation/task-list-schema';
+import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
+import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
 import {
   LEDGER_BUDGETS,
   type LedgerRecordKind,
 } from '@/lib/validation/ledger-budgets';
+import type { ZodTypeAny } from 'zod';
 
 // ── ledger resolution ─────────────────────────────────────────────────────────
 
@@ -367,6 +374,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   show           <ledger> <id>                 (ledger: task|roadmap|backlog)
   flip-task      <taskId> <status>
   flip-subtask   <taskId> <subId> <status>
+  update-subtask <taskId.subId> <field> <value>
   append-journal <taskId> <subId> <text>
   add-subtask    <taskId> <subtaskJson>
   update-backlog <itemId> <field> <value>
@@ -986,6 +994,63 @@ function journalBlock(text: string): string {
   return `<info added on ${ts}>\n${text}\n</info added on ${ts}>`;
 }
 
+// ── ID-35.21 field-type-aware value coercion (RESEARCH §5.3) ─────────────────
+//
+// The old `update-backlog` heuristic — try `JSON.parse(value)`, else bare
+// string — is a SILENT BUG: a string value that happens to be valid JSON
+// (`"123"`, `"true"`, `"[1]"`) was coerced to a non-string, so
+// `update-backlog 100 description "123"` wrote the number 123. The fix drives
+// the parse by the field's Zod type rather than by "does it parse as JSON".
+//
+// Rule (single shared helper for update-subtask / update-task / update-roadmap
+// / update-backlog): if the field's schema ACCEPTS the raw string as-is
+// (string fields + string enums — `safeParse(raw)` succeeds), keep the raw
+// string. Otherwise (array / number / boolean fields) the schema rejects the
+// raw string, so `JSON.parse` the value to obtain the structured type. An
+// unknown field has no schema entry → keep the raw string (the keyset guard
+// inside `fieldPatchMutation` then rejects the unknown field downstream).
+
+/** The four editable record schemas keyed by CLI command's record kind. */
+const EDIT_SCHEMAS: Record<
+  'subtask' | 'task' | 'theme' | 'item',
+  { shape: Record<string, ZodTypeAny> }
+> = {
+  subtask: SubtaskSchema,
+  // Zod v4 exposes `.shape` directly on the object schema even with a trailing
+  // `.superRefine` (the sibling-dep check), so `TaskSchema.shape` is available.
+  task: TaskSchema,
+  theme: RoadmapThemeSchema,
+  item: BacklogItemSchema,
+};
+
+/**
+ * Field-type-aware coercion (ID-35.21 / RESEARCH §5.3). Returns the value to
+ * patch into `field` from a raw argv string, driven by the record kind's Zod
+ * field schema:
+ *   - field schema accepts the raw string  → keep the string verbatim
+ *     (so `description "123"` stays `"123"`, `status "done"` stays `"done"`).
+ *   - field schema rejects the raw string   → `JSON.parse` it (so
+ *     `dependencies "[1,2]"` becomes `[1, 2]`); a JSON-parse failure falls back
+ *     to the raw string (a genuinely-string value the schema happened to
+ *     reject, e.g. an enum typo — let the keyset/schema gate report it).
+ *   - unknown field (no schema entry)        → keep the raw string (the
+ *     keyset guard rejects the unknown field downstream).
+ */
+function coerceFieldValue(
+  recordKind: 'subtask' | 'task' | 'theme' | 'item',
+  field: string,
+  raw: string,
+): unknown {
+  const fieldSchema = EDIT_SCHEMAS[recordKind].shape[field];
+  if (fieldSchema === undefined) return raw; // unknown field → keyset rejects later.
+  if (fieldSchema.safeParse(raw).success) return raw; // string / enum field.
+  try {
+    return JSON.parse(raw); // array / number / boolean field.
+  } catch {
+    return raw; // not JSON either — surface the raw value for the schema gate.
+  }
+}
+
 async function run(args: ParsedArgs): Promise<CliResult> {
   const { subcommand, positionals: p, flags } = args;
   const dir = flags.ledgerDir;
@@ -1091,6 +1156,76 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
+      );
+    }
+
+    // ── ID-35.19 subtask field editor (RESEARCH §2.1) ───────────────────────
+    case 'update-subtask': {
+      const [dottedId, field, value] = p;
+      if (!dottedId || !field || value == null)
+        return cliErr(
+          'update-subtask',
+          'missing-args',
+          'update-subtask <taskId.subId> <field> <value>',
+        );
+      const dot = dottedId.indexOf('.');
+      if (dot <= 0 || dot === dottedId.length - 1)
+        return cliErr(
+          'update-subtask',
+          'bad-id',
+          `id must be dotted taskId.subId (e.g. 35.1); got "${dottedId}"`,
+        );
+      const taskId = dottedId.slice(0, dot);
+      const subId = dottedId.slice(dot + 1);
+      const loaded = await loadLedger(ledgerPath(dir, 'task'));
+      if (!loaded.ok) return loaded.result;
+      // Field-edit on a subtask: the addressed task's subtask id-set is
+      // unchanged (∅), so guard that task's subtasks collection.
+      const descriptor: CollectionDescriptor = {
+        collection: 'subtasks',
+        taskId,
+      };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
+      // ID-35.21 field-type-aware coercion (drives parse by SubtaskSchema field
+      // type — dependencies → number[], description stays a string).
+      const newValue = coerceFieldValue('subtask', field, value);
+      const patch: FieldPatch = {
+        fieldPath: ['tasks', taskId, 'subtasks', String(subId), field],
+        newValue,
+      };
+      const m = fieldPatchMutation('update-subtask', loaded.detected, patch);
+      if (!m.ok) return m.result;
+      // Budget pre-check on the changed subtask (description / testStrategy).
+      const changedSub =
+        loaded.detected.kind === 'task-list'
+          ? loaded.detected.data.tasks
+              .find((t) => t.id === taskId)
+              ?.subtasks.find((s) => s.id === Number(subId))
+          : undefined;
+      return commitMutation(
+        'update-subtask',
+        ledgerPath(dir, 'task'),
+        loaded.detected,
+        { taskId, subId: Number(subId), field },
+        flags.dryRun,
+        !flags.noRegenMirrors,
+        flags.scoped,
+        { originalText: loaded.originalText, patch },
+        {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'none' },
+        },
+        changedSub
+          ? {
+              ledger: 'task',
+              recordKind: 'subtask',
+              recordId: Number(subId),
+              record: changedSub as unknown as Record<string, unknown>,
+            }
+          : undefined,
+        flags.force,
       );
     }
 
