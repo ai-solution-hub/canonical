@@ -3,8 +3,16 @@
 Listens on `$PORT` (default 8080), serves `GET /health` (200 +
 `{"status": "ok"}` while the cocoindex worker thread is alive; 503 +
 `{"status": "error", ...}` once the worker has crashed — ID-49.8 / audit
-§7.5), and runs `coco.start_blocking()` in a daemon thread so the cocoindex
-fs-watch loop runs concurrently with aiohttp.
+§7.5), and runs `KH_PIPELINE_APP.update_blocking(live=True)` in a daemon
+thread so the cocoindex fs-watch loop runs concurrently with aiohttp.
+
+Boot wiring (ID-49.1): the worker runs the App via
+`KH_PIPELINE_APP.update_blocking(live=True)`, NOT the bare
+`coco.start_blocking()`. `start_blocking()` only enters the App's lifespan
+(provisioning the asyncpg pool under `DB_CTX`); it does NOT run `app_main`.
+`update_blocking()` lazily starts the same lifespan-bearing default
+environment AND runs `app_main` on it, so `mount_table_target(DB_CTX, …)`
+resolves the pool and ingest runs. See TECH.md §P-2 + `start_cocoindex_thread`.
 
 Concurrency model: cocoindex 1.0.3 has no public non-blocking start
 variant, so the Rust-engine loop spawns on a daemon thread; aiohttp owns
@@ -27,7 +35,12 @@ import sys
 import threading
 from typing import Any
 
-import cocoindex as coco
+# `cocoindex` is imported at module top so `server.coco` is a stable patch
+# target for the boot-path regression guard in test_cocoindex_server.py
+# (`assert_not_called()` on `coco.start_blocking`, proving the worker never
+# reverts to the lifespan-only boot path — ID-49.1). The actual App run goes
+# via `KH_PIPELINE_APP.update_blocking(live=True)`, not `coco.*`.
+import cocoindex as coco  # noqa: F401 — patch-target + domain dependency
 from aiohttp import web
 
 # `scripts.cocoindex_pipeline.flow` is imported LAZILY inside
@@ -141,7 +154,7 @@ def build_app() -> web.Application:
     """Build the aiohttp app with the /health route attached.
 
     Factored out so unit tests can exercise the route table without
-    booting a listening socket or invoking `coco.start_blocking()`.
+    booting a listening socket or running the cocoindex App.
     """
     app = web.Application()
     app.router.add_get("/health", _health_handler)
@@ -154,24 +167,47 @@ def build_app() -> web.Application:
 
 
 def start_cocoindex_thread() -> threading.Thread:
-    """Spawn a daemon thread that calls `coco.start_blocking()`.
+    """Spawn a daemon thread that runs `KH_PIPELINE_APP.update_blocking(live=True)`.
 
-    The flow.py import below is the side-effect that registers
-    `KH_PIPELINE_APP` with the cocoindex environment; without it
-    `start_blocking()` runs with no flows. The lazy form keeps unit tests
-    that only exercise build_app/resolve_port/install_signal_handlers
-    free of the ContextKey registration (see module-top NOTE).
+    The flow.py import below brings `KH_PIPELINE_APP` into scope (and, as an
+    import side-effect, registers the App + `@coco.lifespan kh_pipeline_lifespan`
+    on cocoindex's default environment). The lazy form keeps unit tests that
+    only exercise build_app/resolve_port/install_signal_handlers free of the
+    ContextKey registration (see module-top NOTE).
+
+    Boot-wiring contract (ID-49.1, spec TECH.md §P-2):
+    `KH_PIPELINE_APP.update_blocking(live=True)` is THE call that runs the
+    pipeline. It is NOT interchangeable with the bare `coco.start_blocking()`:
+    `start_blocking()` only starts the default environment and ENTERS its
+    lifespan (provisioning the asyncpg pool under `DB_CTX`) — it does NOT run
+    any registered App's `main_fn`. Booting via `start_blocking()` alone would
+    provision the DB pool but never execute `app_main`, so
+    `mount_table_target(DB_CTX, …)` would never run and the pipeline would
+    silently do nothing. `update_blocking()` lazily starts the SAME
+    `_default_env` where the lifespan registered (entering it, so `DB_CTX` is
+    provided) and then runs `app_main` on it — the pool resolves, ingest runs.
+    `live=True` arms cocoindex's continuous fs-watch loop so incremental
+    source-folder changes are processed for the Service's lifetime. (Verified
+    empirically against installed cocoindex 1.0.3; AppConfig.environment
+    defaults to the same `_default_env` the lifespan binds to, so App and
+    lifespan share one environment.)
+
+    O-Q8 idle-mode: when `COCOINDEX_SOURCE_PATH` is unset/missing, `app_main`
+    logs and returns before any `mount_each`, so `update_blocking()` returns
+    cleanly with nothing to watch; the daemon thread exits and aiohttp keeps
+    the Service alive. The worker is NOT flagged crashed on a clean return.
 
     Returns the thread so callers can join in tests.
     """
-    from scripts.cocoindex_pipeline.flow import (  # noqa: F401 — side-effect registration
-        KH_PIPELINE_APP as _KH_PIPELINE_APP,
-    )
+    from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
 
     def _target() -> None:
-        _logger.info("cocoindex background thread starting via coco.start_blocking()")
+        _logger.info(
+            "cocoindex background thread starting via "
+            "KH_PIPELINE_APP.update_blocking(live=True)"
+        )
         try:
-            coco.start_blocking()
+            KH_PIPELINE_APP.update_blocking(live=True)
         except Exception:  # noqa: BLE001 — top-level boundary, must log + reraise
             # ID-49.8: flag the worker as crashed so /health returns non-200 and
             # the Cloud Run liveness probe fails the revision (audit §7.5). The
@@ -183,7 +219,7 @@ def start_cocoindex_thread() -> threading.Thread:
 
     thread = threading.Thread(
         target=_target,
-        name="cocoindex-start_blocking",
+        name="cocoindex-update_blocking",
         daemon=True,
     )
     thread.start()
