@@ -1150,8 +1150,16 @@ function __setRegenRunnerForTest(runner: RegenRunner | null): void {
 }
 const defaultRegenRunner = regenRunner;
 
-function maybeRegenMirrors(regen: boolean): void {
-  if (!regen) return;
+/**
+ * Run the default-on mirror regen and report whether mirrors are now STALE.
+ * Returns true when the operator must regen before committing — i.e. regen was
+ * suppressed (`--no-regen-mirrors`) OR it ran but exited non-zero. Returns false
+ * when regen ran and succeeded (mirrors are fresh). The success envelope's
+ * `mirrorStale` field reflects this, so it is only set when a manual regen is
+ * actually outstanding (not unconditionally true).
+ */
+function maybeRegenMirrors(regen: boolean): boolean {
+  if (!regen) return true; // suppressed → mirrors left stale by design.
   const status = regenRunner();
   if (status !== 0) {
     process.stderr.write(
@@ -1160,7 +1168,9 @@ function maybeRegenMirrors(regen: boolean): void {
         `Re-run \`bash scripts/regen-mirrors.sh\` manually before committing ` +
         `(CI ledger-mirror-parity will otherwise fail).\n`,
     );
+    return true; // regen failed → still stale.
   }
+  return false; // regen succeeded → mirrors fresh.
 }
 
 /**
@@ -1191,6 +1201,31 @@ interface RecordSetGate {
 }
 
 /**
+ * Options for a single-ledger {@link commitMutation}. Only `subcommand`, `path`,
+ * `detected`, and `resultPayload` are required (the write identity + success
+ * payload); the rest are named so call sites are self-documenting and adding a
+ * future gate can never cause a positional-argument-order mistake.
+ *
+ * - `dryRun` / `regenMirrors` / `force`: the flag-derived write modifiers.
+ * - `scoped` + `scopedWrite`: ID-35.11 minimal-diff write (field edits only).
+ * - `gate`: ID-35.16 record-set-preservation gate.
+ * - `budgetGate`: ID-35.17 write-time budget pre-check.
+ */
+interface CommitMutationOptions {
+  subcommand: string;
+  path: string;
+  detected: KnownDetected;
+  resultPayload: unknown;
+  dryRun: boolean;
+  regenMirrors: boolean;
+  scoped?: boolean;
+  scopedWrite?: ScopedWrite;
+  gate?: RecordSetGate;
+  budgetGate?: BudgetGate;
+  force?: boolean;
+}
+
+/**
  * Commit a mutated single-ledger snapshot: serialise + atomicWriteFile, unless
  * `dryRun` (then print the post-mutation document + write nothing). Returns the
  * success envelope.
@@ -1208,19 +1243,20 @@ interface RecordSetGate {
  * `atomicWriteFile` — a serialise-side drop/duplicate is rejected with
  * `record-set-violation` and nothing is written.
  */
-async function commitMutation(
-  subcommand: string,
-  path: string,
-  detected: KnownDetected,
-  resultPayload: unknown,
-  dryRun: boolean,
-  regenMirrors: boolean,
-  scoped: boolean = false,
-  scopedWrite?: ScopedWrite,
-  gate?: RecordSetGate,
-  budgetGate?: BudgetGate,
-  force: boolean = false,
-): Promise<CliResult> {
+async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
+  const {
+    subcommand,
+    path,
+    detected,
+    resultPayload,
+    dryRun,
+    regenMirrors,
+    scoped = false,
+    scopedWrite,
+    gate,
+    budgetGate,
+    force = false,
+  } = opts;
   const warnings = disciplineWarnings(detected);
 
   // ID-35.17 budget pre-check — on the CHANGED record's budgeted fields, after
@@ -1290,13 +1326,13 @@ async function commitMutation(
   }
 
   await atomicWriteFile(path, content);
-  maybeRegenMirrors(regenMirrors);
+  const mirrorStale = maybeRegenMirrors(regenMirrors);
   return {
     ok: true,
     subcommand,
     result: resultPayload,
     warnings: warnings.length ? warnings : undefined,
-    mirrorStale: true,
+    mirrorStale,
   };
 }
 
@@ -1582,22 +1618,22 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       };
       const m = fieldPatchMutation('flip-task', loaded.detected, patch);
       if (!m.ok) return m.result;
-      return commitMutation(
-        'flip-task',
-        ledgerPath(dir, 'task'),
-        loaded.detected,
-        { taskId, status },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        flags.scoped,
-        { originalText: loaded.originalText, patch },
-        {
+      return commitMutation({
+        subcommand: 'flip-task',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: { taskId, status },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        scoped: flags.scoped,
+        scopedWrite: { originalText: loaded.originalText, patch },
+        gate: {
           ledger: 'task',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
-      );
+      });
     }
 
     // ── ID-35.20 task field editor (RESEARCH §4) ────────────────────────────
@@ -1624,22 +1660,22 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected.kind === 'task-list'
           ? loaded.detected.data.tasks.find((t) => t.id === taskId)
           : undefined;
-      return commitMutation(
-        'update-task',
-        ledgerPath(dir, 'task'),
-        loaded.detected,
-        { taskId, field },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        flags.scoped,
-        { originalText: loaded.originalText, patch },
-        {
+      return commitMutation({
+        subcommand: 'update-task',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: { taskId, field },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        scoped: flags.scoped,
+        scopedWrite: { originalText: loaded.originalText, patch },
+        gate: {
           ledger: 'task',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
-        changedTask
+        budgetGate: changedTask
           ? {
               ledger: 'task',
               recordKind: 'task',
@@ -1647,8 +1683,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               record: changedTask as unknown as Record<string, unknown>,
             }
           : undefined,
-        flags.force,
-      );
+        force: flags.force,
+      });
     }
 
     case 'flip-subtask': {
@@ -1674,22 +1710,22 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       };
       const m = fieldPatchMutation('flip-subtask', loaded.detected, patch);
       if (!m.ok) return m.result;
-      return commitMutation(
-        'flip-subtask',
-        ledgerPath(dir, 'task'),
-        loaded.detected,
-        { taskId, subId, status },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        flags.scoped,
-        { originalText: loaded.originalText, patch },
-        {
+      return commitMutation({
+        subcommand: 'flip-subtask',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: { taskId, subId, status },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        scoped: flags.scoped,
+        scopedWrite: { originalText: loaded.originalText, patch },
+        gate: {
           ledger: 'task',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
-      );
+      });
     }
 
     // ── ID-35.19 subtask field editor (RESEARCH §2.1) ───────────────────────
@@ -1735,22 +1771,22 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               .find((t) => t.id === taskId)
               ?.subtasks.find((s) => s.id === Number(subId))
           : undefined;
-      return commitMutation(
-        'update-subtask',
-        ledgerPath(dir, 'task'),
-        loaded.detected,
-        { taskId, subId: Number(subId), field },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        flags.scoped,
-        { originalText: loaded.originalText, patch },
-        {
+      return commitMutation({
+        subcommand: 'update-subtask',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: { taskId, subId: Number(subId), field },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        scoped: flags.scoped,
+        scopedWrite: { originalText: loaded.originalText, patch },
+        gate: {
           ledger: 'task',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
-        changedSub
+        budgetGate: changedSub
           ? {
               ledger: 'task',
               recordKind: 'subtask',
@@ -1758,8 +1794,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               record: changedSub as unknown as Record<string, unknown>,
             }
           : undefined,
-        flags.force,
-      );
+        force: flags.force,
+      });
     }
 
     case 'append-journal': {
@@ -1797,22 +1833,22 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       };
       const m = fieldPatchMutation('append-journal', loaded.detected, patch);
       if (!m.ok) return m.result;
-      return commitMutation(
-        'append-journal',
-        ledgerPath(dir, 'task'),
-        loaded.detected,
-        { taskId, subId, appended: true },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        flags.scoped,
-        { originalText: loaded.originalText, patch },
-        {
+      return commitMutation({
+        subcommand: 'append-journal',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: { taskId, subId, appended: true },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        scoped: flags.scoped,
+        scopedWrite: { originalText: loaded.originalText, patch },
+        gate: {
           ledger: 'task',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
-      );
+      });
     }
 
     case 'add-subtask': {
@@ -1852,36 +1888,48 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         taskId,
       };
       const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
-      const newSubId = record.id as IdValue;
       const nextSubtasks = [...task.subtasks, record];
       const m = fieldPatchMutation('add-subtask', loaded.detected, {
         fieldPath: ['tasks', taskId, 'subtasks'],
         newValue: nextSubtasks,
       });
       if (!m.ok) return m.result;
-      return commitMutation(
-        'add-subtask',
-        ledgerPath(dir, 'task'),
-        loaded.detected,
-        { taskId, subId: newSubId, subtaskCount: nextSubtasks.length },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        false,
-        undefined,
-        {
+      // Derive the new subtask id from the VALIDATED post-mutation record (the
+      // last subtask of the addressed task in the re-parsed document), not the
+      // pre-validation `record.id`. `SubtaskSchema.id` is required, so a
+      // missing/ill-typed id fails the mutation above and never reaches here —
+      // so the record-set gate is ALWAYS passed with a concrete `add` delta.
+      const validatedTask = loaded.detected.kind === 'task-list'
+        ? loaded.detected.data.tasks.find((t) => t.id === taskId)
+        : undefined;
+      const validatedSubtasks = validatedTask?.subtasks ?? [];
+      const newSubId = validatedSubtasks[validatedSubtasks.length - 1]
+        .id as IdValue;
+      return commitMutation({
+        subcommand: 'add-subtask',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: {
+          taskId,
+          subId: newSubId,
+          subtaskCount: nextSubtasks.length,
+        },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        gate: {
           ledger: 'task',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'add', id: newSubId },
         },
-        {
+        budgetGate: {
           ledger: 'task',
           recordKind: 'subtask',
           recordId: newSubId,
           record,
         },
-        flags.force,
-      );
+        force: flags.force,
+      });
     }
 
     // ── backlog field edit ───────────────────────────────────────────────────
@@ -1912,22 +1960,20 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected.kind === 'backlog'
           ? loaded.detected.data.items.find((it) => it.id === itemId)
           : undefined;
-      return commitMutation(
-        'update-backlog',
-        ledgerPath(dir, 'backlog'),
-        loaded.detected,
-        { itemId, field },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        false,
-        undefined,
-        {
+      return commitMutation({
+        subcommand: 'update-backlog',
+        path: ledgerPath(dir, 'backlog'),
+        detected: loaded.detected,
+        resultPayload: { itemId, field },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        gate: {
           ledger: 'backlog',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
-        changedItem
+        budgetGate: changedItem
           ? {
               ledger: 'backlog',
               recordKind: 'item',
@@ -1935,8 +1981,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               record: changedItem as unknown as Record<string, unknown>,
             }
           : undefined,
-        flags.force,
-      );
+        force: flags.force,
+      });
     }
 
     // ── ID-35.20 roadmap field editor (RESEARCH §4 — no editor existed) ──────
@@ -1962,22 +2008,20 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected.kind === 'roadmap'
           ? loaded.detected.data.themes.find((t) => t.id === themeId)
           : undefined;
-      return commitMutation(
-        'update-roadmap',
-        ledgerPath(dir, 'roadmap'),
-        loaded.detected,
-        { themeId, field },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        false,
-        undefined,
-        {
+      return commitMutation({
+        subcommand: 'update-roadmap',
+        path: ledgerPath(dir, 'roadmap'),
+        detected: loaded.detected,
+        resultPayload: { themeId, field },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        gate: {
           ledger: 'roadmap',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
-        changedTheme
+        budgetGate: changedTheme
           ? {
               ledger: 'roadmap',
               recordKind: 'theme',
@@ -1985,8 +2029,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               record: changedTheme as unknown as Record<string, unknown>,
             }
           : undefined,
-        flags.force,
-      );
+        force: flags.force,
+      });
     }
 
     // ── record CREATE / DELETE ───────────────────────────────────────────────
@@ -2039,29 +2083,27 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'detail' in ins ? ins.detail : undefined,
         );
       }
-      return commitMutation(
+      return commitMutation({
         subcommand,
-        ledgerPath(dir, ledger),
-        ins.detected,
-        { recordId: ins.recordId },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        false,
-        undefined,
-        {
+        path: ledgerPath(dir, ledger),
+        detected: ins.detected,
+        resultPayload: { recordId: ins.recordId },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        gate: {
           ledger,
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'add', id: ins.recordId },
         },
-        {
+        budgetGate: {
           ledger,
           recordKind,
           recordId: ins.recordId,
           record,
         },
-        flags.force,
-      );
+        force: flags.force,
+      });
     }
 
     case 'delete-backlog': {
@@ -2089,22 +2131,20 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           return cliErr('delete-backlog', 'record-not-found', rem.recordId);
         return cliErr('delete-backlog', rem.kind);
       }
-      return commitMutation(
-        'delete-backlog',
-        ledgerPath(dir, 'backlog'),
-        rem.detected,
-        { recordId: rem.recordId },
-        flags.dryRun,
-        !flags.noRegenMirrors,
-        false,
-        undefined,
-        {
+      return commitMutation({
+        subcommand: 'delete-backlog',
+        path: ledgerPath(dir, 'backlog'),
+        detected: rem.detected,
+        resultPayload: { recordId: rem.recordId },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        gate: {
           ledger: 'backlog',
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'remove', id: rem.recordId },
         },
-      );
+      });
     }
 
     // ── cross-ledger promote ─────────────────────────────────────────────────
@@ -2287,13 +2327,13 @@ async function promote(
     return cliErr('promote', 'commit-failed', msg(err));
   }
 
-  maybeRegenMirrors(regenMirrors);
+  const mirrorStale = maybeRegenMirrors(regenMirrors);
   return {
     ok: true,
     subcommand: 'promote',
     result: { newTaskId: ins.recordId, removedBacklogId: rem.recordId },
     warnings: warnings.length ? warnings : undefined,
-    mirrorStale: true,
+    mirrorStale,
   };
 }
 
