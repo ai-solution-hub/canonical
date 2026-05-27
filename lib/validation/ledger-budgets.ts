@@ -38,10 +38,13 @@
  *   - `theme` — `description` shares the task-description class (a markdown
  *     scope statement) → 1500; `notes` shares the status_note prose class
  *     → 300.
- *   - `item.description` — the one-sentence summary under the (forthcoming)
- *     `title` heading. Live data: median 125 / mean 182 / max 971; 500 is a
- *     soft budget generous enough never to flag the median/mean but to surface
- *     the genuinely-long outliers. The `title` ≤80 budget is added by {35.14}.
+ *   - `item.description` — the one-sentence summary under the `title`
+ *     heading. Live data: median 125 / mean 182 / max 971; 500 is a soft
+ *     budget generous enough never to flag the median/mean but to surface the
+ *     genuinely-long outliers.
+ *   - `item.title` — short noun-phrase heading (max 80), same class as
+ *     `Subtask.title` (~40-80) and `Task.title` (~30-60). Added by {35.14}
+ *     alongside the `BacklogItemSchema.title` field (RESEARCH §6.1).
  */
 export const LEDGER_BUDGETS = {
   /** task-list.json — Task record. */
@@ -59,8 +62,9 @@ export const LEDGER_BUDGETS = {
     description: 1500,
     notes: 300,
   },
-  /** product-backlog.json — Item record. `title` ≤80 added by {35.14}. */
+  /** product-backlog.json — Item record. */
   item: {
+    title: 80,
     description: 500,
   },
 } as const;

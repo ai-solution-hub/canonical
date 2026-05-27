@@ -72,6 +72,28 @@ export const BacklogItemSchema = z.object({
     .string()
     .regex(BARE_ID_REGEX, 'Backlog item id must be a bare digit string'),
 
+  /**
+   * Short noun-phrase heading ({35.14} / RESEARCH §6.1). OPTIONAL — all 149
+   * live items lack it, so the schema must keep parsing the live ledger before
+   * the {35.23} backfill completes. Positioned first after `id` per the
+   * Task/Subtask heading convention (`title` precedes `description`).
+   *
+   * `BacklogItemSchema` is NOT `.strict()`, so adding this is non-breaking, and
+   * `patch-apply`'s `BACKLOG_ITEM_KNOWN_FIELDS` (= `Object.keys(Schema.shape)`)
+   * auto-picks it up → `update-backlog <id> title <value>` works with no walker
+   * change.
+   *
+   * Budget: max 80 chars — registered in `lib/validation/ledger-budgets.ts`
+   * (`item.title`), enforced as a CLI write-time soft gate, NOT a Zod `.max()`
+   * (no hard cap — RESEARCH §2.3/§7).
+   *
+   * NOTE: adding this field to the vendored `backlog-schema.ts` trips the
+   * NON-BLOCKING `task-view-vendor-drift.yml` `::warning::` re-vendor reminder.
+   * This is EXPECTED and acceptable (RESEARCH §7) — do NOT edit the task-view
+   * fork to silence it.
+   */
+  title: z.string().min(1).optional(),
+
   /** One-sentence summary of the work item. */
   description: z.string().min(1),
 
@@ -224,6 +246,15 @@ export function parseBacklogWithWarnings(input: unknown): {
   const warnings: BacklogWarning[] = [];
 
   for (const item of value.items) {
+    if (item.title && item.title.length > LEDGER_BUDGETS.item.title) {
+      warnings.push({
+        itemId: item.id,
+        message:
+          `Backlog item "${item.id}" title is ${item.title.length} chars ` +
+          `(budget ${LEDGER_BUDGETS.item.title}). Keep it a short noun-phrase ` +
+          `heading (see ${DISCIPLINE_DOC}).`,
+      });
+    }
     if (item.description.length > LEDGER_BUDGETS.item.description) {
       warnings.push({
         itemId: item.id,
