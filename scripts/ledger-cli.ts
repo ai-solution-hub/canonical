@@ -32,14 +32,13 @@
  *   flags: --dry-run --pretty --regen-mirrors --scoped --ledger-dir <path>
  *
  * `--scoped` (ID-35.11): minimal-diff write for the field-edit subcommands
- * (flip-task | flip-subtask | append-journal). Instead of re-emitting the whole
- * Zod-reparsed document (which normalises key order AND emits raw UTF-8, turning a
- * one-field edit into a ~1600-line diff that collides with sibling cmux writers),
- * scoped mode mutates the JSON.parse of the ORIGINAL on-disk text in place and
- * escape-serialises it (lib/ledger/scoped-serialise.ts) — every untouched record
- * stays byte-for-byte identical, on-disk \\uXXXX escaping preserved. Zod still
- * validates the mutated document before any byte is written. The non-scoped path
- * keeps the existing whole-file serialise() unchanged.
+ * (flip-task | flip-subtask | append-journal). Scoped mode mutates the
+ * JSON.parse of the ORIGINAL on-disk text in place and escape-serialises it
+ * (lib/ledger/scoped-serialise.ts) — every untouched record stays byte-for-byte
+ * identical, on-disk \\uXXXX escaping preserved. Zod still validates the mutated
+ * document before any byte is written. After the OQ-LS-2 (S270) normalisation,
+ * both the scoped path and the whole-file path emit the same escaped format, so
+ * they are byte-compatible for ongoing single-field edits.
  */
 
 import { resolve } from 'node:path';
@@ -53,7 +52,10 @@ import {
   type DetectSchemaResult,
 } from '@/lib/ledger/detect-schema';
 import { applyPatches, type FieldPatch } from '@/lib/ledger/patch-apply';
-import { scopedSerialise } from '@/lib/ledger/scoped-serialise';
+import {
+  escapeSerialise,
+  scopedSerialise,
+} from '@/lib/ledger/scoped-serialise';
 import { insertRecord, removeRecord } from '@/lib/ledger/record-mutate';
 import {
   atomicWriteFile,
@@ -256,22 +258,22 @@ async function loadLedger(
 }
 
 /**
- * Whole-file serialiser. NON-CONFORMING on two axes vs the on-disk ledger
- * convention (ID-35.11 finding):
- *   1. Key order — `detected.data` is the Zod-reparsed document, so its records
- *      come back in schema-declared key order, normalising EVERY record.
- *   2. Escaping — plain `JSON.stringify` emits raw UTF-8, whereas the on-disk
- *      ledgers escape all non-ASCII to `\uXXXX`.
- * Either defect alone turns a one-field edit into a ~1600-line diff. The
- * field-edit subcommands therefore prefer the `--scoped` path
- * (lib/ledger/scoped-serialise.ts) during the parallel-cmux phase. A one-time
- * whole-file key-order + escaping normalisation pass that makes THIS function
- * conforming is DEFERRED to the CLI-becomes-sole-writer transition
- * (docs/specs/ledger-cli/PLAN.md {35.11}); running it now would collide with the
- * concurrent sibling writers of the shared task-list.json.
+ * Whole-file serialiser. Emits **escaped non-ASCII (`\uXXXX`) + Zod-canonical
+ * key order** — the conforming sole-writer format after the OQ-LS-2 (S270)
+ * one-time normalisation pass (`scripts/ledger-normalise-oqls2.ts`).
+ *
+ * Implementation: delegates to `escapeSerialise(detected.data)` from
+ * `lib/ledger/scoped-serialise.ts`, which applies 2-space indent, escapes all
+ * non-ASCII code units to `\uXXXX` (matching the on-disk ledger convention),
+ * and appends a single trailing newline.
+ *
+ * The scoped path (`lib/ledger/scoped-serialise.ts` / `--scoped` flag) remains
+ * available for minimal-diff single-field edits. Both paths now emit the same
+ * escaping convention, so the whole-file path is byte-compatible with the
+ * scoped path and with `scripts/ledger-sweep-s269.ts`.
  */
 function serialise(detected: KnownDetected): string {
-  return `${JSON.stringify(detected.data, null, 2)}\n`;
+  return escapeSerialise(detected.data);
 }
 
 function msg(err: unknown): string {

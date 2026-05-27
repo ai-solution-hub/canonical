@@ -369,16 +369,19 @@ describe('ledger-cli — --scoped write mode (ID-35.11)', () => {
     expect(read('task-list').document_name).toBe('Knowledge Hub Task List');
   });
 
-  it('non-scoped flip-task still uses the whole-file path (unchanged behaviour)', async () => {
+  it('non-scoped flip-task still uses the whole-file path (OQ-LS-2: now escaped)', async () => {
     const taskId = firstTaskId();
     const path = join(dir, 'task-list.json');
     const r = await run(args('flip-task', [taskId, 'in_progress']));
     expect(r.ok).toBe(true);
-    // Whole-file path normalises (raw UTF-8 + key reorder), so it touches many
-    // lines — the diff is NOT bounded to one line. This documents the contrast
-    // the --scoped flag exists to avoid.
+    // After OQ-LS-2 (S270) normalisation, serialise() delegates to escapeSerialise()
+    // so whole-file writes also emit escaped non-ASCII. The file still differs
+    // from --scoped (whole-file applies Zod-canonical key order across all records)
+    // but non-ASCII is no longer emitted raw — both paths are now byte-compatible
+    // in their escaping convention.
     const after = readFileSync(path, 'utf8');
-    expect(RAW_NON_ASCII.test(after)).toBe(true); // raw em-dashes now present
+    expect(RAW_NON_ASCII.test(after)).toBe(false); // escaping preserved — no raw em-dashes
+    expect(after).toContain('\\u2014'); // em-dashes are still present as \uXXXX
   });
 
   it('--scoped --dry-run writes nothing', async () => {

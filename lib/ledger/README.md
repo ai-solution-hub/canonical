@@ -62,10 +62,12 @@ the consistent, CI-safe choice. See `docs/specs/ledger-cli/RESEARCH.md` §3.
   still validates (via `detectSchema`) before any byte is emitted. Wired into the CLI behind
   `--scoped` for `flip-task` / `flip-subtask` / `append-journal`.
 
-  **Deferred.** A one-time whole-file key-order + escaping normalisation pass that makes the
-  CLI's `serialise()` itself conforming is **deferred** to the CLI-becomes-sole-writer
-  transition (see `docs/specs/ledger-cli/PLAN.md` {35.11}); running it during the
-  parallel-cmux phase would collide with the concurrent sibling writers.
+  **RESOLVED (OQ-LS-2, S270).** The one-time whole-file key-order + escaping normalisation
+  pass is now complete: `scripts/ledger-cli.ts`'s `serialise()` was fixed to delegate to
+  `escapeSerialise()` (escaped non-ASCII + Zod-canonical key order), and
+  `scripts/ledger-normalise-oqls2.ts` normalised all three on-disk ledgers to the same
+  format. Both the whole-file path and the scoped path now emit the same escaping
+  convention and are byte-compatible for ongoing writes.
 
 ## Re-vendor procedure
 

@@ -35,11 +35,11 @@
  * But the bytes WRITTEN come from the parsed-original-mutated doc, not the
  * Zod-reparsed one.
  *
- * @see scripts/ledger-cli.ts — the `serialise()` it pairs with is
- *      non-conforming on BOTH axes (raw UTF-8 + Zod key-reorder). A one-time
- *      whole-file key-order + escaping normalisation pass that fixes `serialise()`
- *      is DEFERRED to the CLI-becomes-sole-writer transition (PLAN.md {35.11};
- *      it would collide with concurrent writers during the parallel-cmux phase).
+ * @see scripts/ledger-cli.ts — `serialise()` now delegates to `escapeSerialise()`
+ *      (RESOLVED OQ-LS-2, S270). The whole-file path emits the same escaped
+ *      non-ASCII + Zod-canonical key order as the scoped path, making both
+ *      byte-compatible for ongoing writes. The on-disk ledgers were normalised
+ *      by `scripts/ledger-normalise-oqls2.ts` to match this format.
  */
 
 import { detectSchema, type DetectSchemaResult } from './detect-schema';
