@@ -220,6 +220,43 @@ describe('record-set gate — integration through the write gate (ID-35.16)', ()
     expect(readFileSync(join(dir, 'product-backlog.json'), 'utf8')).toBe(before);
     spy.mockRestore();
   });
+
+  it('rejects a serialised-output drop on the SCOPED write path too ({35.24})', async () => {
+    // The {35.16} gate runs on the bytes-about-to-be-written regardless of write
+    // path. The whole-file case is proven above (escapeSerialise stub, which the
+    // CLI's serialise() reaches through the module import). The SCOPED path's
+    // bytes come from `scopedSerialise`, whose final emit is an INTRA-module call
+    // to escapeSerialise that a namespace spy cannot intercept — so to induce a
+    // scoped-path drop we stub `scopedSerialise` itself to return a document with
+    // one task removed. The gate must catch it before atomicWriteFile lands.
+    const mod = await import('@/lib/ledger/scoped-serialise');
+    const real = mod.scopedSerialise;
+    const spy = vi
+      .spyOn(mod, 'scopedSerialise')
+      .mockImplementation((originalText, patch) => {
+        const r = real(originalText, patch);
+        if (!r.ok) return r;
+        const doc = JSON.parse(r.text) as { tasks?: { id: string }[] };
+        if (Array.isArray(doc.tasks) && doc.tasks.length > 1) {
+          // Drop the SECOND task — a silent record loss on the scoped path.
+          doc.tasks = doc.tasks.filter((_, i) => i !== 1);
+          return { ...r, text: mod.escapeSerialise(doc) };
+        }
+        return r;
+      });
+
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const taskId = read('task-list').tasks[0].id;
+    // A ∅-delta scoped flip-task; the stub drops a different task so the
+    // post-write id-set is short by one → record-set-violation, nothing written.
+    const r = await run(
+      args('flip-task', [taskId, 'in_progress'], { scoped: true }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('record-set-violation');
+    expect(readFileSync(join(dir, 'task-list.json'), 'utf8')).toBe(before);
+    spy.mockRestore();
+  });
 });
 
 /** A minimal schema-valid Task record (all required fields present). */

@@ -57,6 +57,9 @@ function readTask() {
 function readBacklog() {
   return JSON.parse(readFileSync(join(dir, 'product-backlog.json'), 'utf8'));
 }
+function readRoadmap() {
+  return JSON.parse(readFileSync(join(dir, 'product-roadmap.json'), 'utf8'));
+}
 
 describe('auto-id — {35.21} max+1 on record-creating commands', () => {
   it('add-subtask 35 --title X assigns max(existing subId)+1 (number)', async () => {
@@ -117,6 +120,34 @@ describe('auto-id — {35.21} max+1 on record-creating commands', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect((r.result as { recordId: string }).recordId).toBe('9001');
+  });
+
+  it('create-theme --title Z assigns max(existing theme id)+1 (string) ({35.24})', async () => {
+    // The theme auto-id path was only proven at the `nextId` helper level; this
+    // exercises it end-to-end through `create-theme` (the {35.20} roadmap
+    // creator), so the wiring of nextId(themes) → withCreateDefaults → insert is
+    // covered for the roadmap ledger the same way it is for backlog above.
+    const before = readRoadmap();
+    const expected = String(
+      Math.max(...before.themes.map((t: { id: string }) => Number(t.id))) + 1,
+    );
+    const r = await run(
+      args('create-theme', [], {
+        title: 'Auto-id theme',
+        description: 'A theme created without an explicit id.',
+        status: 'pending',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect((r.result as { recordId: string }).recordId).toBe(expected);
+    expect(typeof (r.result as { recordId: string }).recordId).toBe('string');
+    const after = readRoadmap();
+    const added = after.themes.find(
+      (t: { title: string }) => t.title === 'Auto-id theme',
+    );
+    expect(added).toBeDefined();
+    expect(added.id).toBe(expected);
   });
 
   it('positional JSON without an id gets an auto-id injected', async () => {

@@ -147,12 +147,17 @@ describe('LEDGER_BUDGETS — unified 3-ledger registry (RESEARCH §4.1)', () => 
   });
 
   it('exposes roadmap (theme) budgets for description and notes', () => {
-    expect(typeof LEDGER_BUDGETS.theme.description).toBe('number');
-    expect(typeof LEDGER_BUDGETS.theme.notes).toBe('number');
+    // Pin the EXACT values (Group A carryover {35.24}): theme.description shares
+    // the task-description prose class (1500) and theme.notes the status_note
+    // class (300) — matching the .toBe() style used for the task/subtask budgets
+    // above, so a silent registry edit can never pass unnoticed.
+    expect(LEDGER_BUDGETS.theme.description).toBe(1500);
+    expect(LEDGER_BUDGETS.theme.notes).toBe(300);
   });
 
   it('exposes backlog (item) budget for description', () => {
-    expect(typeof LEDGER_BUDGETS.item.description).toBe('number');
+    // Pin the EXACT value ({35.24}): the one-sentence summary soft budget is 500.
+    expect(LEDGER_BUDGETS.item.description).toBe(500);
   });
 
   it('does NOT budget subtask.details (append-only journal)', () => {
