@@ -41,6 +41,9 @@ function args(subcommand: string, positionals: string[]): ParsedArgs {
       dryRun: false,
       pretty: false,
       regenMirrors: false,
+      // ID-35.18: regen is now DEFAULT-ON; suppress it in tests so they never
+      // shell out to scripts/regen-mirrors.sh (which clones task-view).
+      noRegenMirrors: true,
       ledgerDir: dir,
     },
   };

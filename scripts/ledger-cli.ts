@@ -374,13 +374,22 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   create-backlog <itemJson>
   delete-backlog <itemId>
   promote        <backlogId> <taskJson>
-flags: --dry-run --pretty --regen-mirrors --scoped --ledger-dir <path>
+flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
   --scoped : minimal-diff write — re-emit only the mutated record, preserving
              untouched-record bytes + on-disk \\uXXXX escaping (field edits only:
              flip-task | flip-subtask | append-journal).
+  --force  : downgrade a budget-exceeded rejection to a soft warning and write
+             anyway (escape hatch for the rare legitimate over-budget field).
+  --no-regen-mirrors : skip the default-on mirror regen (e.g. batch edits — run
+             \`bash scripts/regen-mirrors.sh\` once at the end).
+  --regen-mirrors : DEPRECATED no-op alias — regen is now the default.
+input (record-creating commands): positional JSON | --file <path> (- = stdin) |
+  named flags (--title --description --status --depends 1,2 --priority --id …).
 errors (exit 1, nothing written): schema-error, walk-error, duplicate-id,
-  record-not-found, record-set-violation (a write that would silently drop or
-  duplicate a record — the post-write id-set did not match the intended delta).`;
+  record-not-found, budget-exceeded (a budgeted field over its char budget —
+  override with --force), record-set-violation (a write that would silently
+  drop or duplicate a record — the post-write id-set did not match the
+  intended delta).`;
 
 function emit(result: CliResult, pretty: boolean): never {
   const stream = result.ok ? process.stdout : process.stderr;
@@ -420,7 +429,8 @@ function emit(result: CliResult, pretty: boolean): never {
 }
 
 const MIRROR_REMINDER =
-  'ℹ mirrors are now stale — run `bash scripts/regen-mirrors.sh` before committing ' +
+  'ℹ mirror regen runs by default after a write; if you passed --no-regen-mirrors, ' +
+  'run `bash scripts/regen-mirrors.sh` before committing ' +
   '(CI ledger-mirror-parity gates on parity).\n';
 
 // ── shared IO ───────────────────────────────────────────────────────────────
@@ -744,14 +754,45 @@ function disciplineWarnings(detected: KnownDetected): string[] {
   }
 }
 
-function maybeRegenMirrors(regen: boolean): void {
-  if (!regen) return;
+/**
+ * ID-35.18: mirror regeneration is DEFAULT-ON after every write (RESEARCH §2.5)
+ * — callers pass `!flags.noRegenMirrors`, so a mutation keeps
+ * `docs/reference/{tasks,roadmap,backlog}/` in sync and `ledger-mirror-parity`
+ * stays green. `--no-regen-mirrors` opts out (batch edits run it once at the
+ * end). FAIL-LOUD: a non-zero `regen-mirrors.sh` exit surfaces a loud stderr
+ * warning — the write has ALREADY committed, so this is a post-write alert, NOT
+ * a rollback.
+ */
+/**
+ * The regen invocation, behind a module-level seam so tests can replace it
+ * without shelling out to the real `regen-mirrors.sh` (which clones task-view).
+ * Returns the child exit status (`null` on signal). Production default invokes
+ * the script synchronously.
+ */
+type RegenRunner = () => number | null;
+
+let regenRunner: RegenRunner = () => {
   const r = spawnSync('bash', ['scripts/regen-mirrors.sh'], {
     stdio: 'inherit',
   });
-  if (r.status !== 0) {
+  return r.status;
+};
+
+/** Test seam (ID-35.18): override the regen runner; pass `null` to restore. */
+function __setRegenRunnerForTest(runner: RegenRunner | null): void {
+  regenRunner = runner ?? defaultRegenRunner;
+}
+const defaultRegenRunner = regenRunner;
+
+function maybeRegenMirrors(regen: boolean): void {
+  if (!regen) return;
+  const status = regenRunner();
+  if (status !== 0) {
     process.stderr.write(
-      `⚠ regen-mirrors.sh exited ${r.status ?? 'signal'} — regenerate manually.\n`,
+      `⚠ MIRROR REGEN FAILED: regen-mirrors.sh exited ${status ?? 'signal'}. ` +
+        `The write already committed — mirrors are now STALE. ` +
+        `Re-run \`bash scripts/regen-mirrors.sh\` manually before committing ` +
+        `(CI ledger-mirror-parity will otherwise fail).\n`,
     );
   }
 }
@@ -1000,7 +1041,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected,
         { taskId, status },
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         flags.scoped,
         { originalText: loaded.originalText, patch },
         {
@@ -1041,7 +1082,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected,
         { taskId, subId, status },
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         flags.scoped,
         { originalText: loaded.originalText, patch },
         {
@@ -1094,7 +1135,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected,
         { taskId, subId, appended: true },
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         flags.scoped,
         { originalText: loaded.originalText, patch },
         {
@@ -1141,7 +1182,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected,
         { taskId, subtaskCount: nextSubtasks.length },
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         false,
         undefined,
         newSubId !== undefined
@@ -1197,7 +1238,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         loaded.detected,
         { itemId, field },
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         false,
         undefined,
         {
@@ -1257,7 +1298,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         ins.detected,
         { recordId: ins.recordId },
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         false,
         undefined,
         {
@@ -1307,7 +1348,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         rem.detected,
         { recordId: rem.recordId },
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         false,
         undefined,
         {
@@ -1333,7 +1374,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         backlogId,
         taskJson,
         flags.dryRun,
-        flags.regenMirrors,
+        !flags.noRegenMirrors,
         flags.force,
       );
     }
@@ -1548,6 +1589,7 @@ export {
   readRecordInput,
   nextId,
   assertRecordSet,
+  __setRegenRunnerForTest,
   run,
   journalBlock,
   ledgerPath,
