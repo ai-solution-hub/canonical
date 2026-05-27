@@ -152,6 +152,15 @@ interface ParsedArgs {
     notes?: string;
     testStrategy?: string;
     statusNote?: string;
+    /**
+     * ID-35.21 backlog-item structural value-flags. `create-backlog`'s
+     * required scalar fields `type` / `track` are not expressible by the
+     * {35.15} flag set; adding them lets `create-backlog --title … --type …
+     * --track …` build a complete item from flags. Absent → structural
+     * defaults apply (`withCreateDefaults`).
+     */
+    type?: string;
+    track?: string;
   };
 }
 
@@ -173,6 +182,8 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--notes': 'notes',
   '--test-strategy': 'testStrategy',
   '--status-note': 'statusNote',
+  '--type': 'type',
+  '--track': 'track',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -304,6 +315,8 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
   if (flags.notes !== undefined) record.notes = flags.notes;
   if (flags.testStrategy !== undefined) record.testStrategy = flags.testStrategy;
   if (flags.statusNote !== undefined) record.status_note = flags.statusNote;
+  if (flags.type !== undefined) record.type = flags.type;
+  if (flags.track !== undefined) record.track = flags.track;
   if (flags.depends !== undefined) {
     record.dependencies = flags.depends
       .split(',')
@@ -1054,6 +1067,84 @@ function coerceFieldValue(
   }
 }
 
+// ── ID-35.21 record-create plumbing: structural defaults + auto-id ───────────
+//
+// The named-flag input path ({35.15} `readRecordInput`) builds a record from
+// only the supplied flags. To make `create-backlog --title X` / `add-subtask 35
+// --title Y` schema-valid (RESEARCH §2.4 — "sensible defaults fill required
+// structural fields"), the record-creating commands fill the always-present
+// empty-shape fields per record kind before insert. Scalar required fields
+// (title / description / priority / type / track) are NOT defaulted — they come
+// from flags/JSON, and the schema rightly rejects their absence.
+
+/** Per-record-kind structural defaults — empty arrays, nulls, empty strings. */
+const CREATE_DEFAULTS: Record<
+  'subtask' | 'task' | 'theme' | 'item',
+  Record<string, unknown>
+> = {
+  subtask: {
+    details: '',
+    status: 'pending',
+    dependencies: [],
+    testStrategy: null,
+  },
+  task: {
+    status: 'pending',
+    dependencies: [],
+    subtasks: [],
+    effort_estimate: null,
+    owner: null,
+    priority_note: null,
+    status_note: null,
+    cross_doc_links: [],
+    session_refs: [],
+    commit_refs: [],
+    updatedAt: '',
+  },
+  theme: {
+    status: 'pending',
+    time_horizon: 'later',
+    linked_tasks: [],
+    linked_backlog: [],
+    session_refs: [],
+    commit_refs: [],
+    cross_doc_links: [],
+    notes: null,
+  },
+  item: {
+    // `type` / `track` are required scalars with no inherent empty value;
+    // these structural defaults keep a bare `create-backlog --title X` valid
+    // (RESEARCH §2.4) and signal an untriaged item (override via --type/--track
+    // or the positional/JSON body).
+    type: 'feature',
+    track: 'unsorted',
+    status: 'parked',
+    dependencies: [],
+    effort_estimate: null,
+    session_refs: [],
+    commit_refs: [],
+    cross_doc_links: [],
+    notes: null,
+  },
+};
+
+/**
+ * Merge structural defaults UNDER the supplied record (supplied fields win).
+ * Defaults only apply for absent keys, so a positional-JSON body that already
+ * carries (e.g.) `status` keeps its value. `task.updatedAt` defaults to the
+ * write timestamp when absent.
+ */
+function withCreateDefaults(
+  recordKind: 'subtask' | 'task' | 'theme' | 'item',
+  record: Record<string, unknown>,
+): Record<string, unknown> {
+  const defaults = { ...CREATE_DEFAULTS[recordKind] };
+  if (recordKind === 'task' && record.updatedAt === undefined) {
+    defaults.updatedAt = new Date().toISOString();
+  }
+  return { ...defaults, ...record };
+}
+
 async function run(args: ParsedArgs): Promise<CliResult> {
   const { subcommand, positionals: p, flags } = args;
   const dir = flags.ledgerDir;
@@ -1337,29 +1428,44 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     }
 
     case 'add-subtask': {
-      const [taskId, subtaskJson] = p;
-      if (!taskId || !subtaskJson)
+      const taskId = p[0];
+      if (!taskId)
         return cliErr(
           'add-subtask',
           'missing-args',
-          'add-subtask <taskId> <subtaskJson>',
+          'add-subtask <taskId> <subtaskJson | --title …>',
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
       if (loaded.detected.kind !== 'task-list')
         return cliErr('add-subtask', 'wrong-ledger', 'expected task-list');
-      const parsedArg = parseJsonArg('add-subtask', subtaskJson);
-      if (!parsedArg.ok) return parsedArg.result;
       const task = loaded.detected.data.tasks.find((t) => t.id === taskId);
       if (!task)
         return cliErr('add-subtask', 'record-not-found', `task ${taskId}`);
+      // The body is positionals[1] (JSON) OR --file / named flags. Reuse the
+      // {35.15} record-input resolver with the taskId dropped from positionals.
+      const bodyArgs: ParsedArgs = {
+        ...args,
+        positionals: p.slice(1),
+      };
+      const input = readRecordInput(bodyArgs);
+      if (!input.ok) return input.result;
+      // ID-35.21 auto-id: subtask ids are NUMBERS, scoped to the parent task.
+      // Inject max+1 unless --id forces an explicit id or the body carries one.
+      let record = withCreateDefaults(
+        'subtask',
+        input.value as Record<string, unknown>,
+      );
+      if (record.id === undefined) {
+        record = { ...record, id: nextId(loaded.detected, 'subtasks', taskId) };
+      }
       const descriptor: CollectionDescriptor = {
         collection: 'subtasks',
         taskId,
       };
       const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
-      const newSubId = (parsedArg.value as { id?: IdValue }).id;
-      const nextSubtasks = [...task.subtasks, parsedArg.value];
+      const newSubId = record.id as IdValue;
+      const nextSubtasks = [...task.subtasks, record];
       const m = fieldPatchMutation('add-subtask', loaded.detected, {
         fieldPath: ['tasks', taskId, 'subtasks'],
         newValue: nextSubtasks,
@@ -1369,24 +1475,22 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         'add-subtask',
         ledgerPath(dir, 'task'),
         loaded.detected,
-        { taskId, subtaskCount: nextSubtasks.length },
+        { taskId, subId: newSubId, subtaskCount: nextSubtasks.length },
         flags.dryRun,
         !flags.noRegenMirrors,
         false,
         undefined,
-        newSubId !== undefined
-          ? {
-              ledger: 'task',
-              descriptor,
-              beforeIds,
-              expectedDelta: { kind: 'add', id: newSubId },
-            }
-          : undefined,
+        {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'add', id: newSubId },
+        },
         {
           ledger: 'task',
           recordKind: 'subtask',
-          recordId: newSubId ?? '<new>',
-          record: parsedArg.value as Record<string, unknown>,
+          recordId: newSubId,
+          record,
         },
         flags.force,
       );
@@ -1405,13 +1509,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       if (!loaded.ok) return loaded.result;
       const descriptor: CollectionDescriptor = { collection: 'items' };
       const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
-      // value may be JSON (for non-string fields) or a bare string.
-      let newValue: unknown = value;
-      try {
-        newValue = JSON.parse(value);
-      } catch {
-        newValue = value; // bare string
-      }
+      // ID-35.21: field-type-aware coercion REPLACES the old silent
+      // `JSON.parse(value)`-then-bare-string heuristic (RESEARCH §5.3). Driven
+      // by BacklogItemSchema field type, so `update-backlog 100 description
+      // "123"` keeps "123" a string while `dependencies "[…]"` parses to an
+      // array.
+      const newValue = coerceFieldValue('item', field, value);
       const m = fieldPatchMutation('update-backlog', loaded.detected, {
         fieldPath: ['items', itemId, field],
         newValue,
@@ -1514,16 +1617,24 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         ledger === 'task' ? 'tasks' : ledger === 'roadmap' ? 'themes' : 'items';
       const recordKind: LedgerRecordKind =
         ledger === 'task' ? 'task' : ledger === 'roadmap' ? 'theme' : 'item';
-      const [recordJson] = p;
-      if (!recordJson)
-        return cliErr(subcommand, 'missing-args', `${subcommand} <json>`);
       const loaded = await loadLedger(ledgerPath(dir, ledger));
       if (!loaded.ok) return loaded.result;
       const descriptor: CollectionDescriptor = { collection };
       const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
-      const parsedArg = parseJsonArg(subcommand, recordJson);
-      if (!parsedArg.ok) return parsedArg.result;
-      const ins = insertRecord(loaded.detected, parsedArg.value);
+      // {35.15} record-input resolution (positional JSON | --file | named
+      // flags) + {35.21} structural defaults + auto-id.
+      const input = readRecordInput(args);
+      if (!input.ok) return input.result;
+      let record = withCreateDefaults(
+        recordKind,
+        input.value as Record<string, unknown>,
+      );
+      // ID-35.21 auto-id: task/theme/item ids are bare-digit STRINGS. Inject
+      // max+1 unless --id forces an explicit id or the body already carries one.
+      if (record.id === undefined) {
+        record = { ...record, id: nextId(loaded.detected, collection) };
+      }
+      const ins = insertRecord(loaded.detected, record);
       if (!ins.ok) {
         if (ins.kind === 'schema-error')
           return {
@@ -1559,7 +1670,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           ledger,
           recordKind,
           recordId: ins.recordId,
-          record: parsedArg.value as Record<string, unknown>,
+          record,
         },
         flags.force,
       );
