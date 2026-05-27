@@ -19,17 +19,51 @@
  *     `bash scripts/regen-mirrors.sh` (CI ledger-mirror-parity gates on parity).
  *
  *   bun scripts/ledger-cli.ts <subcommand> [args] [--flags]
- *     show           <ledger> <id>
+ *   read (no write gate):
+ *     show           <ledger> <id>                 (ledger: task|roadmap|backlog)
+ *     get            <ledger> <id> [field]         (single-field read; no field = show)
+ *     schema         [ledger|recordKind]           (field names + types + budgets)
+ *   status flips / field edits:
  *     flip-task      <taskId> <status>
  *     flip-subtask   <taskId> <subId> <status>
+ *     update-task    <taskId> <field> <value>
+ *     update-subtask <taskId.subId> <field> <value>
+ *     update-roadmap <themeId> <field> <value>
+ *     update-backlog <itemId> <field> <value>
  *     append-journal <taskId> <subId> <text>
- *     add-subtask    <taskId> <subtaskJson>
- *     update-backlog <itemId> <fieldPath.dot> <value>
- *     open-task      <taskJson>
- *     create-backlog <itemJson>
+ *   record create / delete:
+ *     add-subtask    <taskId> <subtaskJson | --title …>
+ *     open-task      <taskJson | --title …>
+ *     create-theme   <themeJson | --title …>
+ *     create-backlog <itemJson | --title …>
  *     delete-backlog <itemId>
+ *   cross-ledger:
  *     promote        <backlogId> <taskJson>
- *   flags: --dry-run --pretty --regen-mirrors --scoped --ledger-dir <path>
+ *   flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
+ *
+ * Write gates (RESEARCH §2.3/§2.6 — prevent-at-source; both reject at WRITE TIME,
+ * exit 1, nothing written):
+ *   - record-set ({35.16}): the post-write id-set must equal the pre-write set
+ *     under the intended delta (∅ / +1 / −1) — catches a silently dropped or
+ *     duplicated record on BOTH the scoped and whole-file paths.
+ *   - budget ({35.17}): the CHANGED record's budgeted fields are checked against
+ *     `LEDGER_BUDGETS` before any byte is written; over-budget → `budget-exceeded`.
+ *     `--force` downgrades it to the existing soft warning and writes anyway.
+ *     (`subtask.details` is unbudgeted — the append-only journal home.)
+ *
+ * Input (record-creating commands): positional JSON | `--file <path>` (- = stdin)
+ * | named flags (`--title --description --status --depends 1,2 …`). When `--id`
+ * is absent and the body carries no id, an auto-id (`max(existingIds)+1`) is
+ * injected — a STRING for task/theme/backlog ids, a NUMBER for subtask ids.
+ *
+ * Mirror regen ({35.18}) runs by DEFAULT after every write; `--no-regen-mirrors`
+ * opts out (batch edits run `bash scripts/regen-mirrors.sh` once at the end).
+ * `--regen-mirrors` is a DEPRECATED no-op alias.
+ *
+ * Discoverability ({35.22}): `schema [ledger|recordKind]` prints each field's
+ * name + type + budget so the deps-type asymmetry (subtask.dependencies:number[]
+ * vs task.dependencies:string[]) is explicit; `<command> --help` prints that
+ * command's flags + its target record's schema slice.
  *
  * `--scoped` (ID-35.11): minimal-diff write for the field-edit subcommands
  * (flip-task | flip-subtask | append-journal). Scoped mode mutates the

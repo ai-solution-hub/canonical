@@ -262,19 +262,20 @@ describe('Doc Freshness: classification-architecture.md', () => {
 // ---------------------------------------------------------------------------
 
 describe('Doc Freshness: taxonomy-change-runbook.md', () => {
-  // S152B WP1: moved from docs/reference/ to docs/operations/ per the
-  // S151 reference-folder audit. The doc is structurally a runbook and
-  // belongs alongside other operational procedures in docs/operations/.
+  // S152B WP1: moved from docs/reference/ per the S151 reference-folder audit.
+  // Relocated again to docs/runbooks/ in commit 837e65c5 (the canonical home for
+  // operational procedures) — repointed here in {35.25} so doc-freshness tracks
+  // the live path.
   const docPath = join(
     PROJECT_ROOT,
-    'docs/operations/taxonomy-change-runbook.md',
+    'docs/runbooks/taxonomy-change-runbook.md',
   );
   const docExists = existsSync(docPath);
 
   it('document should exist', () => {
     expect(
       docExists,
-      'docs/operations/taxonomy-change-runbook.md is missing',
+      'docs/runbooks/taxonomy-change-runbook.md is missing',
     ).toBe(true);
   });
 

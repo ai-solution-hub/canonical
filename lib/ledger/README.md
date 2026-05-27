@@ -69,6 +69,45 @@ the consistent, CI-safe choice. See `docs/specs/ledger-cli/RESEARCH.md` §3.
   format. Both the whole-file path and the scoped path now emit the same escaping
   convention and are byte-compatible for ongoing writes.
 
+## CLI command surface (v2)
+
+`scripts/ledger-cli.ts` is the deterministic mutation CLI built on these primitives
+(ID-35). The v2 surface (its in-file `USAGE` block is the authoritative reference):
+
+| Group         | Commands                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| read          | `show`, `get <ledger> <id> [field]` (single-field read), `schema [ledger\|recordKind]`         |
+| status / edit | `flip-task`, `flip-subtask`, `update-task`, `update-subtask`, `update-roadmap`, `update-backlog`, `append-journal` |
+| create        | `add-subtask`, `open-task`, `create-theme`, `create-backlog`                                   |
+| delete        | `delete-backlog`                                                                               |
+| cross-ledger  | `promote`                                                                                       |
+
+**Two write gates (prevent-at-source — both reject at WRITE TIME, exit 1, nothing
+written):**
+
+- **record-set** ({35.16}) — the post-write id-set must equal the pre-write set under the
+  intended delta (∅ / +1 / −1). Catches a silently dropped or duplicated record on **both**
+  the scoped and whole-file write paths, by parsing the bytes about to be written.
+- **budget** ({35.17}) — the changed record's budgeted fields are checked against
+  `LEDGER_BUDGETS` (`lib/validation/ledger-budgets.ts`) before any byte is written;
+  over-budget → `budget-exceeded`. **`--force`** downgrades it to the existing soft warning
+  and writes anyway. `subtask.details` is intentionally unbudgeted (the append-only
+  journal).
+
+**Input modes (record-creating commands):** positional JSON | `--file <path>` (`-` reads
+stdin) | named flags (`--title --description --status --depends 1,2 …`). Absent `--id`
+(and no id in the body) → auto-id `max(existingIds)+1`: a STRING for task/theme/backlog
+ids, a NUMBER for subtask ids.
+
+**Mirror regen ({35.18})** runs by DEFAULT after every write; `--no-regen-mirrors` opts
+out (batch edits run `bash scripts/regen-mirrors.sh` once at the end). `--regen-mirrors` is
+a deprecated no-op alias.
+
+**Discoverability ({35.22}):** `schema [ledger|recordKind]` prints each field's name +
+type + budget — so `subtask.dependencies:number[]` vs `task.dependencies:string[]` is
+explicit; `<command> --help` prints that command's flags + its target record's schema
+slice.
+
 ## Re-vendor procedure
 
 When task-view cuts a new schema- or primitive-bearing release:
