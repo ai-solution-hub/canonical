@@ -969,7 +969,7 @@ jobs:
         # clone the public repo at the tag and invoke its bin shim instead.
         # TASK_VIEW_TAG is a static literal (not external context) — safe in run:.
         env:
-          TASK_VIEW_TAG: v0.3.0-task-view
+          TASK_VIEW_TAG: v0.3.1-task-view
         run: |
           git clone --depth 1 --branch "$TASK_VIEW_TAG" \
             https://github.com/liam-jons/task-view.git "$RUNNER_TEMP/task-view"
