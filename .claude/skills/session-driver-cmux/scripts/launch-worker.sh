@@ -234,6 +234,33 @@ if [ -f "$INCLUDE_FILE" ]; then
   done < "$INCLUDE_FILE"
 fi
 
+# --- Install prettier pre-commit hook into the worker worktree (ID-48.12) ---
+#
+# Belt-and-braces with the project-level format-pre-commit (ID-48.8): every
+# worker worktree gets its own .git/hooks/pre-commit that runs prettier on
+# staged files, so worker commits land already-formatted. Worktrees use a
+# separate hooks dir (`.git/worktrees/<name>/hooks/`) per git, so we install
+# into the worktree's own hooks path rather than the shared `.git/hooks/`.
+#
+# Hook content lives in worktree-pre-commit.sh alongside this script —
+# tracked, auditable, easy to update.
+
+SKILL_SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+WORKTREE_HOOKS_DIR="$(git -C "$WORKTREE_PATH" rev-parse --git-path hooks 2>/dev/null || true)"
+HOOK_SOURCE="${SKILL_SCRIPTS_DIR}/worktree-pre-commit.sh"
+
+if [ -n "$WORKTREE_HOOKS_DIR" ] && [ -f "$HOOK_SOURCE" ]; then
+  # rev-parse --git-path returns a path that may be relative to the worktree
+  # root. Resolve against $WORKTREE_PATH if not already absolute.
+  case "$WORKTREE_HOOKS_DIR" in
+    /*) ;;
+    *) WORKTREE_HOOKS_DIR="${WORKTREE_PATH}/${WORKTREE_HOOKS_DIR}" ;;
+  esac
+  mkdir -p "$WORKTREE_HOOKS_DIR"
+  cp "$HOOK_SOURCE" "${WORKTREE_HOOKS_DIR}/pre-commit"
+  chmod +x "${WORKTREE_HOOKS_DIR}/pre-commit"
+fi
+
 # --- Copy brief file if provided ---
 
 BRIEF_DEST=""

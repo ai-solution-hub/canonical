@@ -11,7 +11,9 @@
       "Bash(python3 -m pytest *)",
       "Bash(python3 -m playwright *)",
       "Bash(cmux *)",
-      "Bash(/Applications/cmux.app/Contents/Resources/bin/cmux *)"
+      "Bash(/Applications/cmux.app/Contents/Resources/bin/cmux *)",
+      "Write(.claude/skills/**)",
+      "Bash(mkdir -p .claude/skills/*)"
     ]
   },
   "hooks": {
