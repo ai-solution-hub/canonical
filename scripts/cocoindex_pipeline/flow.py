@@ -107,6 +107,7 @@ from scripts.cocoindex_pipeline.flow_context import (
     FLOW_META_CTX,  # noqa: F401 — re-exported flow-context surface (28.13 wiring + tests)
     bind_flow_meta,
     bind_retry_counter,
+    bind_stage_counter,
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it via __package__
 )
 # ────────────────────────────────────────────────────────────────────────────
@@ -336,6 +337,35 @@ class _FlowRetryCounter:
 
     def get(self) -> int:
         return self._count
+
+
+# ── Inv-17 stage-count substrate (ID-49.4 — embedding observability) ─────────
+
+
+class _FlowStageCounter:
+    """Per-flow stage counter for Inv-17 observability.
+
+    `.increment(stage)` is called from `ingest_file` (via the
+    `bind_stage_counter()` contextvar binding `app_main` wraps `mount_each`
+    in) each time a stage produces an output for one item; `.get(stage)` is
+    read at flow end and folded into `stage_counts` before the pipeline-run
+    webhook emit. Instances are per-flow — one per `app_main()` invocation,
+    no shared state. Thread-safety is not required: cocoindex @coco.fn
+    execution is sequential per content row.
+
+    At v1 the only wired stage is `"embedding"` (Inv-17 gap closure inherited
+    from ID-49.2). Keys are the canonical stage names from
+    `_empty_stage_counts()`; an unbumped stage reads back as 0.
+    """
+
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+
+    def increment(self, stage: str) -> None:
+        self._counts[stage] = self._counts.get(stage, 0) + 1
+
+    def get(self, stage: str) -> int:
+        return self._counts.get(stage, 0)
 
 
 # ── Inv-16 / Inv-17 / Inv-18 rollup substrate (P-7 — ID-28.11) ───────────────
@@ -870,6 +900,19 @@ async def ingest_file(
             "op_id": op_id,
         }
     )
+    # Inv-17: bump the flow-scope embedding stage counter so
+    # `stage_counts["embedding"]` surfaces truthfully in the flow-end webhook
+    # (the gap inherited from ID-49.2 — the counter was initialised to 0 and
+    # never incremented). Resolved via flow's OWN package namespace
+    # (`flow_context_module`, bound at the top of ingest_file) so the bump
+    # writes to the SAME ContextVar `app_main` bound under `bind_stage_counter`
+    # (dual-import-path hazard — same rationale as current_flow_meta). When no
+    # counter is bound (unit tests outside the binding), the bump is silently
+    # skipped — the embedding still lands, only observability is omitted (same
+    # graceful-degradation contract as the retry counter).
+    stage_counter = flow_context_module.current_stage_counter()
+    if stage_counter is not None:
+        stage_counter.increment("embedding")
 
     content_type = _field(classification, "content_type")
     qa_pairs = _field(qa_form, "qa_pairs", []) or []
@@ -938,6 +981,12 @@ async def app_main() -> None:
     # below so the tenacity `before_sleep` hook in `extraction.py` bumps it
     # on each Anthropic-503 retry; value is read at flow-end webhook emit.
     flow_retry_counter = _FlowRetryCounter()
+    # Inv-17 stage-count substrate: counter is bound via `bind_stage_counter`
+    # below so `ingest_file` bumps `"embedding"` each time it produces a
+    # vector; its value is folded into `stage_counts["embedding"]` at flow-end
+    # webhook emit. Closes the ID-49.2 gap where `stage_counts["embedding"]`
+    # was initialised to 0 (via `_empty_stage_counts()`) but never incremented.
+    flow_stage_counter = _FlowStageCounter()
 
     # Flow-start emission: `retry_count` is omitted (always 0 at flow start;
     # emitting 0 would suggest observability is present when it is not yet).
@@ -1001,18 +1050,23 @@ async def app_main() -> None:
         # exposes the
         # per-flow retry counter that the tenacity `before_sleep` hook in
         # `extraction.py:_anthropic_retry` bumps on each Anthropic-503 retry.
+        # `bind_stage_counter` (Inv-17) exposes the per-flow embedding counter
+        # that `ingest_file` bumps once per produced vector. All three bindings
+        # MUST wrap `mount_each` so the per-item `ingest_file` components run
+        # inside the contextvar scope and their bumps reach the bound counters.
         async with bind_flow_meta(op_id=run_op_id, content_items_id=None):
             async with bind_retry_counter(flow_retry_counter):
-                handle = await coco.mount_each(
-                    ingest_file,
-                    source.items(),
-                    ci_target,
-                    qa_target,
-                    sd_target,
-                )
-                # Wait until every per-item component has processed (cold run)
-                # so the rollup webhook below reflects a settled state.
-                await handle.ready()
+                async with bind_stage_counter(flow_stage_counter):
+                    handle = await coco.mount_each(
+                        ingest_file,
+                        source.items(),
+                        ci_target,
+                        qa_target,
+                        sd_target,
+                    )
+                    # Wait until every per-item component has processed (cold
+                    # run) so the rollup webhook below reflects a settled state.
+                    await handle.ready()
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
         # `ingest_file` now computes a text-embedding-3-large vector(1024) from
@@ -1070,6 +1124,12 @@ async def app_main() -> None:
     finally:
         # NOTE: the asyncpg pool is NOT created/closed here — it is provisioned
         # env-scope by `kh_pipeline_lifespan` (28.22) and closed on App teardown.
+        # Inv-17: fold the flow-scope embedding counter back into
+        # `stage_counts["embedding"]` so the terminal webhook surfaces the real
+        # count (the counter was bumped per produced vector inside the
+        # `bind_stage_counter` scope above). Done in `finally` so partial-run
+        # failures still report the embeddings that DID land before the failure.
+        stage_counts["embedding"] = flow_stage_counter.get("embedding")
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
         await _emit_pipeline_run_webhook(

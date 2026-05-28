@@ -145,3 +145,56 @@ async def bind_retry_counter(
 def current_retry_counter() -> RetryCounterProtocol | None:
     """Return the currently-bound retry counter, or None if no binding."""
     return _retry_counter_var.get()
+
+
+# Stage-counter binding (ID-49.4 — Inv-17 embedding-stage observability).
+#
+# `app_main()` aggregates per-stage counts at flow scope (cocoindex 1.0.3
+# exposes no per-stage completion callbacks — RESEARCH §R7), but the
+# per-item `ingest_file` component runs inside `mount_each` with no direct
+# access to `app_main`'s local `stage_counts` dict. This is the SAME
+# constraint the retry counter solved: route a flow-scope-bound counter
+# through `flow_context` so `ingest_file` can bump it without a
+# `flow.py → ingest_file` argument-threading cycle. `app_main` reads the
+# bound counter back at webhook-emit and folds it into `stage_counts`.
+#
+# Scoped to the EMBEDDING stage at v1 (Inv-17 closure for the gap inherited
+# from ID-49.2 — `stage_counts['embedding']` was initialised to 0 and never
+# incremented). The protocol is stage-keyed so the same substrate can carry
+# additional stages (e.g. binary_conversion) if the broader observability
+# gap — the test-only `_record_extraction_success` helper — is closed later
+# (see the ID-49.4 journal OQ + backlog ID-158 / ID-162).
+
+
+class StageCounterProtocol(Protocol):
+    """Structural type any per-flow stage counter must satisfy.
+
+    `_FlowStageCounter` in `flow.py` is the production implementation;
+    tests supply lightweight stand-ins. Keys are canonical stage names
+    (e.g. `"embedding"`) matching `_empty_stage_counts()`.
+    """
+
+    def increment(self, stage: str) -> None: ...
+    def get(self, stage: str) -> int: ...
+
+
+_stage_counter_var: contextvars.ContextVar[StageCounterProtocol | None] = (
+    contextvars.ContextVar("_kh_flow_stage_counter_var", default=None)
+)
+
+
+@asynccontextmanager
+async def bind_stage_counter(
+    counter: StageCounterProtocol,
+) -> AsyncIterator[StageCounterProtocol]:
+    """Bind a stage counter for the duration of the wrapped async block."""
+    token = _stage_counter_var.set(counter)
+    try:
+        yield counter
+    finally:
+        _stage_counter_var.reset(token)
+
+
+def current_stage_counter() -> StageCounterProtocol | None:
+    """Return the currently-bound stage counter, or None if no binding."""
+    return _stage_counter_var.get()
