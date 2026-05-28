@@ -15,8 +15,8 @@
  * guarded by `scripts/tests/test_cocoindex_extraction.py::TestFormTypeParity`
  * (frozenset loaded from snapshot vs snapshot dict).
  *
- * Spec: `docs/specs/form-extraction/TECH.md` §2.6b;
- * `docs/specs/form-extraction/PLAN.md` Phase 1 / {52.6}.
+ * Spec: `docs/specs/id-52-form-extraction/TECH.md` §2.6b;
+ * `docs/specs/id-52-form-extraction/PLAN.md` Phase 1 / {52.6}.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';

@@ -1,5 +1,5 @@
 -- ID-52 Migration M1 — form-extraction schema additions + CHECK widening
--- Spec: docs/specs/form-extraction/TECH.md §2.6 M1
+-- Spec: docs/specs/id-52-form-extraction/TECH.md §2.6 M1
 -- Maps to PRODUCT: Inv-1 (CV lockstep), Inv-7 (form-level metadata persistence),
 -- Inv-10 (mandatory column), Inv-14 (reference URLs column),
 -- Inv-5 (resolution-failure status surfacing via _emit_stage_error_log).

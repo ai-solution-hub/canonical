@@ -8,7 +8,7 @@
  * by downstream consumers.
  *
  * Per-layer relaxation (ratified S275 OQ-52-WAVE-1-A Option 3,
- * `docs/specs/form-extraction/TECH.md` §2.6c): Layer-5 KG-entity CVs
+ * `docs/specs/id-52-form-extraction/TECH.md` §2.6c): Layer-5 KG-entity CVs
  * (e.g. `q_a_pair`) admit no `baseline_values` plus three optional
  * declarative keys (`related_ontology`, `source_of_truth`, `last_updated`).
  * Layer-1..4 + 6 retain the wp6 D1 invariants unchanged: `baseline_values`
@@ -16,7 +16,7 @@
  *
  * Source-of-truth contract: `docs/specs/wp6-ontology-harness/TECH.md` §6
  * (verbatim) plus `docs/plans/phase-0-investigation/phase-b-prerequisite-1-onthology-pipeline-feedback-investigation.md` §6.3
- * (canonical frontmatter shape), and `docs/specs/form-extraction/TECH.md`
+ * (canonical frontmatter shape), and `docs/specs/id-52-form-extraction/TECH.md`
  * §2.6c (Layer-5 KG-entity relaxation).
  */
 import { z } from 'zod';
