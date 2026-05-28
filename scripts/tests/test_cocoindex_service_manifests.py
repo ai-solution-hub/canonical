@@ -29,6 +29,10 @@ so a future edit that drops the env var on one tenant/env but not the others
 fails loudly. It does NOT boot the engine — the db_path-resolution behaviour
 of cocoindex itself is covered by the local-verification check recorded in the
 ID-49.9 journal; this guard is purely about the deployed manifest shape.
+
+Note: the kpf-cocoindex tenant (staging-kpf-cocoindex.yaml /
+prod-kpf-cocoindex.yaml) was deprecated and its manifests deleted at S274
+(commit aec96058), so this guard now covers the example-client tenant only.
 """
 
 from __future__ import annotations
@@ -43,10 +47,10 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 MANIFEST_DIR = REPO_ROOT / "cloudrun" / "services"
 
 COCOINDEX_MANIFESTS = [
+    # kpf-cocoindex manifests were deleted at S274 (commit aec96058); the example-client
+    # tenant is the only cocoindex sidecar deployed across staging + prod.
     "staging-example-client-cocoindex.yaml",
-    "staging-kpf-cocoindex.yaml",
     "prod-example-client-cocoindex.yaml",
-    "prod-kpf-cocoindex.yaml",
 ]
 
 
