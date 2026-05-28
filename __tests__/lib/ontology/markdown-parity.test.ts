@@ -143,7 +143,11 @@ describe('Markdown Ontology Parity', () => {
   it('each baseline_values key appears once within its CV', () => {
     const errors: string[] = [];
     for (const cv of cvs) {
-      const keys = cv.baseline_values.map((bv) => bv.key);
+      // Layer-5 KG-entity CVs (e.g. `q_a_pair`) have no `baseline_values`
+      // — schema admits absence (form-extraction TECH §2.6c). The
+      // duplicate-key check is meaningful only for CVs with baseline_values
+      // populated; `?? []` makes Layer-5 a no-op rather than a TypeError.
+      const keys = (cv.baseline_values ?? []).map((bv) => bv.key);
       const seen = new Set<string>();
       const duplicates: string[] = [];
       for (const key of keys) {
