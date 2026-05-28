@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pdfplumber
 import pytest
+from docx import Document
 
+from scripts.cocoindex_pipeline.form_extractors.docx import extract as docx_extract
 from scripts.cocoindex_pipeline.form_extractors.pdf import extract as pdf_extract
 from scripts.cocoindex_pipeline.form_extractors.shared import (
     ExtractedField,
@@ -858,3 +860,249 @@ class TestXlsxDedupScope:
             "4.1 / 4.2 'Overall assessment of …' questions missing — "
             "TECH §2.3 regression (over-collapsed two distinct questions)"
         )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# DOCX reader — Charnwood ``ITT Services.docx`` (PLAN §{52.11}).
+# 1908 paragraphs + 8 tables; the question source is BOTH the prose
+# (placeholder spans inside authored paragraphs) AND the tables
+# (authored Q/A + placeholder grids).
+# ──────────────────────────────────────────────────────────────────────────
+
+_CHARNWOOD_DOCX_PATH = _FIXTURE_DIR / "itt-services-charnwood.docx"
+
+
+@pytest.fixture(scope="module")
+def charnwood_docx_bytes() -> bytes:
+    """Raw bytes for the Charnwood DOCX fixture (real corpus file)."""
+    assert _CHARNWOOD_DOCX_PATH.exists(), (
+        f"corpus fixture missing — {_CHARNWOOD_DOCX_PATH} should symlink to "
+        f"docs/testing/test-data/templates/itt-services-charnwood/"
+        f"ITT Services.docx"
+    )
+    return _CHARNWOOD_DOCX_PATH.read_bytes()
+
+
+@pytest.fixture(scope="module")
+def charnwood_form(charnwood_docx_bytes: bytes) -> ExtractedForm:
+    """Module-scoped extraction so the pandoc + python-docx walk runs
+    once across the assertion bundle below (the Charnwood file has
+    unaccepted tracked changes — pandoc resolves them on each open)."""
+    return asyncio.run(
+        docx_extract(charnwood_docx_bytes, "itt-services-charnwood.docx")
+    )
+
+
+class TestDocxFixtureBaseline:
+    """Sanity-check the corpus shape the spec was written against."""
+
+    def test_charnwood_raw_para_and_table_counts(
+        self, charnwood_docx_bytes: bytes
+    ) -> None:
+        """PLAN §{52.11} acceptance line — 1908 paragraphs + 8 tables.
+
+        Verifies the **raw** counts (no pandoc clean-up): the
+        extractor operates against these bytes, and the spec count
+        is the single point of reference for "the question source"
+        the extractor must cover.
+        """
+        import io
+
+        raw_doc = Document(io.BytesIO(charnwood_docx_bytes))
+        assert len(raw_doc.paragraphs) == 1908, (
+            f"raw paragraph count drifted from spec baseline (PLAN §{{52.11}}): "
+            f"{len(raw_doc.paragraphs)} vs 1908"
+        )
+        assert len(raw_doc.tables) == 8, (
+            f"raw table count drifted from spec baseline (PLAN §{{52.11}}): "
+            f"{len(raw_doc.tables)} vs 8"
+        )
+
+
+class TestDocxParasAndTablesBoth:
+    """PRODUCT Inv-8 + Inv-12 — the extractor walks BOTH paragraphs AND
+    tables, recording fields from each in reading-order ``sequence``."""
+
+    def test_fields_originate_from_both_paragraphs_and_tables(
+        self, charnwood_form: ExtractedForm
+    ) -> None:
+        """At least one field must come from a paragraph (table_index
+        is None) AND at least one must come from a table (table_index
+        is an integer). If only one side fires the extractor is
+        dropping content the spec demands."""
+        paragraph_sourced = [
+            f for f in charnwood_form.fields if f.table_index is None
+        ]
+        table_sourced = [
+            f for f in charnwood_form.fields if f.table_index is not None
+        ]
+        assert paragraph_sourced, (
+            "no paragraph-sourced fields — the extractor missed the "
+            "1908-paragraph prose-side question source (PLAN §{52.11} "
+            "Inv-8 paras+tables)"
+        )
+        assert table_sourced, (
+            "no table-sourced fields — the extractor missed the 8-table "
+            "structural question source (PLAN §{52.11} Inv-8 paras+tables)"
+        )
+
+    def test_sequence_is_strictly_increasing(
+        self, charnwood_form: ExtractedForm
+    ) -> None:
+        """Inv-12 — ``sequence`` must be the reading-order position
+        across the WHOLE form (paragraphs and tables interleaved)."""
+        seqs = [f.sequence for f in charnwood_form.fields]
+        assert seqs == sorted(seqs), "sequence not in reading order"
+        assert len(set(seqs)) == len(seqs), "duplicate sequence values"
+
+
+class TestDocxPlaceholderGrid:
+    """PRODUCT Inv-9 — ``Insert question title`` grid rows surface as
+    placeholders, not authored questions.
+
+    Charnwood ``ITT Services.docx`` table 3 is a 7-row 2-col grid:
+
+    | Insert question title | Insert % |
+    | Insert questions title | Insert % |
+    | ... |
+
+    Every first-column cell is placeholder text; the spec demands
+    ``field_type='placeholder'``, ``placeholder_text`` populated,
+    ``question_text=None`` per Inv-9.
+    """
+
+    def test_placeholder_grid_rows_have_no_authored_question(
+        self, charnwood_form: ExtractedForm
+    ) -> None:
+        placeholder_grid_fields = [
+            f
+            for f in charnwood_form.fields
+            if f.field_type == "placeholder"
+            and f.placeholder_text
+            and "Insert question" in f.placeholder_text
+        ]
+        assert placeholder_grid_fields, (
+            "no 'Insert question title' grid rows extracted — Inv-9 "
+            "placeholder-grid regression (Charnwood table 3)"
+        )
+        for f in placeholder_grid_fields:
+            assert f.question_text is None, (
+                f"placeholder-grid row carried question_text={f.question_text!r} — "
+                f"Inv-9 violation (placeholder grid must not synthesise "
+                f"an authored question)"
+            )
+            assert f.placeholder_text is not None
+            assert f.field_type == "placeholder"
+            assert f.table_index is not None, (
+                "placeholder-grid row must carry table_index — Inv-8"
+            )
+
+
+class TestDocxAuthoredQuestionsPreserved:
+    """PRODUCT Inv-9 — authored questions with empty answer cells must
+    be preserved (not dropped because the answer slot is blank)."""
+
+    def test_authored_paragraph_question_text_populated(
+        self, charnwood_form: ExtractedForm
+    ) -> None:
+        """Paragraph-sourced placeholder fields must record the full
+        paragraph as ``question_text`` (so the filler has context) and
+        the placeholder span as ``placeholder_text``."""
+        paragraph_sourced = [
+            f
+            for f in charnwood_form.fields
+            if f.table_index is None
+            and f.question_text
+            and f.placeholder_text
+        ]
+        assert paragraph_sourced, (
+            "no paragraph fields carrying both authored prose + "
+            "placeholder span — Inv-9 paragraph-side regression"
+        )
+        # E-Mail: [Insert departmental email address] is in the
+        # document header — confirm the placeholder span survives.
+        email_field = [
+            f
+            for f in paragraph_sourced
+            if f.placeholder_text
+            and "departmental email" in f.placeholder_text.lower()
+        ]
+        assert email_field, (
+            "expected '[Insert departmental email address]' placeholder "
+            "from the document header — Inv-9 paragraph-side regression"
+        )
+
+
+class TestDocxWordLimit:
+    """PRODUCT Inv-11 — word limit extracted via the reused
+    ``_extract_word_limit`` helper when the form expresses one."""
+
+    def test_extracted_word_limit_uses_reused_helper(self) -> None:
+        """Direct unit check of the reused helper — ensures the import
+        path delivers the same regex as the prior art."""
+        from scripts.cocoindex_pipeline.form_extractors.docx import (
+            _extract_word_limit as docx_extract_word_limit,
+        )
+
+        assert docx_extract_word_limit("Max 500 words") == 500
+        assert docx_extract_word_limit("(no more than 250 words)") == 250
+        assert docx_extract_word_limit("no limit stated") is None
+
+
+class TestDocxSectionFromHeading:
+    """PRODUCT Inv-12 — section name inherits from the most recent
+    Heading-styled paragraph above the field.
+
+    The reused ``_extract_section_headings`` helper maps tables to
+    headings; our wrapper inlines that walk so paragraphs share the
+    same streaming-section state.
+    """
+
+    def test_some_fields_carry_section_name(
+        self, charnwood_form: ExtractedForm
+    ) -> None:
+        """At least some fields must carry a non-None ``section_name``
+        — the Charnwood document uses Heading-styled paragraphs (e.g.
+        ``SECTION A Company Details``)."""
+        with_section = [
+            f for f in charnwood_form.fields if f.section_name
+        ]
+        assert with_section, (
+            "no fields carry section_name — Inv-12 regression (heading "
+            "tracking broken)"
+        )
+
+
+class TestDocxMetadata:
+    """``FormMetadata`` shape matches the PDF + XLSX readers."""
+
+    def test_form_format_is_docx(self, charnwood_form: ExtractedForm) -> None:
+        assert charnwood_form.form_metadata.form_format == "docx"
+
+    def test_form_title_falls_back_to_filename(
+        self, charnwood_form: ExtractedForm
+    ) -> None:
+        """When no title-styled paragraph is detected, the wrapper
+        falls back to the supplied filename (mirrors the PDF reader's
+        title fallback)."""
+        assert charnwood_form.form_metadata.form_title == (
+            "itt-services-charnwood.docx"
+        )
+
+
+class TestDocxFailureSurfacing:
+    """PRODUCT Inv-17 — corrupt or empty input raises
+    ``FormExtractionError``; never silently returns an empty
+    ``ExtractedForm``."""
+
+    def test_corrupt_bytes_raises_form_extraction_error(self) -> None:
+        with pytest.raises(FormExtractionError) as excinfo:
+            asyncio.run(docx_extract(b"not a real docx", "corrupt.docx"))
+        assert excinfo.value.rel_path == "corrupt.docx"
+        assert excinfo.value.reason  # non-empty machine-readable token
+
+    def test_empty_bytes_raises_form_extraction_error(self) -> None:
+        with pytest.raises(FormExtractionError) as excinfo:
+            asyncio.run(docx_extract(b"", "empty.docx"))
+        assert excinfo.value.rel_path == "empty.docx"
+        assert excinfo.value.reason == "empty_docx"
