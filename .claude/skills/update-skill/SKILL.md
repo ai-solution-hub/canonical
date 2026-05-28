@@ -3,6 +3,22 @@ name: update-skill
 description: Create or update skills by generating, editing, or refining SKILL.md files in this repository. Use when authoring new skills or revising the structure, frontmatter, or guidance for existing ones.
 ---
 
+## Step 0 — Mark sentinel (REQUIRED before any skill-file edit)
+
+Before reading further or editing anything under `.claude/skills/` or
+`.claude/agents/`, run this Bash command via the Bash tool:
+
+```bash
+mkdir -p "$HOME/.claude/.sentinels" && touch "$HOME/.claude/.sentinels/update-skill.touch"
+```
+
+The PreToolUse hook `sentinel-gated-agents-skills-edit-guard.sh` (ID-48.11)
+blocks Write/Edit/MultiEdit to `.claude/(agents|skills)/` unless one of the
+authoring-skill sentinels exists with mtime < 10 min. Touching the file
+here authorises subsequent edits within this skill invocation. The sentinel
+expires after 10 minutes — re-invoke this skill if a longer session is
+needed.
+
 # update-skill
 
 This guide provides instructions for creating or updating skills in this repository. It covers the required structure, frontmatter, and best practices for skills.

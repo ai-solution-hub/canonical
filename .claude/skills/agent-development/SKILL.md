@@ -4,6 +4,22 @@ description: This skill should be used when the user asks to "create an agent", 
 version: 0.1.0
 ---
 
+## Step 0 — Mark sentinel (REQUIRED before any agent-file edit)
+
+Before reading further or editing anything under `.claude/agents/` or
+`.claude/skills/`, run this Bash command via the Bash tool:
+
+```bash
+mkdir -p "$HOME/.claude/.sentinels" && touch "$HOME/.claude/.sentinels/agent-development.touch"
+```
+
+The PreToolUse hook `sentinel-gated-agents-skills-edit-guard.sh` (ID-48.11)
+blocks Write/Edit/MultiEdit to `.claude/(agents|skills)/` unless one of the
+authoring-skill sentinels exists with mtime < 10 min. Touching the file
+here authorises subsequent edits within this skill invocation. The sentinel
+expires after 10 minutes — re-invoke this skill if a longer session is
+needed.
+
 # Agent Development for Claude Code Plugins
 
 ## Overview
