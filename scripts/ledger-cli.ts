@@ -307,7 +307,8 @@ type RecordInputResult =
  *
  * Returns the parsed record object (NOT yet schema-validated — the vendored
  * `insertRecord`/`applyPatches` primitives own that). `--depends` is split on
- * commas into a numeric array (subtask `dependencies` are `number[]`). When no
+ * commas into a `string[]` always; per-record-kind coercion (e.g. `number[]`
+ * for `subtask.dependencies`) happens at the call site (ID-35.29). When no
  * input source is supplied at all, returns `missing-args`.
  */
 function readRecordInput(args: ParsedArgs): RecordInputResult {
@@ -379,7 +380,9 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
     // for `subtask.dependencies: number[]` but wrong for the other three:
     //   - task.dependencies     : string[]   (open-task)
     //   - item.dependencies     : string[]   (create-backlog)
-    //   - theme.dependencies    : (no field) (create-theme — ignored downstream)
+    //   - theme.dependencies    : (no field) (create-theme — schema-error on
+    //                                          insert, as expected for an
+    //                                          unsupported field)
     // A digit-only token like `--depends 6,7` previously landed as `[6, 7]` and
     // tripped `schema-error` ("expected string, received number") on open-task
     // and create-backlog. Mirror the {35.28} pattern: keep the parser
