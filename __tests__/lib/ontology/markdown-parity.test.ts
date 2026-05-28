@@ -174,4 +174,91 @@ describe('Markdown Ontology Parity', () => {
     expect(fm.data.cv_name).toBe('content_type');
     expect(cvs.length).toBeGreaterThanOrEqual(29);
   });
+
+  // Per-layer relaxation cases (form-extraction TECH §2.6c — Layer-5
+  // KG-entity admits no `baseline_values` + three optional declarative keys;
+  // Layer-1..4 + 6 retain the wp6 D1 R-A invariant). Cases (a)/(b)/(c) use
+  // constructed fixtures so they pass standalone — the full integrated
+  // parity over the live `32-q-a-pair.md` requires the sibling {52.5}
+  // status-flip and is exercised by the existing `every CV file parses`
+  // case once both Subtasks land.
+  describe('per-layer relaxation (Layer-5 KG-entity)', () => {
+    it('(a) accepts a Layer-5 fixture with no baseline_values and the three optional declarative keys', () => {
+      const layer5Fixture = {
+        cv_name: 'q_a_pair',
+        layer: 5 as const,
+        provenance_model: 'hybrid' as const,
+        client_extensible: false,
+        editable_via: 'database_migration' as const,
+        core_seed_path:
+          'supabase/migrations/20260520225456_t6_q_a_pairs_full_schema.sql',
+        status: 'active' as const,
+        related_layers: [1 as const, 2 as const],
+        related_ontology: ['22-origin-kind.md', '23-extractor-kind.md'],
+        source_of_truth: [
+          'docs/specs/canonical-pipeline-implementation-plan/PLAN.md §4.6',
+        ],
+        last_updated: '21/05/2026',
+      };
+      const result = OntologyCVSchema.safeParse(layer5Fixture);
+      expect(
+        result.success,
+        result.success
+          ? ''
+          : result.error.issues
+              .map((i) => `${i.path.join('.')}: ${i.message}`)
+              .join('\n'),
+      ).toBe(true);
+    });
+
+    it('(b) rejects a Layer-1 fixture missing baseline_values', () => {
+      const layer1MissingBaseline = {
+        cv_name: 'malformed_layer_1',
+        layer: 1 as const,
+        provenance_model: 'core' as const,
+        client_extensible: false,
+        editable_via: 'seed_data' as const,
+        core_seed_path: null,
+        status: 'active' as const,
+        related_layers: [],
+        // baseline_values intentionally omitted
+      };
+      const result = OntologyCVSchema.safeParse(layer1MissingBaseline);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(' | ');
+        expect(messages).toContain(
+          'baseline_values required for non-Layer-5 CVs',
+        );
+      }
+    });
+
+    it('(c) rejects a Layer-1 fixture with a stray source_of_truth key as Layer-5-only', () => {
+      const layer1WithStraySourceOfTruth = {
+        cv_name: 'malformed_layer_1_stray_key',
+        layer: 1 as const,
+        provenance_model: 'core' as const,
+        client_extensible: false,
+        editable_via: 'seed_data' as const,
+        core_seed_path: null,
+        status: 'active' as const,
+        baseline_values: [
+          {
+            key: 'sample',
+            label: 'Sample',
+            provenance: 'core' as const,
+          },
+        ],
+        related_layers: [],
+        source_of_truth: ['some/spec.md §1'],
+      };
+      const result = OntologyCVSchema.safeParse(layer1WithStraySourceOfTruth);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(' | ');
+        expect(messages).toContain('Layer-5-only');
+        expect(messages).toContain('source_of_truth');
+      }
+    });
+  });
 });
