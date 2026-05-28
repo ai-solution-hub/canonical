@@ -202,6 +202,33 @@ a carry-forward (see "Known limitations") — the upstream version reads
 
 ---
 
+## Cross-worktree cherry-pick aliasing (S274 — OQ-S274-1)
+
+When integrating executor commits from a sub-orchestrator's worktree back to
+the sub-O branch (or from a sub-O branch back to main), `git cherry-pick
+<SHA>` can **silently no-op** with `"nothing to commit; branch X"` if the
+shell's CWD has drifted into a worktree where the SHA already lives at HEAD.
+Observed S274 in T-48 integration (cherry-pick of 48.12 from
+`worktree-agent-a07722bc0bec3e949` onto `cmux-worker-subo-id-48-f63aba0a`).
+Probabilistic — same operation succeeded earlier the same session.
+
+**Workaround — use `format-patch` + `am`:**
+
+```bash
+# Instead of `git cherry-pick <executor-sha>`
+git -C <sub-o-or-target-worktree> format-patch -1 <executor-sha> --stdout | \
+  git -C <sub-o-or-target-worktree> am
+```
+
+`format-patch` + `am` is CWD-immune: the source SHA is resolved against the
+git object store (shared across worktrees) and the patch is applied to the
+target worktree's HEAD. The cherry-pick alias bypass does not apply.
+
+**When to reach for it:** any integration step where the source SHA may
+already live at HEAD in a sibling worktree (executor → sub-O, sub-O → main,
+or any agent-isolation worktree integration). The cost is one extra pipe; the
+benefit is deterministic apply.
+
 ## Worktree isolation
 
 The skill creates one worktree per worker under `.claude/worktrees/`. All the
