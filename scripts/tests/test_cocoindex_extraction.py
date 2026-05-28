@@ -41,6 +41,7 @@ from scripts.cocoindex_pipeline.extraction import (
     QAFormExtraction,
     QAPair,
     _VALID_CONTENT_TYPES,
+    _VALID_FORM_TYPES,
     classify_pydantic_error,
     normalise_entity_span,
     stamp_extraction_base,
@@ -682,7 +683,6 @@ class TestNormaliseEntitySpan:
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _SCHEMAS_TS_PATH = _REPO_ROOT / "lib" / "validation" / "schemas.ts"
-_FORM_TYPE_MD_PATH = _REPO_ROOT / "docs" / "ontology" / "26-form-type.md"
 
 
 def _extract_ts_string_array(source: str, var_name: str) -> list[str]:
@@ -703,39 +703,6 @@ def _extract_ts_string_array(source: str, var_name: str) -> list[str]:
     body = match.group(1)
     # Extract single-quoted strings
     return re.findall(r"'([^']+)'", body)
-
-
-def _extract_form_type_md_keys(source: str) -> list[str]:
-    """Extract the `form_type` keys from the markdown table at lines 65-79.
-
-    Markdown table shape:
-        | key | label | provenance |
-        | --- | --- | --- |
-        | bid | Bid | core |
-        ...
-
-    Returns the keys in document order.
-    """
-    keys: list[str] = []
-    in_table = False
-    for line in source.splitlines():
-        stripped = line.strip()
-        # Skip empty lines + section headers
-        if not stripped.startswith("|"):
-            if in_table:
-                # End of the table block
-                break
-            continue
-        # Skip header + separator rows
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
-        if not cells or not cells[0]:
-            continue
-        if cells[0] == "key" or set(cells[0]) <= {"-"}:
-            in_table = True
-            continue
-        if in_table:
-            keys.append(cells[0])
-    return keys
 
 
 class TestEntityTypeParity:
@@ -770,38 +737,56 @@ class TestEntityTypeParity:
 
 
 class TestFormTypeParity:
-    """Q-EX2 §5.4 — Python Literal vs markdown ontology register."""
+    """ID-52.6 / TECH §2.6b — `form_type` triple-source lockstep.
 
-    def test_python_literal_matches_ontology_markdown(self) -> None:
-        # Python source of truth
-        python_form_types = [
-            "bid",
-            "rfp",
-            "pqq",
-            "itt",
-            "tender",
-            "framework",
-            "dps",
-            "gcloud",
-            "checklist",
-            "questionnaire",
-            "sales_proposal_template",
-        ]
-        # Markdown source of truth — 26-form-type.md lines 65-79
-        md_source = _FORM_TYPE_MD_PATH.read_text()
-        md_form_types = _extract_form_type_md_keys(md_source)
-        assert python_form_types == md_form_types, (
-            f"form_type parity drift between Python FormMetadata Literal "
-            f"and docs/ontology/26-form-type.md. "
-            f"Python: {python_form_types}. Markdown: {md_form_types}"
-        )
+    Python no longer carries a hardcoded Literal — `FormMetadata.form_type`
+    is validated at runtime against `_VALID_FORM_TYPES`, which is loaded from
+    `scripts/tests/fixtures/taxonomy_snapshot.json:form_types` (the same
+    pattern as `_VALID_CONTENT_TYPES`). These tests are the Python half of
+    the lockstep; the TS half is
+    `__tests__/lib/ontology/form-type-parity.test.ts`, which asserts the
+    snapshot keys match `docs/ontology/26-form-type.md` baseline_values.
+    """
 
-    def test_exactly_11_values(self) -> None:
-        """Per Q-EX2 §2.1 — exactly 11 form_type values
-        (8 procurement + 3 non-procurement)."""
-        md_source = _FORM_TYPE_MD_PATH.read_text()
-        md_form_types = _extract_form_type_md_keys(md_source)
-        assert len(md_form_types) == 11
+    def test_loaded_set_matches_snapshot_json(
+        self, taxonomy_from_snapshot: dict
+    ) -> None:
+        """The frozenset built at module load must equal the snapshot keys."""
+        snapshot_keys = {row["key"] for row in taxonomy_from_snapshot["form_types"]}
+        assert _VALID_FORM_TYPES == snapshot_keys
+
+    def test_snapshot_form_types_non_empty_and_bounded(
+        self, taxonomy_from_snapshot: dict
+    ) -> None:
+        """Sanity guard — the snapshot is non-empty + reasonable size.
+
+        The current canonical list (post 3-tier split, S275) is 8 values; the
+        wider 1-50 bound tolerates future hybrid client extensions without
+        churning this test on every legitimate baseline change."""
+        form_types = taxonomy_from_snapshot["form_types"]
+        assert isinstance(form_types, list)
+        n = len(form_types)
+        assert 1 <= n <= 50
+
+    def test_unknown_form_type_fails_validation(
+        self, base_fields: dict
+    ) -> None:
+        """A form_type value not in the snapshot must raise ValidationError
+        with error_class=invalid_enum (mirrors content_type behaviour)."""
+        with pytest.raises(ValidationError) as exc_info:
+            FormMetadata(
+                form_type="invented_junk_form_type",
+                form_format="pdf",
+            )
+        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+    def test_all_canonical_form_types_pass(
+        self, taxonomy_from_snapshot: dict
+    ) -> None:
+        """Every key in the snapshot must validate cleanly."""
+        for row in taxonomy_from_snapshot["form_types"]:
+            meta = FormMetadata(form_type=row["key"], form_format="pdf")
+            assert meta.form_type == row["key"]
 
 
 class TestExpectedResponseKindParity:

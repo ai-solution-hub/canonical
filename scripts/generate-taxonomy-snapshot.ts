@@ -73,6 +73,20 @@ async function main() {
     process.exit(1);
   }
 
+  // Fetch live form_types rows (ID-52.6 / TECH §2.6b — triple-source
+  // lockstep). The Python pipeline reads `form_types` from this snapshot via
+  // `FormMetadata.form_type`'s field_validator, mirroring the
+  // `_load_canonical_content_types` pattern.
+  const { data: formTypes, error: formTypeError } = await supabase
+    .from('form_types')
+    .select('key, label')
+    .order('key', { ascending: true });
+
+  if (formTypeError) {
+    console.error('Failed to fetch form_types:', formTypeError.message);
+    process.exit(1);
+  }
+
   // Fetch CHECK constraint values for content_types and platforms
   const { data: checkConstraints } = await supabase
     .rpc('get_check_constraint_values', undefined)
@@ -140,6 +154,10 @@ async function main() {
     })),
     content_types: contentTypes,
     platforms: platforms,
+    form_types: (formTypes ?? []).map((row) => ({
+      key: row.key,
+      label: row.label,
+    })),
   };
 
   writeFileSync(OUTPUT_PATH, JSON.stringify(snapshot, null, 2) + '\n', 'utf8');
@@ -162,6 +180,7 @@ async function main() {
   console.log(`  Subtopics: ${snapshot.subtopics.length}`);
   console.log(`  Content types: ${snapshot.content_types.length}`);
   console.log(`  Platforms: ${snapshot.platforms.length}`);
+  console.log(`  Form types: ${snapshot.form_types.length}`);
 }
 
 main().catch((err) => {

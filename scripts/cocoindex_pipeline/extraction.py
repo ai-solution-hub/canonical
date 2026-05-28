@@ -13,8 +13,10 @@ Hosts:
 References:
 - `docs/specs/cocoindex-extraction-contract/TECH.md` §2.1, §2.2, §3.2, §4.1.
 - `lib/validation/schemas.ts:1506-1519` — `VALID_ENTITY_TYPES` (12 values).
-- `docs/ontology/26-form-type.md` lines 65-79 — 11-value `form_type` CV.
-- `scripts/tests/fixtures/taxonomy_snapshot.json` — canonical `content_types`.
+- `docs/ontology/26-form-type.md` — `form_type` CV (markdown side of the
+  triple-source lockstep per ID-52.6 / TECH §2.6b).
+- `scripts/tests/fixtures/taxonomy_snapshot.json` — canonical `content_types`
+  + `form_types` arrays (Python consumer of the triple-source lockstep).
 """
 
 from __future__ import annotations
@@ -89,6 +91,42 @@ def _load_canonical_content_types() -> frozenset[str]:
 _VALID_CONTENT_TYPES: frozenset[str] = _load_canonical_content_types()
 
 
+def _load_canonical_form_types() -> frozenset[str]:
+    """Read the canonical form_types keys from the taxonomy snapshot.
+
+    Mirrors `_load_canonical_content_types` per ID-52.6 / TECH §2.6b
+    (`form_type` triple-source lockstep). The snapshot is regenerated from
+    the live `form_types` Postgres table by `bun run sync:taxonomy`; the TS
+    side is guarded by `__tests__/lib/ontology/form-type-parity.test.ts`.
+    """
+    with _TAXONOMY_SNAPSHOT_PATH.open() as fh:
+        snapshot = json.load(fh)
+    form_types = snapshot.get("form_types")
+    if not isinstance(form_types, list) or not form_types:
+        raise ValueError(
+            f"taxonomy_snapshot.json missing 'form_types' array — "
+            f"path={_TAXONOMY_SNAPSHOT_PATH}"
+        )
+    keys: list[str] = []
+    for row in form_types:
+        if not isinstance(row, dict):
+            raise ValueError(
+                f"taxonomy_snapshot.json form_types entry must be an object "
+                f"with 'key' + 'label' — got {row!r}"
+            )
+        key = row.get("key")
+        if not isinstance(key, str) or not key:
+            raise ValueError(
+                f"taxonomy_snapshot.json form_types entry missing string "
+                f"'key' — got {row!r}"
+            )
+        keys.append(key)
+    return frozenset(keys)
+
+
+_VALID_FORM_TYPES: frozenset[str] = _load_canonical_form_types()
+
+
 # ---------------------------------------------------------------------------
 # Pydantic shapes per Q-EX2 TECH §2.1
 # ---------------------------------------------------------------------------
@@ -121,30 +159,35 @@ class _ExtractionBase(BaseModel):
 class FormMetadata(BaseModel):
     """Block carried inside the q_a_form variant (Q-EX2 PRODUCT inv 2).
 
-    `form_type` enumerates the canonical 11-value CV per
-    `docs/ontology/26-form-type.md` lines 65-79 (8 procurement + 3 non-procurement).
+    `form_type` is validated at runtime against the canonical taxonomy
+    snapshot (`scripts/tests/fixtures/taxonomy_snapshot.json:form_types`),
+    which is regenerated from the live `form_types` Postgres table by
+    `bun run sync:taxonomy`. This mirrors the `_validate_content_type`
+    pattern on `ClassificationExtraction` and avoids a third drift-prone
+    source per ID-52.6 / TECH §2.6b (`form_type` triple-source lockstep).
     """
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
-    form_type: Literal[
-        "bid",
-        "rfp",
-        "pqq",
-        "itt",
-        "tender",
-        "framework",
-        "dps",
-        "gcloud",
-        "checklist",
-        "questionnaire",
-        "sales_proposal_template",
-    ]
+    form_type: str
     form_format: Literal["docx", "xlsx", "pdf", "html", "md"]
     form_title: str | None = None
     issuing_organisation: str | None = None
     deadline: datetime | None = None
     evaluation_methodology: str | None = None
+
+    @field_validator("form_type")
+    @classmethod
+    def _validate_form_type(cls, value: str) -> str:
+        # Pydantic surfaces this `ValueError` as a `ValidationError` with
+        # `error['type'] == 'value_error'`, mapped to `invalid_enum` in
+        # `_PYDANTIC_ERROR_TO_ERROR_CLASS` (mirrors the content_type path).
+        if value not in _VALID_FORM_TYPES:
+            raise ValueError(
+                f"form_type {value!r} not in canonical taxonomy "
+                f"(valid: {sorted(_VALID_FORM_TYPES)})"
+            )
+        return value
 
 
 class QAPair(BaseModel):
