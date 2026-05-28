@@ -6,7 +6,8 @@ Stages (flow-scope):
                                pullmd HTTP client for HTML, passthrough for markdown
   3. LLM extraction         -> Path A: @coco.fn(memo=True) extractors call anthropic
                                SDK + Pydantic TypeAdapter validation
-  4. embedding              -> TODO LiteLLMEmbedder stub
+  4. embedding              -> LiteLLMEmbedder("text-embedding-3-large",
+                               dimensions=1024) → vector(1024) (ID-49.2)
   5. entity resolution      -> TODO entity_resolution stub
   6. Postgres UPSERT        -> postgres.mount_table_target(managed_by=ManagedBy.USER)
                                for content_items, q_a_extractions, source_documents
@@ -74,9 +75,10 @@ from scripts.cocoindex_pipeline.adapters import (
 # keep extraction concerns in one module (architectural choice ratified in
 # Subtask 28.12 journal).
 #
-# Stage 4 (embedding) + Stage 5 (entity_resolution) imports are OUT OF SCOPE
-# for WP4 — they land in 28.13+. Their commented-out stubs are preserved at
-# the Stage 4/5 placeholder blocks below.
+# Stage 4 (embedding) LANDED in ID-49.2 — see `embed_content_text` +
+# `LiteLLMEmbedder` import below. Stage 5 (entity_resolution) is still OUT OF
+# SCOPE here (lands in ID-49.5, needs faiss-cpu); its placeholder block is
+# preserved at the Stage-5 marker below.
 from scripts.cocoindex_pipeline.extraction import (
     extract_classification,
     extract_entity_mentions,
@@ -554,6 +556,81 @@ def _build_db_ctx() -> "coco.ContextKey[asyncpg.Pool]":
 
 DB_CTX: coco.ContextKey[asyncpg.Pool] = _build_db_ctx()
 
+
+# ── Stage-4 embedding (ID-49.2) ──────────────────────────────────────────────
+# OQ-B REVERSAL (S272, confirmed by Liam — sequencing doc §2.5 wins over the
+# older S265 ledger text): use the CocoIndex-shipped LiteLLMEmbedder, NOT a
+# KH-owned embedder. text-embedding-3-large is natively 3072-dim; the
+# `dimensions=1024` param truncates server-side (OpenAI -3 models support it) to
+# match the `vector(1024)` content_items.embedding column.
+#
+# Invoked IMPERATIVELY: `LiteLLMEmbedder.embed(text)` is a @coco.fn(memo=True)
+# async method whose engine wrapper (`_BoundAsyncMethod.__call__`) `await`s the
+# original coroutine directly — so a plain `await embedder.embed(text)` inside
+# `ingest_file`'s body returns a numpy float32 vector with NO flow-scope
+# `.transform()` chaining (which is fictional in 1.0.3, per RESEARCH §R2/§R3).
+EMBEDDING_MODEL = "text-embedding-3-large"
+EMBEDDING_DIMENSIONS = 1024
+
+# Module-level singleton: the embedder memoises its dim probe + per-text memo
+# cache, so one shared instance per process is correct. OPENAI_API_KEY is read
+# by litellm from the environment at call time (and at schema-resolution time if
+# __coco_vector_schema__ is ever invoked).
+#
+# `LiteLLMEmbedder` is imported LAZILY (inside `_get_embedder`), NOT at module
+# top-level: `cocoindex.ops.litellm` is an optional submodule, and several flow
+# test files stub `cocoindex` as a bare MagicMock without registering the
+# `cocoindex.ops` subtree. A top-level import would break their collection while
+# the embedder is only ever needed at ingest call time. This mirrors the
+# `import_module(f"{__package__}.flow_context")` lazy-import idiom in this file.
+_EMBEDDER: object | None = None
+
+
+def _get_embedder() -> object:
+    """Return the process-wide LiteLLMEmbedder, instantiating on first use."""
+    global _EMBEDDER
+    if _EMBEDDER is None:
+        from cocoindex.ops.litellm import LiteLLMEmbedder  # noqa: PLC0415
+
+        _EMBEDDER = LiteLLMEmbedder(
+            EMBEDDING_MODEL,
+            dimensions=EMBEDDING_DIMENSIONS,
+        )
+    return _EMBEDDER
+
+
+async def embed_content_text(content_text: str) -> list[float]:
+    """Embed `content_text` into a length-1024 float vector (Stage 4).
+
+    Calls `LiteLLMEmbedder.embed(...)` imperatively and returns a plain
+    `list[float]` (the pgvector wire-format encoder on the `embedding` ColumnDef
+    serialises it for asyncpg). The returned numpy array's length is asserted to
+    be exactly `EMBEDDING_DIMENSIONS` — a contract mismatch (e.g. an embedder
+    misconfigured to its native 3072-dim) raises loudly rather than silently
+    writing a wrong-width vector that the `vector(1024)` column would reject at
+    INSERT or that would corrupt cosine search. NOT papered over with a bare
+    except (S270 landmine).
+    """
+    vector = await _get_embedder().embed(content_text)
+    values = [float(v) for v in vector]
+    if len(values) != EMBEDDING_DIMENSIONS:
+        raise ValueError(
+            f"embedding dimension mismatch: expected {EMBEDDING_DIMENSIONS}, "
+            f"got {len(values)} from model {EMBEDDING_MODEL!r}"
+        )
+    return values
+
+
+def _encode_pgvector(value: list[float]) -> str:
+    """Encode a float list into the pgvector text literal `[v1,v2,...]`.
+
+    asyncpg has no native pgvector codec; pgvector's input function accepts the
+    bracketed text form for a `vector` column, so the ColumnDef encoder converts
+    the Python list to that literal before asyncpg binds it.
+    """
+    return "[" + ",".join(repr(float(v)) for v in value) + "]"
+
+
 # ── TableSchema declarations ─────────────────────────────────────────────────
 # NOTE: content_text_hash is GENERATED ALWAYS in Postgres — OMIT from
 # TableSchema (explicit insert/update rejected with SQLSTATE 428C9 per
@@ -563,7 +640,11 @@ CONTENT_ITEMS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
         "content_text": ColumnDef(type="text", nullable=True),
-        "embedding": ColumnDef(type="vector(1024)", nullable=True),
+        "embedding": ColumnDef(
+            type="vector(1024)",
+            nullable=True,
+            encoder=_encode_pgvector,
+        ),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
         "source_document_id": ColumnDef(type="uuid", nullable=True),
         # content_text_hash GENERATED ALWAYS — OMITTED per CLAUDE.md gotcha
@@ -705,9 +786,10 @@ async def ingest_file(
 
     `op_id` is a PLAIN ROW FIELD, read from the currently-bound `FLOW_META_CTX`
     via `current_flow_meta()` — NOT the fictional `bind_target(op_id=flow['op_id'])`.
-    `content_text_hash` is OMITTED (GENERATED ALWAYS column). `embedding` is left
-    NULL at this slice — Stage-4 embedding (28.24) and per-row upsert logging
-    (28.25) are deferred and wired in later subtasks.
+    `content_text_hash` is OMITTED (GENERATED ALWAYS column). `embedding` is now
+    a real text-embedding-3-large vector(1024) computed from content_text via
+    `embed_content_text()` (Stage 4 — ID-49.2); per-row upsert logging (28.25) is
+    still deferred and wired in a later subtask.
 
     @coco.fn(memo=True): the component is skipped on unchanged source bytes, so
     `declare_row` is not re-invoked and the row's op_id retains the value from the
@@ -774,12 +856,16 @@ async def ingest_file(
         }
     )
 
-    # content_text_hash OMITTED (GENERATED ALWAYS); embedding left NULL (28.24).
+    # ── Stage 4: embedding (text-embedding-3-large → vector(1024), ID-49.2) ──
+    # Computed imperatively from the Stage-2 content_text (see embed_content_text
+    # docstring). content_text_hash OMITTED (GENERATED ALWAYS); the pgvector
+    # text-literal encoding is applied by the `embedding` ColumnDef encoder.
+    embedding = await embed_content_text(content_text)
     ci_target.declare_row(
         row={
             "id": content_item_id,
             "content_text": content_text,
-            "embedding": None,
+            "embedding": embedding,
             "source_document_id": source_document_id,
             "op_id": op_id,
         }
@@ -928,11 +1014,18 @@ async def app_main() -> None:
                 # so the rollup webhook below reflects a settled state.
                 await handle.ready()
 
-        # ── Stage 4: embedding (vector(1024)) — deferred to 28.24 ──────────
-        # `ingest_file` declares `embedding=None` today; the Stage-4 wiring
-        # (embed inside ingest_file + ci_target.declare_vector_index(...)) lands
-        # in 28.24. A corpus written with NULL embedding cannot serve vector
-        # search, so 28.24 is REQUIRED before search over the re-ingest corpus.
+        # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
+        # `ingest_file` now computes a text-embedding-3-large vector(1024) from
+        # content_text and declares it on content_items (see embed_content_text
+        # + the Stage-4 block in ingest_file). The pgvector HNSW cosine index is
+        # NOT declared here: it is migration-owned (idx_content_items_embedding,
+        # pre-squash reconciliation migration). cocoindex's
+        # `TableTarget.declare_vector_index(...)` would issue out-of-band CREATE
+        # INDEX DDL via a vector_index attachment that is NOT gated by
+        # managed_by=USER (the USER gate only suppresses table/column DDL) — that
+        # conflicts with the "DDL via Supabase CLI migrations only" rule and the
+        # row-only target contract, so the declaration route is deliberately
+        # avoided. See the ID-49.2 journal OQ.
 
         # ── Stage 5: entity resolution — deferred (needs faiss; RESEARCH §R5)─
 

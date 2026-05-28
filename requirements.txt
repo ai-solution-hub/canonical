@@ -22,7 +22,10 @@ python-docx>=1.1.2
 docxtpl>=0.19.0
 
 # Environment
-python-dotenv>=1.0.0
+# Floor pinned to CocoIndex's own requirement (>=1.1.0): litellm's loose
+# `python-dotenv>=0.2.0` would otherwise let a resolver pick a version below
+# CocoIndex's floor and break the Stage-4 LiteLLMEmbedder import path (ID-49.2).
+python-dotenv>=1.1.0
 
 # Supabase client (bid worker)
 supabase>=2.0.0
@@ -36,7 +39,10 @@ cocoindex[postgres]==1.0.3
 # Docling: MIT-licensed document converter + layout-heron model (1.8 GB weights).
 # Pre-warmed into image at Cloud Build time via cloudrun/cocoindex-prewarm.py.
 docling>=2.0.0,<3.0.0
-# litellm: unified LLM API abstraction used by cocoindex ExtractByLlm stage (ID-28.12).
+# litellm: backs the Stage-4 embedding op — cocoindex.ops.litellm.LiteLLMEmbedder
+# ("text-embedding-3-large", dimensions=1024) → vector(1024) (ID-49.2). NOT used
+# for LLM extraction (that path is Anthropic-direct via a custom @coco.fn — there
+# is no ExtractByLlm in cocoindex 1.0.3, per the S256 Path-A amendments).
 litellm>=1.40.0,<2.0.0
 # aiohttp: HTTP framework for cocoindex sidecar wrapper server (ID-28.15). Transitive via
 # litellm, pinned explicitly because scripts/cocoindex_pipeline/server.py treats it as a

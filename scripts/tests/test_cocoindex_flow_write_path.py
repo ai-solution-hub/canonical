@@ -237,9 +237,15 @@ class TestIngestFileWritePath:
         async def _fake_entities(content_text: str):
             return []
 
+        # Stage-4 embedding (ID-49.2): stub the embedder seam so no OpenAI call
+        # is made — this file proves the declare_row SHAPE, not the embedding.
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         # Stage one real file so file.read_text() works.
         src = tmp_path / "doc-one.md"
@@ -271,12 +277,14 @@ class TestIngestFileWritePath:
         )
 
         # content_items: exactly one row, content_text present, op_id stamped,
-        # embedding NULL (28.24 deferred), content_text_hash OMITTED (GENERATED).
+        # embedding a length-1024 vector (Stage-4 ID-49.2; the dimension contract
+        # is proved in test_cocoindex_flow_embedding.py), content_text_hash
+        # OMITTED (GENERATED ALWAYS).
         assert len(ci.rows) == 1, "expected one content_items row"
         ci_row = ci.rows[0]
         assert ci_row["op_id"] == run_op_id
         assert ci_row["content_text"] == markdown
-        assert ci_row.get("embedding") is None
+        assert len(ci_row["embedding"]) == 1024
         assert "content_text_hash" not in ci_row, (
             "content_text_hash is GENERATED ALWAYS — must be omitted from the row"
         )
@@ -377,9 +385,13 @@ class TestMountEachArityContract:
         async def _fake_entities(content_text: str):
             return []
 
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         # Stage two real files (so file.read_text() works in the adapter path).
         src_one = tmp_path / "doc-one.md"
@@ -492,10 +504,14 @@ class TestStablePrimaryKeysAcrossRuns:
         async def _fake_entities(content_text: str):
             return []
 
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
         monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
@@ -576,10 +592,14 @@ class TestContentFingerprintAwaited:
         async def _fake_entities(content_text: str):
             return []
 
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
         monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         src = tmp_path / "doc-fp.md"
         src.write_text(markdown)
