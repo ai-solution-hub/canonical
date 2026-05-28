@@ -39,6 +39,9 @@ cocoindex[postgres]==1.0.3
 # Docling: MIT-licensed document converter + layout-heron model (1.8 GB weights).
 # Pre-warmed into image at Cloud Build time via cloudrun/cocoindex-prewarm.py.
 docling>=2.0.0,<3.0.0
+# faiss-cpu: similarity index backing Stage-5 entity-resolution canonicalisation
+# (TECH §P-12 / Inv-18). Exact-pinned to 1.14.2 for deterministic IndexFlatIP behaviour.
+faiss-cpu==1.14.2
 # litellm: backs the Stage-4 embedding op — cocoindex.ops.litellm.LiteLLMEmbedder
 # ("text-embedding-3-large", dimensions=1024) → vector(1024) (ID-49.2). NOT used
 # for LLM extraction (that path is Anthropic-direct via a custom @coco.fn — there
