@@ -128,6 +128,20 @@ function ledgerPath(dir: string, name: LedgerName): string {
 
 type ZodIssueLike = ZodError['issues'][number];
 
+/**
+ * ID-35.32: discriminant for `mirrorStale`. When set on a success envelope,
+ * `mirrorStaleReason` names WHY the mirrors are stale, so `emit()` can pick a
+ * reminder text that confirms what actually happened instead of lecturing the
+ * operator about a default they bypassed:
+ *   - `'suppressed'`   — `--no-regen-mirrors` was passed; the skip was
+ *                        intentional and the operator already knows.
+ *   - `'regen-failed'` — regen attempted, child exit non-zero; the operator
+ *                        must re-run `bash scripts/regen-mirrors.sh` manually
+ *                        before committing.
+ * Absent on `{ mirrorStale: false }` (fresh) and on error envelopes.
+ */
+type MirrorStaleReason = 'suppressed' | 'regen-failed';
+
 type CliResult =
   | {
       ok: true;
@@ -135,6 +149,7 @@ type CliResult =
       result: unknown;
       warnings?: string[];
       mirrorStale?: boolean;
+      mirrorStaleReason?: MirrorStaleReason;
     }
   | {
       ok: false;
@@ -818,7 +833,8 @@ function emit(result: CliResult, pretty: boolean): never {
             '\n',
         );
       }
-      if (result.mirrorStale) process.stderr.write(MIRROR_REMINDER);
+      if (result.mirrorStale && result.mirrorStaleReason)
+        process.stderr.write(mirrorReminderFor(result.mirrorStaleReason));
     } else {
       stream.write(`✗ ${result.subcommand}: ${result.error}\n`);
       if (result.detail) stream.write(`  ${result.detail}\n`);
@@ -835,15 +851,43 @@ function emit(result: CliResult, pretty: boolean): never {
         `${JSON.stringify({ warnings: result.warnings })}\n`,
       );
     }
-    if (result.ok && result.mirrorStale) process.stderr.write(MIRROR_REMINDER);
+    if (result.ok && result.mirrorStale && result.mirrorStaleReason)
+      process.stderr.write(mirrorReminderFor(result.mirrorStaleReason));
   }
   process.exit(result.ok ? 0 : 1);
 }
 
-const MIRROR_REMINDER =
-  'ℹ mirror regen runs by default after a write; if you passed --no-regen-mirrors, ' +
-  'run `bash scripts/regen-mirrors.sh` before committing ' +
-  '(CI ledger-mirror-parity gates on parity).\n';
+/**
+ * ID-35.32: pick the operator-facing reminder text for a stale-mirrors result,
+ * discriminated by `mirrorStaleReason`. Previously a single MIRROR_REMINDER
+ * constant printed "mirror regen runs by default after a write; if you passed
+ * --no-regen-mirrors, run …" UNCONDITIONALLY whenever mirrors were stale —
+ * lecturing operators about a default they had just bypassed. The two paths
+ * now diverge:
+ *
+ *   - `'suppressed'`   → CONFIRM the skip ("mirror regen suppressed
+ *                        (--no-regen-mirrors)") and remind the operator to run
+ *                        the regen script before committing.
+ *   - `'regen-failed'` → FLAG the failure ("mirror regen FAILED") and prompt a
+ *                        manual rerun (the loud `MIRROR REGEN FAILED` line in
+ *                        `maybeRegenMirrors` already named the exit status; this
+ *                        is the post-result reminder that pairs with it).
+ *
+ * Returned text always ends with a trailing newline so stderr stays tidy.
+ */
+function mirrorReminderFor(reason: MirrorStaleReason): string {
+  if (reason === 'suppressed') {
+    return (
+      'ℹ mirror regen suppressed (--no-regen-mirrors). ' +
+      'Run `bash scripts/regen-mirrors.sh` before committing — ' +
+      'CI ledger-mirror-parity gates on parity.\n'
+    );
+  }
+  return (
+    '⚠ mirror regen FAILED — run `bash scripts/regen-mirrors.sh` manually ' +
+    'before committing (CI ledger-mirror-parity will otherwise fail).\n'
+  );
+}
 
 // ── shared IO ───────────────────────────────────────────────────────────────
 
@@ -1288,15 +1332,25 @@ function __setRegenRunnerForTest(runner: RegenRunner | null): void {
 const defaultRegenRunner = regenRunner;
 
 /**
- * Run the default-on mirror regen and report whether mirrors are now STALE.
- * Returns true when the operator must regen before committing — i.e. regen was
- * suppressed (`--no-regen-mirrors`) OR it ran but exited non-zero. Returns false
- * when regen ran and succeeded (mirrors are fresh). The success envelope's
- * `mirrorStale` field reflects this, so it is only set when a manual regen is
- * actually outstanding (not unconditionally true).
+ * Run the default-on mirror regen and report the post-write mirror status as a
+ * discriminated tag (ID-35.32). The three outcomes:
+ *   - `'fresh'`        — regen ran and succeeded; mirrors are in sync.
+ *   - `'suppressed'`   — `--no-regen-mirrors` was passed; the skip was
+ *                        intentional. The operator already knows; the
+ *                        envelope-level reminder confirms the skip.
+ *   - `'regen-failed'` — regen ran and exited non-zero; the loud
+ *                        `MIRROR REGEN FAILED` stderr line is emitted here
+ *                        (post-write alert, not a rollback) and the envelope
+ *                        reminder prompts a manual rerun.
+ *
+ * Callers map a non-`'fresh'` status into the success envelope's
+ * `{ mirrorStale: true, mirrorStaleReason }` pair; `emit()` then picks the
+ * discriminated reminder text via {@link mirrorReminderFor}.
  */
-function maybeRegenMirrors(regen: boolean): boolean {
-  if (!regen) return true; // suppressed → mirrors left stale by design.
+type MirrorStatus = 'fresh' | MirrorStaleReason;
+
+function maybeRegenMirrors(regen: boolean): MirrorStatus {
+  if (!regen) return 'suppressed'; // → mirrors left stale by design.
   const status = regenRunner();
   if (status !== 0) {
     process.stderr.write(
@@ -1305,9 +1359,9 @@ function maybeRegenMirrors(regen: boolean): boolean {
         `Re-run \`bash scripts/regen-mirrors.sh\` manually before committing ` +
         `(CI ledger-mirror-parity will otherwise fail).\n`,
     );
-    return true; // regen failed → still stale.
+    return 'regen-failed';
   }
-  return false; // regen succeeded → mirrors fresh.
+  return 'fresh';
 }
 
 /**
@@ -1479,13 +1533,14 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
   }
 
   await atomicWriteFile(path, content);
-  const mirrorStale = maybeRegenMirrors(regenMirrors);
+  const mirrorStatus = maybeRegenMirrors(regenMirrors);
   return {
     ok: true,
     subcommand,
     result: resultPayload,
     warnings: warnings.length ? warnings : undefined,
-    mirrorStale,
+    mirrorStale: mirrorStatus !== 'fresh',
+    mirrorStaleReason: mirrorStatus === 'fresh' ? undefined : mirrorStatus,
   };
 }
 
@@ -2612,13 +2667,14 @@ async function promote(
     return cliErr('promote', 'commit-failed', msg(err));
   }
 
-  const mirrorStale = maybeRegenMirrors(regenMirrors);
+  const mirrorStatus = maybeRegenMirrors(regenMirrors);
   return {
     ok: true,
     subcommand: 'promote',
     result: { newTaskId: ins.recordId, removedBacklogId: rem.recordId },
     warnings: warnings.length ? warnings : undefined,
-    mirrorStale,
+    mirrorStale: mirrorStatus !== 'fresh',
+    mirrorStaleReason: mirrorStatus === 'fresh' ? undefined : mirrorStatus,
   };
 }
 
@@ -2677,6 +2733,7 @@ export {
   nextId,
   assertRecordSet,
   __setRegenRunnerForTest,
+  mirrorReminderFor,
   run,
   journalBlock,
   ledgerPath,
@@ -2684,4 +2741,4 @@ export {
   renderSchema,
   subcommandHelp,
 };
-export type { CliResult, ParsedArgs };
+export type { CliResult, MirrorStaleReason, ParsedArgs };

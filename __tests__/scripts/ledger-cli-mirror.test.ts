@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path';
 import {
   run,
   __setRegenRunnerForTest,
+  mirrorReminderFor,
   type ParsedArgs,
 } from '@/scripts/ledger-cli';
 
@@ -121,5 +122,74 @@ describe('mirror regen default-on (ID-35.18)', () => {
     );
     expect(loud).toBe(true);
     stderrSpy.mockRestore();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ID-35.32 — discriminated mirror-reminder text.
+//
+// Bug: every mutating call printed the generic "mirror regen runs by default
+// after a write; if you passed --no-regen-mirrors, run …" reminder even WHEN
+// --no-regen-mirrors was passed. That lectures the operator about a default
+// they already bypassed. Fix: discriminate the result-envelope `mirrorStale`
+// signal with `mirrorStaleReason` ('suppressed' | 'regen-failed') and pick the
+// reminder text accordingly.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mirror-reminder discrimination (ID-35.32)', () => {
+  it('--no-regen-mirrors result envelope carries mirrorStaleReason: "suppressed"', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const subId = String(read('task-list').tasks[0].subtasks[0].id);
+    const r = await run(
+      args('flip-subtask', [taskId, subId, 'done'], { noRegenMirrors: true }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.mirrorStale).toBe(true);
+    expect(r.mirrorStaleReason).toBe('suppressed');
+    expect(regenSpy).not.toHaveBeenCalled();
+  });
+
+  it('successful regen result envelope leaves mirrorStaleReason undefined and mirrorStale falsy', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const subId = String(read('task-list').tasks[0].subtasks[0].id);
+    const r = await run(args('flip-subtask', [taskId, subId, 'done']));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.mirrorStale).toBeFalsy();
+    expect(r.mirrorStaleReason).toBeUndefined();
+    expect(regenSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('regen-runner failure result envelope carries mirrorStaleReason: "regen-failed"', async () => {
+    regenSpy.mockImplementation(() => 2);
+    const stderrSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
+    const taskId = read('task-list').tasks[0].id;
+    const subId = String(read('task-list').tasks[0].subtasks[0].id);
+    const r = await run(args('flip-subtask', [taskId, subId, 'done']));
+    stderrSpy.mockRestore();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.mirrorStale).toBe(true);
+    expect(r.mirrorStaleReason).toBe('regen-failed');
+  });
+
+  it('mirrorReminderFor("suppressed") confirms the skip — does NOT print generic "runs by default" lecture', () => {
+    const text = mirrorReminderFor('suppressed');
+    expect(text).toMatch(/mirror regen suppressed/i);
+    expect(text).toMatch(/--no-regen-mirrors/);
+    expect(text).toMatch(/regen-mirrors\.sh/);
+    expect(text).not.toMatch(/runs by default/i);
+    // Operator-facing message must end with a newline so stderr stays tidy.
+    expect(text.endsWith('\n')).toBe(true);
+  });
+
+  it('mirrorReminderFor("regen-failed") flags the failure and prompts a manual rerun', () => {
+    const text = mirrorReminderFor('regen-failed');
+    expect(text).toMatch(/regen.*failed/i);
+    expect(text).toMatch(/regen-mirrors\.sh/);
+    expect(text.endsWith('\n')).toBe(true);
   });
 });
