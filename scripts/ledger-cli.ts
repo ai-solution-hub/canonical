@@ -1175,6 +1175,43 @@ interface BudgetGate {
   record: Record<string, unknown>;
   /** When set, only this field can REJECT; other over-budget fields warn. */
   mutatedField?: string;
+  /**
+   * ID-35.27: parent task id for subtask records — used to label the
+   * budget-exceeded message as `subtask <parentId>.<recordId>` (e.g.
+   * `subtask 49.6`) instead of the misleading `task <recordId>` that
+   * previously confused operators (gate.ledger is `"task"` for the
+   * task-list ledger; the subtask id alone was rendered as the task id).
+   * Ignored for non-subtask kinds.
+   */
+  parentId?: string | number;
+}
+
+/**
+ * ID-35.27: format the subject suffix of the budget-exceeded detail line so
+ * the operator sees the RIGHT record-kind label and identifier — never the
+ * misleading `<gate.ledger> <gate.recordId>` (which rendered subtasks as
+ * `task <subId>`). Discriminates on `recordKind`:
+ *
+ *   - `task`    → `task <recordId>`         (e.g. `task 49`)
+ *   - `subtask` → `subtask <parentId>.<recordId>`  (e.g. `subtask 49.6`)
+ *                 — falls back to `subtask <recordId>` if parentId is missing
+ *                   (callers should always pass it; defensive only).
+ *   - `theme`   → `theme <recordId>`        (e.g. `theme 3`)
+ *   - `item`    → `item <recordId>`         (e.g. `item 100`)
+ */
+function budgetSubject(gate: BudgetGate): string {
+  switch (gate.recordKind) {
+    case 'subtask':
+      return gate.parentId !== undefined
+        ? `subtask ${gate.parentId}.${gate.recordId}`
+        : `subtask ${gate.recordId}`;
+    case 'task':
+      return `task ${gate.recordId}`;
+    case 'theme':
+      return `theme ${gate.recordId}`;
+    case 'item':
+      return `item ${gate.recordId}`;
+  }
 }
 
 /**
@@ -1208,7 +1245,7 @@ function checkBudget(
     const value = gate.record[field];
     if (typeof value !== 'string') continue;
     if (value.length <= budget) continue;
-    const line = `${field} is ${value.length} chars (budget ${budget}) on ${gate.ledger} ${gate.recordId}`;
+    const line = `${field} is ${value.length} chars (budget ${budget}) on ${budgetSubject(gate)}`;
     if (gate.mutatedField === undefined) {
       // Create / add / promote — first over-budget field is fatal.
       return { ok: false, detail: line, warnings: [] };
@@ -2022,6 +2059,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               ledger: 'task',
               recordKind: 'subtask',
               recordId: Number(subId),
+              // ID-35.27: pass the parent task id so the budget-exceeded
+              // detail labels the record as `subtask <taskId>.<subId>`
+              // (e.g. `subtask 49.6`), not `task <subId>`.
+              parentId: taskId,
               record: changedSub as unknown as Record<string, unknown>,
               // ID-35.26: only the mutated field can REJECT — untouched
               // over-budget fields surface as soft warnings.
@@ -2233,6 +2274,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           ledger: 'task',
           recordKind: 'subtask',
           recordId: newSubId,
+          // ID-35.27: surface the parent task id so the budget-exceeded
+          // detail reads `subtask <taskId>.<subId>` (e.g. `subtask 49.6`)
+          // not the misleading `task <subId>` (gate.ledger is the
+          // task-list ledger; subtask ids alone collide with task ids).
+          parentId: taskId,
           record,
         },
         force: flags.force,

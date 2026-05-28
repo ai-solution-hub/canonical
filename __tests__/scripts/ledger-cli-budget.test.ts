@@ -479,3 +479,175 @@ describe('discipline warnings are scoped to the touched record (ID-35.30)', () =
     }
   });
 });
+
+// ── ID-35.27 — budget-exceeded subject discrimination by recordKind ─────────────
+//
+// Defect: the budget-exceeded detail line read `... on ${gate.ledger}
+// ${gate.recordId}`. For subtasks `gate.ledger` is the task-list ledger
+// (`"task"`) and `gate.recordId` is the bare subtask number (e.g. `6`), so
+// an operator over-budgeting subtask 49.6 saw "description is N chars on
+// task 6" — a misleading reference to a non-existent record (or worse, to
+// the WRONG task with id 6). The fix discriminates on `recordKind`:
+//   task    → `task <recordId>`           (e.g. `task 49`)
+//   subtask → `subtask <parentId>.<recordId>` (e.g. `subtask 49.6`)
+//   theme   → `theme <recordId>`
+//   item    → `item <recordId>`
+// add-subtask / update-subtask now pass `parentId: taskId` into the gate so
+// the subject is fully qualified.
+describe('budget-exceeded subject is recordKind-discriminated (ID-35.27)', () => {
+  it('add-subtask over-budget detail reads `subtask <taskId>.<subId>` (not `task <subId>`)', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const newSub = {
+      id: 9970,
+      title: 'Mislabel regression — subtask',
+      description: DESC_789,
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'n/a',
+    };
+    const r = await run(args('add-subtask', [taskId, JSON.stringify(newSub)]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      // The new, correctly-discriminated subject.
+      expect(r.detail).toContain(`subtask ${taskId}.9970`);
+      // And NEVER the old `task <subId>` mislabel (would be `task 9970`).
+      expect(r.detail).not.toContain('task 9970');
+    }
+  });
+
+  it('update-subtask over-budget detail reads `subtask <taskId>.<subId>`', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    // Seed an under-budget subtask we can then push over via update-subtask.
+    const subId = 9971;
+    const seed = {
+      id: subId,
+      title: 'Seed',
+      description: 'short',
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'n/a',
+    };
+    const seeded = await run(
+      args('add-subtask', [taskId, JSON.stringify(seed)]),
+    );
+    expect(seeded.ok).toBe(true);
+
+    const r = await run(
+      args('update-subtask', [
+        `${taskId}.${subId}`,
+        'description',
+        'q'.repeat(400),
+      ]),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      expect(r.detail).toContain(`subtask ${taskId}.${subId}`);
+      expect(r.detail).not.toContain(`task ${subId}`);
+    }
+  });
+
+  it('open-task over-budget detail reads `task <taskId>` (unchanged behaviour)', async () => {
+    // TaskSchema is .strict() — details/testStrategy live on Subtask, not
+    // Task. Structural defaults from CREATE_DEFAULTS.task fill the required
+    // nullable/array fields.
+    const newTask = {
+      id: '9999',
+      title: 'Mislabel regression — task',
+      description: 'x'.repeat(2000), // > 1500 budget
+      priority: 'medium',
+    };
+    const r = await run(args('open-task', [JSON.stringify(newTask)]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      expect(r.detail).toContain('task 9999');
+      // Not `subtask` (this is a task, not a subtask).
+      expect(r.detail).not.toContain('subtask');
+    }
+  });
+
+  it('create-theme over-budget detail reads `theme <themeId>`', async () => {
+    // RoadmapThemeSchema is .strict() — no `tasks` key (linked_tasks is the
+    // back-link); CREATE_DEFAULTS.theme fills time_horizon + arrays + notes.
+    const newTheme = {
+      id: '9998',
+      title: 'Mislabel regression — theme',
+      description: 'x'.repeat(2000), // > 1500 budget
+    };
+    const r = await run(args('create-theme', [JSON.stringify(newTheme)]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      expect(r.detail).toContain('theme 9998');
+      expect(r.detail).not.toContain('roadmap 9998');
+    }
+  });
+
+  it('create-backlog over-budget detail reads `item <itemId>` (unchanged behaviour)', async () => {
+    // BacklogItemSchema enums status to {blocked|spec_needed|needs_research
+    // |parked|ready} and requires priority. CREATE_DEFAULTS.item fills the
+    // arrays + nullable scalars; supply a parked status + a valid priority.
+    const newItem = {
+      id: '9997',
+      title: 'z'.repeat(120), // > 80 budget
+      description: 'A short summary.',
+      status: 'parked',
+      priority: 'medium',
+    };
+    const r = await run(args('create-backlog', [JSON.stringify(newItem)]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      expect(r.detail).toContain('item 9997');
+      expect(r.detail).not.toContain('backlog 9997');
+    }
+  });
+
+  it('update-subtask UNTOUCHED-field warning is also subject-discriminated (ID-35.26 interaction)', async () => {
+    // Seed an over-budget description, then edit an unrelated field. The
+    // untouched-field SOFT WARNING must carry the new `subtask <taskId>.<subId>`
+    // subject too — otherwise the ID-35.26 warning channel still mislabels.
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9972;
+    const seed = {
+      id: subId,
+      title: 'Untouched-warning subject test',
+      description: 'x'.repeat(789),
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'n/a',
+    };
+    const seeded = await run(
+      args('add-subtask', [taskId, JSON.stringify(seed)], { force: true }),
+    );
+    expect(seeded.ok).toBe(true);
+
+    const r = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'status', 'in_progress']),
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const warns = r.warnings ?? [];
+      const hit = warns.some(
+        (w) =>
+          w.includes('description') &&
+          w.includes('789') &&
+          w.includes(`subtask ${taskId}.${subId}`),
+      );
+      expect(hit).toBe(true);
+      // And no `task <subId>` mislabel in any budget warning.
+      const mislabel = warns.some(
+        (w) =>
+          w.includes('budget') &&
+          w.includes(`task ${subId}`) &&
+          !w.includes(`subtask ${taskId}.${subId}`),
+      );
+      expect(mislabel).toBe(false);
+    }
+  });
+});
