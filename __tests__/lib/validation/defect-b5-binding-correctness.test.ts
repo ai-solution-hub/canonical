@@ -26,7 +26,7 @@
  *       the original binding was a genuine correctness defect, not a
  *       strictness artefact ({32.26}'s remit).
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0 (the continuous
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §0 (the continuous
  * real-corpus probe is the AC-8 oracle); task-list.json ID-32.28 details.
  */
 

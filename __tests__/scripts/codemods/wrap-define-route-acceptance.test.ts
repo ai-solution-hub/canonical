@@ -2,8 +2,8 @@
  * OPS-T1 codemod acceptance gate — dry-run criteria AC-1..AC-7.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8 (AC-1..AC-10).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.16
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8 (AC-1..AC-10).
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.16
  *     (per-AC mode split + traceability matrix §5).
  *
  * This file is the read-only dry-run half of the acceptance gate (originally

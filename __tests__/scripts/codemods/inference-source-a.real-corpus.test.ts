@@ -23,8 +23,8 @@
  * fetcher URL matches a baseline interface. It is the coverage the in-memory
  * suites lacked.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5 / AC-6;
- *       docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §3.A.
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5 / AC-6;
+ *       docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §3.A.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -148,7 +148,7 @@ describe('inferSchema binds real ${interface}Schema over the REAL corpus (AC-5)'
  * representative hook/component-fetched routes — `z.array(<X>Schema)` for
  * array type args (`fetchJson<X[]>`) and the bare `<X>Schema` for scalar ones.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5;
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5;
  *       Subtask 32.21 dispatch brief (Option B, ratified by Liam).
  */
 describe('inferSchema binds hook/component-fetched baseline interfaces (32.21 AC-5 expansion)', () => {
@@ -288,7 +288,7 @@ describe('inferSchema binds hook/component-fetched baseline interfaces (32.21 AC
  * invariant (a route exporting BOTH GET and a write method binds DISTINCT
  * schemas per method) and a no-regression guard on the 32.21 GET binds.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5;
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5;
  *       Subtask 32.22 dispatch brief (Option B, ratified by Liam).
  */
 describe('inferSchema binds mutationFetchJson write-response baseline interfaces (32.22 AC-5)', () => {
@@ -506,7 +506,7 @@ describe('inferSchema binds mutationFetchJson write-response baseline interfaces
  * coverage/targets GET (which was CORRECTLY bound to `TargetsResponseSchema`)
  * is NOT disturbed by the method-keyed PUT override.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
  *       ID-32.28 (RE-SCOPED, OQ-10).
  */
 describe('inferSchema applies the defect-B5 binding-correction override (32.28)', () => {

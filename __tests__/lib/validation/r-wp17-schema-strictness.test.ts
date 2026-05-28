@@ -26,7 +26,7 @@
  *       `content_type`, `why_notable` deep inside ChangeReportGenerateResponse)
  *       now resolve to their real type (`z.string()`), not `z.unknown()`.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §3.1a (INV-S).
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §3.1a (INV-S).
  */
 
 import { readFileSync } from 'node:fs';

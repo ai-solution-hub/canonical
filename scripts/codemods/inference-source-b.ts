@@ -3,11 +3,11 @@
  * codemod, Source B.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §3.B
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §3.B
  *     ("Source B — Existing return-type annotation on the handler")
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §3 (recommended
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §3 (recommended
  *     ranking — Source B is optional, runs after Source A landed).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.9.
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.9.
  *
  * Scope (Subtask 32.9): Source B only — extracts the inner type argument of
  * a `Promise<NextResponse<X>>` return-type annotation on the handler

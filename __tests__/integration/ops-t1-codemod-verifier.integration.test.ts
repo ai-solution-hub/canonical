@@ -1,7 +1,7 @@
 /**
  * OPS-T1 codemod ↔ `type-drift-detect` verifier integration (Subtask 32.15).
  *
- * Spec: `docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md` §7 (verifier
+ * Spec: `docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md` §7 (verifier
  * sub-section + 7-step workflow), §8 AC-10; PLAN.md §4 Subtask 32.15.
  *
  * What this exercises (end-to-end, through the PUBLIC CLIs — never internal

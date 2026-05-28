@@ -11,7 +11,7 @@
  * declarations without requiring TypeScript type information, mirroring the
  * approach of `no-unchecked-supabase-error`.
  *
- * See docs/specs/ast-dataflow-tool/type-safety-pipeline/TECH.md
+ * See docs/specs/id-16-ast-dataflow-tool/type-safety-pipeline/TECH.md
  * §ESLint rule design for the full design rationale.
  */
 

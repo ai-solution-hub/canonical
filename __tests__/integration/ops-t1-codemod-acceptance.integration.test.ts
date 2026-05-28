@@ -3,10 +3,10 @@
  * re-finalised under the Option-4 model (Subtask 32.27).
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8 (AC-8/9/10).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §11 — the probe
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8 (AC-8/9/10).
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §11 — the probe
  *     definition (apply against a temp copy + run the route unit suite).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0 — the continuous
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §0 — the continuous
  *     real-corpus probe mandate (runs from the FIRST slice, not a final gate).
  *
  * ── THE OPTION-4 MODEL (Subtask 32.27 re-finalisation) ──────────────────────

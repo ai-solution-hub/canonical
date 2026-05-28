@@ -3,9 +3,9 @@
  * validator (Option-4 contract).
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8.0 — INV-PT
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8.0 — INV-PT
  *     (pass-through) and INV-FP (fail-open-prod / loud-dev+CI+test).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4a — the
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4a — the
  *     governing pass-through contract (supersedes the S11 payload-returning
  *     contract); §2.4a.2 the isLoud/isProd failure policy.
  *

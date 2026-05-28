@@ -2,11 +2,11 @@
  * `emit-needs-manual.ts` — JSON emitter for the `wrap-define-route` codemod.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §6.2
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §6.2
  *     (NeedsManualEntry / NeedsManualReason schema)
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-4
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-4
  *     (both artefacts produced in every run)
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.12
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.12
  *
  * Scope (Subtask 32.12): produce `docs/generated/codemod-needs-manual.json`
  * containing every MANUAL + NEEDS-REVIEW route + every NEEDS_SCHEMA fall-back

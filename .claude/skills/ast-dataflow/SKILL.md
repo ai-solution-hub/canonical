@@ -257,7 +257,7 @@ fetcher and route definitions.
 
 Nine patterns document high-leverage compositions of ast-dataflow with
 gitnexus, Knip, and ccc. Full write-up:
-`docs/specs/ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
+`docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
 
 | # | Pattern | Tools | Leverage |
 |---|---------|-------|----------|
@@ -321,7 +321,7 @@ Common error codes:
 
 ## Related
 
-- `docs/specs/ast-dataflow-tool/TECH.md` — full technical specification
-- `docs/specs/ast-dataflow-tool/PRODUCT.md` — invariant test suite
-- `docs/specs/ast-dataflow-tool/ROADMAP.md` — wave plan, WP status
-- `docs/specs/ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md` — cross-tool pattern brief
+- `docs/specs/id-16-ast-dataflow-tool/TECH.md` — full technical specification
+- `docs/specs/id-16-ast-dataflow-tool/PRODUCT.md` — invariant test suite
+- `docs/specs/id-16-ast-dataflow-tool/ROADMAP.md` — wave plan, WP status
+- `docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md` — cross-tool pattern brief

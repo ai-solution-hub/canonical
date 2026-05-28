@@ -13,7 +13,7 @@ be transformed safely (cron handlers, the MCP transport route, naked handlers wi
 wrapper, and multi-method files that need a per-method schema decision) are reported for
 manual follow-up rather than rewritten.
 
-- **Spec:** `docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md` (behaviour) and
+- **Spec:** `docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md` (behaviour) and
   `TECH.md` (implementation). Section §7 of PRODUCT.md defines the verifier workflow this
   README documents.
 - **Runbook:** `docs/runbooks/ops-t1-codemod.md` — the end-to-end developer walk-through.

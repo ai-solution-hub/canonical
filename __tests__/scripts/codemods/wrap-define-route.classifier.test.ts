@@ -3,12 +3,12 @@
  * `classifyRoute(sf)` + `getExportedMethods(sf)`.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §2.3 (canonical
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §2.3 (canonical
  *     classifier impl + priority order).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/route-shape-inventory.md §2
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/route-shape-inventory.md §2
  *     (shape taxonomy + priority `CRON` > `MCP` > `NAKED_NO_AUTH` >
  *     multi-method > single-method).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §6 (failure
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §6 (failure
  *     modes per route shape — drives the +WRC, multi-method, MANUAL splits).
  *
  * Scope (Subtask 32.6): classifier-only unit tests. The fixture-corpus

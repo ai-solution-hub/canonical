@@ -3,17 +3,17 @@
  * `wrap-define-route` codemod.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4 (handler
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4 (handler
  *     rewrite — Step A import-add + Step B function/variable replace) —
  *     each exported method on a multi-method route is rewritten independently
  *     by delegating to Subtask 32.10's `rewriteSingleMethod`.
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §6.2
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §6.2
  *     (NeedsManualEntry / NeedsManualReason schema) — one entry per affected
  *     method with reason `MULTI_METHOD_SCHEMA`.
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-7
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-7
  *     (withRequestContext outer-wrap preserved per-method — inherited from
  *     `rewriteSingleMethod`'s +WRC branch).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.11.
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.11.
  *
  * Scope (Subtask 32.11): the three multi-method NEEDS-REVIEW shapes —
  * `MULTI_PARAM_BODY` (GET+PATCH+DELETE), `MULTI_BODY` (GET+POST), and

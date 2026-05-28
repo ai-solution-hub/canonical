@@ -5,8 +5,8 @@
  * `findSchemaConstant`).
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5, AC-8
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §3.A
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5, AC-8
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §3.A
  *   - task-list ID-32.20
  *
  * Why a generator (ID-32.20 spike verdict): the 37 R-WP17 baseline

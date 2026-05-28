@@ -1,7 +1,7 @@
 /**
  * Tests for scripts/codemods/wrap-define-route.ts — the OPS-T1 codemod.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §3 (modes),
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §3 (modes),
  * §8 (acceptance criteria AC-1); ops-t1-codemod/TECH.md §2.1, §2.2, §4
  * (fixture corpus), §5 (CLI design).
  *

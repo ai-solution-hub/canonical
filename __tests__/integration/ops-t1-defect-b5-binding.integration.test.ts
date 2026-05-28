@@ -2,9 +2,9 @@
  * OPS-T1 defect-B5 binding-correction — temp-copy acceptance proof (ID-32.28).
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0 — the continuous
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §0 — the continuous
  *     real-corpus probe pattern (apply against a temp git-archive copy).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §11 — temp-copy probe
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §11 — temp-copy probe
  *     definition (git archive → overlay in-flight files → symlink node_modules
  *     → codemod --apply → run the route suite).
  *   - task-list.json ID-32.28 (RE-SCOPED, OQ-10).

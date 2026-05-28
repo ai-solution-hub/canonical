@@ -3214,7 +3214,7 @@ export const NearDupPairDetailSchema = z.object({
 // temp-copy gate, the codemod override, and the ID-32.28 binding-correctness
 // test today.
 //
-// Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
+// Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
 // ID-32.28.
 
 /**

@@ -18,7 +18,7 @@
  *       for every R-WP17 baseline interface — exercising the actual codemod
  *       lookup against the real on-disk `lib/validation/schemas.ts`.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5, AC-8.
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5, AC-8.
  */
 
 import { readFileSync } from 'node:fs';

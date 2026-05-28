@@ -3,11 +3,11 @@
  * modules.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §6
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §6
  *     (failure modes per route shape, NEEDS-REVIEW vs MANUAL).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §2.3 (classifier),
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §2.3 (classifier),
  *     §6.2 (NeedsManualEntry / NeedsManualReason schema).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/route-shape-inventory.md §2
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/route-shape-inventory.md §2
  *     (shape taxonomy, priority `CRON` > `MCP` > `NAKED_NO_AUTH` >
  *     multi-method > single-method).
  *

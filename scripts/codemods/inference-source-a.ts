@@ -3,10 +3,10 @@
  * codemod, Source A.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §3.A
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §3.A
  *     ("Source A — type-drift-baseline.json")
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5, AC-6
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.8
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-5, AC-6
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.8
  *
  * Scope (Subtask 32.8): Source A only. Reads
  * `docs/generated/type-drift-baseline.json`; for each baseline entry, maps
@@ -671,7 +671,7 @@ function methodFetchKind(method: string): FetchKind | null {
  * `z.unknown()` + `NEEDS_SCHEMA` fall-back, so a stale override degrades
  * gracefully rather than emitting a dangling identifier.
  *
- * Spec: docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
+ * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
  *       ID-32.28 (RE-SCOPED, OQ-10). The corpus rollout that wraps the live
  *       route files with these bindings is Task ID-49.
  */

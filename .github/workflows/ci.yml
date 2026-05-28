@@ -881,8 +881,8 @@ jobs:
     # secrets. Depends on `quality-precheck` so a lint/build failure doesn't
     # also spin up this job unnecessarily.
     #
-    # Spec: docs/specs/ast-dataflow-tool/type-safety-pipeline/PRODUCT.md D-19
-    # Decision: docs/specs/ast-dataflow-tool/type-safety-pipeline/decision-OPS-T1.md
+    # Spec: docs/specs/id-16-ast-dataflow-tool/type-safety-pipeline/PRODUCT.md D-19
+    # Decision: docs/specs/id-16-ast-dataflow-tool/type-safety-pipeline/decision-OPS-T1.md
     name: Type-drift parity
     runs-on: ubuntu-latest
     needs: quality-precheck
@@ -1017,7 +1017,7 @@ jobs:
     # committed file from staging. Do NOT switch the project-ref to prod to dodge
     # this — Liam ratified staging.
     #
-    # Spec: docs/specs/ast-dataflow-tool/type-safety-pipeline/TECH.md OQ6 (lines 640-679).
+    # Spec: docs/specs/id-16-ast-dataflow-tool/type-safety-pipeline/TECH.md OQ6 (lines 640-679).
     name: Supabase generated types parity
     runs-on: ubuntu-latest
     # Staging env scope per docs/runbooks/github-environments.md §2 —

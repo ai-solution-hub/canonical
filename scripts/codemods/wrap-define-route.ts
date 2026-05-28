@@ -3,8 +3,8 @@
  * `wrap-define-route` — OPS-T1 codemod scaffold.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md
  *
  * Scope (cumulative through Subtask 32.13):
  *   - CLI argv parsing via `node:util` `parseArgs` — `--apply`, `--scope`,

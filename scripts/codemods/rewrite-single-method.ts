@@ -3,20 +3,20 @@
  * `wrap-define-route` codemod.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4 (handler
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4 (handler
  *     rewrite — Step A import-add + Step B function/variable replace).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §8.1
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §8.1
  *     (`withRequestContext` outer-wrap order — AC-7 load-bearing
  *     invariant).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §8.2 (Next.js 15
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §8.2 (Next.js 15
  *     `Promise<params>` second-argument preservation).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §8.3 (only
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §8.3 (only
  *     `{GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS}` exports are touched
  *     — `maxDuration` / `dynamic` / `runtime` and other config exports are
  *     skipped).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-6 / AC-7
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md AC-6 / AC-7
  *     (TODO comment + outer-wrap order).
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.10.
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.10.
  *
  * Scope (Subtask 32.10): the four single-method MECHANISABLE shapes —
  * `AUTH_PLAIN`, `PARAM_BODY`, `BODY_VALIDATED`, `PARAM` — plus the

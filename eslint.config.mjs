@@ -101,7 +101,7 @@ const eslintConfig = defineConfig([
     // Supabase record-cast prevention — flags `as Record<string, unknown>`
     // casts on structured Supabase RPC return values, which discard the typed
     // row shape from database.types.ts.
-    // (spec: docs/specs/ast-dataflow-tool/type-safety-pipeline/TECH.md §ESLint
+    // (spec: docs/specs/id-16-ast-dataflow-tool/type-safety-pipeline/TECH.md §ESLint
     // rule design). JSONB columns, third-party API responses, and test files
     // are exempt via the rule's built-in escape hatches.
     files: ['lib/**/*.ts', 'app/api/**/*.ts'],

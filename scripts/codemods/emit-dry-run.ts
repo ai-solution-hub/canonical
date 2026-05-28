@@ -2,11 +2,11 @@
  * `emit-dry-run.ts` — markdown emitter for the `wrap-define-route` codemod.
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §5
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §5
  *     (diff preview format)
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §6.1
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §6.1
  *     (markdown report sections)
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.12
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.12
  *
  * Scope (Subtask 32.12): produce `docs/generated/codemod-dry-run.md` —
  * human-readable per-route preview emitted on EVERY run (dry-run AND apply).
@@ -229,7 +229,7 @@ export function serialiseDryRunReport(
   );
   lines.push('');
   lines.push(
-    'Spec: `docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md` §5 + `TECH.md` §6.1.',
+    'Spec: `docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md` §5 + `TECH.md` §6.1.',
   );
   lines.push('');
   lines.push('## Summary');

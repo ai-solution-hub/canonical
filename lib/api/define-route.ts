@@ -3,10 +3,10 @@
  * validator for Next.js App Router API route handlers (Option-4 contract).
  *
  * Spec:
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8.0 — the
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PRODUCT.md §8.0 — the
  *     behaviour invariants INV-PT (pass-through) and INV-FP (fail-open-prod /
  *     loud-dev+CI+test) this wrapper implements.
- *   - docs/specs/ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4a — the
+ *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §2.4a — the
  *     GOVERNING pass-through contract (supersedes the S11 payload-returning
  *     contract); §2.4a.2 the failure policy; §2.4a.3 the compile-time clause;
  *     §2.4a.4 the imports.
