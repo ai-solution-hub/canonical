@@ -66,7 +66,8 @@ describe('auto-id — {35.21} max+1 on record-creating commands', () => {
     const tl = readTask();
     const task35 = tl.tasks.find((t: { id: string }) => t.id === '35');
     if (!task35) throw new Error('task 35 missing in fixture');
-    const expected = Math.max(...task35.subtasks.map((s: { id: number }) => s.id)) + 1;
+    const expected =
+      Math.max(...task35.subtasks.map((s: { id: number }) => s.id)) + 1;
     const r = await run(
       args('add-subtask', ['35'], {
         title: 'Auto-id subtask',
@@ -150,6 +151,76 @@ describe('auto-id — {35.21} max+1 on record-creating commands', () => {
     expect(added.id).toBe(expected);
   });
 
+  it('add-subtask --id N (numeric string) coerces to NUMBER to match subtask.id schema ({35.28})', async () => {
+    // RESEARCH: the named-flag parser used to set `record.id = flags.id`
+    // verbatim, which left subtask.id as a STRING and tripped schema-error
+    // ("subtask.id expected number, received string"). The workaround was to
+    // omit --id and rely on auto-id. Per {35.28} the --id flag site now mirrors
+    // nextId() policy — number for subtasks, string for tasks/items/themes —
+    // so an explicit `--id 27` lands as the integer 27 on the subtask.
+    const r = await run(
+      args('add-subtask', ['35'], {
+        id: '777',
+        title: 'Explicit numeric --id subtask',
+        description: 'A short summary.',
+        status: 'pending',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    const after = readTask();
+    const t = after.tasks.find((x: { id: string }) => x.id === '35');
+    const added = t.subtasks.find(
+      (s: { title: string }) => s.title === 'Explicit numeric --id subtask',
+    );
+    expect(added).toBeDefined();
+    expect(added.id).toBe(777);
+    expect(typeof added.id).toBe('number');
+  });
+
+  it('add-subtask --id abc (non-coercible) rejects with a clear error ({35.28})', async () => {
+    // The reject-with-warning branch — `--id` is present but not a numeric
+    // string in a SUBTASK context, so we surface a structured error envelope
+    // rather than passing the wrong type to the schema (the old behaviour
+    // produced a confusing downstream schema-error on subtask.id).
+    const r = await run(
+      args('add-subtask', ['35'], {
+        id: 'abc',
+        title: 'Non-coercible --id',
+        description: 'A short summary.',
+        status: 'pending',
+      }),
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe('invalid-id');
+    expect(r.subcommand).toBe('add-subtask');
+    // The detail mentions the bad value so the caller can self-correct.
+    expect(r.detail).toMatch(/abc/);
+  });
+
+  it('open-task --id N (numeric string) keeps id a STRING to match task.id schema ({35.28})', async () => {
+    // The other half of the policy: task / theme / item ids stay bare-digit
+    // STRINGS. `--id 9002` on `open-task` must NOT be coerced to a number.
+    const r = await run(
+      args('open-task', [], {
+        id: '9002',
+        title: 'Explicit string --id task',
+        description: 'A short summary.',
+        status: 'pending',
+        priority: 'medium',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const after = readTask();
+    const added = after.tasks.find(
+      (x: { title: string }) => x.title === 'Explicit string --id task',
+    );
+    expect(added).toBeDefined();
+    expect(added.id).toBe('9002');
+    expect(typeof added.id).toBe('string');
+  });
+
   it('positional JSON without an id gets an auto-id injected', async () => {
     const before = readBacklog();
     const expected = String(
@@ -192,9 +263,7 @@ describe('update-backlog — {35.21} field-type-aware coercion (RESEARCH §5.3)'
 
   it('coerces dependencies to a string[] (JSON), not a bare string', async () => {
     const id = firstItemId();
-    const r = await run(
-      args('update-backlog', [id, 'dependencies', '["17"]']),
-    );
+    const r = await run(args('update-backlog', [id, 'dependencies', '["17"]']));
     expect(r.ok).toBe(true);
     const after = readBacklog();
     const item = after.items.find((it: { id: string }) => it.id === id);

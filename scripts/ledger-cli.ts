@@ -331,11 +331,18 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
   if (flags.file !== undefined) {
     let text: string;
     try {
-      text = flags.file === '-' ? readFileSync(0, 'utf8') : readFileSync(flags.file, 'utf8');
+      text =
+        flags.file === '-'
+          ? readFileSync(0, 'utf8')
+          : readFileSync(flags.file, 'utf8');
     } catch (err) {
       return {
         ok: false,
-        result: cliErr(subcommand, 'input-read-failed', `${flags.file}: ${msg(err)}`),
+        result: cliErr(
+          subcommand,
+          'input-read-failed',
+          `${flags.file}: ${msg(err)}`,
+        ),
       };
     }
     try {
@@ -343,7 +350,11 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
     } catch (err) {
       return {
         ok: false,
-        result: cliErr(subcommand, 'invalid-json-arg', `${flags.file}: ${msg(err)}`),
+        result: cliErr(
+          subcommand,
+          'invalid-json-arg',
+          `${flags.file}: ${msg(err)}`,
+        ),
       };
     }
   }
@@ -356,7 +367,8 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
   if (flags.status !== undefined) record.status = flags.status;
   if (flags.priority !== undefined) record.priority = flags.priority;
   if (flags.notes !== undefined) record.notes = flags.notes;
-  if (flags.testStrategy !== undefined) record.testStrategy = flags.testStrategy;
+  if (flags.testStrategy !== undefined)
+    record.testStrategy = flags.testStrategy;
   if (flags.statusNote !== undefined) record.status_note = flags.statusNote;
   if (flags.type !== undefined) record.type = flags.type;
   if (flags.track !== undefined) record.track = flags.track;
@@ -471,9 +483,7 @@ const KIND_BUDGET_KEY: Record<SchemaRecordKind, LedgerRecordKind> = {
 };
 
 /** Per-field human annotations layered on top of the derived type label. */
-const FIELD_NOTES: Partial<
-  Record<SchemaRecordKind, Record<string, string>>
-> = {
+const FIELD_NOTES: Partial<Record<SchemaRecordKind, Record<string, string>>> = {
   subtask: {
     dependencies: 'sibling-only',
   },
@@ -658,10 +668,12 @@ const SUBCOMMAND_HELP: Record<
 > = {
   show: { synopsis: 'show <ledger> <id> — print a full record (read-only)' },
   get: {
-    synopsis: 'get <ledger> <id> [field] — read one field (or the whole record)',
+    synopsis:
+      'get <ledger> <id> [field] — read one field (or the whole record)',
   },
   schema: {
-    synopsis: 'schema [ledger|recordKind] — print field names + types + budgets',
+    synopsis:
+      'schema [ledger|recordKind] — print field names + types + budgets',
   },
   'flip-task': {
     synopsis: 'flip-task <taskId> <status> — set a Task status',
@@ -700,7 +712,8 @@ const SUBCOMMAND_HELP: Record<
     kinds: ['subtask'],
   },
   'add-subtask': {
-    synopsis: 'add-subtask <taskId> <subtaskJson | --title …> — insert a Subtask',
+    synopsis:
+      'add-subtask <taskId> <subtaskJson | --title …> — insert a Subtask',
     flags:
       'input: positional JSON | --file <path> (- = stdin) | named flags ' +
       '(--title --description --status --depends 1,2 …); --id forces an id; ' +
@@ -958,9 +971,7 @@ function collectionIds(
       (t) => (t as { id?: unknown }).id === descriptor.taskId,
     ) as { subtasks?: unknown } | undefined;
     if (!task || !Array.isArray(task.subtasks)) return null;
-    return new Set(
-      task.subtasks.map((s) => (s as { id: IdValue }).id),
-    );
+    return new Set(task.subtasks.map((s) => (s as { id: IdValue }).id));
   }
   const arr = doc[descriptor.collection];
   if (!Array.isArray(arr)) return null;
@@ -1359,8 +1370,7 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
           ok: false,
           subcommand,
           error: 'scoped-schema-error',
-          detail:
-            r.error instanceof Error ? r.error.message : String(r.error),
+          detail: r.error instanceof Error ? r.error.message : String(r.error),
         };
       }
       return cliErr(
@@ -1634,7 +1644,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       if (!ledger || !id)
         return cliErr('get', 'missing-args', 'get <ledger> <id> [field]');
       if (!(ledger in LEDGER_FILES))
-        return cliErr('get', 'bad-ledger', `ledger must be task|roadmap|backlog`);
+        return cliErr(
+          'get',
+          'bad-ledger',
+          `ledger must be task|roadmap|backlog`,
+        );
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
       const d = loaded.detected;
@@ -1647,11 +1661,14 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       if (!record)
         return cliErr('get', 'record-not-found', `${ledger} id ${id}`);
       // No field → whole record (parity with `show`).
-      if (field == null)
-        return { ok: true, subcommand: 'get', result: record };
+      if (field == null) return { ok: true, subcommand: 'get', result: record };
       const rec = record as Record<string, unknown>;
       if (!(field in rec))
-        return cliErr('get', 'field-not-found', `${ledger} ${id} has no field "${field}"`);
+        return cliErr(
+          'get',
+          'field-not-found',
+          `${ledger} ${id} has no field "${field}"`,
+        );
       return { ok: true, subcommand: 'get', result: rec[field] };
     }
 
@@ -1957,6 +1974,27 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         'subtask',
         input.value as Record<string, unknown>,
       );
+      // ID-35.28 --id type coercion: the named-flag parser stores `--id` as a
+      // string (every value-flag does), but `SubtaskSchema.id` is NUMBER (per
+      // RESEARCH §3 — Taskmaster mandate). The old passthrough left subtask.id
+      // as a string and tripped a confusing downstream schema-error
+      // ("expected number, received string"); the workaround was to omit --id
+      // and rely on auto-id. Mirror `nextId(subtasks)` policy at the --id site:
+      // a numeric string ("27") coerces to the integer 27; anything else is
+      // rejected with a structured `invalid-id` envelope rather than passed to
+      // the schema. Body-supplied (positional JSON / --file) ids retain their
+      // primitive type from JSON.parse and bypass this coercion.
+      if (typeof record.id === 'string') {
+        const n = Number(record.id);
+        if (!Number.isInteger(n) || record.id.trim() === '') {
+          return cliErr(
+            'add-subtask',
+            'invalid-id',
+            `--id ${JSON.stringify(record.id)} is not a positive integer; subtask.id must be a number (got non-coercible string)`,
+          );
+        }
+        record = { ...record, id: n };
+      }
       if (record.id === undefined) {
         record = { ...record, id: nextId(loaded.detected, 'subtasks', taskId) };
       }
@@ -1976,9 +2014,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // pre-validation `record.id`. `SubtaskSchema.id` is required, so a
       // missing/ill-typed id fails the mutation above and never reaches here —
       // so the record-set gate is ALWAYS passed with a concrete `add` delta.
-      const validatedTask = loaded.detected.kind === 'task-list'
-        ? loaded.detected.data.tasks.find((t) => t.id === taskId)
-        : undefined;
+      const validatedTask =
+        loaded.detected.kind === 'task-list'
+          ? loaded.detected.data.tasks.find((t) => t.id === taskId)
+          : undefined;
       const validatedSubtasks = validatedTask?.subtasks ?? [];
       const newSubId = validatedSubtasks[validatedSubtasks.length - 1]
         .id as IdValue;
@@ -2295,7 +2334,10 @@ async function promote(
   const taskDescriptor: CollectionDescriptor = { collection: 'tasks' };
   const backlogDescriptor: CollectionDescriptor = { collection: 'items' };
   const taskBeforeIds = beforeCollectionIds(tlLoad.detected, taskDescriptor);
-  const backlogBeforeIds = beforeCollectionIds(blLoad.detected, backlogDescriptor);
+  const backlogBeforeIds = beforeCollectionIds(
+    blLoad.detected,
+    backlogDescriptor,
+  );
 
   const ins = insertRecord(tlLoad.detected, taskRecord.value);
   if (!ins.ok) {
@@ -2368,7 +2410,9 @@ async function promote(
   const forcedBudgetWarnings: string[] = [];
   if (!budgetCheck.ok) {
     if (force) {
-      forcedBudgetWarnings.push(`(forced) budget-exceeded: ${budgetCheck.detail}`);
+      forcedBudgetWarnings.push(
+        `(forced) budget-exceeded: ${budgetCheck.detail}`,
+      );
     } else {
       return cliErr('promote', 'budget-exceeded', budgetCheck.detail);
     }
@@ -2376,7 +2420,10 @@ async function promote(
 
   // Hoist the discipline scan once (it re-parses the task-list) — reused by
   // both the dry-run and the success return.
-  const warnings = [...disciplineWarnings(ins.detected), ...forcedBudgetWarnings];
+  const warnings = [
+    ...disciplineWarnings(ins.detected),
+    ...forcedBudgetWarnings,
+  ];
 
   if (dryRun) {
     return {
