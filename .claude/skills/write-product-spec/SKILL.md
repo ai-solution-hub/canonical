@@ -107,6 +107,45 @@ colours). WCAG 2.1 AA: never colour alone for meaning. UK English throughout
 them out when a state, error, or affordance would otherwise be ambiguous about
 colour-only signalling.
 
+<!-- code-intel:planner-citation-start -->
+### Code-intelligence orientation
+
+Before drafting the Problem section, orient yourself against the existing
+codebase using the GitNexus code-intelligence tools. This grounds the spec in
+what already exists and surfaces integration points a purely concept-level
+analysis would miss.
+
+(a) Invoke `gitnexus_query` with the feature concept as the query string. Review
+    the returned execution flows, cluster assignments, and symbol matches for
+    anything directly relevant to the surface being specified.
+
+(b) For every named symbol that appears in the query results — or any symbol the
+    brief names explicitly — invoke `gitnexus_context` to retrieve its callers,
+    callees, and execution-flow participation. Note the execution-flow ID, direct
+    caller count, and cluster ID for each symbol you reference.
+
+(c) Cite the findings in the spec's **Problem** section. A concise inline note
+    is sufficient — for example: `(gitnexus: flow fetch-content-item, 3 direct
+    callers, cluster content-retrieval)`. This lets the tech spec author and
+    implementer navigate directly to the relevant code without re-running the
+    orientation step.
+
+(d) When the query and context steps produce no matching symbols or flows, record
+    the following literal disclaimer in the Problem section (use the em-dash and
+    UK English exactly as shown):
+
+    `gitnexus orientation: no existing symbols match — greenfield surface`
+
+(e) **S276 amendment — ccc fallback:** when step (c) yields no GitNexus
+    findings, do not immediately apply the greenfield disclaimer. First invoke
+    `ccc search <concept>` using the feature concept as the search term. If the
+    search returns any `[summary]` or `[guide]` hits, cite them as orientation
+    evidence in the Problem section (e.g. `(ccc: summary "existing-feature-name"
+    covers adjacent pattern — see for prior art)`). The greenfield disclaimer
+    from step (d) is the fallback only when both GitNexus and ccc return nothing
+    relevant.
+<!-- code-intel:planner-citation-end -->
+
 ## Structure
 
 Required sections:
