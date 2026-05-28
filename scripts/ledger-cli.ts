@@ -1095,37 +1095,71 @@ function checkRecordSet(
  * Budget-gate inputs for the single CHANGED record of a write: which registry
  * record-kind to budget against, the record id (for the message), and the
  * post-mutation record object whose budgeted fields are measured.
+ *
+ * ID-35.26: `mutatedField` (when set) names the single field this write
+ * touches — `checkBudget` then REJECTS only on that field and surfaces any
+ * over-budget UNTOUCHED budgeted fields as soft warnings (the operator never
+ * touched them, so a rejection is wrong). When `mutatedField` is undefined
+ * (create / add / promote — every budgeted field is freshly authored), the
+ * gate keeps the original "reject on the first over-budget field" semantics.
  */
 interface BudgetGate {
   ledger: LedgerName;
   recordKind: LedgerRecordKind;
   recordId: string | number;
   record: Record<string, unknown>;
+  /** When set, only this field can REJECT; other over-budget fields warn. */
+  mutatedField?: string;
 }
 
 /**
- * Check the changed record's budgeted fields against `LEDGER_BUDGETS`. Returns
- * the FIRST over-budget violation (one scoped line) or `{ ok: true }`. Fields
- * absent from the registry for the kind (e.g. `subtask.details`) are not
- * budgeted, so they never flag. Non-string field values are skipped (budgets
- * are char-length on text fields).
+ * Check the changed record's budgeted fields against `LEDGER_BUDGETS`.
+ *
+ * Behaviour by mode:
+ *   - `mutatedField` undefined (create / add / promote — authoring every
+ *     field): returns the FIRST over-budget violation as a rejection. Matches
+ *     the original ID-35.17 semantics.
+ *   - `mutatedField` set (update-* — only one field changes): returns a
+ *     rejection ONLY when that mutated field is over-budget. Any other
+ *     over-budget budgeted fields are returned as `warnings` so the operator
+ *     sees them without the write being rejected (untouched-field discipline
+ *     escape, ID-35.26).
+ *
+ * Fields absent from the registry for the kind (e.g. `subtask.details`) are
+ * not budgeted, so they never flag. Non-string field values are skipped
+ * (budgets are char-length on text fields).
  */
 function checkBudget(
   gate: BudgetGate,
-): { ok: true } | { ok: false; detail: string } {
-  if (!gate.record || typeof gate.record !== 'object') return { ok: true };
+):
+  | { ok: true; warnings: string[] }
+  | { ok: false; detail: string; warnings: string[] } {
+  if (!gate.record || typeof gate.record !== 'object')
+    return { ok: true, warnings: [] };
   const budgets = LEDGER_BUDGETS[gate.recordKind] as Record<string, number>;
+  const warnings: string[] = [];
+  let mutatedViolation: { detail: string } | null = null;
   for (const [field, budget] of Object.entries(budgets)) {
     const value = gate.record[field];
     if (typeof value !== 'string') continue;
-    if (value.length > budget) {
-      return {
-        ok: false,
-        detail: `${field} is ${value.length} chars (budget ${budget}) on ${gate.ledger} ${gate.recordId}`,
-      };
+    if (value.length <= budget) continue;
+    const line = `${field} is ${value.length} chars (budget ${budget}) on ${gate.ledger} ${gate.recordId}`;
+    if (gate.mutatedField === undefined) {
+      // Create / add / promote — first over-budget field is fatal.
+      return { ok: false, detail: line, warnings: [] };
+    }
+    if (field === gate.mutatedField) {
+      mutatedViolation = { detail: line };
+    } else {
+      // Untouched over-budget field — surface as a soft warning (not a
+      // rejection). The operator never edited it; rejecting blocks legitimate
+      // edits to unrelated fields (the ID-35.26 defect).
+      warnings.push(`budget (untouched): ${line}`);
     }
   }
-  return { ok: true };
+  if (mutatedViolation)
+    return { ok: false, detail: mutatedViolation.detail, warnings };
+  return { ok: true, warnings };
 }
 
 /**
@@ -1286,8 +1320,15 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
   // the in-memory mutation, BEFORE any byte is written. Over-budget → reject
   // (scoped one-line message); `--force` downgrades to a soft warning and
   // proceeds. Runs ahead of serialisation so an over-budget write does no I/O.
+  //
+  // ID-35.26: update-* call sites set `budgetGate.mutatedField` so only that
+  // field can REJECT. Over-budget UNTOUCHED fields surface as `b.warnings` —
+  // the operator never touched them, so a rejection would block legitimate
+  // edits to unrelated fields. Create / add / promote leave `mutatedField`
+  // undefined and keep the original "every budgeted field can reject" gate.
   if (budgetGate) {
     const b = checkBudget(budgetGate);
+    if (b.warnings.length) warnings.push(...b.warnings);
     if (!b.ok) {
       if (force) {
         warnings.push(`(forced) budget-exceeded: ${b.detail}`);
@@ -1712,6 +1753,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               recordKind: 'task',
               recordId: taskId,
               record: changedTask as unknown as Record<string, unknown>,
+              // ID-35.26: scope rejection to the mutated field.
+              mutatedField: field,
             }
           : undefined,
         force: flags.force,
@@ -1823,6 +1866,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               recordKind: 'subtask',
               recordId: Number(subId),
               record: changedSub as unknown as Record<string, unknown>,
+              // ID-35.26: only the mutated field can REJECT — untouched
+              // over-budget fields surface as soft warnings.
+              mutatedField: field,
             }
           : undefined,
         force: flags.force,
@@ -2010,6 +2056,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               recordKind: 'item',
               recordId: itemId,
               record: changedItem as unknown as Record<string, unknown>,
+              // ID-35.26: scope rejection to the mutated field.
+              mutatedField: field,
             }
           : undefined,
         force: flags.force,
@@ -2058,6 +2106,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               recordKind: 'theme',
               recordId: themeId,
               record: changedTheme as unknown as Record<string, unknown>,
+              // ID-35.26: scope rejection to the mutated field.
+              mutatedField: field,
             }
           : undefined,
         force: flags.force,
@@ -2306,7 +2356,9 @@ async function promote(
 
   // ID-35.17 budget pre-check on the new Task record (the changed record). The
   // backlog item is removed, not authored, so only the Task is budgeted.
-  // Over-budget → reject unless `--force` (then a soft warning).
+  // Over-budget → reject unless `--force` (then a soft warning). `promote`
+  // authors every budgeted field (no `mutatedField` filter — same semantics
+  // as create / add).
   const budgetCheck = checkBudget({
     ledger: 'task',
     recordKind: 'task',

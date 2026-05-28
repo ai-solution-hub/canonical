@@ -144,3 +144,140 @@ describe('budget pre-check exemptions + non-budgeted edits (ID-35.17)', () => {
     expect(readFileSync(join(dir, 'product-backlog.json'), 'utf8')).toBe(before);
   });
 });
+
+// ── ID-35.26 — update-* gates only the MUTATED field, not the whole record ─────
+//
+// Defect (S273): the budget pre-check iterated EVERY budgeted field of the
+// changed record. For a field-edit command (update-task / update-subtask /
+// update-backlog / update-roadmap), a historically over-budget UNTOUCHED field
+// would reject the edit even though the operator never touched it.
+//
+// Fix: update-* commands pass `mutatedField` into the budget gate. checkBudget
+// rejects only when the MUTATED field is over-budget; over-budget UNTOUCHED
+// fields surface as soft warnings. Create / add / promote (which author all
+// fields) keep checking every budgeted field — `mutatedField` absent → all.
+describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () => {
+  // Seed a subtask whose `description` is historically over-budget, by adding
+  // it via add-subtask + --force (the legitimate "I authored an over-budget
+  // record" escape hatch). The subsequent update-subtask edit on an UNRELATED
+  // field must NOT be rejected by the untouched over-budget description.
+  async function seedOverBudgetSubtask(taskId: string, subId: number) {
+    const newSub = {
+      id: subId,
+      title: 'Untouched over-budget seed',
+      description: 'x'.repeat(789), // > 250 budget
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'n/a',
+    };
+    const r = await run(
+      args('add-subtask', [taskId, JSON.stringify(newSub)], { force: true }),
+    );
+    if (!r.ok) throw new Error(`seed failed: ${JSON.stringify(r)}`);
+  }
+
+  it('update-subtask status SUCCEEDS when an untouched description is over-budget', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9992;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    // Now edit an unrelated field (status). The untouched description is
+    // still 789 chars — the gate must NOT reject the edit.
+    const r = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'status', 'in_progress']),
+    );
+    expect(r.ok).toBe(true);
+
+    // The status flip landed.
+    const updated = read('task-list').tasks[0].subtasks.find(
+      (s: { id: number }) => s.id === subId,
+    );
+    expect(updated.status).toBe('in_progress');
+    // And the over-budget description is still on disk (untouched).
+    expect(updated.description.length).toBe(789);
+
+    // The untouched over-budget field should surface as a soft warning so the
+    // operator is aware — never silently swallowed.
+    if (r.ok) {
+      const warns = r.warnings ?? [];
+      const hit = warns.some(
+        (w) =>
+          w.includes('description') &&
+          w.includes('789') &&
+          w.includes('250'),
+      );
+      expect(hit).toBe(true);
+    }
+  });
+
+  it('update-subtask testStrategy SUCCEEDS when an untouched description is over-budget', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9993;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    const r = await run(
+      args('update-subtask', [
+        `${taskId}.${subId}`,
+        'testStrategy',
+        'PASS when the new behaviour holds.',
+      ]),
+    );
+    expect(r.ok).toBe(true);
+    const updated = read('task-list').tasks[0].subtasks.find(
+      (s: { id: number }) => s.id === subId,
+    );
+    expect(updated.testStrategy).toBe('PASS when the new behaviour holds.');
+    expect(updated.description.length).toBe(789);
+  });
+
+  it('update-subtask STILL rejects when the MUTATED field (description) is over-budget', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9994;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    // Mutating the description to a new >250 value MUST still reject.
+    const r = await run(
+      args('update-subtask', [
+        `${taskId}.${subId}`,
+        'description',
+        'y'.repeat(400),
+      ]),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      expect(r.detail).toContain('description');
+      expect(r.detail).toContain('400');
+      expect(r.detail).toContain('250');
+    }
+    // The on-disk description is unchanged (the original 789).
+    const after = read('task-list').tasks[0].subtasks.find(
+      (s: { id: number }) => s.id === subId,
+    );
+    expect(after.description.length).toBe(789);
+  });
+
+  it('update-subtask --force on the mutated field commits AND notes untouched warnings', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9995;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    // --force on a deliberately over-budget testStrategy edit; the existing
+    // untouched description must not double-reject and must surface as a
+    // warning alongside the forced one.
+    const r = await run(
+      args(
+        'update-subtask',
+        [`${taskId}.${subId}`, 'testStrategy', 'z'.repeat(400)],
+        { force: true },
+      ),
+    );
+    expect(r.ok).toBe(true);
+    const updated = read('task-list').tasks[0].subtasks.find(
+      (s: { id: number }) => s.id === subId,
+    );
+    expect(updated.testStrategy.length).toBe(400);
+    expect(updated.description.length).toBe(789);
+  });
+});
