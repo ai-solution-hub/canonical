@@ -13,7 +13,7 @@ set -euo pipefail
 # 6. Delete the events directory.
 # 7. Optionally delete the worker branch (--delete-branch).
 #
-# Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--delete-branch-force]
+# Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--delete-branch-force] [--archive <dir>]
 #
 # Flags:
 #   --force          Remove the worktree even if it has uncommitted changes
@@ -33,8 +33,18 @@ set -euo pipefail
 #   --delete-branch-force
 #                    Bypass the unmerged-commit gate and force-delete (git
 #                    branch -D). Use only to deliberately discard unwanted work.
+#   --archive <dir>  Archive worker corpus artefacts to <dir>/<worker-name>/
+#                    BEFORE the teardown rm -rf $EVENTS_DIR (ID-48.15, RESEARCH
+#                    §13.2 + §13.5). The 4 canonical artefacts copied are
+#                    {events.jsonl, oq-pending.md, final_report.yaml, meta.json}
+#                    — any missing files are logged + skipped (best-effort,
+#                    forward-compatible with workers that do not emit all four).
+#                    Required by the workflow-evaluator data layer ({48.5} /
+#                    {48.14}) so historical session corpus survives teardown.
+#                    Callers typically point <dir> at
+#                    docs/workflow-evaluation/sessions/S<NNN>/.
 
-USAGE="Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch]"
+USAGE="Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--archive <dir>]"
 WORKER_NAME="${1:?$USAGE}"
 SESSION_ID="${2:?$USAGE}"
 shift 2
@@ -42,6 +52,7 @@ shift 2
 FORCE=0
 DELETE_BRANCH=0
 FORCE_DELETE_BRANCH=0
+ARCHIVE_DIR=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --force)
@@ -56,6 +67,15 @@ while [ $# -gt 0 ]; do
       DELETE_BRANCH=1
       FORCE_DELETE_BRANCH=1
       shift
+      ;;
+    --archive)
+      if [ $# -lt 2 ] || [ -z "${2:-}" ]; then
+        echo "Error: --archive requires a directory argument" >&2
+        echo "$USAGE" >&2
+        exit 2
+      fi
+      ARCHIVE_DIR="$2"
+      shift 2
       ;;
     *)
       echo "Error: unknown flag '$1'" >&2
@@ -257,6 +277,33 @@ if [ "$DELETE_BRANCH" -eq 1 ]; then
         echo "Warning: git branch -D '$BRANCH_NAME' failed (may have unmerged commits not reachable from any other ref)." >&2
       fi
     fi
+  fi
+fi
+
+# --- Archive worker corpus BEFORE teardown (ID-48.15) ---
+#
+# When --archive <dir> is set, copy the 4 canonical artefacts the evaluator
+# data layer ({48.5} / {48.14}) depends on into <dir>/<worker-name>/ before
+# the teardown rm -rf destroys them. Best-effort: any missing file is logged
+# and skipped (workers that do not emit all four — e.g. an early-failure
+# worker with no final_report.yaml — still archive what they did produce).
+# RESEARCH §13.2 + §13.5; PLAN §S271 ADDENDUM line 104-107.
+
+if [ -n "$ARCHIVE_DIR" ] && [ -d "$EVENTS_DIR" ]; then
+  ARCHIVE_TARGET="${ARCHIVE_DIR%/}/${WORKER_NAME}"
+  if ! mkdir -p "$ARCHIVE_TARGET" 2>/dev/null; then
+    echo "Warning: --archive failed to create $ARCHIVE_TARGET — skipping archive step." >&2
+  else
+    for ARTEFACT in events.jsonl oq-pending.md final_report.yaml meta.json; do
+      SRC="${EVENTS_DIR}/${ARTEFACT}"
+      if [ -f "$SRC" ]; then
+        if ! cp "$SRC" "${ARCHIVE_TARGET}/${ARTEFACT}" 2>/dev/null; then
+          echo "Warning: --archive failed to copy $ARTEFACT to $ARCHIVE_TARGET." >&2
+        fi
+      else
+        echo "Note: --archive skipped absent artefact $ARTEFACT (worker did not emit it)." >&2
+      fi
+    done
   fi
 fi
 
