@@ -17,7 +17,7 @@ describes a surface with no documentation coverage (or, for terminology, a
 stale-term occurrence). Exit code is 0 even when gaps are found; the gap list
 is the signal (the skill body decides what to draft).
 
-Spec: docs/specs/astro-starlight-docs-foundation/TECH.md §4.5; PRODUCT Inv-40.
+Spec: docs/specs/id-9-astro-starlight-docs-foundation/TECH.md §4.5; PRODUCT Inv-40.
 """
 
 from __future__ import annotations

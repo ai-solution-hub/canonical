@@ -173,7 +173,7 @@ const REWRITES: Rewrite[] = [
   {
     id: '9',
     description:
-      'COMPOUND TASK, four concerns in one delivery: (1) IMPLEMENT the Astro+Starlight docs site per the existing DRAFT spec at docs/specs/astro-starlight-docs-foundation/ (PRODUCT.md + TECH.md authored S47, not yet ratified) — base site, content collections, branded build, deploy pipeline; (2) PORT Warp’s docubot auto-sync approach + integrate six Warp docs skills into .claude/skills/ (extract ontology/schema/reference docs from code, regenerate on push); (3) DECOMMISSION the bespoke .claude/skills/update-docs/ skill once the platform is live; (4) UNLOCK main-track Ontology auto-sync via the same docubot mechanism. The {N.1}-{N.4} spec-authoring chain covers the unspecced docubot+skills extension. Acceptance criteria + dependencies relocated to docs/research/ledger-field-sweep-s269.md#id-9.',
+      'COMPOUND TASK, four concerns in one delivery: (1) IMPLEMENT the Astro+Starlight docs site per the existing DRAFT spec at docs/specs/id-9-astro-starlight-docs-foundation/ (PRODUCT.md + TECH.md authored S47, not yet ratified) — base site, content collections, branded build, deploy pipeline; (2) PORT Warp’s docubot auto-sync approach + integrate six Warp docs skills into .claude/skills/ (extract ontology/schema/reference docs from code, regenerate on push); (3) DECOMMISSION the bespoke .claude/skills/update-docs/ skill once the platform is live; (4) UNLOCK main-track Ontology auto-sync via the same docubot mechanism. The {N.1}-{N.4} spec-authoring chain covers the unspecced docubot+skills extension. Acceptance criteria + dependencies relocated to docs/research/ledger-field-sweep-s269.md#id-9.',
   },
   {
     id: '15',

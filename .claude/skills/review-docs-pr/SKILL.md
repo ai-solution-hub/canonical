@@ -18,8 +18,8 @@ review. It is loaded by `scripts/skills/run-skill.ts` alongside `AGENTS.md`
 `.claude/skills/keep-docs-in-sync/SKILL.md` (IA conventions, commit + PR
 conventions, the single-comment guardrail).
 
-Spec source: `docs/specs/astro-starlight-docs-foundation/TECH.md` §4.3;
-`docs/specs/astro-starlight-docs-foundation/PRODUCT.md` Inv-35 + Inv-38.
+Spec source: `docs/specs/id-9-astro-starlight-docs-foundation/TECH.md` §4.3;
+`docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md` Inv-35 + Inv-38.
 
 ---
 

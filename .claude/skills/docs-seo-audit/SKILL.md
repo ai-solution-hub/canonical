@@ -15,8 +15,8 @@ allowed-tools: Read, Bash, Grep, Glob
 Loaded by `scripts/skills/run-skill.ts` alongside `AGENTS.md` and
 `.claude/skills/keep-docs-in-sync/SKILL.md`.
 
-Spec source: `docs/specs/astro-starlight-docs-foundation/TECH.md` §4.7;
-`docs/specs/astro-starlight-docs-foundation/PRODUCT.md` Inv-42.
+Spec source: `docs/specs/id-9-astro-starlight-docs-foundation/TECH.md` §4.7;
+`docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md` Inv-42.
 
 ---
 

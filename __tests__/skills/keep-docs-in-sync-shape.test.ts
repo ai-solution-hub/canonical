@@ -26,8 +26,8 @@
  *   6. Body LOC <= 250 per TECH §6.2 LOC budget.
  *
  * Spec slices:
- *   - docs/specs/astro-starlight-docs-foundation/PRODUCT.md Inv-52
- *   - docs/specs/astro-starlight-docs-foundation/TECH.md §6.2 + §6.3
+ *   - docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md Inv-52
+ *   - docs/specs/id-9-astro-starlight-docs-foundation/TECH.md §6.2 + §6.3
  *
  * Per docs/reference/test-philosophy.md — pure file-system read; no
  * Supabase fixtures, no chain-method asserts. Behaviour under test is

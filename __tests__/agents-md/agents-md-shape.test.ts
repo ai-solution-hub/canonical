@@ -23,8 +23,8 @@
  *      and breaks OQ-PLAN-3 Option A non-duplication.
  *
  * Spec slices:
- *   - docs/specs/astro-starlight-docs-foundation/PRODUCT.md Inv-51
- *   - docs/specs/astro-starlight-docs-foundation/TECH.md §6.1 + §6.3
+ *   - docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md Inv-51
+ *   - docs/specs/id-9-astro-starlight-docs-foundation/TECH.md §6.1 + §6.3
  *
  * Per docs/reference/test-philosophy.md — pure file-system read; no
  * Supabase fixtures, no chain-method asserts. Behaviour under test is

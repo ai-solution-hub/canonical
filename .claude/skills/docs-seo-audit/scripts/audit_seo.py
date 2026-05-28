@@ -13,7 +13,7 @@ Usage:
 Output: JSON {"issue_types": [...], "findings": [{path, issue, tier, detail}]}.
 Exit code is 0 even with findings (this is advisory, not a build gate).
 
-Spec: docs/specs/astro-starlight-docs-foundation/TECH.md §4.7; PRODUCT Inv-42.
+Spec: docs/specs/id-9-astro-starlight-docs-foundation/TECH.md §4.7; PRODUCT Inv-42.
 """
 
 from __future__ import annotations

@@ -22,8 +22,8 @@ content-type style + AI-invisibility; this skill governs the
 operational mechanics of producing those docs (IA, theming pointers,
 inventory awareness, commit conventions, single-comment guardrail).
 
-Spec source: `docs/specs/astro-starlight-docs-foundation/PRODUCT.md`
-Inv-52 + Inv-37; `docs/specs/astro-starlight-docs-foundation/TECH.md`
+Spec source: `docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md`
+Inv-52 + Inv-37; `docs/specs/id-9-astro-starlight-docs-foundation/TECH.md`
 §6.2 + §6.3.
 
 ---

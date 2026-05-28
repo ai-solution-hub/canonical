@@ -15,8 +15,8 @@ This skill keeps code-generated reference docs in step with their source
 surfaces. It is loaded by `scripts/skills/run-skill.ts` alongside `AGENTS.md`
 and `.claude/skills/keep-docs-in-sync/SKILL.md`.
 
-Spec source: `docs/specs/astro-starlight-docs-foundation/TECH.md` §4.4;
-`docs/specs/astro-starlight-docs-foundation/PRODUCT.md` Inv-20 + Inv-39.
+Spec source: `docs/specs/id-9-astro-starlight-docs-foundation/TECH.md` §4.4;
+`docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md` Inv-20 + Inv-39.
 
 ---
 

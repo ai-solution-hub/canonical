@@ -21,7 +21,7 @@ Five error types (Inv-41):
 
 Exit code: 1 when findings exist (linter semantics), 0 when clean.
 
-Spec: docs/specs/astro-starlight-docs-foundation/TECH.md §4.6; PRODUCT Inv-41.
+Spec: docs/specs/id-9-astro-starlight-docs-foundation/TECH.md §4.6; PRODUCT Inv-41.
 """
 
 from __future__ import annotations
