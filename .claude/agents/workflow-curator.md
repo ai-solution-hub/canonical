@@ -113,6 +113,18 @@ explicitly passed.
 - **Be honest about no-action.** Some findings genuinely don't warrant action ("already
   covered by §X", "trivial nit", "noise"). Returning `no-action` with a clear
   justification is a valid outcome and better than padding the backlog.
+- **Code-intelligence pre-grep (Inv 8).** For any finding whose evidence cites a symbol
+  name or a column read/write, run two code-intelligence queries before invoking
+  `triage-finding`: (1) `gitnexus_context({name: '<symbolName>'})` to obtain the symbol's
+  call graph and execution-flow membership, and (2) `ast-dataflow callers <symbolName>` to
+  obtain a deterministic caller count resolved against the TypeScript type-checker. Use
+  those results to drive the Branch B vs Branch C classification: if the symbol has ≥ 10
+  callers across ≥ 3 distinct modules → Branch B (roadmap — strategic, cross-cutting); if
+  < 10 callers OR the callers are contained to ≤ 2 modules → Branch C (backlog — tactical,
+  single-feature scope). This pre-grep is mandatory; impact-radius estimates made without
+  it are unreliable and tend to misclassify tactical findings as roadmap. Guidance for
+  both tools: `.gitnexus/CLAUDE.md` (GitNexus CLI and impact analysis) and
+  `.ast-dataflow/CLAUDE.md` (TypeScript symbol analysis via ts-morph).
 - **NEVER `cd` to absolute knowledge-hub paths; NEVER use absolute repo paths in
   Edit/Write/Read.** (Curator write operations go through `bun scripts/ledger-cli.ts` —
   see `update-roadmap-backlog` — and inherit the CLI's atomic-write + budget-gate
@@ -202,6 +214,13 @@ so you can check:
 - Which roadmap section / backlog track would this fit?
 
 ### Step 3 — Run `triage-finding`
+
+Before invoking `triage-finding`, complete the code-intelligence pre-grep described in the
+"Code-intelligence pre-grep (Inv 8)" operating principle above for any finding that cites
+a symbol name or column. The caller count you obtain feeds directly into the Branch B / C
+threshold inside `triage-finding`. Note: a parallel caller-count pre-grep sub-step is also
+added at Step 1 of `triage-finding/SKILL.md` itself (by ID-23.11), so the skill reinforces
+the same discipline from its own entry point.
 
 Invoke the `triage-finding` skill. It returns a structured decision:
 
