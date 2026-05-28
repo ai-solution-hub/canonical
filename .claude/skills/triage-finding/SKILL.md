@@ -131,7 +131,7 @@ The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it
 
 Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
-Under Shape A (per `docs/specs/roadmap-backlog-consolidation/PRODUCT.md` inv 13 a + TECH §4.1), the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
+Under Shape A (per `docs/specs/id-30-roadmap-backlog-consolidation/PRODUCT.md` inv 13 a + TECH §4.1), the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
 
 A finding routes to Branch B when **both** of these hold:
 

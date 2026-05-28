@@ -36,9 +36,9 @@
  * below with a direct import. The rest of the test stays the same.
  *
  * Specs:
- * - `docs/specs/roadmap-backlog-consolidation/PRODUCT.md` invariant 13 +
+ * - `docs/specs/id-30-roadmap-backlog-consolidation/PRODUCT.md` invariant 13 +
  *   invariant 3 (rank field shape).
- * - `docs/specs/roadmap-backlog-consolidation/TECH.md` §4.1 + §4.2.
+ * - `docs/specs/id-30-roadmap-backlog-consolidation/TECH.md` §4.1 + §4.2.
  * - `.claude/skills/triage-finding/SKILL.md` Branch C output.
  * - `.claude/skills/update-roadmap-backlog/SKILL.md` Create flow Step 3
  *   "For backlog" field table.
@@ -173,9 +173,9 @@ const PROVENANCE: CreateProvenance = {
 };
 
 const DOC_LINK_EXAMPLE = {
-  path: 'docs/specs/roadmap-backlog-consolidation/PRODUCT.md',
+  path: 'docs/specs/id-30-roadmap-backlog-consolidation/PRODUCT.md',
   anchor: '#invariant-13',
-  raw: 'docs/specs/roadmap-backlog-consolidation/PRODUCT.md#invariant-13',
+  raw: 'docs/specs/id-30-roadmap-backlog-consolidation/PRODUCT.md#invariant-13',
 };
 
 const FINDING_CONTEXT_EXAMPLE: FindingContext = {
