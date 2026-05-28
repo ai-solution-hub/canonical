@@ -17,6 +17,12 @@ lxml>=5.0.0
 # PDF extraction (used by Python scripts only; JS routes use unpdf)
 pdfplumber==0.11.9
 
+# XLSX extraction (used by ID-52 Path B Python form extractor;
+# transitive via cocoindex today but pinned explicitly as a direct
+# dependency because scripts/cocoindex_pipeline/form_extractors/xlsx.py
+# treats it as a first-class production dependency).
+openpyxl==3.1.5
+
 # Document processing (used by Python scripts only; JS routes use mammoth + Claude)
 python-docx>=1.1.2
 docxtpl>=0.19.0

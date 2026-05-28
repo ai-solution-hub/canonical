@@ -24,13 +24,16 @@ from scripts.cocoindex_pipeline.form_extractors.shared import (
     FormExtractionError,
     FormMetadata,
 )
+from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as xlsx_extract
 
 # ──────────────────────────────────────────────────────────────────────────
-# Fixture path — committed symlink to the canonical corpus PDF.
+# Fixture path — committed symlinks to the canonical corpus files.
 # ──────────────────────────────────────────────────────────────────────────
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction"
 _SQ_PDF_PATH = _FIXTURE_DIR / "standard-selection-questionnaire-ppn-03-24.pdf"
+_EFA_XLSX_PATH = _FIXTURE_DIR / "evaluation-matrix-itt-vol8.xlsx"
+_CSP_XLSX_PATH = _FIXTURE_DIR / "cloud-security-principles-checklist-v5-3.xlsx"
 
 
 @pytest.fixture(scope="module")
@@ -416,3 +419,442 @@ class TestPdfFailureSurfacing:
         with pytest.raises(FormExtractionError) as excinfo:
             asyncio.run(pdf_extract(b"", "empty.pdf"))
         assert excinfo.value.rel_path == "empty.pdf"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# XLSX reader — {52.10} acceptance tests against EFA + CSP fixtures.
+#
+# Real-behaviour tests (per ``docs/reference/test-philosophy.md``): the
+# extractor reads the actual EFA and CSP fixtures, NO mocks of openpyxl
+# internals. The fixtures live under ``scripts/tests/fixtures/form-extraction``
+# as symlinks to ``docs/testing/test-data/templates/{itt-services-efa,
+# csp-checklist}/...``.
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture(scope="module")
+def efa_xlsx_bytes() -> bytes:
+    """Raw bytes for the EFA evaluation-matrix XLSX fixture."""
+    assert _EFA_XLSX_PATH.exists(), (
+        f"corpus fixture missing — {_EFA_XLSX_PATH} should symlink to "
+        f"docs/testing/test-data/templates/itt-services-efa/"
+        f"evaluation-matrix-itt-vol8.xlsx"
+    )
+    return _EFA_XLSX_PATH.read_bytes()
+
+
+@pytest.fixture(scope="module")
+def csp_xlsx_bytes() -> bytes:
+    """Raw bytes for the CSP vendor-checklist XLSX fixture."""
+    assert _CSP_XLSX_PATH.exists(), (
+        f"corpus fixture missing — {_CSP_XLSX_PATH} should symlink to "
+        f"docs/testing/test-data/templates/csp-checklist/"
+        f"Cloud Security Principles Checklist V5_3.xlsx"
+    )
+    return _CSP_XLSX_PATH.read_bytes()
+
+
+@pytest.fixture(scope="module")
+def efa_form(efa_xlsx_bytes: bytes) -> ExtractedForm:
+    """Module-scoped EFA extraction — amortise openpyxl walk."""
+    return asyncio.run(
+        xlsx_extract(efa_xlsx_bytes, "evaluation-matrix-itt-vol8.xlsx")
+    )
+
+
+@pytest.fixture(scope="module")
+def csp_form(csp_xlsx_bytes: bytes) -> ExtractedForm:
+    """Module-scoped CSP extraction — amortise openpyxl walk."""
+    return asyncio.run(
+        xlsx_extract(
+            csp_xlsx_bytes,
+            "Cloud Security Principles Checklist V5_3.xlsx",
+        )
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-2 / TECH §2.2 — public shape matches PDF reader
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxPublicShape:
+    """The XLSX extractor exposes the same ``extract(raw_bytes, filename)
+    -> ExtractedForm`` async signature as the PDF reader (TECH §2.2)."""
+
+    def test_efa_extracts_to_extracted_form(self, efa_form: ExtractedForm) -> None:
+        assert isinstance(efa_form, ExtractedForm)
+        assert isinstance(efa_form.form_metadata, FormMetadata)
+        assert efa_form.form_metadata.form_format == "xlsx"
+        assert efa_form.fields, "no fields extracted from EFA"
+        for field in efa_form.fields:
+            assert isinstance(field, ExtractedField)
+
+    def test_csp_extracts_to_extracted_form(self, csp_form: ExtractedForm) -> None:
+        assert isinstance(csp_form, ExtractedForm)
+        assert csp_form.form_metadata.form_format == "xlsx"
+        assert csp_form.fields, "no fields extracted from CSP"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-13 — per-form dedup: Bidder 1 ≡ Bidder 2 → N fields, NOT 2N
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxEfaDedup:
+    """PRODUCT Inv-13 — the EFA workbook repeats the same scoring matrix
+    across the ``Bidder 1`` and ``Bidder 2`` sheets; the extractor records
+    each distinct question once, not once per copy. Dedup is keyed on
+    ``(section_name, normalise(question_text))`` per TECH §2.3."""
+
+    def test_efa_bidder_questions_deduped_to_n_not_2n(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        """Every ``2.1`` / ``3.1`` / ``4.1..4.5`` / ``5.1..5.3`` /
+        ``6.1`` / ``7.1..7.7`` row appears EXACTLY once across the
+        whole form, not twice (once per bidder sheet)."""
+        authored = [
+            f
+            for f in efa_form.fields
+            if f.question_text and "Bidders" in (f.question_text or "")
+        ] + [
+            f
+            for f in efa_form.fields
+            if f.question_text and any(
+                tag in f.question_text
+                for tag in (
+                    "Overall assessment",
+                    "Detailed programme",
+                    "Approach to construction",
+                    "Management procedure",
+                    "Panel Members",
+                    "Total project cost",
+                    "Pricing schedules",
+                    "Life cycle",
+                )
+            )
+        ]
+        # Group by normalised text — every group should be size 1 (deduped).
+        groups: dict[str, int] = {}
+        for f in authored:
+            key = (f.question_text or "").strip().lower()
+            groups[key] = groups.get(key, 0) + 1
+        duplicates = {k: c for k, c in groups.items() if c > 1}
+        assert not duplicates, (
+            f"EFA dedup regression — {len(duplicates)} question(s) appear "
+            f"more than once across Bidder 1 / Bidder 2: "
+            f"{list(duplicates.items())[:5]}"
+        )
+
+    def test_efa_known_question_text_present_exactly_once(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        """The 2.1 question (\"Bidders should outline their overall
+        approach…\") exists on BOTH Bidder 1 (rendered with a typo
+        \"nsample\") and Bidder 2 (rendered \"sample\") in the raw
+        workbook. Per Inv-13 dedup keyed on the NORMALISED text these
+        are distinct, so the extractor preserves both as distinct
+        candidates. The acceptance bar is that within each rendering,
+        the question appears once — not duplicated by sheet."""
+        approach = [
+            f
+            for f in efa_form.fields
+            if f.question_text and "overall approach" in (f.question_text.lower())
+        ]
+        # Each surface variant should appear once.
+        normalised: dict[str, int] = {}
+        for f in approach:
+            key = (f.question_text or "").strip().lower()
+            normalised[key] = normalised.get(key, 0) + 1
+        for variant, count in normalised.items():
+            assert count == 1, (
+                f"variant {variant!r} appeared {count} times — duplicate "
+                f"sheet copy not deduped"
+            )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-8 — coordinates populated for scoring-matrix rows
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxEfaCoordinates:
+    """PRODUCT Inv-8 — scoring-matrix rows expose row/col/table indices."""
+
+    def test_efa_scoring_matrix_rows_have_coordinates(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        scoring_fields = [
+            f
+            for f in efa_form.fields
+            if f.section_name and "OVERALL APPROACH" in (f.section_name or "").upper()
+        ]
+        assert scoring_fields, "no Part 2 OVERALL APPROACH question found"
+        for f in scoring_fields:
+            assert isinstance(f.row_index, int), (
+                f"row_index missing on {f.question_text!r}"
+            )
+            assert isinstance(f.col_index, int), (
+                f"col_index missing on {f.question_text!r}"
+            )
+            assert isinstance(f.table_index, int), (
+                f"table_index missing on {f.question_text!r}"
+            )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-12 — section names: Part 2 — OVERALL APPROACH etc.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxEfaSections:
+    """PRODUCT Inv-12 — section hierarchy preserved from the
+    Scoring Matrix's section-header rows (Part N — TITLE)."""
+
+    def test_efa_part_2_section_name_recorded(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        part2 = [
+            f
+            for f in efa_form.fields
+            if f.section_name and "OVERALL APPROACH" in (f.section_name or "").upper()
+        ]
+        assert part2, (
+            "no Part 2 OVERALL APPROACH-sectioned field recorded — "
+            "Inv-12 regression"
+        )
+
+    def test_efa_multiple_part_sections_observed(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        """The EFA scoring matrix has Parts 2, 3, 4, 5, 6, 7 — at least
+        4 of those should appear as distinct section names."""
+        section_names = {
+            f.section_name
+            for f in efa_form.fields
+            if f.section_name and "PART" in (f.section_name or "").upper()
+        }
+        assert len(section_names) >= 4, (
+            f"only {len(section_names)} distinct Part sections seen — "
+            f"Inv-12 regression"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-9 — TYPE RESPONSE HERE>>>> → field_type='placeholder'
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxCspPlaceholder:
+    """PRODUCT Inv-9 — the CSP checklist exposes ``TYPE RESPONSE HERE>>>>``
+    cells as the response slot for every question. Per Inv-9, the
+    extractor records these as ``field_type='placeholder'`` so the
+    downstream flow knows the slot is awaiting authored content."""
+
+    def test_csp_type_response_here_is_placeholder(
+        self, csp_form: ExtractedForm
+    ) -> None:
+        placeholder_fields = [
+            f for f in csp_form.fields if f.field_type == "placeholder"
+        ]
+        assert placeholder_fields, (
+            "no placeholder-typed fields recorded — Inv-9 regression "
+            "(TYPE RESPONSE HERE>>>> cells not classified as placeholders)"
+        )
+        # At least one such field should carry the placeholder text directly
+        # (Inv-9: extractor records the placeholder string verbatim).
+        with_text = [
+            f
+            for f in placeholder_fields
+            if f.placeholder_text
+            and "TYPE RESPONSE HERE" in (f.placeholder_text or "").upper()
+        ]
+        assert with_text, (
+            "no placeholder_text containing 'TYPE RESPONSE HERE' — Inv-9 "
+            "placeholder-text preservation regression"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-14 — NCSC URLs preserved in reference_urls
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxCspReferenceUrls:
+    """PRODUCT Inv-14 — the CSP principle rows carry NCSC collection
+    URLs (e.g. https://www.ncsc.gov.uk/collection/cloud-security/...).
+    Per Inv-14 the extractor preserves these on the corresponding
+    field's ``reference_urls`` list rather than dropping them."""
+
+    def test_csp_principle_carries_ncsc_url(
+        self, csp_form: ExtractedForm
+    ) -> None:
+        with_ncsc = [
+            f
+            for f in csp_form.fields
+            if any("ncsc.gov.uk" in url for url in f.reference_urls)
+        ]
+        assert with_ncsc, (
+            "no fields carrying NCSC URLs — Inv-14 reference URL "
+            "preservation regression"
+        )
+
+    def test_csp_principle_1_url_recorded(
+        self, csp_form: ExtractedForm
+    ) -> None:
+        principle_1 = [
+            f
+            for f in csp_form.fields
+            if f.section_name
+            and "PRINCIPLE 1" in (f.section_name or "").upper()
+        ]
+        assert principle_1, (
+            "no Principle 1 field recorded — Inv-12 regression"
+        )
+        # At least one Principle 1 field carries the data-in-transit URL.
+        all_urls = [url for f in principle_1 for url in f.reference_urls]
+        assert any("data-in-transit" in url for url in all_urls), (
+            f"Principle 1 missing data-in-transit URL — Inv-14 regression; "
+            f"observed urls: {all_urls!r}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-12 — CSP letter-keyed (A, B1) AND numbered (PRINCIPLE 1) sections
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxCspMixedSections:
+    """PRODUCT Inv-12 — CSP mixes letter-keyed preamble rows
+    (``A``, ``B``, ``C``, …) with numbered ``PRINCIPLE N`` rows. Both
+    schemes must yield ``section_name``-bearing fields."""
+
+    def test_csp_letter_keyed_section_observed(
+        self, csp_form: ExtractedForm
+    ) -> None:
+        """The letter-keyed preamble row ``A — General Data Security``
+        and its B1..B6 sub-rows should record a section name carrying
+        the letter key (``A``, ``B``, …) so the downstream UI can
+        reconstruct the preamble structure (Inv-12)."""
+        letter_sections = {
+            f.section_name
+            for f in csp_form.fields
+            if f.section_name
+            and any(
+                key in f.section_name
+                for key in ("Section A", "Section B", "GDPR Compliance",
+                            "General Data Security")
+            )
+        }
+        assert letter_sections, (
+            "no letter-keyed preamble section found — Inv-12 regression "
+            "on letter-key handling"
+        )
+
+    def test_csp_principle_n_section_observed(
+        self, csp_form: ExtractedForm
+    ) -> None:
+        principle_sections = {
+            f.section_name
+            for f in csp_form.fields
+            if f.section_name and "PRINCIPLE" in (f.section_name or "").upper()
+        }
+        # Multiple principles (1..14) should yield multiple section labels.
+        assert len(principle_sections) >= 3, (
+            f"only {len(principle_sections)} PRINCIPLE-keyed sections seen — "
+            f"Inv-12 regression"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-12 — sequence is reading-order
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxSequence:
+    """PRODUCT Inv-12 — reading-order ``sequence`` strictly increasing."""
+
+    def test_efa_sequence_strictly_increasing(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        seqs = [f.sequence for f in efa_form.fields]
+        assert seqs == sorted(seqs), (
+            "EFA sequence not in reading order — Inv-12 regression"
+        )
+        assert len(set(seqs)) == len(seqs), (
+            "EFA duplicate sequence values — Inv-12 regression"
+        )
+
+    def test_csp_sequence_strictly_increasing(
+        self, csp_form: ExtractedForm
+    ) -> None:
+        seqs = [f.sequence for f in csp_form.fields]
+        assert seqs == sorted(seqs), (
+            "CSP sequence not in reading order — Inv-12 regression"
+        )
+        assert len(set(seqs)) == len(seqs), (
+            "CSP duplicate sequence values — Inv-12 regression"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-17 — corrupt / empty XLSX raises FormExtractionError
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxFailureSurfacing:
+    """PRODUCT Inv-17 — corrupt input raises ``FormExtractionError``;
+    never silently returns an empty ``ExtractedForm``."""
+
+    def test_corrupt_bytes_raises_form_extraction_error(self) -> None:
+        with pytest.raises(FormExtractionError) as excinfo:
+            asyncio.run(xlsx_extract(b"not a real xlsx", "corrupt.xlsx"))
+        assert excinfo.value.rel_path == "corrupt.xlsx"
+        assert excinfo.value.reason
+
+    def test_empty_bytes_raises_form_extraction_error(self) -> None:
+        with pytest.raises(FormExtractionError) as excinfo:
+            asyncio.run(xlsx_extract(b"", "empty.xlsx"))
+        assert excinfo.value.rel_path == "empty.xlsx"
+        assert excinfo.value.reason
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# TECH §2.3 — dedup only collapses identical text WITHIN a single form
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestXlsxDedupScope:
+    """TECH §2.3 — dedup is per-form (workspace-scoped). Two distinct
+    forms in the same workspace may legitimately share question text;
+    catalogue-level reuse is Path-C's concern.
+
+    This test verifies the in-form dedup does not flatten genuinely
+    different questions: the EFA scoring matrix contains both a 4.1
+    question (\"Overall assessment of Design solution\") and a 4.2
+    question (\"Overall assessment of environmental strategy/solution\")
+    — these share a 3-word prefix but are different questions and must
+    BOTH survive dedup as separate fields.
+    """
+
+    def test_efa_similar_questions_not_collapsed(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        design = [
+            f
+            for f in efa_form.fields
+            if f.question_text
+            and "Overall assessment of Design solution"
+            in (f.question_text or "")
+        ]
+        env = [
+            f
+            for f in efa_form.fields
+            if f.question_text
+            and "Overall assessment of environmental"
+            in (f.question_text or "")
+        ]
+        assert design and env, (
+            "4.1 / 4.2 'Overall assessment of …' questions missing — "
+            "TECH §2.3 regression (over-collapsed two distinct questions)"
+        )
