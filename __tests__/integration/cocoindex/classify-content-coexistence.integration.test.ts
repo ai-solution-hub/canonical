@@ -39,7 +39,7 @@ import {
   createLiveServiceClient,
   hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
-import { testUUID } from '../helpers/test-data-factory';
+import { createTestContentItem, testUUID } from '../helpers/test-data-factory';
 import {
   dropFixture,
   pollContentItemsFor,
@@ -71,14 +71,20 @@ beforeAll(async () => {
   //    classifyContent INSERT path (lib/ai/classify.ts:1751 — no op_id field).
   const contentItemId = testUUID();
   nullOpContentItemId = contentItemId;
-  const { error: ciErr } = await client.from('content_items').insert({
-    id: contentItemId,
-    title: `${TEST_PREFIX}-classifyContent-item`,
-    op_id: null,
-  });
-  // If the minimal content_items insert is rejected (NOT NULL columns we did
-  // not populate), fall back to NOT seeding — the test will skip its assertion
-  // body gracefully via the null guard. We surface the error for diagnosis.
+  // Seed via createTestContentItem(...) so all required (NOT NULL) schema
+  // fields (content_type, content, primary_domain, …) are populated — a raw
+  // minimal insert hard-fails on those columns when run live. op_id is left
+  // unset → defaults to NULL (this content_item is NOT part of a pipeline run,
+  // mirroring the classifyContent INSERT path).
+  const { error: ciErr } = await client.from('content_items').insert(
+    createTestContentItem({
+      id: contentItemId,
+      title: `${TEST_PREFIX}-classifyContent-item`,
+    }),
+  );
+  // If the seed insert is still rejected, fall back to NOT seeding — the test
+  // will skip its assertion body gracefully via the null guard. We surface the
+  // error for diagnosis.
   if (ciErr) {
     console.warn(`Inv-8 seed: content_items insert warning — ${ciErr.message}`);
     nullOpContentItemId = null;

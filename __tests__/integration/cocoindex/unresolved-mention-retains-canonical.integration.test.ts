@@ -36,7 +36,11 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
-import { pollEntityMentionsFor } from './test-helpers';
+import {
+  pollEntityMentionsFor,
+  readEntityResolutionStageCount,
+  UUID_V4_REGEX,
+} from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -120,6 +124,20 @@ describe.skipIf(!ENABLED)(
         for (const m of uniqueRows) {
           expect(m.canonical_name).toBe(perDocDefault(m.entity_name));
         }
+
+        // Inv-20 verifiability part 2 (PRODUCT.md Inv-20 + TECH.md §P-14): the
+        // unique/unresolved rows are NOT counted in
+        // stage_counts['entity_resolution']. This single-document fixture
+        // produces no cross-document near-matches, so Stage-5 performs no
+        // UPDATEs and the post-pass counter MUST stay 0. Extract the run's
+        // op_id from the staged items (mirrors stage-5-attach-point /
+        // op-id-scoping), then read the persisted counter for that op_id.
+        const opId = items.find((r) => r.op_id !== null)?.op_id ?? null;
+        expect(opId).not.toBeNull();
+        expect(opId!).toMatch(UUID_V4_REGEX);
+
+        const stageCount = await readEntityResolutionStageCount(opId!);
+        expect(stageCount).toBe(0);
       },
       POLL_TIMEOUT_MS + 30_000,
     );
