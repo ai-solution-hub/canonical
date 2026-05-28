@@ -93,6 +93,38 @@ A **Spec-authoring Subtask dispatch brief**:
   surfaces "this is actually a 30-minute fix, not a feature", report that to the
   Orchestrator — don't implement it yourself.
 
+### Code-intelligence orientation (pre-spec-write)
+
+<!-- code-intel:planner-block-start -->
+
+Before writing PRODUCT.md or TECH.md for any Subtask kind — including `{N.1}` RESEARCH,
+`{N.2}` PRODUCT, `{N.3}` TECH, and `{N.4}` PLAN — run the following code-intelligence
+orientation steps. These are mandatory per the "Always Do" section in
+`.gitnexus/CLAUDE.md`. Cite the findings in the spec's Context (TECH) or Problem (PRODUCT)
+section so the Checker can verify the orientation step was completed.
+
+1. **`gitnexus_query({query: '<domain vocabulary from the spec title>'})`** — identifies
+   existing execution flows and symbols in the Knowledge Hub codebase that overlap with
+   the spec's domain. Cite findings in the spec's Context / Problem section verbatim (not
+   paraphrased), so the Checker can verify the orientation step was completed.
+
+2. **`gitnexus_context({name: '<symbol>'})`** — for each symbol the spec mandates be
+   modified, record the full call-graph context: verdict level (LOW / MEDIUM / HIGH /
+   CRITICAL), caller count, and the names of the top-3 affected execution flows. These go
+   into the spec's Context section alongside the symbol reference.
+
+3. **ccc fallback (greenfield / unfamiliar domain):** if `gitnexus_query` returns no
+   matching execution flows, invoke `ccc search <concept>` and cite any `[summary]` or
+   `[guide]` hits as orientation evidence. The greenfield disclaimer ("no existing symbols
+   match — greenfield surface") is the fallback only when `ccc search` also returns
+   nothing relevant.
+
+Cite `gitnexus_query` and `gitnexus_context` outputs explicitly — not paraphrased — so the
+Checker can verify the orientation step was completed. For the full gitnexus tool
+reference, see the "Always Do" section in `.gitnexus/CLAUDE.md`.
+
+<!-- code-intel:planner-block-end -->
+
 ## Phase-by-phase workflow per Subtask kind
 
 ### `{N.1}` RESEARCH (conditional, when domain complexity warrants)
