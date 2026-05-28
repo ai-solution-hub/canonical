@@ -258,6 +258,135 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     expect(after.description.length).toBe(789);
   });
 
+  // ── ID-35.31 — grapheme-aware char counting + over-by delta ──────────────────
+  //
+  // Defect (S275): `checkBudget` used JavaScript `string.length`, which counts
+  // UTF-16 code units, not user-perceived characters (graphemes). When an
+  // operator pasted text containing arrow glyphs (→), section marks (§), emoji,
+  // or combining marks, the measured length diverged from what the operator
+  // saw, making trim attempts undershoot. Worse: the error message reported
+  // only the raw count and budget, with no "over by N" delta — the operator
+  // had to do the arithmetic to know how much to trim.
+  //
+  // Fix:
+  //   1. Switch the gate to grapheme counting via `Intl.Segmenter` so the
+  //      measured length matches what the operator visually sees.
+  //   2. Surface an `(over by N)` delta in the error detail so the operator
+  //      can trim with precision.
+  //
+  // ASCII regression is preserved: graphemes == code units == bytes for
+  // pure-ASCII, so existing budget violations still trip on the same threshold.
+
+  // Grapheme counter that matches checkBudget's implementation — used by tests
+  // to compute expected over-by deltas without duplicating UTF-16 math.
+  function graphemeCount(s: string): number {
+    return [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(s)]
+      .length;
+  }
+
+  it('update-subtask description rejection message includes "(over by N)" delta', async () => {
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9996;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    // 400 graphemes (pure ASCII) on a 250 budget → over by 150.
+    const r = await run(
+      args('update-subtask', [
+        `${taskId}.${subId}`,
+        'description',
+        'q'.repeat(400),
+      ]),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      expect(r.detail).toContain('description');
+      expect(r.detail).toContain('400');
+      expect(r.detail).toContain('250');
+      // The over-by delta — what 35.31 surfaces so the operator can trim.
+      expect(r.detail).toContain('over by 150');
+    }
+  });
+
+  it('counts user-perceived graphemes (→, §, emoji), not UTF-16 code units', async () => {
+    // Build a 260-grapheme description from multibyte symbols: 252 ASCII +
+    // 4 arrows + 4 section marks → 260 user-perceived chars.
+    // In UTF-16 code units these symbols are each 1 code unit (BMP), so
+    // string.length here equals grapheme count. But the test ALSO covers an
+    // emoji case below where UTF-16 disagrees with graphemes.
+    const desc260 = 'a'.repeat(252) + '→→→→' + '§§§§';
+    expect(graphemeCount(desc260)).toBe(260);
+
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9997;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    const r = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'description', desc260]),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      // 260 graphemes, 250 budget → over by 10.
+      expect(r.detail).toContain('260');
+      expect(r.detail).toContain('250');
+      expect(r.detail).toContain('over by 10');
+    }
+  });
+
+  it('emoji (surrogate-pair) graphemes count as 1, not 2', async () => {
+    // 🎯 is a single grapheme but two UTF-16 code units (surrogate pair).
+    // If the gate used .length (code units), 130 darts would measure 260 and
+    // trip the 250 budget. If it uses graphemes, 130 darts measure 130 and
+    // stay under-budget. We pick 130 darts to make the distinction sharp.
+    const desc130Darts = '🎯'.repeat(130);
+    expect(desc130Darts.length).toBeGreaterThan(250); // 260 UTF-16 code units
+    expect(graphemeCount(desc130Darts)).toBe(130); // 130 graphemes — UNDER 250
+
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9998;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    // 130 graphemes is UNDER the 250 budget — the edit must succeed.
+    const r = await run(
+      args('update-subtask', [
+        `${taskId}.${subId}`,
+        'description',
+        desc130Darts,
+      ]),
+    );
+    expect(r.ok).toBe(true);
+    const updated = read('task-list').tasks[0].subtasks.find(
+      (s: { id: number }) => s.id === subId,
+    );
+    expect(graphemeCount(updated.description)).toBe(130);
+  });
+
+  it('pure-ASCII over-budget violations still trip (regression guard)', async () => {
+    // The 789-char ASCII case from the original ID-35.17 north star must still
+    // reject — graphemes == code units for pure ASCII. Belt-and-braces against
+    // a refactor that accidentally exempts ASCII over-budget records.
+    const taskId = read('task-list').tasks[0].id;
+    const newSub = {
+      id: 9999,
+      title: 'Regression — ASCII over-budget still rejects',
+      description: 'r'.repeat(789),
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'n/a',
+    };
+    const r = await run(args('add-subtask', [taskId, JSON.stringify(newSub)]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('budget-exceeded');
+      expect(r.detail).toContain('description');
+      expect(r.detail).toContain('789');
+      expect(r.detail).toContain('250');
+      expect(r.detail).toContain('over by 539');
+    }
+  });
+
   it('update-subtask --force on the mutated field commits AND notes untouched warnings', async () => {
     const taskId = read('task-list').tasks[0].id;
     const subId = 9995;

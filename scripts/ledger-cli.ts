@@ -1243,6 +1243,26 @@ function budgetSubject(gate: BudgetGate): string {
  * not budgeted, so they never flag. Non-string field values are skipped
  * (budgets are char-length on text fields).
  */
+/**
+ * ID-35.31: count user-perceived characters (graphemes), not UTF-16 code units.
+ *
+ * Defect (S275): `value.length` returns the UTF-16 code-unit count, which
+ * diverges from what the operator sees for any non-BMP glyph. A single emoji
+ * like `🎯` is 1 grapheme but 2 code units (surrogate pair); a 130-emoji
+ * description measures 260 by `.length` and trips a 250 budget the operator
+ * thinks is comfortably under. Even for BMP arrows (`→`, U+2192) and section
+ * marks (`§`, U+00A7) the counts agree, but the operator's intuition is
+ * "graphemes", so we standardise on `Intl.Segmenter`.
+ *
+ * `Intl.Segmenter` is available in every Node ≥ 16 build the repo targets;
+ * the wrapper exists so all budget-gate sites use a single counter.
+ */
+function graphemeLength(value: string): number {
+  return [
+    ...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(value),
+  ].length;
+}
+
 function checkBudget(
   gate: BudgetGate,
 ):
@@ -1256,8 +1276,13 @@ function checkBudget(
   for (const [field, budget] of Object.entries(budgets)) {
     const value = gate.record[field];
     if (typeof value !== 'string') continue;
-    if (value.length <= budget) continue;
-    const line = `${field} is ${value.length} chars (budget ${budget}) on ${budgetSubject(gate)}`;
+    // ID-35.31: grapheme count (what the operator sees), not UTF-16 code units.
+    const length = graphemeLength(value);
+    if (length <= budget) continue;
+    // ID-35.31: surface the `(over by N)` delta so the operator can trim with
+    // precision instead of running the arithmetic themselves.
+    const overBy = length - budget;
+    const line = `${field} is ${length} chars (budget ${budget}, over by ${overBy}) on ${budgetSubject(gate)}`;
     if (gate.mutatedField === undefined) {
       // Create / add / promote — first over-budget field is fatal.
       return { ok: false, detail: line, warnings: [] };
