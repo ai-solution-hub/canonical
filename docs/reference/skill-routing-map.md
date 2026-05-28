@@ -1,8 +1,8 @@
-<!-- Last verified: 20/05/2026 (kh-prod-readiness-S53 ID-18.1 — initial authoring, Option C ratified at S52 close) -->
+<!-- Last verified: 22/05/2026 (kh-prod-readiness-S53 ID-18.1 — initial authoring, Option C ratified at S52 close; kh-prod-readiness-S277 ID-23.14 — code-intelligence refactor tilt row added) -->
 
 # Skill Routing Map
 
-**Last verified:** 20/05/2026
+**Last verified:** 22/05/2026
 
 This document is a **lookup table**, not a forcing function. The Orchestrator (or Liam)
 consults it when composing dispatch briefs to identify which task-specific skills to name
@@ -54,6 +54,7 @@ appears in one tilt's Anti-patterns but the other tilt's Required, include it).
 | **Documentation** — reference docs, runbooks, ADRs, SDLC docs, tracked-reference-doc updates | `documentation-and-adrs` | `update-skill` (if a skill SKILL.md is also updated as part of the change); `kpf:refresh-reference-docs` (if `<!-- Last verified: ... -->` headers need bumping across multiple docs) | Do NOT write a new PRODUCT.md / TECH.md as part of a documentation Task — those are Planner artefacts produced by `write-product-spec` / `write-tech-spec`. Do NOT edit `docs/reference/product-roadmap.json` or `product-backlog.json` without the Curator (`update-roadmap-backlog`). | Skill routing map, runbook update, ADR, state-of-the-product entry, documentation-inventory update |
 | **Security / RLS** — RLS policy authoring, `get_user_role()`, SECURITY DEFINER audit, anon-EXECUTE lint, snyk scan | `security-review`, `supabase-postgres-best-practices`, `test-driven-development` | `diagnose-ci-failures` (if `migration-revoke-guard.yml` or `supabase-advisors.yml` CI job is red) | Do NOT use `--scan-all-users` with snyk-agent-scan — it dumps env-var values verbatim in JSON (CLAUDE.md §Plugin/MCP). Do NOT omit explicit `REVOKE EXECUTE ON FUNCTION ... FROM anon` on every new `public.*()` helper. Do NOT grant anon SELECT on `user_roles`. | OPS-43 SECDEF→INVOKER batch, advisor lint fix, RLS policy tightening, anon-EXECUTE revoke sweep |
 | **Workflow tooling** — SDLC skill authoring, agent file updates, `task-list.json` schema changes, orchestration infrastructure | `documentation-and-adrs`, `update-skill` | `test-driven-development` (if skill adds behaviour tested by Vitest guard tests, e.g. `doc-freshness.test.ts`, `mcp-fixture-sync.test.ts`); `context-engineering` (if loadout config changes) | Do NOT invoke `planning-and-task-breakdown` mid-Executor — decomposition is a Planner-phase concern. Do NOT edit `task-list.json` status fields to `done` as Executor — Checker only. Do NOT use `git-workflow-and-versioning` as Executor — Executors use `commit-commands` only. | SDLC skill update, agent file edit, task-list schema extension, freshness guard, skill-routing map authoring |
+| **Refactor / Rename / Type-evolution** — symbol renames, function extraction/inlining, type narrowing/widening, dead-export removal, column-rename across consumers | `gitnexus-refactoring`, `gitnexus-impact-analysis`, `ast-dataflow`, `ast-dataflow-rename-sweep`, `ast-dataflow-call-chain-pin` | `code-simplification` (end-of-task pass); `test-driven-development` (if behaviour changes) | Do NOT use find-and-replace for renames — `gitnexus_rename` understands the call graph. Do NOT skip `gitnexus_impact` on HIGH-risk symbol edits. | Column rename across consumers, function extraction, type-narrowing refactor, dead-export sweep |
 
 ---
 
