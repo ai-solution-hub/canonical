@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import os
 import sys
 import uuid
 from pathlib import Path
