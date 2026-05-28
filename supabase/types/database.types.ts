@@ -1726,12 +1726,16 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string | null
+          deadline: string | null
           description: string | null
+          evaluation_methodology: string | null
           field_count: number | null
           file_size: number
           filename: string
+          form_type: string | null
           id: string
           ingest_source: string
+          issuing_organisation: string | null
           mapped_count: number | null
           mime_type: string
           name: string
@@ -1744,12 +1748,16 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          deadline?: string | null
           description?: string | null
+          evaluation_methodology?: string | null
           field_count?: number | null
           file_size: number
           filename: string
+          form_type?: string | null
           id?: string
           ingest_source?: string
+          issuing_organisation?: string | null
           mapped_count?: number | null
           mime_type: string
           name: string
@@ -1762,12 +1770,16 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string | null
+          deadline?: string | null
           description?: string | null
+          evaluation_methodology?: string | null
           field_count?: number | null
           file_size?: number
           filename?: string
+          form_type?: string | null
           id?: string
           ingest_source?: string
+          issuing_organisation?: string | null
           mapped_count?: number | null
           mime_type?: string
           name?: string
@@ -1784,6 +1796,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_templates_form_type_fkey"
+            columns: ["form_type"]
+            isOneToOne: false
+            referencedRelation: "form_types"
+            referencedColumns: ["key"]
           },
           {
             foreignKeyName: "form_templates_workspace_id_fkey"
