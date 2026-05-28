@@ -224,6 +224,172 @@ lookup rule, see [references/skill-routing.md](references/skill-routing.md).
 
 ---
 
+## Code-intelligence baseline
+
+Every Subtask brief the Orchestrator authors for a code-touching dispatch MUST incorporate
+the code-intelligence tool matrix below. A dispatch is "code-touching" if it modifies any
+file matching the allowlist in the fourth sub-section. Non-code-touching dispatches
+(docs-only, ledger writes, spec authoring) are exempt.
+
+### Tool matrix per role
+
+<!-- code-intel:baseline-start -->
+
+The Knowledge Hub codebase is indexed by three complementary code-intelligence tools.
+Each role in the SDLC workflow has a defined set of obligations:
+
+**Orchestrator (this skill)**
+
+- Consult `gitnexus_query` when composing a Planner brief to identify relevant existing
+  execution flows and symbols the spec will touch. This finding lands in the spec's
+  Context / Problem section so the Planner has grounded orientation before writing.
+- Consult `gitnexus_context` on key symbols when the dispatch scope is ambiguous —
+  the call-graph context resolves whether a change is isolated or cross-cutting.
+- Where `ast-dataflow` provides finer-grained call-chain precision (e.g. wrong-argument
+  suspects, barrel-chain tracing), cite the query and its output in the dispatch brief.
+- Consult `ccc` for semantic search across the codebase when gitnexus or ast-dataflow
+  has not already surfaced the relevant symbols.
+
+**Planner (task-planner agent)**
+
+- Run `gitnexus_query` on the spec's domain vocabulary before authoring PRODUCT.md or
+  TECH.md — this surfaces existing execution flows so the spec does not re-invent
+  covered behaviour.
+- Run `gitnexus_context` on any symbol the spec mandates be modified — record the verdict
+  level (LOW / MEDIUM / HIGH / CRITICAL) and the names of the top-3 affected execution
+  flows in the spec's Context section.
+- Where ast-dataflow Q1 / Q2 / Q3 sweeps are appropriate (rename verification,
+  import-path correctness, string-literal site inventory), cite the sweep output.
+
+**Executor (task-executor agent)**
+
+- Before editing any symbol: run `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})`.
+  Record the verdict level, caller count, and top-3 affected execution flows in the
+  Subtask journal block. If the verdict is HIGH or CRITICAL, STOP and escalate to the
+  Orchestrator before proceeding.
+- Before committing: run `gitnexus_detect_changes()` to verify the affected symbol set
+  matches the Subtask's expected file-ownership boundary. Scope creep surfaces here.
+- Use `ast-dataflow` for call-chain precision when gitnexus does not give file:line
+  granularity — especially for wrong-argument suspects or barrel-chain regressions.
+
+**Checker (task-checker agent)**
+
+- Run `gitnexus_detect_changes` on the Executor's commit to audit scope containment.
+- If the Executor's journal block is missing a `gitnexus_impact` verdict, flag
+  `scope-containment: FAIL` in the audit output.
+
+**Curator (workflow-curator agent)**
+
+- Run `gitnexus_context({name: '<symbolName>'})` on finding symbols to count callers.
+  Ten or more callers across three or more modules → roadmap-level finding. Fewer →
+  backlog item. This is the deterministic caller-count signal for routing decisions.
+- Supplement with `ast-dataflow callers <symbolName>` for TypeScript-corpus precision
+  when the gitnexus count is ambiguous.
+
+See `.gitnexus/CLAUDE.md` "Always Do" for canonical `gitnexus_impact` + `gitnexus_query`
++ `gitnexus_detect_changes` + `gitnexus_context` call patterns. See
+`.ast-dataflow/CLAUDE.md` for the 12 available queries and 9 cross-tool patterns. The
+`ccc` skill body at `~/.agents/skills/ccc/SKILL.md` documents `ccc search`, `ccc describe`,
+and `ccc guide`.
+
+<!-- code-intel:baseline-end -->
+
+### Orchestrator Planner-brief block
+
+<!-- code-intel:planner-block-start -->
+
+When composing a Planner dispatch brief, include the following code-intelligence
+orientation in the brief's "Context" or "Problem" section. The Planner must have this
+grounding before writing the spec:
+
+> **Code-intelligence orientation for this Planner brief:**
+>
+> Before writing PRODUCT.md or TECH.md, run the following:
+>
+> 1. `gitnexus_query({query: '<domain vocabulary from the spec title>'})` — identifies
+>    existing execution flows and symbols in the Knowledge Hub codebase that overlap with
+>    the spec's domain. Cite findings in the spec's Context / Problem section, or note
+>    "gitnexus orientation: no existing symbols match — greenfield surface" if the query
+>    returns no relevant results.
+>
+> 2. `gitnexus_context({name: '<symbol>'})` — for each symbol the spec mandates be
+>    modified, record the full call-graph context: verdict level (LOW / MEDIUM / HIGH /
+>    CRITICAL), caller count, and the names of the top-3 affected execution flows. These
+>    go into the spec's Context section alongside the symbol reference.
+>
+> The Planner cites the gitnexus_query and gitnexus_context outputs explicitly — not
+> paraphrased — so the Checker can verify the orientation step was completed.
+
+<!-- code-intel:planner-block-end -->
+
+### Orchestrator Executor-brief block
+
+<!-- code-intel:executor-block-start -->
+
+When composing an Executor dispatch brief, include the following code-intelligence
+discipline in the brief's "Operating instructions" section. The Executor must follow
+this discipline on every code-touching Subtask:
+
+> **Code-intelligence discipline for this Executor brief:**
+>
+> Before editing any function, class, or method named in this brief:
+>
+> 1. Run `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})` and record
+>    in your journal block: the verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller
+>    count, and the names of the top-3 affected execution flows.
+>
+> 2. **If the verdict is HIGH or CRITICAL: STOP and escalate to the Orchestrator.**
+>    Do not proceed with edits until the Orchestrator has reviewed the blast radius.
+>
+> 3. Before committing: run `gitnexus_detect_changes()` to verify the affected symbol
+>    set is contained within this Subtask's file-ownership boundary. If detect_changes
+>    reports symbols outside the boundary, STOP and escalate — this is scope creep and
+>    the Checker will FAIL the scope-containment audit.
+
+<!-- code-intel:executor-block-end -->
+
+### Code-touching file allowlist
+
+<!-- code-intel:allowlist-start -->
+
+A dispatch is classified as "code-touching" (and therefore subject to the code-intelligence
+tool discipline above) when it modifies files matching any of the following:
+
+**In-scope file extensions** (TypeScript / JavaScript corpus):
+
+- `.ts` — TypeScript source files
+- `.tsx` — TypeScript + JSX source files
+- `.js` — JavaScript source files
+- `.jsx` — JavaScript + JSX source files
+- `.mjs` — ES module JavaScript
+- `.cjs` — CommonJS JavaScript
+
+**In-scope directories** (regardless of extension):
+
+- `app/` — Next.js App Router pages and API routes
+- `lib/` — core library modules
+- `components/` — React component implementations
+- `hooks/` — custom React hooks
+- `contexts/` — React context providers
+- `types/` — TypeScript type definitions
+- `scripts/` — ingestion CLIs, batch scripts, Python pipeline
+
+**Out-of-scope** (code-intelligence tool discipline does NOT apply):
+
+- `.md` / `.mdx` — documentation and spec files
+- `.json` (ledger files in `docs/reference/`) — workflow ledger files
+- `.py` — Python pipeline scripts (ast-dataflow covers TypeScript only; use grep for Python)
+- `.sql` — Supabase migration files (use grep for SQL)
+
+**Mixed-dispatch rule:** When a Subtask modifies both in-scope and out-of-scope files,
+the TypeScript corpus portion governs — the code-intelligence discipline applies to the
+`.ts` / `.tsx` files, and the out-of-scope files (e.g. accompanying `.md` spec updates)
+are exempt.
+
+<!-- code-intel:allowlist-end -->
+
+---
+
 ## Failure handling
 
 Six recurring failure patterns, each with a fixed Orchestrator response:

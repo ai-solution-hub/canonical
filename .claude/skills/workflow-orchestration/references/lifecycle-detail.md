@@ -14,10 +14,10 @@ When a Task lands with unspec'd surface area, the Orchestrator invokes
   to the Planner's loadout on demand.
 - `{N.2}` PRODUCT.md — Planner invokes `write-product-spec` directly. Output
   is numbered, testable Behaviour invariants per the skill's mandated
-  structure.
+  structure. The Planner cites the gitnexus_impact verdict for any symbol the spec slice mandates be modified — verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller count, and the names of the top-3 affected execution flows. Where no existing symbols match the spec domain, the Planner notes "gitnexus orientation: no existing symbols match — greenfield surface" in the spec's Context section.
 - `{N.3}` TECH.md — A **fresh** Planner instance reviews the ratified
   PRODUCT.md and writes TECH.md via `write-tech-spec`. One Planner per
-  subtask — Planners are not persistent across waves.
+  subtask — Planners are not persistent across waves. The Planner cites the gitnexus_impact verdict for any symbol the spec slice mandates be modified — verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller count, and the names of the top-3 affected execution flows. Where no existing symbols match the spec domain, the Planner notes "gitnexus orientation: no existing symbols match — greenfield surface" in the TECH.md Context section.
 - `{N.4}` PLAN.md — Conditional; only when `planning-and-task-breakdown`
   decomposition is needed to populate implementation subtasks.
 
