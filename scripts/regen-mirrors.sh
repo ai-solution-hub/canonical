@@ -46,11 +46,17 @@ if [ ! -d "$DIR/.git" ]; then
   echo "→ cloning task-view @ $TAG"
   rm -rf "$DIR"
   mkdir -p "$(dirname "$DIR")"
-  # --quiet suppresses progress output AND the detached-HEAD notice that
-  # `--branch <TAG>` triggers (TAG is a tag, not a branch). Errors still go
-  # to stderr. Keeps ledger-cli stdout clean (envelope-only) on first session
-  # write. ID-35.33.
-  git clone --quiet --depth 1 --branch "$TAG" \
+  # Two distinct silencers — both target stderr advisory noise (clone never
+  # touches stdout, so ledger-cli's JSON envelope contract was never at risk;
+  # this is purely a UX fix for interactive operator use):
+  #   --quiet                     drops `Cloning into '...'` + `done.` progress.
+  #   -c advice.detachedHead=false suppresses the "Note: switching to..." +
+  #                               "You are in 'detached HEAD' state..." block
+  #                               that `--branch <TAG>` triggers because TAG
+  #                               is a release tag, not a branch ref. `--quiet`
+  #                               alone does NOT suppress this advisory.
+  # Genuine errors (network, auth, missing tag) still hit stderr. ID-35.33.
+  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$TAG" \
     https://github.com/liam-jons/task-view.git "$DIR"
 else
   echo "→ reusing cached clone"
@@ -59,8 +65,8 @@ fi
 # --- bun-install-if-missing --------------------------------------------------
 if [ ! -d "$DIR/node_modules" ]; then
   echo "→ bun install (task-view deps)"
-  # --silent suppresses package install line noise; errors still go to stderr.
-  # Keeps ledger-cli stdout clean (envelope-only) on first session write. ID-35.33.
+  # --silent suppresses bun's package-install line noise (interactive UX fix
+  # for first session write); genuine errors still hit stderr. ID-35.33.
   (cd "$DIR" && bun install --silent)
 else
   echo "→ node_modules present (skip install)"
