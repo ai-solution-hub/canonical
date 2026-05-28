@@ -56,6 +56,43 @@ Before drafting, read the product spec (if any), inspect the relevant code, and
 identify the main files, types, data flow, and ownership boundaries. Do not
 guess about current architecture when the code can be inspected directly.
 
+<!-- code-intel:planner-citation-start -->
+### Code-intelligence orientation
+
+Before writing the spec, orient yourself in the codebase using the code-intelligence
+tools. This is the first research step — complete it before inspecting individual files or
+drafting any section.
+
+**Step (a) — query the feature concept.** Run `gitnexus_query` with the feature concept
+from PRODUCT.md as the query string. This returns execution flows and symbols ranked by
+relevance, grouped by functional area. It reveals which parts of the codebase are already
+doing work in the problem space and which flows the new feature will intersect.
+
+**Step (b) — context on named symbols.** For each named symbol (function, class, type, or
+route) that PRODUCT.md references directly, run `gitnexus_context` on that symbol. This
+returns its callers, callees, and the execution flows it participates in — the blast radius
+a change would have and the patterns it is expected to follow.
+
+**Step (c) — semantic search for unfamiliar surfaces.** When the feature concept is
+unfamiliar or the query in step (a) returns few results, run a `ccc` semantic search
+across the codebase. `ccc` uses embedding-based retrieval and surfaces files and symbols
+that are semantically related even when they share no lexical terms with the query.
+
+**Step (d) — ast-dataflow queries for precision work.** For schema-touching work, run
+`ast-dataflow column-reads` and `ast-dataflow column-writes` on any column the spec
+introduces or modifies; this shows every TypeScript site that reads or writes that
+column, which is the correct scope for migration-safety analysis. For refactor work, run
+`ast-dataflow callers` on the symbol being refactored to find all call sites that the
+type-checker resolves — a superset of what GitNexus indexes.
+
+If steps (a)–(c) return no relevant symbols, note the result inline in the Context
+section with the literal: `gitnexus orientation: no existing symbols match — greenfield surface`
+
+Guide references: `.gitnexus/CLAUDE.md` and `.ast-dataflow/CLAUDE.md` document the full
+tool catalogue, query shapes, and cross-tool composition patterns. Cite those files; do
+not reproduce their contents in the spec.
+<!-- code-intel:planner-citation-end -->
+
 Knowledge Hub conventions to ground the plan in:
 
 - **Architecture map:** `.planning/codebase/STRUCTURE.md` is the authoritative
@@ -83,6 +120,7 @@ Knowledge Hub conventions to ground the plan in:
 - **Taxonomy:** DB-driven via `contexts/taxonomy-context.tsx`; Python pipeline
   reads `scripts/tests/fixtures/taxonomy_snapshot.json`. Run
   `bun run sync:taxonomy` after taxonomy changes.
+- **Code intelligence** — see `.gitnexus/CLAUDE.md` and `.ast-dataflow/CLAUDE.md`.
 
 ## Structure
 
