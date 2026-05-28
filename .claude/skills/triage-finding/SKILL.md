@@ -69,6 +69,38 @@ If an existing roadmap or backlog item already covers this finding:
 - **Justification:** "Already covered by {item-id} in {file}: {description}"
 - Return immediately. Skip steps 2–4.
 
+<!-- code-intel:curator-pregrep-start -->
+### Caller-count pre-grep (Inv-8)
+
+Before proceeding to Step 2, if the finding's evidence names a specific symbol (function, class, or method), run a caller-count check to inform the Branch B vs Branch C routing that follows. This step is informational — it does not override the decision tree — but it ensures the impact radius is recorded and reduces routing ambiguity between roadmap (multi-month, cross-cutting) and backlog (single-feature, tactical).
+
+**Invocation pattern:**
+
+```bash
+# Step 1a: GitNexus graph-level caller count
+gitnexus_context({name: '<symbolName>'})
+
+# Step 1b: AST-level caller sweep (catches callers not indexed by GitNexus)
+# ast-dataflow callers <symbolName>
+bun scripts/ast-dataflow-cli.ts callers <symbolName>
+```
+
+Consult `.gitnexus/CLAUDE.md` for GitNexus tool usage conventions. Consult `.ast-dataflow/CLAUDE.md` for ast-dataflow query selection and CLI invocation patterns. Do not copy guide content inline — follow the linked files.
+
+**Threshold for routing:**
+
+- **≥ 10 callers across ≥ 3 modules** — the symbol has broad reach; the finding is more likely to be cross-cutting and multi-month in character. This is a signal that routes to **Branch B** (roadmap promotion — new capability theme) unless the finding's subject is clearly contained to a single feature area.
+- **< 10 callers OR contained to ≤ 2 modules** — the symbol has narrow reach; the finding is more likely to be tactical and single-feature in character. This is a signal that routes to **Branch C** (backlog promotion — active work item) unless the finding's subject is genuinely cross-cutting at the headline level.
+
+These thresholds are signals, not hard gates. The full Branch B / Branch C criteria in Step 2 govern the final decision. The caller-count check informs the "multi-month or cross-cutting" vs "weeks or smaller" judgement — do not short-circuit Step 2.
+
+**Record the count.** Write the result into the ledger entry's `notes` field as:
+
+> gitnexus caller count at triage: N callers across M modules
+
+This ensures the routing rationale is visible in the ledger and the curator can reconstruct why a finding went to Branch B vs Branch C without re-running the analysis.
+<!-- code-intel:curator-pregrep-end -->
+
 ---
 
 ## Step 2: Apply the decision tree
