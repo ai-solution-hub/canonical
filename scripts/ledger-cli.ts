@@ -276,9 +276,18 @@ function parseArgs(argv: string[]): ParseArgsResult {
       positionals.push(a);
     }
   }
+  const rawSubcommand = positionals.shift();
+  // ID-35.34 — alias normalisation. `show-task` was a common dogfood typo
+  // (mirrors `flip-task` / `update-task`); resolve it once here so BOTH the
+  // dispatch switch in run() AND the per-subcommand --help registry observe
+  // the canonical name.
+  const subcommand =
+    rawSubcommand !== undefined
+      ? (SUBCOMMAND_ALIASES[rawSubcommand] ?? rawSubcommand)
+      : undefined;
   return {
     ok: true,
-    parsed: { subcommand: positionals.shift(), positionals, flags },
+    parsed: { subcommand, positionals, flags },
   };
 }
 
@@ -616,9 +625,12 @@ function renderSchema(target?: string): string | null {
  * fall-through where `add-subtask --help` returned only the global usage line.
  */
 function subcommandHelp(command: string): string | null {
-  const spec = SUBCOMMAND_HELP[command];
+  // ID-35.34 — resolve aliases so `show-task --help` returns the same payload
+  // as `show --help`.
+  const canonical = SUBCOMMAND_ALIASES[command] ?? command;
+  const spec = SUBCOMMAND_HELP[canonical];
   if (!spec) return null;
-  const lines = [`${command} — ${spec.synopsis}`];
+  const lines = [`${canonical} — ${spec.synopsis}`];
   if (spec.flags) lines.push(`  flags: ${spec.flags}`);
   if (spec.kinds && spec.kinds.length) {
     lines.push('', 'schema:');
@@ -626,6 +638,17 @@ function subcommandHelp(command: string): string | null {
   }
   return lines.join('\n');
 }
+
+/**
+ * ID-35.34 — subcommand aliases. Operators frequently type `show-task` by
+ * analogy with `flip-task` / `update-task`; we accept it and dispatch the
+ * canonical `show` instead of failing with `unknown-subcommand`. The alias is
+ * applied at parseArgs() time so the entire downstream pipeline (run dispatch
+ * + per-subcommand --help) sees the canonical name only.
+ */
+const SUBCOMMAND_ALIASES: Record<string, string> = {
+  'show-task': 'show',
+};
 
 /** Per-subcommand help registry: argv synopsis, command-relevant flags, and
  * the record kind(s) whose schema slice the command operates on. */
@@ -1524,7 +1547,15 @@ function withCreateDefaults(
 }
 
 async function run(args: ParsedArgs): Promise<CliResult> {
-  const { subcommand, positionals: p, flags } = args;
+  const { subcommand: rawSubcommand, positionals: p, flags } = args;
+  // ID-35.34 — resolve subcommand aliases at the dispatch boundary. parseArgs()
+  // also normalises, but run() is exported and called directly by tests with
+  // hand-built ParsedArgs values that skip parseArgs entirely; normalising
+  // here makes the alias contract uniform across BOTH entry paths.
+  const subcommand =
+    rawSubcommand !== undefined
+      ? (SUBCOMMAND_ALIASES[rawSubcommand] ?? rawSubcommand)
+      : undefined;
   const dir = flags.ledgerDir;
 
   switch (subcommand) {
@@ -2167,7 +2198,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     }
 
     default:
-      return cliErr(subcommand ?? '<none>', 'unknown-subcommand', USAGE);
+      // ID-35.34 — lead with a --help callout so the operator's first line of
+      // context tells them how to self-serve, before the embedded USAGE dump.
+      return cliErr(
+        subcommand ?? '<none>',
+        'unknown-subcommand',
+        `unknown subcommand "${subcommand ?? '<none>'}" — run \`bun scripts/ledger-cli.ts --help\` for the command list, or \`bun scripts/ledger-cli.ts <command> --help\` for per-command flags.\n${USAGE}`,
+      );
   }
 }
 

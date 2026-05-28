@@ -22,6 +22,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, copyFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   run,
   renderSchema,
@@ -232,5 +233,83 @@ describe('ledger-cli — get single-field read', () => {
     const before = statSync(join(dir, 'product-backlog.json')).mtimeMs;
     await run(args('get', ['backlog', '100', 'status']));
     expect(statSync(join(dir, 'product-backlog.json')).mtimeMs).toBe(before);
+  });
+});
+
+// ── ID-35.34 — show-task alias + USAGE prominence + unknown-subcommand callout ─
+
+describe('ledger-cli — ID-35.34 show-task alias resolves to show (run dispatch)', () => {
+  it('show-task task <id> returns the same envelope as show task <id>', async () => {
+    const showResult = await run(args('show', ['task', '35']));
+    const aliasResult = await run(args('show-task', ['task', '35']));
+    expect(aliasResult.ok).toBe(true);
+    expect(showResult.ok).toBe(true);
+    if (showResult.ok && aliasResult.ok) {
+      // Same record returned. subcommand name must be the canonical 'show'.
+      expect(aliasResult.subcommand).toBe('show');
+      expect(aliasResult.result).toEqual(showResult.result);
+    }
+  });
+});
+
+describe('ledger-cli — ID-35.34 show-task --help resolves to show help', () => {
+  it('subcommandHelp("show-task") returns the same string as subcommandHelp("show")', () => {
+    const showHelp = subcommandHelp('show');
+    const aliasHelp = subcommandHelp('show-task');
+    expect(showHelp).not.toBeNull();
+    expect(aliasHelp).not.toBeNull();
+    expect(aliasHelp).toBe(showHelp);
+  });
+});
+
+describe('ledger-cli — ID-35.34 top-level --help prominence', () => {
+  it('ledger-cli --help exits 0 and lists every subcommand on the first ~30 lines', () => {
+    const cliPath = resolve(__dirname, '../..', 'scripts/ledger-cli.ts');
+    const r = spawnSync('bun', [cliPath, '--help'], {
+      encoding: 'utf8',
+      cwd: resolve(__dirname, '../..'),
+    });
+    expect(r.status).toBe(0);
+    const lines = r.stdout
+      .split('\n')
+      .filter((l) => l.trim().length > 0);
+    const firstThirty = lines.slice(0, 30).join('\n');
+    // Every subcommand the run() dispatch handles must be advertised up-front.
+    const subcommands = [
+      'show',
+      'get',
+      'schema',
+      'flip-task',
+      'flip-subtask',
+      'update-task',
+      'update-subtask',
+      'update-roadmap',
+      'update-backlog',
+      'append-journal',
+      'add-subtask',
+      'open-task',
+      'create-theme',
+      'create-backlog',
+      'delete-backlog',
+      'promote',
+    ];
+    for (const sub of subcommands) {
+      expect(firstThirty).toContain(sub);
+    }
+  });
+});
+
+describe('ledger-cli — ID-35.34 unknown subcommand error mentions --help', () => {
+  it('unknown-subcommand detail leads with a --help callout, not buried USAGE prose', async () => {
+    const r = await run(args('frobnicate', []));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('unknown-subcommand');
+      // The error MUST surface --help on its FIRST line so the operator knows
+      // the next step without having to read the entire embedded USAGE block.
+      const firstLine = (r.detail ?? '').split('\n')[0];
+      expect(firstLine).toContain('--help');
+      expect(firstLine).toContain('frobnicate');
+    }
   });
 });
