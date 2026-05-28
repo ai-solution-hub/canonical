@@ -5,7 +5,7 @@
 # Runbook: docs/runbooks/cloud-run-phase-1-handover.md
 #
 # Triggers:
-#   * push on production-readiness → deploy to kh-staging-494815 (Staging environment).
+#   * push on staging → deploy to kh-staging-494815 (Staging environment).
 #   * push on main → deploy to kh-prod-494815 (Production environment).
 #   * workflow_dispatch → manual deploy to either environment (for first deploy +
 #     fallback recovery).
@@ -35,7 +35,7 @@ name: Cloud Run deploy
 
 on:
   push:
-    branches: [main, production-readiness]
+    branches: [main, staging]
     paths:
       - "scripts/**/*.py"
       - "!scripts/tests/**"
