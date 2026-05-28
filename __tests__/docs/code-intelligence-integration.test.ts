@@ -91,13 +91,14 @@ const REQUIRED_ANCHORS: ReadonlyArray<{
       /\.sql/,
     ],
   },
-  // 5 — task-planner planner-block
+  // 5 — task-planner planner-block (same patterns as #2 — duplicated by design)
   {
     file: '.claude/agents/task-planner.md',
     anchorKey: 'planner-block',
     requiredContent: [
       /gitnexus_query/,
       /gitnexus_context/,
+      /(spec's Context|Problem)/,
     ],
   },
   // 6 — task-executor executor-block
