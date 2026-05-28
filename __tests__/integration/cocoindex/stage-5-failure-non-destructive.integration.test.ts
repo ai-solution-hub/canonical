@@ -127,8 +127,6 @@ describe.skipIf(!ENABLED)(
     it(
       "the run records status='failed' and the webhook/result carries errorClass + stageCounts",
       async () => {
-        const client = await createLiveServiceClient();
-
         const items = await pollContentItemsFor(TEST_PREFIX, {
           timeoutMs: POLL_TIMEOUT_MS,
         });

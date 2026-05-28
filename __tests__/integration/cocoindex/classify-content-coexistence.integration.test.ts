@@ -80,7 +80,6 @@ beforeAll(async () => {
   // not populate), fall back to NOT seeding — the test will skip its assertion
   // body gracefully via the null guard. We surface the error for diagnosis.
   if (ciErr) {
-    // eslint-disable-next-line no-console
     console.warn(`Inv-8 seed: content_items insert warning — ${ciErr.message}`);
     nullOpContentItemId = null;
     return;
@@ -97,7 +96,6 @@ beforeAll(async () => {
     op_id: null, // ← the load-bearing field: classifyContent INSERTs are NULL.
   });
   if (emErr) {
-    // eslint-disable-next-line no-console
     console.warn(
       `Inv-8 seed: entity_mentions insert warning — ${emErr.message}`,
     );

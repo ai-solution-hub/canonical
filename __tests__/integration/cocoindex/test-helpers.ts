@@ -379,7 +379,6 @@ export async function cleanupAliasMap(aliasIds: string[]): Promise<void> {
     .delete()
     .in('id', aliasIds);
   if (error) {
-    // eslint-disable-next-line no-console
     console.warn(
       `cleanupAliasMap: cleanup warning — ${error.message ?? String(error)}`,
     );
