@@ -78,10 +78,8 @@ afterAll(async () => {
       .from('q_a_extractions')
       .delete()
       .in('content_item_id', seededContentIds);
-    await client
-      .from('entity_mentions')
-      .delete()
-      .in('content_item_id', seededContentIds);
+    // entity_mentions cleanup intentionally removed (ID-49.5 deferred per
+    // S273 OQ-1 ratification — no entity-resolution assertions in 49.6).
     await client.from('content_items').delete().in('id', seededContentIds);
   }
   if (seededRunIds.length > 0) {

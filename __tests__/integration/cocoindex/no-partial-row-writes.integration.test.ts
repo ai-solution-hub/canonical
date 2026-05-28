@@ -23,18 +23,22 @@
  * Reading Inv-27 against T-OQ5: at v1 the contract is PER-ROW atomicity
  * (one row succeeds or one row fails — never half-written). The test
  * verifiable form is: for every content_items row with a pipeline-stamped
- * op_id, the corresponding derivation rows (q_a_extractions,
- * entity_mentions) either ALL share the same op_id OR none exist (the
- * extractor didn't produce them for the content type).
+ * op_id, the corresponding q_a_extractions derivation rows either ALL
+ * share the same op_id OR none exist (the extractor didn't produce them
+ * for the content type).
+ *
+ * entity_mentions assertions intentionally OMITTED — ID-49.5 is DEFERRED
+ * per S273 OQ-1 ratification (no entity-resolution work in this slice).
+ * Re-add when entity_mentions write-path lands.
  *
  * Test strategy:
  *   1. For each recent content_items row from a 'succeeded' pipeline_run,
- *      assert that all derivation rows (q_a_extractions, entity_mentions)
- *      for that content_item_id share the SAME op_id as the content_items
- *      row. ("Both side-effects land".)
+ *      assert that all q_a_extractions rows for that content_item_id
+ *      share the SAME op_id as the content_items row. ("Both side-effects
+ *      land".)
  *   2. For each recent content_items row from a 'failed' pipeline_run,
- *      assert that NO derivation rows exist linked to that content_item_id
- *      with the failed run's op_id. ("Neither does".)
+ *      assert that NO q_a_extractions rows exist linked to that
+ *      content_item_id with the failed run's op_id. ("Neither does".)
  *
  * Env-gate: live Supabase only.
  *
@@ -115,17 +119,9 @@ describe.skipIf(!ENABLED)(
             }
           }
 
-          // entity_mentions linked to this content_item
-          const { data: mentions } = await client
-            .from('entity_mentions')
-            .select('id, op_id, content_item_id')
-            .eq('content_item_id', item.id as string);
-
-          if (mentions && mentions.length > 0) {
-            for (const mention of mentions) {
-              expect(mention.op_id).toBe(opId);
-            }
-          }
+          // entity_mentions parallel assertion intentionally omitted —
+          // ID-49.5 deferred per S273 OQ-1 (no entity-resolution work in
+          // this slice). Re-add when entity_mentions write-path lands.
         }
       }
     }, 60_000);
@@ -155,16 +151,13 @@ describe.skipIf(!ENABLED)(
         if (!opId) continue;
 
         // Inv-27 verifiability: a failed run leaves NO partial derivation
-        // rows. Any row in q_a_extractions / entity_mentions stamped
-        // with this op_id proves the failure occurred AFTER some
-        // derivation rows landed — partial-write state, breaking Inv-27.
+        // rows. Any q_a_extractions row stamped with this op_id proves
+        // the failure occurred AFTER some derivation rows landed —
+        // partial-write state, breaking Inv-27.
+        // entity_mentions parallel assertion intentionally omitted —
+        // ID-49.5 deferred per S273 OQ-1.
         const { count: failedExtractions } = await client
           .from('q_a_extractions')
-          .select('id', { count: 'exact', head: true })
-          .eq('op_id', opId);
-
-        const { count: failedMentions } = await client
-          .from('entity_mentions')
           .select('id', { count: 'exact', head: true })
           .eq('op_id', opId);
 
@@ -176,7 +169,7 @@ describe.skipIf(!ENABLED)(
         // FAILED row should have 0 derivations.
         //
         // The strict test: for the failed run's op_id, the COUNT of
-        // derivation rows MUST equal 0 — because the failed run's
+        // q_a_extractions rows MUST equal 0 — because the failed run's
         // pipeline_runs.status='failed' implies NO content_items row
         // succeeded for that exact run (the run as a whole failed).
         //
@@ -187,7 +180,6 @@ describe.skipIf(!ENABLED)(
         // implies the single document that run was for failed end-to-
         // end. Therefore 0 is the strict assertion.
         expect(failedExtractions ?? 0).toBe(0);
-        expect(failedMentions ?? 0).toBe(0);
       }
     }, 60_000);
   },
