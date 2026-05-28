@@ -21,6 +21,10 @@ This skill is the decision half of the curator's job. The write half is `update-
 
 **Terminology (per s48-feedback B2):** Tasks are addressed by `ID-N` (e.g. `ID-15`); Subtasks by `ID-N.M` (e.g. `ID-15.3`). This convention is consistent across the task list, backlog, roadmap, and all workflow prompts/docs. Earlier phrasing that referred to identifiers as `task` followed by hyphen-id or `subtask` followed by hyphen-id is retired in favour of `ID-N` / `ID-N.M`.
 
+**Ledger CLI (v2) — read-only affordance:** This skill is decision-only and does not write. For targeted reads of a single ledger record (e.g. inspecting a candidate-duplicate's `linked_backlog[]`, `track`, or `priority`), prefer `bun scripts/ledger-cli.ts get <ledger> <id> [field]` or `bun scripts/ledger-cli.ts show <ledger> <id>` (the `Bash` allowed-tool is the channel) over loading the full 149-item backlog or full roadmap via `Read` + `Grep`. The CLI command surface is documented in `lib/ledger/README.md` "CLI command surface (v2)"; `bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type + budget so curator decisions (which carry into `update-roadmap-backlog` writes) can be authored against the explicit schema rather than guessed. Note also that v2 subcommands use inconsistent id-forms — composite `<taskId.subId>` for `update-subtask`, two-arg `<taskId> <subId>` for `flip-subtask` / `append-journal` — see `bun scripts/ledger-cli.ts --help` when handing off to a write-mode skill.
+
+**Field budgets:** Decision payloads carrying free-text fields (`subtask_spec.scope`, `backlog_slot.description`, `roadmap_proposed_theme.description`) are subject to the write-time budgets enforced downstream by `scripts/ledger-cli.ts`. The canonical budgets live in `docs/reference/task-list-discipline.md` §2/§3 (Task.description ≤1500, Subtask.description ≤250, Subtask.testStrategy ≤300, Subtask.details unbudgeted append-only) — cite that doc when sizing decision output.
+
 ---
 
 ## Inputs
@@ -57,6 +61,8 @@ Before deciding anything new, grep the roadmap and backlog for the finding's sub
 # (e.g. "auth", "design tokens", "barrel exports", whichever applies)
 ```
 
+For targeted reads of a specific item (e.g. inspecting a candidate-duplicate's `linked_backlog[]` or `track`), prefer `bun scripts/ledger-cli.ts get <ledger> <id> [field]` over `Read` + `Grep` — see `lib/ledger/README.md` `read` group. Grep against the JSON still works and is cheaper for cross-cutting term searches; both are valid. Use the CLI for record-anchored lookups, grep for thematic sweeps.
+
 If an existing roadmap or backlog item already covers this finding:
 
 - **Decision:** `no-action`
@@ -74,7 +80,7 @@ Walk the decision tree in order. Stop at the first match.
 This skill's canonical input is a finding packet from a `task-executor` or `workflow-checker`. However, the workflow-orchestration skill (or Orchestrator directly per S60 ratification) may invoke this skill on a backlog item being picked up for implementation — there is no finding source, only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
 
 - `finding.source` is set to `orchestrator-direct` (or `liam-direct`); `finding.source_context` carries the backlog item id; `finding.description` carries the Orchestrator's promotion rationale; `finding.evidence` is empty or carries the backlog item's existing `notes`.
-- **Decision is short-circuit:** `decision: subtask` (Promote target = task-list) when Liam direction names a parent Task; `decision: roadmap`/`backlog` are NOT reachable from a Liam-driven promote (the item is already on the backlog). The actual Promote write is performed by `update-roadmap-backlog` Promote mode.
+- **Decision is short-circuit:** `decision: subtask` (Promote target = task-list) when Liam direction names a parent Task; `decision: roadmap`/`backlog` are NOT reachable from a Liam-driven promote (the item is already on the backlog). The actual Promote write is performed by `update-roadmap-backlog` Promote mode, which fires `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>` — the atomic backlog-delete + task-create write. The skill never invokes that CLI directly.
 - The decision-tree's binary in-scope-ness check (Branch A) and Branches B/C/D do NOT run in this mode — the promotion is the entire decision.
 - Output: `decision: subtask` with `subtask_spec` populated from the backlog item's load-bearing fields (description → title; existing `details` → scope; existing `testStrategy` if present). Set `in_scope_predicate_matched: "liam-direction"`.
 
@@ -118,6 +124,8 @@ in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac"  # which of 
 ```
 
 The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it into the current wave or schedule it for a fix wave.
+
+> **Write substrate (downstream — informational):** The Orchestrator or `update-roadmap-backlog` materialises this spec via `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --testStrategy <…> [--depends N,M] [--priority …]` (see `lib/ledger/README.md`). The CLI's auto-id semantics allocate the next available integer per Task — callers MUST omit `--id` to avoid the {35.28} `add-subtask --id N stays string → schema-error` defect. Keep `scope` + `acceptance_criteria` summaries within the field budgets (Subtask.description ≤250 chars; Subtask.testStrategy ≤300 chars per `task-list-discipline.md` §2/§3) so the write does not hard-reject at the {35.17} budget gate.
 
 ### Branch B — Is it a new capability theme? (Shape A — "capability theme promotion")
 
@@ -199,6 +207,8 @@ Possible reasons:
 
 ## Step 3: Output the decision
 
+> **Write-time gates (downstream — informational):** The decision payload's downstream consumer (`update-roadmap-backlog` → `scripts/ledger-cli.ts`) enforces field budgets per {35.17} and the record-set delta per {35.16}; over-budget fields hard-reject unless `--force` is explicitly passed. Compose `subtask_spec.scope`, `backlog_slot.description`, and `roadmap_proposed_theme.description` within budget so the write succeeds first-try. Field budgets and write semantics live in `docs/reference/task-list-discipline.md` §2/§3.
+
 Return to the curator agent:
 
 ```yaml
@@ -254,17 +264,19 @@ You do not write provenance yourself, but the curator passes your decision to `u
 - Source commit SHA (if from a checker).
 - Session counter (e.g. `kh-prod-readiness-s47`).
 
-The `update-roadmap-backlog` skill attaches this to the resulting ledger entry via the schema-appropriate fields (`session_refs` + `commit_refs` for roadmap; `surfaced` for backlog).
+The `update-roadmap-backlog` skill attaches this to the resulting ledger entry via the schema-appropriate fields. Under v2's `BacklogItemSchema` and `RoadmapThemeSchema`, both surfaces use `session_refs` + `commit_refs` (verified against `lib/validation/backlog-schema.ts` lines 132–138 and `lib/validation/roadmap-schema.ts` lines 146–148). The earlier `surfaced` field name is a stale pre-v2 reference and has been retired.
+
+> **CLI input shape:** When provenance fields are involved, the curator-side input going INTO `update-roadmap-backlog` should be a JSON object (positional-JSON or `--file <path>`), not flag-by-flag — the CLI's named-flag mode covers only a subset of fields (per `bun scripts/ledger-cli.ts --help`: `--title --description --status --depends 1,2 --priority --id`), and `--session-refs` / `--commit-refs` are NOT named flags.
 
 ---
 
 ## Failure modes to avoid
 
 1. **Defaulting everything to backlog.** Backlog should not be a dumping ground. Use `no-action` when warranted.
-2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE.
+2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE. **v2 corollary:** Subtask decisions materialise via `bun scripts/ledger-cli.ts add-subtask` which enforces the `description ≤250 chars` / `testStrategy ≤300 chars` budgets ({35.17}) — keep the decision's `scope` and `acceptance_criteria` summaries within budget so the write does not hard-reject.
 3. **Promoting style nits to the roadmap.** Roadmap is strategic capability; "rename this variable for clarity" is not roadmap material.
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
-5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer reconciles to the current files.
+5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer (`bun scripts/ledger-cli.ts` invoked via `update-roadmap-backlog`) reconciles to the current files (`docs/reference/{task-list,product-roadmap,product-backlog}.json`).
 6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional (per s48-feedback B10). If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership`, the finding is not a spec-compliance issue against the Subtask slice, and the parent-Task-AC predicate also does not hold, it is OUT-OF-SCOPE. Route to B / C / D.
 7. **Routing a tactical item to Branch B — it belongs on Backlog.** Under Shape A (per PRODUCT inv 13 a + TECH §4.1), Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
 8. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses (per S62F-WP3 audit — items 152/153/154 routed to backlog despite blocking ID-9 Third-1 acceptance).
@@ -351,3 +363,5 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 ## What hands off to `update-roadmap-backlog`
 
 For `roadmap` and `backlog` decisions, the curator agent immediately invokes `update-roadmap-backlog` with the decision payload as input. That skill performs the actual JSON edit and any pipeline regeneration.
+
+> **Active CLI defects to be aware of (S273 — Subtasks 35.26–35.34):** Caller skills should NOT route around these with `--force` unless explicitly authorised — the fixes are owned by their respective Subtasks under Task ID-35. Most relevant to this skill's downstream consumers: {35.28} `add-subtask --id N stays string → schema-error` (Branch A consumers must omit `--id` and let auto-id allocate); {35.29} `--depends N` coerces to number (pass `dependencies` via positional-JSON, not named flag); {35.26} update-subtask budget-precheck blocks edits on untouched over-budget descriptions (do NOT bypass with `--force`). See `docs/reference/task-list.json` ID-35 subtasks for current status.
