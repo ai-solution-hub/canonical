@@ -34,7 +34,7 @@ The cocoindex / aiohttp / asyncpg / docling modules are all stubbed at
 the import boundary (mirroring test_cocoindex_flow_pipeline_run_webhook.py)
 so the test runs WITHOUT live infrastructure.
 
-Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-8
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-8
 """
 
 from __future__ import annotations

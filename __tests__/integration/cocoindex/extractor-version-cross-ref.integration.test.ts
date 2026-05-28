@@ -12,7 +12,7 @@
  * applied to extractor-version forensics.
  *
  * Inv-14 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "A direct UI edit, a governance-cron update, or any other non-cocoindex
  * > write path to a governed table also produces an `audit_log` row
@@ -35,8 +35,8 @@
  * required.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-8 + Inv-14.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-14.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-8 + Inv-14.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-14.
  *   - 02-data-flow.md §5.2 (audit-log coverage completeness).
  */
 

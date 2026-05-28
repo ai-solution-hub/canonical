@@ -9,7 +9,7 @@ environment WITHOUT triggering:
   - HTTP webhook emission
 
 This contract underpins the O-Q8 idle-mode design (per
-`docs/specs/cocoindex-flow-scaffolding/TECH.md` §P-2): the Cloud Run
+`docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md` §P-2): the Cloud Run
 Service binary boots via `python3 -m scripts.cocoindex_pipeline` and
 stays running in idle mode until `COCOINDEX_SOURCE_PATH` is set. CI
 must be able to import the module to exercise `KH_PIPELINE_APP` static
@@ -24,7 +24,7 @@ the API key, which is exercised only when cocoindex actually runs the
 flow on a real source-binding.
 
 Test strategy: ID-28.12 WP4 — idle-mode load with no env / API key.
-Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-2
 """
 
 from __future__ import annotations

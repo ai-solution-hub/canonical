@@ -19,7 +19,7 @@
  * helpers themselves throw fast on missing env to surface mis-wiring.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §P-9 (pollContentItemsFor
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-9 (pollContentItemsFor
  *     convention; this is the canonical implementation).
  *   - __tests__/integration/helpers/supabase-client.ts (prior-art client
  *     factory + env-gate helpers).

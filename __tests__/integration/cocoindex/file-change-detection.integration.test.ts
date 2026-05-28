@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-1 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "When a file is created, modified, or deleted under a tracked cocoindex
  * > source-binding location, the pipeline observes the change and emits
@@ -34,9 +34,9 @@
  *   correct local behaviour.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-1.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-1.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2 (cocoindex flow
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-1.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-1.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-2 (cocoindex flow
  *     scaffolding — `localfs.walk_dir(recursive=True)`).
  *   - scripts/cocoindex_pipeline/flow.py app_main() (the fs-watch loop).
  *   - __tests__/integration/helpers/supabase-client.ts (live client).

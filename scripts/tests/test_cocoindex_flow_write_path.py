@@ -30,7 +30,7 @@ WHAT THIS DOES NOT PROVE (must run on a worktree with .env.local + a postgres ta
 Async tests follow the repo convention (no pytest-asyncio plugin): drive coroutines
 via ``asyncio.run`` inside sync test functions (see test_cocoindex_app_main_retry_wiring).
 
-Reference: docs/specs/cocoindex-flow-scaffolding/RESEARCH.md §R1/§R2/§R3/§R6.
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/RESEARCH.md §R1/§R2/§R3/§R6.
 """
 
 from __future__ import annotations

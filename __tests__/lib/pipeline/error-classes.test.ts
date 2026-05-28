@@ -14,7 +14,7 @@
  *     classes and non-string inputs.
  *
  * Reference:
- *   docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-25 (verbatim
+ *   docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-25 (verbatim
  *   enumeration: extraction_validation_failed | extraction_provider_
  *   unavailable | postgres_write_failed | binary_conversion_failed |
  *   embedding_failed | entity_resolution_failed).

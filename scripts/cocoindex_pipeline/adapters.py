@@ -19,7 +19,7 @@ rather than importing the AGPL package directly — the network-service clause
 means the licence does not propagate. URL via `PULLMD_SERVICE_URL`,
 mounted via Cloud Run Secret Manager (Subtask 28.6).
 
-Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-3.
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3.
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ async def _pullmd_to_markdown(url: str) -> PullmdResult:
     if not pullmd_url:
         raise RuntimeError(
             "PULLMD_SERVICE_URL env var required — mount via Cloud Run Secret Manager "
-            "per Subtask 28.6 (docs/specs/cocoindex-flow-scaffolding/TECH.md §P-3)"
+            "per Subtask 28.6 (docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3)"
         )
     api_token = os.environ.get("PULLMD_API_TOKEN")
     if not api_token:

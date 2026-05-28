@@ -4,7 +4,7 @@
  * Subtask ID-28.14 (narrowed scope per S257 W3 Curator-split).
  *
  * Inv-22 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "When an ExtractByLlm response fails Pydantic parsing (missing required
  * > field, invalid enum, invalid discriminator), the pipeline writes a
@@ -84,7 +84,7 @@
  * Cloud Run staging Secret Manager unblock.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-22.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-22.
  *   - docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md Inv-13
  *     (validation-failure shape).
  *   - docs/specs/id-36-cocoindex-extraction-contract/TECH.md §4.1 (Pydantic error

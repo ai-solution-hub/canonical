@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-9 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "pullmd remains a separately-deployed network service that the
  * > cocoindex sidecar invokes via HTTP — NOT co-located in the cocoindex
@@ -42,8 +42,8 @@
  * environment. Always-on.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-9.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-9.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-9.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-9.
  *   - cloudrun/cloudbuild-cocoindex.yaml (sidecar build config — owned by
  *     28.15; this test only READS).
  *   - requirements.txt (Python dependency manifest — root project, NOT

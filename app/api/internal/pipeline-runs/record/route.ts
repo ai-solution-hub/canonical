@@ -13,7 +13,7 @@
  * Proxy: `/api/internal/*` falls under the existing `/api/` bypass in
  * `proxy.ts`; auth is enforced by `verifyCronAuth` below.
  *
- * Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-7.
+ * Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-7.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

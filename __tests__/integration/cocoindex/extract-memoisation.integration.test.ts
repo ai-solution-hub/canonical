@@ -4,7 +4,7 @@
  * Subtask ID-28.14 (narrowed scope per S257 W3 Curator-split).
  *
  * Inv-21 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "Re-invocations of an ExtractByLlm call against the same content-hash +
  * > same `output_type` + same instruction string + same LLM model return
@@ -60,7 +60,7 @@
  * Run staging Secret Manager unblock.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-21.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-21.
  *   - docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md Inv-15..Inv-18.
  *   - docs/specs/id-36-cocoindex-extraction-contract/TECH.md §5.3 row "21 — prompt-
  *     template version in code-hash" (memo-invalidation negative case).

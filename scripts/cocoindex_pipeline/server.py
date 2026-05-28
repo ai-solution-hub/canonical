@@ -22,7 +22,7 @@ GIL is released for cocoindex's native work so /health responsiveness is
 not blocked by the LMDB poll loop.
 
 References:
-  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-1.
+  docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-1.
   cloudrun/services/*-cocoindex.yaml — startupProbe /health:8080.
 """
 

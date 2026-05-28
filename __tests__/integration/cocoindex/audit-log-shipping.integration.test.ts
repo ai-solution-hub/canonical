@@ -5,7 +5,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-13 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "Every `audit_log` row produced by a Postgres `AFTER INSERT / UPDATE /
  * > DELETE` trigger firing on a pipeline-driven write to a governed table
@@ -48,9 +48,9 @@
  * substrate test (op_id-via-pipeline_runs) runs always.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-13 + P-OQ1.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-13.
- *   - docs/specs/rls-pattern/{PRODUCT,TECH}.md P-5 [DEFERRED-v1.1].
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-13 + P-OQ1.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-13.
+ *   - docs/specs/id-38-rls-pattern/{PRODUCT,TECH}.md P-5 [DEFERRED-v1.1].
  *   - docs/plans/phase-0-investigation/architecture/02-data-flow.md §5
  *     (op_id + audit_log hybrid pattern).
  */

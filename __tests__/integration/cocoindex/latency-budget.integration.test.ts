@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-2 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "For a successfully-processed source file under the supported MIME set
  * > (PDF / DOCX / XLSX via Docling; HTML via pullmd; markdown direct), the
@@ -21,9 +21,9 @@
  * COCOINDEX_FIXTURE_STAGING_URL + live Supabase. Skip-clean local.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-2 + P-OQ4 default.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-2.
- *   - docs/specs/cocoindex-flow-scaffolding/RESEARCH.md §4.2 (cold-cache
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-2 + P-OQ4 default.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-2.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/RESEARCH.md §4.2 (cold-cache
  *     35-file benchmark).
  */
 

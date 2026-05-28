@@ -4,7 +4,7 @@
  * Subtask ID-28.14 (narrowed scope per S257 W3 Curator-split).
  *
  * Inv-20 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "Every LLM extraction call the cocoindex pipeline makes supplies
  * > `output_type=ExtractionOutput` (or one of its three discriminated-union
@@ -49,11 +49,11 @@
  *     gate pattern"). Both patterns are functionally equivalent.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-20.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-20.
  *   - docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md Inv-1..Inv-14.
  *   - docs/specs/id-36-cocoindex-extraction-contract/TECH.md §2.1 (Pydantic shapes),
  *     §5.3 (Anthropic-live integration tests).
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §P-9 (corpus reuse).
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-9 (corpus reuse).
  *   - scripts/cocoindex_pipeline/extraction.py (Pydantic shapes).
  *   - __tests__/integration/helpers/supabase-client.ts (live client).
  */

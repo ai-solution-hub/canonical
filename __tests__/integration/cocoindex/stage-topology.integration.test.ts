@@ -37,8 +37,8 @@
  * live Supabase.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-3 + Inv-17.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-3 +
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-3 + Inv-17.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-3 +
  *     Inv-17 (extended).
  *   - app/api/internal/pipeline-runs/record/route.ts (StageCountsSchema).
  */

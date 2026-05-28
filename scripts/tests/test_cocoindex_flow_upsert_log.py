@@ -17,7 +17,7 @@ Cocoindex is stubbed at the import boundary (mirroring
 test_cocoindex_adapters.py pattern) so the test does NOT require LMDB
 startup nor dangerouslyDisableSandbox: true.
 
-Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-5
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-5
 Test strategy: ID-28.10 — JSON shape contract + INFO level + stdlib logger
 """
 

@@ -5,7 +5,7 @@
  * Subtask ID-49.6 (S273 — was ID-28.18 lineage; updated to OQ-A semantic).
  *
  * Inv-4 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "Re-running the pipeline over a file whose byte-contents have not
  * > changed since the last successful run does NOT produce new derivation
@@ -33,10 +33,10 @@
  * live Supabase. Skip-clean locally pending env unblock.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-4.
- *   - docs/specs/cocoindex-flow-scaffolding/RESEARCH.md §R4 (OQ-A
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-4.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/RESEARCH.md §R4 (OQ-A
  *     memo-respecting op_id ratification).
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-4.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-4.
  *   - 28.14 sibling `extract-memoisation.integration.test.ts` (Inv-21 memo
  *     determinism — sibling concern).
  */

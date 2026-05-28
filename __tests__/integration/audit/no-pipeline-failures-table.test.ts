@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-19 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "No KH-owned `pipeline_failures` table is created at v1 — cocoindex's
  * > native retry / back-off / DLQ subsumes the planned table per COCO.7
@@ -39,8 +39,8 @@
  * always runs against the configured DB.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-19.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-19.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-19.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-19.
  *   - 02-data-flow.md §7.3 + §10.4 (pipeline_failures RATIFIED-DO-NOT-
  *     BUILD).
  *   - RESEARCH.md §1.5 (cocoindex retry / back-off / DLQ native).

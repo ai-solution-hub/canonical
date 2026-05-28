@@ -39,8 +39,8 @@
  * containing 'not-yet-deployed').
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-9.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §P-1 (per-tenant
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-9.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-1 (per-tenant
  *     deploy + AGPL boundary).
  *   - Companion test: __tests__/integration/cocoindex/
  *     sidecar-pullmd-separation.test.ts (image-content static guard).

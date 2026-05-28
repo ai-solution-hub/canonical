@@ -8,7 +8,7 @@ standard Python environment.
 Async adapter functions are exercised via asyncio.run() within synchronous test
 functions — no pytest-asyncio plugin required.
 
-Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-3
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3
 Test strategy: ID-28.7 — convert_binary_to_markdown signature matches FileLike->str;
 inner-tier functions take bytes/str (verified via inspect.signature — never FileLike);
 per-MIME dispatch smoke tests; PULLMD_SERVICE_URL env var required for HTML path.

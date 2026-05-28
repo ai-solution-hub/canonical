@@ -9,8 +9,8 @@
 // `pipeline_runs.result.error_class` (JSONB).
 //
 // References:
-//   docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-25.
-//   docs/specs/cocoindex-flow-scaffolding/TECH.md §P-8.
+//   docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-25.
+//   docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-8.
 
 import { z } from 'zod';
 

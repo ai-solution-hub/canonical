@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-27 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "A failure mid-pipeline does NOT leave the corpus in a partial-write
  * > state where one downstream table (e.g. `q_a_extractions`) has the
@@ -43,8 +43,8 @@
  * Env-gate: live Supabase only.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-27 + T-OQ5.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-27 +
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-27 + T-OQ5.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-27 +
  *     §4 T-OQ5 (per-row atomicity ratification).
  *   - 02-data-flow.md §10.5 (anti-patterns table: silent partial
  *     completion is rejected).

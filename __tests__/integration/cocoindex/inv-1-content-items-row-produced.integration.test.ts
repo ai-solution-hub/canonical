@@ -5,7 +5,7 @@
  * Subtask ID-49.6 (S273 — reactive write path coverage).
  *
  * Inv-1 statement (paraphrased from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "A single file staged into the watched corpus (COCOINDEX_SOURCE_PATH)
  * > produces EXACTLY ONE content_items row keyed by the file's
@@ -27,8 +27,8 @@
  * not yet running).
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-1.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-1.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-1.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-1.
  *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
  */
 

@@ -36,8 +36,8 @@ cocoindex 1.0.3 API deviations (load-bearing for callers — DO NOT "fix"):
     extraction.py) own the surface.
 
 References:
-  docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2, §P-5, §P-7, §P-8
-  docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-23..Inv-27
+  docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-2, §P-5, §P-7, §P-8
+  docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-23..Inv-27
 """
 
 from __future__ import annotations

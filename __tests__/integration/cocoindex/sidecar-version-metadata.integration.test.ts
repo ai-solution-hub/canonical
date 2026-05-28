@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-8 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "Every `pipeline_runs` row produced by a sidecar invocation carries
  * > metadata identifying the sidecar image (e.g. an image-SHA, build-tag,
@@ -34,8 +34,8 @@
  * live Supabase.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-8.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-8.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-8.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-8.
  *   - app/api/internal/pipeline-runs/record/route.ts (webhook bridge —
  *     stamps the extractor metadata into pipeline_runs.result).
  */

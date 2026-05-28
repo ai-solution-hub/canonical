@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-23 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "A failure attributable to a transient cause — network blip mid-LLM-
  * > call, sidecar service-unavailable response, transient Postgres
@@ -52,8 +52,8 @@
  * GUARANTEED retry on every run).
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-23 + P-OQ2.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-23.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-23 + P-OQ2.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-23.
  *   - scripts/cocoindex_pipeline/extraction.py (_anthropic_retry tenacity
  *     wrapper).
  *   - scripts/cocoindex_pipeline/flow_context.py (_FlowRetryCounter +

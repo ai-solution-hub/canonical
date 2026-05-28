@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-6 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "The cocoindex pipeline executes inside a Cloud Run Service (not a
  * > Vercel function, not a Cloud Run Job at v1 per O-Q2), and that Service
@@ -30,8 +30,8 @@
  * staging deploy.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-6.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-6
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-6.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-6
  *     (workflow step + smoke deploy verify).
  *   - scripts/cocoindex_pipeline/server.py (the /health endpoint).
  */

@@ -5,7 +5,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-18 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "All `pipeline_runs` writes from the cocoindex pipeline go through the
  * > `recordPipelineRun()` helper from `@/lib/pipeline/record-run` (per
@@ -44,8 +44,8 @@
  * Env-gate: NONE — static source inspection.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-18.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-18.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-18.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-18.
  *   - lib/pipeline/record-run.ts (canonical helper).
  *   - app/api/internal/pipeline-runs/record/route.ts (cocoindex webhook
  *     bridge — the singular TS-side cocoindex pipeline writer).

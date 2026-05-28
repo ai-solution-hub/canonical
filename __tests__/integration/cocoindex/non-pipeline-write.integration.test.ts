@@ -5,7 +5,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-14 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "A direct UI edit, a governance-cron update, or any other non-cocoindex
  * > write path to a governed table also produces an `audit_log` row
@@ -38,8 +38,8 @@
  * role client.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-14.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-14.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-14.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-14.
  *   - docs/plans/phase-0-investigation/architecture/02-data-flow.md §5.2
  *     (why trigger-driven, not app-stamped — coverage completeness).
  */

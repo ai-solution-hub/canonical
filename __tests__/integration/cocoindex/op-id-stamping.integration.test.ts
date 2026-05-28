@@ -32,8 +32,8 @@
  * live Supabase.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-11 + Inv-12.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-11 +
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-11 + Inv-12.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-11 +
  *     Inv-12 (extended).
  *   - docs/plans/phase-0-investigation/architecture/02-data-flow.md §5.1
  *     (N7 op_id hybrid pattern).

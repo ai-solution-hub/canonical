@@ -44,8 +44,8 @@
  * exists yet). At v1.1, the assertion fires.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-15 + Inv-16.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-15 +
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-15 + Inv-16.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-15 +
  *     Inv-16.
  *   - 02-data-flow.md §3.2 (@coco.fn(memo=True) memo-hit semantics).
  */

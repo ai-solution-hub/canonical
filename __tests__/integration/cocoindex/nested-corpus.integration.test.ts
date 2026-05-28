@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-5 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "When the tracked source-binding location contains nested
  * > subdirectories, files at any depth within the tree trigger the
@@ -23,9 +23,9 @@
  * live Supabase.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-5.
- *   - docs/specs/cocoindex-flow-scaffolding/RESEARCH.md §1.2.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-5.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-5.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/RESEARCH.md §1.2.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-5.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

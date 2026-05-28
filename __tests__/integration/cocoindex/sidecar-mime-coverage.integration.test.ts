@@ -4,7 +4,7 @@
  * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
  *
  * Inv-7 statement (verbatim from
- * `docs/specs/cocoindex-flow-scaffolding/PRODUCT.md`):
+ * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "Every extractor invocation the pipeline makes — Docling for
  * > PDF/DOCX/XLSX; pullmd for HTML — succeeds against the sidecar's runtime
@@ -33,9 +33,9 @@
  * live Supabase. Skip-clean local.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-7.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-7.
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md §1 (supported MIME
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-7.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-7.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md §1 (supported MIME
  *     set: PDF/DOCX/XLSX/HTML/markdown).
  */
 

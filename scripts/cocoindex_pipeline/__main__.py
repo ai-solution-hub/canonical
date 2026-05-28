@@ -22,7 +22,7 @@ O-Q8 idle-mode: with COCOINDEX_SOURCE_PATH unset/missing, `app_main` logs
 and returns before any `mount_each`, so `update_blocking()` returns cleanly
 (nothing to watch) — the process is free to exit.
 
-Reference: docs/specs/cocoindex-flow-scaffolding/TECH.md §P-2 (line 374).
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-2 (line 374).
 """
 
 from __future__ import annotations

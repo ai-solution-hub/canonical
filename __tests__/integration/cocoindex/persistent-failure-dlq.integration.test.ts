@@ -61,9 +61,9 @@
  * environment), the assertion-arm skips cleanly with documented gap.
  *
  * References:
- *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-24 + Inv-25 +
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-24 + Inv-25 +
  *     Inv-26 + P-OQ3.
- *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-24/25/26.
+ *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 rows Inv-24/25/26.
  *   - lib/pipeline/error-classes.ts (PipelineErrorClassSchema).
  *   - app/api/internal/pipeline-runs/record/route.ts (failed-status
  *     payload shape).
