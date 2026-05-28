@@ -184,6 +184,15 @@ interface ParsedArgs {
      * back-compat.
      */
     force?: boolean;
+    /**
+     * ID-35.39 Item C — append-mode flag for `update-backlog notes` /
+     * `update-roadmap notes`. When set AND the target field is `notes`, the
+     * incoming value is concatenated onto the existing field value with a
+     * single newline separator instead of overwriting. Absent (the default)
+     * preserves the pre-{35.39} overwrite behaviour exactly. Optional for
+     * back-compat with pre-existing `ParsedArgs.flags` literals.
+     */
+    append?: boolean;
     ledgerDir: string;
     /**
      * ID-35.15 named value-flags. Each consumes the next argv token. Absent
@@ -210,6 +219,16 @@ interface ParsedArgs {
      */
     type?: string;
     track?: string;
+    /**
+     * ID-35.39 Item A — bind a newly-promoted Task to a roadmap capability
+     * theme. When set on `promote`, the new Task receives
+     * `capability_theme: <themeId>` AND the named theme's `linked_tasks[]`
+     * is appended with the new task id (idempotent push). The roadmap is
+     * loaded + validated up-front; an unknown theme id rejects with
+     * `unknown-theme` before any bytes are touched. Optional / undefined
+     * preserves the pre-{35.39} promote behaviour exactly.
+     */
+    capabilityTheme?: string;
   };
 }
 
@@ -233,6 +252,9 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--status-note': 'statusNote',
   '--type': 'type',
   '--track': 'track',
+  // ID-35.39 Item A — `promote --capability-theme <id>` binds the new Task to
+  // the named roadmap theme. Lives in VALUE_FLAGS (consumes the next token).
+  '--capability-theme': 'capabilityTheme',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -243,6 +265,11 @@ const BOOLEAN_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--no-regen-mirrors': 'noRegenMirrors',
   '--scoped': 'scoped',
   '--force': 'force',
+  // ID-35.39 Item C — `update-backlog/update-roadmap notes --append` concatenates
+  // the incoming value onto the existing notes value (newline-joined) instead of
+  // overwriting. Restricted to the `notes` field at the call site; absent
+  // (the default) preserves the pre-{35.39} overwrite behaviour exactly.
+  '--append': 'append',
 };
 
 /** Sorted union of every known flag — surfaced in the reject-unknown error. */
@@ -270,6 +297,7 @@ function parseArgs(argv: string[]): ParseArgsResult {
     scoped: false,
     noRegenMirrors: false,
     force: false,
+    append: false,
     ledgerDir: 'docs/reference',
   };
   for (let i = 0; i < argv.length; i++) {
@@ -723,12 +751,16 @@ const SUBCOMMAND_HELP: Record<
   },
   'update-roadmap': {
     synopsis: 'update-roadmap <themeId> <field> <value> — edit a Theme field',
-    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    flags:
+      '--force --dry-run --pretty --no-regen-mirrors ' +
+      '--append (notes field only — concatenate newline-joined)',
     kinds: ['theme'],
   },
   'update-backlog': {
     synopsis: 'update-backlog <itemId> <field> <value> — edit a backlog field',
-    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    flags:
+      '--force --dry-run --pretty --no-regen-mirrors ' +
+      '--append (notes field only — concatenate newline-joined)',
     kinds: ['item'],
   },
   'append-journal': {
@@ -775,7 +807,10 @@ const SUBCOMMAND_HELP: Record<
   promote: {
     synopsis:
       'promote <backlogId> <taskJson> — atomically promote a backlog item to a Task',
-    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    flags:
+      '--force --dry-run --pretty --no-regen-mirrors ' +
+      '--capability-theme <themeId> (bind the new Task to a roadmap theme — ' +
+      'sets task.capability_theme + appends task id to theme.linked_tasks[])',
     kinds: ['task', 'item'],
   },
 };
@@ -797,12 +832,20 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   create-theme   <themeJson>
   delete-backlog <itemId>
   promote        <backlogId> <taskJson>
-flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
+flags: --dry-run --pretty --scoped --force --append --no-regen-mirrors --ledger-dir <path>
   --scoped : minimal-diff write — re-emit only the mutated record, preserving
              untouched-record bytes + on-disk \\uXXXX escaping (field edits only:
              flip-task | flip-subtask | append-journal).
   --force  : downgrade a budget-exceeded rejection to a soft warning and write
              anyway (escape hatch for the rare legitimate over-budget field).
+  --append : update-backlog / update-roadmap notes-only — concatenate the
+             incoming value onto the existing notes value (newline-joined)
+             instead of overwriting. Rejected on non-notes fields.
+  --capability-theme <id> : promote-only — bind the new Task to a roadmap
+             theme (writes task.capability_theme + appends to
+             theme.linked_tasks[]). Atomic with the task-list and backlog
+             writes; unknown theme id rejects with \`unknown-theme\` before
+             any bytes are touched.
   --no-regen-mirrors : skip the default-on mirror regen (e.g. batch edits — run
              \`bash scripts/regen-mirrors.sh\` once at the end).
   --regen-mirrors : DEPRECATED no-op alias — regen is now the default.
@@ -2339,6 +2382,17 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'missing-args',
           'update-backlog <itemId> <field> <value>',
         );
+      // ID-35.39 Item C: `--append` is only meaningful on the `notes` field
+      // (the only nullable-string field on backlog items where concatenation
+      // has well-defined semantics). Reject early on other fields so a misuse
+      // doesn't silently overwrite — the operator clearly wanted append-mode.
+      if (flags.append && field !== 'notes') {
+        return cliErr(
+          'update-backlog',
+          'append-unsupported-field',
+          `--append is only supported on the \`notes\` field (received \`${field}\`)`,
+        );
+      }
       const loaded = await loadLedger(ledgerPath(dir, 'backlog'));
       if (!loaded.ok) return loaded.result;
       const descriptor: CollectionDescriptor = { collection: 'items' };
@@ -2348,7 +2402,24 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // by BacklogItemSchema field type, so `update-backlog 100 description
       // "123"` keeps "123" a string while `dependencies "[…]"` parses to an
       // array.
-      const newValue = coerceFieldValue('item', field, value);
+      // ID-35.39 Item C: when `--append` is set on the notes field, read the
+      // existing value off the loaded record and prepend it (newline-joined)
+      // BEFORE coercion. The existing value may be null (schema-permitted —
+      // see backlog-schema.ts `notes: z.string().nullable()`) → treat as
+      // empty so the result is just the incoming string.
+      let rawValue = value;
+      if (flags.append && field === 'notes') {
+        const existingItem =
+          loaded.detected.kind === 'backlog'
+            ? loaded.detected.data.items.find((it) => it.id === itemId)
+            : undefined;
+        const existingNotes =
+          existingItem && typeof existingItem.notes === 'string'
+            ? existingItem.notes
+            : '';
+        rawValue = existingNotes ? `${existingNotes}\n${value}` : value;
+      }
+      const newValue = coerceFieldValue('item', field, rawValue);
       const m = fieldPatchMutation('update-backlog', loaded.detected, {
         fieldPath: ['items', itemId, field],
         newValue,
@@ -2394,11 +2465,35 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'missing-args',
           'update-roadmap <themeId> <field> <value>',
         );
+      // ID-35.39 Item C: `--append` is only meaningful on `notes` (the only
+      // nullable-string field on themes). Reject early on other fields.
+      if (flags.append && field !== 'notes') {
+        return cliErr(
+          'update-roadmap',
+          'append-unsupported-field',
+          `--append is only supported on the \`notes\` field (received \`${field}\`)`,
+        );
+      }
       const loaded = await loadLedger(ledgerPath(dir, 'roadmap'));
       if (!loaded.ok) return loaded.result;
       const descriptor: CollectionDescriptor = { collection: 'themes' };
       const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
-      const newValue = coerceFieldValue('theme', field, value);
+      // ID-35.39 Item C: same notes-append semantics as update-backlog —
+      // null/empty existing → just the new value; non-empty existing →
+      // existing + '\n' + new (newline-joined).
+      let rawValue = value;
+      if (flags.append && field === 'notes') {
+        const existingTheme =
+          loaded.detected.kind === 'roadmap'
+            ? loaded.detected.data.themes.find((t) => t.id === themeId)
+            : undefined;
+        const existingNotes =
+          existingTheme && typeof existingTheme.notes === 'string'
+            ? existingTheme.notes
+            : '';
+        rawValue = existingNotes ? `${existingNotes}\n${value}` : value;
+      }
+      const newValue = coerceFieldValue('theme', field, rawValue);
       const m = fieldPatchMutation('update-roadmap', loaded.detected, {
         fieldPath: ['themes', themeId, field],
         newValue,
@@ -2570,6 +2665,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         flags.dryRun,
         !flags.noRegenMirrors,
         flags.force,
+        // ID-35.39 Item A — optional capability-theme binding (undefined →
+        // pre-{35.39} two-ledger behaviour; defined → three-ledger atomic
+        // write that also patches the named theme's `linked_tasks[]`).
+        flags.capabilityTheme,
       );
     }
 
@@ -2600,13 +2699,38 @@ async function promote(
   dryRun: boolean,
   regenMirrors: boolean,
   force: boolean = false,
+  capabilityTheme?: string,
 ): Promise<CliResult> {
   const taskListP = ledgerPath(dir, 'task');
   const backlogP = ledgerPath(dir, 'backlog');
+  const roadmapP = ledgerPath(dir, 'roadmap');
 
   // Phase 1: validate everything (no bytes touched).
   const taskRecord = parseJsonArg('promote', taskJson);
   if (!taskRecord.ok) return taskRecord.result;
+
+  // ID-35.39 Item A: when `--capability-theme` is set we patch the task record
+  // BEFORE schema-validation insert so the `capability_theme` back-link field
+  // (TaskSchema z.string().nullable().optional() — see task-list-schema.ts)
+  // round-trips through Zod just like any positional-JSON-supplied field.
+  // Mutating a plain object the caller built locally is safe; this can't
+  // surprise downstream readers since parseJsonArg returned freshly-parsed
+  // bytes.
+  if (capabilityTheme !== undefined) {
+    if (
+      taskRecord.value === null ||
+      typeof taskRecord.value !== 'object' ||
+      Array.isArray(taskRecord.value)
+    ) {
+      return cliErr(
+        'promote',
+        'invalid-task-json',
+        '<taskJson> must be a JSON object for --capability-theme binding',
+      );
+    }
+    (taskRecord.value as Record<string, unknown>).capability_theme =
+      capabilityTheme;
+  }
 
   const tlLoad = await loadLedger(taskListP);
   if (!tlLoad.ok) return tlLoad.result;
@@ -2617,6 +2741,27 @@ async function promote(
   if (blLoad.detected.kind !== 'backlog')
     return cliErr('promote', 'wrong-ledger', 'backlog');
 
+  // ID-35.39 Item A: roadmap is only loaded + validated when the operator opts
+  // into capability-theme binding (preserves the pre-{35.39} two-ledger
+  // residual-window discipline when the flag is absent).
+  let rmLoad: Awaited<ReturnType<typeof loadLedger>> | null = null;
+  if (capabilityTheme !== undefined) {
+    rmLoad = await loadLedger(roadmapP);
+    if (!rmLoad.ok) return rmLoad.result;
+    if (rmLoad.detected.kind !== 'roadmap')
+      return cliErr('promote', 'wrong-ledger', 'roadmap');
+    const themeExists = rmLoad.detected.data.themes.some(
+      (t) => t.id === capabilityTheme,
+    );
+    if (!themeExists) {
+      return cliErr(
+        'promote',
+        'unknown-theme',
+        `--capability-theme ${capabilityTheme}: no theme with that id in roadmap`,
+      );
+    }
+  }
+
   // ID-35.16 record-set gate: capture pre-write id-sets BEFORE both mutations.
   const taskDescriptor: CollectionDescriptor = { collection: 'tasks' };
   const backlogDescriptor: CollectionDescriptor = { collection: 'items' };
@@ -2625,6 +2770,12 @@ async function promote(
     blLoad.detected,
     backlogDescriptor,
   );
+  // ID-35.39 Item A: capture roadmap pre-state when bound.
+  const roadmapDescriptor: CollectionDescriptor = { collection: 'themes' };
+  const roadmapBeforeIds =
+    rmLoad && rmLoad.ok
+      ? beforeCollectionIds(rmLoad.detected, roadmapDescriptor)
+      : null;
 
   const ins = insertRecord(tlLoad.detected, taskRecord.value);
   if (!ins.ok) {
@@ -2657,8 +2808,33 @@ async function promote(
     return cliErr('promote', rem.kind);
   }
 
+  // ID-35.39 Item A: apply the roadmap-side patch only when bound — push the
+  // new task id onto the named theme's linked_tasks[] (idempotent). Uses the
+  // vendored applyPatches primitive so the resulting bytes still pass Zod.
+  if (capabilityTheme !== undefined && rmLoad && rmLoad.ok) {
+    const theme = rmLoad.detected.data.themes.find(
+      (t) => t.id === capabilityTheme,
+    );
+    // Theme presence was checked in Phase 1; this lookup re-finds the now-
+    // post-validation reference. Idempotent push: skip if already present so
+    // a re-run can't duplicate entries.
+    const existingLinked = theme ? theme.linked_tasks : [];
+    if (!existingLinked.includes(String(ins.recordId))) {
+      const nextLinked = [...existingLinked, String(ins.recordId)];
+      const rmPatch = fieldPatchMutation('promote', rmLoad.detected, {
+        fieldPath: ['themes', capabilityTheme, 'linked_tasks'],
+        newValue: nextLinked,
+      });
+      if (!rmPatch.ok) return rmPatch.result;
+    }
+  }
+
   const newTaskContent = serialise(ins.detected);
   const newBacklogContent = serialise(rem.detected);
+  const newRoadmapContent =
+    capabilityTheme !== undefined && rmLoad && rmLoad.ok
+      ? serialise(rmLoad.detected)
+      : null;
 
   // ID-35.16 record-set gate, run twice (once per ledger) on the bytes ABOUT
   // TO BE WRITTEN: task-list +1 (the new Task id) AND backlog −1 (the source
@@ -2682,6 +2858,19 @@ async function promote(
     { kind: 'remove', id: rem.recordId },
   );
   if (!backlogGate.ok) return backlogGate.result;
+  // ID-35.39 Item A: roadmap gate — record-set delta is `none` (the theme
+  // collection is unchanged; only one theme's linked_tasks[] grew by one).
+  if (newRoadmapContent !== null && roadmapBeforeIds) {
+    const roadmapGate = checkRecordSet(
+      'promote',
+      'roadmap',
+      newRoadmapContent,
+      roadmapBeforeIds,
+      roadmapDescriptor,
+      { kind: 'none' },
+    );
+    if (!roadmapGate.ok) return roadmapGate.result;
+  }
 
   // ID-35.17 budget pre-check on the new Task record (the changed record). The
   // backlog item is removed, not authored, so only the Task is budgeted.
@@ -2723,32 +2912,49 @@ async function promote(
         dryRun: true,
         newTaskId: ins.recordId,
         removedBacklogId: rem.recordId,
+        // ID-35.39 Item A: surface the bound theme id when set so the dry-run
+        // envelope tells the operator what would change on the roadmap side.
+        ...(capabilityTheme !== undefined
+          ? { boundCapabilityTheme: capabilityTheme }
+          : {}),
       },
       warnings: warnings.length ? warnings : undefined,
     };
   }
 
-  // Phase 2: stage both (durable temps; originals untouched).
+  // Phase 2: stage all bound ledgers (durable temps; originals untouched).
   let stagedTask = null;
   let stagedBacklog = null;
+  let stagedRoadmap = null;
   try {
     stagedTask = await stageAtomicWrite(taskListP, newTaskContent);
     stagedBacklog = await stageAtomicWrite(backlogP, newBacklogContent);
+    if (newRoadmapContent !== null) {
+      stagedRoadmap = await stageAtomicWrite(roadmapP, newRoadmapContent);
+    }
   } catch (err) {
     if (stagedTask) await abortStagedWrite(stagedTask);
     if (stagedBacklog) await abortStagedWrite(stagedBacklog);
+    if (stagedRoadmap) await abortStagedWrite(stagedRoadmap);
     return cliErr('promote', 'stage-failed', msg(err));
   }
 
-  // Phase 3: commit both. ADD side first (async); REMOVE side via a SYNC
-  // rename so no microtask/scheduler yield can stretch the two-rename residual
-  // window after the first commit resolves — matches ledger-transaction.ts's
-  // commitStagedWriteSync. A kill between the two renames then yields a benign
-  // transient duplicate (Task present + backlog item present), never a lost
-  // update.
+  // Phase 3: commit all bound ledgers. ADD side first (async); REMOVE side
+  // via a SYNC rename so no microtask/scheduler yield can stretch the
+  // two-rename residual window after the first commit resolves — matches
+  // ledger-transaction.ts's commitStagedWriteSync. A kill between the renames
+  // then yields a benign transient duplicate (Task present + backlog item
+  // present), never a lost update. ID-35.39 Item A: when a roadmap commit is
+  // also pending, it runs as the third SYNC rename — the theme update is a
+  // back-link enrichment, so a kill after the first two renames leaves the
+  // theme un-updated (recoverable by a re-run with --capability-theme on the
+  // already-promoted task) rather than blocking the primary promote.
   try {
     await commitStagedWrite(stagedTask);
     renameSync(stagedBacklog.tmpPath, stagedBacklog.targetPath);
+    if (stagedRoadmap) {
+      renameSync(stagedRoadmap.tmpPath, stagedRoadmap.targetPath);
+    }
   } catch (err) {
     return cliErr('promote', 'commit-failed', msg(err));
   }
@@ -2757,7 +2963,15 @@ async function promote(
   return {
     ok: true,
     subcommand: 'promote',
-    result: { newTaskId: ins.recordId, removedBacklogId: rem.recordId },
+    result: {
+      newTaskId: ins.recordId,
+      removedBacklogId: rem.recordId,
+      // ID-35.39 Item A: name the bound theme on success so callers can
+      // confirm the roadmap-side mutation landed (or skipped — idempotent).
+      ...(capabilityTheme !== undefined
+        ? { boundCapabilityTheme: capabilityTheme }
+        : {}),
+    },
     warnings: warnings.length ? warnings : undefined,
     mirrorStale: mirrorStatus !== 'fresh',
     mirrorStaleReason: mirrorStatus === 'fresh' ? undefined : mirrorStatus,

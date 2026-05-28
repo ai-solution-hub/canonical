@@ -29,20 +29,45 @@ If the continuation prompt includes usage of cmux terminals, chain from this `wo
 
 When the Orchestrator or Liam selects a backlog item from
 `docs/reference/product-backlog.json` to implement, the **first action is to
-invoke `update-roadmap-backlog` in Promote mode** — not a manual Edit of
-`task-list.json` followed by a separate Delete on the backlog.
+invoke `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>`**. The CLI
+is the only sanctioned write path for this lifecycle transition — it owns the
+record-set gate, the budget gate, the atomic two-rename commit, and
+(optionally) the roadmap back-link binding. Hand-rolled writes via the Edit
+tool against any of the three workflow ledger files are forbidden.
 
 Promote is the canonical path because:
 
 - It is **atomic**: backlog entry removed and task-list record created in one
-  operation, preserving the provenance trail on both surfaces.
+  operation, preserving the provenance trail on both surfaces. With
+  `--capability-theme <themeId>` the roadmap theme's `linked_tasks[]` is
+  patched in the same atomic transaction.
 - It enforces the **idempotency check**: rejects re-promotion if the source id
   is already absent from the backlog (prevents duplicate Task/Subtask records).
+- It enforces the **record-set gate** and **budget gate**: a serialise-side
+  drop / duplicate / over-budget field is rejected before any bytes are
+  written.
 - It writes the **provenance journal block** (`<info added on …>`) linking the
   source backlog id into the task-list `details` field automatically.
 
-**Orchestrator-direct:** The curator handles triage and
-create; the Orchestrator handles the backlog → task-list lifecycle transition.
+**Canonical invocation:**
+
+```bash
+bun scripts/ledger-cli.ts promote <backlogId> <taskJson>
+# Optional: bind the new Task to a roadmap theme (ID-35.39 Item A).
+bun scripts/ledger-cli.ts promote <backlogId> <taskJson> \
+  --capability-theme <themeId>
+```
+
+`<taskJson>` can be assembled inline or via the standard input plumbing
+documented in `bun scripts/ledger-cli.ts promote --help` (positional JSON
+| `--file <path>` (`-` reads stdin) | named flags). For the roadmap-bind
+form: validate the `themeId` exists in `product-roadmap.json#/themes[]/id`
+before invoking — the CLI rejects with `unknown-theme` before any bytes
+are touched if it does not.
+
+**Orchestrator-direct:** The curator handles triage and create; the
+Orchestrator handles the backlog → task-list lifecycle transition via the
+CLI above.
 
 After Promote completes, the new Task or Subtask appears on `task-list.json`
 with the appropriate status. The standard ID-N lifecycle phases ({N.1}–{N.5+}) then
