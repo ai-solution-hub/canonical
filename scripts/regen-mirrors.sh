@@ -46,7 +46,11 @@ if [ ! -d "$DIR/.git" ]; then
   echo "→ cloning task-view @ $TAG"
   rm -rf "$DIR"
   mkdir -p "$(dirname "$DIR")"
-  git clone --depth 1 --branch "$TAG" \
+  # --quiet suppresses progress output AND the detached-HEAD notice that
+  # `--branch <TAG>` triggers (TAG is a tag, not a branch). Errors still go
+  # to stderr. Keeps ledger-cli stdout clean (envelope-only) on first session
+  # write. ID-35.33.
+  git clone --quiet --depth 1 --branch "$TAG" \
     https://github.com/liam-jons/task-view.git "$DIR"
 else
   echo "→ reusing cached clone"
@@ -55,7 +59,9 @@ fi
 # --- bun-install-if-missing --------------------------------------------------
 if [ ! -d "$DIR/node_modules" ]; then
   echo "→ bun install (task-view deps)"
-  (cd "$DIR" && bun install)
+  # --silent suppresses package install line noise; errors still go to stderr.
+  # Keeps ledger-cli stdout clean (envelope-only) on first session write. ID-35.33.
+  (cd "$DIR" && bun install --silent)
 else
   echo "→ node_modules present (skip install)"
 fi
