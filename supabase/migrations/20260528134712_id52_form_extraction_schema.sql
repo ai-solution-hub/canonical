@@ -41,7 +41,7 @@ ALTER TABLE public.form_templates
     ingest_source IN ('pipeline', 'app_upload')
   );
 COMMENT ON COLUMN public.form_templates.ingest_source IS
-  'Provenance of this template row. v1 = pipeline (folder->workspace). '
+  'Provenance of this template row. v1 = pipeline (folder→workspace). '
   'app_upload reserved for the thin UI front-end per OQ-52-UI-UPLOAD-TENSION.';
 
 -- Inv-5 (workspace-resolution failure) surfacing is handled in code via
