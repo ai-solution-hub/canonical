@@ -13,7 +13,7 @@ description:
   records only), and NOT hard-delete (soft-delete + supersede chain
   only). Efficiency-metric computation is the sibling skill
   evaluate-workflow, not this one.
-allowed-tools: Read, Bash, Grep, Glob, Write, Edit
+allowed-tools: Read, Bash, Grep, Glob, Write
 ---
 
 # evaluate-findings — Adjudication Playbook for Retro Candidate Findings
