@@ -153,7 +153,7 @@ ID-N Task) cannot resolve Open Questions inline — the parent session owns the
 roadmap/backlog and cross-Task scope decisions. The OQ-escalation channel
 defines the mechanism by which a sub-orchestrator surfaces an Open Question
 back to the parent for decision: spec at
-`docs/specs/oq-escalation/PRODUCT.md` (authored in parallel with this skill
+`docs/specs/id-43-oq-escalation/PRODUCT.md` (authored in parallel with this skill
 update under S61). Sub-orchestrators MUST NOT make cross-Task scope decisions
 without using the channel.
 

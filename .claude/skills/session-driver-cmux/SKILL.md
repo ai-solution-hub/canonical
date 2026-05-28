@@ -538,7 +538,7 @@ If the user wants to take over a running worker:
 Sub-orchestrators (and leaf workers) that hit an Open Question they cannot
 resolve in-scope must NOT silently proceed or block indefinitely. The formal
 channel for surfacing Open Questions to the parent session is specified in
-`docs/specs/oq-escalation/PRODUCT.md` (authored in parallel with this revision
+`docs/specs/id-43-oq-escalation/PRODUCT.md` (authored in parallel with this revision
 — see that spec for the OQ packet shape, the parent's response contract, and
 the per-track ledger location). The session-driver-cmux skill does not
 re-specify the protocol; it is the dispatch primitive. Sub-orchestrators load

@@ -203,7 +203,7 @@ const REWRITES: Rewrite[] = [
   {
     id: '43',
     description:
-      'Implement the durable Open-Question (OQ) escalation/decision channel specified in docs/specs/oq-escalation/PRODUCT.md (33 invariants): a cmux sub-worker emits a self-contained immutable OQ record (oq_id, worker_id, urgency, blocking flag, context_ref) to its parent orchestrator and receives an addressed decision back. Covers blocking vs non-blocking semantics, per-worker FIFO ordering, atomic durable append-only idempotent emission, cancellation, at-least-once decision delivery with a 10s latency bound, an awaiting-decision worker state, and crash/restart safety. PRODUCT shipped S62 (a47066c4) but was orphaned (no TECH, untracked) until re-instated S260. Provenance + acceptance criteria + dependencies relocated to docs/research/ledger-field-sweep-s269.md#id-43.',
+      'Implement the durable Open-Question (OQ) escalation/decision channel specified in docs/specs/id-43-oq-escalation/PRODUCT.md (33 invariants): a cmux sub-worker emits a self-contained immutable OQ record (oq_id, worker_id, urgency, blocking flag, context_ref) to its parent orchestrator and receives an addressed decision back. Covers blocking vs non-blocking semantics, per-worker FIFO ordering, atomic durable append-only idempotent emission, cancellation, at-least-once decision delivery with a 10s latency bound, an awaiting-decision worker state, and crash/restart safety. PRODUCT shipped S62 (a47066c4) but was orphaned (no TECH, untracked) until re-instated S260. Provenance + acceptance criteria + dependencies relocated to docs/research/ledger-field-sweep-s269.md#id-43.',
   },
   // ── OQ-LS-3 (S270): ID-49 released from EXCLUDED + swept ─────────────────────
   {
