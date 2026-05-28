@@ -4,9 +4,8 @@
 # Spec: docs/specs/t8-cocoindex/TECH.md §Service-vs-Job split + §S14-topology
 # Plan: docs/reference/task-list.json task 28, subtask 6
 #
-# See prod-kpf-cocoindex.yaml header for full architectural rationale.
-# See staging-kpf-cocoindex.yaml for staging-specific notes.
-# This manifest is a clone with example-client tenant substitutions.
+# Architectural rationale: see cloudrun/services/README.md (Service vs Job split,
+# per-tenant SA mapping, Docling pre-warm, IMAGE_SHA forensic correlation).
 #
 # SA: reuses existing example-client-pipeline-sa@kh-staging-494815 — same Secret Manager
 #   secretAccessor grant.

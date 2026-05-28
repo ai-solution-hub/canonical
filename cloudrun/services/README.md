@@ -41,9 +41,7 @@ are made via HTTP using the `PULLMD_SERVICE_URL` Secret Manager mount (consumed 
 | Manifest file                 | Service name                 | Project             | Service Account                                              |
 | ----------------------------- | ---------------------------- | ------------------- | ------------------------------------------------------------ |
 | `prod-example-client-cocoindex.yaml`    | `kh-cocoindex-pipeline-example-client` | `kh-prod-494815`    | `example-client-pipeline-sa@kh-prod-494815.iam.gserviceaccount.com`    |
-| `prod-kpf-cocoindex.yaml`     | `kh-cocoindex-pipeline-kpf`  | `kh-prod-494815`    | `kpf-pipeline-sa@kh-prod-494815.iam.gserviceaccount.com`     |
 | `staging-example-client-cocoindex.yaml` | `kh-cocoindex-pipeline-example-client` | `kh-staging-494815` | `example-client-pipeline-sa@kh-staging-494815.iam.gserviceaccount.com` |
-| `staging-kpf-cocoindex.yaml`  | `kh-cocoindex-pipeline-kpf`  | `kh-staging-494815` | `kpf-pipeline-sa@kh-staging-494815.iam.gserviceaccount.com`  |
 
 The Service Accounts are **reused** from the existing per-tenant Job SAs (see
 `cloudrun/jobs/{prod,staging}-{example-client,kpf}.yaml`). No new SAs need to be created. The
@@ -177,13 +175,7 @@ Manual deploy:
 gcloud run services replace cloudrun/services/staging-example-client-cocoindex.yaml \
   --region=europe-west2 --project=kh-staging-494815
 
-gcloud run services replace cloudrun/services/staging-kpf-cocoindex.yaml \
-  --region=europe-west2 --project=kh-staging-494815
-
 # Production
 gcloud run services replace cloudrun/services/prod-example-client-cocoindex.yaml \
-  --region=europe-west2 --project=kh-prod-494815
-
-gcloud run services replace cloudrun/services/prod-kpf-cocoindex.yaml \
   --region=europe-west2 --project=kh-prod-494815
 ```
