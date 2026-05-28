@@ -18,7 +18,7 @@
 #   TASK_VIEW_TAG=<tag>     pin a different release
 #   TASK_VIEW_DIR=<path>    reuse an existing working clone (skips the cache)
 #
-# Spec lineage: docs/specs/per-task-mirror/TECH.md §3.5/§6.4; S265 retro #3b.
+# Spec lineage: docs/specs/id-20-per-task-mirror/TECH.md §3.5/§6.4; S265 retro #3b.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

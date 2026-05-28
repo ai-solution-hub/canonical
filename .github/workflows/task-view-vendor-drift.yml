@@ -28,7 +28,7 @@
 # env, never inline ${{ }} in run: blocks (mirrors supabase-advisors.yml +
 # migration-revoke-guard.yml discipline).
 #
-# Spec: docs/specs/per-task-mirror/TECH.md §3.5 + §6.4.
+# Spec: docs/specs/id-20-per-task-mirror/TECH.md §3.5 + §6.4.
 
 name: task-view vendor drift
 
