@@ -6,7 +6,7 @@
 // lives in `hooks/workspaces/use-application-types.ts` as a TanStack
 // Query hook over `application_types` DB rows joined with a static
 // client config (Option C hybrid per
-// docs/specs/tanstack-workspace-types/TECH.md). Add or retire a seed
+// docs/specs/id-29-tanstack-workspace-types/TECH.md). Add or retire a seed
 // key: update both the module-internal `APPLICATION_TYPE_KEYS` list AND
 // the `application_types` table seed in lockstep.
 

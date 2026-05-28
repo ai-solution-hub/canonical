@@ -8,7 +8,7 @@
 -- registry holds so the hook output matches today's UI output byte-for-byte
 -- for the 3 currently-rendered types.
 --
--- Path c posture: see docs/specs/tanstack-workspace-types/TECH.md
+-- Path c posture: see docs/specs/id-29-tanstack-workspace-types/TECH.md
 -- =============================================================================
 
 SET search_path = public, extensions;
