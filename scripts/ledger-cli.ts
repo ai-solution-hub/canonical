@@ -1986,7 +1986,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // primitive type from JSON.parse and bypass this coercion.
       if (typeof record.id === 'string') {
         const n = Number(record.id);
-        if (!Number.isInteger(n) || record.id.trim() === '') {
+        // ID-35.28 fix-up: also reject `n <= 0` so the guard's detail
+        // ("not a positive integer") matches its behaviour. Negative and
+        // zero ids previously slipped through to `SubtaskSchema.id`
+        // (`z.number().int().min(1)`) and surfaced as the less-friendly
+        // `schema-error` envelope.
+        if (!Number.isInteger(n) || n <= 0 || record.id.trim() === '') {
           return cliErr(
             'add-subtask',
             'invalid-id',

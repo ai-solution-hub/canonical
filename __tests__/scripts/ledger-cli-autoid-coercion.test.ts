@@ -198,6 +198,44 @@ describe('auto-id — {35.21} max+1 on record-creating commands', () => {
     expect(r.detail).toMatch(/abc/);
   });
 
+  it('add-subtask --id -1 (negative integer) rejects with invalid-id, not schema-error ({35.28} fix-up)', async () => {
+    // Guard text promises "not a positive integer"; behaviour must match.
+    // Previously `-1` parsed to integer -1 and slipped through the guard,
+    // surfacing as `schema-error` from SubtaskSchema (z.number().int().min(1))
+    // instead of the friendlier `invalid-id` envelope.
+    const r = await run(
+      args('add-subtask', ['35'], {
+        id: '-1',
+        title: 'Negative --id',
+        description: 'A short summary.',
+        status: 'pending',
+      }),
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe('invalid-id');
+    expect(r.subcommand).toBe('add-subtask');
+    expect(r.detail).toMatch(/-1/);
+  });
+
+  it('add-subtask --id 0 (zero) rejects with invalid-id, not schema-error ({35.28} fix-up)', async () => {
+    // Same fix-up: `0` parses to integer 0 and used to fall through to the
+    // schema; the guard now matches its own "positive integer" promise.
+    const r = await run(
+      args('add-subtask', ['35'], {
+        id: '0',
+        title: 'Zero --id',
+        description: 'A short summary.',
+        status: 'pending',
+      }),
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe('invalid-id');
+    expect(r.subcommand).toBe('add-subtask');
+    expect(r.detail).toMatch(/0/);
+  });
+
   it('open-task --id N (numeric string) keeps id a STRING to match task.id schema ({35.28})', async () => {
     // The other half of the policy: task / theme / item ids stay bare-digit
     // STRINGS. `--id 9002` on `open-task` must NOT be coerced to a number.
