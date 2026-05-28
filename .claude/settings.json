@@ -13,7 +13,9 @@
       "Bash(cmux *)",
       "Bash(/Applications/cmux.app/Contents/Resources/bin/cmux *)",
       "Write(.claude/skills/**)",
-      "Bash(mkdir -p .claude/skills/*)"
+      "Bash(mkdir -p .claude/skills/*)",
+      "Bash(mkdir -p ~/.claude/.sentinels)",
+      "Bash(touch ~/.claude/.sentinels/*)"
     ]
   },
   "hooks": {
