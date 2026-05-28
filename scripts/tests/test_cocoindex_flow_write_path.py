@@ -643,6 +643,140 @@ class TestContentFingerprintAwaited:
         )
 
 
+# ── 42.9 — pullmd provenance lands on the source_documents write ──────────────
+
+
+class TestSourceDocumentProvenanceWritePath:
+    """The recorded source_documents row carries extraction_method + pullmd_share_id.
+
+    Proves the WIRING SHAPE (ID-42.9 §WP-E): ``ingest_file`` resolves provenance
+    via ``extract_source_provenance`` (the real helper, routing by suffix) and
+    writes ``extraction_method`` / ``pullmd_share_id`` into the declare_row dict.
+    Stubs ONLY at the ``_pullmd_to_markdown``/httpx boundary per
+    docs/reference/test-philosophy.md — the live-service proof is {42.10}'s job.
+    The content_text path (Stage 3-6) stays stubbed so this is a pure shape test.
+    """
+
+    @staticmethod
+    def _stub_extractors(flow: object, monkeypatch: pytest.MonkeyPatch) -> None:
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _fake_entities(content_text: str):
+            return []
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+    @staticmethod
+    def _ingest(flow: object, fake_file: object) -> "_FakeTarget":
+        from cocoindex_pipeline.flow_context import bind_flow_meta
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(fake_file, ci, qa, sd, em)  # type: ignore[attr-defined]
+
+        asyncio.run(_exercise())
+        return sd
+
+    def test_html_source_carries_pullmd_method_and_share_id(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        from unittest.mock import AsyncMock
+        import sys as _sys
+
+        self._stub_extractors(flow, monkeypatch)
+
+        # Stub the content_text path (the str body feeding Stages 3-6) so no
+        # network is touched on the markdown side; the provenance side is proved
+        # via the real extract_source_provenance routing + a stubbed pullmd HTTP.
+        async def _fake_convert(file: object) -> str:
+            return "# HTML body\n\nExtracted markdown."
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+
+        # Stub the pullmd HTTP boundary only (test-philosophy: shape, not service).
+        # Resolve the EXACT adapters module flow imported extract_source_provenance
+        # from (flow.py uses `scripts.cocoindex_pipeline.adapters`; sibling tests
+        # may import `cocoindex_pipeline.adapters` — different module objects). We
+        # patch `_pullmd_to_markdown` on the function's OWN globals so the patch is
+        # module-identity-agnostic.
+        adapters = _sys.modules[flow.extract_source_provenance.__module__]
+        stub_result = adapters.PullmdResult(
+            markdown="# HTML body\n\nExtracted markdown.",
+            x_source="playwright",
+            x_quality=0.77,
+            share_id="cafe1234",
+        )
+        monkeypatch.setattr(
+            adapters, "_pullmd_to_markdown", AsyncMock(return_value=stub_result)
+        )
+
+        src = tmp_path / "page.html"
+        src.write_text("<html><body>hi</body></html>")
+        sd = self._ingest(flow, _FakeFile(src))
+
+        assert len(sd.rows) == 1
+        assert sd.rows[0]["extraction_method"] == "pullmd_playwright"
+        assert sd.rows[0]["pullmd_share_id"] == "cafe1234"
+
+    def test_docling_source_carries_docling_method_and_null_share_id(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+
+        self._stub_extractors(flow, monkeypatch)
+
+        # PDF routes to docling for provenance; stub the str body so no docling
+        # import/conversion is triggered for the content_text path.
+        async def _fake_convert(file: object) -> str:
+            return "# PDF body"
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+
+        src = tmp_path / "report.pdf"
+        src.write_bytes(b"%PDF-1.4 stub")
+        sd = self._ingest(flow, _FakeFile(src))
+
+        assert len(sd.rows) == 1
+        assert sd.rows[0]["extraction_method"] == "docling"
+        assert sd.rows[0]["pullmd_share_id"] is None
+
+    def test_passthrough_source_carries_null_provenance(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+
+        self._stub_extractors(flow, monkeypatch)
+
+        async def _fake_convert(file: object) -> str:
+            return "# Markdown body"
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+
+        src = tmp_path / "notes.md"
+        src.write_text("# Markdown body")
+        sd = self._ingest(flow, _FakeFile(src))
+
+        assert len(sd.rows) == 1
+        assert sd.rows[0]["extraction_method"] is None
+        assert sd.rows[0]["pullmd_share_id"] is None
+
+
 # ── 28.21/28.22 — no fictional dataflow API survives ──────────────────────────
 
 

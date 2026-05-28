@@ -193,3 +193,87 @@ async def _pullmd_to_markdown(url: str) -> PullmdResult:
 async def _passthrough_markdown(content_text: str) -> str:
     """Identity transform for markdown/text. Memoised on content hash."""
     return content_text
+
+
+# ── Stage-6 provenance fan-out (ID-42.9, TECH §WP-E) ─────────────────────────
+# The Stage-6 `source_documents` write needs the pullmd provenance
+# (`extraction_method`, `pullmd_share_id`) WITHOUT disturbing the `-> str`
+# content_text contract of `convert_binary_to_markdown` (Stages 3-6 consume the
+# markdown body as a plain str; its memo key must stay content-hash-stable). So
+# the provenance is fanned out via this SEPARATE helper, which mirrors
+# `convert_binary_to_markdown`'s suffix routing. For HTML it awaits
+# `_pullmd_to_markdown(url)` — memoised on `url`, so this issues NO second HTTP
+# call when the same URL was already converted in the same run.
+
+# Only the five known pullmd X-Source values map onto the
+# `source_documents.extraction_method` CHECK enum
+# (`20260526074944_id42_pullmd_provenance.sql`). Any other / missing X-Source
+# maps to None (the column is nullable) so we NEVER emit `pullmd_<unknown>`,
+# which would violate the CHECK on insert.
+_PULLMD_X_SOURCE_METHODS = frozenset(
+    {"readability", "playwright", "cloudflare", "reddit", "trafilatura"}
+)
+
+
+@dataclass(frozen=True)
+class SourceProvenance:
+    """Stage-6 provenance for the `source_documents` write site (ID-42.9).
+
+    Mirrors the two pullmd-provenance columns added by
+    `20260526074944_id42_pullmd_provenance.sql`:
+      - `extraction_method` — `pullmd_<x_source>` for the five known X-Source
+        values, `"docling"` for the Docling path, else None (nullable).
+      - `pullmd_share_id`   — the `X-Share-Id` permalink for the HTML/pullmd
+        path, else None.
+    """
+
+    extraction_method: str | None
+    pullmd_share_id: str | None
+
+
+async def extract_source_provenance(
+    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+) -> SourceProvenance:
+    """Resolve the Stage-6 provenance for a FileLike (ID-42.9, TECH §WP-E).
+
+    Suffix routing mirrors `convert_binary_to_markdown`:
+      - HTML → await `_pullmd_to_markdown(url)` (memo-cached on `url` — no second
+        HTTP call) and map X-Source → `extraction_method`, X-Share-Id →
+        `pullmd_share_id`.
+      - PDF/DOCX/XLSX → `("docling", None)`.
+      - markdown/txt → `(None, None)` (passthrough has no extraction provenance).
+      - unsupported → `(None, None)` (convert_binary_to_markdown raises first; a
+        defensive None keeps this helper total).
+    """
+    suffix = file.file_path.path.suffix.lower()
+
+    if suffix in _DOCLING_EXTENSIONS:
+        return SourceProvenance(extraction_method="docling", pullmd_share_id=None)
+
+    if suffix in _HTML_EXTENSIONS:
+        url = str(file.file_path.path)
+        result = await _pullmd_to_markdown(url)  # memo-cached on url; no 2nd HTTP call
+        x_source = result.x_source
+        if x_source in _PULLMD_X_SOURCE_METHODS:
+            extraction_method: str | None = f"pullmd_{x_source}"
+        else:
+            # No silent failure: an unrecognised / missing X-Source would violate
+            # the CHECK enum if mapped to `pullmd_<unknown>`, so degrade to None
+            # and log structured context (the markdown body is still usable).
+            extraction_method = None
+            _logger.warning(
+                json.dumps(
+                    {
+                        "event": "cocoindex.pullmd_unknown_x_source",
+                        "url": url,
+                        "x_source": x_source,
+                    }
+                )
+            )
+        return SourceProvenance(
+            extraction_method=extraction_method,
+            pullmd_share_id=result.share_id,
+        )
+
+    # markdown/txt passthrough (and any other suffix) — no extraction provenance.
+    return SourceProvenance(extraction_method=None, pullmd_share_id=None)

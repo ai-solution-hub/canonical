@@ -360,6 +360,124 @@ class TestOuterTierMimeDispatch:
 
 
 # ============================================================================
+# STAGE-6 PROVENANCE FAN-OUT (ID-42.9 §WP-E)
+# `extract_source_provenance` mirrors convert_binary_to_markdown's suffix
+# routing and maps pullmd X-Source / X-Share-Id onto the source_documents
+# write columns WITHOUT disturbing the str-only content_text path.
+# ============================================================================
+
+
+class TestExtractSourceProvenance:
+    """`extract_source_provenance` maps each MIME route onto SourceProvenance."""
+
+    def test_html_maps_known_x_source_to_pullmd_method_and_share_id(self):
+        """HTML → pullmd_<x_source> + the X-Share-Id permalink (no 2nd HTTP call)."""
+        mock_file = _make_filelike(".html")
+        inner_result = adapters.PullmdResult(
+            markdown="# Body",
+            x_source="readability",
+            x_quality=0.91,
+            share_id="deadbeef",
+        )
+
+        async def run():
+            with patch.object(
+                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
+            ) as mock_pullmd:
+                prov = await adapters.extract_source_provenance(mock_file)
+            # Routed through the memo-cached inner tier with a str url/path arg.
+            call_args = mock_pullmd.call_args
+            assert call_args is not None, "_pullmd_to_markdown was not called"
+            assert isinstance(call_args.args[0], str)
+            return prov
+
+        prov = asyncio.run(run())
+        assert prov.extraction_method == "pullmd_readability"
+        assert prov.pullmd_share_id == "deadbeef"
+
+    @pytest.mark.parametrize(
+        "x_source",
+        ["readability", "playwright", "cloudflare", "reddit", "trafilatura"],
+    )
+    def test_html_maps_each_known_x_source(self, x_source):
+        """All five known X-Source values map to the CHECK-enum pullmd_* method."""
+        mock_file = _make_filelike(".html")
+        inner_result = adapters.PullmdResult(
+            markdown="# Body", x_source=x_source, x_quality=0.5, share_id="abcd1234"
+        )
+
+        async def run():
+            with patch.object(
+                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
+            ):
+                return await adapters.extract_source_provenance(mock_file)
+
+        prov = asyncio.run(run())
+        assert prov.extraction_method == f"pullmd_{x_source}"
+        assert prov.pullmd_share_id == "abcd1234"
+
+    def test_html_unknown_x_source_yields_none_method_and_warns(self, caplog):
+        """An unrecognised X-Source must NOT emit pullmd_<unknown> (CHECK enum)."""
+        mock_file = _make_filelike(".html")
+        inner_result = adapters.PullmdResult(
+            markdown="# Body", x_source="some_new_source", x_quality=0.5, share_id="ffff0000"
+        )
+
+        async def run():
+            with patch.object(
+                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
+            ):
+                return await adapters.extract_source_provenance(mock_file)
+
+        import logging as _logging
+
+        with caplog.at_level(_logging.WARNING):
+            prov = asyncio.run(run())
+
+        # Degraded to None (nullable column) — never `pullmd_some_new_source`.
+        assert prov.extraction_method is None
+        # share_id still captured even when the method degrades.
+        assert prov.pullmd_share_id == "ffff0000"
+        # No silent failure: a structured warning is emitted.
+        assert any("pullmd_unknown_x_source" in rec.message for rec in caplog.records)
+
+    def test_html_missing_x_source_yields_none_method(self):
+        """A missing (None) X-Source maps to None, not pullmd_None."""
+        mock_file = _make_filelike(".html")
+        inner_result = adapters.PullmdResult(
+            markdown="# Body", x_source=None, x_quality=None, share_id=None
+        )
+
+        async def run():
+            with patch.object(
+                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
+            ):
+                return await adapters.extract_source_provenance(mock_file)
+
+        prov = asyncio.run(run())
+        assert prov.extraction_method is None
+        assert prov.pullmd_share_id is None
+
+    @pytest.mark.parametrize("suffix", [".pdf", ".docx", ".xlsx"])
+    def test_docling_route_yields_docling_method_no_share_id(self, suffix):
+        """PDF/DOCX/XLSX → extraction_method == 'docling', pullmd_share_id None."""
+        mock_file = _make_filelike(suffix)
+
+        prov = asyncio.run(adapters.extract_source_provenance(mock_file))
+        assert prov.extraction_method == "docling"
+        assert prov.pullmd_share_id is None
+
+    @pytest.mark.parametrize("suffix", [".md", ".markdown", ".txt"])
+    def test_passthrough_route_yields_both_none(self, suffix):
+        """markdown/txt passthrough has no extraction provenance → both None."""
+        mock_file = _make_filelike(suffix, content_text="hello")
+
+        prov = asyncio.run(adapters.extract_source_provenance(mock_file))
+        assert prov.extraction_method is None
+        assert prov.pullmd_share_id is None
+
+
+# ============================================================================
 # INNER TIER SMOKE TESTS
 # ============================================================================
 

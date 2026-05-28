@@ -64,6 +64,7 @@ from cocoindex.connectorkits.target import ManagedBy
 
 from scripts.cocoindex_pipeline.adapters import (
     convert_binary_to_markdown,  # P-3 outer-tier adapter (28.7 — LANDED)
+    extract_source_provenance,  # Stage-6 pullmd provenance fan-out (42.9 §WP-E)
 )
 
 # ── Stage 3 imports — Path A canonical (S256 W1 / WP4) ─────────────────────
@@ -701,6 +702,12 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
         "storage_path": ColumnDef(type="text", nullable=False),
         "content_fingerprint": ColumnDef(type="text", nullable=True),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
+        # Pullmd extraction provenance (ID-42.9, TECH §WP-E) — fanned out from the
+        # PullmdResult headers via `extract_source_provenance` (NOT the str-only
+        # convert_binary_to_markdown). Both nullable per the CHECK-enum migration
+        # 20260526074944_id42_pullmd_provenance.sql.
+        "extraction_method": ColumnDef(type="text", nullable=True),
+        "pullmd_share_id": ColumnDef(type="text", nullable=True),
     },
     primary_key=("id",),
 )
@@ -879,6 +886,13 @@ async def ingest_file(
     # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
     content_text = await convert_binary_to_markdown(file)
 
+    # ── Stage 6 prep: pullmd provenance fan-out (ID-42.9, TECH §WP-E) ────────
+    # Resolved via the SEPARATE provenance helper (NOT convert_binary_to_markdown,
+    # whose `-> str` content_text contract must stay intact). For HTML this awaits
+    # `_pullmd_to_markdown(url)` which is memo-cached on `url`, so no second HTTP
+    # call is issued for a URL already converted above.
+    provenance = await extract_source_provenance(file)
+
     # ── Stage 3: Path A extraction (direct anthropic inside @coco.fn) ───────
     classification = await extract_classification(content_text)
     qa_form = await extract_qa_form(content_text)
@@ -907,6 +921,10 @@ async def ingest_file(
             "storage_path": rel_path,
             "content_fingerprint": content_fingerprint,
             "op_id": op_id,
+            # Pullmd provenance (ID-42.9 §WP-E) — nullable; only HTML/pullmd and
+            # Docling paths populate them (passthrough leaves both None).
+            "extraction_method": provenance.extraction_method,
+            "pullmd_share_id": provenance.pullmd_share_id,
         }
     )
 
