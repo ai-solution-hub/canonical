@@ -42,18 +42,23 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
+import {
+  dropFixture,
+  pollContentItemsFor,
+  stageFixture,
+} from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
 const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED =
   HAS_STAGING_URL && HAS_SOURCE_PATH && HAS_FIXTURE_STAGING && HAS_LIVE_DB;
 
-const TEST_PREFIX = `[28.18-INV11_12-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
+const TEST_PREFIX = `[49.6-INV11_12-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const seededContentIds: string[] = [];
 const seededRunIds: string[] = [];
 
@@ -68,21 +73,26 @@ const UUID_V4_REGEX =
 
 beforeAll(async () => {
   if (!ENABLED) return;
+  // Drop a single fixture into the watched corpus. The pipeline runs end-
+  // to-end and stamps op_id on content_items + q_a_extractions; the test
+  // body asserts cross-table op_id consistency (Inv-11) and the
+  // round-trip back to pipeline_runs (Inv-12).
+  await stageFixture({
+    fixturePath:
+      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+    destPath: `inv-11-12/${TEST_PREFIX}.xlsx`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
-  const client = await createLiveServiceClient();
-  if (seededContentIds.length > 0) {
-    await client
-      .from('q_a_extractions')
-      .delete()
-      .in('content_item_id', seededContentIds);
-    // entity_mentions cleanup intentionally removed (ID-49.5 deferred per
-    // S273 OQ-1 ratification — no entity-resolution assertions in 49.6).
-    await client.from('content_items').delete().in('id', seededContentIds);
-  }
+  await dropFixture({
+    titlePrefix: TEST_PREFIX,
+    contentIds: seededContentIds,
+  });
   if (seededRunIds.length > 0) {
+    const client = await createLiveServiceClient();
     await client.from('pipeline_runs').delete().in('id', seededRunIds);
   }
 }, 30_000);
@@ -96,40 +106,27 @@ describe.skipIf(!ENABLED)(
         const client = await createLiveServiceClient();
 
         // Poll until the fixture lands.
-        const deadline = Date.now() + POLL_TIMEOUT_MS;
-        let contentRow: { id: string; op_id: string } | null = null;
-
-        while (Date.now() < deadline) {
-          const { data } = await client
-            .from('content_items')
-            .select('id, op_id')
-            .ilike('title', `${TEST_PREFIX}%`)
-            .limit(1);
-
-          if (data && data.length > 0 && data[0]!.op_id) {
-            contentRow = {
-              id: data[0]!.id as string,
-              op_id: data[0]!.op_id as string,
-            };
-            seededContentIds.push(contentRow.id);
-            break;
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, 2_000));
-        }
-
-        expect(contentRow).not.toBeNull();
+        const polled = await pollContentItemsFor(TEST_PREFIX, {
+          timeoutMs: POLL_TIMEOUT_MS,
+        });
+        const firstWithOpId = polled.find((r) => r.op_id !== null);
+        expect(firstWithOpId).toBeDefined();
+        const contentRow: { id: string; op_id: string } = {
+          id: firstWithOpId!.id,
+          op_id: firstWithOpId!.op_id!,
+        };
+        seededContentIds.push(contentRow.id);
 
         // Inv-11 verifiability part 1: op_id is a valid UUID v4 (not NULL,
         // not a placeholder string).
-        expect(contentRow!.op_id).toMatch(UUID_V4_REGEX);
+        expect(contentRow.op_id).toMatch(UUID_V4_REGEX);
 
         // Inv-11 verifiability part 2: q_a_extractions rows for the same
         // content_item_id carry the SAME op_id value.
         const { data: extractions } = await client
           .from('q_a_extractions')
           .select('id, op_id')
-          .eq('content_item_id', contentRow!.id);
+          .eq('content_item_id', contentRow.id);
 
         // If the fixture is a form-type (q_a_form extraction kind), there
         // MUST be ≥1 q_a_extractions row. If it's classification-only or
@@ -138,7 +135,7 @@ describe.skipIf(!ENABLED)(
         // assertion remains the load-bearing check).
         if (extractions && extractions.length > 0) {
           for (const row of extractions) {
-            expect(row.op_id).toBe(contentRow!.op_id);
+            expect(row.op_id).toBe(contentRow.op_id);
           }
         }
       },

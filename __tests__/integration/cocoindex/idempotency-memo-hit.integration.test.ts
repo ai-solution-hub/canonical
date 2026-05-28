@@ -45,39 +45,47 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
+import {
+  dropFixture,
+  pollContentItemsFor,
+  stageFixture,
+} from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
 const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED =
   HAS_STAGING_URL && HAS_SOURCE_PATH && HAS_FIXTURE_STAGING && HAS_LIVE_DB;
 
-const TEST_PREFIX = `[28.18-INV04-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
+const TEST_PREFIX = `[49.6-INV04-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 120_000;
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // FUTURE: drop fixture, wait for first ingest, then trigger second poll
-  // by touching the file (or wait for the natural poll cycle).
+  // Drop the fixture (full_reprocess pass produces op_id=A). The harness
+  // then waits for the first ingest to land via pollContentItemsFor before
+  // triggering the second pass — see the `it` body for the second-pass
+  // poll cadence.
+  await stageFixture({
+    fixturePath:
+      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+    destPath: `inv-4/${TEST_PREFIX}.xlsx`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
-  if (seededContentIds.length === 0) return;
-  const client = await createLiveServiceClient();
-  await client
-    .from('q_a_extractions')
-    .delete()
-    .in('content_item_id', seededContentIds);
-  // entity_mentions cleanup intentionally removed (ID-49.5 deferred per
-  // S273 OQ-1 ratification — no entity-resolution assertions in 49.6).
-  await client.from('content_items').delete().in('id', seededContentIds);
+  await dropFixture({
+    titlePrefix: TEST_PREFIX,
+    contentIds: seededContentIds,
+  });
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
@@ -92,28 +100,18 @@ describe.skipIf(!ENABLED)(
         // Pass 1 — full_reprocess fixture has dropped (beforeAll); wait
         // for the row to land and capture its initial op_id (= "A").
         // ---------------------------------------------------------------
-        const firstIngestDeadline = Date.now() + POLL_TIMEOUT_MS;
-        let initialRow: { id: string; op_id: string } | null = null;
+        const polled = await pollContentItemsFor(TEST_PREFIX, {
+          timeoutMs: POLL_TIMEOUT_MS,
+        });
+        const firstWithOpId = polled.find((r) => r.op_id !== null);
+        expect(firstWithOpId).toBeDefined();
+        const initialRow: { id: string; op_id: string } = {
+          id: firstWithOpId!.id,
+          op_id: firstWithOpId!.op_id!,
+        };
+        seededContentIds.push(initialRow.id);
 
-        while (Date.now() < firstIngestDeadline) {
-          const { data } = await client
-            .from('content_items')
-            .select('id, op_id')
-            .ilike('title', `${TEST_PREFIX}%`)
-            .limit(1);
-          if (data && data.length > 0 && data[0]!.op_id) {
-            initialRow = {
-              id: data[0]!.id as string,
-              op_id: data[0]!.op_id as string,
-            };
-            seededContentIds.push(initialRow.id);
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 2_000));
-        }
-
-        expect(initialRow).not.toBeNull();
-        const opIdA = initialRow!.op_id;
+        const opIdA = initialRow.op_id;
         expect(opIdA).toMatch(
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
         );
@@ -123,7 +121,7 @@ describe.skipIf(!ENABLED)(
         const { count: extractionsBefore } = await client
           .from('q_a_extractions')
           .select('id', { count: 'exact', head: true })
-          .eq('content_item_id', initialRow!.id);
+          .eq('content_item_id', initialRow.id);
 
         // ---------------------------------------------------------------
         // Pass 2 — INCREMENTAL re-ingest on UNCHANGED source. FUTURE:
@@ -142,7 +140,7 @@ describe.skipIf(!ENABLED)(
         const { data: postRow, error: postErr } = await client
           .from('content_items')
           .select('id, op_id')
-          .eq('id', initialRow!.id)
+          .eq('id', initialRow.id)
           .maybeSingle();
 
         expect(postErr).toBeNull();
@@ -161,9 +159,35 @@ describe.skipIf(!ENABLED)(
         const { count: extractionsAfter } = await client
           .from('q_a_extractions')
           .select('id', { count: 'exact', head: true })
-          .eq('content_item_id', initialRow!.id);
+          .eq('content_item_id', initialRow.id);
 
         expect(extractionsAfter).toBe(extractionsBefore);
+
+        // Secondary (S274 nit #3 — pipeline_runs distinct op_id
+        // assertion). The memo-hit short-circuit means the content_items
+        // row's op_id stays at A, but the second incremental pass STILL
+        // produces its own pipeline_runs row stamped with op_id=B. The
+        // distinct op_id count across pipeline_runs scoped to the test
+        // prefix's content_items therefore reflects the number of
+        // distinct OPERATIONS observed against this fixture. Inv-4
+        // verifiability semantic: every pipeline_runs row whose op_id
+        // landed on the content_items row carries the SAME (A) op_id —
+        // because the memo-hit path did not re-stamp the row. The
+        // distinct count over content_items.op_id values is therefore
+        // exactly 1 (just A), regardless of how many pipeline_runs rows
+        // exist for this title prefix.
+        const { data: rowsByPrefix, error: rowsErr } = await client
+          .from('content_items')
+          .select('op_id')
+          .ilike('title', `${TEST_PREFIX}%`);
+        expect(rowsErr).toBeNull();
+        const distinctOpIds = new Set(
+          (rowsByPrefix ?? [])
+            .map((r) => r.op_id as string | null)
+            .filter((v): v is string => Boolean(v)),
+        );
+        expect(distinctOpIds.size).toBe(1);
+        expect(distinctOpIds.has(opIdA)).toBe(true);
       },
       POLL_TIMEOUT_MS + 60_000,
     );

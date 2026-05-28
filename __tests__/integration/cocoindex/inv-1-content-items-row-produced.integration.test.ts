@@ -34,15 +34,17 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { hasRealLiveDbCredentials } from '../helpers/supabase-client';
 import {
-  createLiveServiceClient,
-  hasLiveDbCredentials,
-} from '../helpers/supabase-client';
+  dropFixture,
+  pollContentItemsFor,
+  stageFixture,
+} from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
 const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED =
   HAS_STAGING_URL && HAS_SOURCE_PATH && HAS_FIXTURE_STAGING && HAS_LIVE_DB;
@@ -57,24 +59,24 @@ const UUID_V4_REGEX =
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // FUTURE (when fixture-staging service ships): drop a single fixture
-  // into the watched corpus root with a TEST_PREFIX-tagged title. The
-  // cocoindex fs-watch loop observes the new file and triggers the
-  // canonical six-stage pipeline; on completion the content_items row
-  // is observable via the Supabase service-role client.
+  // Drop a single fixture into the watched corpus root with a TEST_PREFIX-
+  // tagged title. The cocoindex fs-watch loop observes the new file and
+  // triggers the canonical six-stage pipeline; on completion the
+  // content_items row is observable via the Supabase service-role client.
+  await stageFixture({
+    fixturePath:
+      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+    destPath: `inv-1/${TEST_PREFIX}.xlsx`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
-  if (seededContentIds.length === 0) return;
-  const client = await createLiveServiceClient();
-  await client
-    .from('q_a_extractions')
-    .delete()
-    .in('content_item_id', seededContentIds);
-  // entity_mentions cleanup intentionally omitted — ID-49.5 deferred
-  // per S273 OQ-1 ratification (no entity-resolution work in 49.6).
-  await client.from('content_items').delete().in('id', seededContentIds);
+  await dropFixture({
+    titlePrefix: TEST_PREFIX,
+    contentIds: seededContentIds,
+  });
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
@@ -83,36 +85,19 @@ describe.skipIf(!ENABLED)(
     it(
       'a single staged fixture lands as exactly one content_items row with a stamped op_id',
       async () => {
-        const client = await createLiveServiceClient();
-
         // Poll until the staged fixture's content_items row lands.
-        const deadline = Date.now() + POLL_TIMEOUT_MS;
-        let landedRows: Array<{ id: string; op_id: string | null }> = [];
-
-        while (Date.now() < deadline) {
-          const { data } = await client
-            .from('content_items')
-            .select('id, op_id')
-            .ilike('title', `${TEST_PREFIX}%`);
-
-          if (data && data.length > 0) {
-            landedRows = data.map((r) => ({
-              id: r.id as string,
-              op_id: (r.op_id as string | null) ?? null,
-            }));
-            for (const row of landedRows) {
-              seededContentIds.push(row.id);
-            }
-            break;
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, 2_000));
+        const landedRows = await pollContentItemsFor(TEST_PREFIX, {
+          timeoutMs: POLL_TIMEOUT_MS,
+        });
+        for (const row of landedRows) {
+          seededContentIds.push(row.id);
         }
 
         // Inv-1 verifiability part 1: AT LEAST one row landed (no
         // silent drop). A length of 0 means the pipeline observed
         // the file but didn't produce a content_items row — Inv-1
-        // breach (silent drop).
+        // breach (silent drop). (Implicit: pollContentItemsFor rejects
+        // on timeout, so reaching here means landedRows.length >= 1.)
         expect(landedRows.length).toBeGreaterThan(0);
 
         // Inv-1 verifiability part 2: EXACTLY one row landed (no

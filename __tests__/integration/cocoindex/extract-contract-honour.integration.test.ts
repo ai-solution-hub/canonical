@@ -62,8 +62,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
+import {
+  dropFixture,
+  pollContentItemsFor,
+  stageFixture,
+} from './_helpers/fixture-staging';
 
 // ---------------------------------------------------------------------------
 // Env-gate — Inv-20 requires three things in concert:
@@ -84,10 +89,49 @@ import {
 // ---------------------------------------------------------------------------
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
+const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
 const HAS_ANTHROPIC_KEY = Boolean(process.env.ANTHROPIC_API_KEY);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
-const ENABLED = HAS_STAGING_URL && HAS_ANTHROPIC_KEY && HAS_LIVE_DB;
+const ENABLED =
+  HAS_STAGING_URL && HAS_FIXTURE_STAGING && HAS_ANTHROPIC_KEY && HAS_LIVE_DB;
+
+// ---------------------------------------------------------------------------
+// Fixture library (S266 — wired in ID-49.10). The extract-contract-honour
+// test ingests one fixture per extraction-kind:
+//   - classification: a non-form document (CSP Cloud Security Principles
+//     checklist xlsx — primarily a checklist-style classification target).
+//   - q_a_form: an ITT services document (form_type=itt — exercises
+//     QAFormExtraction shape end-to-end).
+//   - entity_mention: an RFP example with rich named entities (added at
+//     49.10 to populate the missing rfp form_type fixture set).
+// Acquired+committed at 49.10 — see docs/testing/test-data/templates/.
+// ---------------------------------------------------------------------------
+
+const FIXTURES: ReadonlyArray<{
+  kind: 'classification' | 'q_a_form' | 'entity_mention';
+  fixturePath: string;
+  destSuffix: string;
+}> = [
+  {
+    kind: 'classification',
+    fixturePath:
+      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+    destSuffix: 'classification.xlsx',
+  },
+  {
+    kind: 'q_a_form',
+    fixturePath:
+      'docs/testing/test-data/templates/itt-services-charnwood/ITT Services.docx',
+    destSuffix: 'q_a_form.docx',
+  },
+  {
+    kind: 'entity_mention',
+    fixturePath:
+      'docs/testing/test-data/templates/rfp-british-council/rfp_-_learning_partners_osch.doc',
+    destSuffix: 'entity_mention.doc',
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Q-EX2 contract shapes — verbatim from
@@ -147,50 +191,44 @@ const seededContentIds: string[] = [];
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // FUTURE: drop one fixture file of each extraction-kind into the pinned
-  // corpus path (`process.env.COCOINDEX_SOURCE_PATH`). The cocoindex fs-
-  // watch loop on the staging Service observes the change and triggers a
-  // flow run within the configured polling window. Test then polls Supabase
-  // for the resulting rows (see TECH §P-9 `pollContentItemsFor` helper —
-  // helper authoring deferred to 28.18).
+  // Drop one fixture file of each extraction-kind into the pinned corpus
+  // path via the fixture-staging service. The cocoindex fs-watch loop on
+  // the staging Service observes the change and triggers a flow run within
+  // the configured polling window. The test body polls Supabase for the
+  // resulting rows via `pollContentItemsFor` (the same TEST_PREFIX gates
+  // every fixture so a single poll cycle covers all three).
   //
   // Three fixtures per Inv-20 verifiability statement:
   //   - One classification-kind document (any content_type ≠ form)
   //   - One q_a_form-kind document (form_type ∈ VALID_FORM_TYPES)
   //   - One entity_mention-kind document (any content with named entities)
-  //
-  // The fixtures live under `__tests__/integration/cocoindex/fixtures/`
-  // (NEW DIR — deferred to 28.18 alongside `pollContentItemsFor`).
-  //
-  // For the 28.14 narrowed scope, this beforeAll documents the FUTURE
-  // setup contract. When 28.18 lands the corpus-drop helper + fixtures,
-  // this block becomes:
-  //
-  //   const fixtureRoot = process.env.COCOINDEX_SOURCE_PATH!;
-  //   await dropFixture(fixtureRoot, 'classification', { ... });
-  //   await dropFixture(fixtureRoot, 'q_a_form', { ... });
-  //   await dropFixture(fixtureRoot, 'entity_mention', { ... });
-  //   await pollContentItemsFor(TEST_PREFIX, /* timeoutMs */ 120_000);
-}, 30_000);
+  for (const fx of FIXTURES) {
+    await stageFixture({
+      fixturePath: fx.fixturePath,
+      destPath: `inv-20/${TEST_PREFIX}-${fx.destSuffix}`,
+      titlePrefix: TEST_PREFIX,
+    });
+  }
+
+  // Wait for at least one fixture to land — full extraction may take
+  // longer (extraction-contract assertions in the `it` bodies re-query
+  // by content_item_id), but a single landed row is sufficient evidence
+  // that the staging pipeline is alive.
+  const polled = await pollContentItemsFor(TEST_PREFIX, {
+    timeoutMs: 180_000,
+  });
+  for (const row of polled) {
+    seededContentIds.push(row.id);
+  }
+}, 240_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
-  if (seededContentIds.length === 0) return;
-  const client = await createLiveServiceClient();
-  // Delete extraction rows BEFORE content_items rows to respect FK
-  // constraints. Errors from cleanup do NOT fail the test — cleanup is
-  // best-effort and any orphans surface via the next test run's TEST_PREFIX
-  // uniqueness guard.
-  await client
-    .from('q_a_extractions')
-    .delete()
-    .in('content_item_id', seededContentIds);
-  await client
-    .from('entity_mentions')
-    .delete()
-    .in('content_item_id', seededContentIds);
-  await client.from('content_items').delete().in('id', seededContentIds);
-}, 30_000);
+  await dropFixture({
+    titlePrefix: TEST_PREFIX,
+    contentIds: seededContentIds,
+  });
+}, 60_000);
 
 // ---------------------------------------------------------------------------
 // The test — Inv-20 contract-honour.
