@@ -255,15 +255,18 @@ class TestIngestFileWritePath:
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
 
         run_op_id = uuid.uuid4()
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                # 4-arg call — mount_each passes fn(File, *extra_args); the key
+                # 5-arg call — mount_each passes fn(File, *extra_args); the key
                 # (relative path) is consumed by mount_each for subpath routing
                 # and is NOT passed to fn (cocoindex 1.0.3 api.py _mount_one).
-                await flow.ingest_file(fake_file, ci, qa, sd)
+                # em_target (4th extra arg) lands per ID-53.10 §P-4; declare_row
+                # body for entity_mentions ships at {53.11}.
+                await flow.ingest_file(fake_file, ci, qa, sd, em)
 
         asyncio.run(_exercise())
 
@@ -404,6 +407,7 @@ class TestMountEachArityContract:
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
 
         run_op_id = uuid.uuid4()
 
@@ -415,7 +419,7 @@ class TestMountEachArityContract:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await _faithful_mount_each(flow.ingest_file, feed, ci, qa, sd)
+                await _faithful_mount_each(flow.ingest_file, feed, ci, qa, sd, em)
 
         asyncio.run(_exercise())
 
@@ -448,11 +452,14 @@ class TestMountEachArityContract:
         assert len({r["id"] for r in ci.rows}) == 2
 
     def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
-        """``ingest_file`` accepts exactly (file, ci, qa, sd) positionally.
+        """``ingest_file`` accepts exactly (file, ci, qa, sd, em) positionally.
 
         Inspecting the signature directly pins the arity contract: the leading
-        parameter is the File item value, followed by the three target extra
+        parameter is the File item value, followed by the four target extra
         args — and there is NO leading ``rel_path`` parameter (the blocker).
+
+        The fourth extra arg (``em_target``) lands per ID-53.10 §P-4; the
+        declare_row body for entity_mentions ships at {53.11}.
         """
         flow = _flow_module()
 
@@ -461,9 +468,9 @@ class TestMountEachArityContract:
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First param is the File item value; remaining three are the targets.
-        assert len(params) == 4, (
-            f"ingest_file must take exactly (file, ci, qa, sd); got {params}"
+        # First param is the File item value; remaining four are the targets.
+        assert len(params) == 5, (
+            f"ingest_file must take exactly (file, ci, qa, sd, em); got {params}"
         )
 
 
@@ -516,10 +523,11 @@ class TestStablePrimaryKeysAcrossRuns:
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await flow.ingest_file(fake_file, ci, qa, sd)  # type: ignore[attr-defined]
+                await flow.ingest_file(fake_file, ci, qa, sd, em)  # type: ignore[attr-defined]
 
         asyncio.run(_exercise())
         return {"ci": ci.rows, "qa": qa.rows, "sd": sd.rows}
@@ -608,10 +616,11 @@ class TestContentFingerprintAwaited:
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(fake_file, ci, qa, sd)
+                await flow.ingest_file(fake_file, ci, qa, sd, em)
 
         asyncio.run(_exercise())
 

@@ -705,6 +705,29 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
     primary_key=("id",),
 )
 
+# ID-53 §P-4 (Inv-6). Stage-5 entity-resolution writes entity_mentions rows via
+# `em_target` declared per-doc inside `ingest_file` (mounted at app_main below).
+# `op_id` is a plain row field — stamped from `current_flow_meta()` — that
+# round-trips into `pipeline_runs` per Inv-6. PG-defaulted columns
+# (`created_at`, `entity_type_override`, `normalisation_version`) are OMITTED
+# per the existing `content_text_hash GENERATED ALWAYS` convention — explicit
+# INSERTs of those columns would either duplicate the PG default behaviour or
+# (for the GENERATED ALWAYS family) raise SQLSTATE 428C9.
+ENTITY_MENTIONS_SCHEMA = TableSchema(
+    columns={
+        "id": ColumnDef(type="uuid", nullable=False),
+        "content_item_id": ColumnDef(type="uuid", nullable=False),
+        "entity_type": ColumnDef(type="text", nullable=False),
+        "entity_name": ColumnDef(type="text", nullable=False),
+        "canonical_name": ColumnDef(type="text", nullable=False),
+        "confidence": ColumnDef(type="numeric", nullable=True),
+        "context_snippet": ColumnDef(type="text", nullable=True),
+        "metadata": ColumnDef(type="jsonb", nullable=True),
+        "op_id": ColumnDef(type="uuid", nullable=True),  # §P-9 migration
+    },
+    primary_key=("id",),
+)
+
 
 # ── DSN helper ───────────────────────────────────────────────────────────────
 
@@ -794,13 +817,14 @@ async def ingest_file(
     ci_target: Any,
     qa_target: Any,
     sd_target: Any,
+    em_target: Any,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
 
     Mounted once per source item by `coco.mount_each`. cocoindex 1.0.3 calls
-    this component as `ingest_file(File, ci, qa, sd)` — the item VALUE (the
+    this component as `ingest_file(File, ci, qa, sd, em)` — the item VALUE (the
     `File`) is the first positional arg, followed by the extra args
-    (`ci/qa/sd` targets) passed positionally to `mount_each`. The (key,value)
+    (`ci/qa/sd/em` targets) passed positionally to `mount_each`. The (key,value)
     pair from `walk_dir().items()` is `(relative_path_str, File)`; the KEY is
     consumed by `mount_each` for per-item subpath routing only and is NOT
     passed to `fn` (verified against installed cocoindex 1.0.3
@@ -1027,6 +1051,14 @@ async def app_main() -> None:
             SOURCE_DOCUMENTS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
+        # ID-53 §P-4 (Inv-6). Per-doc Stage-5 writes land here; the row-construction
+        # loop that consumes `em_target` ships at {53.11}.
+        em_target = await mount_table_target(
+            DB_CTX,
+            "entity_mentions",
+            ENTITY_MENTIONS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
 
         # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
         # recursive=True required — default is False (CLAUDE.md gotcha).
@@ -1063,6 +1095,7 @@ async def app_main() -> None:
                         ci_target,
                         qa_target,
                         sd_target,
+                        em_target,
                     )
                     # Wait until every per-item component has processed (cold
                     # run) so the rollup webhook below reflects a settled state.

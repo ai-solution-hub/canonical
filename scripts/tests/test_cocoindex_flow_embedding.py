@@ -187,12 +187,17 @@ def _patch_extractors(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
 
 
-def _exercise_ingest(flow, fake_file, ci, qa, sd, run_op_id) -> None:
+def _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id) -> None:
+    """Drive a single ``ingest_file`` invocation under a ``bind_flow_meta``.
+
+    Per ID-53.10 §P-4 the ``em_target`` is the fourth extra arg expected by
+    ``ingest_file`` (declare_row body for entity_mentions ships at {53.11}).
+    """
     from cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
 
     async def _run() -> None:
         async with bind_flow_meta(op_id=run_op_id):
-            await flow.ingest_file(fake_file, ci, qa, sd)
+            await flow.ingest_file(fake_file, ci, qa, sd, em)
 
     asyncio.run(_run())
 
@@ -225,9 +230,10 @@ class TestIngestFileEmbedding:
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
         run_op_id = uuid.uuid4()
 
-        _exercise_ingest(flow, fake_file, ci, qa, sd, run_op_id)
+        _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id)
 
         assert len(ci.rows) == 1, "expected one content_items row"
         embedding = ci.rows[0]["embedding"]
@@ -262,8 +268,9 @@ class TestIngestFileEmbedding:
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
 
-        _exercise_ingest(flow, fake_file, ci, qa, sd, uuid.uuid4())
+        _exercise_ingest(flow, fake_file, ci, qa, sd, em, uuid.uuid4())
 
         assert ci.vector_indexes == [], (
             "ingest_file must NOT declare a vector index — the HNSW cosine index "

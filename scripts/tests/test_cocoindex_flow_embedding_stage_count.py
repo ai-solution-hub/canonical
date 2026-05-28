@@ -246,11 +246,13 @@ def _patch_pipeline(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 
-def _make_targets() -> tuple[_FakeTarget, _FakeTarget, _FakeTarget]:
+def _make_targets() -> tuple[_FakeTarget, _FakeTarget, _FakeTarget, _FakeTarget]:
+    """Per ID-53.10 §P-4 the per-doc target set is 4 (ci, qa, sd, em)."""
     return (
         _FakeTarget("content_items"),
         _FakeTarget("q_a_extractions"),
         _FakeTarget("source_documents"),
+        _FakeTarget("entity_mentions"),
     )
 
 
@@ -337,13 +339,13 @@ class TestIngestFileBumpsEmbeddingCounter:
         src = tmp_path / "doc-embed-count.md"
         src.write_text(_MARKDOWN)
         fake_file = _FakeFile(src)
-        ci, qa, sd = _make_targets()
+        ci, qa, sd, em = _make_targets()
         counter = flow._FlowStageCounter()
 
         async def _run() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_stage_counter(counter):
-                    await flow.ingest_file(fake_file, ci, qa, sd)
+                    await flow.ingest_file(fake_file, ci, qa, sd, em)
 
         asyncio.run(_run())
 
@@ -377,8 +379,8 @@ class TestIngestFileBumpsEmbeddingCounter:
                     for name in ("a.md", "b.md"):
                         src = tmp_path / name
                         src.write_text(_MARKDOWN + f"\n\n{name}")
-                        ci, qa, sd = _make_targets()
-                        await flow.ingest_file(_FakeFile(src), ci, qa, sd)
+                        ci, qa, sd, em = _make_targets()
+                        await flow.ingest_file(_FakeFile(src), ci, qa, sd, em)
 
         asyncio.run(_run())
         assert counter.get("embedding") == 2
@@ -395,12 +397,12 @@ class TestIngestFileBumpsEmbeddingCounter:
 
         src = tmp_path / "doc-no-binding.md"
         src.write_text(_MARKDOWN)
-        ci, qa, sd = _make_targets()
+        ci, qa, sd, em = _make_targets()
 
         async def _run() -> None:
             # Deliberately NO bind_stage_counter — ingest_file must cope.
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(_FakeFile(src), ci, qa, sd)
+                await flow.ingest_file(_FakeFile(src), ci, qa, sd, em)
 
         asyncio.run(_run())
         assert ci.rows[0]["embedding"] is not None, (
