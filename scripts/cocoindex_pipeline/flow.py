@@ -80,6 +80,8 @@ from scripts.cocoindex_pipeline.adapters import (
 # `LiteLLMEmbedder` import below. Stage 5 (entity_resolution) is still OUT OF
 # SCOPE here (lands in ID-49.5, needs faiss-cpu); its placeholder block is
 # preserved at the Stage-5 marker below.
+from scripts.cocoindex_pipeline.canonicalisation import canonicalise_entity_name
+from scripts.cocoindex_pipeline.entity_context import extract_entity_context
 from scripts.cocoindex_pipeline.extraction import (
     extract_classification,
     extract_entity_mentions,
@@ -896,10 +898,10 @@ async def ingest_file(
     # ── Stage 3: Path A extraction (direct anthropic inside @coco.fn) ───────
     classification = await extract_classification(content_text)
     qa_form = await extract_qa_form(content_text)
-    # entity_mentions extraction runs here for memo coverage; entity-table
-    # persistence is a downstream concern (28.13+), so the result is not yet
-    # declared into a target at this slice.
-    await extract_entity_mentions(content_text)
+    # entity_mentions extraction runs here for memo coverage. The extracted
+    # mentions are declared into `em_target` in the Stage-6 declare-rows block
+    # below (AFTER content_item_id / rel_path are computed) — ID-53.11 §P-3.
+    entity_mentions = await extract_entity_mentions(content_text)
 
     # ── Stage 6: declare rows (managed_by=USER row-level upserts) ───────────
     # Deterministic per-DOCUMENT UUIDs seeded on the FIXED namespace + rel_path
@@ -970,6 +972,39 @@ async def ingest_file(
                     "extraction_kind": _field(qa_form, "extraction_kind", "q_a_form"),
                     "qa_index": idx,
                     "rel_path": rel_path,
+                },
+                "op_id": op_id,
+            }
+        )
+
+    # ── Stage 5 substrate: entity_mentions rows (ID-53.11 §P-3) ──────────────
+    # Each EntityMentionExtraction the LLM returned becomes one entity_mentions
+    # row. canonicalise_entity_name + extract_entity_context are SYNCHRONOUS
+    # helpers (NOT awaited — they return str). The per-doc canonical lands in
+    # canonical_name BEFORE Stage-5 cross-document resolution runs (Inv-4);
+    # Stage-5's UPDATE may later rewrite it. Pydantic `mention_confidence` maps
+    # to DB `confidence` at row-construction (Inv-15); source spans stash in the
+    # metadata jsonb (Inv-16); context_snippet is NOT NULL (Inv-17). op_id is
+    # the per-flow run stamp (Inv-7, memo-respecting). The PK is the per-DOCUMENT
+    # deterministic uuid5 (namespace + rel_path + mention index) so re-ingest
+    # UPSERTs the same row rather than inserting a duplicate.
+    for idx, mention in enumerate(entity_mentions):
+        per_doc_canonical = canonicalise_entity_name(
+            mention.entity_name, mention.entity_type
+        )
+        context_snippet = extract_entity_context(content_text, mention.entity_name)
+        em_target.declare_row(
+            row={
+                "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"em:{rel_path}:{idx}"),
+                "content_item_id": content_item_id,
+                "entity_type": mention.entity_type,
+                "entity_name": mention.entity_name,
+                "canonical_name": per_doc_canonical,
+                "confidence": mention.mention_confidence,  # Inv-15 map-at-declare-row
+                "context_snippet": context_snippet,
+                "metadata": {
+                    "source_span_start": mention.source_span_start,
+                    "source_span_end": mention.source_span_end,
                 },
                 "op_id": op_id,
             }
