@@ -362,6 +362,41 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     expect(graphemeCount(updated.description)).toBe(130);
   });
 
+  it('ZWJ-joined family sequence counts as 1 grapheme per cluster (regression guard)', async () => {
+    // 👨‍👩‍👧‍👦 is a single user-perceived character — a man + woman + girl + boy
+    // joined by zero-width joiners (U+200D). UTF-16: 11 code units. Graphemes: 1.
+    // A 130-cluster description is 1430 UTF-16 code units but only 130 graphemes.
+    // This guards future regressions where someone might "optimise" the gate
+    // back to a simpler counter (Array.from / spread on the raw string) that
+    // splits ZWJ sequences into their component code points (4 emoji + 3 ZWJs
+    // = 7 elements per cluster instead of 1).
+    const family = '\u{1F468}‍\u{1F469}‍\u{1F467}‍\u{1F466}';
+    expect(graphemeCount(family)).toBe(1);
+    expect(family.length).toBeGreaterThan(1); // 11 UTF-16 code units
+
+    const desc130Families = family.repeat(130);
+    expect(desc130Families.length).toBeGreaterThan(250); // 1430 code units
+    expect(graphemeCount(desc130Families)).toBe(130); // 130 graphemes — UNDER 250
+
+    const taskId = read('task-list').tasks[0].id;
+    const subId = 9988;
+    await seedOverBudgetSubtask(taskId, subId);
+
+    // 130 ZWJ-clusters is UNDER the 250 budget — the edit must succeed.
+    const r = await run(
+      args('update-subtask', [
+        `${taskId}.${subId}`,
+        'description',
+        desc130Families,
+      ]),
+    );
+    expect(r.ok).toBe(true);
+    const updated = read('task-list').tasks[0].subtasks.find(
+      (s: { id: number }) => s.id === subId,
+    );
+    expect(graphemeCount(updated.description)).toBe(130);
+  });
+
   it('pure-ASCII over-budget violations still trip (regression guard)', async () => {
     // The 789-char ASCII case from the original ID-35.17 north star must still
     // reject — graphemes == code units for pure ASCII. Belt-and-braces against

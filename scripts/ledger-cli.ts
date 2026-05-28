@@ -1227,6 +1227,29 @@ function budgetSubject(gate: BudgetGate): string {
 }
 
 /**
+ * ID-35.31: count user-perceived characters (graphemes), not UTF-16 code units.
+ *
+ * Defect (S275): `value.length` returns the UTF-16 code-unit count, which
+ * diverges from what the operator sees for any non-BMP glyph. A single emoji
+ * like `🎯` is 1 grapheme but 2 code units (surrogate pair); a 130-emoji
+ * description measures 260 by `.length` and trips a 250 budget the operator
+ * thinks is comfortably under. Even for BMP arrows (`→`, U+2192) and section
+ * marks (`§`, U+00A7) the counts agree, but the operator's intuition is
+ * "graphemes", so we standardise on `Intl.Segmenter`.
+ *
+ * `Intl.Segmenter` is available in every Node ≥ 16 build the repo targets;
+ * the wrapper exists so all budget-gate sites use a single counter. The
+ * underlying `Intl.Segmenter` is module-hoisted (`GRAPHEME_SEGMENTER`) so
+ * each call reuses one instance instead of allocating per-invocation.
+ */
+const GRAPHEME_SEGMENTER = new Intl.Segmenter('en', {
+  granularity: 'grapheme',
+});
+function graphemeLength(value: string): number {
+  return [...GRAPHEME_SEGMENTER.segment(value)].length;
+}
+
+/**
  * Check the changed record's budgeted fields against `LEDGER_BUDGETS`.
  *
  * Behaviour by mode:
@@ -1243,26 +1266,6 @@ function budgetSubject(gate: BudgetGate): string {
  * not budgeted, so they never flag. Non-string field values are skipped
  * (budgets are char-length on text fields).
  */
-/**
- * ID-35.31: count user-perceived characters (graphemes), not UTF-16 code units.
- *
- * Defect (S275): `value.length` returns the UTF-16 code-unit count, which
- * diverges from what the operator sees for any non-BMP glyph. A single emoji
- * like `🎯` is 1 grapheme but 2 code units (surrogate pair); a 130-emoji
- * description measures 260 by `.length` and trips a 250 budget the operator
- * thinks is comfortably under. Even for BMP arrows (`→`, U+2192) and section
- * marks (`§`, U+00A7) the counts agree, but the operator's intuition is
- * "graphemes", so we standardise on `Intl.Segmenter`.
- *
- * `Intl.Segmenter` is available in every Node ≥ 16 build the repo targets;
- * the wrapper exists so all budget-gate sites use a single counter.
- */
-function graphemeLength(value: string): number {
-  return [
-    ...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(value),
-  ].length;
-}
-
 function checkBudget(
   gate: BudgetGate,
 ):
