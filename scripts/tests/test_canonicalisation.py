@@ -2,7 +2,7 @@
 
 Covers PRODUCT.md Inv-4 (per-doc default canonical_name written BEFORE Stage-5
 runs). The pure function under test is deterministic, idempotent, and entity-
-type aware per TECH §P-2 of docs/specs/stage-5-entity-resolution/TECH.md.
+type aware per TECH §P-2 of docs/specs/id-53-stage-5-entity-resolution/TECH.md.
 """
 
 import os

@@ -1,7 +1,7 @@
 """Unit tests for scripts.cocoindex_pipeline.entity_context.
 
 Verifies byte-parity with lib/entities/entity-context.ts:19 extractEntityContext,
-per TECH §P-5 (docs/specs/stage-5-entity-resolution/TECH.md) and PRODUCT Inv-17
+per TECH §P-5 (docs/specs/id-53-stage-5-entity-resolution/TECH.md) and PRODUCT Inv-17
 (context_snippet computed inside ingest_file via the Python port).
 
 Test cases derived directly from the TypeScript algorithm semantics:

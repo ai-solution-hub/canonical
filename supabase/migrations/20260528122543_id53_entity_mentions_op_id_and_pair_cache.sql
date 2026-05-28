@@ -1,5 +1,5 @@
 -- ID-53 — Stage-5 entity-resolution: op_id on entity_mentions + PairResolver cache.
--- Spec: docs/specs/stage-5-entity-resolution/TECH.md §P-9.
+-- Spec: docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-9.
 -- Ratification:
 --   - PRODUCT.md Inv-6 / Inv-7 — op_id round-trip + memo-respecting semantic.
 --   - PRODUCT.md Inv-14 + §5 P-OQ3 — entity_pair_resolutions cache table shape.
