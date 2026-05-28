@@ -315,6 +315,104 @@ class TestClassifyStageException:
         assert flow._classify_stage_exception(RuntimeError("???")) is None
         assert flow._classify_stage_exception(ValueError("???")) is None
 
+    # ── ID-53.15 (T-OQ1) — entity_resolution_failed stage classification ──
+    #
+    # Stage-5 (entity resolution) failures cannot be classified by exception
+    # TYPE: the {53.14} failure-injection finding established that the real
+    # exceptions are `litellm.exceptions.AuthenticationError` (embedder
+    # failMode) and `anthropic.AuthenticationError` (pair_resolver failMode).
+    # The latter is an `anthropic.APIError` subclass — TYPE-INDISTINGUISHABLE
+    # from a Stage-3 extraction provider failure. So classification needs
+    # STAGE CONTEXT, supplied by the wrap-at-attach-site `_EntityResolutionStageError`
+    # (flow.py, around the `_run_stage_5_resolution` call). These tests prove the
+    # branch + its ordering ahead of the generic `anthropic.APIError` branch.
+
+    def test_entity_resolution_stage_error_maps_to_entity_resolution_failed(self):
+        exc = flow._EntityResolutionStageError("resolve_entities blew up")
+        assert (
+            flow._classify_stage_exception(exc) == "entity_resolution_failed"
+        )
+
+    def test_wrapped_anthropic_auth_error_maps_to_entity_resolution_failed(self):
+        # pair_resolver failMode: KhPairResolver._invoke_llm raises
+        # anthropic.AuthenticationError (an APIStatusError → APIError subclass).
+        # Wrapped at the Stage-5 attach site, it MUST classify as
+        # entity_resolution_failed — NOT extraction_provider_unavailable.
+        # This is the load-bearing ordering assertion: the
+        # _EntityResolutionStageError branch must run BEFORE the generic
+        # anthropic.APIError branch.
+        import anthropic
+
+        try:
+            raise anthropic.AuthenticationError(
+                "invalid x-api-key",
+                response=MagicMock(status_code=401),
+                body=None,
+            )
+        except anthropic.AuthenticationError as inner:
+            wrapped = flow._EntityResolutionStageError(str(inner))
+            wrapped.__cause__ = inner
+            assert (
+                flow._classify_stage_exception(wrapped)
+                == "entity_resolution_failed"
+            )
+
+    def test_wrapped_litellm_auth_error_maps_to_entity_resolution_failed(self):
+        # embedder failMode: KhEntityEmbedder.embed (LiteLLMEmbedder) raises
+        # litellm.exceptions.AuthenticationError (NOT an anthropic subclass;
+        # __module__ == 'litellm.exceptions'). Bare, the classifier returns
+        # None ('unclassified'); wrapped, it MUST be entity_resolution_failed.
+        import litellm
+
+        try:
+            raise litellm.exceptions.AuthenticationError(
+                message="missing embedding provider key",
+                llm_provider="openai",
+                model="text-embedding-3-large",
+            )
+        except litellm.exceptions.AuthenticationError as inner:
+            wrapped = flow._EntityResolutionStageError(str(inner))
+            wrapped.__cause__ = inner
+            assert (
+                flow._classify_stage_exception(wrapped)
+                == "entity_resolution_failed"
+            )
+
+    def test_bare_anthropic_error_still_maps_to_provider_unavailable(self):
+        # REGRESSION GUARD: a BARE (unwrapped) anthropic provider error — i.e.
+        # a genuine Stage-3 extraction failure — must STILL classify as
+        # extraction_provider_unavailable. The {53.15} Stage-5 branch only
+        # catches the explicit _EntityResolutionStageError wrapper, so it must
+        # NOT capture bare anthropic errors that escape Stage-3.
+        import anthropic
+
+        try:
+            raise anthropic.RateLimitError(
+                "rate limited",
+                response=MagicMock(status_code=429),
+                body=None,
+            )
+        except anthropic.RateLimitError as exc:
+            assert (
+                flow._classify_stage_exception(exc)
+                == "extraction_provider_unavailable"
+            )
+
+    def test_cocoindex_entity_resolution_typed_error_maps_by_prefix(self):
+        # Belt-and-suspenders: a DIRECT exception whose defining module is
+        # cocoindex.ops.entity_resolution.* (a typed error that could arise
+        # before the LLM call) classifies by module prefix, even when not
+        # wrapped. We synthesise the module attribution because the real
+        # cocoindex op module is stubbed in this unit-test boundary.
+        class _ResolveError(Exception):
+            pass
+
+        _ResolveError.__module__ = "cocoindex.ops.entity_resolution.resolve"
+        assert (
+            flow._classify_stage_exception(_ResolveError("preload failed"))
+            == "entity_resolution_failed"
+        )
+
 
 # ============================================================================
 # STRUCTURED ERROR-LOG EMISSION (Inv-26)

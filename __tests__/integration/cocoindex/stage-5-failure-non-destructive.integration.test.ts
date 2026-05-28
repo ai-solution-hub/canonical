@@ -3,10 +3,10 @@
  * non-destructive; webhook surfaces the outcome).
  *
  * Subtask ID-53.14 (S277 — Stage-5 entity-resolution invariant coverage).
- * NOTE: Subtask {53.15} EXTENDS this file once the
- * `_classify_stage_exception` `entity_resolution_failed` branch is wired —
- * the errorClass assertion below is deliberately TOLERANT so it remains green
- * both before and after {53.15} lands (see the assertion comment).
+ * Subtask {53.15} TIGHTENED this file: the errorClass assertion below is now
+ * LOAD-BEARING — it asserts the exact `entity_resolution_failed` class that
+ * the wrap-at-attach-site `_EntityResolutionStageError` (flow.py) now routes
+ * every Stage-5 escape to (see the assertion comment).
  *
  * Inv-12 statement (paraphrased from
  * `docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md` Inv-12):
@@ -26,12 +26,15 @@
  * inside cocoindex.ops.entity_resolution.resolve_entities — a real exception
  * surfacing through _run_stage_5_resolution to flow.py's failure routing.
  *
- * Observed/expected exception class for {53.15}:
+ * Underlying provider exceptions the {53.15} wrap subsumes (both now map to
+ * the single canonical class 'entity_resolution_failed' via stage context):
  *   - failMode 'embedder'      → litellm.exceptions.AuthenticationError
- *     (currently `None` → unclassified fallback in _classify_stage_exception).
+ *     (bare: `None` → unclassified; type-prefix cannot catch it).
  *   - failMode 'pair_resolver' → anthropic.AuthenticationError
- *     (currently MISCLASSIFIED as extraction_provider_unavailable).
- * {53.15} adds the entity_resolution_failed branch keyed on these surfaces.
+ *     (bare: MISCLASSIFIED as extraction_provider_unavailable — an
+ *     anthropic.APIError subclass, type-indistinguishable from Stage-3).
+ * {53.15} resolves both by wrapping the Stage-5 attach site in
+ * `_EntityResolutionStageError`, classified ahead of the anthropic branch.
  *
  * Env-gate: COCOINDEX_STAGING_URL + COCOINDEX_FIXTURE_STAGING_URL +
  * COCOINDEX_SOURCE_PATH + live Supabase. Skip-clean where unwired.
@@ -150,23 +153,23 @@ describe.skipIf(!ENABLED)(
           (result.stage_counts as Record<string, unknown> | undefined) ?? {};
         expect('entity_resolution' in stageCounts).toBe(true);
 
-        // Inv-13: an errorClass is carried. The assertion is TOLERANT: until
-        // {53.15} wires the entity_resolution_failed branch, the embedder
-        // litellm.AuthenticationError routes through the unclassified fallback;
-        // after {53.15} it becomes 'entity_resolution_failed'. We assert the
-        // run carries SOME failure-class signal, and document the expected
-        // class for {53.15} via STAGE5_FAILURE_EXCEPTION_CLASSES.
-        const errorSignal =
-          (result.error_class as string | undefined) ??
-          (run!.error_message as string | undefined) ??
-          null;
+        // Inv-13: the errorClass is now LOAD-BEARING post-{53.15}. The
+        // wrap-at-attach-site `_EntityResolutionStageError` (flow.py) routes
+        // ANY Stage-5 escape — embedder litellm.AuthenticationError OR
+        // pair_resolver anthropic.AuthenticationError — to the canonical
+        // 'entity_resolution_failed' class, regardless of the underlying
+        // provider exception type. This assertion was deliberately TOLERANT
+        // before {53.15}; it is now tightened to the exact contract.
+        const errorClass = (result.error_class as string | undefined) ?? null;
         expect(
-          errorSignal,
-          'expected a failure-class / error signal',
-        ).not.toBeNull();
+          errorClass,
+          "expected pipeline_runs.result.error_class === 'entity_resolution_failed' " +
+            'after {53.15} wired the wrap-at-attach-site stage classification',
+        ).toBe('entity_resolution_failed');
 
-        // Document (not assert hard) the {53.15} target class so the Checker +
-        // {53.15} have the contract in-line.
+        // The STAGE5_FAILURE_EXCEPTION_CLASSES export documents the underlying
+        // provider-exception surface the wrap subsumes (both failModes now map
+        // to the single canonical class asserted above).
         expect(STAGE5_FAILURE_EXCEPTION_CLASSES.embedder.module).toBe(
           'litellm.exceptions',
         );

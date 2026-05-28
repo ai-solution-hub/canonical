@@ -188,6 +188,31 @@ _UUID_RE = re.compile(
 )
 
 
+class _EntityResolutionStageError(Exception):
+    """Wraps any exception escaping the Stage-5 resolution post-pass so the
+    stage-level classifier can attribute it to ``entity_resolution_failed``
+    regardless of the underlying provider exception type (ID-53.15, T-OQ1).
+
+    The {53.14} failure-injection finding established that Stage-5 failures
+    surface as provider auth errors that are TYPE-INDISTINGUISHABLE from a
+    Stage-3 extraction failure:
+
+      - embedder failMode → ``litellm.exceptions.AuthenticationError``
+        (``__module__`` is ``litellm.exceptions``, NOT ``entity_embedder``).
+      - pair_resolver failMode → ``anthropic.AuthenticationError``, an
+        ``anthropic.APIError`` subclass (``__module__`` is ``anthropic``,
+        NOT ``pair_resolver``).
+
+    Because the real exception modules are ``anthropic`` / ``litellm`` —
+    NOT the resolver/embedder modules — matching on ``type(exc).__module__``
+    prefix cannot catch them. Classification therefore requires STAGE
+    CONTEXT, supplied by re-raising any Stage-5 escape as this wrapper at
+    the ``_run_stage_5_resolution`` attach site (preserving ``__cause__``
+    via ``raise … from exc``). ``_classify_stage_exception`` then resolves
+    this wrapper ahead of the generic ``anthropic.APIError`` branch.
+    """
+
+
 def _classify_stage_exception(exc: BaseException) -> str | None:
     """Map a Python exception to the Inv-25 6-class stage-level vocabulary.
 
@@ -198,6 +223,8 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
 
     Mappings (per TECH.md §P-8 + the ID-28.13 dispatch brief):
 
+      - `_EntityResolutionStageError`     → `entity_resolution_failed`
+      - `cocoindex.ops.entity_resolution.*` → `entity_resolution_failed`
       - `pydantic.ValidationError`        → `extraction_validation_failed`
       - `anthropic.APIStatusError`        → `extraction_provider_unavailable`
       - `anthropic.APIConnectionError`    → `extraction_provider_unavailable`
@@ -205,11 +232,28 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
       - `asyncpg.PostgresError`           → `postgres_write_failed`
       - `docling.*` (any docling-raised)  → `binary_conversion_failed`
 
-    Embedding-stage + entity-resolution-stage classes (`embedding_failed`,
-    `entity_resolution_failed`) are NOT auto-classified at v1: their
-    upstream exception types (LiteLLM proxy / entity_resolution function)
-    are not yet wired in flow.py (Stages 4+5 stubs per docstring). Once
-    those stages land, this mapper grows two more branches.
+    Entity-resolution-stage failures ARE auto-classified per ID-53.15
+    (T-OQ1 ratified Option (a), S275+). They are caught by STAGE CONTEXT,
+    not exception type: the Stage-5 attach site re-raises any escape as
+    `_EntityResolutionStageError`, which this mapper resolves to
+    `entity_resolution_failed` BEFORE the generic `anthropic.APIError`
+    branch. The ordering is load-bearing — a Stage-5-wrapped
+    `anthropic.AuthenticationError` (pair_resolver failMode) is otherwise
+    type-indistinguishable from a Stage-3 extraction provider failure, so
+    without the wrap-branch-first ordering it would misclassify as
+    `extraction_provider_unavailable`. A BARE (unwrapped) anthropic error
+    still falls through to the generic provider branch — Stage-3 semantics
+    preserved. The belt-and-suspenders `cocoindex.ops.entity_resolution.*`
+    module-prefix branch catches any DIRECT typed error from the resolution
+    op that could arise before the LLM call. We deliberately do NOT match
+    on `pair_resolver` / `entity_embedder` module prefixes: the {53.14}
+    failure-injection finding showed the real exceptions are
+    `anthropic` / `litellm` typed, so those prefixes would be dead code.
+
+    Embedding-stage classes (`embedding_failed`) remain NOT auto-classified
+    at v1: their upstream LiteLLM exception types are not yet wired as a
+    distinct stage surface in flow.py. Once Stage-4 grows a dedicated
+    failure surface, this mapper grows one more branch.
 
     Args:
       exc: The exception instance to classify.
@@ -217,6 +261,23 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
     Returns:
       One of the 6 canonical class strings, or `None` for unmapped types.
     """
+    # Stage-5 entity-resolution failure (ID-53.15, T-OQ1). MUST precede the
+    # anthropic.APIError branch below: a Stage-5-wrapped
+    # anthropic.AuthenticationError (pair_resolver failMode) is otherwise
+    # type-indistinguishable from a Stage-3 extraction provider failure. The
+    # wrap is applied at the `_run_stage_5_resolution` attach site so stage
+    # context — not exception type — drives the classification.
+    if isinstance(exc, _EntityResolutionStageError):
+        return "entity_resolution_failed"
+
+    # Belt-and-suspenders: a DIRECT typed error raised from the entity
+    # resolution op module (e.g. a preload-step failure before the LLM call).
+    # NOT a pair_resolver / entity_embedder prefix — the {53.14} finding
+    # showed the real provider exceptions are anthropic/litellm typed.
+    _exc_module_early = type(exc).__module__ or ""
+    if _exc_module_early.startswith("cocoindex.ops.entity_resolution"):
+        return "entity_resolution_failed"
+
     # Pydantic validation (Stage 3 LLM-extraction failure surface).
     try:
         from pydantic import ValidationError as _PydanticValidationError
@@ -1196,11 +1257,22 @@ async def app_main() -> None:
         # app_main's active component context — the SAME context the
         # `mount_table_target(DB_CTX, ...)` calls above already resolve it from.
         # No second pool is created; the lifespan owns the pool lifecycle.
-        resolved_count = await _run_stage_5_resolution(
-            meta=FlowRunMeta(op_id=run_op_id, content_items_id=None),
-            db_pool=coco.use_context(DB_CTX),
-            flow_stage_counter=flow_stage_counter,
-        )
+        # ID-53.15 (T-OQ1): re-wrap any Stage-5 escape as
+        # `_EntityResolutionStageError` so `_classify_stage_exception` can
+        # attribute it to `entity_resolution_failed` via stage context — the
+        # underlying provider exceptions (anthropic / litellm auth errors) are
+        # type-indistinguishable from Stage-3 failures (per the {53.14}
+        # failure-injection finding). `from exc` preserves `__cause__`. The
+        # wrapper still propagates inside the outer try, routing to the
+        # `except Exception` rollup handler below.
+        try:
+            resolved_count = await _run_stage_5_resolution(
+                meta=FlowRunMeta(op_id=run_op_id, content_items_id=None),
+                db_pool=coco.use_context(DB_CTX),
+                flow_stage_counter=flow_stage_counter,
+            )
+        except Exception as exc:  # noqa: BLE001 — re-wrap for classification
+            raise _EntityResolutionStageError(str(exc)) from exc
         _logger.info(
             json.dumps(
                 {
