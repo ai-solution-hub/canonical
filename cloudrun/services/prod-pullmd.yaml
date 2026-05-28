@@ -1,7 +1,7 @@
 # Cloud Run Service manifest — prod — pullmd HTML→Markdown extractor.
 #
 # ID-42.6: pullmd Cloud Run Service deploy infra (example-client-only; kpf decommissioned).
-# Spec: docs/specs/pullmd-deploy/TECH.md §WP-C (deploy mechanics);
+# Spec: docs/specs/id-42-pullmd-deploy/TECH.md §WP-C (deploy mechanics);
 #       RESEARCH §2.1 (pullmd v2.x HTTP contract), §2.4 (no /health probe),
 #       §4.3 (sidecar topology α).
 # Runbook: docs/runbooks/pullmd-deploy.md (out-of-band secret-mint + deploy).

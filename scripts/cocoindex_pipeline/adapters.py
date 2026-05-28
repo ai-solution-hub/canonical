@@ -132,7 +132,7 @@ async def _pullmd_to_markdown(url: str) -> PullmdResult:
     if not api_token:
         raise RuntimeError(
             "PULLMD_API_TOKEN env var required — single-admin Bearer token mounted via "
-            "Cloud Run Secret Manager per ID-42 (docs/specs/pullmd-deploy/TECH.md §WP-A)"
+            "Cloud Run Secret Manager per ID-42 (docs/specs/id-42-pullmd-deploy/TECH.md §WP-A)"
         )
 
     headers = {"Authorization": f"Bearer {api_token}"}

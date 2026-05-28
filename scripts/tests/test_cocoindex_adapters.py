@@ -411,7 +411,7 @@ class TestDoclingInnerTier:
 class TestPullmdInnerTier:
     """_pullmd_to_markdown unit tests against the pullmd v2.x contract.
 
-    Contract (docs/specs/pullmd-deploy/TECH.md §WP-A + RESEARCH §2.1):
+    Contract (docs/specs/id-42-pullmd-deploy/TECH.md §WP-A + RESEARCH §2.1):
       - GET {PULLMD_SERVICE_URL}/api with params={"url": <target>} (httpx URL-encodes).
       - Authorization: Bearer <PULLMD_API_TOKEN> header.
       - Body is raw text/markdown (resp.text), NOT JSON.
