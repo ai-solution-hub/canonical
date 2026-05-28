@@ -117,7 +117,7 @@ jobs:
     # scope per resolve-environment output. Case-sensitive — must match
     # the canonical capital-first env name.
     environment: ${{ needs.resolve-environment.outputs.gh-env }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       # Required for google-github-actions/auth WIF flow.
       id-token: write
