@@ -14,11 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import {
-  parseArgs,
-  readRecordInput,
-  nextId,
-} from '@/scripts/ledger-cli';
+import { parseArgs, readRecordInput, nextId } from '@/scripts/ledger-cli';
 import { detectSchema } from '@/lib/ledger/detect-schema';
 import { readFileSync } from 'node:fs';
 
@@ -135,7 +131,12 @@ describe('readRecordInput — precedence + equivalence (ID-35.15)', () => {
     expect(r.value).toMatchObject(record);
   });
 
-  it('parses --depends into a number[] in the named-flags object', () => {
+  it('parses --depends into a string[] in the named-flags object ({35.29})', () => {
+    // {35.29} changed the parser contract: --depends emits string[] always;
+    // the add-subtask call site coerces to number[] (subtask.dependencies is
+    // number[]); open-task / create-backlog keep the string[] verbatim
+    // (task.dependencies / item.dependencies are both string[]). This keeps
+    // readRecordInput schema-agnostic — same pattern as {35.28} for --id.
     const p = parseArgs([
       'add-subtask',
       '--title',
@@ -148,8 +149,10 @@ describe('readRecordInput — precedence + equivalence (ID-35.15)', () => {
     const r = readRecordInput(p.parsed);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect((r.value as { dependencies: number[] }).dependencies).toEqual([
-      1, 2, 3,
+    expect((r.value as { dependencies: string[] }).dependencies).toEqual([
+      '1',
+      '2',
+      '3',
     ]);
   });
 

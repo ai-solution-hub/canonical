@@ -308,3 +308,99 @@ describe('update-backlog — {35.21} field-type-aware coercion (RESEARCH §5.3)'
     expect(item.dependencies).toEqual(['17']);
   });
 });
+
+describe('--depends flag — {35.29} per-record-kind type discrimination', () => {
+  // RESEARCH §3 (and TaskSchema/SubtaskSchema/BacklogItemSchema in lib/validation/*):
+  //   - task.dependencies     : string[]   (open-task)
+  //   - subtask.dependencies  : number[]   (add-subtask) — Taskmaster mandate
+  //   - item.dependencies     : string[]   (create-backlog)
+  // The {35.15} named-flag parser used to Number()-coerce digit-only tokens of
+  // `--depends 6,7` to numbers, which silently broke `open-task` /
+  // `create-backlog` with a confusing `schema-error` ("expected string, received
+  // number") and only happened to work for `add-subtask`. {35.29} mirrors the
+  // {35.28} --id pattern: emit string[] from the parser; coerce to number[] at
+  // the `add-subtask` call site only.
+
+  it('open-task --depends 6,7 lands as string[] on task.dependencies', async () => {
+    const r = await run(
+      args('open-task', [], {
+        title: 'Deps-string task',
+        description: 'A short summary.',
+        status: 'pending',
+        priority: 'medium',
+        depends: '6,7',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const after = readTask();
+    const added = after.tasks.find(
+      (t: { title: string }) => t.title === 'Deps-string task',
+    );
+    expect(added).toBeDefined();
+    expect(added.dependencies).toEqual(['6', '7']);
+    for (const d of added.dependencies) expect(typeof d).toBe('string');
+  });
+
+  it('add-subtask --depends 1,2 lands as number[] on subtask.dependencies (regression)', async () => {
+    // The {35.29} fix MUST NOT regress {35.28}'s subtask behaviour: subtask.id
+    // is a number, subtask.dependencies is number[], so the add-subtask call
+    // site coerces the parsed string[] back to number[] before insertion.
+    const r = await run(
+      args('add-subtask', ['35'], {
+        title: 'Deps-number subtask',
+        description: 'A short summary.',
+        status: 'pending',
+        depends: '1,2',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    const after = readTask();
+    const t = after.tasks.find((x: { id: string }) => x.id === '35');
+    const added = t.subtasks.find(
+      (s: { title: string }) => s.title === 'Deps-number subtask',
+    );
+    expect(added).toBeDefined();
+    expect(added.dependencies).toEqual([1, 2]);
+    for (const d of added.dependencies) expect(typeof d).toBe('number');
+  });
+
+  it('create-backlog --depends 17,18 lands as string[] on item.dependencies', async () => {
+    const r = await run(
+      args('create-backlog', [], {
+        title: 'Deps-string item',
+        description: 'A short summary.',
+        status: 'parked',
+        priority: 'low',
+        depends: '17,18',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const recordId = (r.result as { recordId: string }).recordId;
+    const after = readBacklog();
+    const added = after.items.find((it: { id: string }) => it.id === recordId);
+    expect(added).toBeDefined();
+    expect(added.dependencies).toEqual(['17', '18']);
+    for (const d of added.dependencies) expect(typeof d).toBe('string');
+  });
+
+  it('add-subtask --depends with non-numeric token rejects with invalid-depends', async () => {
+    // Mirrors the {35.28} --id reject path: a non-coercible token in a context
+    // requiring number[] is surfaced as a structured envelope rather than
+    // passed to the schema as a confusing `schema-error`.
+    const r = await run(
+      args('add-subtask', ['35'], {
+        title: 'Bad-deps subtask',
+        description: 'A short summary.',
+        status: 'pending',
+        depends: '1,abc',
+      }),
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe('invalid-depends');
+    expect(r.subcommand).toBe('add-subtask');
+    expect(r.detail).toMatch(/abc/);
+  });
+});

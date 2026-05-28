@@ -373,14 +373,21 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
   if (flags.type !== undefined) record.type = flags.type;
   if (flags.track !== undefined) record.track = flags.track;
   if (flags.depends !== undefined) {
+    // ID-35.29 — emit string[] always; coerce to number[] at the add-subtask
+    // call site (the only record kind whose schema demands number[]). The old
+    // here-coercion (`Number(s)` if digit-only, else keep string) was correct
+    // for `subtask.dependencies: number[]` but wrong for the other three:
+    //   - task.dependencies     : string[]   (open-task)
+    //   - item.dependencies     : string[]   (create-backlog)
+    //   - theme.dependencies    : (no field) (create-theme — ignored downstream)
+    // A digit-only token like `--depends 6,7` previously landed as `[6, 7]` and
+    // tripped `schema-error` ("expected string, received number") on open-task
+    // and create-backlog. Mirror the {35.28} pattern: keep the parser
+    // schema-agnostic, do the type discrimination at the call site.
     record.dependencies = flags.depends
       .split(',')
       .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-      .map((s) => {
-        const n = Number(s);
-        return Number.isNaN(n) ? s : n;
-      });
+      .filter((s) => s.length > 0);
   }
 
   if (Object.keys(record).length === 0) {
@@ -1999,6 +2006,48 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           );
         }
         record = { ...record, id: n };
+      }
+      // ID-35.29 --depends type coercion: `readRecordInput` emits
+      // `record.dependencies` as `string[]` (schema-agnostic — see comment
+      // there), but `SubtaskSchema.dependencies` is `z.array(z.number().int())`.
+      // Mirror the {35.28} --id pattern at the call site: coerce each token to
+      // a positive integer; reject non-coercible tokens with a structured
+      // `invalid-depends` envelope rather than passing them to the schema as
+      // the less-friendly `schema-error`. Skip the coercion when the body came
+      // from positional JSON / --file with already-numeric values.
+      if (Array.isArray(record.dependencies)) {
+        const coerced: number[] = [];
+        for (const dep of record.dependencies) {
+          if (typeof dep === 'number') {
+            if (!Number.isInteger(dep) || dep <= 0) {
+              return cliErr(
+                'add-subtask',
+                'invalid-depends',
+                `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
+              );
+            }
+            coerced.push(dep);
+            continue;
+          }
+          if (typeof dep === 'string') {
+            const n = Number(dep);
+            if (!Number.isInteger(n) || n <= 0 || dep.trim() === '') {
+              return cliErr(
+                'add-subtask',
+                'invalid-depends',
+                `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[] (got non-coercible string)`,
+              );
+            }
+            coerced.push(n);
+            continue;
+          }
+          return cliErr(
+            'add-subtask',
+            'invalid-depends',
+            `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
+          );
+        }
+        record = { ...record, dependencies: coerced };
       }
       if (record.id === undefined) {
         record = { ...record, id: nextId(loaded.detected, 'subtasks', taskId) };
