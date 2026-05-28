@@ -140,6 +140,14 @@ Historical planning: `.planning/.archive/{doc-type}` (`.specs/`, `.audits/`, `.r
 `.coninuation-prompts/` etc.) Grep explicitly when researching past decisions; treat as
 point-in-time snapshots.
 
+## Spec directory convention (ID-48.4)
+
+New Task spec dirs live under `docs/specs/ID-N-<slug>/` with four canonical
+uppercase artefacts: `RESEARCH.md` ({N.1}), `PRODUCT.md` ({N.2}), `TECH.md`
+({N.3}), `PLAN.md` ({N.4}). Pre-existing dirs without the `ID-N-` prefix are
+not mass-migrated. Authoring conventions: `.claude/skills/spec-driven-implementation/SKILL.md`,
+`.claude/skills/write-product-spec/SKILL.md`, `.claude/skills/write-tech-spec/SKILL.md`.
+
 ## Key Ledgers
 
 Used for managing and tracking platform development activities.

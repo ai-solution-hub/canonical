@@ -30,19 +30,31 @@ within an already-spec'd Task.
 
 Specs should usually live in:
 
-- `docs/specs/<id>/PRODUCT.md`
-- `docs/specs/<id>/TECH.md`
+- `docs/specs/ID-N-<slug>/RESEARCH.md` — the `{N.1}` artefact
+- `docs/specs/ID-N-<slug>/PRODUCT.md` — the `{N.2}` artefact
+- `docs/specs/ID-N-<slug>/TECH.md` — the `{N.3}` artefact
+- `docs/specs/ID-N-<slug>/PLAN.md` — the `{N.4}` artefact
 
-Where `<id>` is one of (matches `write-product-spec` / `write-tech-spec`
-conventions):
+**Forward naming convention (ID-48.4):** For any **new** Task spec dir
+authored from this point forward, use the prefix `ID-N-<slug>/` where:
 
-- a GitHub issue id, prefixed with `gh-` (e.g. `docs/specs/gh-4567/PRODUCT.md`)
-- a Linear ticket number if Liam is using one for the feature (e.g.
-  `docs/specs/APP-1234/PRODUCT.md`)
-- a short kebab-case feature name (e.g.
-  `docs/specs/q-a-workspace-scoping/PRODUCT.md`)
-- align `<id>` with the Task ID from `docs/reference/task-list.json` (e.g.
-  `docs/specs/task-8/`) so `docs/specs/<id>/` maps cleanly to the task tree.
+- `N` is the Task ID from `docs/reference/task-list.json` (no leading zeros).
+- `<slug>` is a short kebab-case feature name (e.g.
+  `ID-9-astro-starlight-docs-foundation/`).
+
+The four canonical artefact filenames inside the dir are
+**ALWAYS UPPERCASE**: `RESEARCH.md`, `PRODUCT.md`, `TECH.md`, `PLAN.md`.
+Lowercase variants (`research.md`) or suffixed variants
+(`docs-site-rebuild-research.md`) are not permitted for new artefacts.
+
+Pre-existing spec dirs that do NOT use the ID prefix are NOT mass-migrated
+(blast radius across runtime scripts, CI guards, and ledger cross-refs is too
+high). Document the dir → Task ID mapping in the ledger `cross_doc_links`
+field instead.
+
+If the feature has no Task ID yet (research before a Task is opened), use a
+short kebab-case feature name interim (e.g. `docs/specs/q-a-workspace-scoping/`)
+and rename the dir to add the `ID-N-` prefix once the Task is created.
 
 `docs/specs/` should contain only id-named directories as direct children. Do
 not create engineer-named subdirectories or feature-slug-plus-suffix variants

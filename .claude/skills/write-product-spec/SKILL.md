@@ -47,17 +47,23 @@ invoke `write-tech-spec` to produce `TECH.md` for the same feature (or let the
 user know that's the expected next step). The product spec should be written so
 the tech spec can be written directly from it.
 
-Write specs to `specs/<id>/PRODUCT.md`, where `<id>` is one of:
+Write specs to `docs/specs/ID-N-<slug>/PRODUCT.md`, where:
 
-- a GitHub issue id, prefixed with `gh-` (e.g. `specs/gh-4567/PRODUCT.md`)
-- a Linear ticket number if Liam is using one for the feature (e.g.
-  `specs/APP-1234/PRODUCT.md`)
-- a short kebab-case feature name (e.g.
-  `specs/q-a-workspace-scoping/PRODUCT.md`)
-- once Taskmaster is installed (S232 WP4+), align `<id>` with the Taskmaster
-  task ID for the feature so `specs/<id>/` maps cleanly to the task tree.
+- `N` is the Task ID from `docs/reference/task-list.json` (e.g.
+  `docs/specs/ID-9-astro-starlight-docs-foundation/PRODUCT.md`).
+- `<slug>` is a short kebab-case feature name matching the sibling
+  `RESEARCH.md` / `TECH.md` / `PLAN.md` location.
 
-`specs/` should contain only id-named directories as direct children — no
+**Filename convention (ID-48.4):** The canonical Subtask artefact filename for
+the `{N.2}` PRODUCT artefact is `PRODUCT.md` (uppercase). Pre-existing
+spec dirs without the `ID-N-` prefix are not migrated; new dirs MUST use the
+prefix.
+
+If the feature has no Task ID yet, use a short kebab-case feature name interim
+(e.g. `docs/specs/q-a-workspace-scoping/PRODUCT.md`) and rename to add
+`ID-N-` once the Task is created.
+
+`docs/specs/` should contain only id-named directories as direct children — no
 engineer-named subdirectories.
 
 Ticket / issue references are optional. If Liam has a GitHub issue or Linear

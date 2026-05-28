@@ -17,17 +17,21 @@ The tech spec should translate product intent into an implementation plan that
 fits the existing codebase, documents architectural choices, and makes the work
 easier for agents to execute and reviewers to evaluate.
 
-Write specs to `specs/<id>/TECH.md`, where `<id>` is one of:
+Write specs to `docs/specs/ID-N-<slug>/TECH.md`, where:
 
-- a GitHub issue id, prefixed with `gh-` (e.g. `specs/gh-4567/TECH.md`)
-- a Linear ticket number if Liam is using one for the feature (e.g.
-  `specs/APP-1234/TECH.md`)
-- a short kebab-case feature name (e.g. `specs/q-a-workspace-scoping/TECH.md`)
-- once Taskmaster is installed (S232 WP4+), align `<id>` with the Taskmaster
-  task ID for the feature.
+- `N` is the Task ID from `docs/reference/task-list.json` (e.g.
+  `docs/specs/ID-9-astro-starlight-docs-foundation/TECH.md`).
+- `<slug>` is a short kebab-case feature name matching the sibling
+  `RESEARCH.md` / `PRODUCT.md` / `PLAN.md`.
 
-Match the id used by the sibling `PRODUCT.md` when one exists. `specs/` should
-contain only id-named directories as direct children.
+**Filename convention (ID-48.4):** The canonical Subtask artefact filename for
+the `{N.3}` TECH artefact is `TECH.md` (uppercase). The sibling research
+artefact MUST be named `RESEARCH.md` (not `research.md`,
+`<feature>-research.md`, or similar variants). Pre-existing spec dirs without
+the `ID-N-` prefix are not migrated.
+
+Match the dir used by the sibling `PRODUCT.md` when one exists. `docs/specs/`
+should contain only id-named directories as direct children.
 
 Ticket / issue references are optional. If Liam has a GitHub issue or Linear
 ticket, use its id. If not, ask for a feature name to use as the directory. Only
