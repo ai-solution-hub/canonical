@@ -2,7 +2,8 @@
  * Integration test — PRODUCT Inv-11 (per-row op_id stamping) AND Inv-12
  * (op_id round-trip via pipeline_runs).
  *
- * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
+ * Subtask ID-49.6 (S273 — was ID-28.18 lineage; INV11+12 op-id stamping)
+ * wired to fixture-staging at ID-49.10 (S275).
  *
  * Per TECH §2.10 this file covers BOTH Inv-11 (op_id stamped on every
  * pipeline-produced row) AND Inv-12 (op_id resolves back to pipeline_runs

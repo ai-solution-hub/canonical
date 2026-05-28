@@ -318,16 +318,36 @@ export async function dropFixture(args: DropFixtureArgs): Promise<void> {
     );
   }
 
-  // 1c. source_documents — FK on content_item_id.
+  // 1c. source_documents — content_items.source_document_id → source_documents.id.
+  //      FK direction is reversed from the children above: fetch the
+  //      source_document_ids referenced by the content_items rows being
+  //      dropped, then delete from source_documents by id. Best-effort log
+  //      on error (matches the pattern of the q_a_extractions / entity_mentions
+  //      blocks above).
   {
-    const { error } = await client
-      .from('source_documents')
-      .delete()
-      .in('content_item_id', args.contentIds);
-    if (error) {
+    const { data: srcDocRows, error: srcDocFetchErr } = await client
+      .from('content_items')
+      .select('source_document_id')
+      .in('id', args.contentIds);
+    if (srcDocFetchErr) {
       console.warn(
-        `dropFixture: source_documents cleanup warning — ${error.message ?? String(error)}`,
+        `dropFixture: source_documents id fetch warning — ${srcDocFetchErr.message ?? String(srcDocFetchErr)}`,
       );
+    } else {
+      const srcDocIds = (srcDocRows ?? [])
+        .map((r) => r.source_document_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      if (srcDocIds.length > 0) {
+        const { error: srcDocDelErr } = await client
+          .from('source_documents')
+          .delete()
+          .in('id', srcDocIds);
+        if (srcDocDelErr) {
+          console.warn(
+            `dropFixture: source_documents cleanup warning — ${srcDocDelErr.message ?? String(srcDocDelErr)}`,
+          );
+        }
+      }
     }
   }
 
