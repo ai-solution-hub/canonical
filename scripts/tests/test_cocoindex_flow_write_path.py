@@ -189,6 +189,13 @@ class _FakeFile:
         self.file_path = _FakeFile._FilePath(path)
         self._path = path
 
+    @property
+    def size(self) -> int:
+        # cocoindex File.size — the byte length. Used by the ID-52 form-write
+        # block for `form_templates.file_size` (NOT NULL). Derived from the
+        # staged file so it is honest without the cocoindex engine.
+        return self._path.stat().st_size
+
     async def read(self) -> bytes:
         return self._path.read_bytes()
 
@@ -266,7 +273,7 @@ class TestIngestFileWritePath:
                 # and is NOT passed to fn (cocoindex 1.0.3 api.py _mount_one).
                 # em_target (4th extra arg) lands per ID-53.10 §P-4; declare_row
                 # body for entity_mentions ships at {53.11}.
-                await flow.ingest_file(fake_file, ci, qa, sd, em)
+                await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
@@ -419,7 +426,7 @@ class TestMountEachArityContract:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await _faithful_mount_each(flow.ingest_file, feed, ci, qa, sd, em)
+                await _faithful_mount_each(flow.ingest_file, feed, ci, qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
@@ -452,14 +459,16 @@ class TestMountEachArityContract:
         assert len({r["id"] for r in ci.rows}) == 2
 
     def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
-        """``ingest_file`` accepts exactly (file, ci, qa, sd, em) positionally.
+        """``ingest_file`` accepts exactly (file, ci, qa, sd, em, ft, ftf).
 
         Inspecting the signature directly pins the arity contract: the leading
-        parameter is the File item value, followed by the four target extra
-        args — and there is NO leading ``rel_path`` parameter (the blocker).
+        parameter is the File item value, followed by the six target extra args
+        — and there is NO leading ``rel_path`` parameter (the original blocker).
 
-        The fourth extra arg (``em_target``) lands per ID-53.10 §P-4; the
-        declare_row body for entity_mentions ships at {53.11}.
+        ID-52.12 extended the arity from five to seven: ``ft_target`` /
+        ``ftf_target`` (the ``form_templates`` / ``form_template_fields``
+        Path-B write targets) follow ``em_target`` positionally, matching the
+        ``coco.mount_each`` extra-arg order in ``app_main``.
         """
         flow = _flow_module()
 
@@ -468,9 +477,14 @@ class TestMountEachArityContract:
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First param is the File item value; remaining four are the targets.
-        assert len(params) == 5, (
-            f"ingest_file must take exactly (file, ci, qa, sd, em); got {params}"
+        # First param is the File item value; remaining six are the targets.
+        assert len(params) == 7, (
+            f"ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf); "
+            f"got {params}"
+        )
+        assert params[-2:] == ["ft_target", "ftf_target"], (
+            "the last two extra args must be ft_target then ftf_target "
+            f"(TECH §2.5 positional order); got {params}"
         )
 
 
@@ -527,7 +541,7 @@ class TestStablePrimaryKeysAcrossRuns:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await flow.ingest_file(fake_file, ci, qa, sd, em)  # type: ignore[attr-defined]
+                await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)  # type: ignore[attr-defined]
 
         asyncio.run(_exercise())
         return {"ci": ci.rows, "qa": qa.rows, "sd": sd.rows}
@@ -620,7 +634,7 @@ class TestContentFingerprintAwaited:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(fake_file, ci, qa, sd, em)
+                await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
@@ -687,7 +701,7 @@ class TestSourceDocumentProvenanceWritePath:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(fake_file, ci, qa, sd, em)  # type: ignore[attr-defined]
+                await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)  # type: ignore[attr-defined]
 
         asyncio.run(_exercise())
         return sd
@@ -863,3 +877,468 @@ class TestLifespanProvidesDbCtx:
             )
 
         asyncio.run(_exercise())
+
+
+# ── 52.12 — Path B pipeline-owned form-template write block ───────────────────
+
+
+_FORM_TYPE = "tender"  # a value present in the canonical taxonomy snapshot
+
+
+class _FakeFormFile:
+    """Form-flow File stand-in with a RELATIVE ``file_path.path`` (production
+    shape: the localfs path is relative to ``COCOINDEX_SOURCE_PATH``, so
+    ``rel_path = file.file_path.path.as_posix()`` is a relative POSIX string the
+    manifest prefixes match against). Decouples the logical relative path from
+    the on-disk staged file the bytes are read from."""
+
+    class _FilePath:
+        def __init__(self, rel_path: Path) -> None:
+            self.path = rel_path
+
+    def __init__(self, rel_path: str, disk_path: Path) -> None:
+        self.file_path = _FakeFormFile._FilePath(Path(rel_path))
+        self._disk = disk_path
+
+    @property
+    def size(self) -> int:
+        return self._disk.stat().st_size
+
+    async def read(self) -> bytes:
+        return self._disk.read_bytes()
+
+    async def read_text(self) -> str:
+        return self._disk.read_text()
+
+    async def content_fingerprint(self) -> bytes:
+        import hashlib
+
+        return hashlib.sha256(self._disk.read_bytes()).digest()
+
+
+def _stub_path_a(flow: object, monkeypatch: "pytest.MonkeyPatch") -> None:
+    """Stub the Path-A adapter + extractors + embedder so the form-write block
+    is exercised in isolation (no Docling / anthropic / OpenAI / network)."""
+
+    async def _fake_convert(file: object) -> str:
+        return "# Form\n\nbody"
+
+    async def _fake_classification(content_text: str):
+        return {"content_type": "case_study"}
+
+    async def _fake_qa(content_text: str):
+        return {"qa_pairs": []}
+
+    async def _fake_entities(content_text: str):
+        return []
+
+    async def _fake_embed(content_text: str) -> list[float]:
+        return [0.0] * 1024
+
+    monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+    monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+    monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+    monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+
+def _make_manifest(flow: object, prefix: str, workspace_id: "uuid.UUID"):
+    """Build a real WorkspaceManifest mapping ``prefix`` → ``workspace_id``."""
+    from cocoindex_pipeline.workspace_resolver import (
+        WorkspaceManifest,
+        WorkspaceMapping,
+    )
+
+    return WorkspaceManifest(
+        schema_version=1,
+        mappings=[WorkspaceMapping(path_prefix=prefix, workspace_id=workspace_id)],
+    )
+
+
+def _make_extracted_form(flow: object, fields: list[dict]):
+    """Build an ExtractedForm with the given fields (dict kwargs per field)."""
+    from cocoindex_pipeline.form_extractors.shared import (
+        ExtractedField,
+        ExtractedForm,
+        FormMetadata,
+    )
+
+    return ExtractedForm(
+        form_metadata=FormMetadata(
+            form_type=_FORM_TYPE,
+            form_format="pdf",
+            form_title="Acme Tender 2026",
+            issuing_organisation="Acme Council",
+            evaluation_methodology="MEAT 60/40",
+        ),
+        fields=[ExtractedField(**f) for f in fields],
+    )
+
+
+def _spy_trim(flow: object, monkeypatch: "pytest.MonkeyPatch") -> list[tuple]:
+    """Patch the trim seam so the DELETE contract is observable without a pool.
+
+    Records each ``(template_id, new_max_sequence)`` call so tests can assert
+    the trim ran (and ran BEFORE field declares — checked via call ordering)."""
+    calls: list[tuple] = []
+
+    async def _fake_trim(template_id, new_max_sequence) -> None:
+        calls.append((template_id, new_max_sequence))
+
+    monkeypatch.setattr(flow, "_trim_stale_form_fields", _fake_trim)
+    return calls
+
+
+def _ingest_form(
+    flow: object,
+    fake_file: object,
+    *,
+    manifest: object,
+    monkeypatch: "pytest.MonkeyPatch",
+) -> dict:
+    """Drive one ingest_file under bind_flow_meta + bind_workspace_manifest."""
+    from cocoindex_pipeline.flow_context import (
+        bind_flow_meta,
+        bind_workspace_manifest,
+    )
+
+    ci = _FakeTarget("content_items")
+    qa = _FakeTarget("q_a_extractions")
+    sd = _FakeTarget("source_documents")
+    em = _FakeTarget("entity_mentions")
+    ft = _FakeTarget("form_templates")
+    ftf = _FakeTarget("form_template_fields")
+
+    run_op_id = uuid.uuid4()
+
+    async def _exercise() -> None:
+        async with bind_flow_meta(op_id=run_op_id):
+            async with bind_workspace_manifest(manifest):
+                await flow.ingest_file(fake_file, ci, qa, sd, em, ft, ftf)
+
+    asyncio.run(_exercise())
+    return {"ci": ci, "qa": qa, "sd": sd, "em": em, "ft": ft, "ftf": ftf,
+            "op_id": run_op_id}
+
+
+class TestFormWriteSuccessPath:
+    """A resolvable, extractable form → one analysed form_templates row + N
+    form_template_fields rows with stable deterministic UUID5s (Inv-6/7/8)."""
+
+    def test_success_declares_form_template_and_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+
+        # Stage the form on disk; the logical rel_path is under the mapped
+        # prefix so resolution succeeds.
+        src = tmp_path / "blank-form.pdf"
+        src.write_bytes(b"%PDF-1.7 stub bytes")
+        rel_path = "acme/blank-form.pdf"
+        fake_file = _FakeFormFile(rel_path, src)
+
+        async def _fake_extract(file: object):
+            return _make_extracted_form(
+                flow,
+                [
+                    {"question_text": "Describe your approach", "field_type": "empty_cell",
+                     "fill_status": "pending", "sequence": 0, "word_limit": 500,
+                     "is_mandatory": True, "section_name": "A"},
+                    {"placeholder_text": "[Insert]", "field_type": "placeholder",
+                     "fill_status": "pending", "sequence": 1, "row_index": 2,
+                     "col_index": 1, "table_index": 0,
+                     "reference_urls": ["https://example.org/guide"]},
+                ],
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+
+        # Exactly one form_templates row, status analysed.
+        assert len(out["ft"].rows) == 1
+        ft_row = out["ft"].rows[0]
+        assert ft_row["status"] == "analysed"
+        assert ft_row["workspace_id"] == ws
+        assert ft_row["created_by"] == flow.SERVICE_ACCOUNT_UUID
+        assert ft_row["mime_type"] == "application/pdf"
+        assert ft_row["file_size"] == src.stat().st_size
+        assert ft_row["field_count"] == 2
+        assert ft_row["mapped_count"] == 0
+        assert ft_row["ingest_source"] == "pipeline"
+        assert ft_row["name"] == "Acme Tender 2026"  # form_title preferred
+        assert ft_row["description"] == "MEAT 60/40"
+        assert ft_row["form_type"] == _FORM_TYPE
+        assert ft_row["issuing_organisation"] == "Acme Council"
+        assert ft_row["storage_path"] == rel_path
+        assert ft_row["structure_path"] is None
+        # The form_templates PK is the deterministic ft: UUID5.
+        assert ft_row["id"] == uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}"
+        )
+
+        # Two field rows with deterministic ftf: UUID5s + correct payloads.
+        assert len(out["ftf"].rows) == 2
+        for field_row in out["ftf"].rows:
+            assert field_row["template_id"] == ft_row["id"]
+            expected_id = uuid.uuid5(
+                flow._KH_PIPELINE_DOC_NS, f"ftf:{rel_path}:{field_row['sequence']}"
+            )
+            assert field_row["id"] == expected_id
+            assert "question_id" not in field_row  # Path-C owned
+            assert "mapping_status" not in field_row  # DB default owned
+        # Field-specific payload checks.
+        f0 = out["ftf"].rows[0]
+        assert f0["question_text"] == "Describe your approach"
+        assert f0["word_limit"] == 500
+        assert f0["is_mandatory"] is True
+        f1 = out["ftf"].rows[1]
+        assert f1["placeholder_text"] == "[Insert]"
+        assert f1["reference_urls"] == ["https://example.org/guide"]
+
+    def test_name_falls_back_to_stem_when_no_title(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+        src = tmp_path / "no-title.pdf"
+        src.write_bytes(b"%PDF stub")
+        fake_file = _FakeFormFile("acme/no-title.pdf", src)
+
+        from cocoindex_pipeline.form_extractors.shared import (
+            ExtractedForm,
+            FormMetadata,
+        )
+
+        async def _fake_extract(file: object):
+            return ExtractedForm(
+                form_metadata=FormMetadata(
+                    form_type=_FORM_TYPE, form_format="pdf", form_title=None
+                ),
+                fields=[],
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+        assert out["ft"].rows[0]["name"] == "no-title"  # file stem
+
+
+class TestFormWriteSkipAndFailurePaths:
+    def test_xls_returns_none_no_form_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Inv-3: .xls → extract_form_structure returns None → 0 form rows."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+        src = tmp_path / "legacy.xls"
+        src.write_bytes(b"\xd0\xcf\x11\xe0")
+        fake_file = _FakeFormFile("acme/legacy.xls", src)
+
+        async def _fake_extract(file: object):
+            # Mirror the orchestrator's .xls behaviour: returns None.
+            return None
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+        assert out["ft"].rows == []
+        assert out["ftf"].rows == []
+
+    def test_extraction_failure_records_analysis_failed_row_no_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Inv-17: FormExtractionError → 1 analysis_failed row + 0 fields; the
+        batch is not halted (the call returns, it does not raise)."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+        src = tmp_path / "corrupt.pdf"
+        src.write_bytes(b"not a pdf")
+        rel_path = "acme/corrupt.pdf"
+        fake_file = _FakeFormFile(rel_path, src)
+
+        # Raise the SAME FormExtractionError class flow.py caught at import —
+        # `flow.FormExtractionError` — not a re-imported sibling-namespace copy
+        # (the `scripts.` vs bare `cocoindex_pipeline` dual-import-path hazard
+        # would otherwise make flow's `except FormExtractionError` miss it).
+        _FormExtractionError = flow.FormExtractionError
+
+        async def _fake_extract(file: object):
+            raise _FormExtractionError("corrupt_pdf", rel_path, "broken")
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+
+        emitted: list[dict] = []
+        monkeypatch.setattr(
+            flow,
+            "_emit_stage_error_log",
+            lambda **kw: emitted.append(kw),
+        )
+
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+
+        assert len(out["ft"].rows) == 1
+        ft_row = out["ft"].rows[0]
+        assert ft_row["status"] == "analysis_failed"
+        assert ft_row["field_count"] == 0
+        assert ft_row["created_by"] == flow.SERVICE_ACCOUNT_UUID
+        assert ft_row["mime_type"] == "application/pdf"
+        assert ft_row["workspace_id"] == ws
+        # Same ft: UUID5 so a later successful re-ingest UPSERTs this row.
+        assert ft_row["id"] == uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
+        assert out["ftf"].rows == []
+        # A form_extraction stage error was emitted.
+        assert any(e.get("stage") == "form_extraction" for e in emitted)
+
+    def test_resolution_failure_no_form_rows_and_stage_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Inv-5: ResolutionFailure → 0 form_templates + 0 fields + a
+        workspace_resolution stage error (no sentinel row)."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        # Manifest maps a DIFFERENT prefix → the staged file is unmapped.
+        manifest = _make_manifest(flow, "other-client/", ws)
+        src = tmp_path / "unmapped-form.pdf"
+        src.write_bytes(b"%PDF stub")
+        fake_file = _FakeFormFile("unmapped/unmapped-form.pdf", src)
+
+        extract_called = {"value": False}
+
+        async def _fake_extract(file: object):
+            extract_called["value"] = True
+            return _make_extracted_form(flow, [])
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+
+        emitted: list[dict] = []
+        monkeypatch.setattr(
+            flow, "_emit_stage_error_log", lambda **kw: emitted.append(kw)
+        )
+
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+
+        assert out["ft"].rows == []
+        assert out["ftf"].rows == []
+        assert extract_called["value"] is False, (
+            "resolution must fail BEFORE extraction (Inv-5 — no extraction work "
+            "on an unmapped path)"
+        )
+        ws_errors = [e for e in emitted if e.get("stage") == "workspace_resolution"]
+        assert ws_errors, "a workspace_resolution stage error must be emitted"
+        assert ws_errors[0]["error_class"] == "extraction_validation_failed"
+
+
+class TestFormWriteIdempotency:
+    def test_two_runs_same_rel_path_identical_uuids(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Inv-16 happy: two ingests of the same rel_path mint identical ft:/ftf:
+        UUID5s, so declare_row UPSERTs the same rows."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+        src = tmp_path / "stable-form.pdf"
+        src.write_bytes(b"%PDF stable")
+        fake_file = _FakeFormFile("acme/stable-form.pdf", src)
+
+        async def _fake_extract(file: object):
+            return _make_extracted_form(
+                flow,
+                [{"question_text": "Q", "field_type": "empty_cell",
+                  "fill_status": "pending", "sequence": 0}],
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+
+        out_a = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+        out_b = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+
+        assert out_a["ft"].rows[0]["id"] == out_b["ft"].rows[0]["id"]
+        assert out_a["ftf"].rows[0]["id"] == out_b["ftf"].rows[0]["id"]
+
+    def test_stale_trim_runs_before_field_declares(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Inv-16 shrink: the stale-row trim is invoked with (template_id,
+        max_sequence) BEFORE any form_template_fields row is declared."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+        src = tmp_path / "shrink-form.pdf"
+        src.write_bytes(b"%PDF shrink")
+        rel_path = "acme/shrink-form.pdf"
+        fake_file = _FakeFormFile(rel_path, src)
+
+        async def _fake_extract(file: object):
+            return _make_extracted_form(
+                flow,
+                [
+                    {"question_text": "Q0", "field_type": "empty_cell",
+                     "fill_status": "pending", "sequence": 0},
+                    {"question_text": "Q1", "field_type": "empty_cell",
+                     "fill_status": "pending", "sequence": 1},
+                ],
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+
+        # Order-recording trim spy: append a marker so we can assert it ran
+        # before the first field declare.
+        order: list[str] = []
+
+        async def _fake_trim(template_id, new_max_sequence) -> None:
+            order.append(f"trim:{new_max_sequence}")
+
+        monkeypatch.setattr(flow, "_trim_stale_form_fields", _fake_trim)
+
+        from cocoindex_pipeline.flow_context import (
+            bind_flow_meta,
+            bind_workspace_manifest,
+        )
+
+        class _OrderingTarget(_FakeTarget):
+            def declare_row(self, *, row: dict) -> None:
+                order.append("field_declare")
+                super().declare_row(row=row)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+        ft = _FakeTarget("form_templates")
+        ftf = _OrderingTarget("form_template_fields")
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                async with bind_workspace_manifest(manifest):
+                    await flow.ingest_file(fake_file, ci, qa, sd, em, ft, ftf)
+
+        asyncio.run(_exercise())
+
+        # The trim recorded the new max sequence (1) and ran before any field.
+        assert "trim:1" in order
+        assert order.index("trim:1") < order.index("field_declare"), (
+            "stale-row trim must run BEFORE the form_template_fields declares "
+            "(TECH §2.8)"
+        )
+        # Two field rows landed.
+        assert len(ftf.rows) == 2

@@ -204,7 +204,7 @@ class TestEntityMentionsSchemaDeclaration:
 class TestIngestFileAcceptsEmTarget:
     """``ingest_file`` accepts ``em_target`` so ``mount_each`` arity matches."""
 
-    def test_ingest_file_signature_has_5_params(self) -> None:
+    def test_ingest_file_signature_has_7_params(self) -> None:
         flow = _flow_module()
         params = list(inspect.signature(flow.ingest_file).parameters)
         assert params[0] != "rel_path", (
@@ -212,18 +212,28 @@ class TestIngestFileAcceptsEmTarget:
             "fn(File, *extra_args); the key is never forwarded to fn "
             "(ID-28.21 regression guard)"
         )
-        assert len(params) == 5, (
-            f"ingest_file must take exactly (file, ci, qa, sd, em); got {params}"
+        # ID-52.12 extended the arity from five to seven: ft_target / ftf_target
+        # (the form_templates / form_template_fields Path-B write targets) follow
+        # em_target positionally.
+        assert len(params) == 7, (
+            "ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf); "
+            f"got {params}"
         )
 
     def test_em_target_is_the_fourth_extra_arg(self) -> None:
-        """The fourth extra arg name is ``em_target`` — pinned by name so the
-        {53.11} declare_row body can refer to it without ambiguity."""
+        """``em_target`` is the FOURTH extra arg (index 4) — pinned by position so
+        the {53.11} declare_row body can refer to it without ambiguity. The
+        ID-52.12 form targets (ft_target / ftf_target) follow it as the fifth +
+        sixth extra args."""
         flow = _flow_module()
         params = list(inspect.signature(flow.ingest_file).parameters)
-        assert params[-1] == "em_target", (
+        assert params[4] == "em_target", (
             f"the fourth extra arg of ingest_file must be named 'em_target'; "
             f"got params={params}"
+        )
+        assert params[5:] == ["ft_target", "ftf_target"], (
+            f"the fifth + sixth extra args must be ft_target then ftf_target "
+            f"(TECH §2.5 positional order); got params={params}"
         )
 
 

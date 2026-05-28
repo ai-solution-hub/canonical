@@ -345,7 +345,7 @@ class TestIngestFileBumpsEmbeddingCounter:
         async def _run() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_stage_counter(counter):
-                    await flow.ingest_file(fake_file, ci, qa, sd, em)
+                    await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
 
         asyncio.run(_run())
 
@@ -380,7 +380,7 @@ class TestIngestFileBumpsEmbeddingCounter:
                         src = tmp_path / name
                         src.write_text(_MARKDOWN + f"\n\n{name}")
                         ci, qa, sd, em = _make_targets()
-                        await flow.ingest_file(_FakeFile(src), ci, qa, sd, em)
+                        await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
 
         asyncio.run(_run())
         assert counter.get("embedding") == 2
@@ -402,7 +402,7 @@ class TestIngestFileBumpsEmbeddingCounter:
         async def _run() -> None:
             # Deliberately NO bind_stage_counter — ingest_file must cope.
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(_FakeFile(src), ci, qa, sd, em)
+                await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
 
         asyncio.run(_run())
         assert ci.rows[0]["embedding"] is not None, (

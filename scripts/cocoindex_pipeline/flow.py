@@ -112,7 +112,23 @@ from scripts.cocoindex_pipeline.flow_context import (
     bind_flow_meta,
     bind_retry_counter,
     bind_stage_counter,
+    bind_workspace_manifest,
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it via __package__
+)
+
+# ID-52 Path B (form extraction). The orchestrator + per-format readers run as
+# plain awaits inside `ingest_file`'s form-write block; the workspace resolver
+# maps each ingested file's rel_path to a workspace via the flow-start manifest.
+# `current_workspace_manifest` is resolved inside `ingest_file` through the
+# `__package__`-relative flow_context module (dual-import-path hazard — same
+# rationale as `current_flow_meta`), so it is NOT imported by name here.
+from scripts.cocoindex_pipeline.form_extractors import extract_form_structure
+from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionError
+from scripts.cocoindex_pipeline.workspace_resolver import (
+    ManifestLoadError,
+    ResolutionFailure,
+    load_workspace_manifest,
+    resolve_workspace,
 )
 
 # ID-53 §P-1 (Inv-1). Stage-5 entity-resolution flow-scope post-pass. Imported
@@ -805,6 +821,84 @@ ENTITY_MENTIONS_SCHEMA = TableSchema(
 )
 
 
+# ── ID-52 Path B form-extraction substrate (TECH §2.5) ───────────────────────
+
+# Pipeline service-account user id (CLAUDE.md gotcha: NEVER a literal string in
+# any write path). Stamped as `form_templates.created_by` for pipeline-owned
+# instance rows (Inv-6 — the pipeline owns the write, not an interactive user).
+SERVICE_ACCOUNT_UUID = uuid.UUID("a0000000-0000-4000-8000-000000000001")
+
+# The three CHECK-permitted MIME types on `form_templates.mime_type` (widened
+# from DOCX-only by Migration M1, TECH §2.6). Keyed by the lowercased file
+# suffix the orchestrator dispatches on. `.xls` is intentionally absent — it is
+# out of automated scope (Inv-3) and the orchestrator returns None for it before
+# any `form_templates` write is attempted.
+MIME_BY_SUFFIX: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+# `form_templates` row-level UPSERT target schema (TECH §2.5 step 3). Column
+# types mirror the live staging schema (verified against
+# supabase/types/database.types.ts): file_size = integer NOT NULL; status,
+# ingest_source NOT NULL (DB defaults exist but the pipeline writes explicit
+# values); deadline = timestamptz; created_by nullable; the M1b dedicated
+# metadata columns (form_type / deadline / issuing_organisation /
+# evaluation_methodology) are written from day one (no JSONB packing). The
+# GENERATED / auto columns `created_at` / `updated_at` are OMITTED per the
+# `content_text_hash GENERATED ALWAYS` convention used by the schemas above.
+FORM_TEMPLATES_SCHEMA = TableSchema(
+    columns={
+        "id": ColumnDef(type="uuid", nullable=False),
+        "workspace_id": ColumnDef(type="uuid", nullable=False),
+        "created_by": ColumnDef(type="uuid", nullable=True),
+        "name": ColumnDef(type="text", nullable=False),
+        "filename": ColumnDef(type="text", nullable=False),
+        "file_size": ColumnDef(type="integer", nullable=False),
+        "mime_type": ColumnDef(type="text", nullable=False),
+        "storage_path": ColumnDef(type="text", nullable=False),
+        "structure_path": ColumnDef(type="text", nullable=True),
+        "description": ColumnDef(type="text", nullable=True),
+        "field_count": ColumnDef(type="integer", nullable=True),
+        "mapped_count": ColumnDef(type="integer", nullable=True),
+        "status": ColumnDef(type="text", nullable=False),
+        "ingest_source": ColumnDef(type="text", nullable=False),
+        "form_type": ColumnDef(type="text", nullable=True),
+        "deadline": ColumnDef(type="timestamptz", nullable=True),
+        "issuing_organisation": ColumnDef(type="text", nullable=True),
+        "evaluation_methodology": ColumnDef(type="text", nullable=True),
+    },
+    primary_key=("id",),
+)
+
+# `form_template_fields` row-level UPSERT target schema (TECH §2.5 step 4).
+# `field_type` / `fill_status` / `sequence` are NOT NULL (the pipeline always
+# supplies them). `is_mandatory` + `reference_urls` are the M1-added substrate
+# (TECH §2.5a / §2.6). DB-default / Path-C-owned columns
+# (`mapping_status` default, `fill_error`, `question_id`, `mapping_confidence`)
+# and the GENERATED / auto columns `created_at` / `updated_at` are OMITTED.
+FORM_TEMPLATE_FIELDS_SCHEMA = TableSchema(
+    columns={
+        "id": ColumnDef(type="uuid", nullable=False),
+        "template_id": ColumnDef(type="uuid", nullable=False),
+        "question_text": ColumnDef(type="text", nullable=True),
+        "placeholder_text": ColumnDef(type="text", nullable=True),
+        "field_type": ColumnDef(type="text", nullable=False),
+        "fill_status": ColumnDef(type="text", nullable=False),
+        "row_index": ColumnDef(type="integer", nullable=True),
+        "col_index": ColumnDef(type="integer", nullable=True),
+        "table_index": ColumnDef(type="integer", nullable=True),
+        "section_name": ColumnDef(type="text", nullable=True),
+        "sequence": ColumnDef(type="integer", nullable=False),
+        "word_limit": ColumnDef(type="integer", nullable=True),
+        "is_mandatory": ColumnDef(type="boolean", nullable=True),
+        "reference_urls": ColumnDef(type="text[]", nullable=True),
+    },
+    primary_key=("id",),
+)
+
+
 # ── DSN helper ───────────────────────────────────────────────────────────────
 
 
@@ -894,19 +988,27 @@ async def ingest_file(
     qa_target: Any,
     sd_target: Any,
     em_target: Any,
+    ft_target: Any,
+    ftf_target: Any,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
 
     Mounted once per source item by `coco.mount_each`. cocoindex 1.0.3 calls
-    this component as `ingest_file(File, ci, qa, sd, em)` — the item VALUE (the
-    `File`) is the first positional arg, followed by the extra args
-    (`ci/qa/sd/em` targets) passed positionally to `mount_each`. The (key,value)
-    pair from `walk_dir().items()` is `(relative_path_str, File)`; the KEY is
-    consumed by `mount_each` for per-item subpath routing only and is NOT
-    passed to `fn` (verified against installed cocoindex 1.0.3
+    this component as `ingest_file(File, ci, qa, sd, em, ft, ftf)` — the item
+    VALUE (the `File`) is the first positional arg, followed by the extra args
+    (`ci/qa/sd/em/ft/ftf` targets) passed positionally to `mount_each`. The
+    (key,value) pair from `walk_dir().items()` is `(relative_path_str, File)`;
+    the KEY is consumed by `mount_each` for per-item subpath routing only and is
+    NOT passed to `fn` (verified against installed cocoindex 1.0.3
     `_internal/api.py` `_mount_one`: `fn(item, *extra_args)`). The stable
     per-document identity is therefore derived INSIDE the body from
     `file.file_path.path` — there is no `rel_path` parameter.
+
+    `ft_target` / `ftf_target` (ID-52.12) are the `form_templates` /
+    `form_template_fields` row-level UPSERT targets. The Path-B form-write block
+    at the end of the body declares onto them ONLY for form-bearing files that
+    resolve to a workspace and extract successfully (TECH §2.5); markdown /
+    content files leave both untouched.
 
     This is the reactive 1.0.3 write path proven in RESEARCH.md §R2/§R3 — the
     per-MIME conversion (Stage 2, P-3) and Path A extraction (Stage 3) run as
@@ -1077,6 +1179,187 @@ async def ingest_file(
             }
         )
 
+    # ── ID-52 Path B: pipeline-owned form-template write (TECH §2.5) ─────────
+    # This block is ADDITIVE and LAST in the body. It runs ONLY when a workspace
+    # manifest is bound at flow scope (i.e. Path B is active for this run); when
+    # no manifest is bound (the Path-A-only content runs and their unit tests)
+    # the block is skipped entirely and the targets stay untouched. The manifest
+    # is resolved through flow's OWN package namespace (dual-import-path hazard —
+    # same rationale as `current_flow_meta` above).
+    #
+    # Inv-19 guard: the existing Path-A `q_a_extractions` write above is NOT
+    # touched — the form-write is a separate, additive write into
+    # `form_templates` / `form_template_fields`. The lossy-Path-A fix is ID-54.
+    manifest = flow_context_module.current_workspace_manifest()
+    if manifest is None:
+        return
+
+    suffix = file.file_path.path.suffix.lower()
+
+    # TECH §2.5 step 1: resolve the workspace BEFORE extraction. A resolution
+    # failure (unmapped / ambiguous prefix — Inv-5) surfaces a structured stage
+    # error and produces ZERO form_templates + ZERO form_template_fields rows
+    # (no sentinel, no silent default). Other files in the flow continue.
+    try:
+        workspace_id = resolve_workspace(manifest, rel_path)
+    except ResolutionFailure as exc:
+        # error_class is one of the six canonical PIPELINE_ERROR_CLASSES (the
+        # webhook route Zod-validates it); an unmapped/ambiguous manifest prefix
+        # is an input-validation failure of the form-write precondition, so
+        # `extraction_validation_failed` is the canonical class.
+        _emit_stage_error_log(
+            op_id=op_id,
+            stage="workspace_resolution",
+            error_class="extraction_validation_failed",
+            content_items_id=content_item_id,
+            error_message=str(exc),
+        )
+        return
+
+    # TECH §2.5 step 2: deterministic structural extraction (Path B, NO LLM).
+    # `extract_form_structure` returns None for non-form / out-of-scope `.xls`
+    # (the latter already emits its own `form_extractor.skip` log — Inv-3); it
+    # raises FormExtractionError on an unreadable form (Inv-17). The whole call
+    # is wrapped per-file so one form's failure never halts the batch.
+    form_template_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
+    try:
+        extracted = await extract_form_structure(file)
+    except FormExtractionError as exc:
+        # Inv-17: workspace resolved, but the reader failed. Record ONE
+        # form_templates row with status='analysis_failed' and ZERO fields so
+        # the failure is visible; `form_metadata` is unavailable on this path,
+        # so the NOT-NULL columns are populated from the File. Same `ft:` UUID5
+        # so a later successful re-ingest UPSERTs this same row. Continue the
+        # batch (the per-file try/except above scopes the failure).
+        _emit_stage_error_log(
+            op_id=op_id,
+            stage="form_extraction",
+            error_class="extraction_validation_failed",
+            content_items_id=content_item_id,
+            error_message=str(exc),
+        )
+        ft_target.declare_row(
+            row={
+                "id": form_template_id,
+                "workspace_id": workspace_id,
+                "created_by": SERVICE_ACCOUNT_UUID,
+                "name": file.file_path.path.stem,
+                "filename": file.file_path.path.name,
+                "file_size": file.size,
+                "mime_type": MIME_BY_SUFFIX[suffix],
+                "storage_path": rel_path,
+                "structure_path": None,
+                "description": None,
+                "field_count": 0,
+                "mapped_count": 0,
+                "status": "analysis_failed",
+                "ingest_source": "pipeline",
+                "form_type": None,
+                "deadline": None,
+                "issuing_organisation": None,
+                "evaluation_methodology": None,
+            }
+        )
+        return
+
+    if extracted is None:
+        # Not a form-bearing file (or out-of-scope .xls already logged). The
+        # Path-A stages above already ran; leave the form targets untouched.
+        return
+
+    # TECH §2.5 step 3: declare the form_templates instance row (status
+    # 'analysed'). The M1b dedicated metadata columns are written from day one.
+    form_metadata = extracted.form_metadata
+    ft_target.declare_row(
+        row={
+            "id": form_template_id,
+            "workspace_id": workspace_id,
+            "created_by": SERVICE_ACCOUNT_UUID,
+            "name": form_metadata.form_title or file.file_path.path.stem,
+            "filename": file.file_path.path.name,
+            "file_size": file.size,
+            "mime_type": MIME_BY_SUFFIX[suffix],
+            "storage_path": rel_path,
+            "structure_path": None,  # populated by Path C later
+            "description": form_metadata.evaluation_methodology,
+            "field_count": len(extracted.fields),
+            "mapped_count": 0,
+            "status": "analysed",
+            "ingest_source": "pipeline",
+            "form_type": form_metadata.form_type,
+            "deadline": form_metadata.deadline,
+            "issuing_organisation": form_metadata.issuing_organisation,
+            "evaluation_methodology": form_metadata.evaluation_methodology,
+        }
+    )
+
+    # TECH §2.8 (Inv-16 shrink): trim stale field rows from a previous LARGER
+    # ingest BEFORE declaring the new field rows. A second ingest that produces
+    # fewer fields would otherwise leave the trailing rows stranded with stale
+    # data. Gated on the per-document template_id; the DELETE is a no-op on a
+    # first ingest. The trim is factored into a helper so it is observable in
+    # unit tests without a live asyncpg pool.
+    new_max_sequence = (
+        max(field.sequence for field in extracted.fields)
+        if extracted.fields
+        else -1
+    )
+    await _trim_stale_form_fields(form_template_id, new_max_sequence)
+
+    # TECH §2.5 step 4: declare each extracted field as a form_template_fields
+    # row. The PK is deterministic per (form, reading-order sequence) so a
+    # re-ingest UPSERTs the same row (Inv-16). `question_id` (Path-C link-back)
+    # and `mapping_status` (DB default) are intentionally NOT set here.
+    for field in extracted.fields:
+        ftf_target.declare_row(
+            row={
+                "id": uuid.uuid5(
+                    _KH_PIPELINE_DOC_NS, f"ftf:{rel_path}:{field.sequence}"
+                ),
+                "template_id": form_template_id,
+                "question_text": field.question_text,
+                "placeholder_text": field.placeholder_text,
+                "field_type": field.field_type,
+                "fill_status": field.fill_status,
+                "row_index": field.row_index,
+                "col_index": field.col_index,
+                "table_index": field.table_index,
+                "section_name": field.section_name,
+                "sequence": field.sequence,
+                "word_limit": field.word_limit,
+                "is_mandatory": field.is_mandatory,
+                "reference_urls": field.reference_urls,
+            }
+        )
+
+
+async def _trim_stale_form_fields(
+    form_template_id: uuid.UUID, new_max_sequence: int
+) -> None:
+    """Delete `form_template_fields` rows beyond `new_max_sequence` (Inv-16).
+
+    Inv-16 shrink case (TECH §2.8): a form revised to drop trailing questions
+    would otherwise leave the higher-`sequence` rows stranded. Before the new
+    field rows are declared, remove any rows for this template whose `sequence`
+    exceeds the current maximum. Implemented as a single asyncpg statement
+    against the env-scope `DB_CTX` pool (the same pool the row-level targets use
+    under `managed_by=ManagedBy.USER`); declare_row UPSERTs cover the
+    add/change cases, so only the shrink case needs an explicit DELETE.
+
+    Factored into a module-level coroutine (rather than inlined) so unit tests
+    can observe the trim contract by patching this seam — the live DELETE needs
+    a real pool, but the "trim runs before field declares, keyed on
+    `(template_id, sequence)`" contract is provable without one.
+    """
+    pool = DB_CTX.get()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM public.form_template_fields "
+            "WHERE template_id = $1 AND sequence > $2",
+            form_template_id,
+            new_max_sequence,
+        )
+
 
 # ── Main pipeline function ───────────────────────────────────────────────────
 
@@ -1132,6 +1415,39 @@ async def app_main() -> None:
     # was initialised to 0 (via `_empty_stage_counts()`) but never incremented.
     flow_stage_counter = _FlowStageCounter()
 
+    # ── ID-52 Path B: load the folder→workspace manifest ONCE at flow start ──
+    # (TECH §2.1). The manifest lives at the root of the ingest source folder.
+    # A missing / unparseable / schema-invalid manifest ABORTS the flow with a
+    # structured `manifest_missing` / `manifest_invalid` stage error (the form
+    # path must not run without a workspace map). The loaded manifest is bound
+    # at flow scope (around `mount_each` below) so the per-item `ingest_file`
+    # reaches it via `current_workspace_manifest()`.
+    manifest_path = source_path / ".kh-workspace-map.json"
+    try:
+        workspace_manifest = load_workspace_manifest(manifest_path)
+    except ManifestLoadError as exc:
+        manifest_stage = (
+            "manifest_missing" if not manifest_path.exists() else "manifest_invalid"
+        )
+        _emit_stage_error_log(
+            op_id=run_op_id,
+            stage=manifest_stage,
+            error_class="extraction_validation_failed",
+            content_items_id=None,
+            error_message=str(exc),
+        )
+        await _emit_pipeline_run_webhook(
+            op_id=run_op_id,
+            status="failed",
+            stage_counts=stage_counts,
+            items_processed=0,
+            items_created=[],
+            extractor_version=extractor_version,
+            error_message=_redact_error_message(str(exc)),
+            error_class="extraction_validation_failed",
+        )
+        raise
+
     # Flow-start emission: `retry_count` is omitted (always 0 at flow start;
     # emitting 0 would suggest observability is present when it is not yet).
     await _emit_pipeline_run_webhook(
@@ -1179,6 +1495,21 @@ async def app_main() -> None:
             ENTITY_MENTIONS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
+        # ID-52.12 (Inv-6). Path-B pipeline-owned form-template write targets.
+        # managed_by=ManagedBy.USER: cocoindex UPSERTs rows only — the tables +
+        # all columns already exist on staging (Migrations M1/M1b); NO DDL here.
+        ft_target = await mount_table_target(
+            DB_CTX,
+            "form_templates",
+            FORM_TEMPLATES_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
+        ftf_target = await mount_table_target(
+            DB_CTX,
+            "form_template_fields",
+            FORM_TEMPLATE_FIELDS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
 
         # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
         # recursive=True required — default is False (CLAUDE.md gotcha).
@@ -1206,20 +1537,29 @@ async def app_main() -> None:
         # that `ingest_file` bumps once per produced vector. All three bindings
         # MUST wrap `mount_each` so the per-item `ingest_file` components run
         # inside the contextvar scope and their bumps reach the bound counters.
+        # `bind_workspace_manifest` (ID-52.12) exposes the flow-start manifest
+        # to `ingest_file`'s Path-B form-write block via
+        # `current_workspace_manifest()` (the form-write block is skipped when no
+        # manifest is bound — but here it always is, the load above aborts the
+        # flow otherwise). Threaded the same way as the op_id / counters.
         async with bind_flow_meta(op_id=run_op_id, content_items_id=None):
             async with bind_retry_counter(flow_retry_counter):
                 async with bind_stage_counter(flow_stage_counter):
-                    handle = await coco.mount_each(
-                        ingest_file,
-                        source.items(),
-                        ci_target,
-                        qa_target,
-                        sd_target,
-                        em_target,
-                    )
-                    # Wait until every per-item component has processed (cold
-                    # run) so the rollup webhook below reflects a settled state.
-                    await handle.ready()
+                    async with bind_workspace_manifest(workspace_manifest):
+                        handle = await coco.mount_each(
+                            ingest_file,
+                            source.items(),
+                            ci_target,
+                            qa_target,
+                            sd_target,
+                            em_target,
+                            ft_target,
+                            ftf_target,
+                        )
+                        # Wait until every per-item component has processed
+                        # (cold run) so the rollup webhook below reflects a
+                        # settled state.
+                        await handle.ready()
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
         # `ingest_file` now computes a text-embedding-3-large vector(1024) from

@@ -197,7 +197,7 @@ def _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id) -> None:
 
     async def _run() -> None:
         async with bind_flow_meta(op_id=run_op_id):
-            await flow.ingest_file(fake_file, ci, qa, sd, em)
+            await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
 
     asyncio.run(_run())
 
