@@ -1557,11 +1557,13 @@ export type Database = {
           fill_error: string | null
           fill_status: string
           id: string
+          is_mandatory: boolean | null
           mapping_confidence: number | null
           mapping_status: string
           placeholder_text: string | null
           question_id: string | null
           question_text: string | null
+          reference_urls: string[] | null
           row_index: number | null
           section_name: string | null
           sequence: number
@@ -1577,11 +1579,13 @@ export type Database = {
           fill_error?: string | null
           fill_status?: string
           id?: string
+          is_mandatory?: boolean | null
           mapping_confidence?: number | null
           mapping_status?: string
           placeholder_text?: string | null
           question_id?: string | null
           question_text?: string | null
+          reference_urls?: string[] | null
           row_index?: number | null
           section_name?: string | null
           sequence?: number
@@ -1597,11 +1601,13 @@ export type Database = {
           fill_error?: string | null
           fill_status?: string
           id?: string
+          is_mandatory?: boolean | null
           mapping_confidence?: number | null
           mapping_status?: string
           placeholder_text?: string | null
           question_id?: string | null
           question_text?: string | null
+          reference_urls?: string[] | null
           row_index?: number | null
           section_name?: string | null
           sequence?: number
@@ -1725,6 +1731,7 @@ export type Database = {
           file_size: number
           filename: string
           id: string
+          ingest_source: string
           mapped_count: number | null
           mime_type: string
           name: string
@@ -1742,6 +1749,7 @@ export type Database = {
           file_size: number
           filename: string
           id?: string
+          ingest_source?: string
           mapped_count?: number | null
           mime_type: string
           name: string
@@ -1759,6 +1767,7 @@ export type Database = {
           file_size?: number
           filename?: string
           id?: string
+          ingest_source?: string
           mapped_count?: number | null
           mime_type?: string
           name?: string
@@ -4575,3 +4584,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.101.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
