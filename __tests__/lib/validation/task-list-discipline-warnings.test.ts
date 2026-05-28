@@ -2,7 +2,7 @@
  * task-list-discipline-warnings.test.ts — verifies the ID-34 field-length
  * discipline soft warnings emitted by `parseTaskListWithWarnings`.
  *
- * Per docs/specs/task-list-discipline/PRODUCT.md inv 8/10/11:
+ * Per docs/specs/id-34-task-list-discipline/PRODUCT.md inv 8/10/11:
  *   - over-budget fields produce a non-fatal warning (never a schema reject);
  *   - the warning names the id, the field, and measured-vs-budget chars;
  *   - the existing 25-Subtask ceiling warning is unaffected;

@@ -4,7 +4,7 @@
  *
  * Trims the `Task.description` (budget <= 1500) and `Task.status_note`
  * (budget <= 300) fields of the over-budget Tasks enumerated in
- * `docs/specs/task-list-discipline/PRODUCT.md` §4, relocating the excised
+ * `docs/specs/id-34-task-list-discipline/PRODUCT.md` §4, relocating the excised
  * rationale / session-narrative / acceptance-detail VERBATIM into
  * `docs/research/ledger-field-sweep-s269.md` (relocate-not-delete per inv 13)
  * and adding a `cross_doc_links` pointer back to each swept Task.
@@ -61,10 +61,7 @@ interface Rewrite {
   statusNoteOnlyLink?: boolean;
 }
 
-function reloLink(
-  id: string,
-  kind: 'description' | 'status_note',
-): DocLink {
+function reloLink(id: string, kind: 'description' | 'status_note'): DocLink {
   const raw =
     kind === 'description'
       ? 'Relocated over-budget description rationale (ID-34 {34.8} sweep, S269)'
