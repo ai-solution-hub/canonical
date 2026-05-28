@@ -201,6 +201,35 @@ external-library APIs)
   are caught by ast-dataflow / gitnexus / Knip already; standard-library / framework
   built-ins (Next.js, React, Node stdlib, Python stdlib) are exempt.
 
+<!-- code-intel:checker-axes-start -->
+
+**`scope-containment`** (applies when the Executor's dispatch brief included a
+`Blast radius:` / `Scope verified:` journal line authored by ID-23.9)
+
+- Run `gitnexus_detect_changes` against the Executor's commit to verify the diff only
+  touched expected symbols and execution flows.
+- Cross-check the `Blast radius:` and `Scope verified:` journal lines the Executor
+  appended to the subtask `details` block: actual changed symbols must match the declared
+  set.
+- Any symbol outside the declared boundary that was modified by the Executor's commit is a
+  `blocker` (in-scope) finding under this axis.
+- If the Executor's commit predates ID-23.9 integration (no journal lines present), score
+  this axis `N/A`.
+
+**`rename-sweep`** (applies when a symbol rename occurred in the Executor's commit)
+
+- Run ast-dataflow Q1 (string-literal-uses), Q2 (import-path sweep), and Q3 (new-symbol
+  references) against the renamed symbol to confirm the rename is complete.
+- The query sequence must be: ast-dataflow Q1 → Q2 → Q3, in that order, to satisfy the
+  `ast-dataflow.*Q1.*Q2.*Q3` verification contract.
+- Q1 surfaces string-literal sites that hard-code the old name and were not updated.
+- Q2 surfaces import paths still referencing the old module path.
+- Q3 confirms the new symbol is fully referenced at every former call site.
+- Any residual reference to the old name found by Q1/Q2 is a `blocker` (in-scope) finding;
+  any missing Q3 coverage is an `important` (in-scope) finding.
+- If no rename occurred in the Executor's commit, score this axis `N/A`.
+<!-- code-intel:checker-axes-end -->
+
 ### Standard workflow
 
 **Step 1 — Read the spec slice and subtask brief**
@@ -334,7 +363,7 @@ skill body can route findings mechanically without re-reading prose.
     {
       "severity": "blocker | important | nit | fyi",
       "scope": "in-scope | out-of-scope",
-      "axis": "spec-compliance | code-quality | test-quality | design-tokens | type-design | silent-failure | empirical-grounding | performance | security",
+      "axis": "spec-compliance | code-quality | test-quality | design-tokens | type-design | silent-failure | empirical-grounding | performance | security | scope-containment | rename-sweep",
       "location": "path/to/file.ts:42",
       "description": "Free-text description of the finding.",
       "fix_recommendation": "Free-text recommendation, or null if Curator-triage required."
@@ -356,7 +385,9 @@ skill body can route findings mechanically without re-reading prose.
     "empirical-grounding": "PASS | NOTE | FAIL | N/A",
     "type-design": "PASS | NOTE | FAIL | N/A",
     "security": "PASS | NOTE | FAIL | N/A",
-    "performance": "PASS | NOTE | FAIL | N/A"
+    "performance": "PASS | NOTE | FAIL | N/A",
+    "scope-containment": "PASS | NOTE | FAIL | N/A",
+    "rename-sweep": "PASS | NOTE | FAIL | N/A"
   },
   "tests_run": [{ "path": "path/to/test.ts", "result": "PASS | FAIL" }],
   "lint_result": "clean | {N} violations (cited in findings)",
