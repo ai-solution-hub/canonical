@@ -540,7 +540,7 @@ describe('BacklogItemSchema — structured-provenance triple (ID-15.7 §B.1)', (
       ...VALID_ITEM_BASE,
       cross_doc_links: [
         {
-          path: 'docs/specs/legacy-id-migration/TECH.md',
+          path: 'docs/specs/id-15-legacy-id-migration/TECH.md',
           anchor: '§B.1',
           raw: 'TECH §B.1',
         },
@@ -550,7 +550,7 @@ describe('BacklogItemSchema — structured-provenance triple (ID-15.7 §B.1)', (
     if (result.success) {
       expect(result.data.cross_doc_links).toHaveLength(1);
       expect(result.data.cross_doc_links[0].path).toBe(
-        'docs/specs/legacy-id-migration/TECH.md',
+        'docs/specs/id-15-legacy-id-migration/TECH.md',
       );
     }
   });
