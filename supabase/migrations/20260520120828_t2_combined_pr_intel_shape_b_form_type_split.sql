@@ -6,7 +6,7 @@
 -- Shape B promotion + form_type 3-tier split. Single transaction.
 --
 -- Sources of truth:
---   * docs/specs/canonical-pipeline-implementation-plan/PLAN.md §4.2 (sub-tasks 1-9)
+--   * docs/specs/id-31-canonical-pipeline-implementation-plan/PLAN.md §4.2 (sub-tasks 1-9)
 --   * docs/specs/intelligence-workspaces/{PRODUCT,TECH}.md T-1..T-7
 --   * docs/specs/reserved-workspace-seats/{PRODUCT,TECH}.md T-1..T-8
 --   * docs/specs/rls-pattern/{PRODUCT,TECH}.md (auto-RLS trigger + grants helper)

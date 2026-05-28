@@ -7,7 +7,7 @@
 -- is post-apply orchestrator op; sub-task 7 (integration test) is WP3.
 --
 -- Sources of truth:
---   * docs/specs/canonical-pipeline-implementation-plan/PLAN.md §4.6 (sub-tasks 1-3)
+--   * docs/specs/id-31-canonical-pipeline-implementation-plan/PLAN.md §4.6 (sub-tasks 1-3)
 --   * docs/plans/phase-0-investigation/architecture/05-qa-flow.md §2 (column shape)
 --   * docs/plans/phase-0-investigation/architecture/05-qa-flow.md §3 (q_a_extractions +
 --     history mirror + cocoindex UPSERT target)

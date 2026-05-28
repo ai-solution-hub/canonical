@@ -5,7 +5,7 @@
  *
  * Tests verify real behaviour against TECH §5.1 (helper signature + output
  * template) and §5.2 (worked example fixture) of
- * `docs/specs/canonical-pipeline-task-list-migration/TECH.md` and PRODUCT inv
+ * `docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` and PRODUCT inv
  * 12 (retrospective journal-block contents) + inv 15 (UK English + ISO 8601
  * timestamps) of the same spec set.
  *

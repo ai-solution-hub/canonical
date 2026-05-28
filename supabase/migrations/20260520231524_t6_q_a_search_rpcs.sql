@@ -7,7 +7,7 @@
 -- 20260520225456_t6_q_a_pairs_full_schema.sql.
 --
 -- Sources of truth:
---   * docs/specs/canonical-pipeline-implementation-plan/PLAN.md §4.6 sub-task 4
+--   * docs/specs/id-31-canonical-pipeline-implementation-plan/PLAN.md §4.6 sub-task 4
 --   * docs/plans/phase-0-investigation/architecture/05-qa-flow.md §7.2-§7.3
 --     (q_a_search two-step pattern; N9 RESOLVED-S236 separate embedding_score +
 --     fulltext_score columns — NOT a blended single score)

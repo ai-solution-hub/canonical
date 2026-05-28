@@ -24,9 +24,9 @@
  * No barrel re-export.
  *
  * Spec references:
- *   - docs/specs/canonical-pipeline-task-list-migration/PRODUCT.md inv 7–9
- *   - docs/specs/canonical-pipeline-task-list-migration/TECH.md §3.2
- *   - docs/specs/canonical-pipeline-task-list-migration/PLAN.md §2 Subtask 31.5
+ *   - docs/specs/id-31-canonical-pipeline-task-list-migration/PRODUCT.md inv 7–9
+ *   - docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md §3.2
+ *   - docs/specs/id-31-canonical-pipeline-task-list-migration/PLAN.md §2 Subtask 31.5
  */
 
 import { z } from 'zod';

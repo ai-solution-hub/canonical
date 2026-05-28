@@ -4,7 +4,7 @@
  * Unit tests for `lib/validation/umbrellas-schema.ts`.
  *
  * Tests verify real behaviour against TECH §3.2 of
- * `docs/specs/canonical-pipeline-task-list-migration/TECH.md` and PRODUCT inv
+ * `docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` and PRODUCT inv
  * 7–9 of the same spec set.
  *
  * Coverage:
@@ -39,7 +39,8 @@ import {
 const VALID_ENTRY = {
   id: 'canonical-pipeline',
   title: 'Canonical Pipeline Implementation',
-  substrate_doc: 'docs/specs/canonical-pipeline-implementation-plan/PLAN.md',
+  substrate_doc:
+    'docs/specs/id-31-canonical-pipeline-implementation-plan/PLAN.md',
   task_ids: ['30', '31'],
   status: 'in_progress' as const,
   phase: 'Phase 1',
@@ -52,7 +53,7 @@ const VALID_ROOT = {
   last_updated:
     'kh-prod-readiness-S66 W2 close-out — initial umbrellas-schema authored',
   related_documents: [
-    'docs/specs/canonical-pipeline-task-list-migration/TECH.md',
+    'docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md',
   ],
   umbrellas: [VALID_ENTRY],
 };

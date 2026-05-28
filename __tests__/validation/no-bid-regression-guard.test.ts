@@ -1,7 +1,7 @@
 /**
  * Guard test — T4 procurement umbrella rename regression prevention.
  *
- * Per `docs/specs/0.9-canonical-pipeline/TECH.md` P-40 + P-42 validation:
+ * Per `docs/specs/id-31-0.9-canonical-pipeline/TECH.md` P-40 + P-42 validation:
  *
  * - **P-40:** `grep -rn "project_id" lib/ scripts/ app/ components/`
  *   returns zero hits; CI test prevents regression.
@@ -113,7 +113,7 @@ describe('no-bid-regression-guard', () => {
       }
       expect(
         offenders,
-        `Pattern "${pattern}" found in ${offenders.length} unallowlisted file(s) — T4 procurement rename regression. Fix: rename per docs/specs/0.9-canonical-pipeline/TECH.md P-42 (BID_STATES → PROCUREMENT_WORKFLOW_STATES; bid_workspaces → procurement_workspaces).`,
+        `Pattern "${pattern}" found in ${offenders.length} unallowlisted file(s) — T4 procurement rename regression. Fix: rename per docs/specs/id-31-0.9-canonical-pipeline/TECH.md P-42 (BID_STATES → PROCUREMENT_WORKFLOW_STATES; bid_workspaces → procurement_workspaces).`,
       ).toEqual([]);
     },
   );

@@ -133,7 +133,7 @@ semantic routing; the curator never auto-corrects the destination.
 **`task-list` target (per Subtask 31.9 — T-OQ-2 RATIFIED):** writes a new
 top-level Task into `task-list.json#/tasks` via the CLI's `open-task`
 subcommand. Used by the Orchestrator when opening a forward Task JIT (per
-TECH §6.5 of `docs/specs/canonical-pipeline-task-list-migration/TECH.md`).
+TECH §6.5 of `docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md`).
 The Promote mode (below) handles backlog → task-list MOVE semantics —
 Create with `target: 'task-list'` is the **new-Task creation** path (no
 backlog source).
@@ -430,7 +430,7 @@ this step is **curator responsibility** until a `--umbrella-id` flag or
 surface via `bun scripts/ledger-cli.ts --help`.
 
 **Spec reference:** spec slice for this step uses the label `9.` per
-`docs/specs/canonical-pipeline-task-list-migration/TECH.md` §6.4 line 627.
+`docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` §6.4 line 627.
 The label here is `8.` because the post-ID-30 Create-mode flow numbers
 1-7; this step follows immediately.
 
@@ -465,7 +465,7 @@ theme) and `umbrella_id` (drives the `umbrellas.json` membership append)
 are orthogonal — both may be supplied in the same Create or Promote call.
 
 **Forward-Task open pattern (per TECH §6.5 of
-`docs/specs/canonical-pipeline-task-list-migration/TECH.md`):**
+`docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md`):**
 
 1. Compute fresh resolved id via cross-branch MAX-ID query.
 2. Open the Task with spec-chain Subtasks per
@@ -823,7 +823,7 @@ already captured as a backlog item that should be promoted.
    (curator-side `umbrellas.json` edit — the CLI does not yet cover this).
    The caller MUST include the resulting `umbrellas.json` edit in the
    same commit as the backlog/task-list edits (PRODUCT inv 17 commit-
-   coupling, per `docs/specs/canonical-pipeline-task-list-migration/
+   coupling, per `docs/specs/id-31-canonical-pipeline-task-list-migration/
    PRODUCT.md` Inv 17).
 
 6. **Report back.** YAML packet:

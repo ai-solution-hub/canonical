@@ -4,7 +4,7 @@
  * Schema self-parse round-trip guard for `docs/reference/umbrellas.json`.
  *
  * Per TECH §3.4 of
- * `docs/specs/canonical-pipeline-task-list-migration/TECH.md` and PRODUCT
+ * `docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` and PRODUCT
  * invariant 17 (Inv 17: schema-roundtrip ratification) — asserts that the
  * on-disk umbrellas document parses cleanly through `UmbrellasSchema` and
  * carries at least one umbrella entry. The non-empty check is a sanity

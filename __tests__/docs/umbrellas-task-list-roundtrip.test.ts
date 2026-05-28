@@ -3,7 +3,7 @@
  *
  * Cross-doc round-trip guard between `docs/reference/umbrellas.json` and
  * `docs/reference/task-list.json` per TECH §3.4 of
- * `docs/specs/canonical-pipeline-task-list-migration/TECH.md` and PRODUCT
+ * `docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` and PRODUCT
  * invariant 9 (every `umbrellas[].task_ids[]` entry must resolve to a real
  * Task in `task-list.json`).
  *

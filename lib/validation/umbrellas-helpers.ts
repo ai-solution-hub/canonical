@@ -4,7 +4,7 @@
  * `done` status post-implementation.
  *
  * Implements TECH §5 (Journal-block templating helper) of
- * `docs/specs/canonical-pipeline-task-list-migration/TECH.md`, satisfying
+ * `docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md`, satisfying
  * PRODUCT inv 12 (retrospective journal-block contents) + inv 15 (UK English
  * + ISO 8601 timestamps) of the same spec set.
  *
@@ -22,9 +22,9 @@
  * tags.
  *
  * Spec references:
- *   - docs/specs/canonical-pipeline-task-list-migration/PRODUCT.md inv 12, 15
- *   - docs/specs/canonical-pipeline-task-list-migration/TECH.md §5.1, §5.2
- *   - docs/specs/canonical-pipeline-task-list-migration/PLAN.md §2 Subtask 31.6
+ *   - docs/specs/id-31-canonical-pipeline-task-list-migration/PRODUCT.md inv 12, 15
+ *   - docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md §5.1, §5.2
+ *   - docs/specs/id-31-canonical-pipeline-task-list-migration/PLAN.md §2 Subtask 31.6
  */
 
 // NOTE: TECH §5.1 specifies `import type { UmbrellaEntry } from '@/lib/validation/umbrellas-schema'`

@@ -33,7 +33,7 @@
 --     S250 WP2 closes — adjust this reference after backlog edit).
 --   * CLAUDE.md "Supabase auto-grants anon EXECUTE" gotcha (S250 W1b refined):
 --     REVOKE FROM PUBLIC + REVOKE FROM anon + GRANT TO authenticated/service_role.
---   * docs/specs/0.9-canonical-pipeline/TECH.md P-40 + P-42 (no project_id refs).
+--   * docs/specs/id-31-0.9-canonical-pipeline/TECH.md P-40 + P-42 (no project_id refs).
 --
 -- Apply log:
 --   * staging (turayklvaunphgbgscat): applied 2026-05-21 (S250 W2) — smoke green

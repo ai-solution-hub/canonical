@@ -200,7 +200,7 @@ describe('Markdown Ontology Parity', () => {
         related_layers: [1 as const, 2 as const],
         related_ontology: ['22-origin-kind.md', '23-extractor-kind.md'],
         source_of_truth: [
-          'docs/specs/canonical-pipeline-implementation-plan/PLAN.md §4.6',
+          'docs/specs/id-31-canonical-pipeline-implementation-plan/PLAN.md §4.6',
         ],
         last_updated: '21/05/2026',
       };
