@@ -1106,3 +1106,40 @@ class TestDocxFailureSurfacing:
             asyncio.run(docx_extract(b"", "empty.docx"))
         assert excinfo.value.rel_path == "empty.docx"
         assert excinfo.value.reason == "empty_docx"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inv-17 — the committed `corrupt.pdf` batch fixture raises (drives the
+# integration batch's `status='analysis_failed'` row in {52.13}).
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestCorruptPdfBatchFixture:
+    """PRODUCT Inv-17 — the committed ``corrupt.pdf`` fixture (a real,
+    truncated, non-symlink byte file) is the failure member of the
+    ``form-extraction.integration.test.ts`` batch
+    ``[corrupt.pdf, sq.pdf, efa.xlsx, charnwood.docx]``. Asserting it
+    raises ``FormExtractionError`` here (deterministically, no infra)
+    anchors the fixture's purpose: the pipeline write path
+    (``flow.py::ingest_file``) catches that error and declares one
+    ``form_templates`` row with ``status='analysis_failed'`` while the
+    three readable forms extract normally (batch not halted)."""
+
+    _CORRUPT_PDF_PATH = _FIXTURE_DIR / "corrupt.pdf"
+
+    def test_corrupt_pdf_fixture_exists_and_is_a_real_file(self) -> None:
+        assert self._CORRUPT_PDF_PATH.exists(), (
+            f"batch failure fixture missing — {self._CORRUPT_PDF_PATH} must be a "
+            f"real (non-symlink) truncated PDF that pdfplumber cannot open"
+        )
+        assert not self._CORRUPT_PDF_PATH.is_symlink(), (
+            "corrupt.pdf must be a real byte file, NOT a symlink (per {52.13} brief)"
+        )
+
+    def test_corrupt_pdf_fixture_raises_form_extraction_error(self) -> None:
+        raw = self._CORRUPT_PDF_PATH.read_bytes()
+        assert raw  # non-empty bytes — exercises the open-failure path, not empty_pdf
+        with pytest.raises(FormExtractionError) as excinfo:
+            asyncio.run(pdf_extract(raw, "corrupt.pdf"))
+        assert excinfo.value.rel_path == "corrupt.pdf"
+        assert excinfo.value.reason  # non-empty machine-readable token

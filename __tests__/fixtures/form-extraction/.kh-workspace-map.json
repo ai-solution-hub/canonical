@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "mappings": [
+    { "path_prefix": "id-52-13-form-extraction/", "workspace_id": "b0000000-0000-4000-8000-000000000001" },
+    { "path_prefix": "id-52-13-rls-ws-a/", "workspace_id": "b0000000-0000-4000-8000-000000000001" },
+    { "path_prefix": "id-52-13-rls-ws-b/", "workspace_id": "328ba316-4709-47b1-988a-86681975d620" }
+  ]
+}

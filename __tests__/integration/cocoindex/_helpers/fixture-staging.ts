@@ -364,3 +364,343 @@ export async function dropFixture(args: DropFixtureArgs): Promise<void> {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Form-template poll + cleanup helpers (ID-52.13)
+//
+// The cocoindex form-extraction write path (ID-52.12) lands rows in
+// `form_templates` + `form_template_fields` — NOT `content_items`. These
+// helpers are the form-side analogues of `pollContentItemsFor` /
+// `dropFixture`: they poll the form tables and purge the seeded rows. They
+// mirror the env-gate + timeout + best-effort-cleanup conventions exactly.
+//
+// NOTE: `form_templates` has NO `title` column (it has `name` +
+// `storage_path`). The poll matches on `name ILIKE` OR `storage_path ILIKE`
+// so a caller can scope by either the injected name prefix (the same
+// `titlePrefix` convention) or the staged dest-path prefix.
+// ---------------------------------------------------------------------------
+
+export interface PollFormTemplatesOpts {
+  /** Maximum wait, ms, for at least `minRows` rows. Default 120_000. */
+  timeoutMs?: number;
+  /** Interval between poll attempts, ms. Default 2_000. */
+  pollIntervalMs?: number;
+  /**
+   * Minimum number of rows to wait for before resolving. Default 1. The
+   * Inv-17 batch case raises this to wait for the full success+failure set.
+   */
+  minRows?: number;
+  /**
+   * Match by `storage_path ILIKE '${prefix}%'` instead of `name ILIKE`.
+   * Default false (match by `name`). The pipeline write sets
+   * `storage_path = rel_path`, so a caller that staged into a known folder
+   * prefix can poll on the path even when the injected name differs.
+   */
+  matchStoragePath?: boolean;
+  /**
+   * Also accept rows in a non-`analysed` status (e.g. `analysis_failed`).
+   * Default true — the Inv-17 batch case needs the failed row to count.
+   */
+  includeNonAnalysed?: boolean;
+}
+
+/**
+ * The narrow `form_templates` projection the ID-52.13 invariant tests assert
+ * on. Mirrors the columns written by the {52.12} pipeline write path.
+ */
+export interface PolledFormTemplateRow {
+  id: string;
+  workspace_id: string;
+  name: string;
+  filename: string;
+  mime_type: string;
+  file_size: number;
+  storage_path: string;
+  status: string;
+  field_count: number | null;
+  description: string | null;
+  form_type: string | null;
+  evaluation_methodology: string | null;
+  ingest_source: string;
+}
+
+const FORM_TEMPLATE_COLUMNS =
+  'id, workspace_id, name, filename, mime_type, file_size, storage_path, status, field_count, description, form_type, evaluation_methodology, ingest_source';
+
+/**
+ * Poll `form_templates` via the live service-role client until at least
+ * `minRows` rows whose `name` (or `storage_path`) is prefixed by `prefix`
+ * land, or the deadline is reached.
+ *
+ * Throws when live-DB credentials are not real (callers must env-gate via
+ * `hasRealLiveDbCredentials()` first), and rejects on timeout.
+ */
+export async function pollFormTemplatesFor(
+  prefix: string,
+  opts: PollFormTemplatesOpts = {},
+): Promise<PolledFormTemplateRow[]> {
+  if (!hasRealLiveDbCredentials()) {
+    throw new Error(
+      'pollFormTemplatesFor: live DB credentials are not real (or absent). Gate the caller behind hasRealLiveDbCredentials() first.',
+    );
+  }
+
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const minRows = opts.minRows ?? 1;
+  const matchColumn = opts.matchStoragePath ? 'storage_path' : 'name';
+
+  const client = await createLiveServiceClient();
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const { data, error } = await client
+      .from('form_templates')
+      .select(FORM_TEMPLATE_COLUMNS)
+      .ilike(matchColumn, `${prefix}%`);
+
+    if (error) {
+      throw new Error(
+        `pollFormTemplatesFor: query failed — ${error.message ?? String(error)}`,
+      );
+    }
+
+    if (data && data.length >= minRows) {
+      return data.map(toPolledFormTemplateRow);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `pollFormTemplatesFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} form_templates row(s) with ${matchColumn} ILIKE '${prefix}%'`,
+  );
+}
+
+function toPolledFormTemplateRow(
+  r: Record<string, unknown>,
+): PolledFormTemplateRow {
+  return {
+    id: r.id as string,
+    workspace_id: r.workspace_id as string,
+    name: r.name as string,
+    filename: r.filename as string,
+    mime_type: r.mime_type as string,
+    file_size: (r.file_size as number | null) ?? 0,
+    storage_path: r.storage_path as string,
+    status: r.status as string,
+    field_count: (r.field_count as number | null) ?? null,
+    description: (r.description as string | null) ?? null,
+    form_type: (r.form_type as string | null) ?? null,
+    evaluation_methodology: (r.evaluation_methodology as string | null) ?? null,
+    ingest_source: r.ingest_source as string,
+  };
+}
+
+export interface PollFormTemplateFieldsOpts {
+  /** Maximum wait, ms. Default 120_000. */
+  timeoutMs?: number;
+  /** Interval between poll attempts, ms. Default 2_000. */
+  pollIntervalMs?: number;
+  /** Minimum rows to wait for. Default 1. */
+  minRows?: number;
+}
+
+/**
+ * The narrow `form_template_fields` projection the invariant tests assert on
+ * — mirrors the per-field columns written by the {52.12} pipeline write path
+ * (Inv-8 coordinates, Inv-10 mandatory, Inv-11 word limit, Inv-12 section,
+ * Inv-14 reference URLs).
+ */
+export interface PolledFormTemplateFieldRow {
+  id: string;
+  template_id: string;
+  question_text: string | null;
+  placeholder_text: string | null;
+  field_type: string;
+  fill_status: string;
+  row_index: number | null;
+  col_index: number | null;
+  table_index: number | null;
+  section_name: string | null;
+  sequence: number;
+  word_limit: number | null;
+  is_mandatory: boolean | null;
+  reference_urls: string[] | null;
+}
+
+const FORM_TEMPLATE_FIELD_COLUMNS =
+  'id, template_id, question_text, placeholder_text, field_type, fill_status, row_index, col_index, table_index, section_name, sequence, word_limit, is_mandatory, reference_urls';
+
+/**
+ * Poll `form_template_fields` for `template_id = <templateId>` until at least
+ * `minRows` rows land, or the deadline is reached. Throws when live-DB
+ * credentials are not real; rejects on timeout.
+ */
+export async function pollFormTemplateFieldsFor(
+  templateId: string,
+  opts: PollFormTemplateFieldsOpts = {},
+): Promise<PolledFormTemplateFieldRow[]> {
+  if (!hasRealLiveDbCredentials()) {
+    throw new Error(
+      'pollFormTemplateFieldsFor: live DB credentials are not real (or absent). Gate the caller behind hasRealLiveDbCredentials() first.',
+    );
+  }
+
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const minRows = opts.minRows ?? 1;
+
+  const client = await createLiveServiceClient();
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const { data, error } = await client
+      .from('form_template_fields')
+      .select(FORM_TEMPLATE_FIELD_COLUMNS)
+      .eq('template_id', templateId)
+      .order('sequence', { ascending: true });
+
+    if (error) {
+      throw new Error(
+        `pollFormTemplateFieldsFor: query failed — ${error.message ?? String(error)}`,
+      );
+    }
+
+    if (data && data.length >= minRows) {
+      return data.map(toPolledFormTemplateFieldRow);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `pollFormTemplateFieldsFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} form_template_fields row(s) for template_id ${templateId}`,
+  );
+}
+
+function toPolledFormTemplateFieldRow(
+  r: Record<string, unknown>,
+): PolledFormTemplateFieldRow {
+  return {
+    id: r.id as string,
+    template_id: r.template_id as string,
+    question_text: (r.question_text as string | null) ?? null,
+    placeholder_text: (r.placeholder_text as string | null) ?? null,
+    field_type: r.field_type as string,
+    fill_status: r.fill_status as string,
+    row_index: (r.row_index as number | null) ?? null,
+    col_index: (r.col_index as number | null) ?? null,
+    table_index: (r.table_index as number | null) ?? null,
+    section_name: (r.section_name as string | null) ?? null,
+    sequence: r.sequence as number,
+    word_limit: (r.word_limit as number | null) ?? null,
+    is_mandatory: (r.is_mandatory as boolean | null) ?? null,
+    reference_urls: (r.reference_urls as string[] | null) ?? null,
+  };
+}
+
+export interface DropFormFixtureArgs {
+  /**
+   * Name (or storage_path) prefix the form rows were tagged with. Used as a
+   * safety scoping guard so a buggy caller cannot widen the delete blast
+   * radius. Refuses to run when empty.
+   */
+  prefix: string;
+  /**
+   * The `form_templates.id` values the test seeded. Cleanup deletes
+   * `form_template_fields` (by `template_id`) first, then `form_templates`
+   * (by id). When empty, falls back to a prefix-scoped resolve-then-delete.
+   */
+  templateIds?: string[];
+  /**
+   * Match the prefix against `storage_path` instead of `name` when resolving
+   * template ids from the prefix (fallback path). Default false.
+   */
+  matchStoragePath?: boolean;
+}
+
+/**
+ * Purge `form_template_fields` + `form_templates` rows for a single test
+ * fixture. Two-pass FK-respecting delete:
+ *
+ *   1. Delete `form_template_fields` WHERE `template_id` IN (...templateIds).
+ *   2. Delete `form_templates` WHERE `id` IN (...templateIds).
+ *
+ * When `templateIds` is empty, resolves the ids from the `prefix` first
+ * (scoped to `name`/`storage_path` ILIKE) so a test whose poll never landed
+ * its ids can still clean up by prefix. Refuses to run with an empty
+ * `prefix` (defensive scoping guard).
+ *
+ * Best-effort: individual delete errors are logged via `console.warn` and
+ * swallowed so a partial cleanup does not block teardown. Throws when
+ * live-DB credentials are not real (callers must env-gate).
+ */
+export async function dropFormFixture(
+  args: DropFormFixtureArgs,
+): Promise<void> {
+  if (!hasRealLiveDbCredentials()) {
+    throw new Error(
+      'dropFormFixture: live DB credentials are not real (or absent). Gate the caller behind hasRealLiveDbCredentials() first.',
+    );
+  }
+
+  if (!args.prefix || args.prefix.length === 0) {
+    console.warn(
+      'dropFormFixture: called with empty prefix; refusing to run (defensive scoping guard).',
+    );
+    return;
+  }
+
+  const client = await createLiveServiceClient();
+
+  // Resolve the template id set: prefer the caller-supplied ids, else
+  // resolve from the prefix (scoped) so cleanup still works when the poll
+  // never landed the ids in the test body.
+  let templateIds = args.templateIds ?? [];
+  if (templateIds.length === 0) {
+    const matchColumn = args.matchStoragePath ? 'storage_path' : 'name';
+    const { data, error } = await client
+      .from('form_templates')
+      .select('id')
+      .ilike(matchColumn, `${args.prefix}%`);
+    if (error) {
+      console.warn(
+        `dropFormFixture: prefix id-resolve warning — ${error.message ?? String(error)}`,
+      );
+      return;
+    }
+    templateIds = (data ?? []).map((r) => r.id as string);
+  }
+
+  if (templateIds.length === 0) {
+    // Nothing landed — typical when staging never ran. Not an error.
+    return;
+  }
+
+  // 1. form_template_fields — child rows first (FK on template_id).
+  {
+    const { error } = await client
+      .from('form_template_fields')
+      .delete()
+      .in('template_id', templateIds);
+    if (error) {
+      console.warn(
+        `dropFormFixture: form_template_fields cleanup warning — ${error.message ?? String(error)}`,
+      );
+    }
+  }
+
+  // 2. form_templates — parent rows, PK delete.
+  {
+    const { error } = await client
+      .from('form_templates')
+      .delete()
+      .in('id', templateIds);
+    if (error) {
+      console.warn(
+        `dropFormFixture: form_templates cleanup warning — ${error.message ?? String(error)}`,
+      );
+    }
+  }
+}
