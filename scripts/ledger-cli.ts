@@ -1211,6 +1211,18 @@ function budgetSubject(gate: BudgetGate): string {
       return `theme ${gate.recordId}`;
     case 'item':
       return `item ${gate.recordId}`;
+    default: {
+      // ID-35.27 fix-up: exhaustiveness guard. `scripts/` is excluded from
+      // tsconfig so a future addition to `LedgerRecordKind` would NOT be
+      // flagged at build time and the switch would silently return
+      // undefined — corrupting every budget-exceeded detail line. The
+      // `never` assertion makes a missing arm a compile-time error inside
+      // the IDE / `tsc` runs that DO see this file, and the runtime
+      // fallback keeps the message intelligible if the assertion is ever
+      // bypassed.
+      const _exhaustive: never = gate.recordKind;
+      return `${String(_exhaustive)} ${gate.recordId}`;
+    }
   }
 }
 
