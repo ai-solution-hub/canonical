@@ -105,8 +105,21 @@ describe('ledger-cli — flip-subtask / flip-task (inv 6, 13)', () => {
       (t: { id: string }) => t.id === taskId,
     );
     expect(after.subtasks[0].status).toBe('done');
-    // task-list mutation surfaces ID-34 discipline warnings (the live ledger is over budget)
-    if (r.ok) expect(r.warnings && r.warnings.length).toBeGreaterThan(0);
+    // ID-35.30: discipline warnings are now SCOPED to the touched record. The
+    // live ledger has plenty of unrelated over-budget fields, but a flip-subtask
+    // on a task whose own peer subtask fields are within budget should return
+    // either no warnings or only warnings that name THIS subtask. The historic
+    // pre-35.30 assertion ("warnings.length > 0") was asserting the bug — the
+    // whole-ledger dump that broke buffer-parsing orchestrators.
+    if (r.ok && r.warnings) {
+      const compoundId = `${taskId}.${subId}`;
+      const taskHeader = `Task "${taskId}"`;
+      for (const w of r.warnings) {
+        const scoped =
+          w.includes(`Subtask ${compoundId} `) || w.includes(taskHeader);
+        expect(scoped).toBe(true);
+      }
+    }
     // inv 14: a successful write flags mirrors stale (operator must regen)
     if (r.ok) expect(r.mirrorStale).toBe(true);
   });
@@ -308,7 +321,9 @@ describe('ledger-cli — --scoped write mode (ID-35.11)', () => {
       (t: { id: string; status: string }) => t.id === taskId,
     ).status;
     const newStatus = current === 'done' ? 'pending' : 'done';
-    const r = await run(args('flip-task', [taskId, newStatus], { scoped: true }));
+    const r = await run(
+      args('flip-task', [taskId, newStatus], { scoped: true }),
+    );
     expect(r.ok).toBe(true);
     const after = readFileSync(path, 'utf8');
     // Exactly one line differs across the whole 1.4MB file.
@@ -365,7 +380,9 @@ describe('ledger-cli — --scoped write mode (ID-35.11)', () => {
 
   it('the scoped result re-parses (detectSchema succeeds)', async () => {
     const taskId = firstTaskId();
-    const r = await run(args('flip-task', [taskId, 'in_progress'], { scoped: true }));
+    const r = await run(
+      args('flip-task', [taskId, 'in_progress'], { scoped: true }),
+    );
     expect(r.ok).toBe(true);
     // read() throws on invalid JSON; detectSchema is exercised inside the CLI
     // before write, and the file remains a valid task-list.

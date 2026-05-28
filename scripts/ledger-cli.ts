@@ -1184,15 +1184,74 @@ function checkBudget(
 }
 
 /**
- * Surface ID-34 field-discipline warnings for a task-list mutation. Non-fatal:
- * the warnings flow to stderr; the command still succeeds. (Only task-list has
- * a warnings helper; roadmap/backlog mutations return [].)
+ * ID-35.30: the scope a {@link disciplineWarnings} call is restricted to. The
+ * caller names the SINGLE record the mutation touched — `parseTaskListWithWarnings`
+ * still scans the WHOLE task-list (it has to: schema-validity is whole-ledger),
+ * but we filter its emitted entries down to those that pertain to this record.
+ *
+ * Why: without scoping, every successful add-subtask / flip-* / update-* /
+ * promote emits 34-67 KB of unrelated soft warnings (every over-budget field
+ * across hundreds of historical records) on its success envelope's `warnings`
+ * field, which `emit()` dumps to stderr. Buffer-parsing orchestrators that
+ * stream-consume the JSON-stdout envelope from the CLI choke on the unrelated
+ * volume. RESEARCH §2.3 ("scoped to the changed record") applies to the soft
+ * discipline warnings too, not just the budget-exceeded rejection message.
+ *
+ * - `taskId` set, `subId` undefined: keep only warnings whose `taskId` field
+ *   matches AND whose message body is task-level (the parent task's
+ *   description / status_note / >25-subtasks lines, NOT the per-subtask
+ *   description / testStrategy lines for sibling subtasks under the same task).
+ * - `taskId` AND `subId` set: keep only warnings whose `taskId` field matches
+ *   AND whose message body references this specific `taskId.subId` subtask.
+ * - No scope passed: legacy behaviour — return every warning the parse
+ *   produced (preserved as a fallback for callers that intentionally want the
+ *   whole-ledger sweep; no CLI call site uses this any more).
  */
-function disciplineWarnings(detected: KnownDetected): string[] {
+interface WarningScope {
+  taskId: string;
+  subId?: number | string;
+}
+
+/**
+ * Surface ID-34 field-discipline warnings for a task-list mutation, optionally
+ * SCOPED to the single record the mutation touched (ID-35.30). Non-fatal: the
+ * warnings flow to stderr; the command still succeeds. (Only task-list has a
+ * warnings helper; roadmap/backlog mutations return [].)
+ */
+function disciplineWarnings(
+  detected: KnownDetected,
+  scope?: WarningScope,
+): string[] {
   if (detected.kind !== 'task-list') return [];
   try {
     const { warnings } = parseTaskListWithWarnings(detected.data);
-    return warnings.map((w) => w.message);
+    if (!scope) return warnings.map((w) => w.message);
+    // ID-35.30 scope filter.
+    // `parseTaskListWithWarnings` emits at most four message shapes (see
+    // lib/validation/task-list-schema.ts §parseTaskListWithWarnings):
+    //   - Task "{taskId}" description ... — task-level
+    //   - Task "{taskId}" status_note ... — task-level
+    //   - Task "{taskId}" has N subtasks (>25) — task-level
+    //   - Subtask {taskId}.{subId} description / testStrategy ... — subtask-level
+    // Each carries `taskId` (the parent task id) on the warning struct.
+    // Subtask-level messages embed the compound `{taskId}.{subId}` literally
+    // in the message body, so a substring match pins the right subtask
+    // without re-parsing.
+    return warnings
+      .filter((w) => {
+        if (w.taskId !== scope.taskId) return false;
+        const isSubtaskLine = w.message.startsWith(`Subtask `);
+        if (scope.subId === undefined) {
+          // Task-scope: drop sibling-subtask noise; keep only parent task lines.
+          return !isSubtaskLine;
+        }
+        // Subtask-scope: keep only entries that name THIS subtask.
+        return (
+          isSubtaskLine &&
+          w.message.startsWith(`Subtask ${scope.taskId}.${scope.subId} `)
+        );
+      })
+      .map((w) => w.message);
   } catch {
     return [];
   }
@@ -1301,6 +1360,15 @@ interface CommitMutationOptions {
   gate?: RecordSetGate;
   budgetGate?: BudgetGate;
   force?: boolean;
+  /**
+   * ID-35.30: scope the soft discipline-warnings sweep to the single record
+   * this mutation touched, so the success envelope's `warnings` field carries
+   * at most a handful of entries (the touched record's own untouched-budget
+   * lines) instead of the whole 34-67 KB whole-ledger dump. Task-list call
+   * sites should ALWAYS set this; roadmap/backlog mutations may omit it
+   * (disciplineWarnings short-circuits on non-task-list detected anyway).
+   */
+  warningScope?: WarningScope;
 }
 
 /**
@@ -1334,8 +1402,9 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
     gate,
     budgetGate,
     force = false,
+    warningScope,
   } = opts;
-  const warnings = disciplineWarnings(detected);
+  const warnings = disciplineWarnings(detected, warningScope);
 
   // ID-35.17 budget pre-check — on the CHANGED record's budgeted fields, after
   // the in-memory mutation, BEFORE any byte is written. Over-budget → reject
@@ -1732,6 +1801,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
+        // ID-35.30: scope discipline warnings to the touched task.
+        warningScope: { taskId },
       });
     }
 
@@ -1785,6 +1856,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
             }
           : undefined,
         force: flags.force,
+        // ID-35.30: scope discipline warnings to the touched task.
+        warningScope: { taskId },
       });
     }
 
@@ -1826,6 +1899,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
+        // ID-35.30: scope discipline warnings to the touched subtask.
+        warningScope: { taskId, subId },
       });
     }
 
@@ -1899,6 +1974,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
             }
           : undefined,
         force: flags.force,
+        // ID-35.30: scope discipline warnings to the touched subtask.
+        warningScope: { taskId, subId },
       });
     }
 
@@ -1952,6 +2029,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
+        // ID-35.30: scope discipline warnings to the touched subtask.
+        warningScope: { taskId, subId },
       });
     }
 
@@ -2102,6 +2181,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           record,
         },
         force: flags.force,
+        // ID-35.30: scope discipline warnings to the just-added subtask. Without
+        // this scope the success envelope dumps 34-67 KB of unrelated soft
+        // warnings (every over-budget field across the WHOLE ledger), which
+        // breaks JSON-stdout-parsing orchestrators.
+        warningScope: { taskId, subId: newSubId },
       });
     }
 
@@ -2280,6 +2364,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           record,
         },
         force: flags.force,
+        // ID-35.30: scope discipline warnings to the just-created task. For
+        // create-backlog / create-theme this is a no-op (disciplineWarnings
+        // returns [] on non-task-list detected anyway).
+        warningScope:
+          ledger === 'task' ? { taskId: String(ins.recordId) } : undefined,
       });
     }
 
@@ -2476,9 +2565,12 @@ async function promote(
   }
 
   // Hoist the discipline scan once (it re-parses the task-list) — reused by
-  // both the dry-run and the success return.
+  // both the dry-run and the success return. ID-35.30: scope to the
+  // just-promoted Task so the success envelope's `warnings` field stays a
+  // handful of lines about the touched record, not the 34-67 KB whole-ledger
+  // dump that broke buffer-parsing orchestrators.
   const warnings = [
-    ...disciplineWarnings(ins.detected),
+    ...disciplineWarnings(ins.detected, { taskId: String(ins.recordId) }),
     ...forcedBudgetWarnings,
   ];
 

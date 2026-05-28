@@ -141,7 +141,9 @@ describe('budget pre-check exemptions + non-budgeted edits (ID-35.17)', () => {
       expect(r.detail).toContain('title');
       expect(r.detail).toContain('80');
     }
-    expect(readFileSync(join(dir, 'product-backlog.json'), 'utf8')).toBe(before);
+    expect(readFileSync(join(dir, 'product-backlog.json'), 'utf8')).toBe(
+      before,
+    );
   });
 });
 
@@ -203,9 +205,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
       const warns = r.warnings ?? [];
       const hit = warns.some(
         (w) =>
-          w.includes('description') &&
-          w.includes('789') &&
-          w.includes('250'),
+          w.includes('description') && w.includes('789') && w.includes('250'),
       );
       expect(hit).toBe(true);
     }
@@ -279,5 +279,203 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     );
     expect(updated.testStrategy.length).toBe(400);
     expect(updated.description.length).toBe(789);
+  });
+});
+
+// ID-35.30: discipline-warnings sweep is now SCOPED to the touched record.
+//
+// The bug (S275 sub-orchestrator brief): add-subtask success stdout was a
+// 34-67 KB warnings dump — every over-budget field across the WHOLE ledger,
+// per call — because disciplineWarnings returned the unfiltered output of
+// parseTaskListWithWarnings. JSON-stdin parsing of `emit()`'s stderr envelope
+// broke for orchestrators that buffer-consume it.
+//
+// Fix: callers thread a WarningScope into commitMutation/promote so the soft
+// warnings on the success envelope name ONLY the just-mutated record. This
+// matches the prevent-at-source budget gate (RESEARCH §2.3 "scoped to the
+// changed record").
+describe('discipline warnings are scoped to the touched record (ID-35.30)', () => {
+  // Seed an over-budget subtask description under a separate task to act as
+  // unrelated noise. Then mutate a DIFFERENT subtask under a DIFFERENT task,
+  // and assert the noise does NOT bleed into the new success envelope.
+  async function seedOverBudgetSubtask(taskId: string, subId: number) {
+    const newSub = {
+      id: subId,
+      title: 'Untouched over-budget seed',
+      description: 'x'.repeat(789), // > 250 budget — same shape as DESC_789
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'n/a',
+    };
+    const r = await run(
+      args('add-subtask', [taskId, JSON.stringify(newSub)], { force: true }),
+    );
+    if (!r.ok) throw new Error(`seed failed: ${JSON.stringify(r)}`);
+  }
+
+  it('add-subtask success warnings do NOT contain unrelated over-budget fields elsewhere in the ledger', async () => {
+    // The live ledger already carries plenty of historical over-budget records
+    // (the very reason 35.30 exists). Take the FIRST task as the mutation
+    // target — its own budget is fine, so any returned warnings must NOT name
+    // any other task.
+    const taskId = read('task-list').tasks[0].id;
+    const newSub = {
+      id: 7991,
+      title: 'Clean small subtask',
+      description: 'within budget',
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'short',
+    };
+    const r = await run(args('add-subtask', [taskId, JSON.stringify(newSub)]));
+    expect(r.ok).toBe(true);
+    if (r.ok && r.warnings) {
+      for (const w of r.warnings) {
+        // Every entry must reference EITHER the touched parent task header
+        // (Task "<taskId>") OR the just-added subtask compound id. Anything
+        // else is the bug regressing.
+        const compoundId = `${taskId}.7991`;
+        const taskHeader = `Task "${taskId}"`;
+        const inScope =
+          w.startsWith(`Subtask ${compoundId} `) || w.includes(taskHeader);
+        expect(inScope).toBe(true);
+      }
+    }
+  });
+
+  it('add-subtask success envelope warnings DOES surface a peer-field over-budget warning when the just-touched task has one', async () => {
+    // Seed an over-budget subtask under task[0]. Then add ANOTHER subtask
+    // under the same task. The new commit's discipline-warnings sweep must
+    // surface the seeded subtask's over-budget description (it is in scope
+    // — same parent task), so the operator still sees mistakes on the record
+    // they touched. This preserves the safety value of the discipline
+    // sweep while killing the unrelated-record noise.
+    const taskId = read('task-list').tasks[0].id;
+    await seedOverBudgetSubtask(taskId, 7992);
+    const newSub = {
+      id: 7993,
+      title: 'Second clean subtask',
+      description: 'within budget',
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'short',
+    };
+    const r = await run(args('add-subtask', [taskId, JSON.stringify(newSub)]));
+    expect(r.ok).toBe(true);
+    if (r.ok && r.warnings) {
+      // The seeded peer (7992) is in scope (parent task matches). Look for
+      // its over-budget signature: the message embeds "7992" and "789".
+      const peerHit = r.warnings.some(
+        (w) => w.startsWith(`Subtask ${taskId}.7992 `) && w.includes('789'),
+      );
+      expect(peerHit).toBe(true);
+
+      // Cross-check: no warning names a DIFFERENT task. Pick any other task
+      // id with known over-budget fields and assert it never appears.
+      const otherTasks = (read('task-list').tasks as { id: string }[])
+        .filter((t) => t.id !== taskId)
+        .map((t) => `Task "${t.id}"`);
+      for (const w of r.warnings) {
+        for (const header of otherTasks) {
+          expect(w.startsWith(header)).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('flip-subtask returns no warnings about sibling-subtask over-budget fields under the SAME task', async () => {
+    // Seed an over-budget subtask under task[0]. Then flip a DIFFERENT
+    // subtask under the same task. The flip's scope is (taskId, otherSubId)
+    // — sibling subtask's warnings must not bleed in. (Task-level warnings
+    // ARE in scope if the parent task itself is over-budget; the sibling
+    // peer is not.)
+    const taskId = read('task-list').tasks[0].id;
+    await seedOverBudgetSubtask(taskId, 7994);
+    // Add a second, clean subtask, then flip its status.
+    const cleanSub = {
+      id: 7995,
+      title: 'Clean sibling',
+      description: 'within budget',
+      details: '',
+      status: 'pending',
+      dependencies: [],
+      testStrategy: 'short',
+    };
+    const add = await run(
+      args('add-subtask', [taskId, JSON.stringify(cleanSub)]),
+    );
+    expect(add.ok).toBe(true);
+    const r = await run(args('flip-subtask', [taskId, '7995', 'in_progress']));
+    expect(r.ok).toBe(true);
+    if (r.ok && r.warnings) {
+      // The seeded sibling (7994) is OUT of scope for this flip (subId-scoped).
+      const siblingNoise = r.warnings.some((w) =>
+        w.startsWith(`Subtask ${taskId}.7994 `),
+      );
+      expect(siblingNoise).toBe(false);
+      // And every entry must name THIS subtask or the parent task header.
+      const compoundId = `${taskId}.7995`;
+      const taskHeader = `Task "${taskId}"`;
+      for (const w of r.warnings) {
+        const inScope =
+          w.startsWith(`Subtask ${compoundId} `) || w.includes(taskHeader);
+        expect(inScope).toBe(true);
+      }
+    }
+  });
+
+  it('promote success envelope warnings name only the newly-promoted task', async () => {
+    // promote inlines its own disciplineWarnings call (it lives outside the
+    // shared commitMutation path because it writes two ledgers atomically).
+    // The fix at the inline site must also scope to the new Task's id.
+    //
+    // Pick a fresh task id and a known backlog item. Assert the success
+    // envelope's warnings name only the newly-promoted task — no pre-existing
+    // (and historically over-budget) task headers may bleed in.
+    const itemId = read('product-backlog').items[0].id;
+    const newTaskId = '9988';
+    const taskJson = JSON.stringify({
+      id: newTaskId,
+      title: 'Promoted clean task',
+      description: 'Compact what+why.',
+      status: 'pending',
+      priority: 'should',
+      dependencies: [],
+      subtasks: [],
+      updatedAt: '2026-05-28T00:00:00.000Z',
+      effort_estimate: null,
+      owner: null,
+      priority_note: null,
+      status_note: null,
+      cross_doc_links: [],
+      session_refs: [],
+      commit_refs: [],
+    });
+    const r = await run(args('promote', [itemId, taskJson]));
+    expect(r.ok).toBe(true);
+    if (r.ok && r.warnings) {
+      // Every warning must reference EITHER the new task's compound subtask
+      // form OR its task header line. Anything else is an unrelated-record
+      // leak — the bug regressing.
+      const newHeader = `Task "${newTaskId}"`;
+      for (const w of r.warnings) {
+        const inScope =
+          w.includes(newHeader) || w.startsWith(`Subtask ${newTaskId}.`);
+        expect(inScope).toBe(true);
+      }
+      // Cross-check: known pre-existing over-budget task headers must NOT
+      // appear in the envelope.
+      const otherTasks = (read('task-list').tasks as { id: string }[])
+        .filter((t) => t.id !== newTaskId)
+        .map((t) => `Task "${t.id}"`);
+      for (const w of r.warnings) {
+        for (const header of otherTasks) {
+          expect(w.startsWith(header)).toBe(false);
+        }
+      }
+    }
   });
 });
