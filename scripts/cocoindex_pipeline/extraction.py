@@ -11,7 +11,7 @@ Hosts:
     `@coco.fn` extractors).
 
 References:
-- `docs/specs/cocoindex-extraction-contract/TECH.md` §2.1, §2.2, §3.2, §4.1.
+- `docs/specs/id-36-cocoindex-extraction-contract/TECH.md` §2.1, §2.2, §3.2, §4.1.
 - `lib/validation/schemas.ts:1506-1519` — `VALID_ENTITY_TYPES` (12 values).
 - `docs/ontology/26-form-type.md` — `form_type` CV (markdown side of the
   triple-source lockstep per ID-52.6 / TECH §2.6b).

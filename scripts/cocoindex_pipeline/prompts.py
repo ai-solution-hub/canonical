@@ -26,9 +26,9 @@ prose — refinement happens at Wave 4 dispatch when prompt-cache passthrough
 verification (GAP-Q-EX2-002 per Q-EX2 PRODUCT.md) is exercised.
 
 References:
-- `docs/specs/cocoindex-extraction-contract/TECH.md` §3.1 (LLM-extraction
+- `docs/specs/id-36-cocoindex-extraction-contract/TECH.md` §3.1 (LLM-extraction
   contract; the three extractor calls reference these constants).
-- `docs/specs/cocoindex-extraction-contract/TECH.md` §6 row 4 (split into
+- `docs/specs/id-36-cocoindex-extraction-contract/TECH.md` §6 row 4 (split into
   three SEPARATE extractor calls — no bundled "extract everything" prompt).
 """
 

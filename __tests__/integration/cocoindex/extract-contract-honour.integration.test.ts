@@ -13,7 +13,7 @@
  * > `dict[str, Any]` extraction outputs. Verifiable: integration test
  * > ingests one file of each extraction-kind and asserts the resulting
  * > database rows match the discriminator-keyed Pydantic shape from
- * > `docs/specs/cocoindex-extraction-contract/PRODUCT.md` Inv-1..Inv-14."
+ * > `docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md` Inv-1..Inv-14."
  *
  * Empirical grounding (Q-EX2 / OQ-3) — observed in worktree on 22/05/2026:
  *
@@ -50,8 +50,8 @@
  *
  * References:
  *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-20.
- *   - docs/specs/cocoindex-extraction-contract/PRODUCT.md Inv-1..Inv-14.
- *   - docs/specs/cocoindex-extraction-contract/TECH.md §2.1 (Pydantic shapes),
+ *   - docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md Inv-1..Inv-14.
+ *   - docs/specs/id-36-cocoindex-extraction-contract/TECH.md §2.1 (Pydantic shapes),
  *     §5.3 (Anthropic-live integration tests).
  *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §P-9 (corpus reuse).
  *   - scripts/cocoindex_pipeline/extraction.py (Pydantic shapes).

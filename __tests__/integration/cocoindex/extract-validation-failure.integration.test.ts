@@ -85,9 +85,9 @@
  *
  * References:
  *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-22.
- *   - docs/specs/cocoindex-extraction-contract/PRODUCT.md Inv-13
+ *   - docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md Inv-13
  *     (validation-failure shape).
- *   - docs/specs/cocoindex-extraction-contract/TECH.md §4.1 (Pydantic error
+ *   - docs/specs/id-36-cocoindex-extraction-contract/TECH.md §4.1 (Pydantic error
  *     → error_class mapping).
  *   - lib/pipeline/error-classes.ts (6-class Inv-25 vocabulary).
  *   - app/api/internal/pipeline-runs/record/route.ts (Zod schema).

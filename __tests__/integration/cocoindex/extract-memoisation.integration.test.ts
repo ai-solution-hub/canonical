@@ -48,7 +48,7 @@
  *   primary assertion, with STRATEGY B (byte-identity of pre-existing rows)
  *   as a secondary tighter assertion when ≥1 row already landed pre-bump.
  *
- * - Inv-21 cross-link: `docs/specs/cocoindex-extraction-contract/PRODUCT.md`
+ * - Inv-21 cross-link: `docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md`
  *   Inv-15..Inv-18 (memoisation rules). The cocoindex-extraction-contract
  *   PRODUCT spec defines the memo-cache key as
  *   (content_text_hash, output_type, instruction, model) — when ANY
@@ -61,8 +61,8 @@
  *
  * References:
  *   - docs/specs/cocoindex-flow-scaffolding/PRODUCT.md Inv-21.
- *   - docs/specs/cocoindex-extraction-contract/PRODUCT.md Inv-15..Inv-18.
- *   - docs/specs/cocoindex-extraction-contract/TECH.md §5.3 row "21 — prompt-
+ *   - docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md Inv-15..Inv-18.
+ *   - docs/specs/id-36-cocoindex-extraction-contract/TECH.md §5.3 row "21 — prompt-
  *     template version in code-hash" (memo-invalidation negative case).
  *   - scripts/cocoindex_pipeline/extraction.py lines 530-631 (3 extractors
  *     with `@coco.fn(memo=True)`).

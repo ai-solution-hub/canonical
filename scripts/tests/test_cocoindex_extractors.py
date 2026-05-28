@@ -1,7 +1,7 @@
 """Unit tests for the 3 Path A @coco.fn(memo=True) LLM extractors.
 
 Verifies the canonical 1.x extraction pattern (S256 W1 amendment of
-`docs/specs/cocoindex-extraction-contract/TECH.md` §3.1):
+`docs/specs/id-36-cocoindex-extraction-contract/TECH.md` §3.1):
 
   - `extract_classification(content_text)` -> ClassificationExtraction
   - `extract_qa_form(content_text)` -> QAFormExtraction
@@ -25,7 +25,7 @@ returns an `AsyncFunction` instance (verified empirically against
 cocoindex 1.0.3 — see WP3 stub pattern). Test class
 `TestExtractorDecoration` asserts the decorated identity.
 
-Reference: docs/specs/cocoindex-extraction-contract/TECH.md §3.1
+Reference: docs/specs/id-36-cocoindex-extraction-contract/TECH.md §3.1
 Test strategy: ID-28.12 WP4 — extractor behaviour with mocked anthropic SDK
 """
 
