@@ -114,12 +114,12 @@ output.jsonl
 mempalace.yaml
 entities.json
 
-# GitNexus
-.gitnexus
+# GitNexus (CLAUDE.md is tracked; the rest of the directory is ignored)
+.gitnexus/**
 !.gitnexus/CLAUDE.md
 
-# AST Dataflow
-.ast-dataflow/
+# AST Dataflow (CLAUDE.md is tracked; the rest of the directory is ignored)
+.ast-dataflow/**
 !.ast-dataflow/CLAUDE.md
 # CocoIndex Code (ccc)
 /.cocoindex_code/
