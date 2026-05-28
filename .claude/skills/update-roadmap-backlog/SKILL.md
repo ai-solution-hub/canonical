@@ -717,7 +717,7 @@ exclusively via the CLI's `promote` subcommand** — never as a manual
 Delete-then-Create recipe. The `promote` subcommand handles the two-phase
 commit (delete-from-backlog + add-to-task-list + journal-block append +
 validation on both surfaces) as a single atomic operation per `RESEARCH.
-md` §3 (`docs/specs/ledger-cli/RESEARCH.md`) and `lib/ledger/README.md`'s
+md` §3 (`docs/specs/id-35-ledger-cli/RESEARCH.md`) and `lib/ledger/README.md`'s
 "cross-ledger" group.
 
 **Workflow-orchestration alignment:** per
@@ -962,7 +962,7 @@ already captured as a backlog item that should be promoted.
   explicit; never guess.
 - **Field budgets:** `docs/reference/task-list-discipline.md` §2/§3.
 - **CLI architecture / primitive provenance:** `lib/ledger/README.md`.
-- **Two-phase Promote semantics:** `docs/specs/ledger-cli/RESEARCH.md`
+- **Two-phase Promote semantics:** `docs/specs/id-35-ledger-cli/RESEARCH.md`
   §3.
 - **Active CLI defects ({35.26}–{35.34}):** `docs/reference/task-list.
   json` ID-35 subtasks 26–34.

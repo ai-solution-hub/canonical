@@ -25,7 +25,7 @@ which export the identical symbols). The bodies are byte-faithful.
 KH CI clones only `knowledge-hub`; a `file:../task-view` dependency would fail
 `bun install` / `tsc` / lint / tests in every CI job. KH already vendors the _schemas_
 (under the same drift-guard rationale), and the primitives import those — so vendoring is
-the consistent, CI-safe choice. See `docs/specs/ledger-cli/RESEARCH.md` §3.
+the consistent, CI-safe choice. See `docs/specs/id-35-ledger-cli/RESEARCH.md` §3.
 
 ## Not vendored
 
@@ -54,13 +54,13 @@ the consistent, CI-safe choice. See `docs/specs/ledger-cli/RESEARCH.md` §3.
   into a ~1600-line diff (verified: ~1417 lines on the live `task-list.json`), which
   collides with sibling cmux terminals editing the same shared file.
 
-  **Contract.** `scopedSerialise` mutates the `JSON.parse` of the **original on-disk text**
-  in place (preserving every record's on-disk key order) and escape-serialises it, so a
-  one-field edit touches only the mutated record's lines (verified: 1 line on the live
-  ledger) and every untouched record stays byte-for-byte identical. A no-op
+  **Contract.** `scopedSerialise` mutates the `JSON.parse` of the **original on-disk
+  text** in place (preserving every record's on-disk key order) and escape-serialises it,
+  so a one-field edit touches only the mutated record's lines (verified: 1 line on the
+  live ledger) and every untouched record stays byte-for-byte identical. A no-op
   `escapeSerialise(JSON.parse(text))` round-trip is byte-identical to the source file. Zod
-  still validates (via `detectSchema`) before any byte is emitted. Wired into the CLI behind
-  `--scoped` for `flip-task` / `flip-subtask` / `append-journal`.
+  still validates (via `detectSchema`) before any byte is emitted. Wired into the CLI
+  behind `--scoped` for `flip-task` / `flip-subtask` / `append-journal`.
 
   **RESOLVED (OQ-LS-2, S270).** The one-time whole-file key-order + escaping normalisation
   pass is now complete: `scripts/ledger-cli.ts`'s `serialise()` was fixed to delegate to
@@ -74,25 +74,26 @@ the consistent, CI-safe choice. See `docs/specs/ledger-cli/RESEARCH.md` §3.
 `scripts/ledger-cli.ts` is the deterministic mutation CLI built on these primitives
 (ID-35). The v2 surface (its in-file `USAGE` block is the authoritative reference):
 
-| Group         | Commands                                                                                       |
-| ------------- | ---------------------------------------------------------------------------------------------- |
-| read          | `show`, `get <ledger> <id> [field]` (single-field read), `schema [ledger\|recordKind]`         |
+| Group         | Commands                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| read          | `show`, `get <ledger> <id> [field]` (single-field read), `schema [ledger\|recordKind]`                             |
 | status / edit | `flip-task`, `flip-subtask`, `update-task`, `update-subtask`, `update-roadmap`, `update-backlog`, `append-journal` |
-| create        | `add-subtask`, `open-task`, `create-theme`, `create-backlog`                                   |
-| delete        | `delete-backlog`                                                                               |
-| cross-ledger  | `promote`                                                                                       |
+| create        | `add-subtask`, `open-task`, `create-theme`, `create-backlog`                                                       |
+| delete        | `delete-backlog`                                                                                                   |
+| cross-ledger  | `promote`                                                                                                          |
 
 **Two write gates (prevent-at-source — both reject at WRITE TIME, exit 1, nothing
 written):**
 
 - **record-set** ({35.16}) — the post-write id-set must equal the pre-write set under the
-  intended delta (∅ / +1 / −1). Catches a silently dropped or duplicated record on **both**
-  the scoped and whole-file write paths, by parsing the bytes about to be written.
+  intended delta (∅ / +1 / −1). Catches a silently dropped or duplicated record on
+  **both** the scoped and whole-file write paths, by parsing the bytes about to be
+  written.
 - **budget** ({35.17}) — the changed record's budgeted fields are checked against
   `LEDGER_BUDGETS` (`lib/validation/ledger-budgets.ts`) before any byte is written;
-  over-budget → `budget-exceeded`. **`--force`** downgrades it to the existing soft warning
-  and writes anyway. `subtask.details` is intentionally unbudgeted (the append-only
-  journal).
+  over-budget → `budget-exceeded`. **`--force`** downgrades it to the existing soft
+  warning and writes anyway. `subtask.details` is intentionally unbudgeted (the
+  append-only journal).
 
 **Input modes (record-creating commands):** positional JSON | `--file <path>` (`-` reads
 stdin) | named flags (`--title --description --status --depends 1,2 …`). Absent `--id`
@@ -100,8 +101,8 @@ stdin) | named flags (`--title --description --status --depends 1,2 …`). Absen
 ids, a NUMBER for subtask ids.
 
 **Mirror regen ({35.18})** runs by DEFAULT after every write; `--no-regen-mirrors` opts
-out (batch edits run `bash scripts/regen-mirrors.sh` once at the end). `--regen-mirrors` is
-a deprecated no-op alias.
+out (batch edits run `bash scripts/regen-mirrors.sh` once at the end). `--regen-mirrors`
+is a deprecated no-op alias.
 
 **Discoverability ({35.22}):** `schema [ledger|recordKind]` prints each field's name +
 type + budget — so `subtask.dependencies:number[]` vs `task.dependencies:string[]` is

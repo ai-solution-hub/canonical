@@ -5,7 +5,7 @@
  *
  * Replaces the hand-written Python `/tmp/claude/*.py` ledger-splice scripts the
  * Orchestrator wrote per mutation. A thin dispatcher over the task-view v0.2.0
- * patch primitives vendored into lib/ledger/ (ID-35; spec docs/specs/ledger-cli/).
+ * patch primitives vendored into lib/ledger/ (ID-35; spec docs/specs/id-35-ledger-cli/).
  *
  * Contract (PRODUCT inv 1–16):
  *   - structured JSON envelope: success → stdout {ok:true,…} exit 0; error →
