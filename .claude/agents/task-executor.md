@@ -97,6 +97,47 @@ A **Subtask dispatch brief** drawn from `docs/reference/task-list.json`:
   is mechanically enforced by a PreToolUse hook in `.claude/settings.json` — if you see a
   `BLOCKED:` message from the hook, drop the `cd` and use relative paths.
 
+<!-- code-intel:executor-block-start -->
+
+### Code-intelligence discipline
+
+Every code-touching Subtask requires the following discipline before edits and before
+committing. These requirements mirror the "Always Do" section of `.gitnexus/CLAUDE.md` —
+consult that file for the full GitNexus operating guide; do not reproduce its contents
+here.
+
+**Pre-edit — impact analysis for each modified symbol**
+
+Before editing any function, class, or method named in the Subtask brief, run:
+
+```
+gitnexus_impact({target: '<symbolName>', direction: 'upstream'})
+```
+
+Record in your journal block: the verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller
+count, and the names of the top-3 affected execution flows. Do this for each function,
+class, or method you intend to modify — not just the first one.
+
+**If the verdict is HIGH or CRITICAL: STOP and escalate to the Orchestrator.** Do not
+proceed with edits until the Orchestrator has reviewed the blast radius. A HIGH or
+CRITICAL impact means callers or execution flows outside your file-ownership boundary are
+at risk, and the Checker will FAIL the scope-containment audit if unreviewed regressions
+appear.
+
+**Pre-commit — detect-changes verification**
+
+Before committing, run:
+
+```
+gitnexus_detect_changes()
+```
+
+Verify that the affected symbol set is contained within this Subtask's file-ownership
+boundary. If `gitnexus_detect_changes()` reports symbols outside the boundary, STOP and
+escalate — this is scope creep and the Checker will FAIL the scope-containment audit.
+
+<!-- code-intel:executor-block-end -->
+
 ## Phase-by-phase workflow
 
 ### Step 1 — Initialise worktree
