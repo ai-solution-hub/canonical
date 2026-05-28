@@ -108,11 +108,17 @@ from scripts.cocoindex_pipeline.extraction import (
 from .extraction import ANTHROPIC_MODEL  # noqa: F401 — re-export, single source of truth
 from scripts.cocoindex_pipeline.flow_context import (
     FLOW_META_CTX,  # noqa: F401 — re-exported flow-context surface (28.13 wiring + tests)
+    FlowRunMeta,
     bind_flow_meta,
     bind_retry_counter,
     bind_stage_counter,
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it via __package__
 )
+
+# ID-53 §P-1 (Inv-1). Stage-5 entity-resolution flow-scope post-pass. Imported
+# at module top (NOT lazily) — stage_5.py imports the flow-side types under
+# TYPE_CHECKING only, so there is no runtime import cycle.
+from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
 # ────────────────────────────────────────────────────────────────────────────
 
 _logger = logging.getLogger(__name__)
@@ -1167,7 +1173,43 @@ async def app_main() -> None:
         # row-only target contract, so the declaration route is deliberately
         # avoided. See the ID-49.2 journal OQ.
 
-        # ── Stage 5: entity resolution — deferred (needs faiss; RESEARCH §R5)─
+        # ── Stage 5: entity resolution — flow-scope post-fan-out (ID-53) ──
+        # Op-scope cross-document canonicalisation. Reads the run's
+        # entity_mentions rows (per-doc canonicals written by the per-item
+        # phase via the §P-3 declare_row site at {53.11}), invokes
+        # cocoindex.ops.entity_resolution.resolve_entities over them with the
+        # KH entity embedder (§P-7) + KH PairResolver (§P-8), and UPDATEs rows
+        # whose canonical_name resolves to a different cross-document value.
+        # Strictly op_id-scoped per Inv-5 — the post-pass NEVER touches rows
+        # from prior runs or NULL-op_id rows (app-side writes).
+        #
+        # PRODUCT.md §2 Area A (Inv-1, Inv-2) — Option B ratification.
+        #
+        # meta: the §P-1 spec sketch read `current_flow_meta()` here, but the
+        # `bind_flow_meta` scope CLOSES at `handle.ready()` above — so
+        # `current_flow_meta()` yields None at this point. _run_stage_5_resolution
+        # only reads `meta.op_id`, so we construct a FlowRunMeta from the local
+        # `run_op_id` (the same op_id bind_flow_meta used).
+        # db_pool: the §P-1 spec sketch called `_resolve_db_pool()` (a fictional
+        # helper). The asyncpg pool is provisioned env-scope under DB_CTX by
+        # `kh_pipeline_lifespan`; `coco.use_context(DB_CTX)` resolves it inside
+        # app_main's active component context — the SAME context the
+        # `mount_table_target(DB_CTX, ...)` calls above already resolve it from.
+        # No second pool is created; the lifespan owns the pool lifecycle.
+        resolved_count = await _run_stage_5_resolution(
+            meta=FlowRunMeta(op_id=run_op_id, content_items_id=None),
+            db_pool=coco.use_context(DB_CTX),
+            flow_stage_counter=flow_stage_counter,
+        )
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.stage_5.resolved",
+                    "op_id": str(run_op_id),
+                    "resolved_count": resolved_count,
+                }
+            )
+        )
 
         # ── Inv-13: per-row upsert logging — deferred to 28.25 ─────────────
         # cocoindex 1.0.3 exposes no per-row UPSERT completion callback
@@ -1216,6 +1258,14 @@ async def app_main() -> None:
         # `bind_stage_counter` scope above). Done in `finally` so partial-run
         # failures still report the embeddings that DID land before the failure.
         stage_counts["embedding"] = flow_stage_counter.get("embedding")
+        # Inv-11: fold the flow-scope entity-resolution counter back into
+        # `stage_counts["entity_resolution"]` (mirror of the embedding line).
+        # The counter was bumped once per UPDATE-eligible row inside Stage-5;
+        # done in `finally` so partial-run failures still report the
+        # canonical_name UPDATEs that DID land before the failure.
+        stage_counts["entity_resolution"] = flow_stage_counter.get(
+            "entity_resolution"
+        )
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
         await _emit_pipeline_run_webhook(
