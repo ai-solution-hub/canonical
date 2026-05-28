@@ -115,6 +115,18 @@ kh-sdlc-workflow.md B9, the Executor commits per Subtask; the
 Orchestrator owns merges). Atomic commit per Subtask, with the commit
 message body referencing `ID-N.M` for traceability:
 
+**Pre-commit scope check (manual gate):** Before invoking `commit-commands`,
+run `gitnexus_detect_changes()` to verify that the symbols modified in
+your diff match the expected set for this Subtask. If the detected changes
+include symbols outside the Subtask's file-ownership boundary — functions,
+classes, or types in files not referenced in the `details` brief — STOP
+and escalate to the Orchestrator before committing. Do not rationalise
+incidental changes as "safe"; the Checker will audit the blast radius and
+any unexplained symbol drift will produce a FAIL verdict. This is a manual
+gate, canonical until tooling automates the boundary check. See
+`.gitnexus/CLAUDE.md` for the canonical `gitnexus_detect_changes` invocation
+pattern (T-OQ-4 — name and path reference only; do not copy contents here).
+
 ```
 <conventional-commit-type>(<scope>): <one-line summary>
 
@@ -143,6 +155,8 @@ Block structure:
 **Commit:** <short SHA>
 **Files touched:** <comma-separated repo-relative paths>
 **Acceptance:** <testStrategy mapping — what verifies it>
+**Blast radius:** <verdict> (<caller-count> callers)
+**Scope verified:** gitnexus_detect_changes matched expected symbol set
 **Deviations:** <anything you did differently from the brief, with reason; "none" if unchanged>
 **Out-of-scope observations:** <findings the Curator should triage; "none" if clean>
 </info added on 2026-05-18T16:42:11.123Z>
