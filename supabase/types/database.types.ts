@@ -1143,6 +1143,7 @@ export type Database = {
           id: string
           metadata: Json | null
           normalisation_version: number | null
+          op_id: string | null
         }
         Insert: {
           canonical_name: string
@@ -1156,6 +1157,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           normalisation_version?: number | null
+          op_id?: string | null
         }
         Update: {
           canonical_name?: string
@@ -1169,6 +1171,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           normalisation_version?: number | null
+          op_id?: string | null
         }
         Relationships: [
           {
@@ -1179,6 +1182,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      entity_pair_resolutions: {
+        Row: {
+          decision: string
+          entity_type: string
+          id: string
+          name_a: string
+          name_b: string
+          op_id: string | null
+          resolved_at: string
+        }
+        Insert: {
+          decision: string
+          entity_type: string
+          id?: string
+          name_a: string
+          name_b: string
+          op_id?: string | null
+          resolved_at?: string
+        }
+        Update: {
+          decision?: string
+          entity_type?: string
+          id?: string
+          name_a?: string
+          name_b?: string
+          op_id?: string | null
+          resolved_at?: string
+        }
+        Relationships: []
       }
       entity_relationships: {
         Row: {
@@ -2882,6 +2915,7 @@ export type Database = {
           created_at: string
           extracted_text: string | null
           extraction_metadata: Json | null
+          extraction_method: string | null
           file_size: number
           filename: string
           id: string
@@ -2890,6 +2924,7 @@ export type Database = {
           original_filename: string
           parent_id: string | null
           pipeline_run_id: string | null
+          pullmd_share_id: string | null
           status: string
           storage_path: string
           uploaded_by: string | null
@@ -2903,6 +2938,7 @@ export type Database = {
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
+          extraction_method?: string | null
           file_size: number
           filename: string
           id?: string
@@ -2911,6 +2947,7 @@ export type Database = {
           original_filename: string
           parent_id?: string | null
           pipeline_run_id?: string | null
+          pullmd_share_id?: string | null
           status?: string
           storage_path: string
           uploaded_by?: string | null
@@ -2924,6 +2961,7 @@ export type Database = {
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
+          extraction_method?: string | null
           file_size?: number
           filename?: string
           id?: string
@@ -2932,6 +2970,7 @@ export type Database = {
           original_filename?: string
           parent_id?: string | null
           pipeline_run_id?: string | null
+          pullmd_share_id?: string | null
           status?: string
           storage_path?: string
           uploaded_by?: string | null
@@ -4536,3 +4575,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.101.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
