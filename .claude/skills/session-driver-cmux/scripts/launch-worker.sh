@@ -13,7 +13,7 @@ set -euo pipefail
 # upstream — see docs/plans/phase-0-investigation/session-driver-cmux-divergence.md.
 #
 # Usage:
-#   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--brief <file>] [extra claude args...]
+#   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--brief <file>] [--symlink-deps] [extra claude args...]
 #
 # Arguments:
 #   <worker-name>       Unique cmux workspace name (e.g. "worker-api").
@@ -23,6 +23,20 @@ set -euo pipefail
 #                       worktree as `.cmux-brief.md` and an auto-prompt
 #                       "Read .cmux-brief.md before any work." is sent after
 #                       session_start. Mirrors OQ-escalation channel shape.
+#   --symlink-deps      Opt-in (default OFF). Symlink the parent tree's dependency
+#                       dirs (node_modules, .venv, .bin — the list in
+#                       .claude/settings.local.json `worktree.symlinkDirectories`)
+#                       into the new worktree, so compile/test workers skip a
+#                       per-worktree `bun install` / `pip install`. Native
+#                       `worktree.symlinkDirectories` is Claude-Code-managed-only
+#                       and does NOT apply to raw `git worktree add` (SPIKE-27.10),
+#                       hence this manual seed. Only existing parent dirs are
+#                       linked; missing ones are skipped non-fatally. The three
+#                       names are already gitignored at the parent root (shared
+#                       .gitignore), so the symlinks never dirty `git status` and
+#                       the stop-worker dirty-tree gate stays green. Env-var
+#                       equivalent: set KH_CMUX_SYMLINK_DEPS=1. Default (no flag,
+#                       no env) keeps doc/research workers on a clean full checkout.
 #
 # Side effects beyond the worktree + workspace:
 #   - `.worktreeinclude` at the project root, if present, is honoured: every
@@ -33,7 +47,7 @@ set -euo pipefail
 # Exits non-zero with a message on cmux unavailability, name collision,
 # safety-gate failure (worktree path not gitignored), or session_start timeout.
 
-USAGE="Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--brief <file>] [extra args]"
+USAGE="Usage: launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--brief <file>] [--symlink-deps] [extra args]"
 WORKER_NAME="${1:?$USAGE}"
 BASE_DIR="${2:?$USAGE}"
 shift 2
@@ -42,6 +56,9 @@ shift 2
 BRANCH_REF=""
 BRIEF_FILE=""
 GATED=0
+# Opt-in dependency symlinking (OQ-27-A / ID-27.12). Default OFF — the env var
+# provides a non-flag opt-in for callers that cannot pass argv (e.g. wrappers).
+SYMLINK_DEPS="${KH_CMUX_SYMLINK_DEPS:-0}"
 EXTRA_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -55,6 +72,10 @@ while [ $# -gt 0 ]; do
       ;;
     --gated)
       GATED=1
+      shift
+      ;;
+    --symlink-deps)
+      SYMLINK_DEPS=1
       shift
       ;;
     *)
@@ -250,6 +271,47 @@ if [ -f "${PARENT_GNX}/lbug" ] && [ -f "${PARENT_GNX}/meta.json" ]; then
     gitnexus index "${WORKTREE_PATH}" >/dev/null 2>&1 \
       || echo "Note: gitnexus index seed skipped for ${WORKTREE_PATH} (non-fatal)." >&2
   fi
+fi
+
+# --- Opt-in: symlink parent dependency dirs into the worktree (OQ-27-A, ID-27.12) ---
+#
+# SPIKE-27.10 confirmed the node_modules/.venv/.bin gap is real for cmux subo-*
+# worktrees and CANNOT be closed by native `worktree.symlinkDirectories` (that
+# setting is Claude-Code-managed-only; cmux uses raw `git worktree add`). When
+# --symlink-deps (or KH_CMUX_SYMLINK_DEPS=1) is set, mirror the managed behaviour
+# manually: `ln -s` the parent tree's dependency dirs into the worktree so
+# compile/test workers skip a per-worktree `bun install` / `pip install`.
+#
+# The canonical list is .claude/settings.local.json `worktree.symlinkDirectories`
+# (read via jq when present); fall back to the hardcoded three if that file or
+# key is missing. Only dirs that EXIST in the parent tree are linked — missing
+# ones are skipped non-fatally. All three names are already gitignored at the
+# parent root (shared .gitignore across linked worktrees), so the symlinks never
+# surface in `git ls-files --others --exclude-standard` and the stop-worker
+# dirty-tree gate stays green — no .git/info/exclude edit needed (unlike the
+# .gitnexus/ case above, which has a TRACKED file requiring negation handling).
+# Idempotent (`ln -sfn`) and NON-FATAL — never abort the launch over this.
+# Default (no flag, no env) keeps doc/research workers on a clean full checkout.
+
+if [ "$SYMLINK_DEPS" = "1" ]; then
+  SETTINGS_LOCAL="${PROJECT_ROOT}/.claude/settings.local.json"
+  SYMLINK_DIRS=""
+  if [ -f "$SETTINGS_LOCAL" ]; then
+    SYMLINK_DIRS=$(jq -r '.worktree.symlinkDirectories[]? // empty' "$SETTINGS_LOCAL" 2>/dev/null || true)
+  fi
+  # Fall back to the canonical three if settings.local lacks the key.
+  if [ -z "$SYMLINK_DIRS" ]; then
+    SYMLINK_DIRS=$'node_modules\n.venv\n.bin'
+  fi
+  while IFS= read -r dep; do
+    [ -z "$dep" ] && continue
+    SRC_DEP="${PROJECT_ROOT}/${dep}"
+    DST_DEP="${WORKTREE_PATH}/${dep}"
+    if [ -e "$SRC_DEP" ]; then
+      ln -sfn "$SRC_DEP" "$DST_DEP" 2>/dev/null \
+        || echo "Note: --symlink-deps could not link '${dep}' into ${WORKTREE_PATH} (non-fatal)." >&2
+    fi
+  done <<< "$SYMLINK_DIRS"
 fi
 
 # --- Honour .worktreeinclude (literal file paths only) ---
