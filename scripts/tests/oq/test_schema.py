@@ -329,14 +329,147 @@ def test_oq_id_leading_trailing_whitespace_normalised():
     assert id1 == id2
 
 
-def test_oq_id_worker_id_excluded():
-    """Changing worker_id does not change oq_id (OQ-INV-12)."""
-    # derive_oq_id only takes task_id, phase, question, context_ref —
-    # worker_id is not an input; verify by deriving twice.
-    id1 = _derive_oq_id("task-20", "plan", "Is this safe?", {"ref": "a"})
-    id2 = _derive_oq_id("task-20", "plan", "Is this safe?", {"ref": "a"})
-    # Both calls should produce the same result (worker_id never enters the formula).
-    assert id1 == id2
+def test_oq_id_excludes_worker_emitted_seq_via_full_records(tmp_path: Path):
+    """OQ-INV-12 / OQ-INV-29 (NON-VACUOUS): two full OQ records that share the
+    derivation inputs (task_id, phase, question, context_ref) but DIFFER in
+    worker_id AND emitted_at AND seq must carry the IDENTICAL oq_id.
+
+    This proves the excluded fields cannot perturb the id — the crash-safety
+    story (a relaunched worker / crash-re-emit re-derives the same id) depends
+    on this. A vacuous determinism check (same inputs → same output) does not
+    prove exclusion; we must vary the excluded fields and observe no change.
+    """
+    task_id = "task-20"
+    phase = "plan"
+    question = "Is this safe?"
+    context_ref = {"ref": "a"}
+
+    # The oq_id is derived ONCE from the shared inputs (the excluded fields are
+    # not arguments to derive_oq_id — that is the contract under test).
+    oq_id = _derive_oq_id(task_id, phase, question, context_ref)
+    context_ref_json = json.dumps(context_ref)
+
+    # Record 1: worker-A, early emitted_at, seq=0.
+    res1 = _make_oq_record_shell(
+        tmp_path,
+        oq_id=oq_id,
+        worker_id="worker-A",
+        seq=0,
+        emitted_at="2026-01-01T00:00:00Z",
+        question=question,
+        urgency="normal",
+        blocking="false",
+        context_ref_json=context_ref_json,
+        status="open",
+        supersedes="null",
+    )
+    assert res1.returncode == 0, f"build_oq_record (record 1) failed: {res1.stderr}"
+    record1 = json.loads(res1.stdout)
+
+    # Record 2: DIFFERENT worker_id AND emitted_at AND seq — same derivation inputs.
+    res2 = _make_oq_record_shell(
+        tmp_path,
+        oq_id=oq_id,
+        worker_id="worker-B",
+        seq=7,
+        emitted_at="2026-12-31T23:59:59Z",
+        question=question,
+        urgency="normal",
+        blocking="false",
+        context_ref_json=context_ref_json,
+        status="open",
+        supersedes="null",
+    )
+    assert res2.returncode == 0, f"build_oq_record (record 2) failed: {res2.stderr}"
+    record2 = json.loads(res2.stdout)
+
+    # The excluded fields genuinely differ between the two records.
+    assert record1["worker_id"] != record2["worker_id"], "worker_id must differ for a non-vacuous test"
+    assert record1["emitted_at"] != record2["emitted_at"], "emitted_at must differ for a non-vacuous test"
+    assert record1["seq"] != record2["seq"], "seq must differ for a non-vacuous test"
+
+    # Yet the oq_id is IDENTICAL — the excluded fields cannot perturb it (OQ-INV-12).
+    assert record1["oq_id"] == record2["oq_id"], (
+        f"oq_id must be identical despite differing worker_id/emitted_at/seq: "
+        f"{record1['oq_id']!r} vs {record2['oq_id']!r}"
+    )
+
+
+def test_oq_id_excludes_worker_id_only(tmp_path: Path):
+    """OQ-INV-12 focused: differing ONLY in worker_id leaves the oq_id unchanged.
+
+    Both records re-use the same derived oq_id (the excluded field is not a
+    derivation input) and differ solely in worker_id, isolating that field.
+    """
+    oq_id = _derive_oq_id("task-21", "impl", "Question?", {"k": 1})
+    ctx = json.dumps({"k": 1})
+
+    res_a = _make_oq_record_shell(
+        tmp_path, oq_id=oq_id, worker_id="worker-A", seq=3,
+        emitted_at="2026-02-01T00:00:00Z", question="Question?",
+        urgency="normal", blocking="false", context_ref_json=ctx,
+        status="open", supersedes="null",
+    )
+    res_b = _make_oq_record_shell(
+        tmp_path, oq_id=oq_id, worker_id="worker-B", seq=3,
+        emitted_at="2026-02-01T00:00:00Z", question="Question?",
+        urgency="normal", blocking="false", context_ref_json=ctx,
+        status="open", supersedes="null",
+    )
+    assert res_a.returncode == 0 and res_b.returncode == 0
+    rec_a, rec_b = json.loads(res_a.stdout), json.loads(res_b.stdout)
+    assert rec_a["worker_id"] != rec_b["worker_id"]
+    assert rec_a["oq_id"] == rec_b["oq_id"]
+
+
+def test_oq_id_excludes_emitted_at_only(tmp_path: Path):
+    """OQ-INV-12 focused: differing ONLY in emitted_at leaves the oq_id unchanged."""
+    oq_id = _derive_oq_id("task-22", "review", "Ready?", {})
+    ctx = "{}"
+
+    res_a = _make_oq_record_shell(
+        tmp_path, oq_id=oq_id, worker_id="worker-X", seq=1,
+        emitted_at="2026-03-01T08:00:00Z", question="Ready?",
+        urgency="normal", blocking="false", context_ref_json=ctx,
+        status="open", supersedes="null",
+    )
+    res_b = _make_oq_record_shell(
+        tmp_path, oq_id=oq_id, worker_id="worker-X", seq=1,
+        emitted_at="2026-09-15T20:30:00Z", question="Ready?",
+        urgency="normal", blocking="false", context_ref_json=ctx,
+        status="open", supersedes="null",
+    )
+    assert res_a.returncode == 0 and res_b.returncode == 0
+    rec_a, rec_b = json.loads(res_a.stdout), json.loads(res_b.stdout)
+    assert rec_a["emitted_at"] != rec_b["emitted_at"]
+    assert rec_a["oq_id"] == rec_b["oq_id"]
+
+
+def test_oq_id_excludes_seq_only(tmp_path: Path):
+    """OQ-INV-12 focused: differing ONLY in seq leaves the oq_id unchanged.
+
+    This is the crash-re-emit case: a worker that re-emits the same question
+    at a higher seq must re-derive the identical oq_id (OQ-INV-29).
+    """
+    oq_id = _derive_oq_id("task-23", "plan", "Same question, new seq?", {"d": "x"})
+    ctx = json.dumps({"d": "x"})
+
+    res_a = _make_oq_record_shell(
+        tmp_path, oq_id=oq_id, worker_id="worker-Z", seq=0,
+        emitted_at="2026-04-01T00:00:00Z", question="Same question, new seq?",
+        urgency="normal", blocking="false", context_ref_json=ctx,
+        status="open", supersedes="null",
+    )
+    res_b = _make_oq_record_shell(
+        tmp_path, oq_id=oq_id, worker_id="worker-Z", seq=42,
+        emitted_at="2026-04-01T00:00:00Z", question="Same question, new seq?",
+        urgency="normal", blocking="false", context_ref_json=ctx,
+        status="open", supersedes="null",
+    )
+    assert res_a.returncode == 0 and res_b.returncode == 0
+    rec_a, rec_b = json.loads(res_a.stdout), json.loads(res_b.stdout)
+    assert rec_a["seq"] != rec_b["seq"]
+    assert rec_a["oq_id"] == rec_b["oq_id"]
 
 
 def test_oq_id_context_ref_key_order_independent():
