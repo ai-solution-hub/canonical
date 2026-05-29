@@ -231,11 +231,12 @@ class TestRecordExtractionSuccess:
             items_created=items_created,
             content_items_id=uuid.uuid4(),
         )
-        # Only llm_extraction incremented; the other 5 stages remain zero.
+        # Only llm_extraction incremented; the other 6 stages remain zero.
         assert stage_counts["source_walk"] == 0
         assert stage_counts["binary_conversion"] == 0
         assert stage_counts["embedding"] == 0
         assert stage_counts["entity_resolution"] == 0
+        assert stage_counts["chunking"] == 0
         assert stage_counts["postgres_upsert"] == 0
 
     def test_dedupes_items_created_on_repeated_content_items_id(self):

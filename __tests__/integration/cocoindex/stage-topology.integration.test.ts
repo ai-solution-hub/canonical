@@ -64,14 +64,17 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 120_000;
 
-// Canonical 6-stage vocabulary per PRODUCT.md Inv-3 + 02-data-flow.md §3.1
-// + StageCountsSchema in pipeline-runs/record route.
+// Canonical 7-stage vocabulary per PRODUCT.md Inv-3 + 02-data-flow.md §3.1
+// + StageCountsSchema in pipeline-runs/record route, extended by the ID-56.8
+// `chunking` stage (Inv-11 elevation — the cocoindex RecursiveSplitter
+// chunk-row writer).
 const CANONICAL_STAGES = [
   'source_walk',
   'binary_conversion',
   'llm_extraction',
   'embedding',
   'entity_resolution',
+  'chunking',
   'postgres_upsert',
 ] as const;
 
@@ -92,10 +95,10 @@ afterAll(async () => {
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
-  'Inv-3 + Inv-17 — six-stage topology + per-stage counters in pipeline_runs',
+  'Inv-3 + Inv-17 — seven-stage topology + per-stage counters in pipeline_runs',
   () => {
     it(
-      'pipeline_runs.result.stage_counts contains all six canonical stages with nonneg int values',
+      'pipeline_runs.result.stage_counts contains all seven canonical stages with nonneg int values',
       async () => {
         const client = await createLiveServiceClient();
 
@@ -139,7 +142,7 @@ describe.skipIf(!ENABLED)(
         expect(pipelineRunId).not.toBeNull();
         expect(stageCounts).not.toBeNull();
 
-        // Inv-17 verifiability: all six canonical stages MUST be present.
+        // Inv-17 verifiability: all seven canonical stages MUST be present.
         // A missing stage proves partial-payload (broken contract); a row
         // with stage_counts === null proves the webhook bridge never landed
         // the success rollup (broken Inv-16).

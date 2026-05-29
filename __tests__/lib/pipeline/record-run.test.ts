@@ -162,6 +162,7 @@ describe('recordPipelineRun', () => {
       llm_extraction: 5,
       embedding: 5,
       entity_resolution: 5,
+      chunking: 5,
       postgres_upsert: 5,
     };
 
@@ -187,6 +188,7 @@ describe('recordPipelineRun', () => {
       llm_extraction: 1,
       embedding: 1,
       entity_resolution: 1,
+      chunking: 1,
       postgres_upsert: 1,
     };
 

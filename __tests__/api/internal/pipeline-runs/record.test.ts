@@ -95,6 +95,7 @@ function makePayload(
       llm_extraction: 5,
       embedding: 5,
       entity_resolution: 5,
+      chunking: 5,
       postgres_upsert: 5,
     },
     ...(overrides.errorMessage !== undefined
@@ -248,6 +249,7 @@ describe('POST /api/internal/pipeline-runs/record — body validation', () => {
         llm_extraction: 5,
         embedding: 5,
         entity_resolution: 5,
+        chunking: 5,
         postgres_upsert: 5,
       },
     });
@@ -406,6 +408,7 @@ describe('POST /api/internal/pipeline-runs/record — recordPipelineRun call sha
       llm_extraction: 3,
       embedding: 3,
       entity_resolution: 3,
+      chunking: 3,
       postgres_upsert: 3,
     };
     await POST(buildRequest({ body: makePayload({ stageCounts }) }) as never);

@@ -189,6 +189,7 @@ describe.skipIf(!ENABLED)(
               'llm_extraction',
               'embedding',
               'entity_resolution',
+              'chunking',
               'postgres_upsert',
             ];
             for (let i = ordered.length - 1; i >= 0; i--) {

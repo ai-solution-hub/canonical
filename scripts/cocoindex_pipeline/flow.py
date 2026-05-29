@@ -439,8 +439,10 @@ class _FlowStageCounter:
     no shared state. Thread-safety is not required: cocoindex @coco.fn
     execution is sequential per content row.
 
-    At v1 the only wired stage is `"embedding"` (Inv-17 gap closure inherited
-    from ID-49.2). Keys are the canonical stage names from
+    At v1 the wired stages are `"embedding"` (Inv-17 gap closure inherited from
+    ID-49.2), `"entity_resolution"` (Inv-11 Stage-5 elevation, ID-53.14), and
+    `"chunking"` (Inv-11 elevation, ID-56.8 — bumped once per declared
+    content_chunks row). Keys are the canonical stage names from
     `_empty_stage_counts()`; an unbumped stage reads back as 0.
     """
 
@@ -466,11 +468,12 @@ PipelineRunStatus = Literal[
 
 
 def _empty_stage_counts() -> dict[str, int]:
-    """Return the canonical six-stage counter map initialised to zero.
+    """Return the canonical seven-stage counter map initialised to zero.
 
-    The six stages mirror the canonical pipeline topology per
-    `02-data-flow.md` §3.1. The webhook route (`POST
-    /api/internal/pipeline-runs/record`) enforces ALL six keys via Zod, so
+    The stages mirror the canonical pipeline topology per `02-data-flow.md`
+    §3.1, extended by the ID-56.8 `"chunking"` stage (the cocoindex
+    RecursiveSplitter chunk-row writer). The webhook route (`POST
+    /api/internal/pipeline-runs/record`) enforces ALL seven keys via Zod, so
     every emission MUST supply the full map (even zeros).
     """
     return {
@@ -479,6 +482,7 @@ def _empty_stage_counts() -> dict[str, int]:
         "llm_extraction": 0,
         "embedding": 0,
         "entity_resolution": 0,
+        "chunking": 0,
         "postgres_upsert": 0,
     }
 
@@ -1843,6 +1847,12 @@ async def app_main() -> None:
         stage_counts["entity_resolution"] = flow_stage_counter.get(
             "entity_resolution"
         )
+        # Inv-11 (ID-56.8): fold the flow-scope chunking counter back into
+        # `stage_counts["chunking"]` (mirror of the embedding / entity_resolution
+        # lines). The counter was bumped once per declared content_chunks row
+        # inside the chunking block of `ingest_file`; done in `finally` so
+        # partial-run failures still report the chunk rows that DID land.
+        stage_counts["chunking"] = flow_stage_counter.get("chunking")
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
         await _emit_pipeline_run_webhook(

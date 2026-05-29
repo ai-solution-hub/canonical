@@ -34,7 +34,11 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
-import { assertOpIdRoundTrip, UUID_V4_REGEX } from './test-helpers';
+import {
+  assertOpIdRoundTrip,
+  readStageCount,
+  UUID_V4_REGEX,
+} from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -78,6 +82,15 @@ beforeAll(async () => {
       destPath: `chunking-c11/${LONG_PREFIX}.md`,
       titlePrefix: LONG_PREFIX,
     }),
+    // C-31 first-ingest: the memo no-op case snapshots THIS run's op_id +
+    // embedding, then re-stages identical bytes in the test body to prove the
+    // memo skip. The first ingest MUST be staged here (in beforeAll) so the
+    // body's initial poll has a row to snapshot — otherwise it times out.
+    stageFixture({
+      fixturePath: LONG_FIXTURE,
+      destPath: `chunking-c31/${MEMO_PREFIX}.md`,
+      titlePrefix: MEMO_PREFIX,
+    }),
     stageFixture({
       fixturePath: LONG_FIXTURE,
       destPath: `chunking-c13/${ROUNDTRIP_PREFIX}.md`,
@@ -88,10 +101,18 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!ENABLED) return;
-  await dropFixture({
-    titlePrefix: SHORT_PREFIX,
-    contentIds: seededContentIds,
-  });
+  // Clean up all four staged fixtures (NIT 1 — match the 4-fixture stage
+  // pattern so the corpus is not polluted across runs). dropFixture is
+  // best-effort + prefix-scoped; the seededContentIds carry every case's
+  // parent row id (each case pushes its own).
+  for (const titlePrefix of [
+    SHORT_PREFIX,
+    LONG_PREFIX,
+    MEMO_PREFIX,
+    ROUNDTRIP_PREFIX,
+  ]) {
+    await dropFixture({ titlePrefix, contentIds: seededContentIds });
+  }
 }, 60_000);
 
 describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
@@ -169,6 +190,17 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
         MIN_CHUNK_SIZE_BYTES * 0.5,
       );
       expect(last.char_count).toBeLessThanOrEqual(CHUNK_SIZE_BYTES + 200);
+
+      // Inv-11 rollup elevation (testStrategy: "pipeline_runs rollup contains
+      // chunking-stage row counts per Inv-11 elevation, mirrors stage-5
+      // {53.14}"). The flow-scope chunking counter is folded into
+      // pipeline_runs.result.stage_counts.chunking at flow end; it must reflect
+      // the chunk rows this run produced (>= 1, and at least the polled count
+      // for this single-document run).
+      expect(parent.op_id).not.toBeNull();
+      const chunkingCount = await readStageCount(parent.op_id!, 'chunking');
+      expect(chunkingCount).toBeDefined();
+      expect(chunkingCount!).toBeGreaterThanOrEqual(chunks.length);
     },
     POLL_TIMEOUT_MS + 60_000,
   );
@@ -176,7 +208,8 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
   it(
     'C-31/§2.7 — a memo no-op re-ingest of identical bytes does NOT re-stamp op_id or re-embed the chunk rows',
     async () => {
-      // First ingest.
+      // Snapshot the FIRST ingest (staged in beforeAll). The initial poll has a
+      // row to read because the first staging already happened up front.
       const items = await pollContentItemsFor(MEMO_PREFIX, {
         timeoutMs: POLL_TIMEOUT_MS,
       });

@@ -30,9 +30,13 @@ import type { Json } from '@/supabase/types/database.types';
 export const maxDuration = 10;
 
 /**
- * Per-stage row-count vocabulary — six canonical stages per
- * `02-data-flow.md` §3.1. All six MUST be present (even at zero) so
- * `pipeline_runs.result.stage_counts` is consistent across runs (Inv-17).
+ * Per-stage row-count vocabulary — seven canonical stages per
+ * `02-data-flow.md` §3.1, extended by the ID-56.8 `chunking` stage (the
+ * cocoindex RecursiveSplitter chunk-row writer, Inv-11 elevation). All seven
+ * MUST be present (even at zero) so `pipeline_runs.result.stage_counts` is
+ * consistent across runs (Inv-17). The producer (`_empty_stage_counts()` in
+ * `scripts/cocoindex_pipeline/flow.py`) always supplies the full map, so
+ * adding the key keeps producer + schema in sync.
  */
 const StageCountsSchema = z.object({
   source_walk: z.number().int().nonnegative(),
@@ -40,6 +44,7 @@ const StageCountsSchema = z.object({
   llm_extraction: z.number().int().nonnegative(),
   embedding: z.number().int().nonnegative(),
   entity_resolution: z.number().int().nonnegative(),
+  chunking: z.number().int().nonnegative(),
   postgres_upsert: z.number().int().nonnegative(),
 });
 
@@ -68,7 +73,7 @@ const BodySchema = z.object({
   itemsProcessed: z.number().int().nonnegative(),
   /** IDs of `content_items` the pipeline created (empty on memo-hit runs). */
   itemsCreated: z.array(z.string()),
-  /** Per-stage counters — all six stages required (see StageCountsSchema). */
+  /** Per-stage counters — all seven stages required (see StageCountsSchema). */
   stageCounts: StageCountsSchema,
   /** Human-readable failure summary (optional; populated on terminal failure). */
   errorMessage: z.string().optional(),

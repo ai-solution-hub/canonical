@@ -186,7 +186,7 @@ class TestEmptyStageCounts:
         assert hasattr(flow, "_empty_stage_counts")
         assert callable(flow._empty_stage_counts)
 
-    def test_returns_six_canonical_keys(self):
+    def test_returns_seven_canonical_keys(self):
         counts = flow._empty_stage_counts()
         assert set(counts.keys()) == {
             "source_walk",
@@ -194,6 +194,7 @@ class TestEmptyStageCounts:
             "llm_extraction",
             "embedding",
             "entity_resolution",
+            "chunking",
             "postgres_upsert",
         }
 
@@ -285,6 +286,7 @@ class TestEmitPipelineRunWebhookPayload:
                 "llm_extraction": 3,
                 "embedding": 3,
                 "entity_resolution": 3,
+                "chunking": 3,
                 "postgres_upsert": 3,
             },
             "items_processed": 3,
@@ -337,7 +339,8 @@ class TestEmitPipelineRunWebhookPayload:
             "llm_extraction": 3,
             "embedding": 4,
             "entity_resolution": 5,
-            "postgres_upsert": 6,
+            "chunking": 6,
+            "postgres_upsert": 7,
         }
         self._emit(stage_counts=stage_counts)
         assert _StubSession.last_json is not None

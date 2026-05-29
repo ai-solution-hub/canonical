@@ -293,6 +293,42 @@ export async function readEntityResolutionStageCount(
   return typeof value === 'number' ? value : undefined;
 }
 
+/**
+ * Read `pipeline_runs.result.stage_counts.<stage>` for a given op_id — the
+ * generic analogue of `readEntityResolutionStageCount`. Returns `undefined`
+ * when the run row, the `result` JSONB, the `stage_counts` dict, or the named
+ * stage key is absent, so callers can distinguish "counter present and zero"
+ * (`0`) from "counter absent" (`undefined`). Used by the ID-56.9 chunking-stage
+ * rollup assertion to verify the `chunking` counter is elevated into the
+ * pipeline_runs rollup (Inv-11, mirrors the {53.14} entity_resolution wire).
+ */
+export async function readStageCount(
+  opId: string,
+  stage: string,
+): Promise<number | undefined> {
+  if (!hasRealLiveDbCredentials()) {
+    throw new Error(
+      'readStageCount: live DB credentials are not real (or absent). Gate the caller first.',
+    );
+  }
+  const client = await createLiveServiceClient();
+  const { data: run, error } = await client
+    .from('pipeline_runs')
+    .select('result')
+    .eq('op_id', opId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(
+      `readStageCount: query failed — ${error.message ?? String(error)}`,
+    );
+  }
+  const result = (run?.result as Record<string, unknown> | null) ?? null;
+  const stageCounts =
+    (result?.stage_counts as Record<string, unknown> | undefined) ?? undefined;
+  const value = stageCounts?.[stage];
+  return typeof value === 'number' ? value : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // seedAliasMap / cleanupAliasMap
 // ---------------------------------------------------------------------------
