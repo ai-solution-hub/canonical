@@ -223,6 +223,114 @@ export async function pollContentItemsFor(
 }
 
 // ---------------------------------------------------------------------------
+// pollContentChunksFor (ID-56.9)
+// ---------------------------------------------------------------------------
+
+export interface PollContentChunksOpts {
+  /** Maximum wait, ms, for at least `minRows` rows. Default 120_000. */
+  timeoutMs?: number;
+  /** Interval between poll attempts, ms. Default 2_000. */
+  pollIntervalMs?: number;
+  /** Minimum number of rows to wait for before resolving. Default 1. */
+  minRows?: number;
+}
+
+/**
+ * The narrow `content_chunks` projection the ID-56.9 chunking-stage invariant
+ * tests assert on. Mirrors the columns written by the {56.8} chunking stage
+ * (PRODUCT C-10..C-13) plus the heading-derived columns the test verifies are
+ * NULL / the DB default `'{}'` (C-13 + [GAP-CMI-004] disposition (a)).
+ */
+export interface PolledContentChunkRow {
+  id: string;
+  content_item_id: string;
+  content: string;
+  position: number;
+  char_count: number;
+  word_count: number;
+  embedding: unknown;
+  op_id: string | null;
+  heading_text: string | null;
+  heading_level: number | null;
+  heading_path: string[] | null;
+  parent_chunk_id: string | null;
+}
+
+const CONTENT_CHUNK_COLUMNS =
+  'id, content_item_id, content, position, char_count, word_count, embedding, op_id, heading_text, heading_level, heading_path, parent_chunk_id';
+
+/**
+ * Poll `content_chunks` for a given `content_item_id` via the live service-role
+ * client until at least `minRows` rows land, or the deadline is reached. Rows
+ * are returned ordered by `position` ascending so callers can assert the
+ * monotonic 0,1,2... run (C-11). Mirrors `pollContentItemsFor`'s shape: a
+ * service-role client, a poll-with-timeout loop, and a reject on timeout.
+ *
+ * Throws when live-DB credentials are not real (callers must env-gate via
+ * `hasRealLiveDbCredentials()` first), and rejects on timeout.
+ */
+export async function pollContentChunksFor(
+  contentItemId: string,
+  opts: PollContentChunksOpts = {},
+): Promise<PolledContentChunkRow[]> {
+  if (!hasRealLiveDbCredentials()) {
+    throw new Error(
+      'pollContentChunksFor: live DB credentials are not real (or absent). Gate the caller behind hasRealLiveDbCredentials() first.',
+    );
+  }
+
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const minRows = opts.minRows ?? 1;
+
+  const client = await createLiveServiceClient();
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const { data, error } = await client
+      .from('content_chunks')
+      .select(CONTENT_CHUNK_COLUMNS)
+      .eq('content_item_id', contentItemId)
+      .order('position', { ascending: true });
+
+    if (error) {
+      throw new Error(
+        `pollContentChunksFor: query failed — ${error.message ?? String(error)}`,
+      );
+    }
+
+    if (data && data.length >= minRows) {
+      return data.map(toPolledContentChunkRow);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `pollContentChunksFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} content_chunks row(s) for content_item_id ${contentItemId}`,
+  );
+}
+
+function toPolledContentChunkRow(
+  r: Record<string, unknown>,
+): PolledContentChunkRow {
+  return {
+    id: r.id as string,
+    content_item_id: r.content_item_id as string,
+    content: r.content as string,
+    position: r.position as number,
+    char_count: r.char_count as number,
+    word_count: r.word_count as number,
+    embedding: r.embedding ?? null,
+    op_id: (r.op_id as string | null) ?? null,
+    heading_text: (r.heading_text as string | null) ?? null,
+    heading_level: (r.heading_level as number | null) ?? null,
+    heading_path: (r.heading_path as string[] | null) ?? null,
+    parent_chunk_id: (r.parent_chunk_id as string | null) ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // dropFixture
 // ---------------------------------------------------------------------------
 
