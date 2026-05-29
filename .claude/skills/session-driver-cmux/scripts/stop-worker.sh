@@ -13,7 +13,7 @@ set -euo pipefail
 # 6. Delete the events directory.
 # 7. Optionally delete the worker branch (--delete-branch).
 #
-# Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--delete-branch-force] [--archive <dir>]
+# Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--delete-branch-force] [--archive <dir>] [--no-archive]
 #
 # Flags:
 #   --force          Remove the worktree even if it has uncommitted changes
@@ -43,8 +43,28 @@ set -euo pipefail
 #                    {48.14}) so historical session corpus survives teardown.
 #                    Callers typically point <dir> at
 #                    docs/workflow-evaluation/sessions/S<NNN>/.
+#
+#                    ARCHIVE IS THE DEFAULT (ID-48.17, fixes S280 B1/B2 — the
+#                    S274 fleet was lost + manifest tombstones because archive
+#                    was opt-in). When neither --archive nor --no-archive is
+#                    given, the corpus is archived to a DERIVED default dir (see
+#                    --no-archive). Pass --archive <dir> to override the target.
+#   --no-archive     Opt OUT of the default archive (the prior opt-in teardown
+#                    behaviour). Use for throwaway / experimental workers whose
+#                    corpus is not worth preserving.
+#
+#                    At archive time the per-worker token roll-up (ID-48.17,
+#                    lib/workflow-evaluation/token-rollup.ts) is invoked over
+#                    meta.json.session_id and writes token_usage_by_role +
+#                    token_usage_total into the ARCHIVED final_report.yaml. This
+#                    runs at archive time (not at evaluator run-time) because the
+#                    session transcript is uncommitted + retention-windowed.
+#                    Worker-level attribution today =
+#                    token_usage_by_role:{sub_orchestrator:{...}}; child-role
+#                    (Executor/Checker) attribution is a v2 follow-up (needs the
+#                    deeper child agent-<hash>/sidechain transcripts).
 
-USAGE="Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--archive <dir>]"
+USAGE="Usage: stop-worker.sh <worker-name> <session-id> [--force] [--delete-branch] [--archive <dir>] [--no-archive]"
 WORKER_NAME="${1:?$USAGE}"
 SESSION_ID="${2:?$USAGE}"
 shift 2
@@ -52,6 +72,10 @@ shift 2
 FORCE=0
 DELETE_BRANCH=0
 FORCE_DELETE_BRANCH=0
+# Archive is the DEFAULT (ID-48.17): ARCHIVE=1 unless --no-archive is passed.
+# ARCHIVE_DIR empty + ARCHIVE=1 => derive a default target from meta.json (see
+# the archive block below). An explicit --archive <dir> sets ARCHIVE_DIR.
+ARCHIVE=1
 ARCHIVE_DIR=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -74,8 +98,13 @@ while [ $# -gt 0 ]; do
         echo "$USAGE" >&2
         exit 2
       fi
+      ARCHIVE=1
       ARCHIVE_DIR="$2"
       shift 2
+      ;;
+    --no-archive)
+      ARCHIVE=0
+      shift
       ;;
     *)
       echo "Error: unknown flag '$1'" >&2
@@ -293,30 +322,93 @@ if [ "$DELETE_BRANCH" -eq 1 ]; then
   fi
 fi
 
-# --- Archive worker corpus BEFORE teardown (ID-48.15) ---
+# --- Archive worker corpus BEFORE teardown (ID-48.15 + ID-48.17) ---
 #
-# When --archive <dir> is set, copy the 4 canonical artefacts the evaluator
-# data layer ({48.5} / {48.14}) depends on into <dir>/<worker-name>/ before
-# the teardown rm -rf destroys them. Best-effort: any missing file is logged
-# and skipped (workers that do not emit all four — e.g. an early-failure
-# worker with no final_report.yaml — still archive what they did produce).
-# RESEARCH §13.2 + §13.5; PLAN §S271 ADDENDUM line 104-107.
+# Archive is the DEFAULT teardown behaviour (ID-48.17, fixes S280 B1/B2). When
+# ARCHIVE=1 (i.e. --no-archive was NOT passed) we copy the 4 canonical artefacts
+# the evaluator data layer ({48.5} / {48.14}) depends on into
+# <archive-dir>/<worker-name>/ before the teardown rm -rf destroys them.
+# Best-effort: any missing file is logged + skipped (workers that do not emit
+# all four — e.g. an early-failure worker with no final_report.yaml — still
+# archive what they did produce). RESEARCH §13.2 + §13.5; PLAN §S271 ADDENDUM.
+#
+# Default dir derivation (when no explicit --archive <dir> is given):
+#   base    = <project-root>/docs/workflow-evaluation/sessions/   (range-complete corpus)
+#   segment = meta.json.session_number (e.g. "S282") if present,
+#             else "S<session_number>" stripped of any leading S,
+#             else a "session-<SESSION_ID>" fallback so the corpus is never lost.
+# We derive a sensible default so a bare `stop-worker.sh <name> <sid>` still
+# preserves the corpus, rather than silently dropping it (the S274 footgun).
 
-if [ -n "$ARCHIVE_DIR" ] && [ -d "$EVENTS_DIR" ]; then
+if [ "$ARCHIVE" -eq 1 ] && [ -d "$EVENTS_DIR" ]; then
+  # Resolve the archive base/segment when --archive <dir> was not supplied.
+  if [ -z "$ARCHIVE_DIR" ]; then
+    ARCHIVE_BASE="${PROJECT_ROOT}/docs/workflow-evaluation/sessions"
+    SESSION_SEGMENT=""
+    if [ -f "$META_FILE" ]; then
+      # Prefer an explicit session-number field; tolerate either a bare number
+      # ("282") or an already-prefixed value ("S282").
+      RAW_SEGMENT=$(jq -r '.session_number // .session // empty' "$META_FILE" 2>/dev/null || true)
+      if [ -n "$RAW_SEGMENT" ] && [ "$RAW_SEGMENT" != "null" ]; then
+        case "$RAW_SEGMENT" in
+          S*) SESSION_SEGMENT="$RAW_SEGMENT" ;;
+          *) SESSION_SEGMENT="S${RAW_SEGMENT}" ;;
+        esac
+      fi
+    fi
+    if [ -z "$SESSION_SEGMENT" ]; then
+      # Fallback: no session-number field — key off the session id so the
+      # corpus still lands somewhere deterministic + recoverable.
+      SESSION_SEGMENT="session-${SESSION_ID}"
+    fi
+    ARCHIVE_DIR="${ARCHIVE_BASE}/${SESSION_SEGMENT}"
+  fi
+
   ARCHIVE_TARGET="${ARCHIVE_DIR%/}/${WORKER_NAME}"
   if ! mkdir -p "$ARCHIVE_TARGET" 2>/dev/null; then
-    echo "Warning: --archive failed to create $ARCHIVE_TARGET — skipping archive step." >&2
+    echo "Warning: archive failed to create $ARCHIVE_TARGET — skipping archive step." >&2
   else
     for ARTEFACT in events.jsonl oq-pending.md final_report.yaml meta.json; do
       SRC="${EVENTS_DIR}/${ARTEFACT}"
       if [ -f "$SRC" ]; then
         if ! cp "$SRC" "${ARCHIVE_TARGET}/${ARTEFACT}" 2>/dev/null; then
-          echo "Warning: --archive failed to copy $ARTEFACT to $ARCHIVE_TARGET." >&2
+          echo "Warning: archive failed to copy $ARTEFACT to $ARCHIVE_TARGET." >&2
         fi
       else
-        echo "Note: --archive skipped absent artefact $ARTEFACT (worker did not emit it)." >&2
+        echo "Note: archive skipped absent artefact $ARTEFACT (worker did not emit it)." >&2
       fi
     done
+
+    # --- Token roll-up into the ARCHIVED final_report.yaml (ID-48.17) ---
+    #
+    # Join meta.json.session_id -> the worker's Claude Code session transcript
+    # and sum the real message.usage per assistant turn, then patch
+    # token_usage_by_role + token_usage_total into the just-copied
+    # final_report.yaml. MUST run here (archive time), not at evaluator run-time:
+    # transcripts are uncommitted + retention-windowed. A missing/purged
+    # transcript yields a null role entry + a token_usage_note (the rollup util
+    # never throws), so teardown is never blocked. The rollup binds YAML I/O in
+    # TS so this shell never hand-edits YAML.
+    ARCHIVED_REPORT="${ARCHIVE_TARGET}/final_report.yaml"
+    ROLLUP_SCRIPT="${PROJECT_ROOT}/lib/workflow-evaluation/token-rollup.ts"
+    ROLLUP_SESSION_ID=""
+    if [ -f "$META_FILE" ]; then
+      ROLLUP_SESSION_ID=$(jq -r '.session_id // empty' "$META_FILE" 2>/dev/null || true)
+    fi
+    # Fall back to the positional SESSION_ID arg when meta omits session_id.
+    if [ -z "$ROLLUP_SESSION_ID" ] || [ "$ROLLUP_SESSION_ID" = "null" ]; then
+      ROLLUP_SESSION_ID="$SESSION_ID"
+    fi
+    if [ -f "$ARCHIVED_REPORT" ] && [ -f "$ROLLUP_SCRIPT" ] && command -v bun >/dev/null 2>&1; then
+      if ! bun run "$ROLLUP_SCRIPT" \
+        --session-id "$ROLLUP_SESSION_ID" \
+        --report "$ARCHIVED_REPORT" \
+        --role sub_orchestrator >/dev/null 2>&1; then
+        echo "Warning: token roll-up failed for session $ROLLUP_SESSION_ID — final_report.yaml left without token totals." >&2
+      fi
+    elif [ -f "$ARCHIVED_REPORT" ]; then
+      echo "Note: skipped token roll-up (bun or token-rollup.ts unavailable) — final_report.yaml left without token totals." >&2
+    fi
   fi
 fi
 

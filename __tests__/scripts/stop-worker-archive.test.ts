@@ -11,14 +11,20 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-// ── stop-worker.sh --archive flag (ID-48.15) ──────────────────────────────
+// ── stop-worker.sh --archive (ID-48.15) + default-archive + token-rollup (ID-48.17) ──
 //
-// The script's existing teardown step `rm -rf "$EVENTS_DIR"` destroys the
-// per-worker artefacts the evaluator data layer (ID-48.5 / ID-48.14) depends on.
-// The --archive <dir> flag must copy the four canonical artefacts
+// The script's teardown step `rm -rf "$EVENTS_DIR"` destroys the per-worker
+// artefacts the evaluator data layer (ID-48.5 / ID-48.14) depends on. Archive
+// copies the four canonical artefacts
 // ({events.jsonl, oq-pending.md, final_report.yaml, meta.json}) to
-// <dir>/<worker-name>/ BEFORE the rm -rf, leaving the rest of the teardown
-// path untouched.
+// <dir>/<worker-name>/ BEFORE the rm -rf.
+//
+// ID-48.17 makes archive the DEFAULT teardown behaviour (opt OUT via
+// --no-archive, fixes S280 B1/B2), derives a default archive dir from
+// meta.json when no --archive <dir> is given, and at archive time invokes the
+// token roll-up (lib/workflow-evaluation/token-rollup.ts) over
+// meta.json.session_id to write token_usage_by_role + token_usage_total into
+// the archived final_report.yaml.
 //
 // Driven via spawnSync — no cmux, no live worktree. The script's guard rails
 // (`command -v cmux`, `[ -d "$WORKTREE_PATH" ]`) gracefully no-op when those
@@ -39,7 +45,10 @@ interface Harness {
   sessionId: string;
 }
 
-function setupHarness(opts?: { omitFiles?: string[] }): Harness {
+function setupHarness(opts?: {
+  omitFiles?: string[];
+  meta?: Record<string, unknown>;
+}): Harness {
   const tmp = mkdtempSync(join(tmpdir(), 'kh-stop-worker-archive-'));
   const workerName = 'agent-test-archive-fixture';
   const sessionId = 'kh-session-archive-fixture';
@@ -53,10 +62,12 @@ function setupHarness(opts?: { omitFiles?: string[] }): Harness {
     'events.jsonl': '{"event":"session_start"}\n{"event":"session_end"}\n',
     'oq-pending.md': '# Open questions\n\n- Test OQ entry.\n',
     'final_report.yaml': 'status: ok\ncommits: []\n',
-    'meta.json': JSON.stringify({
-      worker: workerName,
-      session_id: sessionId,
-    }),
+    'meta.json': JSON.stringify(
+      opts?.meta ?? {
+        worker: workerName,
+        session_id: sessionId,
+      },
+    ),
   };
   const omit = new Set(opts?.omitFiles ?? []);
   for (const [name, body] of Object.entries(files)) {
@@ -70,18 +81,23 @@ function setupHarness(opts?: { omitFiles?: string[] }): Harness {
 function runStopWorker(
   h: Harness,
   extraArgs: string[] = [],
+  opts?: { cwd?: string; home?: string },
 ): ReturnType<typeof spawnSync> {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    KH_CMUX_EVENTS_DIR: h.eventsBase,
+    // Force the meta-derived worktree path off (no `cwd` in meta), and
+    // bypass the launch-worker naming fallback by pointing PROJECT_ROOT at
+    // a directory whose `.claude/worktrees/<worker>` does not exist.
+    PATH: process.env.PATH ?? '',
+  };
+  if (opts?.home) env.HOME = opts.home;
   return spawnSync('bash', [SCRIPT, h.workerName, h.sessionId, ...extraArgs], {
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      KH_CMUX_EVENTS_DIR: h.eventsBase,
-      // Force the meta-derived worktree path off (no `cwd` in meta), and
-      // bypass the launch-worker naming fallback by pointing PROJECT_ROOT at
-      // a directory whose `.claude/worktrees/<worker>` does not exist.
-      PATH: process.env.PATH ?? '',
-    },
-    cwd: h.tmp, // make `git rev-parse --show-toplevel` fail-soft to `pwd`
+    env,
+    // Default cwd: h.tmp so `git rev-parse --show-toplevel` fail-softs to `pwd`,
+    // pinning PROJECT_ROOT inside the temp tree (archive default lands there).
+    cwd: opts?.cwd ?? h.tmp,
   });
 }
 
@@ -134,18 +150,133 @@ describe('stop-worker.sh --archive', () => {
     expect(existsSync(harness.eventsDir)).toBe(false);
   });
 
-  it('without --archive leaves prior teardown behaviour unchanged', () => {
+  it('--no-archive opts OUT — no corpus is archived (the prior opt-in teardown)', () => {
+    // ID-48.17: archive is now the DEFAULT; --no-archive restores the old
+    // "drop the corpus" behaviour for throwaway workers.
+    harness = setupHarness();
+    const r = runStopWorker(harness, ['--no-archive']);
+
+    expect(r.status, `stderr: ${r.stderr}\nstdout: ${r.stdout}`).toBe(0);
+    // Teardown rm -rf still runs.
+    expect(existsSync(harness.eventsDir)).toBe(false);
+    // No archive subdir created — neither the explicit base nor the derived
+    // default under PROJECT_ROOT (= h.tmp here).
+    expect(existsSync(join(harness.archiveBase, harness.workerName))).toBe(
+      false,
+    );
+    const derivedDefault = join(
+      harness.tmp,
+      'docs/workflow-evaluation/sessions',
+      `session-${harness.sessionId}`,
+      harness.workerName,
+    );
+    expect(existsSync(derivedDefault)).toBe(false);
+  });
+
+  it('archives by DEFAULT (no flag) to a dir derived from meta.json', () => {
+    // ID-48.17 B1/B2 fix: a bare `stop-worker.sh <name> <sid>` preserves the
+    // corpus. PROJECT_ROOT fail-softs to cwd (h.tmp); no session_number in meta
+    // => segment falls back to session-<SESSION_ID>.
     harness = setupHarness();
     const r = runStopWorker(harness, []);
 
     expect(r.status, `stderr: ${r.stderr}\nstdout: ${r.stdout}`).toBe(0);
-    // No archive base mutation expected — files only live in eventsDir,
-    // which has been rm -rf'd.
     expect(existsSync(harness.eventsDir)).toBe(false);
 
-    // The archive base remains empty (no <worker>/ subdir created).
-    const archived = join(harness.archiveBase, harness.workerName);
-    expect(existsSync(archived)).toBe(false);
+    const derived = join(
+      harness.tmp,
+      'docs/workflow-evaluation/sessions',
+      `session-${harness.sessionId}`,
+      harness.workerName,
+    );
+    expect(existsSync(join(derived, 'events.jsonl'))).toBe(true);
+    expect(existsSync(join(derived, 'final_report.yaml'))).toBe(true);
+    expect(existsSync(join(derived, 'meta.json'))).toBe(true);
+  });
+
+  it('derives the default dir from meta.session_number when present (S<NNN>)', () => {
+    harness = setupHarness({
+      meta: {
+        worker: 'agent-test-archive-fixture',
+        session_id: 'kh-session-archive-fixture',
+        session_number: 'S282',
+      },
+    });
+    const r = runStopWorker(harness, []);
+
+    expect(r.status, `stderr: ${r.stderr}\nstdout: ${r.stdout}`).toBe(0);
+    const derived = join(
+      harness.tmp,
+      'docs/workflow-evaluation/sessions',
+      'S282',
+      harness.workerName,
+    );
+    expect(existsSync(join(derived, 'meta.json'))).toBe(true);
+  });
+
+  it('writes token_usage_by_role + token_usage_total into the archived final_report.yaml', () => {
+    // ID-48.17 token roll-up. The script resolves token-rollup.ts under
+    // PROJECT_ROOT, so run with cwd = REPO_ROOT (git rev-parse resolves the
+    // real repo root). Point HOME at a fixture ~/.claude/projects tree whose
+    // transcript carries KNOWN message.usage rows; assert the summed total
+    // lands in the archived final_report.yaml.
+    harness = setupHarness();
+
+    const fakeHome = mkdtempSync(join(tmpdir(), 'kh-stop-worker-home-'));
+    const encodedCwd = REPO_ROOT.replace(/[/.]/g, '-');
+    const projDir = join(fakeHome, '.claude', 'projects', encodedCwd);
+    mkdirSync(projDir, { recursive: true });
+
+    // Two assistant turns: total = (100+20+500+1000) + (50+10+0+2000) = 3680.
+    const transcript = [
+      JSON.stringify({ type: 'user', message: { content: 'hi' } }),
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            cache_creation_input_tokens: 500,
+            cache_read_input_tokens: 1000,
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          usage: {
+            input_tokens: 50,
+            output_tokens: 10,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 2000,
+          },
+        },
+      }),
+      '',
+    ].join('\n');
+    writeFileSync(join(projDir, `${harness.sessionId}.jsonl`), transcript);
+
+    const r = runStopWorker(harness, ['--archive', harness.archiveBase], {
+      cwd: REPO_ROOT,
+      home: fakeHome,
+    });
+
+    expect(r.status, `stderr: ${r.stderr}\nstdout: ${r.stdout}`).toBe(0);
+
+    const archivedReport = join(
+      harness.archiveBase,
+      harness.workerName,
+      'final_report.yaml',
+    );
+    expect(existsSync(archivedReport)).toBe(true);
+    const yaml = readFileSync(archivedReport, 'utf8');
+    expect(yaml).toContain('token_usage_total: 3680');
+    expect(yaml).toContain('token_usage_by_role:');
+    expect(yaml).toContain('sub_orchestrator:');
+    // Existing keys preserved.
+    expect(yaml).toContain('status: ok');
+
+    rmSync(fakeHome, { recursive: true, force: true });
   });
 
   it('rejects --archive without a directory argument', () => {
