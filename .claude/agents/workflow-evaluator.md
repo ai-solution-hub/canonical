@@ -60,12 +60,24 @@ scheduled sweep, or O-of-O `handoff` flag):
   candidate-finding set (for the `findings` lane). The evaluator does **not** default to
   "the current session" — it operates on a backlog.
 - **Archived worker corpus path** — `docs/workflow-evaluation/sessions/S<NNN>/<worker>/`
-  per Subtask {48.15}. Each archived worker has
-  `{events.jsonl, oq-pending.md, final_report.yaml, meta.json}` preserved before the
-  teardown `rm -rf` runs.
+  per Subtask {48.15} (archived by DEFAULT at teardown per Subtask {48.17}). Each archived
+  worker has `{events.jsonl, oq-pending.md, final_report.yaml, meta.json}` preserved
+  before the teardown `rm -rf` runs.
+- **Token usage (canonical source)** — `token_usage_by_role` + `token_usage_total` in the
+  archived `final_report.yaml`, **computed at archive time from `message.usage` in the
+  worker session transcript** (`~/.claude/projects/<encoded-cwd>/<session_id>.jsonl`,
+  joined via `meta.json.session_id`) by `lib/workflow-evaluation/token-rollup.ts` (Subtask
+  {48.17}). This is the canonical token source — `final_report.yaml` previously carried no
+  token data, and `parse-session.py`'s tiktoken count is a non-canonical OpenAI content
+  proxy. Worker-level attribution is the primary unit today
+  (`token_usage_by_role: { sub_orchestrator: { … } }`, per S280 B4); **role-level
+  (Executor / Checker) attribution is a v2 follow-up** requiring the deeper child
+  `agent-<hash>` / sidechain transcripts, which are one level deeper and un-archived
+  today. An absent / `null` role entry (with a `token_usage_note`) means the transcript
+  was purged — treat token usage as unavailable, do not fabricate.
 - **Checker verdicts + worker reports** — the JSON verdicts left by `task-checker` in
   subtask journals (`<info added on …>` blocks) and the per-worker `final_report.yaml`
-  files in the archived corpus.
+  files in the archived corpus (which now also carry the token-usage fields above).
 - **Retro candidate set** — for the `findings` lane: the candidate records (or per-finding
   entries) from `docs/reference/product-retros.json` with
   `deprecated = false AND last_conflict_check` unset.

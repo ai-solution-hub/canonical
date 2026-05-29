@@ -92,7 +92,7 @@ carries:
 | **Trigger source** | `operator-command` / `scheduled-sweep` / `handoff-flagged-pending` — cadence context only. |
 | **Session range** | Explicit range, e.g. `S270..S276`. The skill never defaults to "the current session" — it operates on a backlog of archived sessions. |
 | **Archived corpus path** | `docs/workflow-evaluation/sessions/S<NNN>/<worker>/` per session in the range, populated by Subtask {48.15}. |
-| **Checker verdicts + worker reports** | The JSON verdicts left by `task-checker` in subtask `<info added on …>` journals plus per-worker `final_report.yaml` files. |
+| **Checker verdicts + worker reports** | The JSON verdicts left by `task-checker` in subtask `<info added on …>` journals plus per-worker `final_report.yaml` files (which carry `token_usage_by_role` + `token_usage_total`, computed at archive time from the worker transcript's `message.usage` per ID-48.17 — the canonical token source). |
 | **Reporting destination** | A file path under `docs/workflow-evaluation/reports/`. Never the retro ledger. |
 
 If any of these is missing, escalate to the agent. Do not default. Do
@@ -111,9 +111,40 @@ Curator can cross-reference.
 ### 1. Token usage per role / per dispatch
 
 Cost attribution across Planner / Executor / Checker / Curator /
-Orchestrator. Source: per-worker `meta.json` (role) +
-`final_report.yaml` (token totals). Roll-up shows mean ± stddev per
-role across the range so outlier sessions stand out.
+Orchestrator. **Source: `token_usage_by_role` in the archived
+`final_report.yaml`, computed at archive time from `message.usage` in
+the worker session transcript** (`~/.claude/projects/<encoded-cwd>/<session_id>.jsonl`,
+joined via `meta.json.session_id`). The roll-up is performed by
+`lib/workflow-evaluation/token-rollup.ts`, invoked from `stop-worker.sh`
+teardown (ID-48.17) — NOT computed by this skill at run-time, because the
+transcript is uncommitted + retention-windowed and may be purged by the
+time the evaluator runs. `token_usage_total` carries the session total;
+`token_usage_by_role.<role>` carries the per-role breakdown
+(`{input, output, cache_creation, cache_read, total, turn_count}`).
+
+Worker-level attribution is the primary unit today
+(`token_usage_by_role: { sub_orchestrator: { … } }`, matching S280 B4 —
+the sub-orchestrator is the primary unit). Child-role (Executor /
+Checker) attribution is a **v2 follow-up**: it requires the deeper child
+`agent-<hash>` / sidechain transcripts, which are one level deeper and
+un-archived today. Roll-up shows mean ± stddev per role across the range
+so outlier sessions stand out.
+
+If `token_usage_by_role` is absent or its role entry is `null` (with a
+`token_usage_note` explaining a purged transcript), treat token usage as
+unavailable for that worker — do not fabricate a count. The legacy
+`parse-session.py` tiktoken count is a cl100k_base (OpenAI) content
+proxy and is NOT canonical; use it only as a fallback cross-check.
+
+**`/insights` (Anthropic Claude Code usage-insights) is a complementary
+operator spot-check, not the canonical source.** It is a cloud / CLI
+usage surface (not a locally-installed command — there is no
+`.claude/commands/insights` and no plugin) that reports interactive
+single-session usage, not per-WORKER / per-ROLE attribution over the
+archived corpus. It is useful for an operator sanity-check of a live
+session's spend, but it does not replace the transcript-usage join: the
+evaluator's canonical token source is `token_usage_by_role` in the
+archived `final_report.yaml`. Do not build an `/insights` integration.
 
 ### 2. Duplicated reads
 
@@ -144,8 +175,11 @@ Report observed instance counts per class.
 
 Single turns that exceed a token-count or tool-call threshold (the
 compaction-risk surface — large turns that push the context window
-toward auto-compaction). Source: per-turn token totals in
-`events.jsonl`. Report count per session and the top-3 by tokens.
+toward auto-compaction). Source: the per-turn token array emitted by the
+token roll-up (`lib/workflow-evaluation/token-rollup.ts`, ID-48.17) from
+the worker session transcript's per-assistant-turn `message.usage` —
+NOT a derived count from `events.jsonl`. Report count per session and
+the top-3 by tokens.
 
 ### 5. Coordination overhead
 
@@ -261,10 +295,16 @@ on a backlog.
 For each session in the range, for each worker subdir under the
 archived corpus path:
 
-- Parse `meta.json` for role + dispatch metadata.
-- Parse `events.jsonl` for tool events (Read, Bash, dispatch),
-  per-turn token totals, and git events.
-- Parse `final_report.yaml` for the per-worker summary + token totals.
+- Parse `meta.json` for role + dispatch metadata (incl. `session_id`).
+- Parse `events.jsonl` for tool events (Read, Bash, dispatch) and git
+  events.
+- Parse `final_report.yaml` for the per-worker summary and for
+  `token_usage_by_role` + `token_usage_total` (written at archive time
+  by the ID-48.17 token roll-up from the worker transcript's
+  `message.usage`; absent / `null` with a `token_usage_note` ⇒ treat
+  token usage as unavailable, do not fabricate). Per-turn token detail
+  for megaturn detection also originates from that roll-up, not from
+  `events.jsonl`.
 - Parse `oq-pending.md` for open questions raised mid-run (recorded as
   context, not directly an efficiency metric).
 
