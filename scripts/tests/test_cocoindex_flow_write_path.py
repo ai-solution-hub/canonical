@@ -1229,6 +1229,9 @@ class TestFormWriteGracefulEmptyProvenance:
         assert ft_row["status"] == "analysed"
         assert ft_row["field_count"] == 0
         assert ft_row["description"] == "MEAT 70/30"
+        # Non-clobber contract: the graceful-empty reason must NOT be co-located
+        # with an authored description (or-guard, never concatenation). {52.21} Checker nit.
+        assert flow.FORM_WRITE_GRACEFUL_EMPTY_REASON not in ft_row["description"]
 
     def test_graceful_empty_reason_token_is_exposed(self) -> None:
         """``FORM_WRITE_GRACEFUL_EMPTY_REASON`` is the single source of truth for
