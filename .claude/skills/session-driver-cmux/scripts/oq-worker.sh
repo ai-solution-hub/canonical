@@ -397,18 +397,35 @@ oq_poll_decision() {
     local max_wait="${OQ_POLL_MAX_WAIT:-}"
 
     # ── Step 1: Idempotency guard (OQ-INV-16/17) ──────────────────────────────
-    # If oq-state.json does not show awaiting-decision, there is nothing to poll.
-    # This also handles the re-invoke-after-successful-poll case (state already
-    # working).
-    local current_state
-    current_state=$(python3 - "$state_file" <<'PY'
+    # ── Step 2: Poll loop ──────────────────────────────────────────────────────
+    # The loop condition is "while lifecycle_state == awaiting-decision" per the
+    # TECH spec.  lifecycle_state is RE-READ from oq-state.json on EVERY iteration
+    # so the loop notices any external transition out of awaiting-decision:
+    #   - oq_cancel resets oq-state to working WITHOUT writing a decision
+    #     (OQ-INV-13).  The poll must break promptly as an idempotent no-op, NOT
+    #     spin until OQ_POLL_MAX_WAIT.
+    #   - oq-state.json becoming unreadable/absent is treated as non-awaiting
+    #     (return 0; do not spin, do not channel-error).
+    # The FIRST iteration also covers the idempotency guard (OQ-INV-16/17): if the
+    # state is already working when oq_poll_decision is invoked, it returns 0
+    # immediately without sleeping.
+    local poll_start
+    poll_start=$(python3 -c "import time; print(time.monotonic())")
+
+    while true; do
+        # ── Re-read lifecycle_state EACH iteration (loop condition) ───────────
+        # If oq-state.json is no longer awaiting-decision (e.g. it became working
+        # via oq_cancel), break and return 0 as an idempotent no-op.  An
+        # unreadable/absent state file is also treated as non-awaiting.
+        local current_state
+        current_state=$(python3 - "$state_file" <<'PY'
 import json, sys
 
 state_path = sys.argv[1]
 try:
     with open(state_path, "r", encoding="utf-8") as fh:
         state = json.load(fh)
-except (OSError, json.JSONDecodeError) as exc:
+except (OSError, json.JSONDecodeError):
     # Cannot read state — treat as not awaiting-decision (no-op).
     print("working")
     sys.exit(0)
@@ -416,16 +433,12 @@ except (OSError, json.JSONDecodeError) as exc:
 print(state.get("lifecycle_state", "working"))
 PY
 )
-    if [[ "$current_state" != "awaiting-decision" ]]; then
-        # Already working (or state absent/unreadable): idempotent no-op.
-        return 0
-    fi
+        if [[ "$current_state" != "awaiting-decision" ]]; then
+            # No longer awaiting (e.g. cancelled, or already working on entry):
+            # idempotent no-op.  Do NOT treat as timeout/error.
+            return 0
+        fi
 
-    # ── Step 2: Poll loop ──────────────────────────────────────────────────────
-    local poll_start
-    poll_start=$(python3 -c "import time; print(time.monotonic())")
-
-    while true; do
         # Check optional max-wait budget (OQ-Q2: UNSET in production).
         if [[ -n "$max_wait" ]]; then
             local elapsed
@@ -450,10 +463,11 @@ PY
         # ── Poll: check for the decision file ─────────────────────────────────
         if [[ -f "$decision_file" ]]; then
             # Decision present — verify integrity before applying (FAIL CLOSED,
-            # OQ-INV-27).
-            if ! verify_record "$decision_file" >/dev/null 2>&1; then
-                verify_record "$decision_file" >/dev/null
-                echo "channel error: oq_poll_decision: corrupt decision record — ${decision_file}" >&2
+            # OQ-INV-27).  Capture stderr ONCE so the failure surfaces a single
+            # channel-error line (no duplicate verify_record call).
+            local verify_err
+            if ! verify_err=$(verify_record "$decision_file" 2>&1); then
+                echo "channel error: oq_poll_decision: corrupt decision record — ${decision_file}: ${verify_err}" >&2
                 return 1
             fi
 
@@ -534,9 +548,11 @@ oq_check_decision() {
     fi
 
     # Decision file present — verify integrity (FAIL CLOSED, OQ-INV-27).
-    if ! verify_record "$decision_file" >/dev/null 2>&1; then
-        verify_record "$decision_file" >/dev/null
-        echo "channel error: oq_check_decision: corrupt decision record — ${decision_file}" >&2
+    # Capture stderr ONCE so the failure surfaces a single channel-error line
+    # (no duplicate verify_record call).
+    local verify_err
+    if ! verify_err=$(verify_record "$decision_file" 2>&1); then
+        echo "channel error: oq_check_decision: corrupt decision record — ${decision_file}: ${verify_err}" >&2
         return 1
     fi
 

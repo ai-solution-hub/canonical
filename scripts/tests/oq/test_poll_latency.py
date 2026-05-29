@@ -169,6 +169,20 @@ def _oq_check_decision(
     return _bash_worker(script)
 
 
+def _oq_cancel(
+    oq_root: Path,
+    oq_id: str,
+    *,
+    updated_at: str = "2026-05-30T10:06:00Z",
+) -> subprocess.CompletedProcess:
+    """Call oq_cancel via oq-worker.sh; oq_root is the oq/ root dir."""
+    script = (
+        f"oq_cancel "
+        f"{_sq(oq_id)} {_sq(str(oq_root))} {_sq(updated_at)}"
+    )
+    return _bash_worker(script)
+
+
 def _read_state(oq_root: Path) -> dict:
     """Read and parse oq-state.json from *oq_root*."""
     state_file = oq_root / "oq-state.json"
@@ -675,3 +689,100 @@ def test_poll_preserves_worker_id_in_reset_state(tmp_path: Path):
         f"got {state_after['worker_id']!r}, expected {worker_id!r}"
     )
     assert state_after["lifecycle_state"] == "working"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Cancel-while-polling: loop re-reads lifecycle_state each iteration (OQ-INV-13)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_poll_breaks_promptly_when_cancelled_during_poll(tmp_path: Path):
+    """oq_poll_decision must break promptly when oq_cancel transitions the
+    lifecycle_state out of awaiting-decision DURING an active poll (OQ-INV-13).
+
+    oq_cancel resets oq-state to working WITHOUT writing a decision.  Because
+    the loop re-reads lifecycle_state on each iteration, it must notice the
+    transition and exit 0 well before OQ_POLL_MAX_WAIT — proving an EARLY exit,
+    not a timeout.  A generous OQ_POLL_MAX_WAIT means a pass can only happen via
+    the cancel-detection path.
+    """
+    oq_root = tmp_path / "oq"
+
+    # Emit a blocking question — state becomes awaiting-decision.
+    emit_result = _oq_emit(
+        oq_root,
+        question="Will this be cancelled?",
+        blocking="true",
+        checkpoint_ref='{"step": "cancellable"}',
+    )
+    assert emit_result.returncode == 0, f"oq_emit failed: {emit_result.stderr}"
+    oq_id = emit_result.stdout.strip()
+
+    state_before = _read_state(oq_root)
+    assert state_before["lifecycle_state"] == "awaiting-decision"
+
+    # Generous max-wait: if the loop did NOT notice the cancel it would spin for
+    # the full budget.  A prompt exit (well under this) proves early detection.
+    generous_max_wait = 30.0
+
+    # Launch oq_poll_decision in the background as a real separate process.
+    full_script = f"source {_OQ_WORKER_SH}\noq_poll_decision {_sq(str(oq_root))} {_sq(oq_id)}"
+    env = os.environ.copy()
+    env["OQ_POLL_INTERVAL"] = "0.1"
+    env["OQ_POLL_MAX_WAIT"] = str(generous_max_wait)
+
+    t0 = time.monotonic()
+    poll_proc = subprocess.Popen(
+        ["bash", "-c", full_script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    try:
+        # Give the poll loop a couple of iterations to be actively polling, then
+        # cancel (no decision is ever written).
+        time.sleep(0.3)
+        cancel_result = _oq_cancel(oq_root, oq_id)
+        assert cancel_result.returncode == 0, (
+            f"oq_cancel failed: {cancel_result.stderr}"
+        )
+
+        # The poll must exit promptly (well under the generous budget).
+        try:
+            stdout, stderr = poll_proc.communicate(timeout=5.0)
+        except subprocess.TimeoutExpired:
+            poll_proc.kill()
+            poll_proc.communicate()
+            pytest.fail(
+                "oq_poll_decision did not exit within 5s of cancel — the loop "
+                "is not re-reading lifecycle_state each iteration (OQ-INV-13)"
+            )
+        elapsed = time.monotonic() - t0
+    finally:
+        if poll_proc.poll() is None:
+            poll_proc.kill()
+            poll_proc.communicate()
+
+    # Exit code 0 (idempotent no-op) — NOT 3 (timeout).
+    assert poll_proc.returncode == 0, (
+        f"oq_poll_decision must exit 0 on cancel (idempotent no-op), not "
+        f"{poll_proc.returncode} (3 would be a timeout); stderr={stderr!r}"
+    )
+
+    # Prompt exit: must be far under the generous max-wait (proves EARLY exit,
+    # not timeout).
+    assert elapsed < generous_max_wait / 2, (
+        f"oq_poll_decision took {elapsed:.3f}s — not a prompt exit "
+        f"(budget was {generous_max_wait}s; timeout was NOT the exit path)"
+    )
+
+    # Final state must be working (cancel reset it).
+    state_after = _read_state(oq_root)
+    assert state_after["lifecycle_state"] == "working", (
+        f"Final state must be working after cancel; "
+        f"got {state_after['lifecycle_state']!r}"
+    )
+    assert state_after["blocked_on"] is None, (
+        f"blocked_on must be null after cancel; got {state_after['blocked_on']!r}"
+    )
