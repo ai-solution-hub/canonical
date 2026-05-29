@@ -481,6 +481,13 @@ never schema rejections).
 | Continuation prompts (`docs/continuation-prompts/`) | Multi-section session handoff | Session-to-session context transfer. |
 | Mempalace diary (`mempalace_diary_write`) | AAAK pipe-delimited per-WP segments | Cross-session recall. |
 
+**Budget gate is HARD for Subtask `description` (≤250) and `testStrategy` (≤300):** these
+two budgets are HARD-enforced by the ledger CLI budget gate — over-budget records are
+REJECTED at `add-subtask`/`update-subtask` time, not merely surfaced as a soft
+`parseTaskListWithWarnings` warning. Records MUST be authored within budget on the first
+pass; relocate any overflow into the unbudgeted `details` field. (S281 lesson:
+pre-authoring over-budget JSON caused a costly re-trim loop.)
+
 **When in doubt about which field carries which content**: per-Subtask
 `details` journal block is the catch-all.
 
