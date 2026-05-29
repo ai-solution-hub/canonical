@@ -330,6 +330,98 @@ export async function readStageCount(
 }
 
 // ---------------------------------------------------------------------------
+// pollPipelineRunCompleted
+// ---------------------------------------------------------------------------
+
+/** The narrow `pipeline_runs` projection the completion-gate poll returns. */
+export interface PolledPipelineRunRow {
+  id: string;
+  op_id: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  result: Record<string, unknown> | null;
+}
+
+export interface PollPipelineRunOpts {
+  /** Maximum wait, ms, for the run to reach a terminal status. Default 180_000. */
+  timeoutMs?: number;
+  /** Interval between poll attempts, ms. Default 2_000. */
+  pollIntervalMs?: number;
+}
+
+/**
+ * Poll `pipeline_runs WHERE op_id = <opId>` until the row reaches
+ * `status='completed'`, or the deadline is reached. This is the C-54 /
+ * Stage-5 Inv-3 read-contract gate: `entity_mentions.canonical_name` is only
+ * authoritative AFTER the producing run completes (TECH §2.6 row C-54;
+ * Stage-5 PRODUCT Inv-3 "canonical_name freshness on successful run").
+ *
+ * Rejects (rather than silently resolving) when the run terminates in any
+ * NON-completed terminal status (`failed`/`cancelled`/...): a non-completed
+ * run cannot satisfy the post-completion read contract, so the caller's
+ * assertions would be meaningless. Throws when live-DB credentials are not
+ * real (callers MUST env-gate first) and rejects on timeout.
+ */
+export async function pollPipelineRunCompleted(
+  opId: string,
+  opts: PollPipelineRunOpts = {},
+): Promise<PolledPipelineRunRow> {
+  if (!hasRealLiveDbCredentials()) {
+    throw new Error(
+      'pollPipelineRunCompleted: live DB credentials are not real (or absent). Gate the caller behind hasRealLiveDbCredentials() first.',
+    );
+  }
+  expect(opId).toMatch(UUID_V4_REGEX);
+
+  const timeoutMs = opts.timeoutMs ?? 180_000;
+  const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+
+  const client = await createLiveServiceClient();
+  const deadline = Date.now() + timeoutMs;
+
+  // Terminal NON-completed statuses that mean the run can never satisfy the
+  // post-completion read contract — surface them rather than poll to timeout.
+  const TERMINAL_NON_COMPLETED = new Set(['failed', 'cancelled', 'canceled']);
+
+  while (Date.now() < deadline) {
+    const { data: run, error } = await client
+      .from('pipeline_runs')
+      .select('id, op_id, status, started_at, completed_at, result')
+      .eq('op_id', opId)
+      .maybeSingle();
+    if (error) {
+      throw new Error(
+        `pollPipelineRunCompleted: query failed — ${error.message ?? String(error)}`,
+      );
+    }
+    if (run) {
+      const status = run.status as string;
+      if (status === 'completed') {
+        return {
+          id: run.id as string,
+          op_id: run.op_id as string,
+          status,
+          started_at: (run.started_at as string | null) ?? null,
+          completed_at: (run.completed_at as string | null) ?? null,
+          result: (run.result as Record<string, unknown> | null) ?? null,
+        };
+      }
+      if (TERMINAL_NON_COMPLETED.has(status)) {
+        throw new Error(
+          `pollPipelineRunCompleted: run for op_id ${opId} reached terminal NON-completed status '${status}' — cannot satisfy the post-completion read contract.`,
+        );
+      }
+    }
+    await sleep(pollIntervalMs);
+  }
+
+  throw new Error(
+    `pollPipelineRunCompleted: timed out after ${timeoutMs}ms waiting for pipeline_runs.status='completed' for op_id ${opId}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // seedAliasMap / cleanupAliasMap
 // ---------------------------------------------------------------------------
 
