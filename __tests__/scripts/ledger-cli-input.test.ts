@@ -224,8 +224,16 @@ describe('nextId — max+1 with correct primitive type (ID-35.15)', () => {
     const d = detected('product-backlog');
     const id = nextId(d, 'items');
     expect(typeof id).toBe('string');
-    // live max id is 185 → next is "186"
-    expect(id).toBe('186');
+    // Derive expected from the live max rather than a hardcoded value — the backlog
+    // grows across sessions, so a fixed literal (was "186") rots. The independent
+    // reduction below verifies nextId returns the true max+1 as a string. (S279 OQ-D)
+    const raw = JSON.parse(
+      readFileSync(join(REPO, 'docs/reference/product-backlog.json'), 'utf8'),
+    ) as { items: Array<{ id: string | number }> };
+    const maxNum = Math.max(
+      ...raw.items.map((i) => Number(String(i.id).replace(/[^0-9]/g, ''))),
+    );
+    expect(id).toBe(String(maxNum + 1));
   });
 
   it('returns a string for roadmap themes (max+1)', () => {
