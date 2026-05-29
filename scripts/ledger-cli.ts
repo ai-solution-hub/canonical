@@ -104,6 +104,8 @@ import {
 } from '@/lib/validation/task-list-schema';
 import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
+import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema';
+import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 import {
   LEDGER_BUDGETS,
   type LedgerRecordKind,
@@ -229,6 +231,21 @@ interface ParsedArgs {
      * preserves the pre-{35.39} promote behaviour exactly.
      */
     capabilityTheme?: string;
+    /**
+     * ID-35.41 — `update-umbrella` op-flags. Each is a comma-separated list of
+     * bare-digit Task ids applied to a named umbrella's `task_ids[]` in
+     * `docs/reference/umbrellas.json`:
+     *   - `addTasks`    : idempotent append (present ids skipped; order kept).
+     *   - `removeTasks` : remove named ids (absent ids = no-op).
+     *   - `reorder`     : replace task_ids with a permutation of the set.
+     * Mutually-exclusive rule: `reorder` may NOT combine with add/remove;
+     * `addTasks` + `removeTasks` together apply add-then-remove. Optional /
+     * undefined when the flag is not supplied. See the `update-umbrella` arm
+     * of `run()`.
+     */
+    addTasks?: string;
+    removeTasks?: string;
+    reorder?: string;
   };
 }
 
@@ -255,6 +272,11 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   // ID-35.39 Item A — `promote --capability-theme <id>` binds the new Task to
   // the named roadmap theme. Lives in VALUE_FLAGS (consumes the next token).
   '--capability-theme': 'capabilityTheme',
+  // ID-35.41 — `update-umbrella` op-flags. Each consumes the next token (a
+  // comma-separated bare-digit Task-id list).
+  '--add-tasks': 'addTasks',
+  '--remove-tasks': 'removeTasks',
+  '--reorder': 'reorder',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -813,6 +835,19 @@ const SUBCOMMAND_HELP: Record<
       'sets task.capability_theme + appends task id to theme.linked_tasks[])',
     kinds: ['task', 'item'],
   },
+  // ID-35.41 — umbrellas.json task_ids[] maintenance. No `kinds` slice: the
+  // umbrella shape is not in the SchemaRecordKind set (self-contained handler,
+  // not detectSchema-routed).
+  'update-umbrella': {
+    synopsis:
+      'update-umbrella <umbrellaId> — maintain an umbrella task_ids[] in umbrellas.json',
+    flags:
+      '--add-tasks <csv> (idempotent append) | --remove-tasks <csv> (absent = no-op) | ' +
+      '--reorder <csv> (must be a permutation — no adds/drops); ' +
+      '--add-tasks + --remove-tasks combine (add-then-remove); --reorder is exclusive. ' +
+      '--dry-run --pretty. NOTE: umbrellas.json is NOT mirrored (no regen) and has ' +
+      'no budgeted fields (no budget gate).',
+  },
 };
 
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
@@ -832,6 +867,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   create-theme   <themeJson>
   delete-backlog <itemId>
   promote        <backlogId> <taskJson>
+  update-umbrella <umbrellaId> --add-tasks|--remove-tasks|--reorder <csv>
 flags: --dry-run --pretty --scoped --force --append --no-regen-mirrors --ledger-dir <path>
   --scoped : minimal-diff write — re-emit only the mutated record, preserving
              untouched-record bytes + on-disk \\uXXXX escaping (field edits only:
@@ -2684,6 +2720,27 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       );
     }
 
+    case 'update-umbrella': {
+      // ID-35.41 — self-contained load→mutate→write on umbrellas.json. NOT
+      // routed through detectSchema/commitMutation (those are task-list/
+      // roadmap/backlog only — extending the union ripples widely). umbrellas
+      // is NOT mirrored (`scripts/regen-mirrors.sh` covers only the three core
+      // ledgers), so there is no mirror regen here.
+      const [umbrellaId] = p;
+      if (!umbrellaId)
+        return cliErr(
+          'update-umbrella',
+          'missing-args',
+          'update-umbrella <umbrellaId> --add-tasks <csv> | --remove-tasks <csv> | --reorder <csv>',
+        );
+      return updateUmbrella(dir, umbrellaId, {
+        addTasks: flags.addTasks,
+        removeTasks: flags.removeTasks,
+        reorder: flags.reorder,
+        dryRun: flags.dryRun,
+      });
+    }
+
     default:
       // ID-35.34 — lead with a --help callout so the operator's first line of
       // context tells them how to self-serve, before the embedded USAGE dump.
@@ -2988,6 +3045,353 @@ async function promote(
     mirrorStale: mirrorStatus !== 'fresh',
     mirrorStaleReason: mirrorStatus === 'fresh' ? undefined : mirrorStatus,
   };
+}
+
+// ── ID-35.41 update-umbrella ──────────────────────────────────────────────────
+//
+// `docs/reference/umbrellas.json` had NO CLI write support (task_ids[]
+// maintenance previously needed a hand-written escapeSerialise node script).
+// This is a SELF-CONTAINED load→mutate→write path, deliberately NOT routed
+// through detectSchema/commitMutation (which recognise task-list/roadmap/
+// backlog only — widening that union ripples into KnownDetected, serialise,
+// disciplineWarnings and the record-set machinery).
+//
+// Byte-format: umbrellas.json is plain `JSON.stringify(v, null, 2) + '\n'`
+// with RAW UTF-8 — it was NOT part of the OQ-LS-2 (S270) `\uXXXX`-escaping
+// normalisation, so the on-disk em-dash in `document_purpose` is raw. We must
+// therefore NOT use `escapeSerialise` (verified byte-identical round-trip with
+// plain stringify; escapeSerialise diverges on the em-dash).
+//
+// Budget gate: N/A. There is no budget config for umbrella fields (LEDGER_BUDGETS
+// covers task/subtask/theme/item only); none is fabricated here.
+//
+// Mirror regen: N/A. `scripts/regen-mirrors.sh` regenerates only the three core
+// ledgers; umbrellas.json has no per-record mirror, so no regen runs.
+
+const UMBRELLAS_FILE = 'umbrellas.json';
+
+/** Serialise an umbrellas document to the on-disk byte format (raw UTF-8,
+ * 2-space indent, single trailing newline). NOT escapeSerialise. */
+function serialiseUmbrellas(doc: unknown): string {
+  return JSON.stringify(doc, null, 2) + '\n';
+}
+
+/** Split a comma-separated id list, trim, drop empties. */
+function splitIds(csv: string): string[] {
+  return csv
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/** Validate every id is a bare-digit Task id; return the first offender. */
+function firstMalformedId(ids: string[]): string | undefined {
+  return ids.find((id) => !BARE_ID_REGEX.test(id));
+}
+
+interface UpdateUmbrellaOps {
+  addTasks?: string;
+  removeTasks?: string;
+  reorder?: string;
+  dryRun?: boolean;
+}
+
+/**
+ * ID-35.41 — apply one of three operations to a named umbrella's `task_ids[]`.
+ *
+ * Multi-flag rules:
+ *   - `--reorder` is EXCLUSIVE: combining it with `--add-tasks`/`--remove-tasks`
+ *     is rejected (`conflicting-ops`) — they are different intents.
+ *   - `--add-tasks` + `--remove-tasks` together: ALLOWED, applied add-then-
+ *     remove. An id present in BOTH lists is ambiguous → `conflicting-ops`.
+ *   - At least one op-flag is required → else `missing-args`.
+ *
+ * Gates (mirroring the {35.16} record-set pattern, derived from the BYTES ABOUT
+ * TO BE WRITTEN): (a) the umbrella id-set is unchanged (no umbrella dropped or
+ * added), and (b) the edited umbrella's resulting `task_ids` SET equals the
+ * pre-write set with the requested add/remove applied (for `--reorder`,
+ * set-equality with the pre-write set). A mismatch rejects with
+ * `record-set-violation` and writes NOTHING.
+ */
+async function updateUmbrella(
+  dir: string,
+  umbrellaId: string,
+  ops: UpdateUmbrellaOps,
+): Promise<CliResult> {
+  const SUB = 'update-umbrella';
+  const { addTasks, removeTasks, reorder, dryRun = false } = ops;
+
+  // Op-flag presence + mutual-exclusion.
+  const hasAdd = addTasks !== undefined;
+  const hasRemove = removeTasks !== undefined;
+  const hasReorder = reorder !== undefined;
+  if (!hasAdd && !hasRemove && !hasReorder) {
+    return cliErr(
+      SUB,
+      'missing-args',
+      'update-umbrella <umbrellaId> requires --add-tasks <csv>, --remove-tasks <csv>, or --reorder <csv>',
+    );
+  }
+  if (hasReorder && (hasAdd || hasRemove)) {
+    return cliErr(
+      SUB,
+      'conflicting-ops',
+      '--reorder cannot combine with --add-tasks/--remove-tasks (it replaces the whole order; use add/remove to change membership)',
+    );
+  }
+
+  // Parse + validate id lists up-front (reject before any I/O mutation).
+  const addIds = hasAdd ? splitIds(addTasks) : [];
+  const removeIds = hasRemove ? splitIds(removeTasks) : [];
+  const reorderIds = hasReorder ? splitIds(reorder) : [];
+  const malformed = firstMalformedId([...addIds, ...removeIds, ...reorderIds]);
+  if (malformed !== undefined) {
+    return cliErr(
+      SUB,
+      'malformed-task-id',
+      `task ids must be bare-digit (matches task-list.json#/tasks[].id); got "${malformed}"`,
+    );
+  }
+  // An id in BOTH add + remove lists is ambiguous.
+  const overlap = addIds.filter((id) => removeIds.includes(id));
+  if (overlap.length > 0) {
+    return cliErr(
+      SUB,
+      'conflicting-ops',
+      `id(s) [${overlap.join(', ')}] appear in BOTH --add-tasks and --remove-tasks`,
+    );
+  }
+
+  // Load + parse + validate the umbrellas document.
+  const path = resolve(dir, UMBRELLAS_FILE);
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (err) {
+    return cliErr(SUB, 'ledger-read-failed', `${path}: ${msg(err)}`);
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (err) {
+    return cliErr(SUB, 'ledger-parse-failed', `${path}: ${msg(err)}`);
+  }
+  const parsed = UmbrellasSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      subcommand: SUB,
+      error: 'ledger-schema-invalid',
+      detail: path,
+      issues: parsed.error.issues,
+    };
+  }
+  const doc = parsed.data;
+
+  const target = doc.umbrellas.find((u) => u.id === umbrellaId);
+  if (!target) {
+    return cliErr(
+      SUB,
+      'unknown-umbrella',
+      `no umbrella with id "${umbrellaId}" — known: [${doc.umbrellas
+        .map((u) => u.id)
+        .join(', ')}]`,
+    );
+  }
+
+  // Capture pre-write state (record-set gate inputs).
+  const beforeUmbrellaIds = new Set(doc.umbrellas.map((u) => u.id));
+  const beforeTaskIds = [...target.task_ids];
+  const beforeTaskSet = new Set(beforeTaskIds);
+
+  // Compute the new task_ids[] + the expected post-write set + a delta summary.
+  let nextTaskIds: string[];
+  const added: string[] = [];
+  const removed: string[] = [];
+  if (hasReorder) {
+    // Must be a permutation of the existing set: no dupes, same membership.
+    const reorderSet = new Set(reorderIds);
+    const isPermutation =
+      reorderIds.length === beforeTaskIds.length &&
+      reorderSet.size === reorderIds.length &&
+      reorderIds.every((id) => beforeTaskSet.has(id));
+    if (!isPermutation) {
+      return cliErr(
+        SUB,
+        'reorder-not-permutation',
+        `--reorder must be a permutation of the existing task_ids [${beforeTaskIds.join(
+          ', ',
+        )}] (no adds/drops/dupes); got [${reorderIds.join(', ')}]`,
+      );
+    }
+    nextTaskIds = [...reorderIds];
+  } else {
+    // add-then-remove. Idempotent append (skip present), then remove (no-op for
+    // absent). Order: preserve existing, append new add ids in given order.
+    const working = [...beforeTaskIds];
+    for (const id of addIds) {
+      if (!working.includes(id)) {
+        working.push(id);
+        added.push(id);
+      }
+    }
+    const removeSet = new Set(removeIds);
+    nextTaskIds = working.filter((id) => {
+      if (removeSet.has(id)) {
+        removed.push(id);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  // The expected post-write task_ids SET (for the record-set gate b-clause).
+  const expectedTaskSet = hasReorder
+    ? new Set(beforeTaskSet)
+    : (() => {
+        const s = new Set(beforeTaskSet);
+        for (const id of added) s.add(id);
+        for (const id of removed) s.delete(id);
+        return s;
+      })();
+
+  const deltaPayload = {
+    umbrellaId,
+    added,
+    removed,
+    reordered: hasReorder,
+    before: beforeTaskIds,
+    after: nextTaskIds,
+  };
+
+  // Dry-run: report the BOUNDED delta, write nothing (never a full-doc dump).
+  if (dryRun) {
+    return {
+      ok: true,
+      subcommand: SUB,
+      result: { dryRun: true, ...deltaPayload },
+    };
+  }
+
+  // Mutate in place (preserves object key order → byte fidelity for untouched
+  // fields/umbrellas) and re-serialise to the on-disk byte format.
+  target.task_ids = nextTaskIds;
+  const content = serialiseUmbrellas(doc);
+
+  // Record-set gate, derived from the BYTES ABOUT TO BE WRITTEN.
+  const gate = checkUmbrellaRecordSet(
+    content,
+    umbrellaId,
+    beforeUmbrellaIds,
+    expectedTaskSet,
+  );
+  if (!gate.ok) return gate.result;
+
+  // Idempotency: a no-op edit yields byte-identical content → skip the write
+  // (exit 0, file unchanged), matching the {35.16}/{35.44} no-op discipline.
+  if (content === text) {
+    return {
+      ok: true,
+      subcommand: SUB,
+      result: { ...deltaPayload, noop: true },
+    };
+  }
+
+  await atomicWriteFile(path, content);
+  return {
+    ok: true,
+    subcommand: SUB,
+    result: deltaPayload,
+  };
+}
+
+/**
+ * ID-35.41 record-set-preservation gate for umbrellas (mirrors {35.16}
+ * `checkRecordSet`, but self-contained for the umbrella shape). Parses the
+ * bytes about to be written and asserts:
+ *   (a) the umbrella id-set is unchanged (no umbrella dropped/added), and
+ *   (b) the edited umbrella's resulting `task_ids` SET equals `expectedTaskSet`.
+ * On mismatch returns `record-set-violation` (caller writes nothing).
+ */
+function checkUmbrellaRecordSet(
+  content: string,
+  umbrellaId: string,
+  beforeUmbrellaIds: Set<string>,
+  expectedTaskSet: Set<string>,
+): { ok: true } | { ok: false; result: CliResult } {
+  const SUB = 'update-umbrella';
+  let after: unknown;
+  try {
+    after = JSON.parse(content);
+  } catch (err) {
+    return {
+      ok: false,
+      result: cliErr(
+        SUB,
+        'record-set-violation',
+        `serialised output is not valid JSON (${msg(err)})`,
+      ),
+    };
+  }
+  const umbrellas = (after as { umbrellas?: unknown }).umbrellas;
+  if (!Array.isArray(umbrellas)) {
+    return {
+      ok: false,
+      result: cliErr(
+        SUB,
+        'record-set-violation',
+        'could not locate the umbrellas collection in the serialised output',
+      ),
+    };
+  }
+  // (a) umbrella id-set unchanged.
+  const afterUmbrellaIds = new Set(
+    umbrellas.map((u) => (u as { id?: unknown }).id as string),
+  );
+  const missingU = [...beforeUmbrellaIds].filter(
+    (id) => !afterUmbrellaIds.has(id),
+  );
+  const extraU = [...afterUmbrellaIds].filter(
+    (id) => !beforeUmbrellaIds.has(id),
+  );
+  if (missingU.length || extraU.length) {
+    const parts: string[] = [];
+    if (missingU.length)
+      parts.push(`umbrella missing [${missingU.join(', ')}]`);
+    if (extraU.length) parts.push(`umbrella unexpected [${extraU.join(', ')}]`);
+    return {
+      ok: false,
+      result: cliErr(SUB, 'record-set-violation', parts.join(' / ')),
+    };
+  }
+  // (b) edited umbrella's task_ids set equals the expected set.
+  const edited = umbrellas.find(
+    (u) => (u as { id?: unknown }).id === umbrellaId,
+  ) as { task_ids?: unknown } | undefined;
+  if (!edited || !Array.isArray(edited.task_ids)) {
+    return {
+      ok: false,
+      result: cliErr(
+        SUB,
+        'record-set-violation',
+        `could not locate task_ids for umbrella "${umbrellaId}" in the serialised output`,
+      ),
+    };
+  }
+  const afterTaskSet = new Set(edited.task_ids as string[]);
+  const missingT = [...expectedTaskSet].filter((id) => !afterTaskSet.has(id));
+  const extraT = [...afterTaskSet].filter((id) => !expectedTaskSet.has(id));
+  if (missingT.length || extraT.length) {
+    const parts: string[] = [];
+    if (missingT.length)
+      parts.push(`task_ids missing [${missingT.join(', ')}]`);
+    if (extraT.length) parts.push(`task_ids unexpected [${extraT.join(', ')}]`);
+    return {
+      ok: false,
+      result: cliErr(SUB, 'record-set-violation', parts.join(' / ')),
+    };
+  }
+  return { ok: true };
 }
 
 // ── entry ───────────────────────────────────────────────────────────────────
