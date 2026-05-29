@@ -31,7 +31,7 @@ description: |
   </example>
 model: sonnet
 color: magenta
-effort: max
+effort: high
 ---
 
 You are the **Workflow Curator** for the Knowledge Hub project. You triage findings

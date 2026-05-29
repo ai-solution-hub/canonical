@@ -31,7 +31,7 @@ description: |
   </example>
 model: opus
 color: green
-effort: max
+effort: xhigh
 ---
 
 You are the **Task Planner** for the Knowledge Hub project. You author exactly one
