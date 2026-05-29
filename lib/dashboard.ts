@@ -8,6 +8,7 @@ import type {
 import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/user/display-name';
+import { UNCLASSIFIED_TAXONOMY_OR_PREDICATE } from '@/lib/validation/schemas';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -137,6 +138,13 @@ export interface UnifiedDashboardData {
     expiring_content_date_count: number;
     unread_notification_count: number;
     coverage_gap_count: number;
+    /**
+     * Count of non-archived content_items on the taxonomy 'unclassified'
+     * sentinel (primary_domain='unclassified' OR primary_subtopic=
+     * 'unclassified'), per ID-63 {63.11}. Drives the dashboard
+     * taxonomy-coverage actionable-insight (ID-63.12).
+     */
+    unclassified_count: number;
   };
 
   /** Active procurements with stats */
@@ -355,6 +363,18 @@ export async function fetchUnifiedDashboardData(
               'entity_type.eq.certification,entity_type_override.eq.certification',
             )
         : Promise.resolve({ data: [], error: null }),
+
+      // 7: Taxonomy-coverage gap (ID-63.12) — count of non-archived
+      // content_items that landed on the 'unclassified' sentinel established
+      // by {63.11} (primary_domain='unclassified' OR primary_subtopic=
+      // 'unclassified'). head:true + count:'exact' avoids transferring rows.
+      // Mirrors the Inv-7 taxonomy-miss concept that the {63.8} flow-end
+      // webhook emits as its taxonomy-miss counter.
+      supabase
+        .from('content_items')
+        .select('id', { count: 'exact', head: true })
+        .is('archived_at', null)
+        .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),
     ]),
     fetchActiveProcurementWithStats(supabase),
   ]);
@@ -707,6 +727,19 @@ export async function fetchUnifiedDashboardData(
 
   // Coverage gap count is now included in the attention counts RPC (query 0)
 
+  // --- Extract taxonomy-coverage gap count (query 7) — ID-63.12 ---
+  let unclassified_count = 0;
+  if (results[7].status === 'fulfilled') {
+    const { count, error } = results[7].value;
+    if (error) {
+      errors.push('unclassified_count query failed');
+    } else {
+      unclassified_count = count ?? 0;
+    }
+  } else {
+    errors.push('unclassified_count query failed');
+  }
+
   return {
     attention_sources: {
       governance_review_count,
@@ -718,6 +751,7 @@ export async function fetchUnifiedDashboardData(
       expiring_content_date_count,
       unread_notification_count,
       coverage_gap_count,
+      unclassified_count,
     },
     active_bids,
     freshness_summary,

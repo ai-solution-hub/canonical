@@ -232,7 +232,11 @@ class TestIngestFileWritePath:
         monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
 
         async def _fake_classification(content_text: str):
-            return {"content_type": "case_study", "primary_domain": "procurement"}
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+            }
 
         async def _fake_qa(content_text: str):
             return {
@@ -300,6 +304,15 @@ class TestIngestFileWritePath:
         )
         # content_items row references the source_documents row it came from.
         assert ci_row["source_document_id"] == sd.rows[0]["id"]
+        # ID-63.7 (OQ-63-9): the classification's domain AND subtopic are
+        # persisted to content_items on the cocoindex re-ingest path (today
+        # neither was written). Both keys ride the declare_row payload.
+        assert ci_row["primary_domain"] == "procurement", (
+            "primary_domain must be persisted to content_items (OQ-63-9)"
+        )
+        assert ci_row["primary_subtopic"] == "tender_evaluation", (
+            "primary_subtopic must be persisted to content_items (OQ-63-9)"
+        )
 
         # q_a_extractions: one row per qa_pair, op_id stamped, FK to content_items.
         assert len(qa.rows) == 1, "expected one q_a_extractions row per qa_pair"
@@ -459,43 +472,32 @@ class TestMountEachArityContract:
         assert len({r["id"] for r in ci.rows}) == 2
 
     def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
-        """``ingest_file`` accepts (file, ci, qa, sd, em, ft, ftf, cc=None).
+        """``ingest_file`` accepts exactly (file, ci, qa, sd, em, ft, ftf).
 
         Inspecting the signature directly pins the arity contract: the leading
-        parameter is the File item value, followed by the seven target extra
-        args — and there is NO leading ``rel_path`` parameter (the original
-        blocker).
+        parameter is the File item value, followed by the six target extra args
+        — and there is NO leading ``rel_path`` parameter (the original blocker).
 
         ID-52.12 extended the arity from five to seven: ``ft_target`` /
         ``ftf_target`` (the ``form_templates`` / ``form_template_fields``
         Path-B write targets) follow ``em_target`` positionally, matching the
         ``coco.mount_each`` extra-arg order in ``app_main``.
-
-        ID-56.8 extended it to eight: ``cc_target`` (the ``content_chunks``
-        chunk-row UPSERT target) is appended as a DEFAULTED 8th positional
-        (``cc_target=None``) so the existing 7-arg callers stay valid while
-        ``app_main`` always supplies it via ``mount_each``.
         """
         flow = _flow_module()
 
-        sig = inspect.signature(flow.ingest_file)
-        params = list(sig.parameters)
+        params = list(inspect.signature(flow.ingest_file).parameters)
         assert params[0] != "rel_path", (
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First param is the File item value; remaining seven are the targets.
-        assert len(params) == 8, (
-            f"ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf, cc); "
+        # First param is the File item value; remaining six are the targets.
+        assert len(params) == 7, (
+            f"ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf); "
             f"got {params}"
         )
-        assert params[-3:] == ["ft_target", "ftf_target", "cc_target"], (
-            "the last three extra args must be ft_target, ftf_target, cc_target "
-            f"(positional order); got {params}"
-        )
-        # cc_target is DEFAULTED to None so 7-arg legacy callers stay valid.
-        assert sig.parameters["cc_target"].default is None, (
-            "cc_target must default to None (the 7-arg callers omit it)"
+        assert params[-2:] == ["ft_target", "ftf_target"], (
+            "the last two extra args must be ft_target then ftf_target "
+            f"(TECH §2.5 positional order); got {params}"
         )
 
 

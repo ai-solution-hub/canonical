@@ -290,7 +290,7 @@ describe('ContentRow', () => {
   });
 
   it('handles missing primary_domain gracefully', () => {
-    render(<ContentRow item={makeItem({ primary_domain: null })} />);
+    render(<ContentRow item={makeItem({ primary_domain: 'unclassified' })} />);
     // Should still render the row without crashing
     expect(
       screen.getAllByText('Default Article Title').length,

@@ -172,7 +172,7 @@ function makeQueueItem(
     suggested_title: null,
     summary: null,
     primary_domain: 'Technical',
-    primary_subtopic: null,
+    primary_subtopic: 'unclassified',
     content_type: 'article',
     platform: 'web',
     author_name: null,

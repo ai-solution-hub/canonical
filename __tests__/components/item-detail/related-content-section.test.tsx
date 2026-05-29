@@ -47,7 +47,7 @@ function createRelatedItem(
     suggested_title: null,
     summary: null,
     primary_domain: 'Corporate',
-    primary_subtopic: null,
+    primary_subtopic: 'unclassified',
     content_type: 'article',
     platform: null,
     author_name: null,

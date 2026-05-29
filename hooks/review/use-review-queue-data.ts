@@ -87,6 +87,10 @@ export function buildQueueParams(
   // Only emit the param when on; off / undefined sends nothing so the
   // route falls through to its existing `verified_at IS NULL` predicate.
   if (filters.include_overdue) params.set('include_overdue', 'true');
+  // ID-63.12 — propagate the "Unclassified" tab to the queue route so it
+  // narrows to the 'unclassified' taxonomy sentinel rows ({63.11}). Only
+  // emit when on; off / undefined sends nothing.
+  if (filters.unclassified) params.set('unclassified', 'true');
   if (serverSort) params.set('sort', serverSort);
   return params;
 }

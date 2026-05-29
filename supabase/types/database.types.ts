@@ -773,8 +773,8 @@ export type Database = {
           platform: string | null
           previous_freshness: string | null
           previous_quality_score: number | null
-          primary_domain: string | null
-          primary_subtopic: string | null
+          primary_domain: string
+          primary_subtopic: string
           priority: string | null
           publication_status: string
           quality_score: number | null
@@ -851,8 +851,8 @@ export type Database = {
           platform?: string | null
           previous_freshness?: string | null
           previous_quality_score?: number | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
+          primary_domain?: string
+          primary_subtopic?: string
           priority?: string | null
           publication_status?: string
           quality_score?: number | null
@@ -929,8 +929,8 @@ export type Database = {
           platform?: string | null
           previous_freshness?: string | null
           previous_quality_score?: number | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
+          primary_domain?: string
+          primary_subtopic?: string
           priority?: string | null
           publication_status?: string
           quality_score?: number | null
@@ -3656,8 +3656,8 @@ export type Database = {
               platform: string | null
               previous_freshness: string | null
               previous_quality_score: number | null
-              primary_domain: string | null
-              primary_subtopic: string | null
+              primary_domain: string
+              primary_subtopic: string
               priority: string | null
               publication_status: string
               quality_score: number | null

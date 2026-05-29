@@ -29,6 +29,44 @@ const SNAPSHOT_PATH = join(
   PROJECT_ROOT,
   'scripts/tests/fixtures/taxonomy_snapshot.json',
 );
+const FORM_TYPE_MD_PATH = join(PROJECT_ROOT, 'docs/ontology/26-form-type.md');
+
+/**
+ * Parse the `## Baseline values` prose table key column from raw markdown.
+ *
+ * Reads the file as text (NOT via `loadOntologyCVs`, which parses only the
+ * YAML frontmatter) so that the human-readable prose table — an unguarded
+ * surface per RESEARCH R6 — is held in lockstep with the frontmatter
+ * `baseline_values`. Returns the first-column keys of every body row under
+ * the `## Baseline values` heading, in document order.
+ */
+function parseBaselineValuesProseKeys(markdown: string): string[] {
+  const lines = markdown.split('\n');
+  const headingIdx = lines.findIndex(
+    (line) => line.trim() === '## Baseline values',
+  );
+  if (headingIdx === -1) return [];
+
+  const keys: string[] = [];
+  for (let i = headingIdx + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    // Stop at the next section heading.
+    if (line.startsWith('## ')) break;
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|')) continue;
+    const cells = trimmed
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    if (cells.length === 0) continue;
+    const key = cells[0];
+    // Skip the header row (`key`) and the markdown separator row (`---`).
+    if (key === 'key' || /^:?-{2,}:?$/.test(key)) continue;
+    if (key.length === 0) continue;
+    keys.push(key);
+  }
+  return keys;
+}
 
 interface FormTypeRow {
   key: string;
@@ -91,5 +129,36 @@ describe('form_type triple-source parity (TECH §2.6b)', () => {
     ).toEqual({ missingFromSnapshot: [], missingFromMarkdown: [] });
 
     expect(mdKeys).toEqual(snapshotKeys);
+  });
+
+  it('26-form-type.md prose `## Baseline values` table keys match frontmatter baseline_values keys exactly', () => {
+    const markdown = readFileSync(FORM_TYPE_MD_PATH, 'utf8');
+    const proseKeys = parseBaselineValuesProseKeys(markdown).sort();
+
+    const cvs = loadOntologyCVs();
+    const formTypeCV = cvs.find((cv) => cv.cv_name === 'form_type');
+    expect(
+      formTypeCV,
+      'docs/ontology/26-form-type.md must define cv_name=form_type',
+    ).toBeDefined();
+    const frontmatterKeys = (formTypeCV!.baseline_values ?? [])
+      .map((bv) => bv.key)
+      .sort();
+
+    const inProseNotFrontmatter = proseKeys.filter(
+      (k) => !frontmatterKeys.includes(k),
+    );
+    const inFrontmatterNotProse = frontmatterKeys.filter(
+      (k) => !proseKeys.includes(k),
+    );
+
+    expect(
+      { inProseNotFrontmatter, inFrontmatterNotProse },
+      `form_type prose/frontmatter drift:\n` +
+        `  In prose table but missing from frontmatter: ${inProseNotFrontmatter.join(', ') || '(none)'}\n` +
+        `  In frontmatter but missing from prose table: ${inFrontmatterNotProse.join(', ') || '(none)'}`,
+    ).toEqual({ inProseNotFrontmatter: [], inFrontmatterNotProse: [] });
+
+    expect(proseKeys).toEqual(frontmatterKeys);
   });
 });

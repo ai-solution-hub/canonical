@@ -102,6 +102,7 @@ function setupDefaultMock(
     expiringContentDateCount?: number;
     certMentionsData?: unknown[];
     coverageGapCount?: number;
+    unclassifiedCount?: number;
     activityFeedData?: unknown[];
     workspaces?: unknown[];
     statsMap?: Map<string, unknown>;
@@ -179,6 +180,15 @@ function setupDefaultMock(
       count: null,
     });
   }
+
+  // [7] taxonomy-coverage gap (ID-63.12) — from('content_items') head:true +
+  // count:'exact'. Always issued (no Promise.resolve short-circuit), so it
+  // always consumes the next from() call slot.
+  fromCalls.push({
+    data: null,
+    error: null,
+    count: overrides.unclassifiedCount ?? 0,
+  });
 
   // Configure from() to return per-call chain
   let callIdx = 0;
@@ -340,6 +350,36 @@ describe('fetchUnifiedDashboardData', () => {
     // Cert and coverage counts are now wired server-side
     expect(sources.expiring_cert_count).toBe(0); // No cert relationship data in default mock
     expect(sources.coverage_gap_count).toBe(0); // No subtopics in default mock
+  });
+
+  // ID-63.12 — taxonomy-coverage gap count flows from the new
+  // content_items 'unclassified' sentinel count query into attention_sources.
+  it('surfaces the unclassified taxonomy-coverage count in attention_sources', async () => {
+    const mock = setupDefaultMock({ unclassifiedCount: 6 });
+    const result = await fetchUnifiedDashboardData(
+      mock as never,
+      TEST_USER_ID,
+      true,
+      'admin',
+    );
+
+    expect(result.attention_sources.unclassified_count).toBe(6);
+    // The query must run against content_items so the sentinel rows are
+    // counted from the canonical table.
+    expect(mock.from).toHaveBeenCalledWith('content_items');
+    expect(result.errors).not.toContain('unclassified_count query failed');
+  });
+
+  it('defaults unclassified_count to 0 when nothing is unclassified', async () => {
+    const mock = setupDefaultMock();
+    const result = await fetchUnifiedDashboardData(
+      mock as never,
+      TEST_USER_ID,
+      true,
+      'admin',
+    );
+
+    expect(result.attention_sources.unclassified_count).toBe(0);
   });
 
   it('populates freshness summary from RPC data', async () => {

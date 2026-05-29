@@ -107,7 +107,10 @@ function makeEntity(
   };
 }
 
-function createPass1Response(entities: ExtractedEntity[]) {
+function createPass1Response(
+  entities: ExtractedEntity[],
+  classificationOverrides: Record<string, unknown> = {},
+) {
   return {
     id: 'msg_test',
     type: 'message' as const,
@@ -129,6 +132,7 @@ function createPass1Response(entities: ExtractedEntity[]) {
           entities,
           relationships: [],
           temporal_references: [],
+          ...classificationOverrides,
         },
         caller: { type: 'direct' as const },
       },
@@ -660,5 +664,38 @@ describe('classifyContent with two-pass validation', () => {
 
     // Only Pass 1 called
     expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  // ID-63.13 (OQ-63-11 follow-on): content_items.primary_domain and
+  // primary_subtopic became NOT NULL DEFAULT 'unclassified' in {63.11}.
+  // coerceSubtopic() still returns null for empty subtopics on the
+  // in-memory ClassificationResult, so the DB write-site must coerce the
+  // null/empty sentinel to 'unclassified' to avoid a NOT NULL violation.
+  it('coerces a null primary_domain and empty primary_subtopic to the "unclassified" sentinel in the content_items write', async () => {
+    mockCreate.mockResolvedValueOnce(
+      createPass1Response([], {
+        // Classifier emits null domain + empty-string subtopic; coerceSubtopic
+        // normalises the subtopic to null on the in-memory result.
+        primary_domain: null,
+        primary_subtopic: '',
+      }),
+    );
+
+    await classifyContent({
+      supabase: asClient(supabase),
+      itemId: ITEM_ID,
+      force: true,
+      userId: USER_ID,
+    });
+
+    // Locate the content_items update payload (carries classification fields,
+    // distinct from any entity-table update on the shared chain mock).
+    const contentItemUpdate = supabase._chain.update.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .find((payload) => 'classification_confidence' in payload);
+
+    expect(contentItemUpdate).toBeDefined();
+    expect(contentItemUpdate?.primary_domain).toBe('unclassified');
+    expect(contentItemUpdate?.primary_subtopic).toBe('unclassified');
   });
 });

@@ -112,6 +112,7 @@ from scripts.cocoindex_pipeline.flow_context import (
     bind_flow_meta,
     bind_retry_counter,
     bind_stage_counter,
+    bind_taxonomy_miss_counter,
     bind_workspace_manifest,
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it via __package__
 )
@@ -439,10 +440,8 @@ class _FlowStageCounter:
     no shared state. Thread-safety is not required: cocoindex @coco.fn
     execution is sequential per content row.
 
-    At v1 the wired stages are `"embedding"` (Inv-17 gap closure inherited from
-    ID-49.2), `"entity_resolution"` (Inv-11 Stage-5 elevation, ID-53.14), and
-    `"chunking"` (Inv-11 elevation, ID-56.8 — bumped once per declared
-    content_chunks row). Keys are the canonical stage names from
+    At v1 the only wired stage is `"embedding"` (Inv-17 gap closure inherited
+    from ID-49.2). Keys are the canonical stage names from
     `_empty_stage_counts()`; an unbumped stage reads back as 0.
     """
 
@@ -454,6 +453,45 @@ class _FlowStageCounter:
 
     def get(self, stage: str) -> int:
         return self._counts.get(stage, 0)
+
+
+# ── Inv-7 taxonomy-miss substrate (ID-63.8 — out-of-taxonomy soft-warn) ──────
+
+
+class _FlowTaxonomyMissCounter:
+    """Per-flow out-of-taxonomy-miss counter for Inv-7 observability.
+
+    `.record(field=..., value=...)` is called from the
+    `_surface_out_of_taxonomy_classification` model-validator on
+    `ClassificationExtraction` (extraction.py) via the
+    `bind_taxonomy_miss_counter()` contextvar binding `app_main` wraps
+    `mount_each` in, each time the LLM proposes a `primary_domain` /
+    `primary_subtopic` / `secondary_classification` value outside the
+    canonical taxonomy snapshot. The ROW IS STILL WRITTEN UNCHANGED — this
+    counter is observability-only (soft-warn, never reject). `.tally_by_field()`
+    is read at flow end and folded into the pipeline-run webhook payload,
+    broken down by field.
+
+    Instances are per-flow — one per `app_main()` invocation, no shared state.
+    Thread-safety is not required: cocoindex @coco.fn execution is sequential
+    per content row. Mirrors `_FlowRetryCounter` / `_FlowStageCounter`.
+    """
+
+    def __init__(self) -> None:
+        self._counts: dict[tuple[str, str], int] = {}
+
+    def record(self, *, field: str, value: str) -> None:
+        key = (field, value)
+        self._counts[key] = self._counts.get(key, 0) + 1
+
+    def get(self, *, field: str, value: str) -> int:
+        return self._counts.get((field, value), 0)
+
+    def tally_by_field(self) -> dict[str, int]:
+        tally: dict[str, int] = {}
+        for (field, _value), count in self._counts.items():
+            tally[field] = tally.get(field, 0) + count
+        return tally
 
 
 # ── Inv-16 / Inv-17 / Inv-18 rollup substrate (P-7 — ID-28.11) ───────────────
@@ -468,12 +506,11 @@ PipelineRunStatus = Literal[
 
 
 def _empty_stage_counts() -> dict[str, int]:
-    """Return the canonical seven-stage counter map initialised to zero.
+    """Return the canonical six-stage counter map initialised to zero.
 
-    The stages mirror the canonical pipeline topology per `02-data-flow.md`
-    §3.1, extended by the ID-56.8 `"chunking"` stage (the cocoindex
-    RecursiveSplitter chunk-row writer). The webhook route (`POST
-    /api/internal/pipeline-runs/record`) enforces ALL seven keys via Zod, so
+    The six stages mirror the canonical pipeline topology per
+    `02-data-flow.md` §3.1. The webhook route (`POST
+    /api/internal/pipeline-runs/record`) enforces ALL six keys via Zod, so
     every emission MUST supply the full map (even zeros).
     """
     return {
@@ -482,7 +519,6 @@ def _empty_stage_counts() -> dict[str, int]:
         "llm_extraction": 0,
         "embedding": 0,
         "entity_resolution": 0,
-        "chunking": 0,
         "postgres_upsert": 0,
     }
 
@@ -560,6 +596,7 @@ async def _emit_pipeline_run_webhook(
     error_class: str | None = None,
     extractor_version: str | None = None,
     retry_count: int | None = None,
+    taxonomy_misses: dict[str, int] | None = None,
     pipeline_name: str = "kh_canonical_pipeline",
 ) -> None:
     """POST a pipeline-run rollup to the Vercel webhook.
@@ -615,6 +652,11 @@ async def _emit_pipeline_run_webhook(
     # so 0 lands verbatim, mirroring the route's `!== undefined` check.
     if retry_count is not None:
         payload["retryCount"] = retry_count
+    # ID-63.8 Inv-7: per-field tally of out-of-taxonomy soft-warns. `None`
+    # omits the field entirely (flow-start emission, where no extraction has
+    # run yet); an empty dict at flow-end means "extractions ran, zero misses".
+    if taxonomy_misses is not None:
+        payload["taxonomyMisses"] = taxonomy_misses
 
     headers = {
         "Authorization": f"Bearer {secret}",
@@ -767,6 +809,12 @@ CONTENT_ITEMS_SCHEMA = TableSchema(
         ),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
         "source_document_id": ColumnDef(type="uuid", nullable=True),
+        # ID-63.7 (OQ-63-9): persist the classifier's domain + subtopic. The
+        # live content_items columns already exist nullable (database.types.ts
+        # content_items Row) — NO migration here; the NOT-NULL + 'unclassified'
+        # sentinel tightening is the separate {63.11} migration.
+        "primary_domain": ColumnDef(type="text", nullable=True),
+        "primary_subtopic": ColumnDef(type="text", nullable=True),
         # content_text_hash GENERATED ALWAYS — OMITTED per CLAUDE.md gotcha
     },
     primary_key=("id",),
@@ -820,49 +868,6 @@ ENTITY_MENTIONS_SCHEMA = TableSchema(
         "context_snippet": ColumnDef(type="text", nullable=True),
         "metadata": ColumnDef(type="jsonb", nullable=True),
         "op_id": ColumnDef(type="uuid", nullable=True),  # §P-9 migration
-    },
-    primary_key=("id",),
-)
-
-
-# ── ID-56 chunking stage (PRODUCT C-10..C-13, C-21, C-30, C-31) ──────────────
-# Variant-B chunk config, Liam-ratified {56.5} (RecursiveSplitter byte budgets).
-# chunk_size is in BYTES; min_chunk_size defaults to chunk_size/2 but is passed
-# EXPLICITLY for self-documentation.
-CHUNK_SIZE_BYTES = 2000
-CHUNK_OVERLAP_BYTES = 200
-CHUNK_MIN_SIZE_BYTES = 1000
-
-# `content_chunks` row-level UPSERT target schema (PRODUCT C-13). Only the
-# columns the pipeline writes are declared — mirrors the CONTENT_ITEMS_SCHEMA
-# style and reuses `_encode_pgvector` for the embedding vector. The
-# heading-derived columns (`heading_text` / `heading_level` / `heading_path` /
-# `parent_chunk_id`) plus the auto columns (`created_at` / `updated_at`) are
-# DELIBERATELY ABSENT: under RecursiveSplitter's budget-driven split no
-# heading-derived value exists to stamp (PRODUCT C-13 + [GAP-CMI-004]
-# disposition (a) — keep-nullable until {56.14}/{56.15}). Omitting them from
-# the schema + the row dict means the 3 nullable columns resolve to NULL and
-# `heading_path` resolves to its DB default `'{}'::text[]` (NOT NULL). This is
-# the same OMIT mechanism the schemas above use for `content_text_hash`
-# (GENERATED ALWAYS) and the entity_mentions PG-defaulted columns.
-CONTENT_CHUNKS_SCHEMA = TableSchema(
-    columns={
-        "id": ColumnDef(type="uuid", nullable=False),
-        "content_item_id": ColumnDef(type="uuid", nullable=False),
-        "content": ColumnDef(type="text", nullable=False),
-        # `position` / `char_count` / `word_count` are smallint/integer columns;
-        # declared `integer` (no smallint ColumnDef precedent in this module) —
-        # values are well within int range and PG implicitly casts int4→int2 on
-        # INSERT for the smallint `position` column.
-        "position": ColumnDef(type="integer", nullable=False),
-        "char_count": ColumnDef(type="integer", nullable=False),
-        "word_count": ColumnDef(type="integer", nullable=False),
-        "embedding": ColumnDef(
-            type="vector(1024)",
-            nullable=True,
-            encoder=_encode_pgvector,
-        ),
-        "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow ({56.6})
     },
     primary_key=("id",),
 )
@@ -1045,7 +1050,6 @@ async def ingest_file(
     em_target: Any,
     ft_target: Any,
     ftf_target: Any,
-    cc_target: Any = None,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
 
@@ -1065,14 +1069,6 @@ async def ingest_file(
     at the end of the body declares onto them ONLY for form-bearing files that
     resolve to a workspace and extract successfully (TECH §2.5); markdown /
     content files leave both untouched.
-
-    `cc_target` (ID-56.8) is the `content_chunks` chunk-row UPSERT target. It is
-    a DEFAULTED 8th positional (defaults to None) so the 7-arg legacy callers
-    stay valid: when None, the budget-driven chunking block is skipped entirely
-    (mirrors the manifest-gated form-write block). Production always passes it
-    via `mount_each`. When supplied, the chunking block runs AFTER the parent
-    `content_items` declare (FK safety + memo cascade) and declares one
-    `content_chunks` row per RecursiveSplitter chunk (PRODUCT C-10..C-13).
 
     This is the reactive 1.0.3 write path proven in RESEARCH.md §R2/§R3 — the
     per-MIME conversion (Stage 2, P-3) and Path A extraction (Stage 3) run as
@@ -1175,6 +1171,13 @@ async def ingest_file(
             "embedding": embedding,
             "source_document_id": source_document_id,
             "op_id": op_id,
+            # ID-63.7 (OQ-63-9): persist the classifier's domain AND subtopic
+            # to content_items — today neither was written on this path. Read
+            # via _field so the write path stays agnostic to whether the
+            # extractor returned a Pydantic model (production) or a plain dict
+            # (write-path test stubs) — mirrors the content_type access below.
+            "primary_domain": _field(classification, "primary_domain"),
+            "primary_subtopic": _field(classification, "primary_subtopic"),
         }
     )
     # Inv-17: bump the flow-scope embedding stage counter so
@@ -1190,63 +1193,6 @@ async def ingest_file(
     stage_counter = flow_context_module.current_stage_counter()
     if stage_counter is not None:
         stage_counter.increment("embedding")
-
-    # ── ID-56.8: chunking stage (RecursiveSplitter → content_chunks) ─────────
-    # Runs AFTER the parent content_items declare so the FK is satisfiable and
-    # the memo cascade is correct (TECH §2.7): chunking lives inside this same
-    # @coco.fn(memo=True) body, so an unchanged-bytes re-ingest skips the whole
-    # ingest_file component → no re-chunk, op_id retained (PRODUCT C-31). Gated
-    # on `cc_target is not None` so the 7-arg legacy callers skip it.
-    # Variant-B byte budgets (Liam-ratified {56.5}); min_chunk_size passed
-    # EXPLICITLY though it equals the chunk_size/2 default. RecursiveSplitter is
-    # the cocoindex-native splitter (cocoindex.functions.SplitRecursively is
-    # ABSENT in 1.0.3 — V-1 trap). Each chunk's `.text` is the chunk string;
-    # `.start`/`.end` are TextPosition objects (char_offset/byte_offset) — not
-    # used here, the budget split needs only the text.
-    if cc_target is not None:
-        # Lazy import: `cocoindex.ops.text` is a real submodule of the installed
-        # package, but the deterministic flow-import test harnesses stub the
-        # `cocoindex` parent as a bare MagicMock (not a package), so a module-top
-        # `from cocoindex.ops.text import RecursiveSplitter` would raise
-        # ModuleNotFoundError under those stubs. Importing inside the chunking
-        # block (only reached when a real cc_target is supplied) keeps the 7-arg
-        # legacy callers — which pass cc_target=None and never enter here —
-        # import-clean, mirroring the in-body `import_module` idiom used above
-        # for flow_context.
-        from cocoindex.ops.text import RecursiveSplitter
-
-        splitter = RecursiveSplitter()
-        chunks = splitter.split(
-            content_text,
-            CHUNK_SIZE_BYTES,
-            chunk_overlap=CHUNK_OVERLAP_BYTES,
-            min_chunk_size=CHUNK_MIN_SIZE_BYTES,
-        )
-        for position, chunk in enumerate(chunks):
-            chunk_embedding = await embed_content_text(chunk.text)
-            cc_target.declare_row(
-                row={
-                    # Deterministic per-(document,position) PK so a re-ingest
-                    # UPSERTs the same rows (idempotency — mirrors ftf:/em: idiom).
-                    "id": uuid.uuid5(
-                        _KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
-                    ),
-                    "content_item_id": content_item_id,
-                    "content": chunk.text,
-                    "position": position,
-                    "char_count": len(chunk.text),
-                    "word_count": len(chunk.text.split()),
-                    "embedding": chunk_embedding,
-                    "op_id": op_id,
-                    # heading_text / heading_level / heading_path /
-                    # parent_chunk_id OMITTED ([GAP-CMI-004] disposition (a),
-                    # PRODUCT C-13): budget split preserves no semantic heading
-                    # boundary. → NULL for the 3 nullable cols; heading_path →
-                    # DB default '{}'. Kept nullable until {56.14}/{56.15}.
-                }
-            )
-            if stage_counter is not None:
-                stage_counter.increment("chunking")
 
     content_type = _field(classification, "content_type")
     qa_pairs = _field(qa_form, "qa_pairs", []) or []
@@ -1571,6 +1517,14 @@ async def app_main() -> None:
     # webhook emit. Closes the ID-49.2 gap where `stage_counts["embedding"]`
     # was initialised to 0 (via `_empty_stage_counts()`) but never incremented.
     flow_stage_counter = _FlowStageCounter()
+    # Inv-7 taxonomy-miss substrate: counter is bound via
+    # `bind_taxonomy_miss_counter` below so the
+    # `_surface_out_of_taxonomy_classification` model-validator in
+    # `extraction.py` records each out-of-taxonomy primary_domain /
+    # primary_subtopic / secondary_classification value (soft-warn — the row is
+    # written unchanged). Its per-field tally is folded into the flow-end
+    # webhook payload (ID-63.8).
+    flow_taxonomy_miss_counter = _FlowTaxonomyMissCounter()
 
     # ── ID-52 Path B: load the folder→workspace manifest ONCE at flow start ──
     # (TECH §2.1). The manifest lives at the root of the ingest source folder.
@@ -1667,15 +1621,6 @@ async def app_main() -> None:
             FORM_TEMPLATE_FIELDS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
-        # ID-56.8 (PRODUCT C-10..C-13). content_chunks chunk-row UPSERT target.
-        # managed_by=ManagedBy.USER: cocoindex UPSERTs rows only — the table +
-        # the {56.6} op_id column already exist on staging; NO DDL here.
-        cc_target = await mount_table_target(
-            DB_CTX,
-            "content_chunks",
-            CONTENT_CHUNKS_SCHEMA,
-            managed_by=ManagedBy.USER,
-        )
 
         # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
         # recursive=True required — default is False (CLAUDE.md gotcha).
@@ -1690,10 +1635,8 @@ async def app_main() -> None:
         # One independent component PER source item (RESEARCH §R2/§R3, proven).
         # `ingest_file` runs Stage 2 (conversion) + Stage 3 (Path A extraction)
         # as plain awaits inside its body, then declares rows on each target
-        # (Stage 6). Extra args (ci/qa/sd/em/ft/ftf/cc targets) are passed
-        # positionally after the item value per the mount_each signature; the
-        # `cc_target` (content_chunks chunk-row UPSERT target, ID-56.8) is the
-        # last positional, driving the budget-driven chunking stage.
+        # (Stage 6). Extra args (ci/qa/sd targets) are passed positionally after
+        # the item value per the mount_each signature.
         #
         # `bind_flow_meta` makes the run's op_id available to `current_flow_meta()`
         # inside `ingest_file` (op_id is a plain row field — NOT a flow-scope
@@ -1713,22 +1656,24 @@ async def app_main() -> None:
         async with bind_flow_meta(op_id=run_op_id, content_items_id=None):
             async with bind_retry_counter(flow_retry_counter):
                 async with bind_stage_counter(flow_stage_counter):
-                    async with bind_workspace_manifest(workspace_manifest):
-                        handle = await coco.mount_each(
-                            ingest_file,
-                            source.items(),
-                            ci_target,
-                            qa_target,
-                            sd_target,
-                            em_target,
-                            ft_target,
-                            ftf_target,
-                            cc_target,
-                        )
-                        # Wait until every per-item component has processed
-                        # (cold run) so the rollup webhook below reflects a
-                        # settled state.
-                        await handle.ready()
+                    async with bind_taxonomy_miss_counter(
+                        flow_taxonomy_miss_counter
+                    ):
+                        async with bind_workspace_manifest(workspace_manifest):
+                            handle = await coco.mount_each(
+                                ingest_file,
+                                source.items(),
+                                ci_target,
+                                qa_target,
+                                sd_target,
+                                em_target,
+                                ft_target,
+                                ftf_target,
+                            )
+                            # Wait until every per-item component has processed
+                            # (cold run) so the rollup webhook below reflects a
+                            # settled state.
+                            await handle.ready()
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
         # `ingest_file` now computes a text-embedding-3-large vector(1024) from
@@ -1847,12 +1792,6 @@ async def app_main() -> None:
         stage_counts["entity_resolution"] = flow_stage_counter.get(
             "entity_resolution"
         )
-        # Inv-11 (ID-56.8): fold the flow-scope chunking counter back into
-        # `stage_counts["chunking"]` (mirror of the embedding / entity_resolution
-        # lines). The counter was bumped once per declared content_chunks row
-        # inside the chunking block of `ingest_file`; done in `finally` so
-        # partial-run failures still report the chunk rows that DID land.
-        stage_counts["chunking"] = flow_stage_counter.get("chunking")
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
         await _emit_pipeline_run_webhook(
@@ -1865,6 +1804,7 @@ async def app_main() -> None:
             error_class=flow_error_class,
             extractor_version=extractor_version,
             retry_count=flow_retry_counter.get(),
+            taxonomy_misses=flow_taxonomy_miss_counter.tally_by_field(),
         )
 
 

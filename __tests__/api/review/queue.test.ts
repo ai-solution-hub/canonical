@@ -245,6 +245,78 @@ describe('GET /api/review/queue — quality_score in response', () => {
 });
 
 // ===========================================================================
+// ID-63.12 — Unclassified tab queue branch
+// ===========================================================================
+
+describe('GET /api/review/queue — unclassified filter (ID-63.12)', () => {
+  beforeEach(resetMocks);
+
+  it('returns the taxonomy-sentinel rows and applies the unclassified OR filter', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const sentinelItem = makeMockItem({
+      primary_domain: 'unclassified',
+      primary_subtopic: 'unclassified',
+    });
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: [sentinelItem], error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { unclassified: 'true', status: 'all' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    // The sentinel row is RETURNED by the queue branch.
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0].primary_domain).toBe('unclassified');
+
+    // The route MUST OR the two 'unclassified' predicates so a row that is
+    // unclassified on EITHER axis surfaces.
+    const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
+    const sentinelOr = orCalls.find(([expr]) =>
+      expr.includes('primary_domain.eq.unclassified'),
+    );
+    expect(sentinelOr).toBeDefined();
+    expect(sentinelOr?.[0]).toContain('primary_subtopic.eq.unclassified');
+  });
+
+  it('does NOT apply the unclassified filter when the param is absent', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: [makeMockItem()], error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'all' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(200);
+
+    const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
+    const sentinelOr = orCalls.find(([expr]) =>
+      expr.includes('primary_domain.eq.unclassified'),
+    );
+    expect(sentinelOr).toBeUndefined();
+  });
+});
+
+// ===========================================================================
 // assigned_to_me intersection logic (H-1)
 // ===========================================================================
 

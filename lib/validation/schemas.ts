@@ -104,6 +104,19 @@ export const VALID_CHANGE_REPORT_FREQUENCIES = [
   'custom',
 ] as const;
 
+/**
+ * PostgREST `.or(...)` predicate matching content_items on the taxonomy
+ * 'unclassified' sentinel — `primary_domain = 'unclassified'` OR
+ * `primary_subtopic = 'unclassified'` (the NOT NULL DEFAULT 'unclassified'
+ * sentinel established by ID-63 {63.11}). Single source of truth shared by the
+ * three count/filter sites that MUST stay in lockstep: the /review queue route
+ * ("Unclassified" tab narrowing), the /review stats route (tab count badge),
+ * and the unified dashboard taxonomy-coverage insight. ID-63.12.
+ * @public
+ */
+export const UNCLASSIFIED_TAXONOMY_OR_PREDICATE =
+  'primary_domain.eq.unclassified,primary_subtopic.eq.unclassified';
+
 // ──────────────────────────────────────────
 // API Route Schemas
 // ──────────────────────────────────────────
@@ -166,6 +179,17 @@ export const ReviewQueueParamsSchema = z.object({
    * true. See S205 WP-E T2 plan §T2 (H-1).
    */
   include_overdue: z.string().optional(),
+  /**
+   * Optional opt-in narrowing (ID-63.12): when the literal string 'true', the
+   * queue is filtered to the taxonomy 'unclassified' sentinel rows
+   * (primary_domain='unclassified' OR primary_subtopic='unclassified', per
+   * {63.11}) so the /review "Unclassified" tab has a populated queue. The
+   * route compares the raw query-string value via
+   * `searchParams.get('unclassified')==='true'` (mirroring `include_overdue`
+   * / `assigned_to_me`); `z.coerce.boolean()` is unsafe because it coerces
+   * the literal 'false' to true.
+   */
+  unclassified: z.string().optional(),
 });
 
 /**

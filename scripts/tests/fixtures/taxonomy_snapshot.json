@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T13:40:59.680Z",
+  "generated_at": "2026-05-29T17:20:40.513Z",
   "domains": [
     {
       "id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
@@ -581,6 +581,15 @@
     "upload",
     "extraction",
     "other"
+  ],
+  "requirement_type": [
+    "policy",
+    "statement",
+    "evidence",
+    "data",
+    "narrative",
+    "declaration",
+    "reference"
   ],
   "form_types": [
     {

@@ -8,6 +8,9 @@ references its expected `extraction_kind` value verbatim.
 
 from __future__ import annotations
 
+import json
+import re
+
 import pytest
 
 from scripts.cocoindex_pipeline.prompts import (
@@ -15,6 +18,47 @@ from scripts.cocoindex_pipeline.prompts import (
     ENTITY_MENTION_PROMPT,
     Q_A_FORM_PROMPT,
 )
+
+
+def _parse_prompt_form_types(prompt: str) -> set[str]:
+    """Extract the form_type values the prompt instructs the model to emit.
+
+    Parses the machine-readable FIELD CONSTRAINTS line
+    ``form_metadata.form_type: MUST be ONE of: <values>.`` and splits the
+    captured list on commas. Returns the set of snake_case form_type keys.
+    """
+    match = re.search(
+        r"form_metadata\.form_type: MUST be ONE of:\s*(.+?)\.",
+        prompt,
+        re.S,
+    )
+    assert match is not None, (
+        "Q_A_FORM_PROMPT no longer contains a parseable "
+        "'form_metadata.form_type: MUST be ONE of: ...' FIELD CONSTRAINTS line"
+    )
+    return {value.strip() for value in match.group(1).split(",") if value.strip()}
+
+
+def _parse_prompt_content_types(prompt: str) -> set[str]:
+    """Extract the content_type values the prompt instructs the model to emit.
+
+    Parses the machine-readable FIELD CONSTRAINTS block
+    ``content_type: MUST be ONE of the following canonical values:\n  <values>.``
+    and splits the captured list on commas. The values sit on the line
+    following the label (with a two-space indent), so the regex spans the
+    newline via ``re.S``. Returns the set of snake_case content_type keys.
+    """
+    match = re.search(
+        r"content_type: MUST be ONE of the following canonical values:\s*(.+?)\.",
+        prompt,
+        re.S,
+    )
+    assert match is not None, (
+        "CLASSIFICATION_PROMPT no longer contains a parseable "
+        "'content_type: MUST be ONE of the following canonical values: ...' "
+        "FIELD CONSTRAINTS block"
+    )
+    return {value.strip() for value in match.group(1).split(",") if value.strip()}
 
 
 _ALL_PROMPTS = {
@@ -92,41 +136,88 @@ class TestPromptsEnumeratesEnums:
     """
 
     def test_classification_enumerates_content_types(self) -> None:
-        """CLASSIFICATION_PROMPT should list the canonical content_type values."""
-        # At minimum, the snake_case core values should be mentioned.
-        required = {
-            "article",
-            "policy",
-            "research",
-            "methodology",
-            "capability",
-            "case_study",
-            "certification",
-            "compliance",
-        }
-        missing = [v for v in required if v not in CLASSIFICATION_PROMPT]
-        assert not missing, (
-            f"CLASSIFICATION_PROMPT missing content_type values: {missing}"
+        """CLASSIFICATION_PROMPT must enumerate EXACTLY the snapshot-backed
+        canonical content_type set — no weak subset, no frozen literal.
+
+        This is a bidirectional regression guard: it fails loudly on drift in
+        EITHER direction. If a content_type is added to the taxonomy snapshot
+        but not to the prompt (the LLM would never emit it), the
+        snapshot-minus-prompt direction fails. If the prompt names a value the
+        validator would reject (not in the snapshot), the prompt-minus-snapshot
+        direction fails. The expectation derives from the single source of
+        truth — `_VALID_CONTENT_TYPES`, loaded from the taxonomy snapshot by
+        extraction.py — never a hardcoded literal.
+        """
+        from scripts.cocoindex_pipeline.extraction import _VALID_CONTENT_TYPES
+
+        prompt_content_types = _parse_prompt_content_types(CLASSIFICATION_PROMPT)
+        snapshot_content_types = set(_VALID_CONTENT_TYPES)
+
+        missing_from_prompt = snapshot_content_types - prompt_content_types
+        extra_in_prompt = prompt_content_types - snapshot_content_types
+        assert not missing_from_prompt and not extra_in_prompt, (
+            "CLASSIFICATION_PROMPT content_type set is not in exact parity "
+            "with the snapshot-backed _VALID_CONTENT_TYPES.\n"
+            f"  In snapshot but missing from prompt: {sorted(missing_from_prompt)}\n"
+            f"  In prompt but rejected by validator:  {sorted(extra_in_prompt)}"
         )
 
-    def test_q_a_form_enumerates_form_types(self) -> None:
-        """Q_A_FORM_PROMPT should list the 11 canonical form_type values."""
-        form_types = {
-            "bid",
-            "rfp",
-            "pqq",
-            "itt",
-            "tender",
-            "framework",
-            "dps",
-            "gcloud",
-            "checklist",
-            "questionnaire",
-            "sales_proposal_template",
-        }
-        missing = [v for v in form_types if v not in Q_A_FORM_PROMPT]
-        assert not missing, (
-            f"Q_A_FORM_PROMPT missing form_type values: {missing}"
+    def test_q_a_form_enumerates_form_types(self, tmp_path) -> None:
+        """Q_A_FORM_PROMPT must enumerate exactly the snapshot-backed canonical
+        form_type set (no frozen literal)."""
+        # Expectation derives from the single source of truth — the taxonomy
+        # snapshot, loaded by extraction.py — never a hardcoded literal.
+        from scripts.cocoindex_pipeline.extraction import _VALID_FORM_TYPES
+
+        prompt_form_types = _parse_prompt_form_types(Q_A_FORM_PROMPT)
+
+        # Bidirectional parity (folds Inv-2: the prompt names nothing the
+        # validator would reject as invalid_enum).
+        missing_from_prompt = set(_VALID_FORM_TYPES) - prompt_form_types
+        assert not missing_from_prompt, (
+            "Q_A_FORM_PROMPT omits canonical form_type values present in "
+            f"_VALID_FORM_TYPES: {sorted(missing_from_prompt)}"
+        )
+        extra_in_prompt = prompt_form_types - set(_VALID_FORM_TYPES)
+        assert not extra_in_prompt, (
+            "Q_A_FORM_PROMPT names form_type values the validator rejects "
+            f"(not in _VALID_FORM_TYPES): {sorted(extra_in_prompt)}"
+        )
+
+        # Inv-3 drift-tracking: the expectation must MOVE when the snapshot
+        # changes — proving it is data-derived, not a frozen list. Copy the
+        # snapshot, mutate its form_types, monkeypatch the loader path, and
+        # confirm the canonical set tracks the mutation.
+        from scripts.cocoindex_pipeline import extraction as extraction_mod
+
+        original_snapshot = json.loads(
+            extraction_mod._TAXONOMY_SNAPSHOT_PATH.read_text()
+        )
+        mutated_snapshot = json.loads(json.dumps(original_snapshot))
+        mutated_snapshot["form_types"].append(
+            {"key": "drift_probe_form_type", "label": "Drift Probe"}
+        )
+        mutated_path = tmp_path / "taxonomy_snapshot.json"
+        mutated_path.write_text(json.dumps(mutated_snapshot))
+
+        baseline = extraction_mod._load_canonical_form_types()
+        original_path = extraction_mod._TAXONOMY_SNAPSHOT_PATH
+        try:
+            extraction_mod._TAXONOMY_SNAPSHOT_PATH = mutated_path
+            drifted = extraction_mod._load_canonical_form_types()
+        finally:
+            extraction_mod._TAXONOMY_SNAPSHOT_PATH = original_path
+
+        assert "drift_probe_form_type" not in baseline, (
+            "drift probe leaked into the real snapshot-derived set"
+        )
+        assert "drift_probe_form_type" in drifted, (
+            "the canonical form_type set did not track the mutated snapshot — "
+            "the expectation is frozen, not data-derived"
+        )
+        assert drifted == (baseline | {"drift_probe_form_type"}), (
+            "snapshot mutation did not move the expectation by exactly the "
+            f"added key (baseline={sorted(baseline)}, drifted={sorted(drifted)})"
         )
 
     def test_q_a_form_enumerates_expected_response_kind(self) -> None:

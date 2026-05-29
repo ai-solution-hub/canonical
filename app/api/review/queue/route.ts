@@ -10,6 +10,7 @@ import { parseSearchParams } from '@/lib/validation';
 import {
   ReviewQueueParamsSchema,
   PublicationReviewQueueParamsSchema,
+  UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
 } from '@/lib/validation/schemas';
 import type { ReviewQueueResponse, ReviewQueueItem } from '@/types/review';
 import type { Database } from '@/supabase/types/database.types';
@@ -83,6 +84,11 @@ export async function GET(request: NextRequest) {
     // here because it returns true for any non-empty string including
     // the literal 'false'.
     const includeOverdue = searchParams.get('include_overdue') === 'true';
+    // ID-63.12: narrow the queue to the taxonomy 'unclassified' sentinel rows
+    // ({63.11}) so the /review "Unclassified" tab has a populated queue. Raw
+    // string compare mirrors include_overdue / assigned_to_me — only the
+    // literal 'true' is on.
+    const unclassifiedOnly = searchParams.get('unclassified') === 'true';
 
     // If assigned_to_me is active, look up the user's active assignments and
     // merge their filter criteria (domains, content_types) into the query.
@@ -249,6 +255,13 @@ export async function GET(request: NextRequest) {
 
     if (sourceDocumentIdParam) {
       query = query.eq('source_document_id', sourceDocumentIdParam);
+    }
+
+    // ID-63.12: when the "Unclassified" tab is active, narrow to the
+    // 'unclassified' taxonomy sentinel rows ({63.11}) so the tab lists the
+    // out-of-taxonomy content that needs reclassification.
+    if (unclassifiedOnly) {
+      query = query.or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE);
     }
 
     // Apply sort order

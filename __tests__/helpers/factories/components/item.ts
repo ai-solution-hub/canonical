@@ -97,7 +97,7 @@ export function createMockQAItem(
     suggested_title: null,
     summary: null,
     primary_domain: 'Corporate',
-    primary_subtopic: null,
+    primary_subtopic: 'unclassified',
     content_type: 'qa_pair',
     platform: 'web',
     author_name: null,

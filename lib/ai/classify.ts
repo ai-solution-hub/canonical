@@ -1424,8 +1424,11 @@ ${contentForClassification}`,
 
   // Update the content item with classification results
   const updateData: Database['public']['Tables']['content_items']['Update'] = {
-    primary_domain: result.primary_domain,
-    primary_subtopic: result.primary_subtopic,
+    // content_items.primary_domain/subtopic are NOT NULL since ID-63.11;
+    // coerce the sentinel at the DB write — coerceSubtopic keeps null for
+    // the in-memory result.
+    primary_domain: result.primary_domain ?? 'unclassified',
+    primary_subtopic: result.primary_subtopic ?? 'unclassified',
     secondary_domain: result.secondary_domain ?? null,
     secondary_subtopic: result.secondary_subtopic ?? null,
     ai_keywords: uniqueKeywords,

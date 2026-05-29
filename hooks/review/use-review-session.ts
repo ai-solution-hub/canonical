@@ -55,6 +55,7 @@ export interface UseReviewSessionReturn {
 export function useReviewSession(
   searchParams: ReadonlyURLSearchParams,
   statusOverride?: ReviewFiltersType['status'],
+  unclassifiedOverride?: boolean,
 ): UseReviewSessionReturn {
   // -----------------------------------------------------------------------
   // Initialise filters from URL search params (for shareability / back-button)
@@ -67,6 +68,10 @@ export function useReviewSession(
     const source_file = searchParams.get('source_file');
     const source_document_id = searchParams.get('source_document_id');
     const assigned_to_me = searchParams.get('assigned_to_me') === 'true';
+    // ID-63.12 — the "Unclassified" tab passes unclassifiedOverride; the
+    // legacy URL parser path also honours `?unclassified=true` for deep links.
+    const unclassified =
+      unclassifiedOverride || searchParams.get('unclassified') === 'true';
 
     // statusOverride wins when provided (S215 ReviewTabs parent). Else
     // the legacy URL parser path runs unchanged.
@@ -85,6 +90,7 @@ export function useReviewSession(
       source_file: source_file ?? undefined,
       source_document_id: source_document_id ?? undefined,
       assigned_to_me: assigned_to_me || undefined,
+      unclassified: unclassified || undefined,
     };
     // Only compute once on mount — searchParams changes are handled by setFilters
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,6 +143,11 @@ export function useReviewSession(
     }
     if (filters.assigned_to_me) {
       params.set('assigned_to_me', 'true');
+    }
+    // ID-63.12 — round-trip the Unclassified-tab filter for deep-link sharing.
+    params.delete('unclassified');
+    if (filters.unclassified) {
+      params.set('unclassified', 'true');
     }
 
     const search = params.toString();

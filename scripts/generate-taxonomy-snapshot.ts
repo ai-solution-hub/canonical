@@ -100,11 +100,14 @@ async function main() {
   // fallback below is a hardcoded mirror used only when the RPC is unavailable.
   let contentTypes: string[] = [];
   let platforms: string[] = [];
+  let requirementTypes: string[] = [];
 
   if (checkConstraints && Array.isArray(checkConstraints)) {
     for (const row of checkConstraints) {
       if (row.column_name === 'content_type') contentTypes = row.allowed_values;
       if (row.column_name === 'platform') platforms = row.allowed_values;
+      if (row.column_name === 'requirement_type')
+        requirementTypes = row.allowed_values;
     }
   }
 
@@ -133,6 +136,18 @@ async function main() {
     platforms = ['web', 'email', 'manual', 'upload', 'extraction', 'other'];
     console.warn('  Using fallback platforms (RPC not available)');
   }
+  if (requirementTypes.length === 0) {
+    requirementTypes = [
+      'policy',
+      'statement',
+      'evidence',
+      'data',
+      'narrative',
+      'declaration',
+      'reference',
+    ];
+    console.warn('  Using fallback requirement_type (RPC not available)');
+  }
 
   // Build snapshot
   const snapshot = {
@@ -154,6 +169,7 @@ async function main() {
     })),
     content_types: contentTypes,
     platforms: platforms,
+    requirement_type: requirementTypes,
     form_types: (formTypes ?? []).map((row) => ({
       key: row.key,
       label: row.label,
@@ -180,6 +196,7 @@ async function main() {
   console.log(`  Subtopics: ${snapshot.subtopics.length}`);
   console.log(`  Content types: ${snapshot.content_types.length}`);
   console.log(`  Platforms: ${snapshot.platforms.length}`);
+  console.log(`  Requirement types: ${snapshot.requirement_type.length}`);
   console.log(`  Form types: ${snapshot.form_types.length}`);
 }
 

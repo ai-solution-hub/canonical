@@ -41,11 +41,14 @@ from scripts.cocoindex_pipeline.extraction import (
     QAFormExtraction,
     QAPair,
     _VALID_CONTENT_TYPES,
+    _VALID_DOMAINS,
     _VALID_FORM_TYPES,
+    _VALID_SUBTOPICS,
     classify_pydantic_error,
     normalise_entity_span,
     stamp_extraction_base,
 )
+from scripts.cocoindex_pipeline.flow_context import bind_taxonomy_miss_counter
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -126,6 +129,74 @@ class TestClassificationVariant:
                 classification_confidence=0.5,
             )
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+    def test_accepts_a_supplied_primary_subtopic(
+        self, base_fields: dict
+    ) -> None:
+        """ID-63.7 (OQ-63-9): the classification shape carries a nullable
+        `primary_subtopic` snake_case identifier alongside `primary_domain`."""
+        extraction = ClassificationExtraction(
+            **base_fields,
+            content_type="policy",
+            primary_domain="compliance",
+            primary_subtopic="data_protection",
+            classification_confidence=0.88,
+        )
+        assert extraction.primary_subtopic == "data_protection"
+
+    def test_primary_subtopic_defaults_to_none_when_omitted(
+        self, base_fields: dict
+    ) -> None:
+        """ID-63.7: `primary_subtopic` is optional/nullable so omitting it
+        leaves the field None — backward-compatible with existing callers
+        under `ConfigDict(extra='forbid')`."""
+        extraction = ClassificationExtraction(
+            **base_fields,
+            content_type="research",
+            primary_domain="security",
+            classification_confidence=0.7,
+        )
+        assert extraction.primary_subtopic is None
+
+    def test_round_trips_primary_subtopic_via_json(
+        self, base_fields_json: dict
+    ) -> None:
+        """ID-63.7: a `primary_subtopic` value survives the canonical
+        `TypeAdapter.validate_json` round-trip the extraction stage uses."""
+        payload = {
+            **base_fields_json,
+            "extraction_kind": "classification",
+            "content_type": "policy",
+            "primary_domain": "compliance",
+            "primary_subtopic": "information_governance",
+            "classification_confidence": 0.9,
+            "secondary_classifications": [],
+            "rationale": None,
+        }
+        ta = TypeAdapter(ExtractionOutput)
+        parsed = ta.validate_json(json.dumps(payload))
+        assert isinstance(parsed, ClassificationExtraction)
+        assert parsed.primary_subtopic == "information_governance"
+
+    def test_round_trips_null_primary_subtopic_via_json(
+        self, base_fields_json: dict
+    ) -> None:
+        """ID-63.7: an explicit `null` `primary_subtopic` round-trips to
+        None rather than being rejected as an unexpected field."""
+        payload = {
+            **base_fields_json,
+            "extraction_kind": "classification",
+            "content_type": "research",
+            "primary_domain": "security",
+            "primary_subtopic": None,
+            "classification_confidence": 0.6,
+            "secondary_classifications": [],
+            "rationale": None,
+        }
+        ta = TypeAdapter(ExtractionOutput)
+        parsed = ta.validate_json(json.dumps(payload))
+        assert isinstance(parsed, ClassificationExtraction)
+        assert parsed.primary_subtopic is None
 
 
 class TestQAFormVariant:
@@ -834,3 +905,196 @@ class TestContentTypeParity:
         wrong (the canonical list is hand-curated and stable)."""
         n = len(taxonomy_from_snapshot["content_types"])
         assert 10 <= n <= 50
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# ID-63.8 — out-of-taxonomy soft-warn (PRODUCT Inv-6/7; TECH §3.5-§3.7)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class _RecordingMissCounter:
+    """Lightweight stand-in for the production `_FlowTaxonomyMissCounter`.
+
+    Satisfies the `TaxonomyMissCounter` structural protocol so a
+    `ClassificationExtraction` construction inside a
+    `bind_taxonomy_miss_counter` scope records misses into `recorded`.
+    """
+
+    def __init__(self) -> None:
+        self.recorded: list[tuple[str, str]] = []
+
+    def record(self, *, field: str, value: str) -> None:
+        self.recorded.append((field, value))
+
+    def get(self, *, field: str, value: str) -> int:
+        return self.recorded.count((field, value))
+
+    def tally_by_field(self) -> dict[str, int]:
+        tally: dict[str, int] = {}
+        for field, _value in self.recorded:
+            tally[field] = tally.get(field, 0) + 1
+        return tally
+
+
+def _build_classification_under_counter(
+    counter: _RecordingMissCounter,
+    base_fields: dict,
+    **overrides: object,
+) -> ClassificationExtraction:
+    """Construct a ClassificationExtraction inside the counter binding.
+
+    The soft-warn model-validator runs at construction time and reads the
+    flow-bound counter via `current_taxonomy_miss_counter()`, so the
+    construction must happen inside the `bind_taxonomy_miss_counter`
+    async-context-manager scope.
+    """
+
+    async def _exercise() -> ClassificationExtraction:
+        async with bind_taxonomy_miss_counter(counter):
+            return ClassificationExtraction(**base_fields, **overrides)
+
+    return asyncio.run(_exercise())
+
+
+class TestTaxonomyParityGuards:
+    """ID-63.8 §3.5/§3.6 — module-load sets match the snapshot."""
+
+    def test_valid_domains_matches_snapshot(self, valid_domains: list) -> None:
+        assert _VALID_DOMAINS == {d["name"] for d in valid_domains}
+
+    def test_valid_subtopics_matches_snapshot(
+        self, valid_subtopics: list
+    ) -> None:
+        assert _VALID_SUBTOPICS == {s["name"] for s in valid_subtopics}
+
+    def test_subtopic_names_globally_unique(
+        self, valid_subtopics: list
+    ) -> None:
+        """TECH §1.6 — a FLAT subtopic set is correct because subtopic names
+        are globally unique across domains; a collision would mean the flat
+        set silently drops a value."""
+        names = [s["name"] for s in valid_subtopics]
+        assert len(names) == len(set(names))
+
+
+class TestOutOfTaxonomySoftWarn:
+    """ID-63.8 — PRODUCT Inv-7: out-of-taxonomy values are observed, not rejected."""
+
+    def test_out_of_taxonomy_primary_domain_validates_and_records(
+        self, base_fields: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An unknown primary_domain VALIDATES (returns an instance, unchanged),
+        bumps the bound counter with field='primary_domain', and warns."""
+        counter = _RecordingMissCounter()
+        with caplog.at_level("WARNING"):
+            extraction = _build_classification_under_counter(
+                counter,
+                base_fields,
+                content_type="policy",
+                primary_domain="not_a_real_domain",
+                classification_confidence=0.8,
+            )
+        # Row written UNCHANGED — no coercion, no drop.
+        assert isinstance(extraction, ClassificationExtraction)
+        assert extraction.primary_domain == "not_a_real_domain"
+        assert counter.recorded == [("primary_domain", "not_a_real_domain")]
+        assert any(
+            "out-of-taxonomy" in rec.getMessage()
+            and "primary_domain" in rec.getMessage()
+            for rec in caplog.records
+        )
+
+    def test_out_of_taxonomy_primary_subtopic_validates_and_records(
+        self, base_fields: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        counter = _RecordingMissCounter()
+        with caplog.at_level("WARNING"):
+            extraction = _build_classification_under_counter(
+                counter,
+                base_fields,
+                content_type="policy",
+                primary_domain="security",
+                primary_subtopic="not_a_real_subtopic",
+                classification_confidence=0.8,
+            )
+        assert extraction.primary_subtopic == "not_a_real_subtopic"
+        assert counter.recorded == [
+            ("primary_subtopic", "not_a_real_subtopic")
+        ]
+        assert any(
+            "primary_subtopic" in rec.getMessage() for rec in caplog.records
+        )
+
+    def test_out_of_taxonomy_secondary_classification_records(
+        self, base_fields: dict
+    ) -> None:
+        """Each out-of-taxonomy secondary_classifications value records a
+        'secondary_classification' miss (one per offending entry)."""
+        counter = _RecordingMissCounter()
+        extraction = _build_classification_under_counter(
+            counter,
+            base_fields,
+            content_type="policy",
+            primary_domain="security",
+            classification_confidence=0.8,
+            secondary_classifications=["security", "not_a_real_domain"],
+        )
+        # Valid 'security' is untouched; only the unknown value is recorded.
+        assert extraction.secondary_classifications == [
+            "security",
+            "not_a_real_domain",
+        ]
+        assert counter.recorded == [
+            ("secondary_classification", "not_a_real_domain")
+        ]
+
+    def test_valid_domain_and_subtopic_no_bump_no_warning(
+        self, base_fields: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A wholly in-taxonomy classification records NOTHING and emits no
+        soft-warn — the happy path stays silent."""
+        counter = _RecordingMissCounter()
+        with caplog.at_level("WARNING"):
+            extraction = _build_classification_under_counter(
+                counter,
+                base_fields,
+                content_type="policy",
+                primary_domain="security",
+                primary_subtopic="functionality",
+                classification_confidence=0.9,
+                secondary_classifications=["security"],
+            )
+        assert isinstance(extraction, ClassificationExtraction)
+        assert counter.recorded == []
+        assert not any(
+            "out-of-taxonomy" in rec.getMessage() for rec in caplog.records
+        )
+
+    def test_soft_warn_does_not_require_bound_counter(
+        self, base_fields: dict
+    ) -> None:
+        """With NO counter bound, an out-of-taxonomy value still VALIDATES
+        (returns the instance unchanged) — observability is skipped, the row
+        is never rejected."""
+        extraction = ClassificationExtraction(
+            **base_fields,
+            content_type="policy",
+            primary_domain="not_a_real_domain",
+            classification_confidence=0.7,
+        )
+        assert extraction.primary_domain == "not_a_real_domain"
+
+    def test_inv5_content_type_hard_reject_still_raises(
+        self, base_fields: dict
+    ) -> None:
+        """Inv-5 witness: out-of-vocab content_type 'junk' STILL raises a
+        ValidationError → invalid_enum. The Inv-7 soft-warn must not weaken
+        the content_type hard-reject path."""
+        with pytest.raises(ValidationError) as exc_info:
+            ClassificationExtraction(
+                **base_fields,
+                content_type="junk",
+                primary_domain="security",
+                classification_confidence=0.5,
+            )
+        assert classify_pydantic_error(exc_info.value) == "invalid_enum"

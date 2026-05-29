@@ -37,6 +37,7 @@ export interface AttentionItem {
     | 'expiring_content_date'
     | 'source_document_change'
     | 'coverage_gap'
+    | 'taxonomy_coverage'
     | 'unread_notifications';
 
   /** Four-tier severity for sort ordering */
@@ -87,6 +88,16 @@ export interface AttentionSourceData {
   expiring_content_date_count: number;
   unread_notification_count: number;
   coverage_gap_count: number;
+  /**
+   * Count of non-archived content_items whose taxonomy classification is
+   * incomplete — `primary_domain = 'unclassified'` OR
+   * `primary_subtopic = 'unclassified'` (the sentinel established by ID-63
+   * {63.11} NOT NULL DEFAULT 'unclassified' schema change, persisted by the
+   * cocoindex flow in {63.7}). Ties the dashboard actionable-insight to the
+   * Inv-7 taxonomy-coverage concept that the {63.8} flow-end webhook emits as
+   * its taxonomy-miss counter. ID-63.12.
+   */
+  unclassified_count: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -389,6 +400,38 @@ export function produceCoverageGapItems(gapCount: number): AttentionItem[] {
   ];
 }
 
+/**
+ * Taxonomy-coverage gap — info severity.
+ *
+ * Surfaces content_items that landed on the 'unclassified' taxonomy sentinel
+ * (ID-63 {63.11} NOT NULL DEFAULT 'unclassified'): rows where the classifier
+ * could not place the item in a known domain/subtopic. This is the
+ * dashboard-side mirror of the Inv-7 taxonomy-miss counter that the {63.8}
+ * flow-end webhook emits, and complements the /review "Unclassified" tab. The
+ * action routes the editor straight to that tab so the sentinel rows can be
+ * reclassified. Visible to editors and admins who manage content. ID-63.12.
+ */
+export function produceTaxonomyCoverageItems(count: number): AttentionItem[] {
+  if (count <= 0) return [];
+
+  return [
+    {
+      id: 'attention-taxonomy-coverage',
+      type: 'taxonomy_coverage',
+      severity: 'info',
+      entity_type: 'aggregate',
+      entity_id: 'taxonomy-coverage',
+      title: `${count} unclassified content ${count === 1 ? 'item' : 'items'}`,
+      detail: `${count} content ${count === 1 ? 'item could' : 'items could'} not be placed in the taxonomy and ${count === 1 ? 'is' : 'are'} marked unclassified. Reclassify ${count === 1 ? 'it' : 'them'} so the knowledge base stays fully covered.`,
+      action_url: '/review?tab=unclassified',
+      action_label: 'Reclassify items',
+      role_visibility: ['admin', 'editor'],
+      claude_prompt: `There are ${count} unclassified content items that fell outside the taxonomy. Show me the unclassified items and help me assign the right domain and subtopic to each.`,
+      count,
+    },
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // Sort and filter functions
 // ---------------------------------------------------------------------------
@@ -456,6 +499,7 @@ export function buildAttentionItems(
     ...produceExpiringContentDateItems(data.expiring_content_date_count),
     ...produceUnreadNotificationItems(data.unread_notification_count),
     ...produceCoverageGapItems(data.coverage_gap_count),
+    ...produceTaxonomyCoverageItems(data.unclassified_count),
   ];
 
   return sortAttentionItems(allItems);

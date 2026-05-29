@@ -98,7 +98,7 @@ const ITEM_A: ReviewQueueItem = {
   suggested_title: null,
   summary: null,
   primary_domain: 'Technical',
-  primary_subtopic: null,
+  primary_subtopic: 'unclassified',
   secondary_domain: null,
   secondary_subtopic: null,
   content_type: 'q_a_pair',

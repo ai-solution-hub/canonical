@@ -64,11 +64,18 @@ export interface ReviewContentProps {
    * the parent tabs surface owns `status`.
    */
   hideStatusPills?: boolean;
+  /**
+   * ID-63.12 — when true, the underlying queue is narrowed to the taxonomy
+   * 'unclassified' sentinel rows ({63.11}). Set by the "Unclassified" tab in
+   * `components/review/review-tabs.tsx`.
+   */
+  initialUnclassified?: boolean;
 }
 
 export function ReviewContent({
   initialStatus,
   hideStatusPills = false,
+  initialUnclassified = false,
 }: ReviewContentProps = {}) {
   const {
     // State
@@ -115,7 +122,7 @@ export function ReviewContent({
     // Keyboard shortcuts
     showHelp,
     setShowHelp,
-  } = useReviewQueue(initialStatus);
+  } = useReviewQueue(initialStatus, initialUnclassified);
 
   // Fetch review history for the current item
   const { history: reviewHistory, isLoading: reviewHistoryLoading } =

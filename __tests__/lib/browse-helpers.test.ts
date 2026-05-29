@@ -164,7 +164,7 @@ describe('getCursorFromItem', () => {
   });
 
   it('returns null for domain cursor when primary_domain is missing', () => {
-    const item = makeItem({ primary_domain: null });
+    const item = makeItem({ primary_domain: '' });
     expect(getCursorFromItem(item, 'primary_domain')).toBeNull();
   });
 

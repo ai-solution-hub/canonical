@@ -30,6 +30,7 @@ const SNAPSHOT_PATH = join(
 interface TaxonomySnapshot {
   content_types?: string[];
   platforms?: string[];
+  requirement_type?: string[];
 }
 
 const SNAPSHOT_EXISTS = existsSync(SNAPSHOT_PATH);
@@ -101,7 +102,12 @@ describe('Markdown Ontology Parity', () => {
             );
             continue;
           }
-          const mdKeys = cv.baseline_values.map((bv) => bv.key);
+          // {63.9} made baseline_values optional (requirement_type standalone
+          // case). A wired snapshot key always implies baseline_values must be
+          // present for the parity comparison — fail loudly if it is missing.
+          expect(cv.baseline_values).toBeDefined();
+          const baselineValues = cv.baseline_values ?? [];
+          const mdKeys = baselineValues.map((bv) => bv.key);
           const mdSet = new Set(mdKeys);
           const dbSet = new Set(dbValues);
           const missingFromMD = dbValues.filter((v) => !mdSet.has(v));
@@ -121,6 +127,43 @@ describe('Markdown Ontology Parity', () => {
           errors,
           `Markdown ↔ DB CHECK drift:\n${errors.join('\n')}`,
         ).toHaveLength(0);
+      });
+
+      // Standalone parity case for `requirement_type` (ID-63.9 — PRODUCT
+      // Inv-9; TECH §3.9 + §5.2). The `12-requirement-type.md` CV is
+      // `editable_via: admin_ui`, so the `database_migration` loop above
+      // skips it entirely — this case is NOT gated on `editable_via` and
+      // asserts the markdown baseline_values match the snapshot
+      // `requirement_type` set both ways. The snapshot is DB-derived, so
+      // markdown == snapshot == live DB CHECK holds transitively.
+      it('requirement_type markdown baseline_values match the snapshot requirement_type set and the live DB CHECK both ways', () => {
+        const reqCV = cvs.find((cv) => cv.cv_name === 'requirement_type');
+        expect(
+          reqCV,
+          'requirement_type CV not found among loaded ontology files',
+        ).toBeDefined();
+
+        const dbValues = snapshot!.requirement_type;
+        expect(
+          Array.isArray(dbValues),
+          "snapshot key 'requirement_type' is missing from taxonomy_snapshot.json",
+        ).toBe(true);
+
+        const mdKeys = (reqCV!.baseline_values ?? []).map((bv) => bv.key);
+        const md = [...mdKeys].sort();
+        const db = [...(dbValues ?? [])].sort();
+
+        const mdSet = new Set(mdKeys);
+        const dbSet = new Set(dbValues ?? []);
+        const missingFromMD = (dbValues ?? []).filter((v) => !mdSet.has(v));
+        const missingFromDB = mdKeys.filter((k) => !dbSet.has(k));
+
+        expect(
+          md,
+          `requirement_type Markdown ↔ snapshot/DB CHECK drift:\n` +
+            `  in DB CHECK but missing from markdown: ${missingFromMD.join(', ') || '(none)'}\n` +
+            `  in markdown but missing from DB CHECK: ${missingFromDB.join(', ') || '(none)'}`,
+        ).toEqual(db);
       });
     },
   );

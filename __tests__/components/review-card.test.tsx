@@ -235,7 +235,7 @@ describe('ReviewCard', () => {
   it('hides domain badge when primary_domain is null', () => {
     render(
       <ReviewCard
-        item={makeReviewItem({ primary_domain: null })}
+        item={makeReviewItem({ primary_domain: '' })}
         position={1}
         total={1}
       />,

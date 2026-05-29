@@ -240,3 +240,61 @@ async def bind_workspace_manifest(
 def current_workspace_manifest() -> object | None:
     """Return the currently-bound workspace manifest, or None if no binding."""
     return _workspace_manifest_var.get()
+
+
+# Taxonomy-miss-counter binding (ID-63.8 — Inv-7 out-of-taxonomy soft-warn).
+#
+# `ClassificationExtraction`'s `_surface_out_of_taxonomy_classification`
+# model-validator (extraction.py) records a miss each time the LLM proposes a
+# `primary_domain` / `primary_subtopic` / `secondary_classification` value
+# outside the canonical taxonomy snapshot. The row is STILL written unchanged
+# (soft-warn, never raise — PRODUCT Inv-7); the counter exists purely for
+# observability. Routing it through `flow_context` (rather than a direct
+# `extraction.py → flow.py` import) avoids an import cycle and lets unit tests
+# omit the binding entirely (the validator skips `.record()` when
+# `current_taxonomy_miss_counter()` is None), exactly as the retry / stage
+# counters do.
+#
+# The counter is keyed by `(field, value)` so the flow-end webhook can break
+# the tally down by field — `field` is one of `'primary_domain'`,
+# `'primary_subtopic'`, `'secondary_classification'`.
+
+
+class TaxonomyMissCounter(Protocol):
+    """Structural type any per-flow taxonomy-miss counter must satisfy.
+
+    `_FlowTaxonomyMissCounter` in `flow.py` is the production implementation;
+    tests supply lightweight stand-ins. `field` distinguishes the dimension
+    that missed (`'primary_domain'` / `'primary_subtopic'` /
+    `'secondary_classification'`); `value` is the offending taxonomy term.
+    """
+
+    def record(self, *, field: str, value: str) -> None: ...
+    def get(self, *, field: str, value: str) -> int: ...
+    def tally_by_field(self) -> dict[str, int]: ...
+
+
+_taxonomy_miss_counter_var: contextvars.ContextVar[TaxonomyMissCounter | None] = (
+    contextvars.ContextVar("_kh_flow_taxonomy_miss_counter_var", default=None)
+)
+
+
+@asynccontextmanager
+async def bind_taxonomy_miss_counter(
+    counter: TaxonomyMissCounter,
+) -> AsyncIterator[TaxonomyMissCounter]:
+    """Bind a taxonomy-miss counter for the duration of the wrapped async block.
+
+    Token-based reset on exit — safe against nesting + exceptions, mirroring
+    `bind_retry_counter` / `bind_stage_counter`.
+    """
+    token = _taxonomy_miss_counter_var.set(counter)
+    try:
+        yield counter
+    finally:
+        _taxonomy_miss_counter_var.reset(token)
+
+
+def current_taxonomy_miss_counter() -> TaxonomyMissCounter | None:
+    """Return the currently-bound taxonomy-miss counter, or None if no binding."""
+    return _taxonomy_miss_counter_var.get()

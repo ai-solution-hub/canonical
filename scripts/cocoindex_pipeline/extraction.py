@@ -22,6 +22,7 @@ References:
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal, Union
@@ -36,6 +37,7 @@ from pydantic import (
     TypeAdapter,
     ValidationError,
     field_validator,
+    model_validator,
 )
 
 from scripts.cocoindex_pipeline.prompts import (
@@ -125,6 +127,53 @@ def _load_canonical_form_types() -> frozenset[str]:
 
 
 _VALID_FORM_TYPES: frozenset[str] = _load_canonical_form_types()
+
+
+def _load_canonical_name_set(array_key: str) -> frozenset[str]:
+    """Read a canonical name set (`name`-keyed objects) from the snapshot.
+
+    Shared body for `domains` (ID-63.8 / TECH §3.5) and `subtopics`
+    (TECH §3.6), both of which carry an array of objects each holding a string
+    `name`. Mirrors `_load_canonical_form_types`' fail-loud discipline: it
+    raises only if `array_key`'s array is structurally malformed (missing /
+    empty, or an entry lacking a string `name`), surfacing taxonomy-sync drift
+    loudly at import time rather than silently degrading the downstream
+    soft-warn. Membership itself is enforced as a NON-RAISING soft-warn on
+    `ClassificationExtraction` (PRODUCT Inv-6/7).
+    """
+    with _TAXONOMY_SNAPSHOT_PATH.open() as fh:
+        snapshot = json.load(fh)
+    rows = snapshot.get(array_key)
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(
+            f"taxonomy_snapshot.json missing '{array_key}' array — "
+            f"path={_TAXONOMY_SNAPSHOT_PATH}"
+        )
+    names: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError(
+                f"taxonomy_snapshot.json {array_key} entry must be an object "
+                f"with a string 'name' — got {row!r}"
+            )
+        name = row.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError(
+                f"taxonomy_snapshot.json {array_key} entry missing string "
+                f"'name' — got {row!r}"
+            )
+        names.append(name)
+    return frozenset(names)
+
+
+# Subtopic names are GLOBALLY UNIQUE across domains (56 distinct values at v1 —
+# TECH §1.6), so a FLAT subtopic set is the correct v1 contract: no
+# `domain_id`-scoping is needed to disambiguate.
+_VALID_DOMAINS: frozenset[str] = _load_canonical_name_set("domains")
+_VALID_SUBTOPICS: frozenset[str] = _load_canonical_name_set("subtopics")
+
+
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +309,12 @@ class ClassificationExtraction(_ExtractionBase):
     extraction_kind: Literal["classification"] = "classification"
     content_type: str
     primary_domain: str
+    # ID-63.7 (OQ-63-9): nullable subtopic dimension persisted alongside
+    # primary_domain. Optional/nullable so it is backward-compatible with
+    # existing callers under ConfigDict(extra='forbid') — it is a declared
+    # field, not an extra. Taxonomy-membership enforcement is the
+    # snapshot-backed soft-warn added in {63.8}; no field_validator here.
+    primary_subtopic: str | None = None
     classification_confidence: float = Field(ge=0.0, le=1.0)
     secondary_classifications: list[str] = Field(default_factory=list)
     rationale: str | None = None
@@ -276,6 +331,59 @@ class ClassificationExtraction(_ExtractionBase):
                 f"(valid: {sorted(_VALID_CONTENT_TYPES)})"
             )
         return value
+
+    @model_validator(mode="after")
+    def _surface_out_of_taxonomy_classification(
+        self,
+    ) -> "ClassificationExtraction":
+        """Soft-warn out-of-taxonomy domain / subtopic / secondary values.
+
+        PRODUCT Inv-6/7 (TECH §3.5-§3.7): the LLM may propose a
+        `primary_domain`, `primary_subtopic`, or `secondary_classifications[]`
+        value outside the canonical taxonomy snapshot. Unlike `content_type`
+        (Inv-5 HARD-reject via the `_validate_content_type` field-validator),
+        these dimensions are OBSERVABILITY-ONLY: the row is written UNCHANGED.
+
+        For each miss we (1) bump the flow-bound `TaxonomyMissCounter` when one
+        is bound, and (2) emit a `logging.warning`. We deliberately do NOT
+        coerce-to-first-valid (cf. the TS `validateDomain` /
+        `coerceSubtopic` smells) and do NOT drop / reject. Because this
+        validator ALWAYS returns `self` and NEVER raises, it never produces a
+        pydantic error and therefore never routes through
+        `_PYDANTIC_ERROR_TO_ERROR_CLASS` — the Inv-5 `content_type` hard-reject
+        path is left entirely intact.
+        """
+        misses: list[tuple[str, str]] = []
+        if self.primary_domain not in _VALID_DOMAINS:
+            misses.append(("primary_domain", self.primary_domain))
+        if (
+            self.primary_subtopic is not None
+            and self.primary_subtopic not in _VALID_SUBTOPICS
+        ):
+            misses.append(("primary_subtopic", self.primary_subtopic))
+        for secondary in self.secondary_classifications:
+            if secondary not in _VALID_DOMAINS:
+                misses.append(("secondary_classification", secondary))
+
+        if misses:
+            # Lazy import via `__package__` resolves to whichever sys.modules
+            # entry the caller used — same dual-import discipline as
+            # `_bump_flow_retry_counter` / `stamp_extraction_base` (test
+            # sys.path injection otherwise yields two ContextVar stores).
+            from importlib import import_module
+
+            flow_context_module = import_module(f"{__package__}.flow_context")
+            counter = flow_context_module.current_taxonomy_miss_counter()
+            for field, value in misses:
+                if counter is not None:
+                    counter.record(field=field, value=value)
+                _logger.warning(
+                    "out-of-taxonomy %s %r — row written (soft-warn per "
+                    "ID-63 Inv-7)",
+                    field,
+                    value,
+                )
+        return self
 
 
 # Discriminated-union root for code that wants the union type

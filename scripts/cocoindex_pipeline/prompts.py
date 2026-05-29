@@ -13,7 +13,8 @@ The prompts are written to:
 1. Force JSON-only output (no markdown fences, no commentary) so the
    downstream Pydantic `TypeAdapter.validate_json()` round-trip is direct.
 2. Enumerate the valid field values verbatim — `extraction_kind`, the
-   12-value `entity_type` Literal, the 11-value `form_type` Literal, the
+   12-value `entity_type` Literal, the 8-value `form_type` set
+   (snapshot-backed; see `extraction.py:_VALID_FORM_TYPES`), the
    2-value `expected_response_kind` Literal — so prompt drift is rare.
 3. Omit the `_ExtractionBase` fields (`op_id`, `content_items_id`,
    `extracted_at`). Those are stamped POST-validation by
@@ -44,6 +45,7 @@ Return ONLY a single JSON object — no markdown fences, no commentary, no pream
     "extraction_kind": "classification",
     "content_type": <one of the canonical values listed below>,
     "primary_domain": <short snake_case domain name>,
+    "primary_subtopic": <short snake_case subtopic name, OR null>,
     "classification_confidence": <float between 0.0 and 1.0>,
     "secondary_classifications": [<list of secondary domain names>],
     "rationale": <one-paragraph explanation of the classification decision, OR null>
@@ -55,6 +57,7 @@ FIELD CONSTRAINTS
 - content_type: MUST be ONE of the following canonical values:
   article, blog, pdf, note, research, other, q_a_pair, case_study, policy, certification, compliance, methodology, capability, product_description, document.
 - primary_domain: a short snake_case identifier of the document's primary domain (e.g. security, compliance, implementation, support, corporate, product_feature, methodology).
+- primary_subtopic: a short snake_case identifier of the document's primary subtopic WITHIN that domain (e.g. data_protection, access_control, incident_response, supplier_onboarding, tender_evaluation). Use null when no single subtopic is clearly primary.
 - classification_confidence: a float between 0.0 and 1.0 representing your confidence in the primary classification. Use 0.9+ when the document is unambiguous; 0.6-0.85 when the document spans multiple domains but one is clearly primary; 0.3-0.6 when classification is uncertain.
 - secondary_classifications: a list of zero or more secondary domain names. Use snake_case identifiers. Empty list is acceptable when the document is single-domain.
 - rationale: a one-paragraph (up to ~3 sentences) explanation of why this classification was chosen. Use null when the classification is self-evident from content_type alone.
@@ -101,7 +104,7 @@ Return ONLY a single JSON object — no markdown fences, no commentary, no pream
 FIELD CONSTRAINTS
 
 - extraction_kind: MUST be the exact string "q_a_form".
-- form_metadata.form_type: MUST be ONE of: bid, rfp, pqq, itt, tender, framework, dps, gcloud, checklist, questionnaire, sales_proposal_template.
+- form_metadata.form_type: MUST be ONE of: bid, rfp, pqq, itt, tender, checklist, questionnaire, sales_proposal_template.
 - form_metadata.form_format: MUST be ONE of: docx, xlsx, pdf, html, md.
 - form_metadata.deadline: if present, MUST be a valid ISO 8601 UTC datetime string (e.g. "2026-06-30T17:00:00Z").
 - qa_pairs[*].question_text: non-empty string verbatim from the document.
@@ -111,7 +114,7 @@ FIELD CONSTRAINTS
 
 GUIDANCE
 
-- Choose `bid` / `rfp` / `pqq` / `itt` / `tender` / `framework` / `dps` / `gcloud` for procurement forms; `checklist` / `questionnaire` for non-procurement structured forms; `sales_proposal_template` for outbound sales templates.
+- Choose `bid` / `rfp` / `pqq` / `itt` / `tender` for procurement forms; `checklist` / `questionnaire` for non-procurement structured forms; `sales_proposal_template` for outbound sales templates.
 - Mark a question `mandatory` when the form indicates a required response (e.g. "must", "required", marked with asterisks); otherwise `optional`.
 - If the document is NOT a form (e.g. a policy or methodology), still return a valid JSON object with `qa_pairs: []` — do NOT invent Q&A pairs from non-form content.
 - Use UK English (organise, behaviour, colour) in any descriptive fields.
