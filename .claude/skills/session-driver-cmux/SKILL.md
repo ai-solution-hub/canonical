@@ -270,6 +270,7 @@ KH "Worktree isolation rules" from CLAUDE.md apply unchanged:
 | `converse.sh`        | `<worker-name> <session-id> <prompt> [timeout=120]`                                              | send-prompt + wait-for-stop + return last assistant text     |
 | `wait-for-fleet.sh`  | `--mode any\|all [--timeout S] <session-id>...`                                                  | Wait for any-of or all-of a set of workers to emit `stop`    |
 | `stop-worker.sh`     | `<worker-name> <session-id> [--force] [--delete-branch]`                                         | /exit, close workspace, verify clean tree, remove worktree; optionally delete worker branch |
+| `watch-fleet.sh`     | `[env: IGNORE SEEN_OQ SEEN_FINAL SEEN_SEND INTERVAL MAX_POLLS QUIET_POLLS]`                      | Smart multi-signal watcher: exits (wakes parent) on any actionable fleet event (session_end / final_report.* / OQ-heading growth / AskUserQuestion stall / stop pause / fleet-quiet). Complements `wait-for-fleet.sh`. |
 
 **`--brief <file>`**: copies the file into the worker worktree as
 `.cmux-brief.md` and auto-sends "Read .cmux-brief.md before any work." after
@@ -294,6 +295,30 @@ work or re-run with `--force`. The dirty-tree check excludes
 `#` comments skipped) and copies each existing source from project root into
 the new worktree. Plain paths only — no glob expansion. Canonical case:
 `.env.local`.
+
+### Monitoring: `wait-for-fleet.sh` vs `watch-fleet.sh`
+
+The two monitoring primitives are complementary:
+
+- `wait-for-fleet.sh` — block-on-`stop` primitive: blocks until any-of / all-of a
+  named session set emits `stop`. Use for race / first-to-finish gating.
+- `watch-fleet.sh` — smart multi-signal watcher: scans every worker's
+  `events.jsonl` + worktree and EXITS (waking the parent) on the FIRST actionable
+  signal across the fleet — `session_end`, a `final_report.*` in the events dir,
+  a new `## OQ` heading in a worker's root `OQ-pending.md`, an `AskUserQuestion`
+  stall, a `stop` pause, or fleet-wide quiet. Exit 0 = tripped (report on stdout);
+  exit 2 = max-poll timeout (re-arm).
+
+Canonical orchestrator loop:
+
+    launch-worker  ->  send-prompt  ->  watch-fleet.sh
+                                          (exit 2: re-arm; exit 0: act on report)
+                                       ->  stop-worker
+
+Cross-reference (do NOT absorb): the OQ-escalation channel
+(`docs/specs/id-43-oq-escalation/`) shares the events-dir transport but carries
+worker->parent *decisions* (questions needing a ruling); `watch-fleet.sh` carries
+*lifecycle / attention* signals. Distinct payloads, same directory.
 
 ### Reading worker output
 
