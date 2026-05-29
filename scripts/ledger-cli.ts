@@ -1439,8 +1439,14 @@ function disciplineWarnings(
 type RegenRunner = () => number | null;
 
 let regenRunner: RegenRunner = () => {
+  // ID-35.44 stdout-purity: `regen-mirrors.sh` echoes human/advisory lines to
+  // its stdout. With `stdio: 'inherit'` those bytes land on THIS process's
+  // stdout (fd1) and interleave with the JSON envelope `emit()` writes,
+  // breaking `ledger-cli … | jq`. Route the child's stdout to the parent's
+  // stderr (fd2) so every regen diagnostic stays visible but fd1 carries the
+  // pure single-line JSON envelope only. stdin is ignored; child stderr→fd2.
   const r = spawnSync('bash', ['scripts/regen-mirrors.sh'], {
-    stdio: 'inherit',
+    stdio: ['ignore', 2, 2],
   });
   return r.status;
 };
@@ -1603,10 +1609,16 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
   }
 
   if (dryRun) {
+    // ID-35.44 stdout-purity: previously dumped the WHOLE 34-67 KB ledger
+    // document (`detected.data`). {35.30} bounded the WARNINGS to the touched
+    // record but left this dump. Mirror the already-bounded success envelope —
+    // return the caller's bounded `resultPayload` (the same shape the live
+    // write emits) tagged `dryRun: true`, never the full document. `promote`'s
+    // dry-run was already bounded; this brings the generic path into line.
     return {
       ok: true,
       subcommand,
-      result: { dryRun: true, document: detected.data },
+      result: { dryRun: true, ...(resultPayload as object) },
       warnings: warnings.length ? warnings : undefined,
     };
   }
