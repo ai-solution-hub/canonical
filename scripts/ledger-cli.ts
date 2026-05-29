@@ -822,6 +822,18 @@ const SUBCOMMAND_HELP: Record<
       '--force --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
+  'add-subtasks': {
+    synopsis:
+      'add-subtasks <taskId> --file <json|-> — bulk-insert a JSON ARRAY of Subtasks (ONE scoped multi-splice)',
+    flags:
+      'input: JSON ARRAY via positional JSON | --file <path> (- = stdin); ' +
+      'sequential auto-ids across the batch (records with an explicit id keep ' +
+      'it); per-record budget enforced atomically (any over-budget record ' +
+      'rejects the WHOLE batch unless --force); a non-array body is rejected ' +
+      '(use `add-subtask` for a single Subtask); ' +
+      '--force --dry-run --pretty --no-regen-mirrors',
+    kinds: ['subtask'],
+  },
   'open-task': {
     synopsis: 'open-task <taskJson | --title …> — insert a Task',
     flags:
@@ -893,6 +905,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   update-roadmap <themeId> <field> <value>
   append-journal <taskId> <subId> <text>
   add-subtask    <taskId> <subtaskJson>
+  add-subtasks   <taskId> --file <json|->        (bulk — JSON array of subtasks)
   update-backlog <itemId> <field> <value>
   open-task      <taskJson | --title … [--effort-estimate <str>]>
   create-backlog <itemJson>
@@ -1100,10 +1113,16 @@ function cliErr(subcommand: string, error: string, detail?: string): CliResult {
 // (parsing the serialiser output string), so a serialise-side defect
 // (key-reorder / escaping / clone bug) is caught one step before it lands.
 
-/** Intended change to a collection's id-set across a single write. */
+/** Intended change to a collection's id-set across a single write.
+ *
+ * ID-65.6: `add-many` covers the bulk `add-subtasks` write — N ids added in ONE
+ * scoped multi-splice. The gate adds EVERY id in `ids` to the expected post-write
+ * set, so a serialise-side drop/duplicate anywhere in the batch is caught before
+ * the single write lands (same one-step-ahead guarantee as the single `add`). */
 type RecordSetDelta =
   | { kind: 'none' }
   | { kind: 'add'; id: string | number }
+  | { kind: 'add-many'; ids: IdValue[] }
   | { kind: 'remove'; id: string | number };
 
 type IdValue = string | number;
@@ -1188,6 +1207,8 @@ function assertRecordSet(
   // The expected post-write id-set, derived from beforeIds + the intended delta.
   const expected = new Set<IdValue>(beforeIds);
   if (expectedDelta.kind === 'add') expected.add(expectedDelta.id);
+  else if (expectedDelta.kind === 'add-many')
+    for (const id of expectedDelta.ids) expected.add(id);
   else if (expectedDelta.kind === 'remove') expected.delete(expectedDelta.id);
 
   const missing = [...expected].filter((id) => !afterIds.has(id));
@@ -1587,10 +1608,18 @@ interface ScopedWrite {
  * (`fieldPatchMutation` / `insertRecord`) — the splice primitive intentionally
  * does not re-enforce duplicate-id. The whole-file `serialise()` stays the
  * fallback when `scoped` is false (the future {65.5} `--whole-file` opt-out).
+ *
+ * ID-65.6: `ops` is an ARRAY of splice ops, folded LEFT over the accumulating
+ * text inside {@link commitMutation} (text0 → op1 → text1 → op2 → … → textN),
+ * so N inserts produce ONE final text written ONCE — the bulk `add-subtasks`
+ * path. The single-record create commands ({65.3}) wrap their one op as a
+ * one-element array (`ops: [op]`), so content derivation stays centralised in
+ * `commitMutation` for both single and bulk paths. No silent fallback: if ANY
+ * fold step returns `{ok:false}`, the error surfaces and nothing is written.
  */
 interface ScopedSplice {
   originalText: string;
-  op: SpliceOp;
+  ops: SpliceOp[];
 }
 
 /**
@@ -1642,6 +1671,15 @@ interface CommitMutationOptions {
    * (disciplineWarnings short-circuits on non-task-list detected anyway).
    */
   warningScope?: WarningScope;
+  /**
+   * ID-65.6: extra warnings the CALLER computed and wants surfaced on the
+   * success envelope alongside the discipline/budget warnings. The bulk
+   * `add-subtasks` path enforces budgets PER-RECORD in the handler (the generic
+   * `budgetGate` only checks one record), then threads the resulting
+   * soft/forced budget warnings here so they reach the operator. Prepended to
+   * the warnings list; absent for every single-record caller.
+   */
+  extraWarnings?: string[];
 }
 
 /**
@@ -1685,8 +1723,12 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
     budgetGate,
     force = false,
     warningScope,
+    extraWarnings,
   } = opts;
   const warnings = disciplineWarnings(detected, warningScope);
+  // ID-65.6: caller-computed warnings (e.g. bulk add-subtasks per-record budget
+  // soft/forced warnings) prepended so they reach the success envelope.
+  if (extraWarnings?.length) warnings.unshift(...extraWarnings);
 
   // ID-35.17 budget pre-check — on the CHANGED record's budgeted fields, after
   // the in-memory mutation, BEFORE any byte is written. Over-budget → reject
@@ -1727,29 +1769,39 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
 
   let content: string;
   if (scoped && scopedSplice) {
-    // ID-65.3 record-INSERT scoped path: append ONE record to the original text
-    // (minimal record-sized diff) instead of whole-file re-emitting the parent
-    // collection. The call site's insertRecord / fieldPatchMutation already ran
-    // the schema + duplicate-id oracle, so a splice failure here is unexpected —
-    // surface it rather than silently falling back to a wide whole-file write
-    // (mirrors the scopedWrite handling below).
-    const r = scopedSpliceSerialise(scopedSplice.originalText, scopedSplice.op);
-    if (!r.ok) {
-      if (r.kind === 'schema-error') {
-        return {
-          ok: false,
+    // ID-65.3 / ID-65.6 record-INSERT scoped path: splice each op into the
+    // accumulating text (minimal record-sized diff per op) instead of whole-file
+    // re-emitting the parent collection. {65.3}'s single-record creates pass a
+    // one-element `ops` array; {65.6}'s bulk `add-subtasks` passes N ops folded
+    // LEFT over the text (text0 → op1 → text1 → … → textN) so N inserts yield ONE
+    // final text written ONCE. The call site's insertRecord / fieldPatchMutation
+    // already ran the schema + duplicate-id oracle on the merged collection, so a
+    // splice failure here is unexpected — surface it rather than silently falling
+    // back to a wide whole-file write (mirrors the scopedWrite handling below).
+    // No silent fallback: ANY fold step failing aborts before any byte is
+    // written (the gate + atomicWriteFile below never run).
+    let text = scopedSplice.originalText;
+    for (const op of scopedSplice.ops) {
+      const r = scopedSpliceSerialise(text, op);
+      if (!r.ok) {
+        if (r.kind === 'schema-error') {
+          return {
+            ok: false,
+            subcommand,
+            error: 'scoped-schema-error',
+            detail:
+              r.error instanceof Error ? r.error.message : String(r.error),
+          };
+        }
+        return cliErr(
           subcommand,
-          error: 'scoped-schema-error',
-          detail: r.error instanceof Error ? r.error.message : String(r.error),
-        };
+          `scoped-${r.kind}`,
+          'detail' in r ? r.detail : undefined,
+        );
       }
-      return cliErr(
-        subcommand,
-        `scoped-${r.kind}`,
-        'detail' in r ? r.detail : undefined,
-      );
+      text = r.text;
     }
-    content = r.text;
+    content = text;
   } else if (scoped && scopedWrite) {
     const r = scopedSerialise(scopedWrite.originalText, scopedWrite.patch);
     if (!r.ok) {
@@ -1980,6 +2032,91 @@ function withCreateDefaults(
     defaults.updatedAt = new Date().toISOString();
   }
   return { ...defaults, ...record };
+}
+
+/**
+ * ID-65.6: the per-record subtask coercion shared by single `add-subtask` and
+ * bulk `add-subtasks`, factored out so both paths use byte-identical logic
+ * (eliminates drift). Given a raw input object, applies:
+ *   - {35.28} `--id`/body id coercion: a numeric string id ("27") → integer 27;
+ *     a non-positive-integer / non-coercible string → `invalid-id` rejection.
+ *     Body-supplied numeric ids retain their type; a missing id is left absent
+ *     (the CALLER injects the auto-id — single uses `nextId`, bulk allocates a
+ *     running counter so batch ids never collide).
+ *   - {35.29} `dependencies` → number[] coercion: each token to a positive
+ *     integer; non-positive-integer / non-coercible → `invalid-depends`.
+ *
+ * `withCreateDefaults('subtask', …)` is applied first (same as the single path).
+ * `subcommand` labels the structured error envelope so the operator sees the
+ * command they ran. Returns the coerced record or a CliResult rejection. NOTE:
+ * this does NOT inject auto-id — the caller owns id allocation (single vs bulk
+ * sequential), keeping `add-subtask`'s behaviour byte-identical.
+ */
+function coerceSubtaskRecord(
+  subcommand: string,
+  rawInput: Record<string, unknown>,
+):
+  | { ok: true; record: Record<string, unknown> }
+  | { ok: false; result: CliResult } {
+  let record = withCreateDefaults('subtask', rawInput);
+  if (typeof record.id === 'string') {
+    const n = Number(record.id);
+    if (!Number.isInteger(n) || n <= 0 || record.id.trim() === '') {
+      return {
+        ok: false,
+        result: cliErr(
+          subcommand,
+          'invalid-id',
+          `--id ${JSON.stringify(record.id)} is not a positive integer; subtask.id must be a number (got non-coercible string)`,
+        ),
+      };
+    }
+    record = { ...record, id: n };
+  }
+  if (Array.isArray(record.dependencies)) {
+    const coerced: number[] = [];
+    for (const dep of record.dependencies) {
+      if (typeof dep === 'number') {
+        if (!Number.isInteger(dep) || dep <= 0) {
+          return {
+            ok: false,
+            result: cliErr(
+              subcommand,
+              'invalid-depends',
+              `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
+            ),
+          };
+        }
+        coerced.push(dep);
+        continue;
+      }
+      if (typeof dep === 'string') {
+        const n = Number(dep);
+        if (!Number.isInteger(n) || n <= 0 || dep.trim() === '') {
+          return {
+            ok: false,
+            result: cliErr(
+              subcommand,
+              'invalid-depends',
+              `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[] (got non-coercible string)`,
+            ),
+          };
+        }
+        coerced.push(n);
+        continue;
+      }
+      return {
+        ok: false,
+        result: cliErr(
+          subcommand,
+          'invalid-depends',
+          `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
+        ),
+      };
+    }
+    record = { ...record, dependencies: coerced };
+  }
+  return { ok: true, record };
 }
 
 async function run(args: ParsedArgs): Promise<CliResult> {
@@ -2367,80 +2504,19 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       };
       const input = readRecordInput(bodyArgs);
       if (!input.ok) return input.result;
-      // ID-35.21 auto-id: subtask ids are NUMBERS, scoped to the parent task.
-      // Inject max+1 unless --id forces an explicit id or the body carries one.
-      let record = withCreateDefaults(
-        'subtask',
+      // ID-65.6: the {35.28} `--id`/body-id coercion + {35.29} `dependencies` →
+      // number[] coercion are factored into `coerceSubtaskRecord` (shared with
+      // the bulk `add-subtasks` path so both stay byte-identical). It applies
+      // `withCreateDefaults('subtask', …)` first and leaves a missing id absent.
+      const coerce = coerceSubtaskRecord(
+        'add-subtask',
         input.value as Record<string, unknown>,
       );
-      // ID-35.28 --id type coercion: the named-flag parser stores `--id` as a
-      // string (every value-flag does), but `SubtaskSchema.id` is NUMBER (per
-      // RESEARCH §3 — Taskmaster mandate). The old passthrough left subtask.id
-      // as a string and tripped a confusing downstream schema-error
-      // ("expected number, received string"); the workaround was to omit --id
-      // and rely on auto-id. Mirror `nextId(subtasks)` policy at the --id site:
-      // a numeric string ("27") coerces to the integer 27; anything else is
-      // rejected with a structured `invalid-id` envelope rather than passed to
-      // the schema. Body-supplied (positional JSON / --file) ids retain their
-      // primitive type from JSON.parse and bypass this coercion.
-      if (typeof record.id === 'string') {
-        const n = Number(record.id);
-        // ID-35.28 fix-up: also reject `n <= 0` so the guard's detail
-        // ("not a positive integer") matches its behaviour. Negative and
-        // zero ids previously slipped through to `SubtaskSchema.id`
-        // (`z.number().int().min(1)`) and surfaced as the less-friendly
-        // `schema-error` envelope.
-        if (!Number.isInteger(n) || n <= 0 || record.id.trim() === '') {
-          return cliErr(
-            'add-subtask',
-            'invalid-id',
-            `--id ${JSON.stringify(record.id)} is not a positive integer; subtask.id must be a number (got non-coercible string)`,
-          );
-        }
-        record = { ...record, id: n };
-      }
-      // ID-35.29 --depends type coercion: `readRecordInput` emits
-      // `record.dependencies` as `string[]` (schema-agnostic — see comment
-      // there), but `SubtaskSchema.dependencies` is `z.array(z.number().int())`.
-      // Mirror the {35.28} --id pattern at the call site: coerce each token to
-      // a positive integer; reject non-coercible tokens with a structured
-      // `invalid-depends` envelope rather than passing them to the schema as
-      // the less-friendly `schema-error`. Skip the coercion when the body came
-      // from positional JSON / --file with already-numeric values.
-      if (Array.isArray(record.dependencies)) {
-        const coerced: number[] = [];
-        for (const dep of record.dependencies) {
-          if (typeof dep === 'number') {
-            if (!Number.isInteger(dep) || dep <= 0) {
-              return cliErr(
-                'add-subtask',
-                'invalid-depends',
-                `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
-              );
-            }
-            coerced.push(dep);
-            continue;
-          }
-          if (typeof dep === 'string') {
-            const n = Number(dep);
-            if (!Number.isInteger(n) || n <= 0 || dep.trim() === '') {
-              return cliErr(
-                'add-subtask',
-                'invalid-depends',
-                `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[] (got non-coercible string)`,
-              );
-            }
-            coerced.push(n);
-            continue;
-          }
-          return cliErr(
-            'add-subtask',
-            'invalid-depends',
-            `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
-          );
-        }
-        record = { ...record, dependencies: coerced };
-      }
+      if (!coerce.ok) return coerce.result;
+      let record = coerce.record;
+      // ID-35.21 auto-id: subtask ids are NUMBERS, scoped to the parent task.
+      // Inject max+1 unless the body carried an id (explicit) — the coercion
+      // helper preserves any supplied id and leaves a missing one absent.
       if (record.id === undefined) {
         record = { ...record, id: nextId(loaded.detected, 'subtasks', taskId) };
       }
@@ -2483,11 +2559,16 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // not a whole-file serialise of the entire (possibly 40-deep) array. The
         // record spliced is the SAME coerced object pushed into nextSubtasks
         // above (its numeric id already injected). The {fieldPatchMutation} above
-        // is kept as the schema + uniqueness oracle (catches dup subtask id).
+        // is kept as the schema oracle (Zod-validates the merged subtasks[]);
+        // dup-subtask-id is NOT enforced — z.array(SubtaskSchema) has no
+        // within-array uniqueness constraint (see OQ-65-1). The {35.16}
+        // record-set gate below is what guards membership (drop/duplicate).
         scoped: true,
         scopedSplice: {
           originalText: loaded.originalText,
-          op: { kind: 'insert', collection: 'subtasks', taskId, record },
+          // ID-65.6: single op wrapped as a one-element array (commitMutation
+          // folds `ops` — single create == bulk-of-one).
+          ops: [{ kind: 'insert', collection: 'subtasks', taskId, record }],
         },
         gate: {
           ledger: 'task',
@@ -2512,6 +2593,156 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // warnings (every over-budget field across the WHOLE ledger), which
         // breaks JSON-stdout-parsing orchestrators.
         warningScope: { taskId, subId: newSubId },
+      });
+    }
+
+    // ── ID-65.6 bulk subtask create (RESEARCH ratified input #3 = JSON-array) ──
+    // `add-subtasks <taskId> --file <json|->` batch-inserts a JSON ARRAY of
+    // TM-shape subtask records in ONE scoped multi-record splice: one {35.16}
+    // record-set-gate check (add-many), one budget pass (per-record, atomic),
+    // one mirror regen, ONE write. There is NO bulk path today — the {N.4} PLAN
+    // flow hand-crafts N separate add-subtask writes; this folds them.
+    case 'add-subtasks': {
+      const taskId = p[0];
+      if (!taskId)
+        return cliErr(
+          'add-subtasks',
+          'missing-args',
+          'add-subtasks <taskId> --file <json|-> (JSON array of subtask records)',
+        );
+      const loaded = await loadLedger(ledgerPath(dir, 'task'));
+      if (!loaded.ok) return loaded.result;
+      if (loaded.detected.kind !== 'task-list')
+        return cliErr('add-subtasks', 'wrong-ledger', 'expected task-list');
+      const task = loaded.detected.data.tasks.find((t) => t.id === taskId);
+      if (!task)
+        return cliErr('add-subtasks', 'record-not-found', `task ${taskId}`);
+      // Resolve the body via the {35.15} resolver with the taskId dropped from
+      // positionals (positional JSON | --file <path> | --file - = stdin).
+      const bodyArgs: ParsedArgs = {
+        ...args,
+        positionals: p.slice(1),
+      };
+      const input = readRecordInput(bodyArgs);
+      if (!input.ok) return input.result;
+      // Ratified input #3 = JSON-ARRAY. A single object (or anything non-array)
+      // is rejected with guidance pointing at the single `add-subtask` command.
+      if (!Array.isArray(input.value)) {
+        return cliErr(
+          'add-subtasks',
+          'expected-array',
+          'body must be a JSON array of subtask records; for a single subtask use `add-subtask`',
+        );
+      }
+      // {35.21} auto-id allocated SEQUENTIALLY across the batch: start a running
+      // counter at nextId(...) and assign-then-increment to each record lacking
+      // an id, so batch ids never collide. Records carrying an explicit id keep
+      // it (after numeric coercion) and do NOT consume a counter slot.
+      let counter = nextId(loaded.detected, 'subtasks', taskId) as number;
+      const coercedRecords: Record<string, unknown>[] = [];
+      for (const raw of input.value) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+          return cliErr(
+            'add-subtasks',
+            'expected-array',
+            'each array element must be a subtask record object',
+          );
+        }
+        const coerce = coerceSubtaskRecord(
+          'add-subtasks',
+          raw as Record<string, unknown>,
+        );
+        if (!coerce.ok) return coerce.result;
+        let record = coerce.record;
+        if (record.id === undefined) {
+          record = { ...record, id: counter };
+          counter += 1;
+        }
+        coercedRecords.push(record);
+      }
+      // Per-record BUDGET enforcement (atomic): reject the WHOLE batch on any
+      // over-budget record unless --force (then soft warnings). Mirror the single
+      // add-subtask budget semantics (subtask.description ≤250, testStrategy
+      // ≤300). Runs BEFORE the scoped write so an over-budget batch does no I/O.
+      const budgetWarnings: string[] = [];
+      for (const record of coercedRecords) {
+        const b = checkBudget({
+          ledger: 'task',
+          recordKind: 'subtask',
+          recordId: record.id as string | number,
+          parentId: taskId,
+          record,
+        });
+        if (b.warnings.length) budgetWarnings.push(...b.warnings);
+        if (!b.ok) {
+          if (flags.force) {
+            budgetWarnings.push(`(forced) budget-exceeded: ${b.detail}`);
+          } else {
+            return cliErr('add-subtasks', 'budget-exceeded', b.detail);
+          }
+        }
+      }
+      const descriptor: CollectionDescriptor = {
+        collection: 'subtasks',
+        taskId,
+      };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
+      // Validate the FULL batch via the schema oracle on the merged subtasks[]
+      // BEFORE the scoped write (mirrors add-subtask's fieldPatchMutation). The
+      // re-parsed document yields the VALIDATED new ids for the gate's add-many.
+      const nextSubtasks = [...task.subtasks, ...coercedRecords];
+      const m = fieldPatchMutation('add-subtasks', loaded.detected, {
+        fieldPath: ['tasks', taskId, 'subtasks'],
+        newValue: nextSubtasks,
+      });
+      if (!m.ok) return m.result;
+      const validatedTask =
+        loaded.detected.kind === 'task-list'
+          ? loaded.detected.data.tasks.find((t) => t.id === taskId)
+          : undefined;
+      const validatedSubtasks = validatedTask?.subtasks ?? [];
+      // The new ids are the last N of the validated subtasks[] (in append order).
+      const newSubIds = validatedSubtasks
+        .slice(validatedSubtasks.length - coercedRecords.length)
+        .map((s) => s.id as IdValue);
+      // ONE scoped multi-splice: N insert ops folded over the accumulating text
+      // → ONE final text written ONCE. ONE {35.16} add-many gate covering all
+      // +N ids; ONE mirror regen (commitMutation does it once). Budget already
+      // enforced per-record above, so no budgetGate here (it only checks one
+      // record — the per-record loop above is the bulk-correct enforcement).
+      return commitMutation({
+        subcommand: 'add-subtasks',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: {
+          taskId,
+          subIds: newSubIds,
+          added: coercedRecords.length,
+          subtaskCount: nextSubtasks.length,
+        },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        scoped: true,
+        scopedSplice: {
+          originalText: loaded.originalText,
+          ops: coercedRecords.map((record) => ({
+            kind: 'insert' as const,
+            collection: 'subtasks' as const,
+            taskId,
+            record,
+          })),
+        },
+        gate: {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          expectedDelta: { kind: 'add-many', ids: newSubIds },
+        },
+        force: flags.force,
+        // ID-35.30: bound discipline warnings to this task. Per-record budget
+        // warnings (incl. forced ones) are surfaced via the success envelope.
+        warningScope: { taskId },
+        extraWarnings: budgetWarnings,
       });
     }
 
@@ -2737,7 +2968,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         scoped: true,
         scopedSplice: {
           originalText: loaded.originalText,
-          op: { kind: 'insert', collection, record },
+          // ID-65.6: single op wrapped as a one-element array (commitMutation
+          // folds `ops` — single create == bulk-of-one).
+          ops: [{ kind: 'insert', collection, record }],
         },
         gate: {
           ledger,
