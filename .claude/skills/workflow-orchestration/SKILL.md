@@ -446,6 +446,23 @@ The Orchestrator does not declare a subtask group `done` without:
   cherry-pick of the wave.
 - Out-of-scope findings either curated or recorded.
 
+<!-- SEQUENCING NOTE: this /verify addition (ID-48.18) was authored before ID-48.9's /code-review gate landed; sequence {48.6}→{48.9}→{48.18} at integration. -->
+
+**Optional additive runtime gate — `/verify` (ID-48.18).** For user-facing
+or runtime-behaviour Subtasks, the Orchestrator MAY run `/verify` after the
+Checker returns PASS, as an additive runtime gate that actually launches the
+app and observes that the change RUNS (KH otherwise gates on tests + knip but
+never confirms a UI/server change behaves at runtime). `/verify` consumes the
+`run-knowledge-hub` launch recipe (`.claude/skills/run-knowledge-hub/SKILL.md`)
+for a deterministic launch path.
+
+**Non-goal:** `/verify` does NOT replace task-checker. The Checker remains the
+authority on spec compliance + KH conventions; `/verify` only answers
+"does it actually run?". Together with the `/code-review` additive correctness
+gate (see {48.9}) and the Checker, this forms a three-gate model:
+`/code-review` = correctness, `/verify` = runtime, Checker = spec. Each gate is
+additive; none substitutes for the Checker's PASS verdict.
+
 The Orchestrator does not declare a Task `done` without:
 
 - All Subtasks `done`.
