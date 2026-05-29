@@ -341,18 +341,227 @@ PY
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
+# oq_poll_decision "$oq_root" "$blocked_on"
+#
+# Worker poll loop: waits until oq-state.json is no longer awaiting-decision by
+# polling for the presence of decisions/<blocked_on>.json at a configurable
+# interval.
+#
+# Signature:
+#   oq_poll_decision <oq_root_dir> <blocked_on_oq_id>
+#
+# Arguments:
+#   oq_root_dir      — the oq/ root directory for this worker session.
+#   blocked_on_oq_id — the oq_id this worker is waiting on (must match
+#                      oq-state.json blocked_on when lifecycle_state is
+#                      awaiting-decision).
+#
+# Behaviour (OQ-INV-16,17,18,22,24 apply; closes OQ-INV-8):
+#   1. Reads oq-state.json.  If lifecycle_state != awaiting-decision, returns 0
+#      immediately (idempotent no-op — OQ-INV-16/17).
+#   2. Polls every OQ_POLL_INTERVAL seconds (default 2s; override via env for
+#      tests, e.g. OQ_POLL_INTERVAL=0.1).
+#   3. On each poll: if decisions/<blocked_on>.json exists, verify_record it
+#      (FAIL CLOSED on corruption — do NOT reset state, return non-zero channel
+#      error — OQ-INV-27).  On a clean verification, atomically reset oq-state
+#      to {lifecycle_state:working, blocked_on:null} via build_state_record +
+#      atomic_publish (preserving worker_id), then return 0.
+#   4. OQ-INV-18 latency budget: decision present => observed within one poll
+#      interval.  The testable property is wall-clock < 10s with OQ_POLL_INTERVAL
+#      set to a short value.
+#   5. No production timeout (OQ-Q2): the loop runs until decided.  When the
+#      optional env var OQ_POLL_MAX_WAIT is set (seconds), the loop exits with
+#      exit code 3 when the budget is exceeded WITHOUT resetting state (lets tests
+#      assert no premature unblock + bounds runaway).  Production leaves
+#      OQ_POLL_MAX_WAIT UNSET — unbounded is the intended production default.
+#
+# Exit codes:
+#   0 — decision applied (or state already working: no-op).
+#   1 — channel error (corrupt decision, corrupt state, build/publish failure).
+#   3 — OQ_POLL_MAX_WAIT exceeded without a decision (timeout; state unchanged).
+# ──────────────────────────────────────────────────────────────────────────────
+oq_poll_decision() {
+    local oq_root_dir="${1:?oq_poll_decision: oq_root_dir argument is required}"
+    local blocked_on_oq_id="${2:?oq_poll_decision: blocked_on_oq_id argument is required}"
+
+    local state_file="${oq_root_dir}/oq-state.json"
+    local decisions_dir="${oq_root_dir}/decisions"
+    local decision_file="${decisions_dir}/${blocked_on_oq_id}.json"
+
+    # Poll interval in seconds (default 2s; override via OQ_POLL_INTERVAL for tests).
+    local interval="${OQ_POLL_INTERVAL:-2}"
+
+    # Optional max wait in seconds (UNSET = unbounded, which is the production
+    # default per OQ-Q2).  When set, the loop exits with code 3 on expiry
+    # without resetting state — used by tests to bound runaway waits.
+    local max_wait="${OQ_POLL_MAX_WAIT:-}"
+
+    # ── Step 1: Idempotency guard (OQ-INV-16/17) ──────────────────────────────
+    # If oq-state.json does not show awaiting-decision, there is nothing to poll.
+    # This also handles the re-invoke-after-successful-poll case (state already
+    # working).
+    local current_state
+    current_state=$(python3 - "$state_file" <<'PY'
+import json, sys
+
+state_path = sys.argv[1]
+try:
+    with open(state_path, "r", encoding="utf-8") as fh:
+        state = json.load(fh)
+except (OSError, json.JSONDecodeError) as exc:
+    # Cannot read state — treat as not awaiting-decision (no-op).
+    print("working")
+    sys.exit(0)
+
+print(state.get("lifecycle_state", "working"))
+PY
+)
+    if [[ "$current_state" != "awaiting-decision" ]]; then
+        # Already working (or state absent/unreadable): idempotent no-op.
+        return 0
+    fi
+
+    # ── Step 2: Poll loop ──────────────────────────────────────────────────────
+    local poll_start
+    poll_start=$(python3 -c "import time; print(time.monotonic())")
+
+    while true; do
+        # Check optional max-wait budget (OQ-Q2: UNSET in production).
+        if [[ -n "$max_wait" ]]; then
+            local elapsed
+            elapsed=$(python3 - "$poll_start" "$max_wait" <<'PY'
+import time, sys
+start    = float(sys.argv[1])
+max_wait = float(sys.argv[2])
+elapsed  = time.monotonic() - start
+# Print "exceeded" if the budget is spent.
+print("exceeded" if elapsed >= max_wait else "ok")
+PY
+)
+            if [[ "$elapsed" == "exceeded" ]]; then
+                # Budget exceeded; do NOT reset state (tests verify no premature
+                # unblock).  Return distinct code 3 so callers can distinguish
+                # timeout from a channel error (code 1).
+                echo "channel error: oq_poll_decision: OQ_POLL_MAX_WAIT (${max_wait}s) exceeded without a decision for ${blocked_on_oq_id}" >&2
+                return 3
+            fi
+        fi
+
+        # ── Poll: check for the decision file ─────────────────────────────────
+        if [[ -f "$decision_file" ]]; then
+            # Decision present — verify integrity before applying (FAIL CLOSED,
+            # OQ-INV-27).
+            if ! verify_record "$decision_file" >/dev/null 2>&1; then
+                verify_record "$decision_file" >/dev/null
+                echo "channel error: oq_poll_decision: corrupt decision record — ${decision_file}" >&2
+                return 1
+            fi
+
+            # Extract worker_id from the current state for the reset record.
+            local state_worker_id
+            state_worker_id=$(python3 - "$state_file" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], "r", encoding="utf-8") as fh:
+        state = json.load(fh)
+    print(state.get("worker_id", ""))
+except (OSError, json.JSONDecodeError):
+    print("")
+PY
+)
+
+            # Build + publish the reset state record (lifecycle_state:working,
+            # blocked_on:null, checkpoint_ref:null).
+            local updated_at
+            updated_at=$(python3 -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))")
+
+            local reset_record
+            reset_record=$(build_state_record \
+                "$state_worker_id" "working" "null" "null" "$updated_at")
+            local build_rc=$?
+            if [[ $build_rc -ne 0 ]]; then
+                # build_state_record already emitted the error to stderr.
+                return 1
+            fi
+
+            atomic_publish "$oq_root_dir" "oq-state.json" "$reset_record"
+            local pub_rc=$?
+            if [[ $pub_rc -ne 0 ]]; then
+                echo "channel error: oq_poll_decision: failed to reset oq-state.json after decision for ${blocked_on_oq_id}" >&2
+                return 1
+            fi
+
+            return 0
+        fi
+
+        # Decision not yet present — sleep for the poll interval.
+        sleep "$interval"
+    done
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# oq_check_decision "$oq_root" "$oq_id"
+#
+# One-shot (non-looping) check for whether a decision exists for the given oq_id.
+# Does NOT touch oq-state.json.
+#
+# Signature:
+#   oq_check_decision <oq_root_dir> <oq_id>
+#
+# Arguments:
+#   oq_root_dir — the oq/ root directory for this worker session.
+#   oq_id       — the oq_id to check for a decision.
+#
+# Behaviour (OQ-INV-9/22):
+#   If decisions/<oq_id>.json exists, verifies the record (fail-closed — OQ-INV-27)
+#   and prints "DECISION_AVAILABLE:<oq_id>" to stdout.
+#   If no decision exists, prints nothing and returns 0.
+#   Does NOT loop.  Does NOT modify lifecycle_state.
+#
+# Exit codes:
+#   0 — decision available (and verified) OR no decision present.
+#   1 — channel error (decision file exists but is corrupt or unreadable).
+# ──────────────────────────────────────────────────────────────────────────────
+oq_check_decision() {
+    local oq_root_dir="${1:?oq_check_decision: oq_root_dir argument is required}"
+    local oq_id="${2:?oq_check_decision: oq_id argument is required}"
+
+    local decision_file="${oq_root_dir}/decisions/${oq_id}.json"
+
+    if [[ ! -f "$decision_file" ]]; then
+        # No decision yet — non-blocking, return 0.
+        return 0
+    fi
+
+    # Decision file present — verify integrity (FAIL CLOSED, OQ-INV-27).
+    if ! verify_record "$decision_file" >/dev/null 2>&1; then
+        verify_record "$decision_file" >/dev/null
+        echo "channel error: oq_check_decision: corrupt decision record — ${decision_file}" >&2
+        return 1
+    fi
+
+    # Decision is present and valid — report availability to stdout.
+    echo "DECISION_AVAILABLE:${oq_id}"
+    return 0
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
 # CLI dispatch — guarded so sourcing this file does NOT auto-run the dispatcher.
 # Tests can call: bash oq-worker.sh oq_emit ...
 #                 bash oq-worker.sh oq_cancel ...
+#                 bash oq-worker.sh oq_poll_decision ...
+#                 bash oq-worker.sh oq_check_decision ...
 # ──────────────────────────────────────────────────────────────────────────────
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    cmd="${1:?oq-worker.sh: command argument required (oq_emit | oq_cancel)}"
+    cmd="${1:?oq-worker.sh: command argument required (oq_emit | oq_cancel | oq_poll_decision | oq_check_decision)}"
     shift
     case "$cmd" in
-        oq_emit)   oq_emit "$@" ;;
-        oq_cancel) oq_cancel "$@" ;;
+        oq_emit)           oq_emit "$@" ;;
+        oq_cancel)         oq_cancel "$@" ;;
+        oq_poll_decision)  oq_poll_decision "$@" ;;
+        oq_check_decision) oq_check_decision "$@" ;;
         *)
-            echo "channel error: oq-worker.sh: unknown command — expected oq_emit or oq_cancel" >&2
+            echo "channel error: oq-worker.sh: unknown command — expected oq_emit, oq_cancel, oq_poll_decision, or oq_check_decision" >&2
             exit 1
             ;;
     esac
