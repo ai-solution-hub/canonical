@@ -37,6 +37,7 @@
  *     create-theme   <themeJson | --title …>
  *     create-backlog <itemJson | --title …>
  *     delete-backlog <itemId>
+ *     delete-subtask <taskId> <subId>
  *   cross-ledger:
  *     promote        <backlogId> <taskJson>
  *   flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
@@ -847,6 +848,11 @@ const SUBCOMMAND_HELP: Record<
     flags: '--dry-run --pretty --no-regen-mirrors',
     kinds: ['item'],
   },
+  'delete-subtask': {
+    synopsis: 'delete-subtask <taskId> <subId> — remove a Subtask',
+    flags: '--dry-run --pretty --no-regen-mirrors',
+    kinds: ['subtask'],
+  },
   promote: {
     synopsis:
       'promote <backlogId> <taskJson> — atomically promote a backlog item to a Task',
@@ -887,6 +893,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   create-backlog <itemJson>
   create-theme   <themeJson>
   delete-backlog <itemId>
+  delete-subtask <taskId> <subId>
   promote        <backlogId> <taskJson>
   update-umbrella <umbrellaId> --add-tasks|--remove-tasks|--reorder <csv>
 flags: --dry-run --pretty --scoped --force --append --no-regen-mirrors --ledger-dir <path>
@@ -2715,6 +2722,92 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'remove', id: rem.recordId },
         },
+      });
+    }
+
+    // ── nested subtask delete (ID-35.43) ──────────────────────────────────────
+    // The inverse of `add-subtask` (a −1 delta on one Task's nested
+    // `subtasks[]`) and the sibling of `delete-backlog` (a −1 delta on a
+    // top-level collection). There is NO `--force` / interactive confirmation:
+    // the CLI is headless (cannot prompt) and the global `--force` is the
+    // budget-override (irrelevant to a delete). The {35.16} record-set
+    // drop-guard IS the safety mechanism — it asserts the post-write subtask
+    // id-set equals the pre-write set minus the removed id, rejecting any
+    // silently dropped/duplicated sibling with `record-set-violation` and
+    // writing NOTHING. task-list IS mirrored, so regen applies (default-on,
+    // `--no-regen-mirrors` to skip).
+    case 'delete-subtask': {
+      const [taskId, subIdRaw] = p;
+      if (!taskId || subIdRaw == null)
+        return cliErr(
+          'delete-subtask',
+          'missing-args',
+          'delete-subtask <taskId> <subId>',
+        );
+      const loaded = await loadLedger(ledgerPath(dir, 'task'));
+      if (!loaded.ok) return loaded.result;
+      if (loaded.detected.kind !== 'task-list')
+        return cliErr('delete-subtask', 'wrong-ledger', 'expected task-list');
+      const task = loaded.detected.data.tasks.find((t) => t.id === taskId);
+      if (!task)
+        return cliErr('delete-subtask', 'record-not-found', `task ${taskId}`);
+      // ID-35.43 subId coercion: positionals arrive as strings, but
+      // `SubtaskSchema.id` is NUMBER. Mirror add-subtask's --id coercion — a
+      // numeric string ("2") coerces to the integer 2; anything else (or a
+      // non-positive integer) is rejected with a structured `invalid-id`
+      // envelope rather than a confusing record-not-found.
+      const n = Number(subIdRaw);
+      if (!Number.isInteger(n) || n <= 0 || subIdRaw.trim() === '') {
+        return cliErr(
+          'delete-subtask',
+          'invalid-id',
+          `subId ${JSON.stringify(subIdRaw)} is not a positive integer; subtask.id must be a number`,
+        );
+      }
+      const subtask = task.subtasks.find((s) => s.id === n);
+      if (!subtask)
+        return cliErr(
+          'delete-subtask',
+          'record-not-found',
+          `subtask ${taskId}.${n}`,
+        );
+      const descriptor: CollectionDescriptor = {
+        collection: 'subtasks',
+        taskId,
+      };
+      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
+      // Removing the last subtask leaves `subtasks: []` — TaskSchema.subtasks
+      // is `z.array(SubtaskSchema)` with no `.min(1)`, so an empty array is a
+      // legal atomic-Task state (see task-list-schema.ts inv 5).
+      const nextSubtasks = task.subtasks.filter((s) => s.id !== n);
+      const m = fieldPatchMutation('delete-subtask', loaded.detected, {
+        fieldPath: ['tasks', taskId, 'subtasks'],
+        newValue: nextSubtasks,
+      });
+      if (!m.ok) return m.result;
+      return commitMutation({
+        subcommand: 'delete-subtask',
+        path: ledgerPath(dir, 'task'),
+        detected: loaded.detected,
+        resultPayload: {
+          taskId,
+          subId: n,
+          subtaskCount: nextSubtasks.length,
+        },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        gate: {
+          ledger: 'task',
+          descriptor,
+          beforeIds,
+          // The removed id is the NUMERIC subtask id `n` (collectionIds maps
+          // subtask ids as numbers), matching add-subtask's numeric `add`
+          // delta — so beforeIds/afterIds compare by value.
+          expectedDelta: { kind: 'remove', id: n },
+        },
+        // ID-35.30: scope discipline-warnings to the addressed task so the
+        // success envelope never dumps the whole-ledger soft-warning set.
+        warningScope: { taskId },
       });
     }
 
