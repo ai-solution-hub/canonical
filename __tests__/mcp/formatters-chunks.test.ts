@@ -107,6 +107,32 @@ describe('formatChunkSearchResults', () => {
     expect(result).toContain('## 1. (preamble)');
   });
 
+  // ID-56.10: cocoindex-emitted chunks ({56.8}) carry NULL on BOTH
+  // heading_text AND heading_level simultaneously (heading_path is [] not
+  // null — base column NOT NULL default '{}'). Migration 2 ({56.7}) was
+  // DDL-unachievable, so the DB type still declares these non-null; the
+  // formatter's runtime guards are the load-bearing null-safety layer.
+  // This asserts the formatter does not throw and falls back to
+  // '(preamble)' / '(document root)' for the exact cocoindex row shape.
+  it('handles cocoindex-emitted chunk (heading_text null + heading_level null, heading_path []) without throwing and falls back to "(preamble)" / "(document root)"', () => {
+    const chunk = makeChunkResult({
+      heading_text: null,
+      heading_level: null,
+      heading_path: [],
+    });
+
+    let result = '';
+    expect(() => {
+      result = formatChunkSearchResults('risk assessment', [chunk]);
+    }).not.toThrow();
+
+    expect(result).toContain('## 1. (preamble)');
+    expect(result).toContain('**Path:** (document root)');
+    // Surrounding fields still render correctly alongside the null headings.
+    expect(result).toContain('**Document:** Health & Safety Policy');
+    expect(result).toContain('**Chunk ID:** chunk-001');
+  });
+
   it('renders "(document root)" when heading_path is null', () => {
     const chunk = makeChunkResult({ heading_path: null });
     const result = formatChunkSearchResults('q', [chunk]);

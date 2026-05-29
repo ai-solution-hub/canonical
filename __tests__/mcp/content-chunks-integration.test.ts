@@ -232,6 +232,78 @@ describe('get_content_item chunks fetch', () => {
     expect(chunks[2].heading_text).toBe('Review');
   });
 
+  // ID-56.10: cocoindex-emitted chunks ({56.8}) carry NULL heading_text +
+  // NULL heading_level (heading_path is [] — base column NOT NULL default
+  // '{}'). Migration 2 ({56.7}) was DDL-unachievable so these surface as
+  // runtime nulls despite the non-null DB type. The content tool's cast +
+  // formatter guards must render such a row as "(preamble)" without
+  // throwing and still expose it in structuredContent.
+  it('renders a cocoindex-emitted chunk (null heading_text + null heading_level) as "(preamble)" without throwing', async () => {
+    const handler = mockServer.getHandler('get_content_item')!;
+
+    const itemRow = {
+      id: 'item-cc',
+      title: 'CocoIndex Ingested Doc',
+      suggested_title: 'CocoIndex Ingested Doc',
+      content_type: 'article',
+      primary_domain: null,
+      primary_subtopic: null,
+      summary: null,
+      ai_keywords: null,
+      freshness: null,
+      classification_confidence: null,
+      source_url: null,
+      content: 'Body emitted by the cocoindex pipeline.',
+      created_at: null,
+      updated_at: null,
+      governance_review_status: null,
+      priority: null,
+    };
+
+    // cocoindex chunk: NULL heading_text + NULL heading_level, heading_path []
+    const chunkRows = [
+      {
+        id: 'chunk-coco',
+        heading_text: null,
+        heading_level: null,
+        heading_path: [],
+        position: 1,
+        char_count: 120,
+        word_count: 22,
+      },
+    ];
+
+    // 1. content_items.select...single() — the item
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: itemRow, error: null }),
+    );
+    // 2. content_chunks.select...order() — the cocoindex chunk
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: chunkRows, error: null }),
+    );
+
+    const result = (await handler(
+      { id: '11111111-2222-4333-8444-777777777777' },
+      extra,
+    )) as ToolResult;
+
+    // Did not throw; rendered the preamble fallback.
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain('## Document Sections');
+    expect(result.content[0].text).toContain('(preamble)');
+
+    // Null headings survive into structuredContent (heading_path coerced []).
+    const chunks = result.structuredContent!.chunks as Array<
+      Record<string, unknown>
+    >;
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].heading_text).toBeNull();
+    expect(chunks[0].heading_level).toBeNull();
+    expect(chunks[0].heading_path).toEqual([]);
+  });
+
   it('returns the item with an empty chunks array when chunk fetch fails (non-fatal)', async () => {
     const handler = mockServer.getHandler('get_content_item')!;
 
