@@ -220,6 +220,62 @@ describe('ledger-cli — open-task / create-backlog / delete-backlog (inv 9, 10,
     if (!r.ok) expect(r.error).toBe('duplicate-id');
   });
 
+  it('open-task --effort-estimate sets effort_estimate in one invocation ({35.42})', async () => {
+    // {35.42}: a single named-flag open-task can now seed effort_estimate
+    // without a follow-up `update-task <id> effort_estimate '…'`.
+    const r = await run(
+      args('open-task', [], {
+        title: 'A planned task',
+        description: 'Carries an effort estimate from the flag.',
+        priority: 'should',
+        effortEstimate: '1.5 PLAN units',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const newId = (r.result as { recordId: string }).recordId;
+    const inserted = read('task-list').tasks.find(
+      (t: { id: string }) => t.id === newId,
+    );
+    expect(inserted).toBeDefined();
+    expect(inserted.effort_estimate).toBe('1.5 PLAN units');
+  });
+
+  it('open-task --effort-estimate does NOT bypass the schema gate ({35.42})', async () => {
+    // The new flag must not open a validation hole: a Task missing a required
+    // field (priority) is still rejected with schema-error even when
+    // --effort-estimate is present, and the ledger is left unchanged.
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const r = await run(
+      args('open-task', [], {
+        title: 'Invalid task',
+        description: 'Missing the required priority field.',
+        effortEstimate: '2 days',
+      }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('schema-error');
+    expect(readFileSync(join(dir, 'task-list.json'), 'utf8')).toBe(before);
+  });
+
+  it('open-task without --effort-estimate keeps the null default ({35.42} back-compat)', async () => {
+    const r = await run(
+      args('open-task', [], {
+        title: 'A task with no estimate',
+        description: 'No effort-estimate flag supplied.',
+        priority: 'should',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const newId = (r.result as { recordId: string }).recordId;
+    const inserted = read('task-list').tasks.find(
+      (t: { id: string }) => t.id === newId,
+    );
+    expect(inserted).toBeDefined();
+    expect(inserted.effort_estimate).toBeNull();
+  });
+
   it('delete-backlog removes an existing item (inv 10)', async () => {
     const id = firstBacklogId();
     const r = await run(args('delete-backlog', [id]));

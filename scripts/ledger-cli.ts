@@ -222,6 +222,16 @@ interface ParsedArgs {
     type?: string;
     track?: string;
     /**
+     * ID-35.42 — `open-task --effort-estimate <str>` named value-flag. Seeds
+     * `TaskSchema.effort_estimate` (a nullable string) so a single `open-task`
+     * sets the estimate without a follow-up `update-task <id> effort_estimate
+     * '…'`. `readRecordInput` maps this camelCase flag key onto the snake_case
+     * schema field. Absent → the `withCreateDefaults('task', …)` null default
+     * stands (back-compat preserved). Optional so pre-existing
+     * `ParsedArgs.flags` literals stay valid.
+     */
+    effortEstimate?: string;
+    /**
      * ID-35.39 Item A — bind a newly-promoted Task to a roadmap capability
      * theme. When set on `promote`, the new Task receives
      * `capability_theme: <themeId>` AND the named theme's `linked_tasks[]`
@@ -269,6 +279,10 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--status-note': 'statusNote',
   '--type': 'type',
   '--track': 'track',
+  // ID-35.42 — `open-task --effort-estimate <str>` seeds TaskSchema's
+  // effort_estimate in one invocation (consumes the next token). Maps the
+  // camelCase flag key to the snake_case schema field in `readRecordInput`.
+  '--effort-estimate': 'effortEstimate',
   // ID-35.39 Item A — `promote --capability-theme <id>` binds the new Task to
   // the named roadmap theme. Lives in VALUE_FLAGS (consumes the next token).
   '--capability-theme': 'capabilityTheme',
@@ -438,6 +452,12 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
   if (flags.statusNote !== undefined) record.status_note = flags.statusNote;
   if (flags.type !== undefined) record.type = flags.type;
   if (flags.track !== undefined) record.track = flags.track;
+  // ID-35.42 — camelCase flag key → snake_case schema field. With the flag set
+  // this overrides the `withCreateDefaults` null default; absent, the default
+  // stands. A string value satisfies `TaskSchema.effort_estimate` (nullable
+  // string) without bypassing the insert-time schema gate.
+  if (flags.effortEstimate !== undefined)
+    record.effort_estimate = flags.effortEstimate;
   if (flags.depends !== undefined) {
     // ID-35.29 — emit string[] always; coerce to number[] at the add-subtask
     // call site (the only record kind whose schema demands number[]). The old
@@ -802,7 +822,8 @@ const SUBCOMMAND_HELP: Record<
   'open-task': {
     synopsis: 'open-task <taskJson | --title …> — insert a Task',
     flags:
-      'input: positional JSON | --file <path> (- = stdin) | named flags; ' +
+      'input: positional JSON | --file <path> (- = stdin) | named flags ' +
+      '(--title --description --status --depends --priority --effort-estimate …); ' +
       '--id forces an id; --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['task'],
   },
@@ -862,7 +883,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   append-journal <taskId> <subId> <text>
   add-subtask    <taskId> <subtaskJson>
   update-backlog <itemId> <field> <value>
-  open-task      <taskJson>
+  open-task      <taskJson | --title … [--effort-estimate <str>]>
   create-backlog <itemJson>
   create-theme   <themeJson>
   delete-backlog <itemId>
