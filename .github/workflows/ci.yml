@@ -1046,9 +1046,18 @@ jobs:
           # un-versioned *.tar.gz is still published at releases/latest/download/,
           # so install the binary from the tarball to keep "always latest" without
           # pinning a version. See PR fixing the persistent 404 on this step.
+          #
+          # CLI v2.102.0+ ships TWO co-located binaries inside the tarball:
+          # `supabase` (a thin shim) and `supabase-go` (the real CLI the shim
+          # forwards to). Installing only the shim makes it fail at runtime with
+          # "Could not find the supabase-go binary". Install both; the second is
+          # conditional so older tarballs (shim-only) keep working.
           curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz -o /tmp/supabase.tar.gz
           tar -xzf /tmp/supabase.tar.gz -C /tmp
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          if [ -f /tmp/supabase-go ]; then
+            sudo install -m 0755 /tmp/supabase-go /usr/local/bin/supabase-go
+          fi
 
       - name: Generate types from staging branch
         # STAGING_PROJECT_REF is a static workflow constant (not external context)
