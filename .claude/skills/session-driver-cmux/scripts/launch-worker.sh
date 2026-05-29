@@ -206,6 +206,52 @@ else
   fi
 fi
 
+# --- backlog-190: un-ignore .gitnexus/CLAUDE.md in the shared exclude (ID-27.8) ---
+#
+# Linked worktrees share $GIT_COMMON_DIR/info/exclude. A bare `.gitnexus/` line
+# there UNDOES the `!.gitnexus/CLAUDE.md` negation (re-ignoring the tracked
+# directive file). Strip that bare line idempotently, preserving the `/**` +
+# negation form. Non-fatal — never abort the launch over this.
+
+GNX_COMMON_DIR="$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir 2>/dev/null || true)"
+if [ -n "$GNX_COMMON_DIR" ]; then
+  case "$GNX_COMMON_DIR" in
+    /*) ;;                                            # already absolute
+    *) GNX_COMMON_DIR="${PROJECT_ROOT}/${GNX_COMMON_DIR}" ;;  # absolutise vs PROJECT_ROOT
+  esac
+  GNX_EXCLUDE="${GNX_COMMON_DIR}/info/exclude"
+  if [ -f "$GNX_EXCLUDE" ] && grep -qxF '.gitnexus/' "$GNX_EXCLUDE"; then
+    sed -i.bak '/^\.gitnexus\/$/d' "$GNX_EXCLUDE" 2>/dev/null && rm -f "${GNX_EXCLUDE}.bak"
+  fi
+fi
+
+# --- Seed the parent's gitnexus index into the worker worktree (ID-27.8) ---
+#
+# Native worktree.symlinkDirectories / sparsePaths do NOT apply to raw
+# `git worktree add` (Claude-Code-managed-only — see SPIKE-27.9). So seed
+# manually: symlink the parent's ladybugdb `lbug` + `meta.json` (published via
+# atomic rename(2), so the worktree's reads stay consistent — see SPIKE-27.9 §3)
+# and register the worktree path. Register-only (no local .gitnexus) FAILS, so
+# the symlink is mandatory before `gitnexus index`. Both steps are idempotent
+# (`ln -sfn` + re-`index`) and NON-FATAL: on any missing-file/error the worker
+# falls back to today's "stale (never)" behaviour — never abort the launch.
+# Bare `gitnexus` calls assume a SINGLE knowledge-hub registry entry (OQ-5
+# re-verified resolved 29/05/2026 — exactly one entry; do NOT add a de-dup step).
+# Workers should treat the shared index READ-ONLY (reanalysis stays the parent
+# orchestrator's job — a worker `gitnexus analyze` would re-point the shared file).
+
+PARENT_GNX="${PROJECT_ROOT}/.gitnexus"
+if [ -f "${PARENT_GNX}/lbug" ] && [ -f "${PARENT_GNX}/meta.json" ]; then
+  mkdir -p "${WORKTREE_PATH}/.gitnexus"
+  ln -sfn "${PARENT_GNX}/lbug" "${WORKTREE_PATH}/.gitnexus/lbug"
+  ln -sfn "${PARENT_GNX}/meta.json" "${WORKTREE_PATH}/.gitnexus/meta.json"
+  # Do NOT symlink CLAUDE.md — the worktree has its own tracked .gitnexus/CLAUDE.md.
+  if command -v gitnexus >/dev/null 2>&1; then
+    gitnexus index "${WORKTREE_PATH}" >/dev/null 2>&1 \
+      || echo "Note: gitnexus index seed skipped for ${WORKTREE_PATH} (non-fatal)." >&2
+  fi
+fi
+
 # --- Honour .worktreeinclude (literal file paths only) ---
 #
 # Anthropic's `.worktreeinclude` mechanism only triggers under their internal

@@ -348,6 +348,7 @@ implemented under KH layout:
 | `read-events.sh` (orchestrator-side) | Missing locally | Same wrong-path issue. Workaround: `jq -c '.' <events-file>`. |
 | `approve-tool.sh` (orchestrator-side) | Missing locally | Upstream version writes to `/tmp/claude-workers/<id>.tool-decision`. Workaround: `echo allow > <events-dir>/<id>/tool-decision` (or `deny`). |
 | `symlinkDirectories` not applied | Workers get full fresh checkouts | Anthropic's `worktree.symlinkDirectories` setting symlinks dirs like `node_modules`, `.venv`, `.bin` into Anthropic-managed worktrees. cmux workers don't get these. Pro: clean `git status` (no `??` artefacts blocking orphan-sweep). Con: more disk + workers needing JS/Python tooling must `bun install` / `pip install -r requirements.txt` per worker. Relevant when dispatching impl workers that compile or run tests. |
+| gitnexus index seeding | Resolved (ID-27.8) | `launch-worker.sh` now seeds the parent's gitnexus index into each worktree — it symlinks the parent's `lbug` + `meta.json` into the worktree's `.gitnexus/` then runs `gitnexus index <worktree>` (idempotent + non-fatal; degrades to the old "stale (never)" behaviour on any error). Workers should treat the shared index as **read-only** — reanalysis (`gitnexus analyze`) stays the parent orchestrator's job, since a worker reanalysis would re-point the shared file. |
 
 The first three are small re-implementations of upstream scripts against the
 KH path layout — author when the workflow actually needs them. The last is
