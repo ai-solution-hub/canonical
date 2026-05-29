@@ -214,9 +214,11 @@ class TestIngestFileAcceptsEmTarget:
         )
         # ID-52.12 extended the arity from five to seven: ft_target / ftf_target
         # (the form_templates / form_template_fields Path-B write targets) follow
-        # em_target positionally.
-        assert len(params) == 7, (
-            "ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf); "
+        # em_target positionally. ID-56.8 extended it to eight: cc_target (the
+        # content_chunks chunk-row UPSERT target) is appended as a DEFAULTED 8th
+        # positional so the prior 7-arg callers stay valid.
+        assert len(params) == 8, (
+            "ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf, cc); "
             f"got {params}"
         )
 
@@ -224,16 +226,17 @@ class TestIngestFileAcceptsEmTarget:
         """``em_target`` is the FOURTH extra arg (index 4) — pinned by position so
         the {53.11} declare_row body can refer to it without ambiguity. The
         ID-52.12 form targets (ft_target / ftf_target) follow it as the fifth +
-        sixth extra args."""
+        sixth extra args, and the ID-56.8 ``cc_target`` follows as the seventh
+        (defaulted None)."""
         flow = _flow_module()
         params = list(inspect.signature(flow.ingest_file).parameters)
         assert params[4] == "em_target", (
             f"the fourth extra arg of ingest_file must be named 'em_target'; "
             f"got params={params}"
         )
-        assert params[5:] == ["ft_target", "ftf_target"], (
-            f"the fifth + sixth extra args must be ft_target then ftf_target "
-            f"(TECH §2.5 positional order); got params={params}"
+        assert params[5:] == ["ft_target", "ftf_target", "cc_target"], (
+            f"the fifth..seventh extra args must be ft_target, ftf_target, "
+            f"cc_target (positional order); got params={params}"
         )
 
 
