@@ -39,6 +39,35 @@ deleted.
 
 ---
 
+## Step 1b: GitNexus Baseline (run before any code-heavy wave / sub-agent dispatch)
+
+Refresh the code-intelligence index at session start so the Orchestrator — and any
+in-tree (non-isolation) sub-agents — query a current graph rather than the
+previous session's:
+
+```bash
+npx gitnexus analyze    # minutes; rebuilds .gitnexus/lbug for the primary tree
+```
+
+Notes (important — the naive "push the baseline" model does NOT work):
+
+- The index (`.gitnexus/lbug`, ~270 MB) is **gitignored and local**
+  (`.gitnexus/**` is ignored except `!.gitnexus/CLAUDE.md`). It does **not**
+  propagate to git worktrees via commit/push, so cherry-picked sub-agent
+  worktrees start with a stale/absent index — this is the root of the
+  "stale (never) in every worktree" friction.
+- Until the worktree index-seeding mechanism lands (tracked under ID-27
+  `{27.5}` + `backlog-190`), a **code-touching** dispatch brief into an
+  isolated worktree must either (a) instruct the worker to run
+  `npx gitnexus analyze` first, or (b) accept that gitnexus tools report stale
+  in that worktree and instead lean on `gitnexus_context` / `gitnexus_impact`
+  run from the primary tree at dispatch-authoring time.
+- A stale-index warning on every commit is expected (the post-commit hook
+  compares the index to the new HEAD). Re-run `analyze` only before a genuinely
+  code-heavy wave — not per doc/ledger commit.
+
+---
+
 ## Step 2: Read Critical Documents (parallel with Step 1)
 
 Read these documents in parallel to load context:
