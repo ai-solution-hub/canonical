@@ -375,4 +375,112 @@ describe('add-subtasks — bulk JSON-array create in ONE scoped multi-splice (ID
     if (!r.ok) expect(r.error).toBe('record-not-found');
     expect(readText('task-list')).toBe(before);
   });
+
+  // ── {35.16} add-many record-set gate on the BULK write (checker remediation) ─
+  // The `add-many` RecordSetDelta branch wires the bulk add-subtasks write to the
+  // {35.16} gate. The gate parses the bytes ABOUT TO BE WRITTEN and asserts the
+  // post-write sub-id set equals before + every batch id. Stub
+  // scopedSpliceSerialise at the boundary seam so the FINAL folded content drops
+  // (resp. duplicates) one expected new id — a serialise-side defect on the
+  // add-many path — and prove the gate catches it (real `record-set-violation`,
+  // nothing written), not a call-count.
+  it('add-many gate catches a serialise-side DROP on the bulk write (nothing written)', async () => {
+    const taskId = '9960';
+    await seedTask(taskId, 2); // ids 1..2 → batch auto-ids 3,4,5
+    const batch = [
+      { title: 'Gate one', description: 'Within budget.', details: '' },
+      { title: 'Gate two', description: 'Within budget.', details: '' },
+      { title: 'Gate three', description: 'Within budget.', details: '' },
+    ];
+    const file = join(dir, 'gate-drop.json');
+    writeFileSync(file, JSON.stringify(batch));
+
+    const mod = await import('@/lib/ledger/scoped-serialise');
+    const real = mod.scopedSpliceSerialise;
+    const spy = vi
+      .spyOn(mod, 'scopedSpliceSerialise')
+      .mockImplementation((originalText, op) => {
+        const r = real(originalText, op);
+        if (!r.ok) return r;
+        // Once the FINAL fold step has produced the full batch (the addressed
+        // task carries all three new sub ids 3,4,5), drop the LAST one — a
+        // silent serialise-side record loss on the add-many path.
+        const doc = JSON.parse(r.text) as {
+          tasks?: { id: string; subtasks?: { id: number }[] }[];
+        };
+        const task = doc.tasks?.find((t) => t.id === taskId);
+        if (task?.subtasks && task.subtasks.some((s) => s.id === 5)) {
+          task.subtasks = task.subtasks.filter((s) => s.id !== 5);
+          return { ...r, text: mod.escapeSerialise(doc) };
+        }
+        return r;
+      });
+
+    const before = readText('task-list');
+    const r = await run(args('add-subtasks', [taskId], { file }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('record-set-violation');
+      // The gate names the missing id so the operator sees exactly what dropped.
+      expect(r.detail).toContain('missing');
+      expect(r.detail).toContain('5');
+    }
+    // Nothing written — the temp ledger is byte-identical to before.
+    expect(readText('task-list')).toBe(before);
+    spy.mockRestore();
+  });
+
+  it('add-many gate catches a serialise-side DUPLICATE/extra id on the bulk write (nothing written)', async () => {
+    const taskId = '9961';
+    await seedTask(taskId, 2); // ids 1..2 → batch auto-ids 3,4
+    const batch = [
+      { title: 'Dup one', description: 'Within budget.', details: '' },
+      { title: 'Dup two', description: 'Within budget.', details: '' },
+    ];
+    const file = join(dir, 'gate-extra.json');
+    writeFileSync(file, JSON.stringify(batch));
+
+    const mod = await import('@/lib/ledger/scoped-serialise');
+    const real = mod.scopedSpliceSerialise;
+    const spy = vi
+      .spyOn(mod, 'scopedSpliceSerialise')
+      .mockImplementation((originalText, op) => {
+        const r = real(originalText, op);
+        if (!r.ok) return r;
+        // Once the full batch (ids 3,4) is present, inject an UNEXPECTED extra
+        // subtask id 99 not in the add-many expected set.
+        const doc = JSON.parse(r.text) as {
+          tasks?: { id: string; subtasks?: { id: number }[] }[];
+        };
+        const task = doc.tasks?.find((t) => t.id === taskId);
+        if (
+          task?.subtasks &&
+          task.subtasks.some((s) => s.id === 4) &&
+          !task.subtasks.some((s) => s.id === 99)
+        ) {
+          task.subtasks.push({
+            id: 99,
+            title: 'Unexpected extra',
+            description: '',
+            details: '',
+            status: 'pending',
+            dependencies: [],
+            testStrategy: null,
+          } as { id: number });
+          return { ...r, text: mod.escapeSerialise(doc) };
+        }
+        return r;
+      });
+
+    const before = readText('task-list');
+    const r = await run(args('add-subtasks', [taskId], { file }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('record-set-violation');
+      expect(r.detail).toContain('unexpected');
+      expect(r.detail).toContain('99');
+    }
+    expect(readText('task-list')).toBe(before);
+    spy.mockRestore();
+  });
 });
