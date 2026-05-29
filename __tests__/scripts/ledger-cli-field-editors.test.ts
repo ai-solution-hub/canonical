@@ -485,10 +485,12 @@ describe('ID-65.8 — append-journal accepts dotted AND legacy id args', () => {
     expect(legacy.ok).toBe(true);
     const afterLegacy = readSub(taskId, subId).details as string;
 
-    // Both appended to the same subtask.details; only the embedded timestamp
-    // differs, so compare with the ISO timestamp stripped.
+    // Both appended to the same subtask.details; only the embedded ISO
+    // timestamp differs (millisecond drift between the two runs), so compare
+    // with the timestamp stripped from BOTH the opening `<info added on …>` and
+    // the closing `</info added on …>` tags (the latter starts with `</`).
     const strip = (s: string) =>
-      s.replace(/<info added on [^>]+>/g, '<info added on TS>');
+      s.replace(/(<\/?info added on )[^>]+>/g, '$1TS>');
     expect(strip(afterLegacy)).toBe(strip(afterDotted));
   });
 });
