@@ -2911,6 +2911,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // pre-{35.39} two-ledger behaviour; defined → three-ledger atomic
         // write that also patches the named theme's `linked_tasks[]`).
         flags.capabilityTheme,
+        // ID-65.4 — default to the scoped minimal-diff derivation. {65.5} threads
+        // `scoped: !flags.wholeFile` here once the `--whole-file` opt-out lands.
+        true,
       );
     }
 
@@ -2963,6 +2966,12 @@ async function promote(
   regenMirrors: boolean,
   force: boolean = false,
   capabilityTheme?: string,
+  // ID-65.4: when true (the default), promote derives every staged-write content
+  // string from the {65.2} scoped primitives (record-sized minimal diffs) instead
+  // of the legacy whole-file `serialise()` re-emit. {65.5} wires the call site to
+  // `scoped: !flags.wholeFile`; the `serialise()` branch remains the explicit
+  // `scoped: false` opt-out so a wide whole-file write is still reachable.
+  scoped: boolean = true,
 ): Promise<CliResult> {
   const taskListP = ledgerPath(dir, 'task');
   const backlogP = ledgerPath(dir, 'backlog');
@@ -3073,7 +3082,16 @@ async function promote(
 
   // ID-35.39 Item A: apply the roadmap-side patch only when bound — push the
   // new task id onto the named theme's linked_tasks[] (idempotent). Uses the
-  // vendored applyPatches primitive so the resulting bytes still pass Zod.
+  // vendored applyPatches primitive (fieldPatchMutation) so the resulting bytes
+  // still pass Zod — this remains the schema-validation ORACLE regardless of
+  // which content-derivation path (scoped vs whole-file) emits the final bytes.
+  //
+  // ID-65.4: we additionally record `roadmapAlreadyLinked` + the computed
+  // `nextLinked` so the content-derivation block below can replicate the
+  // pre-{65.4} idempotent behaviour byte-for-byte: already-linked → emit the
+  // UNCHANGED original text (a no-op rewrite); else → emit the patched content.
+  let roadmapAlreadyLinked = false;
+  let roadmapNextLinked: string[] | null = null;
   if (
     capabilityTheme !== undefined &&
     rmLoad &&
@@ -3087,8 +3105,11 @@ async function promote(
     // post-validation reference. Idempotent push: skip if already present so
     // a re-run can't duplicate entries.
     const existingLinked = theme ? theme.linked_tasks : [];
-    if (!existingLinked.includes(String(ins.recordId))) {
+    if (existingLinked.includes(String(ins.recordId))) {
+      roadmapAlreadyLinked = true;
+    } else {
       const nextLinked = [...existingLinked, String(ins.recordId)];
+      roadmapNextLinked = nextLinked;
       const rmPatch = fieldPatchMutation('promote', rmLoad.detected, {
         fieldPath: ['themes', capabilityTheme, 'linked_tasks'],
         newValue: nextLinked,
@@ -3097,12 +3118,78 @@ async function promote(
     }
   }
 
-  const newTaskContent = serialise(ins.detected);
-  const newBacklogContent = serialise(rem.detected);
-  const newRoadmapContent =
-    capabilityTheme !== undefined && rmLoad && rmLoad.ok
-      ? serialise(rmLoad.detected)
-      : null;
+  // ID-65.4: derive each staged-write content string. The DEFAULT (`scoped`)
+  // path routes through the {65.2} scoped primitives so untouched records keep
+  // their exact on-disk bytes — a promote then yields a task-list diff of only
+  // the new Task's lines, a backlog diff of only the removed item's lines, and
+  // (when bound) a roadmap diff of only the one theme's linked_tasks[] line. The
+  // `scoped: false` branch preserves the legacy whole-file `serialise()` re-emit
+  // (the explicit wide-write opt-out wired by {65.5}'s `--whole-file` flag).
+  //
+  // NO SILENT FALLBACK: a scoped function returning `{ ok: false }` returns a
+  // `scoped-*` promote error envelope BEFORE anything is staged — we never fall
+  // through to a wide whole-file write on a scoped failure.
+  let newTaskContent: string;
+  let newBacklogContent: string;
+  let newRoadmapContent: string | null;
+  if (scoped) {
+    const tlSplice = scopedSpliceSerialise(tlLoad.originalText, {
+      kind: 'insert',
+      collection: 'tasks',
+      record: taskRecord.value,
+    });
+    if (!tlSplice.ok)
+      return cliErr(
+        'promote',
+        `scoped-${tlSplice.kind}`,
+        'detail' in tlSplice ? tlSplice.detail : undefined,
+      );
+    newTaskContent = tlSplice.text;
+
+    const blSplice = scopedSpliceSerialise(blLoad.originalText, {
+      kind: 'remove',
+      collection: 'items',
+      recordId: rem.recordId,
+    });
+    if (!blSplice.ok)
+      return cliErr(
+        'promote',
+        `scoped-${blSplice.kind}`,
+        'detail' in blSplice ? blSplice.detail : undefined,
+      );
+    newBacklogContent = blSplice.text;
+
+    // Roadmap: only when bound + loaded. The change is a FieldPatch on ONE
+    // theme's linked_tasks[] (NOT a record splice) — use the scoped field-patch
+    // path. Preserve the idempotent no-op EXACTLY: already-linked → emit the
+    // unchanged original text (byte-identical); else → the field-patched text.
+    if (capabilityTheme !== undefined && rmLoad && rmLoad.ok) {
+      if (roadmapAlreadyLinked || roadmapNextLinked === null) {
+        newRoadmapContent = rmLoad.originalText;
+      } else {
+        const rmScoped = scopedSerialise(rmLoad.originalText, {
+          fieldPath: ['themes', capabilityTheme, 'linked_tasks'],
+          newValue: roadmapNextLinked,
+        });
+        if (!rmScoped.ok)
+          return cliErr(
+            'promote',
+            `scoped-${rmScoped.kind}`,
+            'detail' in rmScoped ? rmScoped.detail : undefined,
+          );
+        newRoadmapContent = rmScoped.text;
+      }
+    } else {
+      newRoadmapContent = null;
+    }
+  } else {
+    newTaskContent = serialise(ins.detected);
+    newBacklogContent = serialise(rem.detected);
+    newRoadmapContent =
+      capabilityTheme !== undefined && rmLoad && rmLoad.ok
+        ? serialise(rmLoad.detected)
+        : null;
+  }
 
   // ID-35.16 record-set gate, run twice (once per ledger) on the bytes ABOUT
   // TO BE WRITTEN: task-list +1 (the new Task id) AND backlog −1 (the source
