@@ -16,7 +16,8 @@
       "Bash(mkdir -p .claude/skills/*)",
       "Bash(mkdir -p ~/.claude/.sentinels)",
       "Bash(touch ~/.claude/.sentinels/*)"
-    ]
+    ],
+    "deny": ["Read(supabase/types/database.types.ts)", "Read(lib/mcp/plugin-bundle.ts)"]
   },
   "hooks": {
     "PreToolUse": [
