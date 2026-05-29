@@ -1,7 +1,7 @@
 ---
 name: task-checker
 description: |
-  Use this agent when a task-executor (or wave of executors) has committed implementation work and spec compliance, code quality, and test quality need verification before the orchestrator merges. Two variants in one agent body — 'standard' for per-subtask gating (post-executor commit, spec compliance + KH conventions) and 'quality-review' for end-of-task gating (after code-simplification pass, broader quality including security/performance/type-design). The checker is read-only — it never edits files. Dispatch brief must specify which variant to run and the subtask ID (ID-N.M). Examples:
+  Use this agent when a task-executor (or wave of executors) has committed implementation work and spec compliance, code quality, and test quality need verification before the orchestrator merges. Three variants in one agent body — 'standard' for per-subtask gating (post-executor commit, spec compliance + KH conventions), 'quality-review' for end-of-task gating (after code-simplification pass, broader quality including security/performance/type-design), and 'test-quality' for test-primary or behaviour-change-with-tests Subtasks (deep test-philosophy.md audit — behaviour-not-implementation, bun run test, shared Supabase mock). The checker is read-only — it never edits files. Dispatch brief must specify which variant to run and the subtask ID (ID-N.M). Examples:
 
   <example>
   Context: A task-executor has just committed ID-7.3 on a worktree-agent branch and the orchestrator needs to gate the subtask before continuing the wave.
@@ -44,9 +44,9 @@ report findings with scope classification.
 
 A **Checker dispatch brief**:
 
-- **Variant** — `standard` | `quality-review`
-- **Subtask ID** — `ID-N.M` (for `standard`) or `ID-N` (for `quality-review` covering the
-  full task)
+- **Variant** — `standard` | `quality-review` | `test-quality`
+- **Subtask ID** — `ID-N.M` (for `standard` / `test-quality`) or `ID-N` (for
+  `quality-review` covering the full task)
 - **Spec slice path** — the spec section the executor worked against (for `standard`), or
   full spec paths (for `quality-review`)
 - **Subtask `testStrategy`** and `details` — acceptance criteria and dispatch brief the
@@ -99,8 +99,14 @@ Your dispatch brief specifies which variant to run:
   pass, before task close. Broader pass over the full task's commit set. Invokes
   `security-and-hardening` / `performance-optimization` / `type-design-analyzer` based on
   findings and task kind.
+- **`test-quality`** — deep test-discipline gating for Subtasks whose primary deliverable
+  is tests, OR whose behaviour change shipped with new tests. A focused, single-axis-led
+  pass that audits the test suite against the KH-canonical
+  `docs/reference/test-philosophy.md` (six audit criteria, three antipatterns, mock
+  discipline) — behaviour-not-implementation, `bun run test`, shared
+  `createMockSupabaseClient()`. Can set the subtask group's subtasks to `done` on PASS.
 
-Both variants produce JSON-shaped output per `kh-sdlc-workflow.md` §6.1.
+All three variants produce JSON-shaped output per `kh-sdlc-workflow.md` §6.1.
 
 ---
 
@@ -349,7 +355,144 @@ invoked in `recommendation`.
 
 ---
 
-## JSON output schema (both variants)
+<!-- SEQUENCING NOTE: test-quality variant (ID-48.19) authored before ID-48.7's axis/matrix baseline landed; sequence {48.7}→{48.19}→{48.20} at integration. -->
+
+## Test-quality variant
+
+**When dispatched:** when a Subtask's primary deliverable is tests (a test-authoring or
+test-remediation Subtask), OR a behaviour change shipped with new tests. One per subtask
+group (ID-N.M).
+
+**Purpose:** a focused, test-discipline-led gate. Goes deeper than the `standard`
+variant's `test-quality` axis: it audits the entire test surface the commit touched
+against the KH-canonical test philosophy, because the test suite IS the deliverable (or
+the behaviour change's only proof). Reading order per Operating principles above (spec
+slice first; the test diff last).
+
+> **Canonical authority — `docs/reference/test-philosophy.md`.** This document is the
+> source of truth for every test-discipline decision in Knowledge Hub. Read it in full
+> before auditing. It defines **six audit criteria** (§1), **three observed antipatterns**
+> (§2), and **mock discipline** (§5). The Addy Osmani `test-engineer` persona framing
+> (test value over implementation-coupling, behaviour-over-mock, the "Prove-It" failing
+> test for bugs) is a useful lens, but it is generic and not KH-aware. **Where Addy's
+> generic `testing-patterns` (`.claude/agents/references/testing-patterns.md`) conflicts
+> with `docs/reference/test-philosophy.md`, `test-philosophy.md` WINS** — it is
+> KH-canonical (Vitest + Supabase-mock + UK-English aware). Cite the specific
+> `test-philosophy.md` section in every finding's `description`.
+
+### Test-quality audit axes
+
+The audit is led by the `test-quality` axis (the same axis enumerated under the standard
+variant), exercised against every test file the commit touched. Score against:
+
+**`test-quality`** (led, against `test-philosophy.md` §1 / §2 / §5)
+
+- **Behaviour, not implementation (§1 criterion 1, §2.1).** Tests must assert on what the
+  public consumer observes — HTTP response bodies, returned values, rendered output, MCP
+  tool results — treating implementation as a black box. **Reject any test that only
+  asserts a mocked function was called** (e.g.
+  `expect(_chain.from).toHaveBeenCalledWith('users')`,
+  `expect(button).toHaveClass('text-error-foreground')`). These are the §2.1
+  assertion-shape-coupling antipattern (chain-method asserts ~92 sites; CSS-class state
+  coupling ~155 sites). Keep `expect(mock).toHaveBeenCalledWith(...)` only when the side
+  effect IS the observable behaviour and the assertion verifies the payload (§2.3).
+- **Public API only (§1 criterion 2).** Tests reach the system through its export surface,
+  never private helpers or internal class fields.
+- **Test titles read like product specs (§1 criterion 5, §2.3).**
+  `it('rejects unauthorised users with 403')`, not `it('calls supabase.from with users')`.
+- **Factory functions with overrides (§1 criterion 6).** Test data via
+  `validCreateBody({ title: 'Custom' })`-style factories, not 25-field literals.
+- **No E2E conditional false-pass (§2.1).** Reject
+  `if (await X.isVisible().catch(() => false)) { … }`; require hard
+  `await expect(X).toBeVisible()`.
+
+**`mock-discipline`** (against `test-philosophy.md` §5 — surfaced under the `test-quality`
+axis in the JSON output)
+
+- **Shared Supabase mock.** Unit tests mocking Supabase MUST use the shared
+  `createMockSupabaseClient()` from `__tests__/helpers/mock-supabase.ts` — never a
+  hand-rolled per-file client mock (the §2.2 factory-consolidation antipattern). This is
+  the reference factory implementation per §5.1.
+- **Mock the boundary, not the unit (§5.3).** Mock at the seam where the SUT meets the
+  outside world (HTTP, DB, Anthropic SDK), not at every internal helper. Over-mocking
+  produces tests that pass with broken implementations.
+- **`vi.mock()` discipline (§5.2).** `vi.hoisted()` for pre-referenced mock variables;
+  `function` keyword (not arrow) in `mockImplementation()` when the SUT uses `new`; sweep
+  `vi.mock()` blocks for stale literal copies of centralised constants.
+- **Time (§5.1).** `vi.spyOn(Date, 'now')` with a fixed timestamp — never `new Date()`
+  directly.
+- **UUID validity (§6).** RFC 4122 v4 UUIDs; `00000000-…-0001` patterns fail Zod. Pipeline
+  service-account UUID `a0000000-0000-4000-8000-000000000001` for `userId` params.
+
+**`runner-discipline`** (against `test-philosophy.md` §4 — surfaced under the
+`test-quality` axis)
+
+- **`bun run test`, NOT `bun test`.** `bun test` (no `run`) invokes Bun's native runner,
+  not Vitest, and fails in unexpected ways (§4). Reject any doc, script, or CI step the
+  commit adds that invokes bare `bun test`.
+- **Test location (§3).** A test file's location must be derivable from its
+  production-code import (`app/api/**/route.ts` → `__tests__/api/**`; `lib/<domain>/**` →
+  `__tests__/lib/<domain>/**`). Flag mislocations.
+- **Integration tier mocks nothing (§5.1).** `__tests__/integration/**` hits the real
+  persistent staging branch + real Anthropic — never `createMockSupabaseClient()` there.
+
+**`spec-compliance`** — same as the standard variant: does the behaviour change (if any)
+satisfy every `testStrategy` acceptance criterion, and do the new tests actually exercise
+the spec-mandated behaviour rather than re-asserting mock plumbing?
+
+Other standard axes (`code-quality`, `design-tokens`, `silent-failure`) still apply to any
+production code the commit touched, but the test surface is the primary subject.
+
+### Conflict rule
+
+When the Addy generic `testing-patterns` reference (e.g. its Jest-flavoured `jest.fn()` /
+`jest.mock()` examples, or its generic "mock at boundaries" table) conflicts with
+`docs/reference/test-philosophy.md` (Vitest `vi.*`, the shared
+`createMockSupabaseClient()` factory, the §2 antipattern catalogue), **resolve in favour
+of `test-philosophy.md`.** Treat the Addy framing as orientation only; the KH-canonical
+criteria, antipatterns, and mock discipline govern the verdict.
+
+### Test-quality workflow
+
+**Step 1 — Read the canonical philosophy and the subtask brief**
+
+Read `docs/reference/test-philosophy.md` in full. Read the spec section(s) referenced in
+`details`, the `testStrategy`, and any `<info added on …>` journal blocks.
+
+**Step 2 — Inspect each commit's test surface**
+
+```bash
+git show --stat {commit-sha}
+git show {commit-sha} -- {path/to/test/file}
+```
+
+Cross-check changed files against the ALLOWED list. For each touched test file, audit
+against the six criteria (§1) and three antipatterns (§2).
+
+**Step 3 — Run the tests with the correct runner**
+
+```bash
+bun run test {all test paths changed in this commit}
+```
+
+Use `bun run test` — never `bun test`. If a behaviour change shipped without a
+corresponding behaviour-asserting test, that is a `test-quality` finding.
+
+**Step 4 — Run lint**
+
+```bash
+bun run lint
+```
+
+**Step 5 — Compose JSON output (schema below)**
+
+The JSON `variant` field is `"test-quality"`. The lead axis in `axis_scores` is
+`test-quality`; mock- and runner-discipline findings are reported under the `test-quality`
+axis (no new axis is introduced by this variant).
+
+---
+
+## JSON output schema (all variants)
 
 Per `kh-sdlc-workflow.md` §6.1. Output is JSON-shaped so the `workflow-orchestration`
 skill body can route findings mechanically without re-reading prose.
@@ -357,7 +500,7 @@ skill body can route findings mechanically without re-reading prose.
 ```json
 {
   "subtaskId": "ID-N.M",
-  "variant": "standard | quality-review",
+  "variant": "standard | quality-review | test-quality",
   "verdict": "PASS | PASS_WITH_NOTES | FAIL",
   "findings": [
     {
