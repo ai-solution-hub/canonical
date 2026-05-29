@@ -90,6 +90,8 @@ import { applyPatches, type FieldPatch } from '@/lib/ledger/patch-apply';
 import {
   escapeSerialise,
   scopedSerialise,
+  scopedSpliceSerialise,
+  type SpliceOp,
 } from '@/lib/ledger/scoped-serialise';
 import { insertRecord, removeRecord } from '@/lib/ledger/record-mutate';
 import {
@@ -1567,6 +1569,28 @@ interface ScopedWrite {
 }
 
 /**
+ * A scoped record-INSERT descriptor (ID-65.3): the ORIGINAL on-disk text (as read
+ * by loadLedger) plus a single record-level {@link SpliceOp}. When passed to
+ * {@link commitMutation} with `scoped: true`, the written bytes come from
+ * re-emitting the original text with exactly one record spliced in
+ * (lib/ledger/scoped-serialise.ts `scopedSpliceSerialise`), so untouched records
+ * stay byte-identical — a create produces a minimal record-sized diff instead of
+ * a whole-file re-emit of the parent array.
+ *
+ * This is an ADDITIVE sibling to {@link ScopedWrite} (the field-edit scoped path):
+ * the four single-record create commands (add-subtask, open-task, create-theme,
+ * create-backlog) thread this instead of a `scopedWrite` field-patch. The
+ * schema+uniqueness oracle still runs at the call site BEFORE the splice
+ * (`fieldPatchMutation` / `insertRecord`) — the splice primitive intentionally
+ * does not re-enforce duplicate-id. The whole-file `serialise()` stays the
+ * fallback when `scoped` is false (the future {65.5} `--whole-file` opt-out).
+ */
+interface ScopedSplice {
+  originalText: string;
+  op: SpliceOp;
+}
+
+/**
  * ID-35.16 record-set-preservation gate inputs for one ledger write: the
  * ledger name (for the error detail), the collection guarded, the pre-write
  * id-set (captured at `loadLedger` time, BEFORE the mutation), and the intended
@@ -1588,6 +1612,8 @@ interface RecordSetGate {
  *
  * - `dryRun` / `regenMirrors` / `force`: the flag-derived write modifiers.
  * - `scoped` + `scopedWrite`: ID-35.11 minimal-diff write (field edits only).
+ * - `scoped` + `scopedSplice`: ID-65.3 minimal-diff record INSERT (create
+ *   commands). At most one of `scopedWrite` / `scopedSplice` is supplied per call.
  * - `gate`: ID-35.16 record-set-preservation gate.
  * - `budgetGate`: ID-35.17 write-time budget pre-check.
  */
@@ -1600,6 +1626,7 @@ interface CommitMutationOptions {
   regenMirrors: boolean;
   scoped?: boolean;
   scopedWrite?: ScopedWrite;
+  scopedSplice?: ScopedSplice;
   gate?: RecordSetGate;
   budgetGate?: BudgetGate;
   force?: boolean;
@@ -1627,6 +1654,14 @@ interface CommitMutationOptions {
  * unexpectedly rejects (it re-validates), the error surfaces as `{ok:false}` and
  * nothing is written.
  *
+ * ID-65.3: when `scoped` is true AND a {@link ScopedSplice} descriptor is supplied
+ * (record INSERT — the four create commands), the bytes come from
+ * {@link scopedSpliceSerialise} instead, so the create appends ONE record to the
+ * original text rather than whole-file re-emitting the collection. Same fail-fast
+ * contract: a splice rejection surfaces as `{ok:false}` and nothing is written —
+ * never a silent wide whole-file fallback. The call site's `insertRecord` /
+ * `fieldPatchMutation` already ran the schema + duplicate-id oracle.
+ *
  * ID-35.16: when a {@link RecordSetGate} is supplied, the record-set-
  * preservation gate runs on the SERIALISED OUTPUT (scoped or whole-file) before
  * `atomicWriteFile` — a serialise-side drop/duplicate is rejected with
@@ -1642,6 +1677,7 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
     regenMirrors,
     scoped = false,
     scopedWrite,
+    scopedSplice,
     gate,
     budgetGate,
     force = false,
@@ -1687,7 +1723,31 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
   }
 
   let content: string;
-  if (scoped && scopedWrite) {
+  if (scoped && scopedSplice) {
+    // ID-65.3 record-INSERT scoped path: append ONE record to the original text
+    // (minimal record-sized diff) instead of whole-file re-emitting the parent
+    // collection. The call site's insertRecord / fieldPatchMutation already ran
+    // the schema + duplicate-id oracle, so a splice failure here is unexpected —
+    // surface it rather than silently falling back to a wide whole-file write
+    // (mirrors the scopedWrite handling below).
+    const r = scopedSpliceSerialise(scopedSplice.originalText, scopedSplice.op);
+    if (!r.ok) {
+      if (r.kind === 'schema-error') {
+        return {
+          ok: false,
+          subcommand,
+          error: 'scoped-schema-error',
+          detail: r.error instanceof Error ? r.error.message : String(r.error),
+        };
+      }
+      return cliErr(
+        subcommand,
+        `scoped-${r.kind}`,
+        'detail' in r ? r.detail : undefined,
+      );
+    }
+    content = r.text;
+  } else if (scoped && scopedWrite) {
     const r = scopedSerialise(scopedWrite.originalText, scopedWrite.patch);
     if (!r.ok) {
       // The whole-file path already validated via applyPatches, so a scoped
@@ -2422,6 +2482,17 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
+        // ID-65.3: route through the {65.2} splice so the WRITTEN bytes are ONE
+        // subtask appended to the parent task's subtasks[] in the original text,
+        // not a whole-file serialise of the entire (possibly 40-deep) array. The
+        // record spliced is the SAME coerced object pushed into nextSubtasks
+        // above (its numeric id already injected). The {fieldPatchMutation} above
+        // is kept as the schema + uniqueness oracle (catches dup subtask id).
+        scoped: true,
+        scopedSplice: {
+          originalText: loaded.originalText,
+          op: { kind: 'insert', collection: 'subtasks', taskId, record },
+        },
         gate: {
           ledger: 'task',
           descriptor,
@@ -2662,6 +2733,16 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { recordId: ins.recordId },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
+        // ID-65.3: route through the {65.2} splice so the WRITTEN bytes are ONE
+        // record appended to the top-level collection in the original text, not a
+        // whole-file re-emit. The record spliced is the post-defaults/post-auto-id
+        // object built above (the SAME one insertRecord validated). insertRecord
+        // remains the schema + duplicate-id oracle (rejects before this commits).
+        scoped: true,
+        scopedSplice: {
+          originalText: loaded.originalText,
+          op: { kind: 'insert', collection, record },
+        },
         gate: {
           ledger,
           descriptor,
