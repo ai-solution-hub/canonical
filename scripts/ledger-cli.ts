@@ -802,7 +802,9 @@ const SUBCOMMAND_HELP: Record<
     kinds: ['task'],
   },
   'flip-subtask': {
-    synopsis: 'flip-subtask <taskId> <subId> <status> — set a Subtask status',
+    synopsis:
+      'flip-subtask <taskId.subId> <status> — set a Subtask status ' +
+      '(legacy <taskId> <subId> <status> still accepted)',
     flags: '--whole-file --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
@@ -832,7 +834,9 @@ const SUBCOMMAND_HELP: Record<
     kinds: ['item'],
   },
   'append-journal': {
-    synopsis: 'append-journal <taskId> <subId> <text> — append a journal block',
+    synopsis:
+      'append-journal <taskId.subId> <text> — append a journal block ' +
+      '(legacy <taskId> <subId> <text> still accepted)',
     flags: '--whole-file --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
@@ -886,7 +890,9 @@ const SUBCOMMAND_HELP: Record<
     kinds: ['item'],
   },
   'delete-subtask': {
-    synopsis: 'delete-subtask <taskId> <subId> — remove a Subtask',
+    synopsis:
+      'delete-subtask <taskId.subId> — remove a Subtask ' +
+      '(legacy <taskId> <subId> still accepted)',
     flags: '--dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
@@ -922,11 +928,11 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   get            <ledger> <id> [field]         (single-field read; no field = show)
   schema         [ledger|recordKind]           (print field names + types + budgets)
   flip-task      <taskId> <status>
-  flip-subtask   <taskId> <subId> <status>
+  flip-subtask   <taskId.subId> <status>        (legacy <taskId> <subId> <status>)
   update-subtask <taskId.subId> <field> <value>
   update-task    <taskId> <field> <value>
   update-roadmap <themeId> <field> <value>
-  append-journal <taskId> <subId> <text>
+  append-journal <taskId.subId> <text>          (legacy <taskId> <subId> <text>)
   add-subtask    <taskId> <subtaskJson>
   add-subtasks   <taskId> --file <json|->        (bulk — JSON array of subtasks)
   update-backlog <itemId> <field> <value>
@@ -1129,6 +1135,43 @@ function msg(err: unknown): string {
 
 function cliErr(subcommand: string, error: string, detail?: string): CliResult {
   return { ok: false, subcommand, error, detail };
+}
+
+/**
+ * ID-65.8 — shared subtask id-arg parser. Resolves the S280 CLI inconsistency
+ * where `update-subtask` took a dotted id (`35.1`) but `append-journal` took
+ * space-separated args (`35 1`). Dotted `taskId.subId` is the canonical form
+ * (richer, already-validated, matches the {N.M} notation used throughout the
+ * workflow docs). Reuses update-subtask's original dot-split + bad-id guard.
+ *
+ * `subId` is returned as a STRING (mirroring update-subtask's `slice`) — callers
+ * `Number(subId)` where they need a number and use the string in fieldPaths.
+ *
+ * @param subcommand the calling subcommand (for the bad-id error envelope).
+ * @param arg the dotted `taskId.subId` positional.
+ */
+function parseDottedSubtaskId(
+  subcommand: string,
+  arg: string,
+):
+  | { ok: true; taskId: string; subId: string }
+  | { ok: false; result: CliResult } {
+  const dot = arg.indexOf('.');
+  if (dot <= 0 || dot === arg.length - 1) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'bad-id',
+        `id must be dotted taskId.subId (e.g. 35.1); got "${arg}"`,
+      ),
+    };
+  }
+  return {
+    ok: true,
+    taskId: arg.slice(0, dot),
+    subId: arg.slice(dot + 1),
+  };
 }
 
 // ── ID-35.16 record-set-preservation write gate (RESEARCH §2.6) ──────────────
@@ -2341,12 +2384,27 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     }
 
     case 'flip-subtask': {
-      const [taskId, subId, status] = p;
+      // ID-65.8 — canonical dotted `flip-subtask <taskId.subId> <status>`;
+      // legacy space-separated `<taskId> <subId> <status>` still accepted. A
+      // bare-digit taskId never contains '.', so `p[0].includes('.')` is an
+      // unambiguous discriminator.
+      let taskId: string;
+      let subId: string;
+      let status: string;
+      if (p[0]?.includes('.')) {
+        const parsed = parseDottedSubtaskId('flip-subtask', p[0]);
+        if (!parsed.ok) return parsed.result;
+        taskId = parsed.taskId;
+        subId = parsed.subId;
+        status = p[1];
+      } else {
+        [taskId, subId, status] = p;
+      }
       if (!taskId || !subId || !status)
         return cliErr(
           'flip-subtask',
           'missing-args',
-          'flip-subtask <taskId> <subId> <status>',
+          'flip-subtask <taskId.subId> <status> (legacy: <taskId> <subId> <status>)',
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
@@ -2395,15 +2453,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'missing-args',
           'update-subtask <taskId.subId> <field> <value>',
         );
-      const dot = dottedId.indexOf('.');
-      if (dot <= 0 || dot === dottedId.length - 1)
-        return cliErr(
-          'update-subtask',
-          'bad-id',
-          `id must be dotted taskId.subId (e.g. 35.1); got "${dottedId}"`,
-        );
-      const taskId = dottedId.slice(0, dot);
-      const subId = dottedId.slice(dot + 1);
+      // ID-65.8 — dotted id parse + bad-id guard factored into the shared
+      // helper (no behaviour change — update-subtask was already dotted).
+      const parsed = parseDottedSubtaskId('update-subtask', dottedId);
+      if (!parsed.ok) return parsed.result;
+      const { taskId, subId } = parsed;
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
       // Field-edit on a subtask: the addressed task's subtask id-set is
@@ -2469,12 +2523,27 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     }
 
     case 'append-journal': {
-      const [taskId, subId, text] = p;
+      // ID-65.8 — canonical dotted `append-journal <taskId.subId> <text>`;
+      // legacy space-separated `<taskId> <subId> <text>` still accepted. A
+      // bare-digit taskId never contains '.', so `p[0].includes('.')` is an
+      // unambiguous discriminator (dotted → text = p[1]; legacy → text = p[2]).
+      let taskId: string;
+      let subId: string;
+      let text: string;
+      if (p[0]?.includes('.')) {
+        const parsed = parseDottedSubtaskId('append-journal', p[0]);
+        if (!parsed.ok) return parsed.result;
+        taskId = parsed.taskId;
+        subId = parsed.subId;
+        text = p[1];
+      } else {
+        [taskId, subId, text] = p;
+      }
       if (!taskId || !subId || text == null)
         return cliErr(
           'append-journal',
           'missing-args',
-          'append-journal <taskId> <subId> <text>',
+          'append-journal <taskId.subId> <text> (legacy: <taskId> <subId> <text>)',
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
@@ -3119,12 +3188,26 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     // writing NOTHING. task-list IS mirrored, so regen applies (default-on,
     // `--no-regen-mirrors` to skip).
     case 'delete-subtask': {
-      const [taskId, subIdRaw] = p;
+      // ID-65.8 — canonical dotted `delete-subtask <taskId.subId>`; legacy
+      // space-separated `<taskId> <subId>` still accepted. A bare-digit taskId
+      // never contains '.', so `p[0].includes('.')` is an unambiguous
+      // discriminator. The dotted subId is a string, like the legacy positional,
+      // so the {35.43} `Number()`/trim coercion below is unchanged.
+      let taskId: string;
+      let subIdRaw: string;
+      if (p[0]?.includes('.')) {
+        const parsed = parseDottedSubtaskId('delete-subtask', p[0]);
+        if (!parsed.ok) return parsed.result;
+        taskId = parsed.taskId;
+        subIdRaw = parsed.subId;
+      } else {
+        [taskId, subIdRaw] = p;
+      }
       if (!taskId || subIdRaw == null)
         return cliErr(
           'delete-subtask',
           'missing-args',
-          'delete-subtask <taskId> <subId>',
+          'delete-subtask <taskId.subId> (legacy: <taskId> <subId>)',
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;

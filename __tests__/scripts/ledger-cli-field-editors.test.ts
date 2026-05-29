@@ -423,3 +423,206 @@ describe('create-theme — {35.20} roadmap record create', () => {
     expect(r.ok).toBe(false);
   });
 });
+
+// ── ID-65.8 — dotted `taskId.subId` id-arg convention across the four
+//    subtask-addressing commands (normalise the S280 inconsistency where
+//    update-subtask was dotted but append-journal was space-separated). Dotted
+//    is canonical; the legacy space-separated form stays accepted (back-compat).
+
+describe('ID-65.8 — append-journal accepts dotted AND legacy id args', () => {
+  /** A task whose first subtask has no `details` (clean append target). */
+  function subtaskTarget(): { taskId: string; subId: number } {
+    const tl = readTask();
+    for (const t of tl.tasks) {
+      if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
+        return { taskId: t.id, subId: t.subtasks[0].id };
+      }
+    }
+    throw new Error('no task with a subtask in fixture');
+  }
+
+  function readSub(taskId: string, subId: number) {
+    const tl = readTask();
+    const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
+    return task.subtasks.find((s: { id: number }) => s.id === subId);
+  }
+
+  it('appends a journal block via the dotted `35.1 <text>` form', async () => {
+    const { taskId, subId } = subtaskTarget();
+    const r = await run(
+      args('append-journal', [`${taskId}.${subId}`, 'DOTTED journal entry.']),
+    );
+    expect(r.ok).toBe(true);
+    const sub = readSub(taskId, subId);
+    expect(sub.details).toContain('DOTTED journal entry.');
+    expect(sub.details).toContain('<info added on');
+  });
+
+  it('appends a journal block via the legacy `35 1 <text>` form', async () => {
+    const { taskId, subId } = subtaskTarget();
+    const r = await run(
+      args('append-journal', [taskId, String(subId), 'LEGACY journal entry.']),
+    );
+    expect(r.ok).toBe(true);
+    const sub = readSub(taskId, subId);
+    expect(sub.details).toContain('LEGACY journal entry.');
+  });
+
+  it('dotted and legacy forms target the SAME subtask', async () => {
+    const { taskId, subId } = subtaskTarget();
+    // Dotted append into a fresh copy.
+    const dotted = await run(
+      args('append-journal', [`${taskId}.${subId}`, 'SAME-TARGET probe.']),
+    );
+    expect(dotted.ok).toBe(true);
+    const afterDotted = readSub(taskId, subId).details as string;
+
+    // Reset and repeat with the legacy form — same byte-for-byte target field.
+    copyFileSync(REAL.task, join(dir, 'task-list.json'));
+    const legacy = await run(
+      args('append-journal', [taskId, String(subId), 'SAME-TARGET probe.']),
+    );
+    expect(legacy.ok).toBe(true);
+    const afterLegacy = readSub(taskId, subId).details as string;
+
+    // Both appended to the same subtask.details; only the embedded timestamp
+    // differs, so compare with the ISO timestamp stripped.
+    const strip = (s: string) =>
+      s.replace(/<info added on [^>]+>/g, '<info added on TS>');
+    expect(strip(afterLegacy)).toBe(strip(afterDotted));
+  });
+});
+
+describe('ID-65.8 — flip-subtask accepts dotted AND legacy id args', () => {
+  function nonDoneSubtask(): { taskId: string; subId: number } {
+    const tl = readTask();
+    for (const t of tl.tasks) {
+      const s = (t.subtasks ?? []).find(
+        (s: { status: string }) => s.status !== 'done',
+      );
+      if (s) return { taskId: t.id, subId: s.id };
+    }
+    throw new Error('no non-done subtask in fixture');
+  }
+
+  function readStatus(taskId: string, subId: number) {
+    const tl = readTask();
+    const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
+    return task.subtasks.find((s: { id: number }) => s.id === subId).status;
+  }
+
+  it('flips status via the dotted `35.1 done` form', async () => {
+    const { taskId, subId } = nonDoneSubtask();
+    const r = await run(args('flip-subtask', [`${taskId}.${subId}`, 'done']));
+    expect(r.ok).toBe(true);
+    expect(readStatus(taskId, subId)).toBe('done');
+  });
+
+  it('flips status via the legacy `35 1 done` form', async () => {
+    const { taskId, subId } = nonDoneSubtask();
+    const r = await run(args('flip-subtask', [taskId, String(subId), 'done']));
+    expect(r.ok).toBe(true);
+    expect(readStatus(taskId, subId)).toBe('done');
+  });
+});
+
+describe('ID-65.8 — delete-subtask accepts dotted AND legacy id args', () => {
+  /** A task with >=2 subtasks so a delete leaves a non-empty, valid Task. */
+  function taskWithTwoSubtasks(): { taskId: string; subId: number } {
+    const tl = readTask();
+    const task = tl.tasks.find(
+      (t: { subtasks: unknown[] }) =>
+        Array.isArray(t.subtasks) && t.subtasks.length >= 2,
+    );
+    if (!task) throw new Error('no task with >=2 subtasks in fixture');
+    // Delete the LAST subtask to avoid sibling-dependency superRefine breakage.
+    const last = task.subtasks[task.subtasks.length - 1];
+    return { taskId: task.id, subId: last.id };
+  }
+
+  function hasSub(taskId: string, subId: number): boolean {
+    const tl = readTask();
+    const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
+    return task.subtasks.some((s: { id: number }) => s.id === subId);
+  }
+
+  it('removes a subtask via the dotted `35.7` form', async () => {
+    const { taskId, subId } = taskWithTwoSubtasks();
+    const r = await run(args('delete-subtask', [`${taskId}.${subId}`]));
+    expect(r.ok).toBe(true);
+    expect(hasSub(taskId, subId)).toBe(false);
+  });
+
+  it('removes a subtask via the legacy `35 7` form', async () => {
+    const { taskId, subId } = taskWithTwoSubtasks();
+    const r = await run(args('delete-subtask', [taskId, String(subId)]));
+    expect(r.ok).toBe(true);
+    expect(hasSub(taskId, subId)).toBe(false);
+  });
+});
+
+describe('ID-65.8 — update-subtask is unchanged (already dotted)', () => {
+  it('still flips a subtask status via the dotted id', async () => {
+    const tl = readTask();
+    let taskId = '';
+    let subId = -1;
+    for (const t of tl.tasks) {
+      const s = (t.subtasks ?? []).find(
+        (s: { status: string }) => s.status !== 'done',
+      );
+      if (s) {
+        taskId = t.id;
+        subId = s.id;
+        break;
+      }
+    }
+    if (!taskId) throw new Error('no non-done subtask in fixture');
+    const r = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'status', 'done']),
+    );
+    expect(r.ok).toBe(true);
+    const after = readTask();
+    const task = after.tasks.find((t: { id: string }) => t.id === taskId);
+    const sub = task.subtasks.find((s: { id: number }) => s.id === subId);
+    expect(sub.status).toBe('done');
+  });
+});
+
+describe('ID-65.8 — parseDottedSubtaskId rejects malformed ids', () => {
+  // Drive the shared guard through the user-facing commands (update-subtask /
+  // flip-subtask both route through parseDottedSubtaskId). A non-dotted bare
+  // digit is treated as the LEGACY form by the dot discriminator, so the
+  // malformed cases here are dotted-looking ids the guard must reject:
+  //   ".5"  → dot at index 0  (no taskId)
+  //   "35." → dot at last index (no subId)
+  // and the legacy single-positional bare-digit case still errors as before.
+  it('update-subtask rejects ".5" (empty taskId) with bad-id', async () => {
+    const r = await run(args('update-subtask', ['.5', 'status', 'done']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('bad-id');
+  });
+
+  it('update-subtask rejects "35." (empty subId) with bad-id', async () => {
+    const r = await run(args('update-subtask', ['35.', 'status', 'done']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('bad-id');
+  });
+
+  it('update-subtask rejects a bare non-dotted "35" (no dot at all)', async () => {
+    const r = await run(args('update-subtask', ['35', 'status', 'done']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('bad-id');
+  });
+
+  it('flip-subtask rejects a dotted-looking ".5" with bad-id', async () => {
+    const r = await run(args('flip-subtask', ['.5', 'done']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('bad-id');
+  });
+
+  it('flip-subtask rejects a dotted-looking "35." with bad-id', async () => {
+    const r = await run(args('flip-subtask', ['35.', 'done']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('bad-id');
+  });
+});
