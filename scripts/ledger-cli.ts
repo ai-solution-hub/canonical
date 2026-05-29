@@ -1427,7 +1427,7 @@ function checkBudget(
  *
  * - `taskId` set, `subId` undefined: keep only warnings whose `taskId` field
  *   matches AND whose message body is task-level (the parent task's
- *   description / status_note / >25-subtasks lines, NOT the per-subtask
+ *   description / status_note lines, NOT the per-subtask
  *   description / testStrategy lines for sibling subtasks under the same task).
  * - `taskId` AND `subId` set: keep only warnings whose `taskId` field matches
  *   AND whose message body references this specific `taskId.subId` subtask.
@@ -1455,11 +1455,10 @@ function disciplineWarnings(
     const { warnings } = parseTaskListWithWarnings(detected.data);
     if (!scope) return warnings.map((w) => w.message);
     // ID-35.30 scope filter.
-    // `parseTaskListWithWarnings` emits at most four message shapes (see
+    // `parseTaskListWithWarnings` emits at most three message shapes (see
     // lib/validation/task-list-schema.ts §parseTaskListWithWarnings):
     //   - Task "{taskId}" description ... — task-level
     //   - Task "{taskId}" status_note ... — task-level
-    //   - Task "{taskId}" has N subtasks (>25) — task-level
     //   - Subtask {taskId}.{subId} description / testStrategy ... — subtask-level
     // Each carries `taskId` (the parent task id) on the warning struct.
     // Subtask-level messages embed the compound `{taskId}.{subId}` literally

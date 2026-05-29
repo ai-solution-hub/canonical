@@ -128,7 +128,7 @@ describe('parseTaskListWithWarnings — field-length discipline (ID-34 inv 8)', 
     expect(warnings).toEqual([]);
   });
 
-  it('keeps the 25-Subtask ceiling warning intact alongside field warnings', () => {
+  it('emits only field warnings for a >25-Subtask Task (ceiling warning removed S279)', () => {
     const subtasks = Array.from({ length: 26 }, (_, i) => ({
       ...VALID_SUBTASK,
       id: i + 1,
@@ -137,9 +137,10 @@ describe('parseTaskListWithWarnings — field-length discipline (ID-34 inv 8)', 
     const { warnings } = parseTaskListWithWarnings(
       makeDoc([makeTask({ subtasks, description: longDesc })]),
     );
-    // one ceiling warning + one description warning
-    expect(warnings).toHaveLength(2);
-    expect(warnings.some((w) => w.message.includes('25'))).toBe(true);
+    // The >25-Subtask ceiling warning was removed S279 (a Task may grow beyond
+    // 25 Subtasks); only the description field-budget warning remains.
+    expect(warnings).toHaveLength(1);
     expect(warnings.some((w) => w.message.includes('description'))).toBe(true);
+    expect(warnings.some((w) => w.message.includes('subtasks'))).toBe(false);
   });
 });

@@ -25,10 +25,7 @@ import { z } from 'zod';
 import { TaskListStatus, Priority } from '@/lib/validation/work-status';
 import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
-import {
-  FIELD_BUDGETS,
-  DISCIPLINE_DOC,
-} from '@/lib/validation/ledger-budgets';
+import { FIELD_BUDGETS, DISCIPLINE_DOC } from '@/lib/validation/ledger-budgets';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Re-export surface-specific status and priority for consumers
@@ -184,13 +181,12 @@ export const TaskListSchema = z
 export type TaskList = z.infer<typeof TaskListSchema>;
 
 // ──────────────────────────────────────────────────────────────────────────────
-// parseTaskListWithWarnings — PRODUCT inv 20 (25-Subtask soft ceiling)
+// parseTaskListWithWarnings — field-length discipline warnings (ID-34)
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * A warning raised by `parseTaskListWithWarnings` when a Task exceeds the
- * 25-Subtask soft ceiling (PRODUCT inv 20) or a field-length budget
- * (ID-34 task-list field discipline).
+ * A warning raised by `parseTaskListWithWarnings` when a Task field exceeds a
+ * field-length budget (ID-34 task-list field discipline).
  */
 export interface TaskListWarning {
   taskId: string;
@@ -216,20 +212,20 @@ export interface TaskListWarning {
 export { FIELD_BUDGETS } from '@/lib/validation/ledger-budgets';
 
 /**
- * Parse a TaskList and surface warnings for any Task that exceeds the
- * 25-Subtask soft ceiling (PRODUCT inv 20).
+ * Parse a TaskList and surface soft field-length-discipline warnings (ID-34).
  *
- * The soft ceiling is NOT enforced as a schema rejection — `TaskListSchema.parse()`
- * continues to accept Tasks with >25 Subtasks because the invariant is a
- * planning signal, not a hard constraint. Consumers that want to surface the
- * warning (e.g. a Planner agent) call this helper; consumers that don't care
- * continue using `TaskListSchema.parse()` directly.
+ * Field-length budgets are NOT enforced as schema rejections —
+ * `TaskListSchema.parse()` continues to accept over-budget fields because the
+ * budget is a planning signal, not a hard constraint. Consumers that want to
+ * surface the warnings (e.g. a Planner agent) call this helper; consumers that
+ * don't care continue using `TaskListSchema.parse()` directly.
  *
  * Throws `ZodError` on hard validation failure (same behaviour as
  * `TaskListSchema.parse()`). On success, returns the parsed `TaskList` plus a
- * `warnings` array — empty when all Tasks are within the ceiling.
+ * `warnings` array — empty when all fields are within budget.
  *
- * One warning entry per offending Task (not per excess Subtask).
+ * (The former >25-Subtask soft-ceiling warning was removed S279 — a Task may
+ * grow beyond 25 Subtasks; it was never a real requirement, only an early note.)
  */
 export function parseTaskListWithWarnings(input: unknown): {
   value: TaskList;
@@ -240,15 +236,6 @@ export function parseTaskListWithWarnings(input: unknown): {
 
   const warnings: TaskListWarning[] = [];
   for (const task of value.tasks) {
-    if (task.subtasks.length > 25) {
-      warnings.push({
-        taskId: task.id,
-        message:
-          `Task "${task.id}" has ${task.subtasks.length} subtasks (>25). ` +
-          `Per PRODUCT inv 20, consider splitting into multiple Tasks linked by Task.dependencies[].`,
-      });
-    }
-
     // ── Field-length discipline (ID-34) — soft warnings, never rejections ──
     if (task.description.length > FIELD_BUDGETS.taskDescription) {
       warnings.push({

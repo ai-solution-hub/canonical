@@ -530,7 +530,7 @@ describe('Sibling-only Subtask dependency enforcement (inv 14–16)', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// parseTaskListWithWarnings — PRODUCT inv 20 (25-Subtask soft ceiling)
+// parseTaskListWithWarnings — value + error behaviour (>25 ceiling removed S279)
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -549,30 +549,14 @@ function buildTaskListWithSubtaskCount(n: number) {
   };
 }
 
-describe('parseTaskListWithWarnings — PRODUCT inv 20', () => {
-  it('returns no warnings when a Task has exactly 25 subtasks (at ceiling)', () => {
-    const input = buildTaskListWithSubtaskCount(25);
+describe('parseTaskListWithWarnings — value + error behaviour', () => {
+  it('returns no subtask-count warnings regardless of Subtask count (>25 ceiling removed S279)', () => {
+    // The former >25-Subtask soft-ceiling warning was removed S279 — a Task may
+    // grow beyond 25 Subtasks without a warning. Guards against re-introduction.
+    const input = buildTaskListWithSubtaskCount(30);
     const { value, warnings } = parseTaskListWithWarnings(input);
     expect(warnings).toHaveLength(0);
-    expect(value.tasks[0].subtasks).toHaveLength(25);
-  });
-
-  it('returns one warning per offending Task when a Task has 26 subtasks (over ceiling)', () => {
-    const input = buildTaskListWithSubtaskCount(26);
-    const { warnings } = parseTaskListWithWarnings(input);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].taskId).toBe('1');
-    expect(warnings[0].message).toMatch(/26 subtasks/);
-    expect(warnings[0].message).toMatch(/PRODUCT inv 20/);
-  });
-
-  it('returns one warning entry (not per excess subtask) when a Task has 30 subtasks', () => {
-    const input = buildTaskListWithSubtaskCount(30);
-    const { warnings } = parseTaskListWithWarnings(input);
-    // One warning per Task, not one per subtask over the limit
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].taskId).toBe('1');
-    expect(warnings[0].message).toMatch(/30 subtasks/);
+    expect(value.tasks[0].subtasks).toHaveLength(30);
   });
 
   it('throws ZodError on hard validation failure (not warnings)', () => {
