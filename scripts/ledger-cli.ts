@@ -25,19 +25,19 @@
  *     schema         [ledger|recordKind]           (field names + types + budgets)
  *   status flips / field edits:
  *     flip-task      <taskId> <status>
- *     flip-subtask   <taskId> <subId> <status>
+ *     flip-subtask   <taskId.subId> <status>      (legacy <taskId> <subId> <status>)
  *     update-task    <taskId> <field> <value>
  *     update-subtask <taskId.subId> <field> <value>
  *     update-roadmap <themeId> <field> <value>
  *     update-backlog <itemId> <field> <value>
- *     append-journal <taskId> <subId> <text>
+ *     append-journal <taskId.subId> <text>        (legacy <taskId> <subId> <text>)
  *   record create / delete:
  *     add-subtask    <taskId> <subtaskJson | --title …>
  *     open-task      <taskJson | --title …>
  *     create-theme   <themeJson | --title …>
  *     create-backlog <itemJson | --title …>
  *     delete-backlog <itemId>
- *     delete-subtask <taskId> <subId>
+ *     delete-subtask <taskId.subId>               (legacy <taskId> <subId>)
  *   cross-ledger:
  *     promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
  *   flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
@@ -940,7 +940,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   create-backlog <itemJson>
   create-theme   <themeJson>
   delete-backlog <itemId>
-  delete-subtask <taskId> <subId>
+  delete-subtask <taskId.subId>                 (legacy <taskId> <subId>)
   promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
   update-umbrella <umbrellaId> --add-tasks|--remove-tasks|--reorder <csv>
 flags: --dry-run --pretty --whole-file --scoped --force --append --no-regen-mirrors --ledger-dir <path>
