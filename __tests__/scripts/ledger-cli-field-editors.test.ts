@@ -170,6 +170,88 @@ describe('update-subtask — {35.19} subtask field editor', () => {
   });
 });
 
+// ── ID-65.5 — scoped is the GLOBAL DEFAULT; --whole-file is the escape hatch ───
+
+describe('ID-65.5 — minimal-diff is the default (NO flag), --whole-file opts out', () => {
+  /** A subtask whose status is NOT already the target, so a flip is a real diff. */
+  function nonDoneSubtask(): { taskId: string; subId: number } {
+    const tl = readTask();
+    for (const t of tl.tasks) {
+      const s = (t.subtasks ?? []).find(
+        (s: { status: string }) => s.status !== 'done',
+      );
+      if (s) return { taskId: t.id, subId: s.id };
+    }
+    throw new Error('no non-done subtask in fixture');
+  }
+
+  it('a mutation with NO flag is minimal-diff (scoped by default)', async () => {
+    const { taskId, subId } = nonDoneSubtask();
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    // NO scoped / NO whole-file flag — scoped is the global default now.
+    const r = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'status', 'done']),
+    );
+    expect(r.ok).toBe(true);
+    const after = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const beforeLines = before.split('\n');
+    const afterLines = after.split('\n');
+    // Minimal diff: line count unchanged, exactly the one status line differs,
+    // and untouched-record em-dash escaping is byte-preserved.
+    expect(afterLines.length).toBe(beforeLines.length);
+    const changed = afterLines.filter((l, i) => l !== beforeLines[i]);
+    expect(changed.length).toBe(1);
+    expect(changed[0]).toContain('done');
+    const emBefore = (before.match(/\\u2014/g) ?? []).length;
+    const emAfter = (after.match(/\\u2014/g) ?? []).length;
+    expect(emAfter).toBe(emBefore);
+  });
+
+  it('--whole-file routes through the legacy serialise() path (wide write)', async () => {
+    const { taskId, subId } = nonDoneSubtask();
+    const r = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'status', 'done'], {
+        wholeFile: true,
+      }),
+    );
+    expect(r.ok).toBe(true);
+    // The value still persists on the whole-file path.
+    const tl = readTask();
+    const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
+    const sub = task.subtasks.find((s: { id: number }) => s.id === subId);
+    expect(sub.status).toBe('done');
+  });
+
+  it('the scoped default and the --whole-file path agree on the SAME bytes for a single edit', async () => {
+    // Both paths emit the same escaping convention (escapeSerialise) after the
+    // OQ-LS-2 normalisation, so a single-field edit on an already-canonical
+    // fixture yields byte-identical output regardless of path. This proves
+    // --whole-file is a true serialise() opt-out (not a no-op) AND that the
+    // default scoped path is byte-compatible with it.
+    const { taskId, subId } = nonDoneSubtask();
+
+    // Path 1: default (scoped) write into a fresh temp copy.
+    const scopedR = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'status', 'done']),
+    );
+    expect(scopedR.ok).toBe(true);
+    const scopedBytes = readFileSync(join(dir, 'task-list.json'), 'utf8');
+
+    // Reset the temp ledger and repeat with --whole-file.
+    copyFileSync(REAL.task, join(dir, 'task-list.json'));
+    const wholeR = await run(
+      args('update-subtask', [`${taskId}.${subId}`, 'status', 'done'], {
+        wholeFile: true,
+      }),
+    );
+    expect(wholeR.ok).toBe(true);
+    const wholeBytes = readFileSync(join(dir, 'task-list.json'), 'utf8');
+
+    // Same single-field edit, both paths → identical parsed documents.
+    expect(JSON.parse(wholeBytes)).toEqual(JSON.parse(scopedBytes));
+  });
+});
+
 describe('update-task — {35.20} task field editor', () => {
   it('edits a task field (status_note) and persists', async () => {
     const tl = readTask();

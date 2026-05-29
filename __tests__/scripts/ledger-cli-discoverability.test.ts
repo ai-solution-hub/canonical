@@ -312,3 +312,51 @@ describe('ledger-cli — ID-35.34 unknown subcommand error mentions --help', () 
     }
   });
 });
+
+// ── ID-65.5 — --whole-file escape hatch is discoverable in USAGE + per-cmd help ─
+
+describe('ledger-cli — ID-65.5 --whole-file is listed in USAGE / --help', () => {
+  it('top-level --help advertises --whole-file with an explanatory line', () => {
+    const cliPath = resolve(__dirname, '../..', 'scripts/ledger-cli.ts');
+    const r = spawnSync('bun', [cliPath, '--help'], {
+      encoding: 'utf8',
+      cwd: resolve(__dirname, '../..'),
+    });
+    expect(r.status).toBe(0);
+    // The escape hatch must appear both on the flags summary line AND in the
+    // per-flag explanation block so an operator can find what it does.
+    expect(r.stdout).toContain('--whole-file');
+    expect(r.stdout).toMatch(/--whole-file\s*:/);
+  });
+
+  it('per-subcommand --help lists --whole-file for the field-edit commands', () => {
+    for (const cmd of [
+      'flip-task',
+      'flip-subtask',
+      'update-task',
+      'update-subtask',
+      'update-roadmap',
+      'update-backlog',
+      'append-journal',
+    ]) {
+      const help = subcommandHelp(cmd);
+      expect(help, `subcommandHelp(${cmd})`).not.toBeNull();
+      expect(help, `subcommandHelp(${cmd})`).toContain('--whole-file');
+    }
+  });
+
+  it('per-subcommand --help lists --whole-file for the create + promote commands', () => {
+    for (const cmd of [
+      'add-subtask',
+      'add-subtasks',
+      'open-task',
+      'create-theme',
+      'create-backlog',
+      'promote',
+    ]) {
+      const help = subcommandHelp(cmd);
+      expect(help, `subcommandHelp(${cmd})`).not.toBeNull();
+      expect(help, `subcommandHelp(${cmd})`).toContain('--whole-file');
+    }
+  });
+});

@@ -199,10 +199,17 @@ describe('record-set gate — integration through the write gate (ID-35.16)', ()
       });
 
     const before = readFileSync(join(dir, 'product-backlog.json'), 'utf8');
-    // update-backlog is a ∅-delta whole-file write; the stub drops one item so
-    // the post-write id-set is short by one → record-set-violation.
+    // ID-65.5: scoped is now the global default, so to reach the WHOLE-FILE
+    // serialise()→escapeSerialise path this case stubs (and the gate guards) we
+    // pass `--whole-file`. update-backlog is then a ∅-delta whole-file write;
+    // the stub drops one item so the post-write id-set is short by one →
+    // record-set-violation. (The scoped-path drop is proven by the next test.)
     const itemId = read('product-backlog').items[2].id;
-    const r = await run(args('update-backlog', [itemId, 'status', 'parked']));
+    const r = await run(
+      args('update-backlog', [itemId, 'status', 'parked'], {
+        wholeFile: true,
+      }),
+    );
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('record-set-violation');
     // Nothing written — the original file is byte-identical.

@@ -69,6 +69,30 @@ the consistent, CI-safe choice. See `docs/specs/id-35-ledger-cli/RESEARCH.md` §
   format. Both the whole-file path and the scoped path now emit the same escaping
   convention and are byte-compatible for ongoing writes.
 
+## Re-normalise tool — `scripts/ledger-renormalise.ts` (ID-65.5)
+
+**What it does.** A reproducible, idempotent one-shot that rewrites all three ledgers via
+`escapeSerialise(detectSchema(text).data)` — the same Zod-canonical key order + escaped
+non-ASCII (`\uXXXX`) format `serialise()` and the scoped path emit. It clears the residual
+drift: a no-op `escapeSerialise(detectSchema(text).data)` round-trip still diverges by ~7
+lines on the live ledgers (RESEARCH §8), because the files were last normalised by an
+earlier pass with a slightly different key order/escaping. After the one-shot, the
+round-trip is byte-identical (re-running is a no-op).
+
+**When to run it.** A DELIBERATE operational step — NOT part of the per-mutation write
+path (the CLI writes minimal diffs by default already). Run it ONCE before a
+`--whole-file` write (or before an always-whole-file `delete-subtask` / `delete-backlog`)
+so that wide write is ALSO minimal-diff: once every record is already Zod-canonical, a
+whole-file re-emit only changes the bytes that actually changed (e.g. the removed record's
+lines), not ~7 incidental key-order/escaping lines scattered across the file.
+
+**Safety.** It asserts an order-insensitive deep-equal of the parse before/after and
+THROWS (writing nothing) on any structural diff — only key order + escaping bytes ever
+change. Run against the real ledgers with `bun scripts/ledger-renormalise.ts` (add
+`--check` for a dry report). Tests target a temp dir via `--ledger-dir <path>` or by
+calling the exported `renormaliseLedgers(dir, checkOnly)` directly — NEVER against the
+real `docs/reference/*.json`.
+
 ## CLI command surface (v2)
 
 `scripts/ledger-cli.ts` is the deterministic mutation CLI built on these primitives
@@ -103,6 +127,14 @@ ids, a NUMBER for subtask ids.
 **Mirror regen ({35.18})** runs by DEFAULT after every write; `--no-regen-mirrors` opts
 out (batch edits run `bash scripts/regen-mirrors.sh` once at the end). `--regen-mirrors`
 is a deprecated no-op alias.
+
+**Scoped is the global default ({65.5}, ratified default #4):** every mutating command
+(field edits, creates, bulk `add-subtasks`, `promote`) writes a minimal/scoped diff with
+NO flag — untouched records keep their exact on-disk bytes. `--whole-file` is the escape
+hatch: it routes the command through the legacy whole-file `serialise()` path (a full
+Zod-canonical re-emit). `--scoped` is now a deprecated no-op alias (scoped is already on
+unless `--whole-file` is set); kept for back-compat. The always-whole-file deletes
+(`delete-subtask` / `delete-backlog`) have no scoped path and ignore `--whole-file`.
 
 **Discoverability ({35.22}):** `schema [ledger|recordKind]` prints each field's name +
 type + budget — so `subtask.dependencies:number[]` vs `task.dependencies:string[]` is

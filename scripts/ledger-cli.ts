@@ -175,8 +175,24 @@ interface ParsedArgs {
      * ID-35.11 scoped-write flag. Optional so pre-existing callers that build a
      * `ParsedArgs.flags` literal stay valid; absent reads as falsy → the
      * unchanged whole-file write path. `parseArgs` always sets it explicitly.
+     *
+     * ID-65.5: scoped is now the GLOBAL DEFAULT (ratified default #4) — every
+     * mutating command derives `scoped: !flags.wholeFile`, so `--scoped` is now
+     * a now-redundant (default-on) no-op alias kept for back-compat: passing it
+     * does NOT change the write path (scoped is already on unless `--whole-file`
+     * is set). Do NOT remove it.
      */
     scoped?: boolean;
+    /**
+     * ID-65.5 escape hatch — opt OUT of the now-default scoped/minimal-diff
+     * write and route the command through the legacy whole-file `serialise()`
+     * path instead. Default false (absent reads as falsy → scoped). Every
+     * mutating command computes `scoped: !flags.wholeFile`. The always-whole-file
+     * deletes (`delete-subtask` / `delete-backlog`, no scoped path from
+     * {65.2}/{65.3}) ignore it. Optional for back-compat with pre-existing
+     * `ParsedArgs.flags` literals; absent reads as falsy.
+     */
+    wholeFile?: boolean;
     /**
      * ID-35.18 mirror-regen opt-out. When set, the default-on regen
      * (`maybeRegenMirrors(true)`) is suppressed. Optional for back-compat with
@@ -303,6 +319,9 @@ const BOOLEAN_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--regen-mirrors': 'regenMirrors',
   '--no-regen-mirrors': 'noRegenMirrors',
   '--scoped': 'scoped',
+  // ID-65.5 — opt OUT of the now-default scoped write into the legacy whole-file
+  // `serialise()` path. Every mutating command reads `scoped: !flags.wholeFile`.
+  '--whole-file': 'wholeFile',
   '--force': 'force',
   // ID-35.39 Item C — `update-backlog/update-roadmap notes --append` concatenates
   // the incoming value onto the existing notes value (newline-joined) instead of
@@ -334,6 +353,10 @@ function parseArgs(argv: string[]): ParseArgsResult {
     pretty: false,
     regenMirrors: false,
     scoped: false,
+    // ID-65.5 — default false → scoped (`scoped: !flags.wholeFile`) is the
+    // global default; `--whole-file` flips this to route the legacy
+    // whole-file `serialise()` path.
+    wholeFile: false,
     noRegenMirrors: false,
     force: false,
     append: false,
@@ -775,42 +798,42 @@ const SUBCOMMAND_HELP: Record<
   },
   'flip-task': {
     synopsis: 'flip-task <taskId> <status> — set a Task status',
-    flags: '--scoped --dry-run --pretty --no-regen-mirrors',
+    flags: '--whole-file --dry-run --pretty --no-regen-mirrors',
     kinds: ['task'],
   },
   'flip-subtask': {
     synopsis: 'flip-subtask <taskId> <subId> <status> — set a Subtask status',
-    flags: '--scoped --dry-run --pretty --no-regen-mirrors',
+    flags: '--whole-file --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
   'update-task': {
     synopsis: 'update-task <taskId> <field> <value> — edit a Task field',
-    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    flags: '--whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['task'],
   },
   'update-subtask': {
     synopsis:
       'update-subtask <taskId.subId> <field> <value> — edit a Subtask field',
-    flags: '--force --dry-run --pretty --no-regen-mirrors',
+    flags: '--whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
   'update-roadmap': {
     synopsis: 'update-roadmap <themeId> <field> <value> — edit a Theme field',
     flags:
-      '--force --dry-run --pretty --no-regen-mirrors ' +
+      '--whole-file --force --dry-run --pretty --no-regen-mirrors ' +
       '--append (notes field only — concatenate newline-joined)',
     kinds: ['theme'],
   },
   'update-backlog': {
     synopsis: 'update-backlog <itemId> <field> <value> — edit a backlog field',
     flags:
-      '--force --dry-run --pretty --no-regen-mirrors ' +
+      '--whole-file --force --dry-run --pretty --no-regen-mirrors ' +
       '--append (notes field only — concatenate newline-joined)',
     kinds: ['item'],
   },
   'append-journal': {
     synopsis: 'append-journal <taskId> <subId> <text> — append a journal block',
-    flags: '--scoped --dry-run --pretty --no-regen-mirrors',
+    flags: '--whole-file --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
   'add-subtask': {
@@ -819,7 +842,7 @@ const SUBCOMMAND_HELP: Record<
     flags:
       'input: positional JSON | --file <path> (- = stdin) | named flags ' +
       '(--title --description --status --depends 1,2 …); --id forces an id; ' +
-      '--force --dry-run --pretty --no-regen-mirrors',
+      '--whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
   'add-subtasks': {
@@ -831,7 +854,7 @@ const SUBCOMMAND_HELP: Record<
       'it); per-record budget enforced atomically (any over-budget record ' +
       'rejects the WHOLE batch unless --force); a non-array body is rejected ' +
       '(use `add-subtask` for a single Subtask); ' +
-      '--force --dry-run --pretty --no-regen-mirrors',
+      '--whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['subtask'],
   },
   'open-task': {
@@ -839,14 +862,14 @@ const SUBCOMMAND_HELP: Record<
     flags:
       'input: positional JSON | --file <path> (- = stdin) | named flags ' +
       '(--title --description --status --depends --priority --effort-estimate …); ' +
-      '--id forces an id; --force --dry-run --pretty --no-regen-mirrors',
+      '--id forces an id; --whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['task'],
   },
   'create-theme': {
     synopsis: 'create-theme <themeJson | --title …> — insert a roadmap Theme',
     flags:
       'input: positional JSON | --file <path> (- = stdin) | named flags; ' +
-      '--id forces an id; --force --dry-run --pretty --no-regen-mirrors',
+      '--id forces an id; --whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['theme'],
   },
   'create-backlog': {
@@ -854,7 +877,7 @@ const SUBCOMMAND_HELP: Record<
     flags:
       'input: positional JSON | --file <path> (- = stdin) | named flags ' +
       '(--title --description --type --track …); --id forces an id; ' +
-      '--force --dry-run --pretty --no-regen-mirrors',
+      '--whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['item'],
   },
   'delete-backlog': {
@@ -874,7 +897,7 @@ const SUBCOMMAND_HELP: Record<
       'input (task body): positional JSON | --file <path> (- = stdin) | named ' +
       'flags (--title --description --status --priority …); the caller supplies ' +
       'a COMPLETE task record (no auto-id — task.id comes from the body). ' +
-      '--force --dry-run --pretty --no-regen-mirrors ' +
+      '--whole-file --force --dry-run --pretty --no-regen-mirrors ' +
       '--capability-theme <themeId> (bind the new Task to a roadmap theme — ' +
       'sets task.capability_theme + appends task id to theme.linked_tasks[])',
     kinds: ['task', 'item'],
@@ -914,10 +937,17 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   delete-subtask <taskId> <subId>
   promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
   update-umbrella <umbrellaId> --add-tasks|--remove-tasks|--reorder <csv>
-flags: --dry-run --pretty --scoped --force --append --no-regen-mirrors --ledger-dir <path>
-  --scoped : minimal-diff write — re-emit only the mutated record, preserving
-             untouched-record bytes + on-disk \\uXXXX escaping (field edits only:
-             flip-task | flip-subtask | append-journal).
+flags: --dry-run --pretty --whole-file --scoped --force --append --no-regen-mirrors --ledger-dir <path>
+  --whole-file : opt OUT of the now-default minimal-diff (scoped) write and
+             re-emit the WHOLE ledger via serialise() (Zod-canonical key order +
+             escaped non-ASCII). The legacy escape hatch — needed only when a
+             deliberate whole-file rewrite is wanted; routes every mutating
+             command (field edits, creates, promote) through the wide path.
+             (The always-whole-file deletes ignore it — they have no scoped path.)
+  --scoped : DEPRECATED no-op alias — scoped/minimal-diff is now the GLOBAL
+             DEFAULT for every mutating command (ratified default #4), so
+             passing --scoped changes nothing. Kept for back-compat. Use
+             --whole-file to opt OUT into the wide write.
   --force  : downgrade a budget-exceeded rejection to a soft warning and write
              anyway (escape hatch for the rare legitimate over-budget field).
   --append : update-backlog / update-roadmap notes-only — concatenate the
@@ -2236,7 +2266,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { taskId, status },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: flags.scoped,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` path. `--scoped` is now a
+        // redundant no-op alias (kept for back-compat).
+        scoped: !flags.wholeFile,
         scopedWrite: { originalText: loaded.originalText, patch },
         gate: {
           ledger: 'task',
@@ -2280,7 +2313,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { taskId, field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: flags.scoped,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` path. `--scoped` is now a
+        // redundant no-op alias (kept for back-compat).
+        scoped: !flags.wholeFile,
         scopedWrite: { originalText: loaded.originalText, patch },
         gate: {
           ledger: 'task',
@@ -2334,7 +2370,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { taskId, subId, status },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: flags.scoped,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` path. `--scoped` is now a
+        // redundant no-op alias (kept for back-compat).
+        scoped: !flags.wholeFile,
         scopedWrite: { originalText: loaded.originalText, patch },
         gate: {
           ledger: 'task',
@@ -2397,7 +2436,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { taskId, subId: Number(subId), field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: flags.scoped,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` path. `--scoped` is now a
+        // redundant no-op alias (kept for back-compat).
+        scoped: !flags.wholeFile,
         scopedWrite: { originalText: loaded.originalText, patch },
         gate: {
           ledger: 'task',
@@ -2468,7 +2510,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { taskId, subId, appended: true },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: flags.scoped,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` path. `--scoped` is now a
+        // redundant no-op alias (kept for back-compat).
+        scoped: !flags.wholeFile,
         scopedWrite: { originalText: loaded.originalText, patch },
         gate: {
           ledger: 'task',
@@ -2563,7 +2608,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // dup-subtask-id is NOT enforced — z.array(SubtaskSchema) has no
         // within-array uniqueness constraint (see OQ-65-1). The {35.16}
         // record-set gate below is what guards membership (drop/duplicate).
-        scoped: true,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` fallback (the `else` branch in
+        // commitMutation re-emits ins.detected, which already carries the new
+        // record). `scopedSplice` is ignored when `scoped` is false.
+        scoped: !flags.wholeFile,
         scopedSplice: {
           originalText: loaded.originalText,
           // ID-65.6: single op wrapped as a one-element array (commitMutation
@@ -2722,7 +2771,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: true,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` fallback (the `else` branch in
+        // commitMutation re-emits ins.detected, which already carries the new
+        // record). `scopedSplice` is ignored when `scoped` is false.
+        scoped: !flags.wholeFile,
         scopedSplice: {
           originalText: loaded.originalText,
           ops: coercedRecords.map((record) => ({
@@ -2793,10 +2846,16 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         rawValue = existingNotes ? `${existingNotes}\n${value}` : value;
       }
       const newValue = coerceFieldValue('item', field, rawValue);
-      const m = fieldPatchMutation('update-backlog', loaded.detected, {
+      // ID-65.5 — extract the patch so the now-default scoped write can thread
+      // it as `scopedWrite`. (Pre-{65.5} update-backlog had no scoped path: it
+      // fell through to the whole-file `serialise()` re-emit. Scoped is now the
+      // global default for this field edit too, so untouched item records keep
+      // their exact on-disk bytes; `--whole-file` restores the legacy re-emit.)
+      const patch: FieldPatch = {
         fieldPath: ['items', itemId, field],
         newValue,
-      });
+      };
+      const m = fieldPatchMutation('update-backlog', loaded.detected, patch);
       if (!m.ok) return m.result;
       const changedItem =
         loaded.detected.kind === 'backlog'
@@ -2809,6 +2868,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { itemId, field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
+        scoped: !flags.wholeFile,
+        scopedWrite: { originalText: loaded.originalText, patch },
         gate: {
           ledger: 'backlog',
           descriptor,
@@ -2867,10 +2928,16 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         rawValue = existingNotes ? `${existingNotes}\n${value}` : value;
       }
       const newValue = coerceFieldValue('theme', field, rawValue);
-      const m = fieldPatchMutation('update-roadmap', loaded.detected, {
+      // ID-65.5 — extract the patch so the now-default scoped write can thread
+      // it as `scopedWrite`. (Pre-{65.5} update-roadmap had no scoped path: it
+      // fell through to the whole-file `serialise()` re-emit. Scoped is now the
+      // global default for this theme edit too; `--whole-file` restores the
+      // legacy re-emit.)
+      const patch: FieldPatch = {
         fieldPath: ['themes', themeId, field],
         newValue,
-      });
+      };
+      const m = fieldPatchMutation('update-roadmap', loaded.detected, patch);
       if (!m.ok) return m.result;
       const changedTheme =
         loaded.detected.kind === 'roadmap'
@@ -2883,6 +2950,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         resultPayload: { themeId, field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
+        scoped: !flags.wholeFile,
+        scopedWrite: { originalText: loaded.originalText, patch },
         gate: {
           ledger: 'roadmap',
           descriptor,
@@ -2965,7 +3034,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // whole-file re-emit. The record spliced is the post-defaults/post-auto-id
         // object built above (the SAME one insertRecord validated). insertRecord
         // remains the schema + duplicate-id oracle (rejects before this commits).
-        scoped: true,
+        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
+        // the legacy whole-file `serialise()` fallback (the `else` branch in
+        // commitMutation re-emits ins.detected, which already carries the new
+        // record). `scopedSplice` is ignored when `scoped` is false.
+        scoped: !flags.wholeFile,
         scopedSplice: {
           originalText: loaded.originalText,
           // ID-65.6: single op wrapped as a one-element array (commitMutation
@@ -3154,9 +3227,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // pre-{35.39} two-ledger behaviour; defined → three-ledger atomic
         // write that also patches the named theme's `linked_tasks[]`).
         flags.capabilityTheme,
-        // ID-65.4 — default to the scoped minimal-diff derivation. {65.5} threads
-        // `scoped: !flags.wholeFile` here once the `--whole-file` opt-out lands.
-        true,
+        // ID-65.4 — default to the scoped minimal-diff derivation. ID-65.5
+        // threads `scoped: !flags.wholeFile` so `--whole-file` reaches the
+        // {65.4} verbatim whole-file derivation (the `scoped:false` branch).
+        !flags.wholeFile,
       );
     }
 
