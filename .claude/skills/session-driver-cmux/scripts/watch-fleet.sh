@@ -15,6 +15,8 @@
 # Exit: 0 = tripped (report on stdout); 2 = max-poll timeout.
 
 set -uo pipefail
+# -e intentionally omitted: the poll loop relies on expected non-zero exits
+# (in_list returns 1 on miss, jq -e in conditionals, grep -c on empty files).
 # Resolve the MAIN working-tree root even when CWD is inside a linked worktree.
 # --git-common-dir points at <main>/.git for every linked worktree; its parent
 # is the canonical main root. Falls back to --show-toplevel then pwd. (ID-27.6/27.7)
