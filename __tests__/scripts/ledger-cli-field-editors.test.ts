@@ -138,9 +138,7 @@ describe('update-subtask — {35.19} subtask field editor', () => {
     expect(r.ok).toBe(true);
     const after = readTask();
     const t2 = after.tasks.find((t: { id: string }) => t.id === task.id);
-    const s2 = t2.subtasks.find(
-      (s: { id: number }) => s.id === target.id,
-    );
+    const s2 = t2.subtasks.find((s: { id: number }) => s.id === target.id);
     expect(s2.dependencies).toEqual([sibling.id]);
     expect(typeof s2.dependencies[0]).toBe('number');
   });
@@ -190,6 +188,105 @@ describe('update-task — {35.20} task field editor', () => {
     const taskId = tl.tasks[0].id;
     const r = await run(args('update-task', [taskId, 'nonsense', 'x']));
     expect(r.ok).toBe(false);
+  });
+
+  // ── {35.40} regression guard: `update-task --scoped` minimal diff on
+  //    `status_note`. {35.40}'s editor was shipped in ID-35.11/35.20 (it already
+  //    threads `scoped` + `scopedWrite` into commitMutation, mirroring
+  //    update-subtask). The line-86 test above guards update-subtask --scoped;
+  //    these two cases close the testStrategy gap for the update-task status_note
+  //    path specifically — the S276 scenario being an edit of an EXISTING note.
+  it('writes a scoped minimal diff when editing an existing status_note (S276 case)', async () => {
+    // Pick a task whose status_note is a non-empty string WITHOUT an em-dash, so
+    // the edit is a real value→value change (the S276 scenario) and overwriting
+    // it cannot itself perturb the file-wide em-dash escape count — that count
+    // must stay invariant purely because untouched records are byte-preserved.
+    const tl = readTask();
+    const target = tl.tasks.find(
+      (t: { status_note: unknown }) =>
+        typeof t.status_note === 'string' &&
+        (t.status_note as string).length > 0 &&
+        !(t.status_note as string).includes('—'),
+    );
+    if (!target) {
+      throw new Error('no task with a non-empty em-dash-free status_note');
+    }
+
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    // Sanity: the on-disk serialiser ASCII-escapes non-ASCII, so em-dashes from
+    // "S58 —" status_note prefixes appear as the escape sequence `—`. We
+    // assert these escapes survive the scoped write byte-for-byte (no whole-file
+    // UTF-8↔escape re-encode sweep).
+    const emDashEscapesBefore = (before.match(/\\u2014/g) ?? []).length;
+    expect(emDashEscapesBefore).toBeGreaterThan(0);
+
+    const r = await run(
+      args('update-task', [target.id, 'status_note', 'Edited by the test.'], {
+        scoped: true,
+      }),
+    );
+    expect(r.ok).toBe(true);
+
+    const after = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const beforeLines = before.split('\n');
+    const afterLines = after.split('\n');
+
+    // No whole-file re-key-order / re-escape: total line count is unchanged.
+    expect(afterLines.length).toBe(beforeLines.length);
+
+    // The diff is exactly the status_note line(s) — a single-line scalar value
+    // is one changed line. Allow ≤3 to tolerate fixtures where a long note
+    // wrapped across lines, but the canonical case is 1.
+    const changed = afterLines.filter((l, i) => l !== beforeLines[i]);
+    expect(changed.length).toBeGreaterThanOrEqual(1);
+    expect(changed.length).toBeLessThanOrEqual(3);
+    // Every changed line belongs to the status_note edit.
+    for (const line of changed) {
+      expect(line).toMatch(/status_note|Edited by the test\./);
+    }
+
+    // Em-dash escaping elsewhere in the file is untouched (no UTF-8↔\uXXXX
+    // re-encode sweep on the whole file): the `—` escape count is unchanged.
+    const emDashEscapesAfter = (after.match(/\\u2014/g) ?? []).length;
+    expect(emDashEscapesAfter).toBe(emDashEscapesBefore);
+
+    // The mutated record reads back correctly; the JSON still parses.
+    const parsed = JSON.parse(after);
+    const t2 = parsed.tasks.find((t: { id: string }) => t.id === target.id);
+    expect(t2.status_note).toBe('Edited by the test.');
+  });
+
+  it('writes a scoped minimal diff when setting status_note from null', async () => {
+    // The null→value case: a task whose status_note is currently null.
+    const tl = readTask();
+    const target = tl.tasks.find(
+      (t: { status_note: unknown }) => t.status_note === null,
+    );
+    if (!target) throw new Error('no task with a null status_note');
+
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const r = await run(
+      args('update-task', [target.id, 'status_note', 'Now has a note.'], {
+        scoped: true,
+      }),
+    );
+    expect(r.ok).toBe(true);
+
+    const after = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const beforeLines = before.split('\n');
+    const afterLines = after.split('\n');
+
+    // Replacing `null` with a quoted string is a one-for-one line replacement —
+    // line count unchanged, exactly the status_note line differs.
+    expect(afterLines.length).toBe(beforeLines.length);
+    const changed = afterLines.filter((l, i) => l !== beforeLines[i]);
+    expect(changed.length).toBe(1);
+    expect(changed[0]).toContain('status_note');
+    expect(changed[0]).toContain('Now has a note.');
+
+    const parsed = JSON.parse(after);
+    const t2 = parsed.tasks.find((t: { id: string }) => t.id === target.id);
+    expect(t2.status_note).toBe('Now has a note.');
   });
 });
 
