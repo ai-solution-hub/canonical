@@ -39,7 +39,7 @@
  *     delete-backlog <itemId>
  *     delete-subtask <taskId> <subId>
  *   cross-ledger:
- *     promote        <backlogId> <taskJson>
+ *     promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
  *   flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
  *
  * Write gates (RESEARCH §2.3/§2.6 — prevent-at-source; both reject at WRITE TIME,
@@ -857,8 +857,11 @@ const SUBCOMMAND_HELP: Record<
   },
   promote: {
     synopsis:
-      'promote <backlogId> <taskJson> — atomically promote a backlog item to a Task',
+      'promote <backlogId> <taskJson | --file …> — atomically promote a backlog item to a Task',
     flags:
+      'input (task body): positional JSON | --file <path> (- = stdin) | named ' +
+      'flags (--title --description --status --priority …); the caller supplies ' +
+      'a COMPLETE task record (no auto-id — task.id comes from the body). ' +
       '--force --dry-run --pretty --no-regen-mirrors ' +
       '--capability-theme <themeId> (bind the new Task to a roadmap theme — ' +
       'sets task.capability_theme + appends task id to theme.linked_tasks[])',
@@ -896,7 +899,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   create-theme   <themeJson>
   delete-backlog <itemId>
   delete-subtask <taskId> <subId>
-  promote        <backlogId> <taskJson>
+  promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
   update-umbrella <umbrellaId> --add-tasks|--remove-tasks|--reorder <csv>
 flags: --dry-run --pretty --scoped --force --append --no-regen-mirrors --ledger-dir <path>
   --scoped : minimal-diff write — re-emit only the mutated record, preserving
@@ -1832,19 +1835,12 @@ function fieldPatchMutation(
   return { ok: true };
 }
 
-function parseJsonArg(
-  subcommand: string,
-  raw: string,
-): { ok: true; value: unknown } | { ok: false; result: CliResult } {
-  try {
-    return { ok: true, value: JSON.parse(raw) };
-  } catch (err) {
-    return {
-      ok: false,
-      result: cliErr(subcommand, 'invalid-json-arg', msg(err)),
-    };
-  }
-}
+// ID-65.7 — `parseJsonArg` was promote's positional-JSON-only resolver. It is
+// removed: promote now routes its task body through the {35.15}
+// `readRecordInput` resolver (positional JSON | --file/stdin | named flags),
+// the same path add-subtask / open-task / create-* already use. `readRecordInput`
+// emits the identical `invalid-json-arg` envelope for malformed positional JSON,
+// so back-compat on the error surface is preserved.
 
 function journalBlock(text: string): string {
   const ts = new Date().toISOString();
@@ -2893,17 +2889,31 @@ async function run(args: ParsedArgs): Promise<CliResult> {
 
     // ── cross-ledger promote ─────────────────────────────────────────────────
     case 'promote': {
-      const [backlogId, taskJson] = p;
-      if (!backlogId || !taskJson)
+      const backlogId = p[0];
+      if (!backlogId)
         return cliErr(
           'promote',
           'missing-args',
-          'promote <backlogId> <taskJson>',
+          'promote <backlogId> <taskJson | --file …>',
         );
+      // ID-65.7 — friction #6: route the task body through the {35.15}
+      // record-input resolver (positional JSON | --file <path> (- = stdin) |
+      // named flags) instead of the old positional-JSON-only `parseJsonArg`.
+      // `backlogId` stays positional; drop it from the positionals the resolver
+      // sees so positionals[0] is the body, mirroring add-subtask's bodyArgs
+      // pattern. promote's contract is unchanged: the caller still supplies a
+      // COMPLETE task record (no withCreateDefaults / auto-id — insertRecord's
+      // Zod parse remains the gate).
+      const bodyArgs: ParsedArgs = {
+        ...args,
+        positionals: p.slice(1),
+      };
+      const input = readRecordInput(bodyArgs);
+      if (!input.ok) return input.result;
       return promote(
         dir,
         backlogId,
-        taskJson,
+        input.value,
         flags.dryRun,
         !flags.noRegenMirrors,
         flags.force,
@@ -2961,7 +2971,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
 async function promote(
   dir: string,
   backlogId: string,
-  taskJson: string,
+  // ID-65.7 — the dispatch now resolves the task body via `readRecordInput`
+  // (positional JSON | --file/stdin | named flags) and hands promote the
+  // ALREADY-PARSED record object, instead of the raw `taskJson` string the
+  // old positional-only path passed. Input resolution is orthogonal to write
+  // serialisation; the contract (caller supplies a complete task record — no
+  // withCreateDefaults / auto-id) is unchanged.
+  taskRecord: unknown,
   dryRun: boolean,
   regenMirrors: boolean,
   force: boolean = false,
@@ -2977,22 +2993,21 @@ async function promote(
   const backlogP = ledgerPath(dir, 'backlog');
   const roadmapP = ledgerPath(dir, 'roadmap');
 
-  // Phase 1: validate everything (no bytes touched).
-  const taskRecord = parseJsonArg('promote', taskJson);
-  if (!taskRecord.ok) return taskRecord.result;
+  // Phase 1: validate everything (no bytes touched). ID-65.7 — the body is
+  // already resolved + JSON-parsed by the dispatch via `readRecordInput`; no
+  // `parseJsonArg` call here anymore. `taskRecord` is the parsed value.
 
   // ID-35.39 Item A: when `--capability-theme` is set we patch the task record
   // BEFORE schema-validation insert so the `capability_theme` back-link field
   // (TaskSchema z.string().nullable().optional() — see task-list-schema.ts)
   // round-trips through Zod just like any positional-JSON-supplied field.
   // Mutating a plain object the caller built locally is safe; this can't
-  // surprise downstream readers since parseJsonArg returned freshly-parsed
-  // bytes.
+  // surprise downstream readers since the resolved record is freshly-parsed.
   if (capabilityTheme !== undefined) {
     if (
-      taskRecord.value === null ||
-      typeof taskRecord.value !== 'object' ||
-      Array.isArray(taskRecord.value)
+      taskRecord === null ||
+      typeof taskRecord !== 'object' ||
+      Array.isArray(taskRecord)
     ) {
       return cliErr(
         'promote',
@@ -3000,8 +3015,7 @@ async function promote(
         '<taskJson> must be a JSON object for --capability-theme binding',
       );
     }
-    (taskRecord.value as Record<string, unknown>).capability_theme =
-      capabilityTheme;
+    (taskRecord as Record<string, unknown>).capability_theme = capabilityTheme;
   }
 
   const tlLoad = await loadLedger(taskListP);
@@ -3049,7 +3063,7 @@ async function promote(
       ? beforeCollectionIds(rmLoad.detected, roadmapDescriptor)
       : null;
 
-  const ins = insertRecord(tlLoad.detected, taskRecord.value);
+  const ins = insertRecord(tlLoad.detected, taskRecord);
   if (!ins.ok) {
     if (ins.kind === 'schema-error')
       return {
@@ -3136,7 +3150,7 @@ async function promote(
     const tlSplice = scopedSpliceSerialise(tlLoad.originalText, {
       kind: 'insert',
       collection: 'tasks',
-      record: taskRecord.value,
+      record: taskRecord,
     });
     if (!tlSplice.ok)
       return cliErr(
@@ -3236,7 +3250,7 @@ async function promote(
     ledger: 'task',
     recordKind: 'task',
     recordId: ins.recordId,
-    record: taskRecord.value as Record<string, unknown>,
+    record: taskRecord as Record<string, unknown>,
   });
   const forcedBudgetWarnings: string[] = [];
   if (!budgetCheck.ok) {
