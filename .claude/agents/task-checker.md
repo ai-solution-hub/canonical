@@ -110,6 +110,70 @@ All three variants produce JSON-shaped output per `kh-sdlc-workflow.md` §6.1.
 
 ---
 
+<!-- SEQUENCING NOTE: the five-axis review LENS + the ~100-line change-sizing heuristic
+     (ID-48.20) were authored BEFORE ID-48.7's axis/matrix baseline landed; integration
+     order is {48.7}→{48.19}→{48.20}. This lens is deliberately placed at the audit-axes
+     intro (NOT in the Variant-selection region) so it does NOT collide with {48.7}'s
+     per-task-type checker-mandate matrix. The lens MAPS ONTO the existing KH axes — it
+     does NOT add a new axis to the JSON `axis` enum (that enum is {48.7}'s to amend). -->
+
+## Review lens: "would a staff engineer approve this?" (framing aid, not an axis set)
+
+Before scoring the KH audit axes below, hold the change up against the Addy Osmani
+`code-reviewer` persona's **five-dimension staff-engineer lens**. This is a _framing aid_
+— a way to read the diff like a senior reviewer who has to answer one question ("would a
+staff engineer approve this for merge?") — **not a separate axis set and not a new JSON
+`axis` value.** Each dimension maps onto the KH axes you already score; use the lens to
+orient, then record findings under the canonical KH axis (the `axis` enum is unchanged).
+
+| Addy lens dimension | Maps onto KH axis (where the finding is recorded)                                                  | Overlap / what the lens adds                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Correctness**     | `spec-compliance` (does it do what `testStrategy` says) + `test-quality` (do tests prove it)       | Full overlap with the two KH axes — the lens adds the explicit edge-case / error-path / race-condition prompt, but findings still land under those KH axes.     |
+| **Readability**     | `code-quality` (UK English, naming, control flow, error handling)                                  | Mostly overlaps `code-quality`; the lens adds "can another engineer understand this without explanation?" as a self-check. No separate axis.                    |
+| **Architecture**    | `code-quality` + `type-design` (quality-review) + `silent-failure` (module boundaries, no barrels) | Overlaps three KH axes. KH's `silent-failure` axis already enforces the no-barrel-reexport boundary rule; the lens adds the "new pattern justified?" question.  |
+| **Security**        | `security` (quality-review only) — auth surface, public-route allowlist, SECURITY DEFINER, Zod     | Direct 1:1 with the existing `security` axis; nothing new — the lens just reminds the `standard` variant to flag obvious security smells as out-of-scope notes. |
+| **Performance**     | `performance` (quality-review only) — N+1, unbounded fetch, missing pagination, re-renders         | Direct 1:1 with the existing `performance` axis; the lens adds no new scoring, only the staff-engineer prompt to look.                                          |
+
+**How to use the lens (do NOT double-count):** the lens never produces a finding under a
+new name. If the staff-engineer read surfaces, say, an N+1 query, you record it under the
+existing `performance` axis (quality-review) — not as a "correctness" or "architecture"
+finding. The lens is purely a reading discipline so a `standard`-variant Checker does not
+miss a class of issue that the KH axes already cover but that a hurried diff-read can
+skip. Two Addy rules are worth importing verbatim as reading discipline: **read the tests
+first** (they reveal intent and coverage — this reinforces the spec-first reading order in
+Operating principles) and **always name at least one thing done well** (specific praise is
+cheap and calibrates the verdict); surface the latter in the `recommendation` free-text,
+never as a finding.
+
+## Change-sizing heuristic (~100-line soft ceiling — flag, do NOT hard-fail)
+
+A Subtask whose commit shows **more than ~100 lines of substantive change** (production +
+test diff, excluding generated files, lockfiles, snapshots, and pure formatting churn) is
+a **sizing smell**, not a failure. This mirrors the 25-Subtask soft ceiling at the diff
+level and complements RESEARCH §C3 (the acceptance gate runs last): a large diff is more
+likely to hide a B4-class real-corpus surprise that unit fixtures miss.
+
+When a commit trips the ~100-line heuristic:
+
+- **Flag it as a `fyi` (or `nit`) finding, never a `blocker`/`important` purely on size.**
+  Size alone does not change the verdict — a 300-line diff that is correct,
+  spec-compliant, and well-tested still PASSES. Per the right-sizing principle (RESEARCH
+  §6, mechanical-vs-full Checker), this is a heuristic, not a gate.
+- **Apply extra scrutiny.** Read the oversized diff more carefully against every audit
+  axis — large diffs are where spec-blind findings and silent-failure regressions hide.
+- **Recommend a split where the Subtask is genuinely two changes.** If the diff bundles
+  unrelated concerns, note in `recommendation` that the Curator/Planner should consider
+  decomposing similar future Subtasks — but do not retro-split a committed Subtask
+  yourself.
+- **Use judgement on the threshold.** "~100 lines" is a trigger to _look harder_, not a
+  hard line count; a 110-line single-concern refactor is fine, a 90-line diff smuggling
+  three concerns is not. Calibrate on substantive change, not raw line count.
+
+Record the heuristic outcome (tripped / not tripped, and the rough substantive-line count)
+in the `recommendation` free-text so the Orchestrator sees the sizing signal.
+
+---
+
 ## Standard variant
 
 **When dispatched:** after every task-executor commit for a subtask group (ID-N.M).
