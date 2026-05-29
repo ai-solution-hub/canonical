@@ -1,4 +1,4 @@
-"""Inv-17 graceful-vs-strict OQ — semantic record (ID-52.13, escalated S278).
+"""Inv-17 graceful-empty-with-recorded-reason — ratified semantic (S278).
 
 Background
 ----------
@@ -11,52 +11,43 @@ The XLSX extractor (``scripts/cocoindex_pipeline/form_extractors/xlsx.py``)
   - a workbook with zero sheets (``reason='empty_xlsx'``).
 
 Those strict paths are already covered by
-``TestXlsxFailureSurfacing`` in ``test_form_extractors.py``.
+``TestXlsxFailureSurfacing`` in ``test_form_extractors.py`` and STAY
+strict per the ratified PRODUCT Inv-17 amendment.
 
-BUT there is a fourth case that is NOT a raise: a structurally VALID
+There is a fourth case that is NOT a raise: a structurally VALID
 workbook whose sheets match NEITHER the CSP archetype NOR the EFA
 scoring-matrix archetype. ``_walk_sheet`` returns ``[]`` for such a
 sheet (see the ``return [], sequence_start, 0`` fall-through and its
 docstring line "Sheets matching no archetype yield no fields"), and
-``extract()`` then returns ``ExtractedForm(fields=[])`` SILENTLY — no
-raise, no warning, no log. The {52.12} pipeline write path
-(``flow.py::ingest_file``) consequently declares a ``form_templates``
-row with ``status='analysed'`` and ``field_count=0`` with no recorded
-reason.
+``extract()`` then returns ``ExtractedForm(fields=[])``.
 
-This is the GRACEFUL-vs-STRICT tension under PRODUCT Inv-17:
+Disposition (ratified S278)
+---------------------------
 
-  > "A form is never left in a state where it has an instance record
-  >  but silently zero fields with no recorded reason."
+Liam ratified the GRACEFUL disposition for the zero-archetype-but-valid
+workbook: ``extract`` STAYS graceful (returns an empty ``ExtractedForm``,
+NOT a strict raise) — DISTINCT from the strict-raise paths above. But the
+graceful path MUST NOT be SILENT: ``extract`` emits a structured,
+surfaced log carrying a machine-readable no-archetype reason, so the
+downstream {52.12} form-write path can thread that reason onto the
+``form_templates`` row provenance. The shape PRODUCT Inv-17 forbids
+("an instance record but silently zero fields with no recorded reason")
+is closed: the reason is now both LOGGED (surfaced) and RECORDED (row
+provenance — asserted in ``test_cocoindex_flow_write_path.py``).
 
-A valid-but-zero-archetype XLSX currently produces exactly that state
-(an ``analysed`` instance with zero fields and no recorded reason),
-because the extractor treats "no archetype matched" as a successful
-empty extraction rather than as a surfaced failure.
-
-Disposition
------------
-
-The Orchestrator empirically confirmed this behaviour and ruled the
-disposition ``escalated-to-parent``: this is a PRODUCT Inv-17 semantic
-question (should a zero-archetype-but-valid workbook be GRACEFUL-empty
-or STRICT-raise?) that only Liam can ratify via a PRODUCT.md Inv-17
-amendment. {52.13}'s job is to make the current semantic NON-SILENT and
-EXPLICIT — a deliberate, named test record — NOT to unilaterally flip
-the behaviour by converting it to a strict raise.
-
-This test therefore ASSERTS + DOCUMENTS the CURRENT behaviour. It is a
-forcing function: if a future change converts the zero-archetype path
-to a strict raise (the STRICT disposition), this test will fail loudly
-and the author will be routed back to this docstring and the pending
-PRODUCT.md amendment — at which point the test is updated in lockstep
-with the ratified semantic, not silently.
+This test therefore asserts the GRACEFUL-WITH-RECORDED-REASON semantic:
+empty form returned (no raise) AND a structured ``form_extractor``
+zero-archetype log emitted carrying the reason. If a future change
+either (a) silences the log or (b) flips to a strict raise, this test
+fails loudly and the author is routed back to the ratified Inv-17
+amendment.
 
 References:
-  - docs/specs/id-52-form-extraction/PRODUCT.md Inv-17.
+  - docs/specs/id-52-form-extraction/PRODUCT.md Inv-17 (graceful-empty
+    -with-recorded-reason admitted as a valid shape, S278).
   - scripts/cocoindex_pipeline/form_extractors/xlsx.py
-    (``_walk_sheet`` "Sheets matching no archetype yield no fields";
-     ``extract`` returns ``ExtractedForm(fields=[])``).
+    (``NO_ARCHETYPE_REASON``; ``extract`` emits the structured log and
+     returns ``ExtractedForm(fields=[])``).
   - docs/reference/test-philosophy.md (real-behaviour: builds a real
     workbook with openpyxl, runs the real extractor — no mocks).
 """
@@ -65,11 +56,16 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
+import logging
 
 import openpyxl
 
 from scripts.cocoindex_pipeline.form_extractors.shared import ExtractedForm
-from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as xlsx_extract
+from scripts.cocoindex_pipeline.form_extractors.xlsx import (
+    NO_ARCHETYPE_REASON,
+    extract as xlsx_extract,
+)
 
 
 def _build_zero_archetype_workbook() -> bytes:
@@ -101,33 +97,74 @@ def _build_zero_archetype_workbook() -> bytes:
 
 
 class TestZeroArchetypeXlsxGracefulSemantic:
-    """Inv-17 graceful-vs-strict OQ — current GRACEFUL-empty semantic."""
+    """Inv-17 graceful-empty-with-recorded-reason — ratified semantic (S278)."""
 
-    def test_zero_archetype_xlsx_returns_empty_form_not_error_DOCUMENTED_INV17_GRACEFUL(
-        self,
-    ) -> None:
-        """Inv-17 graceful-vs-strict OQ — graceful-empty semantic; pending
-        Liam PRODUCT.md Inv-17 amendment ratification (escalated S278).
+    def test_zero_archetype_xlsx_returns_empty_form_not_error(self) -> None:
+        """Ratified GRACEFUL disposition (S278): a structurally VALID XLSX whose
+        sheets match no archetype returns an ``ExtractedForm`` with
+        ``fields == []`` and DOES NOT raise ``FormExtractionError``.
 
-        A structurally VALID XLSX whose sheets match no archetype currently
-        returns an ``ExtractedForm`` with ``fields == []`` and DOES NOT raise
-        ``FormExtractionError``. This test records that semantic deliberately
-        so any future flip to a strict-raise disposition fails loudly and is
-        reconciled against the ratified PRODUCT.md Inv-17 amendment.
+        This is DISTINCT from the strict-raise paths (empty bytes / unreadable
+        bytes / zero-sheet workbook), which stay strict.
         """
         raw = _build_zero_archetype_workbook()
 
-        # Current semantic: graceful-empty, NOT a raise.
         form = asyncio.run(xlsx_extract(raw, "zero-archetype.xlsx"))
 
         assert isinstance(form, ExtractedForm)
-        # The load-bearing assertion: zero fields, no exception. This is the
-        # exact "instance record with silently zero fields and no recorded
-        # reason" shape that the pending Inv-17 amendment must rule on.
         assert form.fields == []
         assert len(form.fields) == 0
         # The form-level metadata still constructs (filename fallback title).
         assert form.form_metadata.form_title == "zero-archetype.xlsx"
+
+    def test_zero_archetype_xlsx_emits_surfaced_reason_not_silent(
+        self,
+        caplog,
+    ) -> None:
+        """Inv-17 graceful-empty MUST NOT be silent: ``extract`` emits a
+        structured ``form_extractor`` log carrying the machine-readable
+        no-archetype reason, so the downstream form-write path can thread a
+        RECORDED reason onto the ``form_templates`` row.
+
+        This is the forcing function that closes the "silently zero fields
+        with no recorded reason" shape PRODUCT Inv-17 forbids: the reason is
+        SURFACED here, and RECORDED on the row (see
+        ``test_cocoindex_flow_write_path.py``)."""
+        raw = _build_zero_archetype_workbook()
+
+        with caplog.at_level(logging.INFO):
+            asyncio.run(xlsx_extract(raw, "zero-archetype.xlsx"))
+
+        # Locate the structured zero-archetype log line emitted by `extract`.
+        structured_records: list[dict[str, object]] = []
+        for record in caplog.records:
+            try:
+                payload = json.loads(record.getMessage())
+            except (ValueError, TypeError):
+                continue
+            if isinstance(payload, dict) and payload.get("reason") == NO_ARCHETYPE_REASON:
+                structured_records.append(payload)
+
+        assert structured_records, (
+            "expected a structured form_extractor log carrying "
+            f"reason={NO_ARCHETYPE_REASON!r}; got "
+            f"{[r.getMessage() for r in caplog.records]!r}"
+        )
+        payload = structured_records[0]
+        # The surfaced reason must identify the file and the event so the
+        # operator (and the downstream write path) can correlate it.
+        assert payload["reason"] == NO_ARCHETYPE_REASON
+        assert payload["rel_path"] == "zero-archetype.xlsx"
+        assert "event" in payload
+
+    def test_no_archetype_reason_is_a_stable_machine_readable_token(self) -> None:
+        """``NO_ARCHETYPE_REASON`` is the single source of truth for the
+        graceful-empty reason token — a stable, lowercase, machine-readable
+        string both the extractor log and the row-provenance thread share."""
+        assert isinstance(NO_ARCHETYPE_REASON, str)
+        assert NO_ARCHETYPE_REASON
+        assert NO_ARCHETYPE_REASON == NO_ARCHETYPE_REASON.strip()
+        assert " " not in NO_ARCHETYPE_REASON
 
     def test_workbook_is_genuinely_valid_not_the_strict_raise_path(self) -> None:
         """Guard: prove the fixture is a VALID workbook (openpyxl opens it,

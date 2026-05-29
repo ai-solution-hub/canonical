@@ -51,6 +51,8 @@ References:
 from __future__ import annotations
 
 import io
+import json
+import logging
 import re
 from typing import Any
 
@@ -65,7 +67,20 @@ from scripts.cocoindex_pipeline.form_extractors.shared import (
     FormMetadata,
 )
 
-__all__ = ["extract"]
+__all__ = ["NO_ARCHETYPE_REASON", "extract"]
+
+_logger = logging.getLogger(__name__)
+
+# PRODUCT Inv-17 (graceful-empty-with-recorded-reason, ratified S278).
+# A structurally VALID workbook whose sheets match NEITHER the CSP nor the
+# EFA scoring-matrix archetype yields zero fields. That is GRACEFUL (no raise
+# — distinct from the strict-raise empty_xlsx / unreadable_xlsx paths) but it
+# MUST NOT be silent: `extract` emits a structured log carrying this token and
+# the downstream {52.12} form-write path threads it onto the `form_templates`
+# row provenance so an `analysed`/0-field row always carries WHY. This is the
+# single source of truth for that reason token (the test and any
+# reason-threading consumer import it from here — no string duplication).
+NO_ARCHETYPE_REASON = "no_archetype_match"
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -721,6 +736,27 @@ async def extract(raw_bytes: bytes, filename: str) -> ExtractedForm:
 
     # Inv-13 — per-form dedup.
     deduped = _dedup_per_form(all_fields)
+
+    # PRODUCT Inv-17 (graceful-empty-with-recorded-reason, ratified S278). A
+    # structurally VALID workbook whose sheets matched no archetype yields zero
+    # fields. This is GRACEFUL (we return an empty ``ExtractedForm`` rather than
+    # raising — distinct from the strict-raise empty/unreadable/zero-sheet
+    # paths above), but it MUST NOT be SILENT: surface a structured,
+    # machine-readable reason so the {52.12} form-write path can RECORD it on
+    # the ``form_templates`` row provenance. Without this, an ``analysed``/
+    # 0-field row would carry no reason — the exact shape Inv-17 forbids.
+    if not deduped:
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "form_extractor.zero_archetype",
+                    "reason": NO_ARCHETYPE_REASON,
+                    "rel_path": filename,
+                    "form_format": "xlsx",
+                    "sheet_count": len(wb.sheetnames),
+                }
+            )
+        )
 
     metadata = FormMetadata(
         form_type="questionnaire",

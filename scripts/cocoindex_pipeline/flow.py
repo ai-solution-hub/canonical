@@ -848,6 +848,14 @@ MIME_BY_SUFFIX: dict[str, str] = {
 # evaluation_methodology) are written from day one (no JSONB packing). The
 # GENERATED / auto columns `created_at` / `updated_at` are OMITTED per the
 # `content_text_hash GENERATED ALWAYS` convention used by the schemas above.
+# PRODUCT Inv-17 (graceful-empty-with-recorded-reason, ratified S278). The
+# machine-readable token stamped onto a `form_templates` row when a
+# structurally readable form yields ZERO extractable fields. The row STAYS
+# `status='analysed'` (graceful — distinct from the `analysis_failed`
+# strict-raise path) but carries this reason so an `analysed`/0-field row is
+# never left with no recorded reason — the shape Inv-17 forbids.
+FORM_WRITE_GRACEFUL_EMPTY_REASON = "graceful_empty_no_fields"
+
 FORM_TEMPLATES_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
@@ -1270,6 +1278,42 @@ async def ingest_file(
     # TECH §2.5 step 3: declare the form_templates instance row (status
     # 'analysed'). The M1b dedicated metadata columns are written from day one.
     form_metadata = extracted.form_metadata
+
+    # PRODUCT Inv-17 (graceful-empty-with-recorded-reason, ratified S278). A
+    # structurally readable form that yields ZERO fields (e.g. an XLSX whose
+    # sheets matched no archetype — see xlsx.py NO_ARCHETYPE_REASON) is
+    # GRACEFUL: it STAYS `status='analysed'` (distinct from the
+    # `analysis_failed` strict-raise path above). But it MUST NOT be left as an
+    # `analysed`/0-field row with no recorded reason — the exact shape Inv-17
+    # forbids. So when the reader returned zero fields we (a) thread a recorded
+    # reason onto the row provenance (`description`) and (b) emit a structured
+    # log so the empty extraction is surfaced, not silent.
+    field_count = len(extracted.fields)
+    description = form_metadata.evaluation_methodology
+    if field_count == 0:
+        graceful_empty_reason = (
+            f"{FORM_WRITE_GRACEFUL_EMPTY_REASON}: a structurally readable "
+            f"{form_metadata.form_format} form yielded zero extractable fields "
+            "(no archetype matched). Inv-17 graceful-empty (S278): the form is "
+            "recorded as analysed with a surfaced reason rather than left "
+            "silently empty."
+        )
+        # Preserve any authored description; otherwise the recorded reason is
+        # the row's description so the WHY is never lost.
+        description = description or graceful_empty_reason
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "form_write.graceful_empty",
+                    "reason": FORM_WRITE_GRACEFUL_EMPTY_REASON,
+                    "rel_path": rel_path,
+                    "form_format": form_metadata.form_format,
+                    "form_template_id": str(form_template_id),
+                    "field_count": 0,
+                    "status": "analysed",
+                }
+            )
+        )
     ft_target.declare_row(
         row={
             "id": form_template_id,
@@ -1281,8 +1325,8 @@ async def ingest_file(
             "mime_type": MIME_BY_SUFFIX[suffix],
             "storage_path": rel_path,
             "structure_path": None,  # populated by Path C later
-            "description": form_metadata.evaluation_methodology,
-            "field_count": len(extracted.fields),
+            "description": description,
+            "field_count": field_count,
             "mapped_count": 0,
             "status": "analysed",
             "ingest_source": "pipeline",

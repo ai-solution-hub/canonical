@@ -1131,6 +1131,113 @@ class TestFormWriteSuccessPath:
         assert out["ft"].rows[0]["name"] == "no-title"  # file stem
 
 
+class TestFormWriteGracefulEmptyProvenance:
+    """PRODUCT Inv-17 graceful-empty-with-recorded-reason (ratified S278).
+
+    A structurally readable form that yields ZERO fields (e.g. a valid XLSX
+    whose sheets matched no archetype) is GRACEFUL: it STAYS
+    ``status='analysed'`` (distinct from the ``analysis_failed`` strict-raise
+    path) but MUST carry a recorded reason on the row provenance so it is never
+    left as an ``analysed``/0-field row with no recorded reason — the exact
+    shape Inv-17 forbids."""
+
+    def test_zero_field_form_records_reason_on_row_and_stays_analysed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+        src = tmp_path / "zero-archetype.xlsx"
+        src.write_bytes(b"PK\x03\x04 stub xlsx bytes")
+        rel_path = "acme/zero-archetype.xlsx"
+        fake_file = _FakeFormFile(rel_path, src)
+
+        from cocoindex_pipeline.form_extractors.shared import (
+            ExtractedForm,
+            FormMetadata,
+        )
+
+        async def _fake_extract(file: object):
+            # A structurally readable XLSX that matched no archetype: the reader
+            # returned an empty ExtractedForm gracefully (NO FormExtractionError)
+            # — the xlsx.py NO_ARCHETYPE_REASON path.
+            return ExtractedForm(
+                form_metadata=FormMetadata(
+                    form_type=_FORM_TYPE,
+                    form_format="xlsx",
+                    form_title="Internal Project Notes",
+                    # No authored evaluation_methodology — the recorded reason
+                    # must become the row description rather than leaving it None.
+                ),
+                fields=[],
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+
+        # GRACEFUL: exactly one row, status STAYS analysed (NOT analysis_failed).
+        assert len(out["ft"].rows) == 1
+        ft_row = out["ft"].rows[0]
+        assert ft_row["status"] == "analysed"
+        assert ft_row["field_count"] == 0
+        # RECORDED REASON: the description carries the Inv-17 graceful-empty
+        # reason token so the row is never silently empty.
+        assert ft_row["description"] is not None
+        assert flow.FORM_WRITE_GRACEFUL_EMPTY_REASON in ft_row["description"]
+        # No field rows for a zero-field form.
+        assert out["ftf"].rows == []
+        # Same deterministic ft: UUID5 so a later re-ingest with fields UPSERTs
+        # this same row.
+        assert ft_row["id"] == uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
+
+    def test_authored_description_is_preserved_over_graceful_reason(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When the form carries an authored ``evaluation_methodology`` the
+        graceful-empty reason does NOT clobber it — the description keeps the
+        authored value (the surfaced reason still lands in the structured log)."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws)
+        src = tmp_path / "zero-with-method.xlsx"
+        src.write_bytes(b"PK\x03\x04 stub")
+        fake_file = _FakeFormFile("acme/zero-with-method.xlsx", src)
+
+        from cocoindex_pipeline.form_extractors.shared import (
+            ExtractedForm,
+            FormMetadata,
+        )
+
+        async def _fake_extract(file: object):
+            return ExtractedForm(
+                form_metadata=FormMetadata(
+                    form_type=_FORM_TYPE,
+                    form_format="xlsx",
+                    form_title="Methodful",
+                    evaluation_methodology="MEAT 70/30",
+                ),
+                fields=[],
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+        ft_row = out["ft"].rows[0]
+        assert ft_row["status"] == "analysed"
+        assert ft_row["field_count"] == 0
+        assert ft_row["description"] == "MEAT 70/30"
+
+    def test_graceful_empty_reason_token_is_exposed(self) -> None:
+        """``FORM_WRITE_GRACEFUL_EMPTY_REASON`` is the single source of truth for
+        the recorded-reason token threaded onto the row provenance."""
+        flow = _flow_module()
+        assert isinstance(flow.FORM_WRITE_GRACEFUL_EMPTY_REASON, str)
+        assert flow.FORM_WRITE_GRACEFUL_EMPTY_REASON
+
+
 class TestFormWriteSkipAndFailurePaths:
     def test_xls_returns_none_no_form_rows(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
