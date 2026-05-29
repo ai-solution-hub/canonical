@@ -27,7 +27,20 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+# Resolve the MAIN working-tree root even when CWD is inside a linked worktree.
+# --git-common-dir points at <main>/.git for every linked worktree; its parent
+# is the canonical main root. Falls back to --show-toplevel then pwd. (ID-27.6)
+resolve_project_root() {
+  local common_dir
+  common_dir="$(git rev-parse --git-common-dir 2>/dev/null)" \
+    || { git rev-parse --show-toplevel 2>/dev/null || pwd -P; return; }
+  case "$common_dir" in
+    /*) ;;                                   # absolute
+    *) common_dir="$(pwd -P)/$common_dir" ;; # relative -> absolutise
+  esac
+  ( cd "$(dirname "$common_dir")" && pwd -P )
+}
+PROJECT_ROOT="$(resolve_project_root)"
 EVENTS_BASE="${KH_CMUX_EVENTS_DIR:-${PROJECT_ROOT}/.claude/cmux-events}"
 
 # --- Resolve workspace ref from meta file ---

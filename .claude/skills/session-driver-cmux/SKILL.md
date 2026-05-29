@@ -78,6 +78,20 @@ SD_SCRIPTS=".claude/skills/session-driver-cmux/scripts"
 Use relative paths throughout (KH gotcha: "Sub-agent instructions must always
 use relative paths").
 
+**Canonical monitoring-path pattern (ID-27.6).** The monitoring scripts
+(`wait-for-fleet.sh`, `converse.sh`, `stop-worker.sh`, `send-prompt.sh`) now
+resolve the events base from `git rev-parse --git-common-dir` (shared by every
+linked worktree) via a `resolve_project_root()` helper, so they read the MAIN
+root's `.claude/cmux-events/` regardless of the orchestrator shell's CWD. As a
+belt-and-braces override, export the events dir explicitly before any monitoring
+call:
+
+    export KH_CMUX_EVENTS_DIR="$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd -P)/.claude/cmux-events"
+
+`KH_CMUX_EVENTS_DIR` always wins over the derived path. This is the fix for the
+S279 "events.jsonl unreadable from the orchestrator shell" regression
+(CWD-relative `--show-toplevel` resolution).
+
 ---
 
 ## Lifecycle

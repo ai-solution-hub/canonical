@@ -104,7 +104,11 @@ fi
 
 # --- Set up paths ---
 
-EVENTS_BASE="${PROJECT_ROOT}/.claude/cmux-events"
+# EVENTS_BASE honours the KH_CMUX_EVENTS_DIR override for symmetry with the
+# monitoring scripts (ID-27.6). PROJECT_ROOT stays anchored to the explicit
+# BASE_DIR launch argument — launch-worker is the events WRITER, not a
+# CWD-relative reader, so it does not use resolve_project_root().
+EVENTS_BASE="${KH_CMUX_EVENTS_DIR:-${PROJECT_ROOT}/.claude/cmux-events}"
 WORKTREE_BASE="${PROJECT_ROOT}/.claude/worktrees"
 
 # --- Safety gate: verify worktree + events paths are gitignored ---
