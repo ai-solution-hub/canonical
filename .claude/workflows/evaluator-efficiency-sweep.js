@@ -230,7 +230,12 @@ export default async function evaluatorEfficiencySweep() {
       'You are the synthesis agent for the Knowledge Hub workflow-evaluator efficiency sweep.',
       'You are given an array of per-session metric slices (already computed — do NOT re-read the corpus).',
       'Assemble a markdown efficiency report with these sections IN ORDER:',
-      '  1. Header — session range, corpus paths read, timestamp.',
+      '  1. Header — all FIVE fields, in order: ' +
+        '(a) trigger source = "operator-command" (this /workflows sweep is always operator-triggered — a manual saved command); ' +
+        '(b) session range (first..last of the sessions read); ' +
+        '(c) archived-corpus paths read; ' +
+        '(d) timestamp — obtain it yourself via a `date` Bash call (ISO 8601); if an args.timestamp was supplied use that instead; ' +
+        '(e) evaluator agent invocation id = the runtime-assigned workflow run id (the wf_... id surfaced in /workflows — record it verbatim as "runtime-assigned workflow run id (see /workflows)"), plus any args.runLabel if one was provided.',
       '  2. Efficiency-metric table — one row per session + a roll-up row (mean +/- stddev per role for token usage).',
       '  3. Top offenders — per metric, the worst-3 with concrete pointers (file path or worker id + evidence pointer).',
       '  4. Recurring-finding surface (the C5 guard) — bucket findings by short canonical key ' +
@@ -245,7 +250,16 @@ export default async function evaluatorEfficiencySweep() {
       'Per-session metric slices (JSON):',
       JSON.stringify(slices, null, 2),
     ].join('\n'),
-    { label: 'synthesise-report', phase: 'synthesise' },
+    {
+      label: 'synthesise-report',
+      phase: 'synthesise',
+      // The /workflows surface is always operator-triggered for a manual saved command.
+      // triggerSource is a pure literal — no Date.now()/Math.random()/argless new Date()
+      // (those THROW inside workflow scripts and would break resume). The Header's
+      // timestamp + runtime-assigned workflow run id are obtained by the synthesis AGENT
+      // via its own tools (see the Header instruction above), never fabricated here.
+      triggerSource: 'operator-command',
+    },
   );
 
   return {
