@@ -96,6 +96,20 @@ function asArray(value: unknown): Record<string, unknown>[] | null {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : null;
 }
 
+/**
+ * Find a Task in the parsed-original `tasks[]` by its string id. Shared by the
+ * field-patch walk ({@link walkTaskList}) and the subtask splice path
+ * ({@link scopedSpliceSerialise}) so both resolve a Task identically. Returns
+ * `null` when `tasks` is not an array or no Task carries the id.
+ */
+function findTaskById(
+  doc: Record<string, unknown>,
+  taskId: string,
+): Record<string, unknown> | null {
+  const tasks = asArray(doc.tasks);
+  return tasks?.find((t) => t.id === taskId) ?? null;
+}
+
 function walkTaskList(
   doc: Record<string, unknown>,
   path: string[],
@@ -107,8 +121,7 @@ function walkTaskList(
   if (taskId == null || taskId === '') {
     return { ok: false, detail: 'Missing task id at fieldPath[1].' };
   }
-  const tasks = asArray(doc.tasks);
-  const task = tasks?.find((t) => t.id === taskId);
+  const task = findTaskById(doc, taskId);
   if (!task) {
     return { ok: false, detail: `Task id "${taskId}" not found.` };
   }
@@ -227,6 +240,161 @@ export function scopedSerialise(
   // Apply the leaf mutation to the parsed-ORIGINAL in place (on-disk key order
   // preserved); untouched records keep their exact bytes.
   walked.target.container[walked.target.key] = patch.newValue;
+
+  // Hard-fail schema violations before emitting any bytes. detectSchema runs the
+  // matching Zod `.parse()` and throws ZodError on violation.
+  try {
+    detectSchema(parsed);
+  } catch (error) {
+    return { ok: false, kind: 'schema-error', error };
+  }
+
+  return { ok: true, text: escapeSerialise(parsed), kind: detected.kind };
+}
+
+// ── record-level splice (insert / remove) ────────────────────────────────────────
+//
+// Parallel to scopedSerialise's FIELD-patch mode: instead of mutating one leaf,
+// this splices a WHOLE record into/out of a collection on the parsed-ORIGINAL
+// (never `detected.data`), so every untouched record keeps its on-disk key order
+// + bytes. This is the foundation primitive for scoped creates/promotes — the
+// whole-file fallback (record-mutate.ts) stays the schema-validation oracle.
+
+/** Top-level record collections, keyed per ledger kind. */
+type SpliceCollection = 'tasks' | 'themes' | 'items' | 'subtasks';
+
+/**
+ * A record-level splice operation against a parsed-original ledger.
+ *
+ *   - `insert` pushes `record` onto the resolved collection array. For
+ *     `collection: 'subtasks'`, `taskId` addresses the parent Task whose
+ *     `subtasks[]` receives the record.
+ *   - `remove` drops the record whose id matches `recordId` from the resolved
+ *     collection. Top-level record ids are bare-digit STRINGS (`tasks`/`themes`/
+ *     `items`); subtask ids are NUMBERS.
+ */
+export type SpliceOp =
+  | {
+      kind: 'insert';
+      collection: SpliceCollection;
+      taskId?: string;
+      record: unknown;
+    }
+  | {
+      kind: 'remove';
+      collection: SpliceCollection;
+      taskId?: string;
+      recordId: string | number;
+    };
+
+export type ScopedSpliceResult =
+  | {
+      ok: true;
+      text: string;
+      kind: Exclude<DetectSchemaResult['kind'], 'unknown'>;
+    }
+  | { ok: false; kind: 'unknown-document'; detail?: string }
+  | { ok: false; kind: 'walk-error'; detail: string }
+  | { ok: false; kind: 'schema-error'; error: unknown };
+
+/**
+ * Resolve the mutable record-array a splice op addresses on the parsed-original.
+ * For `subtasks`, walks into the addressed Task's `subtasks[]`; for the three
+ * top-level collections, returns the document-level array. Returns a
+ * `walk-error` detail when the addressed Task is missing or the collection is
+ * absent / not an array.
+ */
+function resolveSpliceCollection(
+  doc: Record<string, unknown>,
+  op: SpliceOp,
+):
+  | { ok: true; collection: Record<string, unknown>[] }
+  | { ok: false; detail: string } {
+  if (op.collection === 'subtasks') {
+    if (op.taskId == null || op.taskId === '') {
+      return {
+        ok: false,
+        detail: `Missing taskId for a 'subtasks' splice.`,
+      };
+    }
+    const task = findTaskById(doc, op.taskId);
+    if (!task) {
+      return { ok: false, detail: `Task id "${op.taskId}" not found.` };
+    }
+    const subtasks = asArray(task.subtasks);
+    if (!subtasks) {
+      return {
+        ok: false,
+        detail: `Task "${op.taskId}" is missing its "subtasks" array.`,
+      };
+    }
+    return { ok: true, collection: subtasks };
+  }
+
+  const collection = asArray(doc[op.collection]);
+  if (!collection) {
+    return {
+      ok: false,
+      detail: `Ledger is missing its "${op.collection}" array.`,
+    };
+  }
+  return { ok: true, collection };
+}
+
+/**
+ * Given the ORIGINAL on-disk ledger text and a record-level {@link SpliceOp},
+ * return the scoped-write output text with one record inserted or removed:
+ *
+ *   - byte-identical for every record NOT touched by the splice (preserving each
+ *     record's on-disk key order),
+ *   - non-ASCII escaped to `\uXXXX` (on-disk convention preserved),
+ *   - exactly one trailing newline.
+ *
+ * Validation mirrors {@link scopedSerialise}: the mutated parsed-original runs
+ * through `detectSchema` (Zod `.parse()`) BEFORE the text is returned, so a
+ * schema-violating splice fails with `{ ok: false, kind: 'schema-error' }` and
+ * no caller ever writes invalid bytes. The original text is parsed fresh inside
+ * this function — never re-read from disk after a mutation.
+ *
+ * This is a PARALLEL plain-parse splice to the vendored record-mutate.ts
+ * `insertRecord`/`removeRecord` (which structuredClone + Zod-reparse the WHOLE
+ * doc for the whole-file path). It does NOT replicate that path's duplicate-id /
+ * record-not-found discriminants — uniqueness/presence enforcement stays with
+ * the whole-file oracle. For `remove`, a non-matching id is a silent no-op
+ * (filter removes nothing) which still re-validates and round-trips.
+ */
+export function scopedSpliceSerialise(
+  originalText: string,
+  op: SpliceOp,
+): ScopedSpliceResult {
+  const parsed = JSON.parse(originalText) as Record<string, unknown>;
+
+  // Discriminate against the parsed-original (does NOT mutate it).
+  const detected = detectSchema(parsed);
+  if (detected.kind === 'unknown') {
+    return {
+      ok: false,
+      kind: 'unknown-document',
+      detail: detected.documentName ?? undefined,
+    };
+  }
+
+  const resolved = resolveSpliceCollection(parsed, op);
+  if (!resolved.ok) {
+    return { ok: false, kind: 'walk-error', detail: resolved.detail };
+  }
+  const { collection } = resolved;
+
+  if (op.kind === 'insert') {
+    // Mutate the parsed-ORIGINAL array in place; untouched records keep bytes.
+    collection.push(op.record as Record<string, unknown>);
+  } else {
+    // Filter in place. Subtask ids are numbers; top-level ids are strings — the
+    // strict `===` below intentionally matches only the correct id type.
+    const kept = collection.filter((rec) => rec.id !== op.recordId);
+    collection.length = 0;
+    for (const rec of kept) collection.push(rec);
+  }
 
   // Hard-fail schema violations before emitting any bytes. detectSchema runs the
   // matching Zod `.parse()` and throws ZodError on violation.
