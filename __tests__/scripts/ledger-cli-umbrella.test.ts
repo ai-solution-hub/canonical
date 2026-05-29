@@ -211,27 +211,33 @@ describe('update-umbrella --reorder (ID-35.41)', () => {
   });
 
   it('rejects a reorder that drops an id (not a permutation)', async () => {
+    const before = rawFile();
     const r = await run(args(['test-umbrella'], { reorder: '10' }));
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toBe('reorder-not-permutation');
-    // nothing written
+    // nothing written (state + byte-level)
     expect(taskIdsOf('test-umbrella')).toEqual(['10', '11']);
+    expect(rawFile()).toBe(before);
   });
 
   it('rejects a reorder that adds an id (not a permutation)', async () => {
+    const before = rawFile();
     const r = await run(args(['test-umbrella'], { reorder: '10,11,12' }));
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toBe('reorder-not-permutation');
     expect(taskIdsOf('test-umbrella')).toEqual(['10', '11']);
+    expect(rawFile()).toBe(before);
   });
 
   it('rejects a reorder that duplicates an id', async () => {
+    const before = rawFile();
     const r = await run(args(['test-umbrella'], { reorder: '10,10' }));
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toBe('reorder-not-permutation');
+    expect(rawFile()).toBe(before);
   });
 });
 
@@ -275,6 +281,19 @@ describe('update-umbrella rejections (ID-35.41)', () => {
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toBe('conflicting-ops');
+  });
+
+  it('rejects combining --reorder with --remove-tasks, nothing written', async () => {
+    const before = rawFile();
+    // reorder is a valid permutation of [10,11]; removeTasks names an existing
+    // id — the guard rejects on the op-flag combination, before any mutation.
+    const r = await run(
+      args(['test-umbrella'], { reorder: '11,10', removeTasks: '10' }),
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe('conflicting-ops');
+    expect(rawFile()).toBe(before);
   });
 
   it('rejects an id present in BOTH --add-tasks and --remove-tasks', async () => {
