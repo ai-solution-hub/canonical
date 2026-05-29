@@ -50,17 +50,22 @@ warning + raw open). The Charnwood corpus DOCX has unaccepted
 revisions, so this path is exercised on the acceptance fixture.
 
 References:
-- ``docs/specs/form-extraction/PRODUCT.md`` Inv-2, Inv-8, Inv-9, Inv-11,
-  Inv-12, Inv-17.
-- ``docs/specs/form-extraction/TECH.md`` §2.2 (Pydantic shape + reuse
-  note line 246), §2.6 (Migration M1 columns).
-- ``docs/specs/form-extraction/PLAN.md`` §{52.11} (acceptance criteria).
+- ``docs/specs/id-52-form-extraction/PRODUCT.md`` Inv-2, Inv-8, Inv-9,
+  Inv-11, Inv-12, Inv-17.
+- ``docs/specs/id-52-form-extraction/TECH.md`` §2.2 (Pydantic shape +
+  reuse note line 246), §2.6 (Migration M1 columns).
+- ``docs/specs/id-52-form-extraction/PLAN.md`` §{52.11} (acceptance
+  criteria).
 - Prior art (imports only — never edited):
-  ``scripts/extract_tender_questions.py`` (``_classify_header``),
+  ``scripts/extract_tender_questions.py`` (``_classify_header``).
+  Header classification reuses ``_classify_header``, which internally
+  encapsulates the ``_QUESTION_HEADERS`` set — that set is NOT imported
+  here directly; it is reached only transitively through
+  ``_classify_header``.
   ``scripts/analyse_template.py``
-  (``_is_empty_or_placeholder``, ``_detect_merged_cells``,
-  ``_extract_word_limit``, ``_extract_section_headings``,
-  ``_has_tracked_changes``, ``PLACEHOLDER_PATTERNS``).
+  (``PLACEHOLDER_PATTERNS``, ``_detect_merged_cells``,
+  ``_extract_word_limit``).
+  ``scripts/docx_utils.py`` (``open_document_safe``).
 """
 
 from __future__ import annotations

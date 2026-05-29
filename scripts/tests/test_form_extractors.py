@@ -509,6 +509,20 @@ class TestXlsxEfaDedup:
     each distinct question once, not once per copy. Dedup is keyed on
     ``(section_name, normalise(question_text))`` per TECH §2.3."""
 
+    def test_efa_total_field_count_deduped_to_19(
+        self, efa_form: ExtractedForm
+    ) -> None:
+        """Inv-13 — the EFA workbook repeats its scoring matrix across the
+        ``Bidder 1`` and ``Bidder 2`` sheets. With per-form dedup keyed on
+        ``(section_name, normalise(question_text))`` the extractor records
+        each distinct question once: 19 deduped fields (Part2=2, Part3=1,
+        Part4=5, Part5=3, Part6=1, Part7=7), NOT 38 (19 per bidder copy)."""
+        assert len(efa_form.fields) == 19, (
+            f"Inv-13 EFA dedup regression — expected exactly 19 deduped "
+            f"fields (Bidder 1 ≡ Bidder 2 collapsed), got "
+            f"{len(efa_form.fields)}"
+        )
+
     def test_efa_bidder_questions_deduped_to_n_not_2n(
         self, efa_form: ExtractedForm
     ) -> None:
