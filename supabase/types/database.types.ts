@@ -517,6 +517,7 @@ export type Database = {
           heading_path: string[]
           heading_text: string | null
           id: string
+          op_id: string | null
           parent_chunk_id: string | null
           position: number
           updated_at: string
@@ -532,6 +533,7 @@ export type Database = {
           heading_path?: string[]
           heading_text?: string | null
           id?: string
+          op_id?: string | null
           parent_chunk_id?: string | null
           position: number
           updated_at?: string
@@ -547,6 +549,7 @@ export type Database = {
           heading_path?: string[]
           heading_text?: string | null
           id?: string
+          op_id?: string | null
           parent_chunk_id?: string | null
           position?: number
           updated_at?: string
