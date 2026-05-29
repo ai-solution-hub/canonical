@@ -96,7 +96,10 @@ function asArray(value: unknown): Record<string, unknown>[] | null {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : null;
 }
 
-function walkTaskList(doc: Record<string, unknown>, path: string[]): WalkResult {
+function walkTaskList(
+  doc: Record<string, unknown>,
+  path: string[],
+): WalkResult {
   const [head, taskId, ...afterTask] = path;
   if (head !== 'tasks') {
     return { ok: false, detail: `Task-list patches must start with 'tasks'.` };
@@ -115,12 +118,18 @@ function walkTaskList(doc: Record<string, unknown>, path: string[]): WalkResult 
   if (afterTask.length >= 2 && afterTask[0] === 'subtasks') {
     const subIdNum = Number(afterTask[1]);
     if (!Number.isInteger(subIdNum)) {
-      return { ok: false, detail: `Subtask id "${afterTask[1]}" is not an integer.` };
+      return {
+        ok: false,
+        detail: `Subtask id "${afterTask[1]}" is not an integer.`,
+      };
     }
     const subtasks = asArray(task.subtasks);
     const sub = subtasks?.find((s) => s.id === subIdNum);
     if (!sub) {
-      return { ok: false, detail: `Subtask id ${subIdNum} not found in Task ${taskId}.` };
+      return {
+        ok: false,
+        detail: `Subtask id ${subIdNum} not found in Task ${taskId}.`,
+      };
     }
     const rest = afterTask.slice(2);
     if (rest.length !== 1) {
@@ -149,7 +158,10 @@ function walkRecordCollection(
     return { ok: false, detail: `Record id "${recordId}" not found.` };
   }
   if (rest.length !== 1) {
-    return { ok: false, detail: `fieldPath must address one field after the id.` };
+    return {
+      ok: false,
+      detail: `fieldPath must address one field after the id.`,
+    };
   }
   return { ok: true, target: { container: record, key: rest[0] } };
 }
@@ -167,7 +179,11 @@ function resolveLeaf(
 // ── public scoped-serialise API ──────────────────────────────────────────────────
 
 export type ScopedSerialiseResult =
-  | { ok: true; text: string; kind: Exclude<DetectSchemaResult['kind'], 'unknown'> }
+  | {
+      ok: true;
+      text: string;
+      kind: Exclude<DetectSchemaResult['kind'], 'unknown'>;
+    }
   | { ok: false; kind: 'unknown-document'; detail?: string }
   | { ok: false; kind: 'walk-error'; detail: string }
   | { ok: false; kind: 'schema-error'; error: unknown };

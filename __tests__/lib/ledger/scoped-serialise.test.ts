@@ -65,7 +65,9 @@ describe('escapeSerialise — no-op round-trip', () => {
   });
 
   it('emits zero raw non-ASCII bytes for a doc containing an em-dash', () => {
-    const out = escapeSerialise({ note: `a ${EM_DASH} b, ${SECTION}3, A ${ARROW} B` });
+    const out = escapeSerialise({
+      note: `a ${EM_DASH} b, ${SECTION}3, A ${ARROW} B`,
+    });
     expect(RAW_NON_ASCII.test(out)).toBe(false);
     expect(out).toContain('\\u2014');
   });

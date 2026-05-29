@@ -73,7 +73,7 @@ spec:
             # 4 GiB, which over-reserves the tmpfs). Idle-mode footprint is tiny;
             # revisit when the pipeline is activated (ID-42 T7).
             - name: COCOINDEX_LMDB_MAP_SIZE
-              value: "268435456"  # 256 MiB
+              value: "268435456" # 256 MiB
           volumeMounts:
             - name: cocoindex-state
               mountPath: /cocoindex-state

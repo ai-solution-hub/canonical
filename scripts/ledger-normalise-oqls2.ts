@@ -144,7 +144,9 @@ function main(): void {
         ? `would change ${r.changedLines} lines`
         : `normalised — changed ${r.changedLines} lines`;
     console.log(`  ${r.path}`);
-    console.log(`    changed-lines=${r.changedLines} / total-lines=${r.totalLines}`);
+    console.log(
+      `    changed-lines=${r.changedLines} / total-lines=${r.totalLines}`,
+    );
     console.log(`    structural-diffs=${r.structuralDiffs}`);
     console.log(`    noop-stable=${r.noopStable}`);
     console.log(`    status: ${status}\n`);

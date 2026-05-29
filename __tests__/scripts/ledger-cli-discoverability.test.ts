@@ -145,7 +145,8 @@ describe('ledger-cli — schema subcommand', () => {
   it('accepts a recordKind alias (subtask) as well as a ledger name', async () => {
     const r = await run(args('schema', ['subtask']));
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.result as string).toContain('subtask.dependencies: number[]');
+    if (r.ok)
+      expect(r.result as string).toContain('subtask.dependencies: number[]');
   });
 
   it('rejects an unknown schema target', async () => {
@@ -270,9 +271,7 @@ describe('ledger-cli — ID-35.34 top-level --help prominence', () => {
       cwd: resolve(__dirname, '../..'),
     });
     expect(r.status).toBe(0);
-    const lines = r.stdout
-      .split('\n')
-      .filter((l) => l.trim().length > 0);
+    const lines = r.stdout.split('\n').filter((l) => l.trim().length > 0);
     const firstThirty = lines.slice(0, 30).join('\n');
     // Every subcommand the run() dispatch handles must be advertised up-front.
     const subcommands = [

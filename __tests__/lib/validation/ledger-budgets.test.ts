@@ -21,10 +21,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  LEDGER_BUDGETS,
-  FIELD_BUDGETS,
-} from '@/lib/validation/ledger-budgets';
+import { LEDGER_BUDGETS, FIELD_BUDGETS } from '@/lib/validation/ledger-budgets';
 import { parseTaskListWithWarnings } from '@/lib/validation/task-list-schema';
 import { parseRoadmapWithWarnings } from '@/lib/validation/roadmap-schema';
 import { parseBacklogWithWarnings } from '@/lib/validation/backlog-schema';
@@ -222,9 +219,7 @@ describe('budget warnings sourced from the registry', () => {
   });
 
   it('backlog helper returns no warnings for an in-budget item', () => {
-    const { warnings } = parseBacklogWithWarnings(
-      makeBacklogDoc([makeItem()]),
-    );
+    const { warnings } = parseBacklogWithWarnings(makeBacklogDoc([makeItem()]));
     expect(warnings).toHaveLength(0);
   });
 

@@ -41,8 +41,7 @@ export const SESSION_ID_REGEX = /^S\d+$/;
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /** ISO 8601 datetime — YYYY-MM-DDTHH:MM:SS(.sss)?Z (loose; nullable callers use it). */
-const ISO_DATETIME_REGEX =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+const ISO_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // RetroFindingSchema — one observation inside one of the six category arrays.

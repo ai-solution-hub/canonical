@@ -2993,7 +2993,12 @@ async function promote(
   // ID-35.39 Item A: apply the roadmap-side patch only when bound — push the
   // new task id onto the named theme's linked_tasks[] (idempotent). Uses the
   // vendored applyPatches primitive so the resulting bytes still pass Zod.
-  if (capabilityTheme !== undefined && rmLoad && rmLoad.ok) {
+  if (
+    capabilityTheme !== undefined &&
+    rmLoad &&
+    rmLoad.ok &&
+    rmLoad.detected.kind === 'roadmap'
+  ) {
     const theme = rmLoad.detected.data.themes.find(
       (t) => t.id === capabilityTheme,
     );

@@ -15,11 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import {
-  assertRecordSet,
-  run,
-  type ParsedArgs,
-} from '@/scripts/ledger-cli';
+import { assertRecordSet, run, type ParsedArgs } from '@/scripts/ledger-cli';
 
 const REPO = resolve(__dirname, '../..');
 const REAL = {
@@ -74,11 +70,9 @@ describe('assertRecordSet — unit (ID-35.16)', () => {
   });
 
   it('∅ delta violates when an id is missing (silent drop)', () => {
-    const r = assertRecordSet(
-      new Set(['1', '2', '3']),
-      new Set(['1', '3']),
-      { kind: 'none' },
-    );
+    const r = assertRecordSet(new Set(['1', '2', '3']), new Set(['1', '3']), {
+      kind: 'none',
+    });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.detail).toContain('2');
@@ -86,11 +80,9 @@ describe('assertRecordSet — unit (ID-35.16)', () => {
   });
 
   it('∅ delta violates when an unexpected id appears (duplicate/insert)', () => {
-    const r = assertRecordSet(
-      new Set(['1', '2']),
-      new Set(['1', '2', '99']),
-      { kind: 'none' },
-    );
+    const r = assertRecordSet(new Set(['1', '2']), new Set(['1', '2', '99']), {
+      kind: 'none',
+    });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.detail).toContain('99');
@@ -98,11 +90,10 @@ describe('assertRecordSet — unit (ID-35.16)', () => {
   });
 
   it('+1 delta passes when exactly the one new id is added', () => {
-    const r = assertRecordSet(
-      new Set(['1', '2']),
-      new Set(['1', '2', '3']),
-      { kind: 'add', id: '3' },
-    );
+    const r = assertRecordSet(new Set(['1', '2']), new Set(['1', '2', '3']), {
+      kind: 'add',
+      id: '3',
+    });
     expect(r.ok).toBe(true);
   });
 
@@ -117,11 +108,10 @@ describe('assertRecordSet — unit (ID-35.16)', () => {
   });
 
   it('−1 delta passes when exactly the one id is removed', () => {
-    const r = assertRecordSet(
-      new Set(['1', '2', '3']),
-      new Set(['1', '3']),
-      { kind: 'remove', id: '2' },
-    );
+    const r = assertRecordSet(new Set(['1', '2', '3']), new Set(['1', '3']), {
+      kind: 'remove',
+      id: '2',
+    });
     expect(r.ok).toBe(true);
   });
 
@@ -136,11 +126,10 @@ describe('assertRecordSet — unit (ID-35.16)', () => {
   });
 
   it('numeric ids are compared by value (subtask ids are numbers)', () => {
-    const r = assertRecordSet(
-      new Set([1, 2, 3]),
-      new Set([1, 2, 3, 4]),
-      { kind: 'add', id: 4 },
-    );
+    const r = assertRecordSet(new Set([1, 2, 3]), new Set([1, 2, 3, 4]), {
+      kind: 'add',
+      id: 4,
+    });
     expect(r.ok).toBe(true);
   });
 });
@@ -217,7 +206,9 @@ describe('record-set gate — integration through the write gate (ID-35.16)', ()
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('record-set-violation');
     // Nothing written — the original file is byte-identical.
-    expect(readFileSync(join(dir, 'product-backlog.json'), 'utf8')).toBe(before);
+    expect(readFileSync(join(dir, 'product-backlog.json'), 'utf8')).toBe(
+      before,
+    );
     spy.mockRestore();
   });
 
