@@ -919,6 +919,138 @@ class TestDocxFixtureBaseline:
         )
 
 
+class TestCharnwoodPerTable:
+    """ID-52.20 investigation — pin the field count of EVERY Charnwood
+    table so no table's zero is silent.
+
+    Wave-2 surfaced that 7 of the 8 Charnwood tables surface ZERO fields
+    and ALL 7 table-sourced fields come from ``table[3]`` (the
+    ``Insert question title`` / ``Insert %`` placeholder grid). This
+    test rules each table: every table is asserted to an EXACT expected
+    count, and every zero is a documented legit-zero per PRODUCT Inv-8
+    (a "structural question slot") / Inv-9 (authored-question vs
+    placeholder vs blank-answered). No silent under-extraction.
+
+    Rulings (raw first-row shape → reason):
+
+    * ``table[0]`` 3×2 ``[Name]``/``[Tel]`` — **legit-zero.**
+      Document-header contact block (no section). The bracketed cells
+      are the BUYER's own contact details the issuing council fills when
+      it puts the ITT out, not bidder questions or bidder-fillable slots.
+      They are bare bracketed labels (``[Name]``), not the bracketed
+      ``[Insert …]`` instruction shape the prior-art
+      ``PLACEHOLDER_PATTERNS`` recognises, so neither the authored-Q/A
+      nor the placeholder-grid shape fires. Not a question (Inv-8/Inv-9).
+    * ``table[1]`` 12×3 ``Stage``/``Date(s)`` — **legit-zero.**
+      Procurement timetable. The ``[Insert date]`` cells are
+      buyer-issuance placeholders (the buyer fills the procurement dates
+      when issuing), not bidder questions. Column header does not
+      classify as ``question``.
+    * ``table[2]`` 12×2 ``SCHEDULE HEADING``/``COMPLETED?`` —
+      **legit-zero.** Submission checklist with ``□`` checkbox cells.
+      A return-completeness checklist, not authored questions.
+    * ``table[3]`` 7×2 ``Insert question title``/``Insert %`` — **7
+      fields (placeholder grid, Inv-9).** Every first-column cell is a
+      bare-instruction placeholder, so each row emits one
+      ``field_type='placeholder'`` field with ``question_text=None``.
+    * ``table[4]`` 5×2 ``0-3``/``Completely unsatisfactory …`` —
+      **legit-zero.** Evaluator scoring rubric (score band → descriptor),
+      not bidder questions.
+    * ``table[5]`` 8×2 ``Service component description``/``Costs (£)`` —
+      **legit-zero (pending OQ-52-1).** Free-form pricing schedule: blank
+      fillable line-item cells with no authored question prose and no
+      placeholder text to anchor a field. Whether a pricing grid is an
+      in-scope "structural question slot" (Inv-8) is a product ruling
+      escalated as OQ-52-1; current reader behaviour is zero.
+    * ``table[6]`` 6×2 ``I DECLARE THAT …``/``Name:`` … —
+      **legit-zero (pending OQ-52-1).** Declaration/attestation block
+      under ``SECTION A Company Details`` with a mandatory-signature
+      statement and labelled fillable slots (``Name:``, ``Position:``,
+      ``Date:``, ``Telephone number:``, ``Signature:``). Caught by
+      neither shape (no ``question``-classified header, no placeholder
+      text). Whether the attestation prose / labelled slots are in-scope
+      questions (Inv-8/Inv-9) is a product ruling escalated as OQ-52-1;
+      current reader behaviour is zero.
+    * ``table[7]`` 15×2 ``SIGNED for and on behalf of the Council``/`` ``
+      — **legit-zero.** Certificate-of-non-collusion signature block
+      (signature lines + print-name/address), not authored questions.
+
+    FINAL Charnwood counts (feed {52.19} count-pinning):
+    total = 58, paragraph-sourced (``table_index is None``) = 51,
+    table-sourced = 7 (all from ``table[3]``).
+    """
+
+    # table_index → (expected field count, ruling/reason). Zero entries
+    # carry the documented reason as the assertion message so a future
+    # drift cannot silently re-introduce an unexplained zero.
+    _EXPECTED: dict[int, tuple[int, str]] = {
+        0: (0, "legit-zero: buyer contact block (bare [Name]/[Tel] labels), not questions"),
+        1: (0, "legit-zero: procurement timetable, [Insert date] are buyer-issuance placeholders"),
+        2: (0, "legit-zero: submission checklist with checkbox cells, not questions"),
+        3: (7, "placeholder grid (Inv-9): 7 'Insert question title' rows"),
+        4: (0, "legit-zero: evaluator scoring rubric (score band -> descriptor)"),
+        5: (0, "legit-zero pending OQ-52-1: free-form pricing schedule, no question/placeholder text"),
+        6: (0, "legit-zero pending OQ-52-1: declaration block, escalated for in-scope ruling"),
+        7: (0, "legit-zero: certificate non-collusion signature block, not questions"),
+    }
+
+    def test_charnwood_per_table_field_count(
+        self, charnwood_form: ExtractedForm, charnwood_docx_bytes: bytes
+    ) -> None:
+        """Every one of the 8 Charnwood tables is asserted to an EXACT
+        expected count — non-zero with a captured shape, or zero with a
+        documented legit-zero reason. No silent under-extraction."""
+        import io
+
+        counts: dict[int, int] = {ti: 0 for ti in self._EXPECTED}
+        for field in charnwood_form.fields:
+            if field.table_index is not None:
+                counts[field.table_index] = counts.get(field.table_index, 0) + 1
+
+        # Every table the document carries must be ruled (no table is
+        # absent from the expectation map — guards against a new table
+        # appearing and silently surfacing/dropping fields).
+        raw_doc = Document(io.BytesIO(charnwood_docx_bytes))
+        assert len(raw_doc.tables) == len(self._EXPECTED), (
+            f"Charnwood table count drifted ({len(raw_doc.tables)} tables) — "
+            f"the per-table ruling map covers {len(self._EXPECTED)}; re-rule "
+            f"the new/removed table before re-pinning {{52.19}} counts"
+        )
+
+        for table_index, (expected, reason) in self._EXPECTED.items():
+            actual = counts.get(table_index, 0)
+            assert actual == expected, (
+                f"table[{table_index}] field count {actual} != expected "
+                f"{expected} — ruling: {reason}"
+            )
+
+    def test_charnwood_total_paragraph_table_counts(
+        self, charnwood_form: ExtractedForm
+    ) -> None:
+        """Pin the headline totals {52.19} counts against: 58 total,
+        51 paragraph-sourced, 7 table-sourced (all from table[3])."""
+        fields = charnwood_form.fields
+        paragraph_sourced = [f for f in fields if f.table_index is None]
+        table_sourced = [f for f in fields if f.table_index is not None]
+        assert len(fields) == 58, (
+            f"Charnwood TOTAL field count drifted: {len(fields)} != 58 "
+            f"(feeds {{52.19}} count-pinning)"
+        )
+        assert len(paragraph_sourced) == 51, (
+            f"Charnwood paragraph-sourced count drifted: "
+            f"{len(paragraph_sourced)} != 51"
+        )
+        assert len(table_sourced) == 7, (
+            f"Charnwood table-sourced count drifted: "
+            f"{len(table_sourced)} != 7"
+        )
+        assert {f.table_index for f in table_sourced} == {3}, (
+            "table-sourced fields must all originate from table[3] (the "
+            "'Insert question title' placeholder grid) — any other table "
+            "surfacing fields is an unruled change (see OQ-52-1)"
+        )
+
+
 class TestDocxParasAndTablesBoth:
     """PRODUCT Inv-8 + Inv-12 — the extractor walks BOTH paragraphs AND
     tables, recording fields from each in reading-order ``sequence``."""
