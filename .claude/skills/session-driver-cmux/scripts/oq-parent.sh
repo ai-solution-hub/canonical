@@ -282,8 +282,10 @@ oq_decide() {
         || return 1
 
     # Write to a temp file so we can validate before publishing.
+    # Respect ${TMPDIR} (sandbox allowlist is /tmp/claude*, not bare /tmp —
+    # bl-214); fall back to /tmp when TMPDIR is unset.
     local tmp_validate
-    tmp_validate="$(mktemp /tmp/oq-decide-validate.XXXXXX.json)"
+    tmp_validate="$(mktemp "${TMPDIR:-/tmp}/oq-decide-validate.XXXXXX.json")"
     # shellcheck disable=SC2064
     trap "rm -f '$tmp_validate'" EXIT
 
