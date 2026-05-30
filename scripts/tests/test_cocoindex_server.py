@@ -127,13 +127,24 @@ def _stop_cocoindex_default_env() -> None:
     lifespan would NOT re-register, since flow.py is already in sys.modules and
     the `@coco.lifespan` decorator only runs at import time). Best-effort: if
     cocoindex internals are stubbed or the API moves, the stop is skipped.
+
+    Exception scope (ID-55.4): narrowed from the prior bare ``except (...,
+    Exception)`` to the two failure modes this best-effort teardown legitimately
+    swallows — ``ImportError`` (cocoindex genuinely absent) and ``AttributeError``
+    (``stop_blocking`` missing because the API moved or ``cocoindex`` is a
+    MagicMock stub). ``stop_blocking()`` itself returns cleanly when no env has
+    started (verified against installed cocoindex 1.0.3 — ``environment.stop_sync``
+    is a no-op on an unstarted env), so there is no "no env yet" exception to
+    catch. Any OTHER exception from a real teardown now propagates visibly rather
+    than being silently suppressed.
     """
     try:
         import cocoindex as _coco
 
         _coco.stop_blocking()
-    except (ImportError, AttributeError, Exception):  # noqa: BLE001
-        # cocoindex internals unavailable/stubbed, or no env started yet.
+    except (ImportError, AttributeError):
+        # cocoindex genuinely absent (ImportError) or stop_blocking missing /
+        # stubbed (AttributeError) — nothing to tear down.
         pass
 
 
