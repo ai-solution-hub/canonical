@@ -269,7 +269,7 @@ Mempalace MCP server is the canonical memory system.
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (49383 symbols, 70638
+This project is indexed by GitNexus as **knowledge-hub** (49661 symbols, 71160
 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess
 impact, and navigate safely.
 
