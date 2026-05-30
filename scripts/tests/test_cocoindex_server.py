@@ -36,7 +36,7 @@ import os
 import signal
 import threading
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -48,6 +48,7 @@ import pytest
 # sys.modules afterwards, so a fresh `from aiohttp import web` here resolves the
 # real package directly — no defensive `del sys.modules[...]` cleanup needed.
 from aiohttp import web  # noqa: E402
+from aiohttp.streams import StreamReader  # noqa: E402
 from aiohttp.test_utils import make_mocked_request  # noqa: E402
 
 
@@ -559,3 +560,283 @@ class TestPortEnvVar:
         with patch.dict(os.environ, {"PORT": "not-a-port"}):
             with pytest.raises(ValueError):
                 resolve_port()
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# §5 — POST /stage multipart byte-drop route (ID-62.5)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+_STAGE_BOUNDARY = "testboundary000ID62stage"
+
+
+def _encode_multipart(
+    *,
+    file_bytes: bytes | None = None,
+    file_name: str = "fixture.bin",
+    dest_path: str | None = None,
+    title_prefix: str | None = None,
+) -> bytes:
+    """Encode a `multipart/form-data` body with the `/stage` field names.
+
+    A part is omitted entirely when its argument is None, so individual tests
+    can construct a body that is missing the `file` or `destPath` part to
+    exercise the loud-reject paths (Inv-2). Field names match the {62.8}
+    client contract exactly: `file` (bytes, with filename), `destPath` (text),
+    `titlePrefix` (text).
+    """
+    crlf = b"\r\n"
+    b = _STAGE_BOUNDARY.encode()
+    chunks: list[bytes] = []
+    if file_bytes is not None:
+        chunks.append(
+            b"--"
+            + b
+            + crlf
+            + b'Content-Disposition: form-data; name="file"; filename="'
+            + file_name.encode()
+            + b'"'
+            + crlf
+            + b"Content-Type: application/octet-stream"
+            + crlf
+            + crlf
+            + file_bytes
+            + crlf
+        )
+    if dest_path is not None:
+        chunks.append(
+            b"--"
+            + b
+            + crlf
+            + b'Content-Disposition: form-data; name="destPath"'
+            + crlf
+            + crlf
+            + dest_path.encode()
+            + crlf
+        )
+    if title_prefix is not None:
+        chunks.append(
+            b"--"
+            + b
+            + crlf
+            + b'Content-Disposition: form-data; name="titlePrefix"'
+            + crlf
+            + crlf
+            + title_prefix.encode()
+            + crlf
+        )
+    chunks.append(b"--" + b + b"--" + crlf)
+    return b"".join(chunks)
+
+
+async def _exercise_stage(
+    aiohttp_app: web.Application,
+    *,
+    file_bytes: bytes | None = None,
+    file_name: str = "fixture.bin",
+    dest_path: str | None = None,
+    title_prefix: str | None = None,
+) -> tuple[int, dict]:
+    """Invoke the /stage handler in-process with a real multipart payload.
+
+    Mirrors `_exercise_health` (route resolve + direct handler await, no TCP
+    socket) but feeds a `multipart/form-data` body through a `StreamReader`
+    so `await request.multipart()` parses a genuine multipart stream — the
+    same code path a live POST drives. Returns `(status, parsed_json_body)`.
+    """
+    body = _encode_multipart(
+        file_bytes=file_bytes,
+        file_name=file_name,
+        dest_path=dest_path,
+        title_prefix=title_prefix,
+    )
+    loop = asyncio.get_running_loop()
+    stream = StreamReader(Mock(), limit=2**16, loop=loop)
+    stream.feed_data(body)
+    stream.feed_eof()
+    headers = {"Content-Type": f"multipart/form-data; boundary={_STAGE_BOUNDARY}"}
+    request = make_mocked_request(
+        "POST", "/stage", headers=headers, payload=stream, app=aiohttp_app
+    )
+    match_info = await aiohttp_app.router.resolve(request)
+    resp = await match_info.handler(request)
+    return resp.status, json.loads(resp.body)
+
+
+class TestStageRouteTable:
+    """Inv-1 — `POST /stage` is registered on the same `build_app()` app."""
+
+    def test_stage_route_registered(self, aiohttp_app: web.Application) -> None:
+        routes = {
+            (route.method, route.resource.canonical)
+            for route in aiohttp_app.router.routes()
+            if route.resource is not None
+        }
+        assert ("POST", "/stage") in routes
+
+    def test_health_route_still_registered(
+        self, aiohttp_app: web.Application
+    ) -> None:
+        """Adding /stage must not displace the existing /health route (Inv-6)."""
+        routes = {
+            (route.method, route.resource.canonical)
+            for route in aiohttp_app.router.routes()
+            if route.resource is not None
+        }
+        assert ("GET", "/health") in routes
+
+
+class TestStageLoudReject:
+    """Inv-5 — a client-correctable mis-wire is a NAMED 400, never silent /
+    5xx. COCOINDEX_SOURCE_PATH unset or pointing at a missing dir → 400."""
+
+    def test_stage_400_when_source_path_unset(
+        self, aiohttp_app: web.Application, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("COCOINDEX_SOURCE_PATH", raising=False)
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"x",
+                dest_path="f.bin",
+                title_prefix="P-",
+            )
+        )
+        assert status == 400
+        assert "COCOINDEX_SOURCE_PATH" in body["error"]
+
+    def test_stage_400_when_source_path_missing_dir(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        missing = tmp_path / "does-not-exist"
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(missing))
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"x",
+                dest_path="f.bin",
+                title_prefix="P-",
+            )
+        )
+        assert status == 400
+        # The path is named in the error so the mis-wire is diagnosable.
+        assert str(missing) in body["error"]
+
+
+class TestStageMultipartContract:
+    """Inv-2 — a path-only request (no bytes) is rejected; a well-formed
+    multipart write lands the bytes (Inv-3); the response echoes the dest
+    path + a requestId (Inv-4)."""
+
+    def test_stage_400_when_file_part_absent(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        # destPath present but NO file bytes → rejected (a path the writer
+        # can't see is not a stage).
+        status, body = asyncio.run(
+            _exercise_stage(aiohttp_app, dest_path="f.bin", title_prefix="P-")
+        )
+        assert status == 400
+        assert "error" in body
+
+    def test_stage_400_when_dest_path_absent(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, body = asyncio.run(
+            _exercise_stage(aiohttp_app, file_bytes=b"x", title_prefix="P-")
+        )
+        assert status == 400
+        assert "error" in body
+
+    def test_stage_writes_bytes_to_corpus_dest(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        payload = b"PK\x03\x04 fake-xlsx-bytes"
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=payload,
+                file_name="P-123-form.xlsx",
+                dest_path="forms/P-123-form.xlsx",
+                title_prefix="P-123",
+            )
+        )
+        assert status == 200
+        # Bytes landed at corpus_root/destPath — the watcher's next cycle
+        # picks them up.
+        written = corpus / "forms" / "P-123-form.xlsx"
+        assert written.exists()
+        assert written.read_bytes() == payload
+        # Response echoes the corpus-relative dest path + a requestId.
+        assert body["destPath"] == "forms/P-123-form.xlsx"
+        assert isinstance(body["requestId"], str) and len(body["requestId"]) > 0
+
+
+class TestStagePathEscape:
+    """Inv-3 — a destPath that escapes the corpus root is rejected 400 and
+    writes nothing (no `../` traversal, no absolute path)."""
+
+    def test_stage_400_on_parent_traversal(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"escape",
+                dest_path="../escaped.bin",
+                title_prefix="P-",
+            )
+        )
+        assert status == 400
+        assert "error" in body
+        # Nothing written outside the corpus root.
+        assert not (tmp_path / "escaped.bin").exists()
+
+    def test_stage_400_on_absolute_dest_path(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        abs_target = tmp_path / "abs-escape.bin"
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"escape",
+                dest_path=str(abs_target),
+                title_prefix="P-",
+            )
+        )
+        assert status == 400
+        assert "error" in body
+        assert not abs_target.exists()

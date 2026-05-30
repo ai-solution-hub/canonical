@@ -33,6 +33,8 @@ import os
 import signal
 import sys
 import threading
+import uuid
+from pathlib import Path
 from typing import Any
 
 # `cocoindex` is imported at module top so `server.coco` is a stable patch
@@ -145,6 +147,103 @@ async def _health_handler(request: web.Request) -> web.Response:  # noqa: ARG001
     )
 
 
+async def _stage_handler(request: web.Request) -> web.Response:
+    """POST /stage — drop multipart fixture bytes into the watched corpus dir.
+
+    Co-resident with the cocoindex worker (ID-62 Slice A): the bytes are
+    written to the local-fs `COCOINDEX_SOURCE_PATH` corpus dir that the
+    co-located `walk_dir(live=True)` watcher polls — no second process, no
+    network hop. The route is identical on Cloud Run and the B1 host.
+
+    Wire contract (matches the {62.8} `stageFixture` client): a
+    `multipart/form-data` body with a `file` part (raw bytes, filename set by
+    the caller), a `destPath` text part (corpus-relative target), and a
+    `titlePrefix` text part (informational; the caller embeds the prefix in
+    the dest filename — `/stage` does NO in-byte title injection, OQ-62-6).
+
+    Failure model (Inv-5): a client-correctable mis-wire is a NAMED 400, never
+    a silent accept and never a 5xx. 5xx is reserved for an unambiguous
+    server-side mount failure. The handler imports no pullmd binary and no
+    Playwright driver, so the cloudbuild AGPL assertion stays green
+    (TECH-CONSTRAINT-AGPL). It does not touch `_health_handler` /
+    `worker_is_healthy()` — adding /stage cannot flip /health to 503 (Inv-6).
+    """
+    # (1) Resolve the corpus root; loud-reject a mis-wire as a named 400 [Inv-5].
+    source_path = os.environ.get("COCOINDEX_SOURCE_PATH")
+    if not source_path:
+        return web.json_response(
+            {"error": "COCOINDEX_SOURCE_PATH is unset"}, status=400
+        )
+    if not Path(source_path).exists():
+        return web.json_response(
+            {"error": f"COCOINDEX_SOURCE_PATH does not exist: {source_path}"},
+            status=400,
+        )
+
+    # (2) Read the multipart body; capture the file bytes + the text parts [Inv-2].
+    file_bytes: bytes | None = None
+    dest_path: str | None = None
+    title_prefix: str | None = None
+    reader = await request.multipart()
+    async for part in reader:
+        if part.name == "file":
+            file_bytes = await part.read(decode=False)
+        elif part.name == "destPath":
+            dest_path = await part.text()
+        elif part.name == "titlePrefix":
+            title_prefix = await part.text()
+
+    # A request carrying only a path string with no bytes is rejected — bytes
+    # on the wire, not a path the writer can't see [Inv-2].
+    if file_bytes is None or not dest_path:
+        return web.json_response(
+            {
+                "error": (
+                    "multipart request must include a 'file' part (bytes) and "
+                    "a non-empty 'destPath' part"
+                )
+            },
+            status=400,
+        )
+
+    # (3) Resolve the corpus-relative target; reject path-escape, write nothing
+    #     on rejection [Inv-3]. realpath() collapses `..` and resolves symlinks,
+    #     so the containment check catches traversal regardless of how it is
+    #     spelled. An absolute destPath is rejected up front (pathlib would
+    #     otherwise discard the corpus root when joined with an absolute path).
+    if os.path.isabs(dest_path):
+        return web.json_response(
+            {"error": f"destPath must be corpus-relative, not absolute: {dest_path}"},
+            status=400,
+        )
+    corpus_real = os.path.realpath(source_path)
+    target_real = os.path.realpath(os.path.join(corpus_real, dest_path))
+    if target_real != corpus_real and not target_real.startswith(corpus_real + os.sep):
+        return web.json_response(
+            {"error": f"destPath escapes the corpus root: {dest_path}"},
+            status=400,
+        )
+
+    os.makedirs(os.path.dirname(target_real), exist_ok=True)
+    with open(target_real, "wb") as fh:
+        fh.write(file_bytes)
+
+    request_id = uuid.uuid4().hex
+    written_rel = os.path.relpath(target_real, corpus_real)
+    _logger.info(
+        "/stage wrote %d bytes to %s (titlePrefix=%r, requestId=%s)",
+        len(file_bytes),
+        written_rel,
+        title_prefix,
+        request_id,
+    )
+
+    # (4) Respond 2xx echoing the dest path + an informational requestId [Inv-4].
+    return web.json_response(
+        {"destPath": written_rel, "requestId": request_id}, status=200
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Application factory
 # ──────────────────────────────────────────────────────────────────────────
@@ -158,6 +257,7 @@ def build_app() -> web.Application:
     """
     app = web.Application()
     app.router.add_get("/health", _health_handler)
+    app.router.add_post("/stage", _stage_handler)
     return app
 
 
