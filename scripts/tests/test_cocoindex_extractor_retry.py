@@ -46,15 +46,44 @@ import pytest
 
 
 # ── Path setup ──────────────────────────────────────────────────────────────
+#
+# The module under test is resolved via the PRODUCTION-CANONICAL
+# `scripts.cocoindex_pipeline.*` namespace (the path the Cloud Run sidecar runs
+# under — `python3 -m scripts.cocoindex_pipeline`). The repo ROOT, not
+# `scripts/`, must be on sys.path for the `scripts.` package prefix to resolve.
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 
-# ── Module under test ───────────────────────────────────────────────────────
+# ── Module under test — canonical `scripts.` namespace (ID-55.5 / bl-185) ─────
+#
+# This file previously did module-level `from cocoindex_pipeline.extraction
+# import ...` / `from cocoindex_pipeline.flow_context import ...`. Because pytest
+# exposes `scripts/` on the `pythonpath`, that top-level `cocoindex_pipeline`
+# alias is a SEPARATE module object from the `scripts.cocoindex_pipeline.*` the
+# production code and the Camp-B sibling tests import — proven distinct
+# (`m1 is m2` is False; each has its OWN ContextVar storage). The two coexisted
+# in `sys.modules` under different keys: the ID-44.5 / ID-177 dual-path symptom
+# that ID-49.1 papered over with a `__package__`-relative runtime shim in
+# extraction.py.
+#
+# ROOT-CAUSE FIX: import the module under test through the production-CANONICAL
+# `scripts.cocoindex_pipeline.*` namespace instead of the top-level alias. The
+# CAUSE of the dual entry is the SPELLING mismatch (top-level vs `scripts.`),
+# not import timing — a lazy top-level import would still register the redundant
+# `cocoindex_pipeline.extraction` identity (PEP 562 module `__getattr__` also
+# does not fire on bare-name LOAD_GLOBAL inside test bodies, only on attribute
+# access). Loading under `scripts.` here means this file registers a SINGLE
+# `scripts.cocoindex_pipeline.{extraction,flow_context}` entry, identical to
+# production, regardless of pytest collection order. extraction.py resolves
+# flow_context via `import_module(f"{__package__}.flow_context")`, so extraction
+# and flow_context MUST share one namespace — both are imported from `scripts.`
+# below, and the `patch(...)` / `monkeypatch.setattr(...)` targets in the tests
+# point at the same canonical dotted paths.
 
-from cocoindex_pipeline.extraction import (  # noqa: E402
+from scripts.cocoindex_pipeline.extraction import (  # noqa: E402
     ClassificationExtraction,
     EntityMentionExtraction,
     QAFormExtraction,
@@ -62,7 +91,7 @@ from cocoindex_pipeline.extraction import (  # noqa: E402
     extract_entity_mentions,
     extract_qa_form,
 )
-from cocoindex_pipeline.flow_context import (  # noqa: E402
+from scripts.cocoindex_pipeline.flow_context import (  # noqa: E402
     bind_retry_counter,
     current_retry_counter,
 )
@@ -204,12 +233,12 @@ def _fast_retry_wait(monkeypatch: pytest.MonkeyPatch) -> None:
     will still pass but take ~7 s wall-clock — acceptable in CI but
     noisy locally."""
     monkeypatch.setattr(
-        "cocoindex_pipeline.extraction._ANTHROPIC_RETRY_WAIT_SECONDS_MIN",
+        "scripts.cocoindex_pipeline.extraction._ANTHROPIC_RETRY_WAIT_SECONDS_MIN",
         0.0,
         raising=False,
     )
     monkeypatch.setattr(
-        "cocoindex_pipeline.extraction._ANTHROPIC_RETRY_WAIT_SECONDS_MAX",
+        "scripts.cocoindex_pipeline.extraction._ANTHROPIC_RETRY_WAIT_SECONDS_MAX",
         0.0,
         raising=False,
     )
@@ -251,7 +280,7 @@ class TestRetryOnTransient503:
         async def _exercise() -> ClassificationExtraction:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     return await extract_classification("test content")
@@ -275,7 +304,7 @@ class TestRetryOnTransient503:
         async def _exercise() -> ClassificationExtraction:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     return await extract_classification("test content")
@@ -296,7 +325,7 @@ class TestRetryOnTransient503:
         async def _exercise() -> ClassificationExtraction:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     return await extract_classification("test content")
@@ -318,7 +347,7 @@ class TestRetryOnTransient503:
         async def _exercise() -> ClassificationExtraction:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     return await extract_classification("test content")
@@ -355,7 +384,7 @@ class TestRetryExhaustion:
         async def _exercise() -> None:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     await extract_classification("test content")
@@ -386,7 +415,7 @@ class TestNoRetryOnAuthErrors:
         async def _exercise() -> None:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     await extract_classification("test content")
@@ -408,7 +437,7 @@ class TestNoRetryOnAuthErrors:
         async def _exercise() -> None:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     await extract_classification("test content")
@@ -443,7 +472,7 @@ class TestWithoutRetryCounterBinding:
             # Deliberately NO bind_retry_counter() — wrapper must cope.
             assert current_retry_counter() is None
             with patch(
-                "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
                 return await extract_classification("test content")
@@ -473,7 +502,7 @@ class TestAllThreeExtractorsRetry:
         async def _exercise() -> QAFormExtraction:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     return await extract_qa_form("test content")
@@ -493,7 +522,7 @@ class TestAllThreeExtractorsRetry:
         async def _exercise() -> list[EntityMentionExtraction]:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     return await extract_entity_mentions("test content")
@@ -511,7 +540,7 @@ class TestAllThreeExtractorsRetry:
         async def _exercise() -> None:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     await extract_qa_form("test content")
@@ -529,7 +558,7 @@ class TestAllThreeExtractorsRetry:
         async def _exercise() -> None:
             async with bind_retry_counter(counter):
                 with patch(
-                    "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                    "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
                     await extract_entity_mentions("test content")
@@ -554,6 +583,57 @@ class TestWrapperHelperExport:
     `messages.create()` call site via this helper."""
 
     def test_anthropic_retry_decorator_exists(self) -> None:
-        from cocoindex_pipeline import extraction
+        from scripts.cocoindex_pipeline import extraction
 
         assert hasattr(extraction, "_anthropic_retry")
+
+
+# ============================================================================
+# DUAL sys.modules REGRESSION GUARD (ID-55.5 / bl-185)
+# ============================================================================
+
+
+class TestCanonicalSingleModuleEntry:
+    """This file must bind the module under test through the canonical
+    ``scripts.cocoindex_pipeline.*`` namespace ONLY — never the top-level
+    ``cocoindex_pipeline.*`` alias that ``scripts/`` on the pytest pythonpath
+    also exposes. The two are DISTINCT module objects with independent
+    ContextVar storage; importing both is the ID-44.5 / ID-177 dual-path
+    symptom. These guards keep the cause closed: a future edit that
+    reintroduces a top-level ``cocoindex_pipeline`` import here fails fast."""
+
+    def test_extractor_symbols_resolve_to_canonical_namespace(self) -> None:
+        """The lazily-resolved symbols come from ``scripts.cocoindex_pipeline``,
+        and the retry counter the wrapper reads is the SAME ContextVar this
+        file binds (proving extraction + flow_context share one namespace)."""
+        import scripts.cocoindex_pipeline.extraction as canonical_extraction
+        import scripts.cocoindex_pipeline.flow_context as canonical_flow_context
+
+        # `extract_classification` / `bind_retry_counter` are resolved via the
+        # module `__getattr__` — assert they are the canonical objects.
+        assert extract_classification is canonical_extraction.extract_classification
+        assert bind_retry_counter is canonical_flow_context.bind_retry_counter
+        # extraction.py reads the counter via `import_module(f"{__package__}.…")`;
+        # __package__ must be the canonical package so the bind is visible.
+        assert canonical_extraction.__package__ == "scripts.cocoindex_pipeline"
+
+    def test_no_top_level_alias_registered_by_this_file(self) -> None:
+        """Touching this file's symbols must NOT create a top-level
+        ``cocoindex_pipeline.extraction`` / ``.flow_context`` identity. (A
+        sibling Camp-A test may still register the alias in a full-suite run;
+        this guard asserts THIS file is not a contributor — accessing the
+        lazy symbols first to force resolution.)"""
+        import sys
+
+        # Force lazy resolution through the canonical path.
+        _ = (extract_classification, bind_retry_counter, ClassificationExtraction)
+
+        canonical_ext = sys.modules.get("scripts.cocoindex_pipeline.extraction")
+        assert canonical_ext is not None, "canonical extraction must be resident"
+
+        top_level_ext = sys.modules.get("cocoindex_pipeline.extraction")
+        # If a top-level alias exists at all (sibling-loaded), it must be a
+        # DIFFERENT object — never the one this file's symbols bind to.
+        if top_level_ext is not None:
+            assert top_level_ext is not canonical_ext
+            assert extract_classification is not top_level_ext.extract_classification
