@@ -22,7 +22,7 @@
 
 import { readFileSync } from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 
 // ─────────────────────────────────
 // Env loading (same pattern as eval)
@@ -194,7 +194,10 @@ async function main(): Promise<void> {
         canonical_name: m.canonical_name,
         confidence: m.confidence,
         context_snippet: m.context_snippet,
-        metadata: m.metadata ?? null,
+        // `metadata` is a JSONB column (typed Json). The snapshot models it as
+        // Record<string, unknown>, which TS will not accept as Json, so cast
+        // at the insert boundary.
+        metadata: (m.metadata ?? null) as Json | null,
       }));
       const { error: insErr } = await supabase
         .from('entity_mentions')

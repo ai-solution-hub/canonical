@@ -282,10 +282,10 @@ async function main() {
 
     // Separate mentions by holder context (example-datacentre = supplier, other = self)
     const selfHeldMentions = mentions.filter(
-      (m) => !isexample-datacentreContent(titleMap.get(m.content_item_id)),
+      (m) => !isexample-datacentreContent(titleMap.get(m.content_item_id) ?? null),
     );
     const supplierMentions = mentions.filter((m) =>
-      isexample-datacentreContent(titleMap.get(m.content_item_id)),
+      isexample-datacentreContent(titleMap.get(m.content_item_id) ?? null),
     );
 
     // Find richest source for each holder type

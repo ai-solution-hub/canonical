@@ -22,7 +22,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
-import type { Database } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
@@ -1121,10 +1121,13 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
             if (result.temporal_references?.length) {
               const existingMetadata =
                 (item.metadata as Record<string, unknown>) ?? {};
+              // `metadata` is a JSONB column (typed Json). The temporal-ref
+              // objects carry optional fields that TS will not structurally
+              // accept as Json, so cast at the assignment boundary.
               updateData.metadata = {
                 ...existingMetadata,
                 ai_temporal_references: result.temporal_references,
-              };
+              } as unknown as Json;
             }
 
             // Regenerate embedding with updated title + content

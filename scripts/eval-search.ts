@@ -20,8 +20,9 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
+import type { Database } from '@/supabase/types/database.types';
 import { precisionAtK } from '../lib/eval/metrics';
 import {
   loadBaseline,
@@ -118,7 +119,7 @@ function createServiceClient() {
     process.exit(1);
   }
 
-  return createClient(url, key, {
+  return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -140,7 +141,7 @@ async function generateEmbedding(
 // ── Search ──────────────────────────────────────────────────────────
 
 async function executeSearch(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
   embedding: number[],
   query: string,
 ): Promise<SearchResult[]> {

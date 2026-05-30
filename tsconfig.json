@@ -2,6 +2,16 @@
   "compilerOptions": {
     "target": "ES2018",
     "lib": ["dom", "dom.iterable", "esnext"],
+    // Pin auto-included ambient-global type packages. Without this, TS
+    // auto-includes EVERY @types/* package in node_modules — which is how
+    // @types/bun (bun-types) leaks its DOM-global overrides (e.g. a Bun-shaped
+    // `fetch`) into the whole app + test compilation and breaks ~120 unrelated
+    // files. The Bun globals the standalone `scripts/*.ts` CLIs need are pulled
+    // in file-locally via `/// <reference types="bun" />` (bl-213), so they do
+    // not need to be in this global list. Non-ambient @types (turndown,
+    // pluralize, uuid, etc.) are reached through explicit imports and are
+    // unaffected by this list.
+    "types": ["node", "react", "react-dom"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,

@@ -21,8 +21,9 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { rougeL } from '../lib/eval/metrics';
+import type { Database } from '@/supabase/types/database.types';
 import {
   loadBaseline,
   saveBaseline,
@@ -136,13 +137,13 @@ function createServiceClient(env: string) {
 
   assertEnvFlag(env, url);
 
-  return createClient(url, key, {
+  return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
 async function fetchProcurementResponses(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
   questionIds: string[],
 ): Promise<Map<string, DbResponse>> {
   // The gold standard uses synthetic question_ids (eval-bid-NNN), not real UUIDs.
@@ -160,8 +161,16 @@ async function fetchProcurementResponses(
     }
 
     const map = new Map<string, DbResponse>();
-    for (const row of data ?? []) {
-      map.set(row.question_id as string, row as DbResponse);
+    // NOTE: the `.select(...)` above names `cited_items`, a column that no
+    // longer exists on `bid_responses` (renamed to `source_content_ids`). With
+    // a typed client that select resolves to a SelectQueryError, so the rows
+    // are bridged to the script's internal DbResponse contract via
+    // `unknown`. Runtime is unchanged: this CLI is best-effort eval code and
+    // the live query error is already swallowed by `if (error) return`. The
+    // column drift is tracked separately, not in scope for the bl-213
+    // type-only widening.
+    for (const row of (data ?? []) as unknown as DbResponse[]) {
+      map.set(row.question_id, row);
     }
     return map;
   } catch {

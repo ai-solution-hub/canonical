@@ -7,8 +7,9 @@
  * removed by MCP eval cleanup. The eval matrix consumes them after this script
  * runs once before L1/L3/L4 fan-out.
  */
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+import type { Database, Json } from '@/supabase/types/database.types';
 import {
   generateEmbedding,
   getEmbeddingModel,
@@ -83,7 +84,7 @@ function needsEmbedding(existing: ExistingSeedRow | null): boolean {
 }
 
 async function seedGuideFixture(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
 ): Promise<void> {
   const { error: guideError } = await supabase.from('guides').upsert(
     {
@@ -141,7 +142,7 @@ async function main(): Promise<void> {
   const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
   getRequiredEnv('OPENAI_API_KEY');
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
@@ -184,12 +185,15 @@ async function main(): Promise<void> {
 
     const title = titleForSeed(item);
     const content = contentForSeed(item);
-    const metadata = {
+    const isPresent = (v: string | undefined): v is string => Boolean(v);
+    const metadata: Json = {
       ...MCP_EVAL_SEED_METADATA,
       mcp_eval_seed_key: item.key,
       mcp_eval_seed_role: item.role ?? null,
-      domains: [item.primaryDomain, item.secondaryDomain].filter(Boolean),
-      subtopics: [item.primarySubtopic, item.secondarySubtopic].filter(Boolean),
+      domains: [item.primaryDomain, item.secondaryDomain].filter(isPresent),
+      subtopics: [item.primarySubtopic, item.secondarySubtopic].filter(
+        isPresent,
+      ),
       keywords: item.keywords,
     };
 

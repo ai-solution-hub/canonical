@@ -26,8 +26,9 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { rougeL, rouge1 } from '../lib/eval/metrics';
+import type { Database } from '@/supabase/types/database.types';
 import {
   loadBaseline,
   saveBaseline,
@@ -160,13 +161,13 @@ function createServiceClient(env: string) {
 
   assertEnvFlag(env, url);
 
-  return createClient(url, key, {
+  return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
 async function fetchSummaries(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
   itemIds: string[],
 ): Promise<Map<string, DbRow>> {
   const { data, error } = await supabase
@@ -180,8 +181,10 @@ async function fetchSummaries(
   }
 
   const map = new Map<string, DbRow>();
+  // `summary_data` is a JSONB column (typed as Json); the script narrows it to
+  // its own SummaryData domain shape via DbRow, so bridge through `unknown`.
   for (const row of data ?? []) {
-    map.set(row.id as string, row as DbRow);
+    map.set(row.id, row as unknown as DbRow);
   }
   return map;
 }

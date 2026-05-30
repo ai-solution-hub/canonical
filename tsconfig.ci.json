@@ -15,15 +15,17 @@
   // self-contained Vite single-file builds, and the docs site each carry their
   // own toolchains/tsconfigs and are not part of this repo's typecheck surface.
   //
-  // ACCEPTED-DEBT EXCLUSIONS (the `scripts/**` entries below): these 18 files
-  // carry pre-existing type errors that predate this gate (Bun-runtime globals
-  // — `Bun`, `import.meta.dir` — and untyped Supabase clients that resolve to
-  // `never`). They were NEVER part of any typecheck surface, so gating them
-  // here would make the build-gate permanently red and defeat its purpose. They
-  // are the explicit remaining debt: removing an entry once its file is fixed
-  // brings it under the gate. Adding `@types/bun` would clear the Bun-global
-  // subset but is out of scope for bl-200 (the alarm, not the debt). New /
-  // newly-clean scripts are gated BY DEFAULT — only files on this list escape.
+  // SCRIPTS COVERAGE (bl-213, S285): the full `scripts/**` surface is now
+  // gated — the 18 accepted-debt exclusions that bl-200 carried (41
+  // pre-existing tsc errors) have all been fixed and removed. The fixes were
+  // type-only: typed Supabase clients (`createClient<Database>` +
+  // `SupabaseClient<Database>` helper params, replacing untyped `never`
+  // clients), a minimal Bun ambient (`scripts/bun-ambient.d.ts`) for the
+  // `Bun` / `import.meta.dir` globals (full `@types/bun` was rejected — its
+  // DOM-global overrides break ~120 app/test files; see tsconfig.json
+  // `types`), a generic `emitResponse` in `scripts/ast-dataflow-cli.ts`, and
+  // Json casts at JSONB-column boundaries. Every `scripts/*.ts` is now gated
+  // BY DEFAULT — nothing escapes.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     // The base tsconfig sets `incremental: true`, which writes a
@@ -38,24 +40,6 @@
     "mcp-apps",
     "docs-site",
     "__tests__/lib/ast-dataflow/fixtures",
-    "vitest.integration.config.ts",
-    "scripts/ast-dataflow-cli.ts",
-    "scripts/audit-opaque-json-rpcs.ts",
-    "scripts/batch-generate-summaries.ts",
-    "scripts/batch-populate-topics.ts",
-    "scripts/batch-reclassify-keywords.ts",
-    "scripts/batch-reclassify.ts",
-    "scripts/batch-rescore-articles.ts",
-    "scripts/calibrate-coverage-thresholds.ts",
-    "scripts/eval-entity-classification.ts",
-    "scripts/eval-procurement-drafting.ts",
-    "scripts/eval-search.ts",
-    "scripts/eval-summarisation.ts",
-    "scripts/extract-reader-html.ts",
-    "scripts/generate-taxonomy-snapshot.ts",
-    "scripts/mcp-eval/seed-fixtures.ts",
-    "scripts/normalise-entities.ts",
-    "scripts/propagate-cert-metadata.ts",
-    "scripts/restore-eval-corrupted-items.ts"
+    "vitest.integration.config.ts"
   ]
 }

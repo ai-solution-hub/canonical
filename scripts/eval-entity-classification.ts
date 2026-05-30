@@ -25,8 +25,9 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createInterface } from 'readline';
+import type { Database } from '@/supabase/types/database.types';
 import { precision, recall, f1Score, accuracy } from '../lib/eval/metrics';
 import {
   loadBaseline,
@@ -184,13 +185,13 @@ function createServiceClient() {
     process.exit(1);
   }
 
-  return createClient(url, key, {
+  return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
 async function fetchEntitiesForItems(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
   itemIds: string[],
 ): Promise<Map<string, DbEntity[]>> {
   const { data, error } = await supabase
@@ -208,12 +209,12 @@ async function fetchEntitiesForItems(
 
   const map = new Map<string, DbEntity[]>();
   for (const row of data ?? []) {
-    const id = row.content_item_id as string;
+    const id = row.content_item_id;
     if (!map.has(id)) map.set(id, []);
     map.get(id)!.push({
-      entity_type: row.entity_type as string,
-      entity_name: row.entity_name as string,
-      canonical_name: row.canonical_name as string,
+      entity_type: row.entity_type,
+      entity_name: row.entity_name,
+      canonical_name: row.canonical_name,
     });
   }
 
@@ -300,7 +301,7 @@ async function confirmLiveRun(
  * Returns the entities extracted by the classifier.
  */
 async function classifyAndExtractEntities(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
   itemId: string,
   validate: boolean,
 ): Promise<DbEntity[]> {

@@ -12,7 +12,8 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/supabase/types/database.types';
 
 // ── Env loading (mirrors kb-search.ts) ──
 
@@ -159,7 +160,7 @@ function assertEnvFlag(env: string, url: string | undefined): void {
 // ── Data fetching (standalone, no Next.js path aliases) ──
 
 async function fetchRequirements(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
   templateName: string,
 ): Promise<TemplateRequirement[]> {
   // Post-T2: `template_requirements` renamed to `form_template_requirements`.
@@ -204,7 +205,7 @@ async function fetchRequirements(
 }
 
 async function fetchContent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
 ): Promise<ContentItemForMatching[]> {
   const { data, error } = await supabase
     .from('content_items')
@@ -254,7 +255,7 @@ async function main() {
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
   console.log(`\n📐 Template Coverage Threshold Calibration`);
   console.log(`   Template: ${templateName}`);
