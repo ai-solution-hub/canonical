@@ -136,35 +136,20 @@ explicitly passed.
 | Phase                      | Skill                    | Why                                                                                                                                                                                                    |
 | -------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Triage                     | `triage-finding`         | Decision logic: subtask vs roadmap vs backlog vs no-action                                                                                                                                             |
-| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts` (v2): atomic write, default-on mirror regen ({35.18}), write-time budget ({35.17}) + record-set ({35.16}) gates, provenance via `session_refs` / `commit_refs`. |
+| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts` (v3): atomic write, default-on mirror regen ({35.18}), write-time budget ({35.17}) + record-set ({35.16}) gates, provenance via `session_refs` / `commit_refs`. |
 
 You do NOT invoke executor- or checker-side skills (`test-driven-development`,
 `code-review-and-quality`, etc.) — those are for code work, not for triage.
 
-## Known CLI defects (S273-promoted, awareness only)
+## CLI defect history (S273 — all RESOLVED)
 
-The v2 ledger-CLI carries open defects under ID-35 subtasks 35.26–35.34 that affect call
-shapes you (or `update-roadmap-backlog` on your behalf) will encounter. Do NOT route
-around with `--force` unless explicitly authorised — the fix Subtasks own the real
-solutions. The active defects (see `task-list.json` ID-35 subtasks for current status):
-
-- **{35.26}** `update-subtask` budget-precheck blocks edits on untouched over-budget
-  description — affects every `update-subtask` call.
-- **{35.27}** `budget-exceeded` mislabels subtask as `task N` — error labels may be wrong.
-- **{35.28}** `add-subtask --id N` stays string → schema-error; ALWAYS omit `--id` and let
-  auto-id allocate.
-- **{35.29}** `open-task` / `update-task --depends N` coerces to number; pass
-  `dependencies` via positional-JSON, not named flag.
-- **{35.30}** `add-subtask` success stdout is 34-67KB warnings dump — expect noisy stdout,
-  parse `result.id` from the JSON envelope.
-- **{35.31}** `description` char-budget counts multibyte glyphs confusingly (→ § etc) —
-  budget rejections on emoji / special-char content may appear mysterious.
-- **{35.32}** Mutating calls print generic regen-mirrors advice even with
-  `--no-regen-mirrors` — ignore the advice line in that case.
-- **{35.33}** First session write triggers detached-HEAD task-view clone noise in stdout —
-  clean-stdout assumptions may fail on first writes per session.
-- **{35.34}** No `show-task` / `get` alias; help only shown on error or `--help` —
-  discoverability gap when a wrong command shape is invoked.
+The v3 ledger-CLI's S273-era defects under ID-35 subtasks 35.26–35.34 (string-coerced
+`--id`, number-coerced `--depends`, missing `get` alias, confusing budget labels, noisy
+first-write stdout, regen-advice-with-`--no-regen-mirrors`, etc.) are **all done**.
+Compose call shapes against the current behaviour documented in `update-roadmap-backlog`:
+the `--depends 1,2` named flag now preserves string Task ids, and `add-subtask` auto-id is
+reliable. `--force` remains a `budget-exceeded` escape hatch only — never a defect
+work-around.
 
 ## Optional: Advisor tool for hard triage cases
 
@@ -266,8 +251,9 @@ curator (uncommon — usually the orchestrator dispatches):**
 
 - Concrete CLI subcommand mapping for new top-level Tasks: `target: "task-list"` →
   `bun scripts/ledger-cli.ts open-task <taskJson>`. For Subtasks added under an existing
-  Task: `bun scripts/ledger-cli.ts add-subtask <taskId> <subtaskJson>` (omit `--id` for
-  auto-id — see {35.28} for the string-coerce defect).
+  Task: `bun scripts/ledger-cli.ts add-subtask <taskId> <subtaskJson>` (omit `--id` to let
+  auto-id allocate the next integer). Bulk-add a JSON array of Subtasks in one splice via
+  `bun scripts/ledger-cli.ts add-subtasks <taskId> --file <json|->`.
 
 **If `decision === "no-action"`:**
 
@@ -342,7 +328,7 @@ that command's flags + its target record's schema slice ({35.22}).
 ## Quality bar
 
 - Every `roadmap` or `backlog` entry you write has provenance (task ID, commit SHA, or
-  session counter) — populated via `session_refs` / `commit_refs` per the v2 schemas.
+  session counter) — populated via `session_refs` / `commit_refs` per the v3 schemas.
 - Every entry passes the CLI's write-time gates (budget per {35.17} + record-set per
   {35.16}). NEVER bypass with `--force` unless a budget-exceeded override is genuinely
   justified AND the override is logged in your report-back block (`Warnings (if any):`).

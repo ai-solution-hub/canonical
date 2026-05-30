@@ -34,7 +34,7 @@ built on the vendored task-view primitives in `lib/ledger/`. It owns:
   checked against `LEDGER_BUDGETS` (`lib/validation/ledger-budgets.ts`)
   before any byte is written. Over-budget → `budget-exceeded`. `--force`
   downgrades the rejection to a soft warning (escape hatch only — avoid
-  routine use, see CLI defect callout below).
+  routine use).
 - The **append-journal formatter** with ISO 8601 timestamping and append-only
   discipline.
 - The atomic two-phase **`promote`** subcommand (cross-ledger delete-from-
@@ -47,32 +47,12 @@ built on the vendored task-view primitives in `lib/ledger/`. It owns:
   [ledger|recordKind]` prints each field's name + type + budget; `<command>
   --help` prints that command's flags + its target record's schema slice.
 
-**CLI defect awareness (S273 — {35.26}–{35.34}):** Several active defects
-affect call shapes. Callers should be aware but **must NOT** route around
-with `--force` unless explicitly authorised (defect Subtasks own the real
-fixes). Current list:
-
-- {35.26} `update-subtask` budget-precheck blocks edits on untouched
-  over-budget `description`. Do NOT `--force`; escalate.
-- {35.27} `budget-exceeded` mislabels subtask as `task N` in error text.
-- {35.28} `add-subtask --id N` stays string → `schema-error`. ALWAYS omit
-  `--id` for `add-subtask`; let auto-id allocate.
-- {35.29} `open-task` / `update-task --depends N` coerces to number. Pass
-  `dependencies` via positional-JSON, not named flag.
-- {35.30} `add-subtask` success stdout is 34–67 KB warnings dump. Parse
-  `result.id` from the JSON envelope; ignore the noise.
-- {35.31} `description` char-budget counts multibyte glyphs confusingly;
-  budget rejections may appear mysterious on emoji / special-char content.
-- {35.32} mutating calls print generic regen-mirrors advice **even with
-  `--no-regen-mirrors`**. Ignore the advice line when `--no-regen-mirrors`
-  was passed.
-- {35.33} first session write triggers detached-HEAD task-view clone noise
-  in stdout. Don't assume clean stdout for first writes.
-- {35.34} no `show-task` / `get` alias; help only shown on error or
-  `--help`.
-
-Current status of each defect: `docs/reference/task-list.json` ID-35
-subtasks 26–34. See the active list before composing call shapes.
+**CLI defect history (S273 — {35.26}–{35.34}): all RESOLVED.** The defects
+that once affected call shapes (string-coerced `--id`, number-coerced
+`--depends`, missing `get` alias, confusing budget labels, noisy first-write
+stdout, etc.) are all done. The CLI surface documented here is the current
+(v3) behaviour — compose call shapes against it directly. `--force` remains
+a budget-exceeded escape hatch only, not a defect work-around.
 
 **Field-budget discipline (caller-side):** Every Create/Update payload must
 honour the budgets in `docs/reference/task-list-discipline.md` (`Task.
@@ -250,7 +230,7 @@ Required fields per `TaskSchema` (`lib/validation/task-list-schema.ts`,
 | `description` | One-paragraph overview. **Budget: ≤1500 chars.** | `--description` |
 | `status` | Default `"pending"`. Use `"done"` only for retrospective Tasks. | `--status` |
 | `priority` | From caller; valid values per shared `Priority` enum (`must \| should \| could \| future \| high \| medium \| low \| trigger`). | `--priority` |
-| `dependencies` | Caller-supplied array of sibling Task ids. **{35.29} defect:** pass via positional JSON, NOT `--depends` (which coerces to number). | positional JSON |
+| `dependencies` | Caller-supplied array of sibling Task ids (strings). `--depends 1,2` named flag is accepted; positional JSON also works. | `--depends` (or positional JSON) |
 | `subtasks` | Initially `[]` for forward Tasks; spec-chain Subtasks (`{N.1 RESEARCH, N.2 PRODUCT, N.3 TECH, N.4 PLAN}`) populated separately via `spec-driven-implementation`. | positional JSON |
 | `updatedAt` | ISO 8601 timestamp at creation time. | positional JSON |
 | `effort_estimate` | **MUST be present (explicit `null` acceptable).** | positional JSON |
@@ -266,9 +246,10 @@ All four nullable fields (`effort_estimate`, `owner`, `priority_note`,
 `status_note`) MUST be present in the JSON object even if the value is
 `null` — the schema requires the keys.
 
-**id-form note:** CLI commands accept id forms inconsistently. `update-
-subtask <taskId.subId>` is composite; `flip-subtask <taskId> <subId>` is
-two args; auto-id is local-only not cross-branch. Verify the expected form
+**id-form note:** All subtask subcommands (`flip-subtask`, `update-subtask`,
+`append-journal`, `delete-subtask`) accept the canonical dotted form
+`<taskId.subId>` (the legacy space-separated `<taskId> <subId>` form still
+works). Auto-id is local-only, not cross-branch. Verify the expected form
 for each subcommand via `<command> --help` before invoking.
 
 **Provenance lives in `session_refs` + `commit_refs` + `cross_doc_links`**.
@@ -332,8 +313,8 @@ bun scripts/ledger-cli.ts open-task --file <path>
 auto-id is local-only. For forward-Task creation the caller (Orchestrator)
 MUST compute the cross-branch MAX-ID via the documented `git show origin/
 {branch}:docs/reference/task-list.json` sweep and pass it as `id` in the
-positional JSON. The {35.29} defect means `dependencies` MUST also be
-passed via positional JSON (not `--depends`).
+positional JSON. `dependencies` may be passed via `--depends 1,2` (string
+ids preserved) or via positional JSON.
 
 ---
 
@@ -372,10 +353,6 @@ The legacy `bun run roadmap:render` round-trip CI test
 but is NOT a per-write step — validation is at the write boundary itself.
 The legacy `bun -e "JSON.parse(…)"` fallback for backlog is also obsolete;
 the CLI's schema parse covers it.
-
-**{35.32} defect:** mutating calls print generic regen-mirrors advice
-**even with `--no-regen-mirrors`**. Ignore the advice line when
-`--no-regen-mirrors` was passed.
 
 ---
 
@@ -424,10 +401,12 @@ resolves to a top-level Task (i.e. `target === 'task-list'` Create OR
 Promote mode with `destination_shape === 'new_top_level_task'`). Ignored
 for Subtask destinations and for roadmap/backlog Create targets.
 
-**CLI coverage:** The v2 CLI does NOT yet cover `umbrellas.json` writes —
-this step is **curator responsibility** until a `--umbrella-id` flag or
-`update-umbrella` subcommand lands (ID-35 follow-up). Verify the current
-surface via `bun scripts/ledger-cli.ts --help`.
+**CLI coverage:** The v3 CLI covers `umbrellas.json` `task_ids[]`
+membership via `update-umbrella <umbrellaId> --add-tasks|--remove-tasks|
+--reorder <csv>` (ID-35.41). Prefer that subcommand for the membership
+append below over a manual `Read`+parse+edit. (Note: `umbrellas.json` is
+NOT mirrored and has no budgeted fields.) Verify the current surface via
+`bun scripts/ledger-cli.ts update-umbrella --help`.
 
 **Spec reference:** spec slice for this step uses the label `9.` per
 `docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` §6.4 line 627.
@@ -509,15 +488,16 @@ and `\uXXXX` escaping (verified: 1-line diff on a single-field edit).
 | Backlog item — any field | `update-backlog` | `update-backlog <itemId> <field> <value>` |
 | Task — any field except `status` | `update-task` | `update-task <taskId> <field> <value>` |
 | Task — `status` only | `flip-task` | `flip-task <taskId> <status>` |
-| Subtask — any field except `status` | `update-subtask` | `update-subtask <taskId.subId> <field> <value>` (composite id) |
-| Subtask — `status` only | `flip-subtask` | `flip-subtask <taskId> <subId> <status>` (two args) |
-| Task / Subtask `details` field journal append | `append-journal` | `append-journal <taskId> <subId> <text>` (subId optional for task-level append) |
+| Subtask — any field except `status` | `update-subtask` | `update-subtask <taskId.subId> <field> <value>` (legacy `<taskId> <subId>` still accepted) |
+| Subtask — `status` only | `flip-subtask` | `flip-subtask <taskId.subId> <status>` (legacy `<taskId> <subId>` still accepted) |
+| Task / Subtask `details` field journal append | `append-journal` | `append-journal <taskId.subId> <text>` (legacy `<taskId> <subId>` still accepted; bare `<taskId>` for task-level append) |
 
-**Use `--scoped` for single-record edits** (cmux-concurrency-safe minimal-
-diff write per {35.11}; applies to `flip-task`, `flip-subtask`, and
-`append-journal`). Without `--scoped`, the whole-file write path emits a
-~1417-line diff on a single-field edit, colliding with sibling cmux
-terminals.
+**Scoped/minimal-diff is the GLOBAL DEFAULT** for every mutating command
+(ratified default #4), so single-record edits are already cmux-concurrency-
+safe with no flag. `--scoped` is a DEPRECATED no-op alias (kept for
+back-compat — passing it changes nothing). Use `--whole-file` only to opt
+OUT into a deliberate whole-file rewrite (Zod-canonical re-serialise); run
+`bun scripts/ledger-renormalise.ts` first when a whole-file write is wanted.
 
 ### Update flow
 
@@ -534,12 +514,11 @@ terminals.
      blocked` (no `done` — done items use Delete-or-retain or Promote).
    - `priority` (backlog): per shared `Priority` enum (`must | should |
      could | future | high | medium | low | trigger`).
-   - `notes` (backlog): **The CLI overwrites the field — there is NO
-     `append-notes` subcommand.** The append discipline is caller
-     responsibility: read the current value via `get <ledger> <id> notes`,
-     concatenate `[<session-counter>] <new note>` with a separator, then
-     `update-backlog <id> notes <combined-value>`. (Potential ID-35
-     follow-up: append-mode flag for notes.)
+   - `notes` (backlog): default `update-backlog <id> notes <value>`
+     **overwrites**; pass `--append` to **concatenate** the incoming value
+     onto the existing notes (newline-joined) — no manual read-concat-write
+     needed. `--append` is notes-only (rejected on other fields). Same flag
+     applies to `update-roadmap <id> notes <value> --append`.
    - `rank` (backlog): integer (positive, negative, or zero) or `null`.
      Schema does NOT enforce uniqueness or contiguity (PRODUCT inv 3). See
      "Rank auto-shift policy" below.
@@ -553,11 +532,11 @@ terminals.
    # Backlog priority bump
    bun scripts/ledger-cli.ts update-backlog 142 priority high
 
-   # Subtask status flip — cmux-safe
-   bun scripts/ledger-cli.ts flip-subtask 35 38 in_progress --scoped
+   # Subtask status flip — dotted id; minimal-diff is the default (cmux-safe)
+   bun scripts/ledger-cli.ts flip-subtask 35.38 in_progress
 
    # Append journal block to a subtask (the canonical narrative surface)
-   bun scripts/ledger-cli.ts append-journal 35 38 "session-context …" --scoped
+   bun scripts/ledger-cli.ts append-journal 35.38 "session-context …"
    ```
 
 5. **Rank auto-shift (Backlog `rank` Update only, per P-OQ-3 default):**
@@ -592,7 +571,7 @@ item_id: "{id}"
 fields_changed:
   status: "{old} → {new}" | unchanged
   priority: "{old} → {new}" | unchanged
-  notes: "overwritten" | unchanged   # caller-side append discipline applies
+  notes: "overwritten" | "appended" | unchanged   # `--append` concatenates; default overwrites
   rank: "{old} → {new}" | unchanged  # backlog only
   time_horizon: "{old} → {new}" | unchanged  # roadmap only
 auto_shifted:                         # backlog rank Update only; null if no collisions
@@ -626,11 +605,14 @@ superseded) and **reclassifications** (an item moves from backlog to
 roadmap, requiring a `delete-backlog` followed by a `create-theme` on the
 destination).
 
-**The v2 CLI's only delete subcommand is `delete-backlog`** — there is
-NO `delete-task`, NO `delete-roadmap`, NO `delete-subtask`. This aligns
-with the s48-feedback B6 retention discipline: done Tasks retain in-place
-(Update only); Delete is reserved for cancelled / reclassified backlog
-items.
+**The v3 CLI's record-removing subcommands are `delete-backlog` and
+`delete-subtask`** — there is NO `delete-task`, NO `delete-roadmap`. This
+skill's Delete mode covers `delete-backlog` (cancelled / reclassified
+backlog items); `delete-subtask <taskId.subId>` exists for removing a
+Subtask under a Task but is not part of the backlog-cleanup flow below.
+Both align with the s48-feedback B6 retention discipline: done Tasks retain
+in-place (Update only); Delete is reserved for cancelled / reclassified
+backlog items and erroneously-added Subtasks.
 
 **Non-goal — explicitly excluded from Delete:**
 
@@ -702,11 +684,11 @@ follow_up_create_required: true | false
   mode; full rewrites pair Delete with Create on the same ledger.
 - **Not the path for backlog → task-list pickup.** Use **Promote** —
   Delete loses the source → destination traceability.
-- **Not available for task-list or roadmap.** No `delete-task` / `delete-
-  roadmap` / `delete-subtask` subcommand exists. Reclassifying a
-  task-list Task to a backlog item is a manual two-step: `flip-task <id>
-  cancelled` (status flip — retains the record) + `create-backlog` with
-  the captured body.
+- **Not available for whole Tasks or roadmap themes.** No `delete-task` /
+  `delete-roadmap` subcommand exists (a `delete-subtask` does, but it
+  removes a Subtask, not a backlog item). Reclassifying a task-list Task to
+  a backlog item is a manual two-step: `flip-task <id> cancelled` (status
+  flip — retains the record) + `create-backlog` with the captured body.
 
 ---
 
@@ -894,11 +876,12 @@ already captured as a backlog item that should be promoted.
 7. **Field budgets per `docs/reference/task-list-discipline.md`.** The
    CLI's `LEDGER_BUDGETS` gate enforces these at WRITE TIME. Compose
    payloads within budget; `--force` is not a routine escape.
-8. **Use `--scoped` for single-record edits** (`flip-task`, `flip-
-   subtask`, `append-journal`) — cmux-concurrency-safe minimal-diff
-   write per {35.11}. The whole-file write path produces a ~1417-line
-   diff on a single-field edit, which collides with sibling cmux
-   terminals.
+8. **Minimal-diff (scoped) is the GLOBAL DEFAULT** for every mutating
+   command (ratified default #4) — single-record edits are cmux-
+   concurrency-safe with no flag. `--scoped` is a deprecated no-op alias.
+   Use `--whole-file` only for a deliberate whole-file rewrite (run `bun
+   scripts/ledger-renormalise.ts` first); it routes through the wide
+   serialise path and produces a full-file diff.
 
 ---
 
@@ -915,22 +898,22 @@ already captured as a backlog item that should be promoted.
    one of roadmap or backlog. The triage decision is binary.
    (Reclassifications use `delete-backlog` + `create-theme` across files,
    not concurrent writes.)
-5. **Forgetting `--scoped` on a single-record edit** (`flip-task`, `flip-
-   subtask`, `append-journal`). Without `--scoped` the CLI re-serialises
-   the whole file (~1417-line diff), colliding with sibling cmux
-   terminals. (Replaces the stale "forgetting `bun run roadmap:render`"
-   mode — the CLI's default-on mirror regen ({35.18}) subsumes that
-   discipline.)
+5. **Passing `--whole-file` on a routine single-record edit.** Minimal-
+   diff (scoped) is the global default — no flag is needed for a clean
+   1-line diff. `--whole-file` re-serialises the entire file and collides
+   with sibling cmux terminals; reserve it for a deliberate whole-file
+   rewrite (renormalise first via `bun scripts/ledger-renormalise.ts`).
+   `--scoped` is a deprecated no-op (it was never required).
 6. **Using `delete-backlog` for `done` closures.** A completed roadmap
    theme is `update-roadmap <id> status done`; a completed Task is `flip-
    task <id> done`. `delete-backlog` is reserved for cancellations and
    reclassifications only — see Delete mode's "What Delete is NOT".
-7. **Overwriting `notes` on Update without preserving history.** The CLI
-   has NO `append-notes` subcommand — `update-backlog <id> notes <value>`
-   overwrites. The append discipline is **caller responsibility**: read
-   the current value (`get backlog <id> notes`), concatenate the new
-   note with a `[<session-counter>]` prefix and a separator, then write
-   the combined value. (Potential ID-35 follow-up: append-mode flag.)
+7. **Overwriting `notes` on Update without preserving history.** Default
+   `update-backlog <id> notes <value>` overwrites. To preserve history,
+   pass `--append` — the CLI concatenates the incoming value onto the
+   existing notes (newline-joined), no manual read-concat-write needed.
+   `--append` is notes-only (rejected on other fields) and applies to both
+   `update-backlog` and `update-roadmap`.
 8. **Creating a 13th theme without first checking inv 8 soft cap.** Per
    PRODUCT inv 8, the schema does NOT block 13+ themes — the cap is
    enforced via the `parseRoadmapWithWarnings()` warning the CLI surfaces
@@ -944,9 +927,11 @@ already captured as a backlog item that should be promoted.
    ordering benefit. Hint: when introducing the first ranked item in an
    empty tier, set `--rank 1` explicitly so future inserts have a stable
    anchor.
-10. **Routing around CLI defects with `--force`.** Defects {35.26}–{35.34}
-    affect call shapes but **must not** be worked around with `--force`
-    unless explicitly authorised. The fix Subtasks own the real solutions.
+10. **Reaching for `--force` outside a genuine budget override.** `--force`
+    downgrades a `budget-exceeded` rejection to a soft warning — that is its
+    only legitimate use. The S273 CLI defects ({35.26}–{35.34}) that once
+    tempted `--force` work-arounds are all resolved; right-size the field
+    within budget instead.
 
 ---
 
@@ -956,6 +941,11 @@ already captured as a backlog item that should be promoted.
   surface (groups: read, status/edit, create, delete, cross-ledger).
 - **Per-command help:** `bun scripts/ledger-cli.ts <command> --help`
   prints that command's flags + its target record's schema slice.
+- **Bulk Subtask add:** `bun scripts/ledger-cli.ts add-subtasks <taskId>
+  --file <json|->` inserts a JSON ARRAY of Subtasks in ONE scoped
+  multi-splice (sequential auto-ids across the batch; per-record budget
+  enforced atomically — any over-budget record rejects the whole batch).
+  Use `add-subtask` (singular) for a single Subtask.
 - **Schema introspection ({35.22}):** `bun scripts/ledger-cli.ts schema
   [ledger|recordKind]` prints each field's name + type + budget — so
   `subtask.dependencies:number[]` vs `task.dependencies:string[]` is
@@ -964,8 +954,8 @@ already captured as a backlog item that should be promoted.
 - **CLI architecture / primitive provenance:** `lib/ledger/README.md`.
 - **Two-phase Promote semantics:** `docs/specs/id-35-ledger-cli/RESEARCH.md`
   §3.
-- **Active CLI defects ({35.26}–{35.34}):** `docs/reference/task-list.
-  json` ID-35 subtasks 26–34.
+- **CLI defect history ({35.26}–{35.34} — all resolved):** `docs/reference/
+  task-list.json` ID-35 subtasks 26–34.
 
 ---
 
@@ -980,6 +970,6 @@ already captured as a backlog item that should be promoted.
 - Not a closure mechanism via Delete. Completed items are status-flipped
   via Update (`flip-task`, `update-roadmap`); promoted via `promote`;
   retained in-place — never pruned.
-- Not the `umbrellas.json` write path (yet). The CLI does not currently
-  cover `umbrellas.json` writes — Step 8 remains caller responsibility
-  until an `update-umbrella` subcommand lands (ID-35 follow-up).
+- Not the primary `umbrellas.json` author. The CLI's `update-umbrella`
+  subcommand (ID-35.41) maintains umbrella `task_ids[]` membership; this
+  skill's Step 8 drives that membership append as part of a Create/Promote.
