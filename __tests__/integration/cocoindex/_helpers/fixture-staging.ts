@@ -26,6 +26,9 @@
  *   - task-list.json ID-49.10 details + S274 nit absorption.
  */
 
+import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
+
 import {
   createLiveServiceClient,
   hasRealLiveDbCredentials,
@@ -89,13 +92,19 @@ export interface StageFixtureResult {
  * fixture-staging service. Throws when COCOINDEX_FIXTURE_STAGING_URL is
  * unset (callers must env-gate first).
  *
- * The request body shape is intentionally minimal and matches the contract
- * the ID-49.9 service ships:
+ * The bytes travel on the wire as `multipart/form-data` (ID-62.8, OQ-62-7) —
+ * NOT a JSON path the writer cannot see. The runner reads the fixture bytes
+ * at `args.fixturePath` here and sends them as a `file` part; the co-resident
+ * `POST /stage` route (ID-62.5) writes them under the corpus root at
+ * `destPath`. Three parts, matching the route contract exactly:
  *
- *   { fixturePath, destPath, titlePrefix }
+ *   - `file`        — the fixture bytes (filename = `basename(destPath)`)
+ *   - `destPath`    — corpus-relative destination (text)
+ *   - `titlePrefix` — informational; the route does NO in-byte injection
+ *                     (OQ-62-6), so the caller embeds the prefix in the dest
+ *                     filename and the pipeline derives the title from the path.
  *
- * The service is responsible for reading the bytes at `fixturePath` and
- * writing them into the cocoindex corpus root + `destPath` location.
+ * `StageFixtureArgs` is unchanged, so callers compile unchanged (Inv-26).
  */
 export async function stageFixture(
   args: StageFixtureArgs,
@@ -110,14 +119,18 @@ export async function stageFixture(
   // Normalise: callers may pass either bare URL or URL-with-trailing-slash.
   const endpoint = `${baseUrl.replace(/\/$/, '')}/stage`;
 
+  // Read the fixture bytes runner-side and ship them as multipart — bytes on
+  // the wire, not a path the writer can't resolve (Inv-2, Inv-19). `fetch`
+  // sets the multipart boundary itself, so we MUST NOT set Content-Type.
+  const fileBytes = await readFile(args.fixturePath);
+  const formData = new FormData();
+  formData.append('file', new Blob([fileBytes]), basename(args.destPath));
+  formData.append('destPath', args.destPath);
+  formData.append('titlePrefix', args.titlePrefix);
+
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fixturePath: args.fixturePath,
-      destPath: args.destPath,
-      titlePrefix: args.titlePrefix,
-    }),
+    body: formData,
   });
 
   if (!response.ok) {
