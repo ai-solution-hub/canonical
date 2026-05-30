@@ -41,72 +41,21 @@ Reference: docs/reference/task-list.json → ID-53 → Subtask 10
 from __future__ import annotations
 
 import inspect
-import sys
 from types import ModuleType
-from unittest.mock import MagicMock
 
-from conftest import passthrough_coco_fn, stubbed_sys_modules
-
-
-class _StubContextKey:
-    """Hashable ContextKey stand-in — mirrors sibling-file pattern."""
-
-    def __init__(self, key: str = "stub") -> None:
-        self.key = key
-
-
-def _make_coco_stub() -> MagicMock:
-    stub = MagicMock(name="cocoindex")
-    stub.fn = passthrough_coco_fn
-    stub.lifespan = lambda fn=None: fn
-    stub.ContextKey = _StubContextKey
-    stub.AppConfig = MagicMock(name="AppConfig")
-    stub.App = MagicMock(name="App")
-    stub.mount_each = MagicMock(name="mount_each")
-    stub.use_context = MagicMock(name="use_context")
-    stub.EnvironmentBuilder = MagicMock(name="EnvironmentBuilder")
-    return stub
+from conftest import fresh_flow_module
 
 
 def _flow_module() -> ModuleType:
-    """Load ``cocoindex_pipeline.flow`` under ID-53.10 test-local stubs.
+    """Load a fresh stubbed ``cocoindex_pipeline.flow`` (ID-55.1 primitive).
 
-    Mirrors the resilient pop-then-import pattern from
-    ``test_cocoindex_flow_embedding.py`` (ID-49.7 reload-isolation
-    fragility) rather than the reload form — when sibling files pop the
-    module from ``sys.modules`` first, ``importlib.reload`` raises and the
-    test order becomes brittle. Popping both namespace keys before the
-    stubbed import forces a clean re-exec of flow.py's body under THIS
-    file's stubs regardless of collection order.
+    Delegates to the centralised ``conftest.fresh_flow_module()`` — it pops both
+    ``cocoindex_pipeline.flow`` / ``scripts.cocoindex_pipeline.flow`` keys,
+    imports flow under the standard cocoindex stub set, and restores cooperative
+    sibling pins — so this file no longer re-derives the stub/pop/import dance
+    (previously a near-verbatim copy of the sibling flow tests).
     """
-    coco_stub = _make_coco_stub()
-    localfs_stub = MagicMock(name="cocoindex.connectors.localfs")
-    pg_stub = MagicMock(name="cocoindex.connectors.postgres")
-    pg_stub.ColumnDef = MagicMock(name="ColumnDef")
-    pg_stub.TableSchema = MagicMock(name="TableSchema")
-    pg_stub.mount_table_target = MagicMock(name="mount_table_target")
-    target_stub = MagicMock(name="cocoindex.connectorkits.target")
-    target_stub.ManagedBy = MagicMock(name="ManagedBy")
-    stubs = {
-        "cocoindex": coco_stub,
-        "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
-        "cocoindex.connectors.localfs": localfs_stub,
-        "cocoindex.connectors.postgres": pg_stub,
-        "cocoindex.connectorkits": MagicMock(name="cocoindex.connectorkits"),
-        "cocoindex.connectorkits.target": target_stub,
-        "docling": MagicMock(name="docling"),
-        "docling.document_converter": MagicMock(name="docling.document_converter"),
-    }
-    # Pop both namespace keys so flow.py re-executes its module body under
-    # THIS file's stubs (a stale entry under either key would shortcut the
-    # import and leave a sibling-stub-captured module resident).
-    sys.modules.pop("cocoindex_pipeline.flow", None)
-    sys.modules.pop("scripts.cocoindex_pipeline.flow", None)
-
-    with stubbed_sys_modules(stubs):
-        from cocoindex_pipeline import flow  # noqa: PLC0415
-
-    return flow
+    return fresh_flow_module()
 
 
 # ── §P-4: ENTITY_MENTIONS_SCHEMA declared via the canonical TableSchema call ──

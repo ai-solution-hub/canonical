@@ -31,7 +31,6 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -40,57 +39,20 @@ _SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
+from conftest import fresh_flow_module  # noqa: E402
 
 
-# ── cocoindex stub install (mirrors test_cocoindex_flow_write_path.py) ─────────
-
-
-class _StubContextKey:
-    """Hashable ContextKey stand-in — usable as a dict key (lifespan provide)."""
-
-    def __init__(self, key: str = "stub") -> None:
-        self.key = key
-
-
-def _make_coco_stub() -> MagicMock:
-    stub = MagicMock(name="cocoindex")
-    stub.fn = passthrough_coco_fn
-    stub.lifespan = lambda fn=None: fn
-    stub.ContextKey = _StubContextKey
-    stub.AppConfig = MagicMock(name="AppConfig")
-    stub.App = MagicMock(name="App")
-    stub.mount_each = MagicMock(name="mount_each")
-    stub.use_context = MagicMock(name="use_context")
-    stub.EnvironmentBuilder = MagicMock(name="EnvironmentBuilder")
-    return stub
+# ── cocoindex stub install — centralised in conftest (ID-55.1) ────────────────
 
 
 def _flow_module():
-    """Import flow under stubbed cocoindex (no global registry contamination)."""
-    coco_stub = _make_coco_stub()
-    localfs_stub = MagicMock(name="cocoindex.connectors.localfs")
-    pg_stub = MagicMock(name="cocoindex.connectors.postgres")
-    pg_stub.ColumnDef = MagicMock(name="ColumnDef")
-    pg_stub.TableSchema = MagicMock(name="TableSchema")
-    pg_stub.mount_table_target = MagicMock(name="mount_table_target")
-    target_stub = MagicMock(name="cocoindex.connectorkits.target")
-    target_stub.ManagedBy = MagicMock(name="ManagedBy")
-    stubs = {
-        "cocoindex": coco_stub,
-        "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
-        "cocoindex.connectors.localfs": localfs_stub,
-        "cocoindex.connectors.postgres": pg_stub,
-        "cocoindex.connectorkits": MagicMock(name="cocoindex.connectorkits"),
-        "cocoindex.connectorkits.target": target_stub,
-        "docling": MagicMock(name="docling"),
-        "docling.document_converter": MagicMock(name="docling.document_converter"),
-    }
-    sys.modules.pop("cocoindex_pipeline.flow", None)
-    with stubbed_sys_modules(stubs):
-        from cocoindex_pipeline import flow  # noqa: PLC0415
+    """Import flow under the standard stubbed cocoindex (ID-55.1 primitive).
 
-        return flow
+    Delegates to ``conftest.fresh_flow_module()`` so this file no longer carries
+    its own copy of the ``_StubContextKey`` / ``_make_coco_stub`` / pop / import
+    dance (formerly a near-verbatim copy of the sibling flow tests).
+    """
+    return fresh_flow_module()
 
 
 # A concrete, region-qualified pooler DSN — the SHAPE Cloud Run will mount.

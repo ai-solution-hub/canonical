@@ -6,6 +6,7 @@ import os
 import sys
 from collections.abc import Iterator, Mapping
 from types import ModuleType
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -91,6 +92,146 @@ def stubbed_sys_modules(stubs: Mapping[str, ModuleType]) -> Iterator[None]:
                 sys.modules.pop(name, None)
             else:
                 sys.modules[name] = prior  # type: ignore[assignment]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Centralised flow-import isolation (ID-55.1)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# Before ID-55.1 each cocoindex flow-importing test file carried its OWN copy of
+# the `_StubContextKey` + `_make_coco_stub()` + stubs-dict + pop-both-keys +
+# stubbed-import dance. ID-49.7 applied that pattern INCONSISTENTLY across files,
+# so every new flow test re-derived the isolation (and could get it subtly
+# wrong — a forgotten key-pop or a missing connector stub leaks state across the
+# shared pytest process and makes the suite collection-order sensitive). This
+# block is the SINGLE canonical primitive: import it from `conftest` and the
+# isolation is identical everywhere.
+#
+# Namespace note: `flow.py` is imported here under the TOP-LEVEL
+# `cocoindex_pipeline.flow` spelling the flow-test corpus uses (its sibling
+# `flow_context` / `extraction` imports + `current_flow_meta()` ContextVar reads
+# all resolve through the SAME `__package__`). The production runtime loads the
+# DISTINCT `scripts.cocoindex_pipeline.flow` object — so `fresh_flow_module()`
+# pops BOTH keys to force a clean re-exec regardless of which namespace a sibling
+# imported first. Full canonicalisation onto the `scripts.` namespace is bl-185.
+
+
+class StubContextKey:
+    """Hashable ``cocoindex.ContextKey`` stand-in usable as a dict key.
+
+    `flow.py` builds `DB_CTX = coco.ContextKey("kh_pipeline_db")` and provides it
+    into the lifespan env as a dict key; a bare `MagicMock` is unhashable in some
+    call shapes and cannot round-trip as a key. This minimal class mirrors the
+    real `ContextKey`'s `.key` attribute + hashability without booting cocoindex.
+    """
+
+    def __init__(self, key: str = "stub") -> None:
+        self.key = key
+
+
+def make_cocoindex_stubs(
+    extra: Mapping[str, ModuleType] | None = None,
+) -> dict[str, object]:
+    """Build the standard `sys.modules` stub set a flow-import needs.
+
+    Covers `cocoindex` (with a `passthrough_coco_fn` `.fn`, a no-op `.lifespan`,
+    a `StubContextKey`, and the App/mount/env surfaces flow.py touches at import)
+    plus the `connectors` / `connectorkits` / `docling` submodules — booting the
+    real cocoindex Rust/LMDB engine at import time is slow and needs a disabled
+    sandbox. `extra` overrides/extends the defaults for a specific test.
+    """
+    coco_stub = MagicMock(name="cocoindex")
+    coco_stub.fn = passthrough_coco_fn
+    coco_stub.lifespan = lambda fn=None: fn
+    coco_stub.ContextKey = StubContextKey
+    coco_stub.AppConfig = MagicMock(name="AppConfig")
+    coco_stub.App = MagicMock(name="App")
+    coco_stub.mount_each = MagicMock(name="mount_each")
+    coco_stub.use_context = MagicMock(name="use_context")
+    coco_stub.EnvironmentBuilder = MagicMock(name="EnvironmentBuilder")
+
+    pg_stub = MagicMock(name="cocoindex.connectors.postgres")
+    pg_stub.ColumnDef = MagicMock(name="ColumnDef")
+    pg_stub.TableSchema = MagicMock(name="TableSchema")
+    pg_stub.mount_table_target = MagicMock(name="mount_table_target")
+
+    target_stub = MagicMock(name="cocoindex.connectorkits.target")
+    target_stub.ManagedBy = MagicMock(name="ManagedBy")
+
+    stubs: dict[str, object] = {
+        "cocoindex": coco_stub,
+        "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
+        "cocoindex.connectors.localfs": MagicMock(
+            name="cocoindex.connectors.localfs"
+        ),
+        "cocoindex.connectors.postgres": pg_stub,
+        "cocoindex.connectorkits": MagicMock(name="cocoindex.connectorkits"),
+        "cocoindex.connectorkits.target": target_stub,
+        "docling": MagicMock(name="docling"),
+        "docling.document_converter": MagicMock(name="docling.document_converter"),
+    }
+    if extra is not None:
+        stubs.update(extra)
+    return stubs
+
+
+# Module attributes a sibling test file may have pinned on the flow module (a
+# cooperative stub, e.g. `flow.aiohttp = _StubSession` from the pipeline-run
+# webhook test). A fresh import resets them; `fresh_flow_module()` restores any
+# MagicMock-typed pin so collection order stays irrelevant (ID-44.5 discipline).
+_PRESERVED_FLOW_ATTRS: tuple[str, ...] = ("aiohttp",)
+
+
+def fresh_flow_module(
+    extra_stubs: Mapping[str, ModuleType] | None = None,
+    *,
+    preserve_attrs: tuple[str, ...] = _PRESERVED_FLOW_ATTRS,
+) -> ModuleType:
+    """Import a FRESH `cocoindex_pipeline.flow` under cocoindex stubs.
+
+    The canonical replacement for the per-file `_flow_module()` helpers. It:
+
+      1. Snapshots any cooperative MagicMock pins (`preserve_attrs`) a sibling
+         set on the resident flow module.
+      2. Pops BOTH `cocoindex_pipeline.flow` and `scripts.cocoindex_pipeline.flow`
+         from `sys.modules` so flow.py re-executes its module body under THIS
+         call's stubs — a stale entry under EITHER key would shortcut the import
+         and leave a sibling-stub-captured module resident (the ID-44.5 dual-path
+         hazard).
+      3. Imports flow inside `stubbed_sys_modules(...)` (stubs auto-restored on
+         exit; the module keeps the stub references it captured at import time).
+      4. Restores the snapshotted pins.
+
+    Pass `extra_stubs` to add/override stub modules for a specific test.
+    """
+    resident = sys.modules.get("cocoindex_pipeline.flow") or sys.modules.get(
+        "scripts.cocoindex_pipeline.flow"
+    )
+    snapshot: dict[str, MagicMock] = {}
+    for attr in preserve_attrs:
+        value = getattr(resident, attr, None) if resident is not None else None
+        if isinstance(value, MagicMock):
+            snapshot[attr] = value
+
+    sys.modules.pop("cocoindex_pipeline.flow", None)
+    sys.modules.pop("scripts.cocoindex_pipeline.flow", None)
+
+    import importlib  # noqa: PLC0415
+
+    with stubbed_sys_modules(make_cocoindex_stubs(extra_stubs)):
+        # `import_module` re-EXECUTES flow.py under the active stubs AND
+        # re-registers the `cocoindex_pipeline.flow` sys.modules key. A plain
+        # `from cocoindex_pipeline import flow` would instead hand back the STALE
+        # package `.flow` attribute the pop left behind (the IMPORT_FROM getattr
+        # shortcut) WITHOUT re-registering — yielding a sibling-stub-captured
+        # module and breaking any downstream `importlib.reload(flow)` with
+        # "module not in sys.modules" (the ID-49.7 reload collision this
+        # primitive exists to eliminate; verified empirically in ID-55.1).
+        flow = importlib.import_module("cocoindex_pipeline.flow")
+
+    for attr, value in snapshot.items():
+        setattr(flow, attr, value)
+    return flow
 
 
 @pytest.fixture(scope="session")
