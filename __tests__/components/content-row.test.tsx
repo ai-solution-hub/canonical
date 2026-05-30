@@ -289,9 +289,10 @@ describe('ContentRow', () => {
     ).toBeGreaterThanOrEqual(1);
   });
 
-  it('handles missing primary_domain gracefully', () => {
+  it('renders the "unclassified" sentinel domain without crashing (post-NOT-NULL {63.11})', () => {
     render(<ContentRow item={makeItem({ primary_domain: 'unclassified' })} />);
-    // Should still render the row without crashing
+    // primary_domain is NOT NULL post-{63.11}; 'unclassified' is the sentinel
+    // (no longer null/missing). The row must still render cleanly.
     expect(
       screen.getAllByText('Default Article Title').length,
     ).toBeGreaterThanOrEqual(1);

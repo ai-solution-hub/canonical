@@ -232,14 +232,19 @@ describe('ReviewCard', () => {
     ).toBeInTheDocument();
   });
 
-  it('hides domain badge when primary_domain is null', () => {
+  it('renders the "unclassified" sentinel domain instead of hiding it (post-NOT-NULL {63.11})', () => {
     render(
       <ReviewCard
-        item={makeReviewItem({ primary_domain: '' })}
+        item={makeReviewItem({ primary_domain: 'unclassified' })}
         position={1}
         total={1}
       />,
     );
+    // primary_domain is NOT NULL post-{63.11}; the sentinel is truthy so the
+    // DomainBadge renders (the old null/'' hidden branch is now unreachable).
+    expect(
+      screen.getByRole('article', { name: /Review item/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Corporate')).not.toBeInTheDocument();
   });
 });
