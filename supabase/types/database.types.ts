@@ -2218,6 +2218,7 @@ export type Database = {
           cost: number | null
           created_at: string
           created_by: string | null
+          ended_at: string | null
           error_message: string | null
           id: string
           items_created: string[] | null
@@ -2238,6 +2239,7 @@ export type Database = {
           cost?: number | null
           created_at?: string
           created_by?: string | null
+          ended_at?: string | null
           error_message?: string | null
           id?: string
           items_created?: string[] | null
@@ -2258,6 +2260,7 @@ export type Database = {
           cost?: number | null
           created_at?: string
           created_by?: string | null
+          ended_at?: string | null
           error_message?: string | null
           id?: string
           items_created?: string[] | null
