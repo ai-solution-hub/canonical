@@ -48,11 +48,13 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
     );
 
     // The Bids card is a link with aria-label starting with "Bids"
-    const bidsCard = page.locator('a[aria-label^="Bids"]').first();
+    const bidsCard = page.locator('a[aria-label^="Procurements"]').first();
     await expect(bidsCard).toBeVisible();
 
     // Card contains heading "Bids"
-    await expect(bidsCard.getByRole('heading', { name: 'Bids' })).toBeVisible();
+    await expect(
+      bidsCard.getByRole('heading', { name: 'Procurements' }),
+    ).toBeVisible();
 
     // Card contains description about bid responses
     await expect(bidsCard.getByText(/bid responses/)).toBeVisible();
@@ -76,7 +78,7 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
       { timeout: 10000 },
     );
 
-    const bidsCard = page.locator('a[aria-label^="Bids"]').first();
+    const bidsCard = page.locator('a[aria-label^="Procurements"]').first();
     await expect(bidsCard).toBeVisible();
 
     await bidsCard.click();
@@ -127,7 +129,7 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
       { timeout: 10000 },
     );
 
-    const bidsCard = page.locator('a[aria-label^="Bids"]').first();
+    const bidsCard = page.locator('a[aria-label^="Procurements"]').first();
     const comingSoonCard = page.locator('[aria-label*="coming soon"]').first();
 
     await expect(bidsCard).toBeVisible();
@@ -162,7 +164,7 @@ test.describe('Workspaces -- viewer access', { tag: '@smoke' }, () => {
     );
 
     // Bids card is visible
-    const bidsCard = page.locator('a[aria-label^="Bids"]').first();
+    const bidsCard = page.locator('a[aria-label^="Procurements"]').first();
     await expect(bidsCard).toBeVisible();
 
     // URL does NOT redirect to /login
