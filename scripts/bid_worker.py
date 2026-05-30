@@ -5,7 +5,6 @@ Bid Worker -- Asynchronous document processing service.
 Polls processing_queue for pending jobs and processes:
 - tender_extract_docx: Extract questions from Word documents
 - tender_extract_pdf_text: Extract text from PDFs via pdfplumber
-- template_analyse: Analyse Word templates to identify completable fields
 - template_fill: Fill Word templates with approved bid responses
 
 Usage:
@@ -37,7 +36,6 @@ PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from analyse_template import analyse_template
 from fill_template import fill_template, _validate_completed_document
 
 
@@ -183,71 +181,6 @@ def extract_pdf_text(supabase: Client, payload: dict) -> dict:
         os.unlink(tmp_path)
 
 
-def analyse_template_job(supabase: Client, payload: dict) -> dict:
-    """Analyse a Word template to identify completable fields."""
-    template_id = payload["template_id"]
-    project_id = payload["project_id"]
-    storage_path = payload["storage_path"]
-
-    file_data = supabase.storage.from_("templates").download(storage_path)
-
-    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-        tmp.write(file_data)
-        tmp_path = tmp.name
-
-    try:
-        result = analyse_template(tmp_path)
-
-        # Insert fields into form_template_fields
-        # S246 WP2b T2 (P4): template_fields renamed to form_template_fields.
-        fields_to_insert = []
-        for field in result["fields"]:
-            fields_to_insert.append({
-                "template_id": template_id,
-                **field,
-            })
-
-        if fields_to_insert:
-            supabase.from_("form_template_fields").insert(fields_to_insert).execute()
-
-        # Upload structure.json
-        structure_path = f"{project_id}/{template_id}/structure.json"
-        structure_data = {
-            "version": 1,
-            "analysed_at": datetime.now(timezone.utc).isoformat(),
-            **result,
-        }
-        structure_json = json.dumps(structure_data, indent=2, ensure_ascii=False)
-        supabase.storage.from_("templates").upload(
-            structure_path,
-            structure_json.encode("utf-8"),
-            {"content-type": "application/json"},
-        )
-
-        # Update template record
-        # S246 WP2b T2 (P4): templates renamed to form_templates.
-        supabase.from_("form_templates").update({
-            "status": "analysed",
-            "field_count": result["total_fields"],
-            "structure_path": structure_path,
-        }).eq("id", template_id).execute()
-
-        return {
-            "fields_found": result["total_fields"],
-            "tables_scanned": result["table_count"],
-            "warnings": result["warnings"],
-        }
-
-    except Exception as e:
-        supabase.from_("form_templates").update({
-            "status": "analysis_failed",
-        }).eq("id", template_id).execute()
-        raise
-
-    finally:
-        os.unlink(tmp_path)
-
-
 def fill_template_job(supabase: Client, payload: dict) -> dict:
     """Fill a Word template with approved bid responses."""
     template_id = payload["template_id"]
@@ -360,8 +293,6 @@ def process_job(supabase: Client, job: dict) -> dict:
         return extract_docx_questions(supabase, payload)
     elif job_type == "tender_extract_pdf_text":
         return extract_pdf_text(supabase, payload)
-    elif job_type == "template_analyse":
-        return analyse_template_job(supabase, payload)
     elif job_type == "template_fill":
         return fill_template_job(supabase, payload)
     else:

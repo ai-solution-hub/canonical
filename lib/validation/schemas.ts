@@ -633,14 +633,6 @@ export const PriorityUpdateBodySchema = z.object({
 });
 
 // ──────────────────────────────────────────
-// Template Analysis Schema
-// ──────────────────────────────────────────
-
-/** POST /api/bids/:id/templates/:templateId/analyse */
-export const TemplateAnalyseBodySchema = z.object({
-  force: z.boolean().default(false),
-});
-
 // ──────────────────────────────────────────
 // OAuth Decision Schema
 // ──────────────────────────────────────────

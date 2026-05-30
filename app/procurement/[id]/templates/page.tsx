@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { TemplateUpload } from '@/components/coverage/template-upload';
@@ -27,9 +27,6 @@ interface ProcurementQuestion {
 
 type WorkflowStep = 'upload' | 'analyse' | 'review' | 'fill' | 'complete';
 
-/** Maximum number of poll retries before timeout (150 x 2s = 5 minutes) */
-const MAX_POLL_RETRIES = 150;
-
 export default function TemplateCompletionPage() {
   const params = useParams<{ id: string }>();
   const procurementId = params.id;
@@ -49,18 +46,6 @@ export default function TemplateCompletionPage() {
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(
     null,
   );
-  const [error, setError] = useState<string | null>(null);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollRetryCountRef = useRef(0);
-
-  // Clear polling interval on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, []);
 
   // Load existing templates and bid questions
   useEffect(() => {
@@ -137,69 +122,16 @@ export default function TemplateCompletionPage() {
     [loadTemplateDetail],
   );
 
-  const handleAnalyse = useCallback(async () => {
+  const handleRefreshStatus = useCallback(async () => {
     if (!selectedTemplate) return;
-    setStep('analyse');
-    try {
-      const res = await fetch(
-        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/analyse`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        },
-      );
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? 'Analysis failed');
-      }
-
-      const { job_id } = await res.json();
-
-      // Poll for analysis completion with retry bounds
-      pollRetryCountRef.current = 0;
-      setError(null);
-      const poll = setInterval(async () => {
-        try {
-          pollRetryCountRef.current += 1;
-          if (pollRetryCountRef.current >= MAX_POLL_RETRIES) {
-            clearInterval(poll);
-            pollIntervalRef.current = null;
-            setError('Analysis timed out after 5 minutes. Please try again.');
-            setStep('upload');
-            return;
-          }
-
-          const statusRes = await fetch(`/api/jobs/${job_id}/status`);
-          if (!statusRes.ok) return;
-          const job = await statusRes.json();
-
-          if (job.status === 'completed') {
-            clearInterval(poll);
-            pollIntervalRef.current = null;
-            await loadTemplateDetail(selectedTemplate.id);
-            toast.success(
-              `Analysis complete: ${job.result?.fields_found ?? 0} fields found`,
-            );
-          } else if (job.status === 'failed') {
-            clearInterval(poll);
-            pollIntervalRef.current = null;
-            toast.error(job.error_message ?? 'Analysis failed');
-            await loadTemplateDetail(selectedTemplate.id);
-          }
-        } catch (err) {
-          logger.error({ err }, 'Failed to poll analysis status');
-          // Polling errors are non-fatal — keep retrying
-        }
-      }, 2000);
-      pollIntervalRef.current = poll;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Analysis failed';
-      toast.error(msg);
-      await loadTemplateDetail(selectedTemplate.id);
-    }
-  }, [procurementId, selectedTemplate, loadTemplateDetail]);
+    // Uploaded forms are processed automatically by the ingestion pipeline on
+    // its next walk tick — there is no client-initiated step. Refresh to pick
+    // up any fields already extracted for this template.
+    toast.info(
+      'This template is processed automatically. Refreshing to check for results.',
+    );
+    await loadTemplateDetail(selectedTemplate.id);
+  }, [selectedTemplate, loadTemplateDetail]);
 
   const handleAutoMap = useCallback(async () => {
     if (!selectedTemplate) return;
@@ -372,17 +304,6 @@ export default function TemplateCompletionPage() {
     }
   }, [procurementId, selectedTemplate]);
 
-  const handleRetry = useCallback(() => {
-    setError(null);
-    pollRetryCountRef.current = 0;
-    if (selectedTemplate) {
-      // Re-load template to determine correct step
-      loadTemplateDetail(selectedTemplate.id);
-    } else {
-      setStep('upload');
-    }
-  }, [selectedTemplate, loadTemplateDetail]);
-
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -460,20 +381,6 @@ export default function TemplateCompletionPage() {
           </div>
         )}
 
-        {/* Error banner — shown when polling times out */}
-        {error && (
-          <div
-            className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4"
-            role="alert"
-          >
-            <p className="flex-1 text-sm text-destructive">{error}</p>
-            <Button variant="outline" size="sm" onClick={handleRetry}>
-              <RefreshCw className="mr-1.5 size-3.5" aria-hidden="true" />
-              Retry
-            </Button>
-          </div>
-        )}
-
         {/* Upload step */}
         {(!selectedTemplate || step === 'upload') && (
           <TemplateUpload
@@ -508,10 +415,11 @@ export default function TemplateCompletionPage() {
               <div>
                 <p className="text-sm font-medium">{selectedTemplate.name}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Template uploaded. Ready for analysis.
+                  Template uploaded. It is processed automatically — fields
+                  appear here once ready.
                 </p>
               </div>
-              <Button onClick={handleAnalyse}>Analyse Template</Button>
+              <Button onClick={handleRefreshStatus}>Check for results</Button>
             </div>
           )}
 

@@ -18,17 +18,27 @@ import { z } from 'zod';
  */
 
 /**
- * Job-type values currently accepted by `processing_queue_job_type_check`.
+ * Job-type values currently enqueued against `processing_queue`.
  *
- * The 11 values below are the current CHECK-constraint allowlist (the
- * historic types `embed | classify | extract_qa | summarise | validate |
- * reprocess` plus the two pre-existing template types `template_fill` and
- * `template_analyse`, plus `bid_draft_all` added by §5.4.1 — see
+ * The 10 values below are the actively-enqueued job types (the historic
+ * types `embed | classify | extract_qa | summarise | validate | reprocess`
+ * plus the pre-existing template type `template_fill`, plus `bid_draft_all`
+ * added by §5.4.1 — see
  * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`,
  * plus `batch_reclassify` added by §5.4.2 W1-IMPL — see
  * `supabase/migrations/20260505211806_s225_widen_job_type_check_batch_reclassify.sql`,
  * plus `markdown_batch` added by §5.4.4 W1-IMPL S226 — see
  * `supabase/migrations/20260506125704_s226_widen_job_type_check_markdown_batch.sql`).
+ *
+ * The legacy synchronous template-analyse job type was retired from this
+ * union by ID-52 (the app-side analyse path is superseded by the
+ * pipeline-owned Path-B extractor; no producer enqueues it any more). The DB
+ * `processing_queue_job_type_check` constraint deliberately RETAINS the
+ * retired value — narrowing a CHECK is not run here because it would require
+ * proving no extant rows hold the value, and the union being a strict subset
+ * of the CHECK is harmless (the reverse mismatch is what breaks). The union is
+ * the producer-side allowlist.
+ *
  * Each future §5.4.x migration candidate adds its own value through its own
  * CHECK-widening migration paired with a TS-union widening commit (per
  * `feedback_db_check_ts_union_paired_widening`).
@@ -41,7 +51,6 @@ export type JobType =
   | 'validate'
   | 'reprocess'
   | 'template_fill'
-  | 'template_analyse'
   | 'bid_draft_all'
   | 'batch_reclassify'
   | 'markdown_batch';

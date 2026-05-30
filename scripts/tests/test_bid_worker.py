@@ -115,17 +115,6 @@ class TestProcessJob:
             result = process_job(mock_sb, job)
             mock_fn.assert_called_once_with(mock_sb, job["payload"])
 
-    def test_routes_template_analyse(self):
-        """Routes template_analyse to analyse_template_job."""
-        from bid_worker import process_job
-
-        mock_sb = _make_mock_supabase()
-        job = {"job_type": "template_analyse", "payload": {"template_id": "t1"}}
-
-        with patch("bid_worker.analyse_template_job", return_value={"fields_found": 10}) as mock_fn:
-            result = process_job(mock_sb, job)
-            mock_fn.assert_called_once_with(mock_sb, job["payload"])
-
     def test_routes_template_fill(self):
         """Routes template_fill to fill_template_job."""
         from bid_worker import process_job
@@ -265,62 +254,6 @@ class TestExtractPdfText:
             result = extract_pdf_text(mock_sb, {"storage_path": "docs/tender.pdf"})
 
         assert result["pages_extracted"] == 1
-
-
-# ── analyse_template_job ─────────────────────────────────────────────────────
-
-
-class TestAnalyseTemplateJob:
-    """analyse_template_job analyses Word template and inserts fields."""
-
-    @patch("bid_worker.os.unlink")
-    @patch("bid_worker.analyse_template")
-    def test_happy_path_inserts_fields(self, mock_analyse, mock_unlink):
-        """Downloads template, analyses it, inserts fields, uploads structure."""
-        from bid_worker import analyse_template_job
-
-        mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "templates", b"fake-docx-bytes")
-        # S246 WP2b T2 (P4): template_fields renamed to form_template_fields.
-        _mock_table_insert(mock_sb, "form_template_fields")
-        _mock_table_update(mock_sb)
-        mock_sb.storage.from_.return_value.upload.return_value = None
-
-        mock_analyse.return_value = {
-            "fields": [
-                {"field_name": "Company Name", "field_type": "text"},
-                {"field_name": "Description", "field_type": "text"},
-            ],
-            "total_fields": 2,
-            "table_count": 1,
-            "warnings": [],
-        }
-
-        result = analyse_template_job(mock_sb, {
-            "template_id": "tmpl-1",
-            "project_id": "proj-1",
-            "storage_path": "proj-1/template.docx",
-        })
-
-        assert result["fields_found"] == 2
-        assert result["tables_scanned"] == 1
-
-    @patch("bid_worker.os.unlink")
-    @patch("bid_worker.analyse_template", side_effect=Exception("Parse failed"))
-    def test_failure_updates_status(self, mock_analyse, mock_unlink):
-        """Analysis failure updates template status to 'analysis_failed'."""
-        from bid_worker import analyse_template_job
-
-        mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "templates", b"fake-docx-bytes")
-        _mock_table_update(mock_sb)
-
-        with pytest.raises(Exception, match="Parse failed"):
-            analyse_template_job(mock_sb, {
-                "template_id": "tmpl-1",
-                "project_id": "proj-1",
-                "storage_path": "proj-1/template.docx",
-            })
 
 
 # ── fill_template_job ────────────────────────────────────────────────────────

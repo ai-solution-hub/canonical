@@ -232,11 +232,7 @@ describe('JobStatus union', () => {
 });
 
 describe('JobType union', () => {
-  it('restricted to existing 8 values (no speculative widen per Liam OQ-3 ratified S221 W3)', () => {
-    // Compile-time guarantee: the following must be a TYPE error if uncommented.
-    // const x: JobType = 'bid_draft_all';      // ts(2322) — forward §5.4.1 type
-    // const y: JobType = 'batch_reclassify';   // ts(2322) — forward §5.4.2 type
-    // const z: JobType = 'markdown_batch';     // ts(2322) — forward §5.4.4 type
+  it('enumerates the 7 actively-enqueued template/historic values (template_analyse retired by ID-52)', () => {
     const valid: JobType[] = [
       'embed',
       'classify',
@@ -245,8 +241,7 @@ describe('JobType union', () => {
       'validate',
       'reprocess',
       'template_fill',
-      'template_analyse',
     ];
-    expect(valid.length).toBe(8);
+    expect(valid.length).toBe(7);
   });
 });
