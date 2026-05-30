@@ -1,0 +1,145 @@
+# On-prem (B1) pipeline image build — ID-66 {66.7} (TECH change 4 slice A).
+#
+# Builds the KH-owned cocoindex pipeline image OFF-HOST on GitHub-hosted runners
+# and pushes a pinned, content-addressable image to ghcr.io. The ~16 GB IONOS
+# host never runs this ~5.3 GB Docling+cocoindex build (OQ-66-6: Coolify warns
+# resource-intensive on-host builds crash the server). Satisfies invariant 13
+# (no host CPU/RAM contention) + invariant 14 (push half — a pinned, non-:latest
+# image lands in ghcr.io).
+#
+# SCOPE — this Subtask is BUILD-AND-PUSH ONLY:
+#   * The Coolify pull/deploy webhook is {66.11} — deliberately NOT wired here.
+#   * pullmd / playwright / trafilatura are UPSTREAM aeternalabshq/* images
+#     (pulled by the {66.8} compose); only the cocoindex image is KH-built, so
+#     this workflow builds exactly ONE image.
+#   * NO KH application-code changes — it packages scripts/cocoindex_pipeline/*.py
+#     unchanged; the build config is faithful to cloudrun/cloudbuild-cocoindex.yaml
+#     (same google-22 builder, GOOGLE_ENTRYPOINT, runtime, Python version).
+#   * NEXT_PUBLIC_CLIENT_ID is NOT a B1-host concern (OQ-66-6 — Vercel-side bake).
+#
+# Replaces the build half of cloud-run-deploy.yml (retired at cutover {66.17};
+# the file + Cloud Run manifests stay in git for reversibility, inv 24). WIF /
+# deploy-SA are DROPPED, not migrated — no gcloud credential lands on the host.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️ VERIFY BEFORE ACTIVATING (cannot be settled offline — review items):
+#   1. DEPLOY BRANCH assumed `main` (single on-prem host; cloud-run used
+#      main→prod). Switch to a dedicated `onprem` branch here + in the paths
+#      trigger if preferred.
+#   2. PIN every external ref to a commit SHA before merge (workflow-injection
+#      hardening per cloud-run-deploy.yml header): actions/checkout,
+#      docker/login-action, buildpacks/github-actions/setup-pack — and confirm
+#      the setup-pack version tag resolves. Versions below are current-major
+#      placeholders.
+#   3. LIVE TRIGGER TEST still required ({66.7} testStrategy): run once
+#      (workflow_dispatch) and confirm a pullable ghcr.io/<owner>/
+#      kh-cocoindex-pipeline:sha-<sha> appears and the host stays uncontended.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: onprem-deploy (B1 cocoindex image → ghcr.io)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Manual build reason (first off-host build / roll-forward)"
+        required: false
+        default: "manual"
+  push:
+    branches: [main] # ⚠️ review item 1 — deploy branch
+    paths:
+      - "scripts/**/*.py"
+      - "requirements.txt"
+      - "deploy/onprem/**"
+
+permissions:
+  contents: read
+  packages: write # GITHUB_TOKEN push to ghcr.io/<owner>/*
+
+env:
+  # Pinned, content-addressable tag — NEVER :latest (mirrors the pullmd
+  # no-:latest discipline at cloud-run-deploy.yml:458). Rollback ({66.12}) =
+  # re-point Coolify to a prior sha- tag; no rebuild.
+  IMAGE: ghcr.io/${{ github.repository_owner }}/kh-cocoindex-pipeline
+  TAG: sha-${{ github.sha }}
+
+jobs:
+  build-and-push-cocoindex:
+    name: Build + push cocoindex image (off-host)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75 # Docling install + cocoindex Rust wheel + model layer (cloudbuild budgets 60m)
+    steps:
+      - name: Checkout (build context = repo root)
+        uses: actions/checkout@v4 # ⚠️ pin to SHA (review item 2)
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3 # ⚠️ pin to SHA (review item 2)
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up the Cloud Native Buildpacks `pack` CLI
+        uses: buildpacks/github-actions/setup-pack@v5.8.11 # ⚠️ verify version + pin to SHA (review item 2)
+
+      - name:
+          Build + publish cocoindex image (buildpacks — faithful to
+          cloudbuild-cocoindex.yaml)
+        run: |
+          set -euo pipefail
+          # Same builder/env as cloudrun/cloudbuild-cocoindex.yaml. `-m` invocation
+          # is load-bearing (FX-8): the buildpack runtime does not add /workspace
+          # to sys.path on bare-script invocation, so `scripts.cocoindex_pipeline`
+          # qualified imports need `python3 -m`.
+          pack build "${IMAGE}:${TAG}" \
+            --builder gcr.io/buildpacks/builder:google-22 \
+            --env "GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server" \
+            --env "GOOGLE_RUNTIME=python" \
+            --env "GOOGLE_PYTHON_VERSION=3.13.13" \
+            --publish
+          echo "Published ${IMAGE}:${TAG}"
+
+      - name:
+          Inv-9 assertion — cocoindex image carries NO pullmd / Playwright (AGPL
+          boundary)
+        run: |
+          set -euo pipefail
+          # --publish pushes straight to the registry without a local load; pull
+          # the just-pushed digest back to inspect it (ports cloudbuild-cocoindex.yaml
+          # step "assert-inv9-no-pullmd-no-playwright"). pullmd (AGPL) + Playwright
+          # ship as their own upstream compose services — they must never be baked
+          # into the cocoindex image.
+          docker pull "${IMAGE}:${TAG}"
+          RAW="$(docker image inspect "${IMAGE}:${TAG}")"
+          if printf '%s' "$RAW" | grep -qiE 'pullmd'; then
+            echo "::error::Inv-9 FAIL — pullmd entry detected in cocoindex image (AGPL boundary violated)."
+            exit 1
+          fi
+          if printf '%s' "$RAW" | grep -qiE 'playwright|chromium|playwright-driver'; then
+            echo "::error::Inv-9 FAIL — Playwright/Chromium dependency detected in cocoindex image."
+            exit 1
+          fi
+          echo "Inv-9 PASS: zero pullmd entries, zero Playwright dependencies."
+
+      - name: Image-size budget check (T-OQ4 — log + warn, never fail)
+        run: |
+          set -euo pipefail
+          SIZE="$(docker image inspect "${IMAGE}:${TAG}" --format '{{.Size}}')"
+          BUDGET=5691392819 # 5.3 GB
+          GB="$(awk "BEGIN{printf \"%.2f\", ${SIZE}/1024/1024/1024}")"
+          echo "cocoindex image size: ${GB} GB (budget 5.3 GB)"
+          if [ "${SIZE}" -gt "${BUDGET}" ]; then
+            echo "::warning::cocoindex image ${GB} GB exceeds the 5.3 GB budget (T-OQ4: warn-only, build continues)."
+          else
+            echo "OK: within 5.3 GB budget."
+          fi
+
+      - name: Job summary
+        run: |
+          {
+            echo "### onprem-deploy — cocoindex image built off-host"
+            echo ""
+            echo "- **Image:** \`${IMAGE}:${TAG}\` (pinned, non-\`:latest\`)"
+            echo "- **Builder:** buildpacks \`google-22\` on GH runner (inv 13 — host uncontended)"
+            echo "- **Next:** Coolify pull/deploy webhook is **{66.11}** (not wired here)"
+          } >> "$GITHUB_STEP_SUMMARY"
