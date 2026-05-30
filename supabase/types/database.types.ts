@@ -2461,6 +2461,9 @@ export type Database = {
       q_a_extractions: {
         Row: {
           created_at: string
+          evaluation_criteria: string | null
+          evidence_requirements: string[]
+          expected_response_kind: string | null
           extracted_answer_text: string | null
           extracted_question_text: string
           extraction_metadata: Json
@@ -2469,11 +2472,15 @@ export type Database = {
           invalidated_at: string | null
           op_id: string | null
           promoted_to_pair_id: string | null
+          scope_tags: string[]
           source_content_item_id: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          evaluation_criteria?: string | null
+          evidence_requirements?: string[]
+          expected_response_kind?: string | null
           extracted_answer_text?: string | null
           extracted_question_text: string
           extraction_metadata?: Json
@@ -2482,11 +2489,15 @@ export type Database = {
           invalidated_at?: string | null
           op_id?: string | null
           promoted_to_pair_id?: string | null
+          scope_tags?: string[]
           source_content_item_id?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          evaluation_criteria?: string | null
+          evidence_requirements?: string[]
+          expected_response_kind?: string | null
           extracted_answer_text?: string | null
           extracted_question_text?: string
           extraction_metadata?: Json
@@ -2495,6 +2506,7 @@ export type Database = {
           invalidated_at?: string | null
           op_id?: string | null
           promoted_to_pair_id?: string | null
+          scope_tags?: string[]
           source_content_item_id?: string | null
           updated_at?: string
         }
@@ -4609,3 +4621,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.102.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

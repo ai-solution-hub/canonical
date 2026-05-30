@@ -839,6 +839,13 @@ Q_A_EXTRACTIONS_SCHEMA = TableSchema(
         "extractor_kind": ColumnDef(type="text", nullable=False),
         "extracted_question_text": ColumnDef(type="text", nullable=False),
         "extracted_answer_text": ColumnDef(type="text", nullable=True),
+        # ID-54.1 (S273 OQ-52-LOSSY): the 4 QAPair form-question fields the LLM
+        # extractor emits were previously dropped at write time. text[] arrays
+        # map Python list[str] via asyncpg (precedent: reference_urls below).
+        "expected_response_kind": ColumnDef(type="text", nullable=True),
+        "evaluation_criteria": ColumnDef(type="text", nullable=True),
+        "evidence_requirements": ColumnDef(type="text[]", nullable=False),
+        "scope_tags": ColumnDef(type="text[]", nullable=False),
         "extraction_metadata": ColumnDef(type="jsonb", nullable=False),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
     },
@@ -1347,9 +1354,16 @@ async def ingest_file(
             row={
                 "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"),
                 "source_content_item_id": content_item_id,
-                "extractor_kind": content_type or "q_a_form",
+                "extractor_kind": "llm_extraction",
                 "extracted_question_text": _field(pair, "question_text", ""),
                 "extracted_answer_text": _field(pair, "answer_text"),
+                # ID-54.1 (OQ-52-LOSSY): stop dropping the 4 QAPair form-question
+                # fields. expected_response_kind is required in Pydantic so the
+                # None default is defensive; it matches the nullable DB column.
+                "expected_response_kind": _field(pair, "expected_response_kind"),
+                "evaluation_criteria": _field(pair, "evaluation_criteria"),
+                "evidence_requirements": _field(pair, "evidence_requirements", []),
+                "scope_tags": _field(pair, "scope_tags", []),
                 "extraction_metadata": {
                     "extraction_kind": _field(qa_form, "extraction_kind", "q_a_form"),
                     "qa_index": idx,

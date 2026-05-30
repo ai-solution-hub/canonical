@@ -176,7 +176,22 @@ class TestIngestFileWritePath:
         async def _fake_qa(content_text: str):
             return {
                 "qa_pairs": [
-                    {"question_text": "What is X?", "answer_text": "X is Y."}
+                    # Present-value pair: all 4 ID-54.1 (OQ-52-LOSSY) fields populated.
+                    {
+                        "question_text": "What is X?",
+                        "answer_text": "X is Y.",
+                        "expected_response_kind": "mandatory",
+                        "evaluation_criteria": "scored on completeness",
+                        "evidence_requirements": ["certificate"],
+                        "scope_tags": ["lot-1"],
+                    },
+                    # Default-fallback pair: omits the optional/list fields so the
+                    # write-path must supply the Pydantic-equivalent defaults
+                    # (None for evaluation_criteria, [] for the two list fields).
+                    {
+                        "question_text": "What is Z?",
+                        "answer_text": "Z is W.",
+                    },
                 ]
             }
 
@@ -250,11 +265,45 @@ class TestIngestFileWritePath:
         )
 
         # q_a_extractions: one row per qa_pair, op_id stamped, FK to content_items.
-        assert len(qa.rows) == 1, "expected one q_a_extractions row per qa_pair"
+        assert len(qa.rows) == 2, "expected one q_a_extractions row per qa_pair"
         qa_row = qa.rows[0]
         assert qa_row["op_id"] == run_op_id
         assert qa_row["source_content_item_id"] == ci_row["id"]
         assert qa_row["extracted_question_text"] == "What is X?"
+        assert qa_row["extractor_kind"] == "llm_extraction", (
+            "extractor_kind must be llm_extraction (OQ-54-E CHECK constraint)"
+        )
+        # ID-54.1 (OQ-52-LOSSY): the 4 form-question fields the LLM extractor
+        # emits were previously dropped at write time. Present-value pair carries
+        # all four through declare_row.
+        assert qa_row["expected_response_kind"] == "mandatory", (
+            "expected_response_kind must reach the q_a_extractions row (OQ-52-LOSSY)"
+        )
+        assert qa_row["evaluation_criteria"] == "scored on completeness", (
+            "evaluation_criteria must reach the q_a_extractions row (OQ-52-LOSSY)"
+        )
+        assert qa_row["evidence_requirements"] == ["certificate"], (
+            "evidence_requirements must reach the q_a_extractions row (OQ-52-LOSSY)"
+        )
+        assert qa_row["scope_tags"] == ["lot-1"], (
+            "scope_tags must reach the q_a_extractions row (OQ-52-LOSSY)"
+        )
+        # Default-fallback pair: omitted fields take the Pydantic-equivalent
+        # defaults — None for the optional scalar, [] for the two list columns.
+        qa_row_default = qa.rows[1]
+        assert qa_row_default["extracted_question_text"] == "What is Z?"
+        assert qa_row_default["expected_response_kind"] is None, (
+            "expected_response_kind defaults to None when the pair omits it"
+        )
+        assert qa_row_default["evaluation_criteria"] is None, (
+            "evaluation_criteria defaults to None when the pair omits it"
+        )
+        assert qa_row_default["evidence_requirements"] == [], (
+            "evidence_requirements defaults to [] when the pair omits it"
+        )
+        assert qa_row_default["scope_tags"] == [], (
+            "scope_tags defaults to [] when the pair omits it"
+        )
 
     def test_ingest_file_is_exposed_and_callable(self) -> None:
         """``ingest_file`` is a @coco.fn(memo=True) per-item component fn."""
