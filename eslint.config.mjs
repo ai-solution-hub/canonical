@@ -19,6 +19,10 @@ const eslintConfig = defineConfig([
     'supabase/**',
     '.cache/**',
     'docs-site/.astro/**',
+    // Generated bundle artefact — committed but never hand-edited, and on the
+    // sandbox Read-deny list (bl-209) so lint should never try to read it.
+    // (supabase/types/database.types.ts is already covered by 'supabase/**'.)
+    'lib/mcp/plugin-bundle.ts',
   ]),
   {
     // Downgrade new React 19 / React Compiler rules to warnings for now.
