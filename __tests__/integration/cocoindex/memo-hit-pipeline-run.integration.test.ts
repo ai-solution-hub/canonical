@@ -56,6 +56,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { KH_CANONICAL_PIPELINE_NAME } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -123,7 +124,7 @@ describe.skipIf(!ENABLED)(
         // Capture pipeline_runs count for THIS content's lineage. We can't
         // use content_item_id directly (pipeline_runs doesn't reference
         // content_items by FK; it stores the op_id). Instead query by the
-        // pipeline_name='kh_canonical_pipeline' + a time window covering the
+        // pipeline_name=KH_CANONICAL_PIPELINE_NAME + a time window covering the
         // test prefix's lifetime — but that's noisy.
         //
         // A cleaner approach: use the workspace_id / file_path metadata
@@ -139,7 +140,7 @@ describe.skipIf(!ENABLED)(
         const { data: runsBefore } = await client
           .from('pipeline_runs')
           .select('id, op_id, result')
-          .eq('pipeline_name', 'kh_canonical_pipeline');
+          .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME);
 
         const beforeCount =
           runsBefore?.filter((r) => {
@@ -161,7 +162,7 @@ describe.skipIf(!ENABLED)(
         const { data: runsAfter } = await client
           .from('pipeline_runs')
           .select('id, op_id, result')
-          .eq('pipeline_name', 'kh_canonical_pipeline');
+          .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME);
 
         const afterCount =
           runsAfter?.filter((r) => {

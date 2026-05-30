@@ -76,6 +76,7 @@ import {
   hasRealLiveDbCredentials,
   isNetworkIsolationError,
 } from '../helpers/supabase-client';
+import { KH_CANONICAL_PIPELINE_NAME } from './test-helpers';
 
 const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
@@ -104,7 +105,7 @@ describe.skipIf(!ENABLED)(
       const { data: failedRuns, error } = await client
         .from('pipeline_runs')
         .select('id, op_id, status, result, started_at, ended_at')
-        .eq('pipeline_name', 'kh_canonical_pipeline')
+        .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME)
         .eq('status', 'failed')
         .order('started_at', { ascending: false })
         .limit(20);
@@ -148,7 +149,7 @@ describe.skipIf(!ENABLED)(
       const { data: failedRuns } = await client
         .from('pipeline_runs')
         .select('id, op_id, status, result')
-        .eq('pipeline_name', 'kh_canonical_pipeline')
+        .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME)
         .eq('status', 'failed')
         .order('started_at', { ascending: false })
         .limit(20);
@@ -216,7 +217,7 @@ describe.skipIf(!ENABLED)(
       const { data: failedRuns } = await client
         .from('pipeline_runs')
         .select('id, result')
-        .eq('pipeline_name', 'kh_canonical_pipeline')
+        .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME)
         .eq('status', 'failed')
         .order('started_at', { ascending: false })
         .limit(20);

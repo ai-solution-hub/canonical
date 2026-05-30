@@ -504,6 +504,14 @@ PipelineRunStatus = Literal[
     "failed",
 ]
 
+# Canonical name the sidecar stamps on every `pipeline_runs.pipeline_name`
+# emission (Inv-16). Centralised here (ID-55.3) as the single producer-side
+# source of truth so the literal is not duplicated across the flow default arg
+# and the cocoindex integration tests — preventing silent divergence if the
+# pipeline is ever renamed. The TS integration suite mirrors this via
+# `KH_CANONICAL_PIPELINE_NAME` in `__tests__/integration/cocoindex/test-helpers.ts`.
+KH_CANONICAL_PIPELINE_NAME = "kh_canonical_pipeline"
+
 
 def _empty_stage_counts() -> dict[str, int]:
     """Return the canonical six-stage counter map initialised to zero.
@@ -597,7 +605,7 @@ async def _emit_pipeline_run_webhook(
     extractor_version: str | None = None,
     retry_count: int | None = None,
     taxonomy_misses: dict[str, int] | None = None,
-    pipeline_name: str = "kh_canonical_pipeline",
+    pipeline_name: str = KH_CANONICAL_PIPELINE_NAME,
 ) -> None:
     """POST a pipeline-run rollup to the Vercel webhook.
 

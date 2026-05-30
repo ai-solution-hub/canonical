@@ -57,6 +57,16 @@ import {
 export const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * The canonical `pipeline_runs.pipeline_name` the cocoindex sidecar stamps on
+ * every emission. Centralised here (ID-55.3) as the single TS-side source of
+ * truth for the cocoindex integration suite, mirroring the producer constant
+ * `KH_CANONICAL_PIPELINE_NAME` in `scripts/cocoindex_pipeline/flow.py`. Import
+ * this instead of hardcoding the literal so a pipeline rename surfaces as one
+ * edit, not a silent cross-file divergence.
+ */
+export const KH_CANONICAL_PIPELINE_NAME = 'kh_canonical_pipeline';
+
 /** Default poll ceiling — matches POLL_TIMEOUT_MS used across the suite. */
 const DEFAULT_TIMEOUT_MS = 120_000;
 /** Default poll interval. */

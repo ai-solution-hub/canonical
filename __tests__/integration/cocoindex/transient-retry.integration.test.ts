@@ -70,6 +70,7 @@ import {
   hasRealLiveDbCredentials,
   isNetworkIsolationError,
 } from '../helpers/supabase-client';
+import { KH_CANONICAL_PIPELINE_NAME } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_LIVE_DB = hasRealLiveDbCredentials();
@@ -88,7 +89,7 @@ describe.skipIf(!ENABLED)(
       const { data: runs, error } = await client
         .from('pipeline_runs')
         .select('id, op_id, result, status')
-        .eq('pipeline_name', 'kh_canonical_pipeline')
+        .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME)
         .order('started_at', { ascending: false })
         .limit(20);
 
@@ -135,7 +136,7 @@ describe.skipIf(!ENABLED)(
       const { data: runs } = await client
         .from('pipeline_runs')
         .select('id, op_id, result, status')
-        .eq('pipeline_name', 'kh_canonical_pipeline')
+        .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME)
         .order('started_at', { ascending: false })
         .limit(100);
 
