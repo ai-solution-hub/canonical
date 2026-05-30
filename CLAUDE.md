@@ -3,11 +3,10 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this
 repository.
 
-## GitNexus - Code Intelligence
+## AST Dataflow
 
-**Import GitNexus and AST Dataflow development workflow commands and guidelines, treat as
-if import is in the main CLAUDE.md file.** @./.gitnexus/CLAUDE.md
-@./.ast-dataflow/CLAUDE.md
+**Import AST Dataflow development workflow commands and guidelines, treat as if import is
+in the main CLAUDE.md file.** @./.ast-dataflow/CLAUDE.md
 
 ## Project Overview
 
@@ -150,13 +149,14 @@ conventions: `.claude/skills/spec-driven-implementation/SKILL.md`,
 
 ## Key Ledgers
 
-Used for managing and tracking platform development activities.
+Used for managing, tracking, and improving platform development activities.
 
 | Document  | Location                              |
 | --------- | ------------------------------------- |
 | Task List | `docs/reference/task-list.json`       |
 | Backlog   | `docs/reference/product-backlog.json` |
 | Roadmap   | `docs/reference/product-roadmap.json` |
+| Retros    | `docs/reference/product-retros.json`  |
 
 ## Memory (MemPalace)
 
