@@ -1078,6 +1078,61 @@ jobs:
           fi
           echo "Generated types match committed types."
 
+  build-gate:
+    # bl-200 (S283 retro) — standalone whole-repo `tsc --noEmit` build-break
+    # alarm. A `tsc` error in scripts/ledger-cli.ts sat undetected on main ~4
+    # sessions because no CI job typechecks `scripts/`: the base `tsconfig.json`
+    # EXCLUDES `scripts`, and `next build` (run inside `quality-precheck`) only
+    # typechecks files in the Next.js compilation graph — standalone CLI scripts
+    # are invisible to it. This job runs `bun run typecheck` (tsc against
+    # `tsconfig.ci.json`, which includes `scripts/`), so a scripts/-only type
+    # break is caught.
+    #
+    # Deliberately a SEPARATE, top-level job with NO `needs:` — a red build-gate
+    # is an unambiguous "build is broken" signal that cannot blend into the
+    # other failures inside `quality-precheck` (which is what let the original
+    # break hide behind an already-red job). Runs in parallel, fast (~20s tsc),
+    # 5 min timeout.
+    #
+    # No secrets required — pure `tsc`, reads repo files only (no Supabase /
+    # Anthropic / OpenAI). `environment:` omitted intentionally so Dependabot
+    # PRs run it. Mirrors the `type-drift-parity` setup topology.
+    #
+    # Spec: bl-200 (docs/reference/product-backlog.json). Closes the
+    # "known-red CI masks a fresh regression" gap from the S283 retro.
+    name: Build gate (tsc --noEmit, whole repo incl scripts/)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun install --frozen-lockfile
+          fi
+
+      - name: Typecheck (tsc --noEmit, tsconfig.ci.json)
+        run: bun run typecheck
+
   ci-summary:
     # OPS-58 (S33 W1) — single fixed-name aggregator. Posts on every PR
     # (including Dependabot) regardless of which upstream jobs ran.
@@ -1116,6 +1171,7 @@ jobs:
       - type-drift-parity
       - ledger-mirror-parity
       - supabase-types-parity
+      - build-gate
     runs-on: ubuntu-latest
     timeout-minutes: 1
     permissions:
@@ -1139,6 +1195,7 @@ jobs:
           TYPE_DRIFT_PARITY: ${{ needs.type-drift-parity.result }}
           LEDGER_MIRROR_PARITY: ${{ needs.ledger-mirror-parity.result }}
           SUPABASE_TYPES_PARITY: ${{ needs.supabase-types-parity.result }}
+          BUILD_GATE: ${{ needs.build-gate.result }}
         run: |
           set -euo pipefail
           fail=0
@@ -1152,7 +1209,8 @@ jobs:
             "integration=$INTEGRATION" \
             "type-drift-parity=$TYPE_DRIFT_PARITY" \
             "ledger-mirror-parity=$LEDGER_MIRROR_PARITY" \
-            "supabase-types-parity=$SUPABASE_TYPES_PARITY"; do
+            "supabase-types-parity=$SUPABASE_TYPES_PARITY" \
+            "build-gate=$BUILD_GATE"; do
             name="${entry%%=*}"
             res="${entry##*=}"
             echo "  $name -> $res"

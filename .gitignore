@@ -81,6 +81,7 @@ mcp-apps/*/node_modules/
 out/
 next-env.d.ts
 tsconfig.tsbuildinfo
+*.tsbuildinfo
 package-lock.json
 
 # Debug

@@ -1,0 +1,61 @@
+{
+  // CI build-gate tsconfig (bl-200). Extends the base tsconfig but DROPS
+  // `scripts` from the exclude list, so a standalone `tsc --noEmit` typechecks
+  // the WHOLE repo INCLUDING `scripts/*.ts`. The base `tsconfig.json` excludes
+  // `scripts`, and `next build` only typechecks files inside the Next.js
+  // compilation graph — so standalone CLI scripts (e.g. scripts/ledger-cli.ts)
+  // are never gated by CI without this. A type error here is an unambiguous
+  // "build is broken" signal (the `build-gate` job in .github/workflows/ci.yml).
+  //
+  // ROOT CAUSE this closes (bl-200 / S283 retro): a `tsc` break in
+  // scripts/ledger-cli.ts sat undetected on main ~4 sessions because no CI job
+  // typechecked scripts/. ledger-cli.ts is type-clean today and is gated here.
+  //
+  // `supabase`, `mcp-apps`, `docs-site` stay excluded: generated DB types,
+  // self-contained Vite single-file builds, and the docs site each carry their
+  // own toolchains/tsconfigs and are not part of this repo's typecheck surface.
+  //
+  // ACCEPTED-DEBT EXCLUSIONS (the `scripts/**` entries below): these 18 files
+  // carry pre-existing type errors that predate this gate (Bun-runtime globals
+  // — `Bun`, `import.meta.dir` — and untyped Supabase clients that resolve to
+  // `never`). They were NEVER part of any typecheck surface, so gating them
+  // here would make the build-gate permanently red and defeat its purpose. They
+  // are the explicit remaining debt: removing an entry once its file is fixed
+  // brings it under the gate. Adding `@types/bun` would clear the Bun-global
+  // subset but is out of scope for bl-200 (the alarm, not the debt). New /
+  // newly-clean scripts are gated BY DEFAULT — only files on this list escape.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The base tsconfig sets `incremental: true`, which writes a
+    // `tsconfig.ci.tsbuildinfo` cache file. CI runners are ephemeral (no
+    // cache benefit) and the artefact would otherwise litter the working tree
+    // / need a gitignore entry. Disable it for this gate.
+    "incremental": false
+  },
+  "exclude": [
+    "node_modules",
+    "supabase",
+    "mcp-apps",
+    "docs-site",
+    "__tests__/lib/ast-dataflow/fixtures",
+    "vitest.integration.config.ts",
+    "scripts/ast-dataflow-cli.ts",
+    "scripts/audit-opaque-json-rpcs.ts",
+    "scripts/batch-generate-summaries.ts",
+    "scripts/batch-populate-topics.ts",
+    "scripts/batch-reclassify-keywords.ts",
+    "scripts/batch-reclassify.ts",
+    "scripts/batch-rescore-articles.ts",
+    "scripts/calibrate-coverage-thresholds.ts",
+    "scripts/eval-entity-classification.ts",
+    "scripts/eval-procurement-drafting.ts",
+    "scripts/eval-search.ts",
+    "scripts/eval-summarisation.ts",
+    "scripts/extract-reader-html.ts",
+    "scripts/generate-taxonomy-snapshot.ts",
+    "scripts/mcp-eval/seed-fixtures.ts",
+    "scripts/normalise-entities.ts",
+    "scripts/propagate-cert-metadata.ts",
+    "scripts/restore-eval-corrupted-items.ts"
+  ]
+}
