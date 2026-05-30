@@ -58,6 +58,10 @@ docs/reference/classification-prompt.md
 scripts/tests/fixtures/taxonomy_snapshot.json
 lib/mcp/plugin-bundle.ts
 
+# Deploy infrastructure YAML — Prettier's printWidth:80 wraps long image strings
+# and YAML scalar values in ways that break docker-compose parsing.
+deploy/
+
 # Misc
 *.log
 .DS_Store
