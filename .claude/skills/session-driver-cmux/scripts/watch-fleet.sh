@@ -75,9 +75,14 @@ while [ "$poll" -lt "$MAX_POLLS" ]; do
     # already-handled OQ's prose after the parent reads it -> line growth = false
     # trips. A new "## OQ" heading = a genuinely new question. SEEN_OQ holds
     # "<sid>:<headingcount>".
+    # grep -c emits exactly one integer; capture it into a var (the old inline
+    # `|| echo 0` double-emitted "0\n0" on a zero-match file -> arithmetic crash).
     oq_heads=0
-    [ -f "$cwd/OQ-pending.md" ] && oq_heads=$(( oq_heads + $(grep -c '^## OQ' "$cwd/OQ-pending.md" 2>/dev/null || echo 0) ))
-    [ -f "$d/OQ-pending.md" ] && oq_heads=$(( oq_heads + $(grep -c '^## OQ' "$d/OQ-pending.md" 2>/dev/null || echo 0) ))
+    for oqf in "$cwd/OQ-pending.md" "$d/OQ-pending.md"; do
+      [ -f "$oqf" ] || continue
+      oqc=$(grep -c '^## OQ' "$oqf" 2>/dev/null) || oqc=0
+      oq_heads=$(( oq_heads + ${oqc:-0} ))
+    done
     if [ "$oq_heads" -gt 0 ]; then
       seen=$(seen_oq_lines "$sid"); seen="${seen:-0}"
       [ "$oq_heads" -gt "$seen" ] && report="${report}
