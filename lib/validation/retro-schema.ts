@@ -35,7 +35,7 @@ import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
 // ──────────────────────────────────────────────────────────────────────────────
 
 /** Session id form: `S` followed by one or more digits (e.g. `S264`, `S1`). */
-export const SESSION_ID_REGEX = /^S\d+$/;
+const SESSION_ID_REGEX = /^S\d+$/;
 
 /** ISO 8601 date — YYYY-MM-DD. */
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -51,7 +51,7 @@ const ISO_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 // ledgers use — defaults to [] when omitted so the JSON file stays concise.
 // ──────────────────────────────────────────────────────────────────────────────
 
-export const RetroFindingSchema = z
+const RetroFindingSchema = z
   .object({
     /** Finding prose — one-liner or short paragraph. */
     text: z.string().min(1),
@@ -62,7 +62,6 @@ export const RetroFindingSchema = z
     cross_doc_links: z.array(DocLinkSchema).default([]),
   })
   .strict();
-export type RetroFinding = z.infer<typeof RetroFindingSchema>;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // RetroRecordSchema — one session retro.
@@ -169,7 +168,6 @@ export const RetroRecordSchema = z
       .default(null),
   })
   .strict();
-export type RetroRecord = z.infer<typeof RetroRecordSchema>;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // RetrosSchema — root document shape.

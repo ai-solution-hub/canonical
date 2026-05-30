@@ -38,11 +38,11 @@ import { logger } from '@/lib/logger';
 // ── Constants ────────────────────────────────────────────────────────────
 
 /** Anthropic classification model — same as the pipeline (extraction.py). */
-export const CLASSIFY_MODEL = 'claude-opus-4-6';
+const CLASSIFY_MODEL = 'claude-opus-4-6';
 
 /** Embedding config — same as pipeline Stage-4 / catalogue-standard-sq.ts. */
-export const EMBEDDING_MODEL = 'text-embedding-3-large';
-export const EMBEDDING_DIMENSIONS = 1024;
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+const EMBEDDING_DIMENSIONS = 1024;
 
 /**
  * The CHECK-constrained `requirement_type` value set. Plain strings on the
@@ -58,12 +58,11 @@ export const REQUIREMENT_TYPES = [
   'reference',
 ] as const;
 
-export type RequirementType = (typeof REQUIREMENT_TYPES)[number];
+type RequirementType = (typeof REQUIREMENT_TYPES)[number];
 
 // ── Types ────────────────────────────────────────────────────────────────
 
 export type FormTemplateField = Tables<'form_template_fields'>;
-export type FormTemplate = Tables<'form_templates'>;
 export type CatalogueRowInsert =
   Database['public']['Tables']['form_template_requirements']['Insert'];
 
@@ -97,7 +96,7 @@ export interface CatalogueWriteResult {
  * `Q_A_FORM_PROMPT` style (verbatim-text, strict JSON, no commentary) and
  * extends it with the catalogue-requirement classification fields T10 needs.
  */
-export function buildClassificationPrompt(field: FormTemplateField): string {
+function buildClassificationPrompt(field: FormTemplateField): string {
   const types = REQUIREMENT_TYPES.join(', ');
   return `You are cataloguing a single question from a procurement form, questionnaire, or sales-proposal template into a reusable, global requirement record for an enterprise knowledge base. Read the question and produce a single JSON object classifying it.
 
@@ -156,7 +155,7 @@ export async function readInstanceFields(
  * Extract the first JSON object from a model text response. The prompt asks
  * for raw JSON, but defensively strip any accidental markdown fence.
  */
-export function parseClassificationJson(raw: string): FieldClassification {
+function parseClassificationJson(raw: string): FieldClassification {
   const trimmed = raw
     .trim()
     .replace(/^```(?:json)?/i, '')
@@ -311,7 +310,7 @@ export function buildCatalogueRow(args: {
 
 // ── Auth gate (Inv-24) ──────────────────────────────────────────────────────
 
-export interface AuthGateOutcome {
+interface AuthGateOutcome {
   authorised: boolean;
   /** Set on failure — the reason routed through `authFailureResponse`. */
   reason?: string;
@@ -326,7 +325,7 @@ export interface AuthGateOutcome {
  * through `authFailureResponse` to derive the correct HTTP status, the failure
  * is logged, and the write step is REFUSED.
  */
-export async function ensureAuthorisedForWrite(
+async function ensureAuthorisedForWrite(
   getAuthorised: (
     roles: ('admin' | 'editor' | 'viewer')[],
   ) => Promise<AuthorisedResult> = getAuthorisedClient,
