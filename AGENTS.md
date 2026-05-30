@@ -346,7 +346,7 @@ Cross-reference CLAUDE.md for project-wide rules; cross-reference `.gitnexus/CLA
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (45952 symbols, 65753
+This project is indexed by GitNexus as **knowledge-hub** (49383 symbols, 70638
 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess
 impact, and navigate safely.
 
