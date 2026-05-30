@@ -583,3 +583,30 @@ channel for surfacing Open Questions to the parent session is specified in
 the per-track ledger location). The session-driver-cmux skill does not
 re-specify the protocol; it is the dispatch primitive. Sub-orchestrators load
 the OQ-escalation skill alongside `workflow-orchestration` when they need it.
+
+**OQ-escalation channel helpers (shipped — ID-43).** The protocol above is
+implemented as a durable file-per-record mailbox under each worker's
+`.claude/cmux-events/<sid>/oq/` directory. The helper scripts sit beside the five
+dispatch scripts and are additive — they do **not** change any existing script's
+behaviour:
+
+| Script | Side | Functions |
+| --- | --- | --- |
+| `scripts/oq-core.sh` | shared | `atomic_publish`, `verify_record`, `list_records`, `derive_oq_id`, `next_seq`, record builders/validators |
+| `scripts/oq-worker.sh` | worker | `oq_emit`, `oq_cancel`, `oq_poll_decision`, `oq_check_decision`, `oq_restart_classify` |
+| `scripts/oq-parent.sh` | parent | `oq_list_open`, `oq_decide`, `oq_scan_fleet` |
+| `scripts/oq-canonical.py` | shared | canonical-JSON + SHA-256 checksum (stdlib only) |
+
+The worker-facing usage contract a parent appends to a sub-orchestrator brief is
+`oq-brief-fragment.md` (next to this SKILL.md).
+
+Parent scan cadence: the parent's OQ-scan loop rides the canonical `watch-fleet.sh`
+smart-watcher (not a bare `wait-for-fleet.sh` `stop`-poll): `watch-fleet.sh` wakes
+on any actionable signal (incl. OQ-heading growth / a worker parked in
+`awaiting-decision`) → `oq_scan_fleet` (read each `<sid>/oq/oq-state.json`, then the
+blocked worker's open OQs in FIFO order) → `oq_decide` (write
+`decisions/<oq_id>.json`). The decision **file** is always authoritative; the
+optional `send-prompt.sh` nudge only wakes the worker's poll sooner and is never
+correctness-bearing. Two-state contract (OQ-INV-24): a worker with an undecided
+**blocking** OQ stays in `awaiting-decision` and does **not** `/exit` until the
+decision lands.
