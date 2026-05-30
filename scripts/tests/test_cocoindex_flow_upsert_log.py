@@ -32,14 +32,13 @@ from unittest.mock import MagicMock
 
 # ── Path setup ──────────────────────────────────────────────────────────────
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── cocoindex + dependent stubs ─────────────────────────────────────────────
 # Stub the cocoindex module + its submodules + asyncpg + docling so that
-# importing cocoindex_pipeline.flow does NOT trigger the Rust LMDB engine,
+# importing scripts.cocoindex_pipeline.flow does NOT trigger the Rust LMDB engine,
 # does NOT require an installed cocoindex, and does NOT require asyncpg /
 # docling at test time.
 
@@ -106,7 +105,7 @@ with stubbed_sys_modules(
         "cocoindex.connectorkits.target": _target_stub,
     }
 ):
-    from cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
+    from scripts.cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
 
 
 # ============================================================================
@@ -132,7 +131,7 @@ class TestEmitUpsertLog:
         """Emitted log line is valid JSON parseable by Cloud Run's jsonPayload ingest."""
         op_id = uuid.UUID("11111111-1111-4111-8111-111111111111")
         row_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
-        with caplog.at_level(logging.INFO, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_upsert_log(
                 op_id=op_id,
                 table="content_items",
@@ -152,7 +151,7 @@ class TestEmitUpsertLog:
         """JSON payload carries {event, op_id, table, row_id, operation}."""
         op_id = uuid.UUID("11111111-1111-4111-8111-111111111111")
         row_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
-        with caplog.at_level(logging.INFO, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_upsert_log(
                 op_id=op_id,
                 table="content_items",
@@ -182,7 +181,7 @@ class TestEmitUpsertLog:
 
     def test_log_emitted_at_info_level(self, caplog):
         """Emission goes through INFO (not DEBUG / WARN / ERROR)."""
-        with caplog.at_level(logging.INFO, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_upsert_log(
                 op_id=uuid.uuid4(),
                 table="q_a_extractions",
@@ -196,7 +195,7 @@ class TestEmitUpsertLog:
 
     def test_logger_is_module_scoped(self, caplog):
         """Emission goes through cocoindex_pipeline.flow logger (stdlib)."""
-        with caplog.at_level(logging.INFO, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_upsert_log(
                 op_id=uuid.uuid4(),
                 table="source_documents",
@@ -207,14 +206,14 @@ class TestEmitUpsertLog:
         # Per S254 amendment: must use stdlib `logging.getLogger(__name__)`,
         # NOT a (non-existent) `coco.logger`. The flow module's logger name
         # is the canonical hand-off into the Cloud Run JSON-payload parser.
-        assert caplog.records[0].name == "cocoindex_pipeline.flow", (
-            f"Logger must be 'cocoindex_pipeline.flow' (stdlib module-scoped); "
-            f"got {caplog.records[0].name!r}"
+        assert caplog.records[0].name == "scripts.cocoindex_pipeline.flow", (
+            f"Logger must be 'scripts.cocoindex_pipeline.flow' (stdlib module-scoped, "
+            f"canonical namespace per ID-67); got {caplog.records[0].name!r}"
         )
 
     def test_operation_insert_round_trips(self, caplog):
         """operation='INSERT' round-trips intact."""
-        with caplog.at_level(logging.INFO, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_upsert_log(
                 op_id=uuid.uuid4(),
                 table="content_items",
@@ -226,7 +225,7 @@ class TestEmitUpsertLog:
 
     def test_operation_update_round_trips(self, caplog):
         """operation='UPDATE' round-trips intact."""
-        with caplog.at_level(logging.INFO, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_upsert_log(
                 op_id=uuid.uuid4(),
                 table="content_items",
@@ -243,7 +242,7 @@ class TestEmitUpsertLog:
         # helper must be tolerant; str() is a no-op when input is already str.
         op_id_str = "33333333-3333-4333-8333-333333333333"
         row_id_str = "44444444-4444-4444-8444-444444444444"
-        with caplog.at_level(logging.INFO, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_upsert_log(
                 op_id=op_id_str,
                 table="content_items",

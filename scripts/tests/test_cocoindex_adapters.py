@@ -27,11 +27,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # ── Path setup ──────────────────────────────────────────────────────────────
-
-# Add the scripts directory to sys.path so we can import cocoindex_pipeline.
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── cocoindex stub ──────────────────────────────────────────────────────────
@@ -97,7 +94,7 @@ sys.modules.setdefault("docling.document_converter", _docling_dc_stub)
 
 with stubbed_sys_modules({"cocoindex": _coco_stub}):
     # ── Import the module under test ──────────────────────────────────────────
-    from cocoindex_pipeline import adapters  # noqa: E402  (stub-scoped import)
+    from scripts.cocoindex_pipeline import adapters  # noqa: E402  (stub-scoped import)
 
 
 # ============================================================================
@@ -590,7 +587,7 @@ class TestPullmdInnerTier:
                 os.environ,
                 {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
             ):
-                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     mock_client = self._install_async_client(mock_httpx, mock_response)
                     result = await adapters._pullmd_to_markdown(test_url)
@@ -632,7 +629,7 @@ class TestPullmdInnerTier:
                 os.environ,
                 {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
             ):
-                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     self._install_async_client(mock_httpx, mock_response)
                     return await adapters._pullmd_to_markdown("https://example.com/p")
@@ -662,7 +659,7 @@ class TestPullmdInnerTier:
                 os.environ,
                 {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
             ):
-                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     self._install_async_client(mock_httpx, mock_response)
                     return await adapters._pullmd_to_markdown("https://example.com/p")
@@ -685,7 +682,7 @@ class TestPullmdInnerTier:
                 os.environ,
                 {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
             ):
-                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     self._install_async_client(mock_httpx, mock_response)
                     return await adapters._pullmd_to_markdown("https://example.com/p")
@@ -748,7 +745,7 @@ class TestPullmdInnerTier:
                 os.environ,
                 {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
             ):
-                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     # Real exception classes so the adapter's `except httpx.HTTPError`
                     # is a genuine class, not a MagicMock attribute.
@@ -772,7 +769,7 @@ class TestPullmdInnerTier:
                 os.environ,
                 {"PULLMD_SERVICE_URL": pullmd_service_url, "PULLMD_API_TOKEN": api_token},
             ):
-                with patch("cocoindex_pipeline.adapters.httpx") as mock_httpx:
+                with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     # Real exception classes so the adapter's `except httpx.HTTPError`
                     # is a genuine class, not a MagicMock attribute.

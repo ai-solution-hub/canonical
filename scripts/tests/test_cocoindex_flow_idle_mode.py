@@ -38,10 +38,8 @@ import pytest
 
 
 # ── Path setup ──────────────────────────────────────────────────────────────
-
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ============================================================================
@@ -55,8 +53,8 @@ class TestFlowModuleIdleLoad:
     def test_flow_module_imports_without_anthropic_api_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """`from cocoindex_pipeline.flow import KH_PIPELINE_APP` must succeed
-        with NO ANTHROPIC_API_KEY env var set.
+        """`from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP` must
+        succeed with NO ANTHROPIC_API_KEY env var set.
 
         The 3 Path A extractors call `anthropic.AsyncAnthropic()` only
         at runtime (inside the function body), not at import time. The
@@ -68,10 +66,10 @@ class TestFlowModuleIdleLoad:
         # Force a fresh import to ensure we hit the cold-path.
         # If KH_PIPELINE_APP is already cached from a previous test, force
         # re-evaluation by purging the module entry.
-        sys.modules.pop("cocoindex_pipeline.flow", None)
-        sys.modules.pop("cocoindex_pipeline.extraction", None)
+        sys.modules.pop("scripts.cocoindex_pipeline.flow", None)
+        sys.modules.pop("scripts.cocoindex_pipeline.extraction", None)
         # Re-import — should succeed without raising.
-        from cocoindex_pipeline.flow import KH_PIPELINE_APP
+        from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
 
         assert KH_PIPELINE_APP is not None, (
             "KH_PIPELINE_APP must be defined at module load"
@@ -80,7 +78,7 @@ class TestFlowModuleIdleLoad:
     def test_flow_module_exposes_kh_pipeline_app(self) -> None:
         """flow.py exposes KH_PIPELINE_APP — the cocoindex App handle used
         by __main__.py + the Cloud Run Service GOOGLE_ENTRYPOINT."""
-        from cocoindex_pipeline.flow import KH_PIPELINE_APP
+        from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
 
         # KH_PIPELINE_APP is assembled via coco.App(coco.AppConfig(...), app_main)
         # at module scope — its concrete type is cocoindex._internal.app.App
@@ -95,7 +93,7 @@ class TestFlowModuleIdleLoad:
     def test_flow_module_exposes_app_main_coroutine(self) -> None:
         """flow.app_main is an async function — the cocoindex App update cycle
         invokes it per the §P-2 contract."""
-        from cocoindex_pipeline import flow
+        from scripts.cocoindex_pipeline import flow
 
         assert hasattr(flow, "app_main"), "flow.py must expose app_main"
         # inspect.iscoroutinefunction is the canonical check (asyncio.* is
@@ -117,7 +115,7 @@ class TestFlowModuleIdleLoad:
         in those test sessions)."""
         import inspect
 
-        from cocoindex_pipeline import flow
+        from scripts.cocoindex_pipeline import flow
 
         for name in (
             "extract_classification",
@@ -151,7 +149,7 @@ class TestFlowModuleIdleLoad:
         [RATIFIED-S241]. The invocation contract is proved in
         test_cocoindex_flow_write_path.py::TestStampExtractionBaseWiredIntoIngest;
         this guard only pins that the symbol stays exposed + callable."""
-        from cocoindex_pipeline import flow
+        from scripts.cocoindex_pipeline import flow
 
         assert hasattr(flow, "stamp_extraction_base"), (
             "flow.py must import stamp_extraction_base — wired into the "
@@ -167,7 +165,7 @@ class TestFlowModuleIdleLoad:
         AND it is the *same object* re-exported from extraction.py — proving a
         single source of truth (ID-44.3 dedup), not two equal literals that can
         silently drift on a model upgrade."""
-        from cocoindex_pipeline import extraction, flow
+        from scripts.cocoindex_pipeline import extraction, flow
 
         assert flow.ANTHROPIC_MODEL == "claude-opus-4-6", (
             f"flow.ANTHROPIC_MODEL must be 'claude-opus-4-6' (production "
@@ -196,8 +194,8 @@ class TestExtractionModuleIdleLoad:
         import inspect
 
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        sys.modules.pop("cocoindex_pipeline.extraction", None)
-        from cocoindex_pipeline.extraction import (
+        sys.modules.pop("scripts.cocoindex_pipeline.extraction", None)
+        from scripts.cocoindex_pipeline.extraction import (
             extract_classification,
             extract_entity_mentions,
             extract_qa_form,
@@ -230,7 +228,7 @@ class TestExtractionModuleIdleLoad:
         Comments / docstrings may reference them as historical context,
         but `import` statements MUST NOT.
         """
-        from cocoindex_pipeline import extraction
+        from scripts.cocoindex_pipeline import extraction
 
         # extraction module dict — these names must NOT be defined.
         for sym in ("ExtractByLlm", "LlmSpec", "LlmApiType"):

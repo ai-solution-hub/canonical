@@ -51,9 +51,8 @@ from unittest.mock import MagicMock
 import pytest
 
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
@@ -166,7 +165,7 @@ def _flow_module():
     _sys.modules.pop("scripts.cocoindex_pipeline.flow", None)
 
     with stubbed_sys_modules(stubs):
-        from cocoindex_pipeline import flow  # noqa: PLC0415
+        from scripts.cocoindex_pipeline import flow  # noqa: PLC0415
 
     # NB: we deliberately do NOT pin `flow.aiohttp` here. The sibling webhook
     # test (test_cocoindex_flow_pipeline_run_webhook.py) pins its OWN
@@ -332,11 +331,11 @@ class TestIngestFileBumpsEmbeddingCounter:
     ) -> None:
         flow = _flow_module()
         _patch_pipeline(flow, monkeypatch)
-        # Bind via flow's OWN package namespace — the SAME flow_context module
-        # `ingest_file` reads `current_stage_counter()` from (dual-import-path
-        # hazard; see SLICE-1 docstring). `cocoindex_pipeline.flow_context`
-        # matches `flow.__package__` here.
-        from cocoindex_pipeline.flow_context import (  # noqa: PLC0415
+        # Bind via the canonical package namespace — the SAME flow_context module
+        # `ingest_file` reads `current_stage_counter()` from.
+        # `scripts.cocoindex_pipeline.flow_context` matches `flow.__package__`
+        # after ID-67 namespace canonicalisation.
+        from scripts.cocoindex_pipeline.flow_context import (  # noqa: PLC0415
             bind_flow_meta,
             bind_stage_counter,
         )
@@ -371,7 +370,7 @@ class TestIngestFileBumpsEmbeddingCounter:
         flow-scope binding."""
         flow = _flow_module()
         _patch_pipeline(flow, monkeypatch)
-        from cocoindex_pipeline.flow_context import (  # noqa: PLC0415
+        from scripts.cocoindex_pipeline.flow_context import (  # noqa: PLC0415
             bind_flow_meta,
             bind_stage_counter,
         )
@@ -398,7 +397,7 @@ class TestIngestFileBumpsEmbeddingCounter:
         same contract as the retry counter)."""
         flow = _flow_module()
         _patch_pipeline(flow, monkeypatch)
-        from cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
 
         src = tmp_path / "doc-no-binding.md"
         src.write_text(_MARKDOWN)
@@ -605,7 +604,7 @@ class TestLayeredRetryRealityNoPostgresRetry:
         (`_anthropic_retry`), wrapping the Path A LLM calls only. Confirms the
         retry-counter the flow-end webhook reads (`flow_retry_counter`) is fed
         EXCLUSIVELY by Anthropic-503 retries, never a PG retry."""
-        from cocoindex_pipeline import extraction  # noqa: PLC0415
+        from scripts.cocoindex_pipeline import extraction  # noqa: PLC0415
 
         assert hasattr(extraction, "_anthropic_retry"), (
             "extraction.py must expose _anthropic_retry — the operative LLM "

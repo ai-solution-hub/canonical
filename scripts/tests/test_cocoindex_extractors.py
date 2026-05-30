@@ -44,10 +44,8 @@ import pytest
 from pydantic import ValidationError
 
 # ── Path setup ──────────────────────────────────────────────────────────────
-
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── Module under test ───────────────────────────────────────────────────────
@@ -57,7 +55,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 # the @coco.fn decorator runs at module import and produces AsyncFunction
 # instances — also no stubbing needed.
 
-from cocoindex_pipeline.extraction import (  # noqa: E402
+from scripts.cocoindex_pipeline.extraction import (  # noqa: E402
     ClassificationExtraction,
     EntityMentionExtraction,
     QAFormExtraction,
@@ -218,7 +216,7 @@ class TestExtractClassification:
         """Well-formed JSON response → typed ClassificationExtraction object."""
         mock_client = _make_mock_client(_classification_json("policy"))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(
@@ -244,7 +242,7 @@ class TestExtractClassification:
         mock_client.messages.create = _capture_create
         content = "The quick brown fox jumps."
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             asyncio.run(extract_classification(content))
@@ -267,7 +265,7 @@ class TestExtractClassification:
         # raises ValueError → Pydantic surfaces as ValidationError.
         mock_client = _make_mock_client(_classification_json("invented_junk_type"))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
@@ -283,7 +281,7 @@ class TestExtractClassification:
         del payload["primary_domain"]
         mock_client = _make_mock_client(json.dumps(payload))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
@@ -304,7 +302,7 @@ class TestExtractQAForm:
         """Well-formed JSON response → typed QAFormExtraction object."""
         mock_client = _make_mock_client(_qa_form_json())
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_qa_form("Test form content text."))
@@ -317,7 +315,7 @@ class TestExtractQAForm:
 
     def test_calls_anthropic_with_q_a_form_prompt(self):
         """Extractor uses Q_A_FORM_PROMPT (per spec §3.1)."""
-        from cocoindex_pipeline.prompts import Q_A_FORM_PROMPT
+        from scripts.cocoindex_pipeline.prompts import Q_A_FORM_PROMPT
 
         mock_client = _make_mock_client(_qa_form_json())
         captured: list[Any] = []
@@ -329,7 +327,7 @@ class TestExtractQAForm:
 
         mock_client.messages.create = _capture
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             asyncio.run(extract_qa_form("form content"))
@@ -350,7 +348,7 @@ class TestExtractQAForm:
         payload["qa_pairs"][0]["expected_response_kind"] = "info_only"
         mock_client = _make_mock_client(json.dumps(payload))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
@@ -363,7 +361,7 @@ class TestExtractQAForm:
         payload["form_metadata"]["form_type"] = "rfx"  # invented
         mock_client = _make_mock_client(json.dumps(payload))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
@@ -383,7 +381,7 @@ class TestExtractEntityMentions:
         """Well-formed JSON array response → list[EntityMentionExtraction]."""
         mock_client = _make_mock_client(_entity_mentions_json())
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_entity_mentions("doc with entities"))
@@ -404,7 +402,7 @@ class TestExtractEntityMentions:
         """
         mock_client = _make_mock_client("[]")
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_entity_mentions("doc with no entities"))
@@ -417,7 +415,7 @@ class TestExtractEntityMentions:
         payload[0]["entity_type"] = "alien"  # not in canonical 12-value list
         mock_client = _make_mock_client(json.dumps(payload))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
@@ -434,7 +432,7 @@ class TestExtractEntityMentions:
         payload[0]["source_span_start"] = -1  # violates Field(ge=0)
         mock_client = _make_mock_client(json.dumps(payload))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError):
@@ -514,7 +512,7 @@ class TestExtractorDecoration:
         + actually awaits one — the mocked happy-path JSON validates."""
         mock_client = _make_mock_client(_classification_json())
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_classification("hi"))

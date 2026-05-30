@@ -36,9 +36,8 @@ from unittest.mock import MagicMock, patch
 
 # ── Path setup ──────────────────────────────────────────────────────────────
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── cocoindex + dependent stubs ──────────────────────────────────────────────
@@ -154,7 +153,7 @@ with stubbed_sys_modules(
         "aiohttp": _aiohttp_stub,
     }
 ):
-    from cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
+    from scripts.cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
 
 # Cooperative-pin discipline (mirrors the explicit guidance in
 # test_cocoindex_flow_failure_mode.py module docstring):

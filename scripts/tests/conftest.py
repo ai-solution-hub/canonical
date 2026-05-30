@@ -76,7 +76,7 @@ def stubbed_sys_modules(stubs: Mapping[str, ModuleType]) -> Iterator[None]:
     Intended usage wraps the module-under-test import::
 
         with stubbed_sys_modules({"cocoindex": _coco_stub, ...}):
-            from cocoindex_pipeline import flow  # captures the stub at import
+            from scripts.cocoindex_pipeline import flow  # captures the stub at import
     """
     sentinel = object()
     saved: dict[str, object] = {}
@@ -107,13 +107,13 @@ def stubbed_sys_modules(stubs: Mapping[str, ModuleType]) -> Iterator[None]:
 # block is the SINGLE canonical primitive: import it from `conftest` and the
 # isolation is identical everywhere.
 #
-# Namespace note: `flow.py` is imported here under the TOP-LEVEL
-# `cocoindex_pipeline.flow` spelling the flow-test corpus uses (its sibling
-# `flow_context` / `extraction` imports + `current_flow_meta()` ContextVar reads
-# all resolve through the SAME `__package__`). The production runtime loads the
-# DISTINCT `scripts.cocoindex_pipeline.flow` object — so `fresh_flow_module()`
-# pops BOTH keys to force a clean re-exec regardless of which namespace a sibling
-# imported first. Full canonicalisation onto the `scripts.` namespace is bl-185.
+# Namespace note: `flow.py` is imported here under the CANONICAL
+# `scripts.cocoindex_pipeline.flow` spelling that matches the production runtime
+# (`python3 -m scripts.cocoindex_pipeline.server`). This eliminates the second
+# `sys.modules` identity that the bare `cocoindex_pipeline.*` top-level alias
+# caused (the ID-44.5 / ID-177 ContextKey-leak root cause). bl-185 / ID-67.1
+# completed the canonicalisation; `fresh_flow_module()` still pops BOTH keys
+# as a belt-and-braces guard in case any legacy path re-binds the bare alias.
 
 
 class StubContextKey:
@@ -187,7 +187,7 @@ def fresh_flow_module(
     *,
     preserve_attrs: tuple[str, ...] = _PRESERVED_FLOW_ATTRS,
 ) -> ModuleType:
-    """Import a FRESH `cocoindex_pipeline.flow` under cocoindex stubs.
+    """Import a FRESH `scripts.cocoindex_pipeline.flow` under cocoindex stubs.
 
     The canonical replacement for the per-file `_flow_module()` helpers. It:
 
@@ -197,15 +197,17 @@ def fresh_flow_module(
          from `sys.modules` so flow.py re-executes its module body under THIS
          call's stubs — a stale entry under EITHER key would shortcut the import
          and leave a sibling-stub-captured module resident (the ID-44.5 dual-path
-         hazard).
+         hazard). The bare `cocoindex_pipeline.flow` key pop is a belt-and-braces
+         guard; only the canonical `scripts.cocoindex_pipeline.flow` spelling is
+         registered after ID-67.1.
       3. Imports flow inside `stubbed_sys_modules(...)` (stubs auto-restored on
          exit; the module keeps the stub references it captured at import time).
       4. Restores the snapshotted pins.
 
     Pass `extra_stubs` to add/override stub modules for a specific test.
     """
-    resident = sys.modules.get("cocoindex_pipeline.flow") or sys.modules.get(
-        "scripts.cocoindex_pipeline.flow"
+    resident = sys.modules.get("scripts.cocoindex_pipeline.flow") or sys.modules.get(
+        "cocoindex_pipeline.flow"
     )
     snapshot: dict[str, MagicMock] = {}
     for attr in preserve_attrs:
@@ -220,14 +222,15 @@ def fresh_flow_module(
 
     with stubbed_sys_modules(make_cocoindex_stubs(extra_stubs)):
         # `import_module` re-EXECUTES flow.py under the active stubs AND
-        # re-registers the `cocoindex_pipeline.flow` sys.modules key. A plain
-        # `from cocoindex_pipeline import flow` would instead hand back the STALE
-        # package `.flow` attribute the pop left behind (the IMPORT_FROM getattr
-        # shortcut) WITHOUT re-registering — yielding a sibling-stub-captured
-        # module and breaking any downstream `importlib.reload(flow)` with
-        # "module not in sys.modules" (the ID-49.7 reload collision this
-        # primitive exists to eliminate; verified empirically in ID-55.1).
-        flow = importlib.import_module("cocoindex_pipeline.flow")
+        # re-registers the `scripts.cocoindex_pipeline.flow` sys.modules key.
+        # A plain `from scripts.cocoindex_pipeline import flow` would instead
+        # hand back the STALE package `.flow` attribute the pop left behind
+        # (the IMPORT_FROM getattr shortcut) WITHOUT re-registering — yielding
+        # a sibling-stub-captured module and breaking any downstream
+        # `importlib.reload(flow)` with "module not in sys.modules" (the
+        # ID-49.7 reload collision this primitive exists to eliminate; verified
+        # empirically in ID-55.1).
+        flow = importlib.import_module("scripts.cocoindex_pipeline.flow")
 
     for attr, value in snapshot.items():
         setattr(flow, attr, value)

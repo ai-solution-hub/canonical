@@ -44,9 +44,8 @@ from pathlib import Path
 import pytest
 
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 from conftest import fresh_flow_module  # noqa: E402
 
@@ -154,7 +153,7 @@ class TestIngestFileWritePath:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         # Stub the P-3 adapter + Path A extractors so no Docling / anthropic /
         # network is touched — we are proving the WRITE-PATH shape, not extraction.
@@ -354,7 +353,7 @@ class TestIngestFileStageCounters:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        from cocoindex_pipeline.flow_context import (
+        from scripts.cocoindex_pipeline.flow_context import (
             bind_flow_meta,
             bind_stage_counter,
         )
@@ -427,7 +426,7 @@ class TestIngestFileStageCounters:
         """No `bind_stage_counter` block → `ingest_file` still declares rows;
         only the observability bumps are skipped (graceful degradation)."""
         flow = _flow_module()
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown = "# H\n\nbody"
 
@@ -524,7 +523,7 @@ class TestMountEachArityContract:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown_one = "# Doc One\n\nFirst document body."
         markdown_two = "# Doc Two\n\nSecond document body."
@@ -689,7 +688,7 @@ class TestStablePrimaryKeysAcrossRuns:
         run_op_id: uuid.UUID,
         monkeypatch: pytest.MonkeyPatch,
     ) -> dict[str, list[dict]]:
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown = "# Stable\n\nSame bytes every run."
 
@@ -778,7 +777,7 @@ class TestContentFingerprintAwaited:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown = "# FP\n\nFingerprint body."
 
@@ -872,7 +871,7 @@ class TestSourceDocumentProvenanceWritePath:
 
     @staticmethod
     def _ingest(flow: object, fake_file: object) -> "_FakeTarget":
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
@@ -1123,7 +1122,7 @@ def _stub_path_a(flow: object, monkeypatch: "pytest.MonkeyPatch") -> None:
 
 def _make_manifest(flow: object, prefix: str, workspace_id: "uuid.UUID"):
     """Build a real WorkspaceManifest mapping ``prefix`` → ``workspace_id``."""
-    from cocoindex_pipeline.workspace_resolver import (
+    from scripts.cocoindex_pipeline.workspace_resolver import (
         WorkspaceManifest,
         WorkspaceMapping,
     )
@@ -1136,7 +1135,7 @@ def _make_manifest(flow: object, prefix: str, workspace_id: "uuid.UUID"):
 
 def _make_extracted_form(flow: object, fields: list[dict]):
     """Build an ExtractedForm with the given fields (dict kwargs per field)."""
-    from cocoindex_pipeline.form_extractors.shared import (
+    from scripts.cocoindex_pipeline.form_extractors.shared import (
         ExtractedField,
         ExtractedForm,
         FormMetadata,
@@ -1176,7 +1175,7 @@ def _ingest_form(
     monkeypatch: "pytest.MonkeyPatch",
 ) -> dict:
     """Drive one ingest_file under bind_flow_meta + bind_workspace_manifest."""
-    from cocoindex_pipeline.flow_context import (
+    from scripts.cocoindex_pipeline.flow_context import (
         bind_flow_meta,
         bind_workspace_manifest,
     )
@@ -1292,7 +1291,7 @@ class TestFormWriteSuccessPath:
         src.write_bytes(b"%PDF stub")
         fake_file = _FakeFormFile("acme/no-title.pdf", src)
 
-        from cocoindex_pipeline.form_extractors.shared import (
+        from scripts.cocoindex_pipeline.form_extractors.shared import (
             ExtractedForm,
             FormMetadata,
         )
@@ -1333,7 +1332,7 @@ class TestFormWriteGracefulEmptyProvenance:
         rel_path = "acme/zero-archetype.xlsx"
         fake_file = _FakeFormFile(rel_path, src)
 
-        from cocoindex_pipeline.form_extractors.shared import (
+        from scripts.cocoindex_pipeline.form_extractors.shared import (
             ExtractedForm,
             FormMetadata,
         )
@@ -1386,7 +1385,7 @@ class TestFormWriteGracefulEmptyProvenance:
         src.write_bytes(b"PK\x03\x04 stub")
         fake_file = _FakeFormFile("acme/zero-with-method.xlsx", src)
 
-        from cocoindex_pipeline.form_extractors.shared import (
+        from scripts.cocoindex_pipeline.form_extractors.shared import (
             ExtractedForm,
             FormMetadata,
         )
@@ -1599,7 +1598,7 @@ class TestFormWriteIdempotency:
 
         monkeypatch.setattr(flow, "_trim_stale_form_fields", _fake_trim)
 
-        from cocoindex_pipeline.flow_context import (
+        from scripts.cocoindex_pipeline.flow_context import (
             bind_flow_meta,
             bind_workspace_manifest,
         )

@@ -5,13 +5,7 @@ runs). The pure function under test is deterministic, idempotent, and entity-
 type aware per TECH §P-2 of docs/specs/id-53-stage-5-entity-resolution/TECH.md.
 """
 
-import os
-import sys
-
-# Add scripts dir to path so we can import cocoindex_pipeline directly.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from cocoindex_pipeline.canonicalisation import canonicalise_entity_name
+from scripts.cocoindex_pipeline.canonicalisation import canonicalise_entity_name
 
 
 # ──────────────────────────────────────────

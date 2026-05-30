@@ -37,10 +37,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # ── Path setup ──────────────────────────────────────────────────────────────
-
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── Inert stubs for unavailable packages ───────────────────────────────────
@@ -147,7 +145,7 @@ def test_cache_hit_skips_llm_invocation() -> None:
     cache replays the prior decision byte-for-byte without re-invoking
     the model.
     """
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool(seed={("alpha", "beta", "organisation"): "same"})
@@ -168,7 +166,7 @@ def test_cache_hit_skips_llm_invocation() -> None:
 def test_cache_hit_with_reversed_arg_order() -> None:
     """Lexicographic ordering: `(beta, alpha)` and `(alpha, beta)` hit
     the same cache row."""
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool(seed={("alpha", "beta", "organisation"): "different"})
@@ -186,7 +184,7 @@ def test_cache_hit_with_reversed_arg_order() -> None:
 def test_cache_miss_invokes_llm_once_and_writes_back() -> None:
     """Cache-miss path: LLM is invoked exactly once, then the decision
     is INSERTed into the cache table with op_id audit-trail."""
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool()  # empty cache
@@ -218,7 +216,7 @@ def test_cache_miss_invokes_llm_once_and_writes_back() -> None:
 
 def test_invoke_llm_thin_string_parser_same() -> None:
     """T-OQ2 thin string-parser: response 'same\\n' parses to 'same'."""
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool()
@@ -228,7 +226,7 @@ def test_invoke_llm_thin_string_parser_same() -> None:
     fake_client.messages.create = AsyncMock(return_value=_make_anthropic_response("same"))
 
     with patch(
-        "cocoindex_pipeline.pair_resolver.anthropic.AsyncAnthropic",
+        "scripts.cocoindex_pipeline.pair_resolver.anthropic.AsyncAnthropic",
         return_value=fake_client,
     ):
         decision = asyncio.run(resolver._invoke_llm("Acme Corp", "Acme Corporation"))
@@ -246,7 +244,7 @@ def test_invoke_llm_thin_string_parser_same() -> None:
 
 def test_invoke_llm_thin_string_parser_different() -> None:
     """T-OQ2 thin string-parser: response ' Different\\n' parses to 'different'."""
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool()
@@ -258,7 +256,7 @@ def test_invoke_llm_thin_string_parser_different() -> None:
     )
 
     with patch(
-        "cocoindex_pipeline.pair_resolver.anthropic.AsyncAnthropic",
+        "scripts.cocoindex_pipeline.pair_resolver.anthropic.AsyncAnthropic",
         return_value=fake_client,
     ):
         decision = asyncio.run(resolver._invoke_llm("Foo", "Bar"))
@@ -273,7 +271,7 @@ def test_invoke_llm_thin_string_parser_unexpected_response_defaults_to_different
     response that does NOT start with 'same' (case-insensitive, whitespace-
     stripped, first whitespace-delimited token) is treated as 'different'.
     """
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool()
@@ -285,7 +283,7 @@ def test_invoke_llm_thin_string_parser_unexpected_response_defaults_to_different
     )
 
     with patch(
-        "cocoindex_pipeline.pair_resolver.anthropic.AsyncAnthropic",
+        "scripts.cocoindex_pipeline.pair_resolver.anthropic.AsyncAnthropic",
         return_value=fake_client,
     ):
         decision = asyncio.run(resolver._invoke_llm("X", "Y"))
@@ -302,7 +300,7 @@ def test_concurrent_invocations_race_safe() -> None:
     the race-safety mechanism per TECH §P-8 (P-OQ2 narrow race window
     documented + accepted).
     """
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool()  # empty cache, shared connection across acquires
@@ -358,7 +356,7 @@ def test_call_returns_pair_decision_on_first_match() -> None:
     """
     from cocoindex.ops.entity_resolution import PairDecision  # noqa: F401
 
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     # Seed cache hits for BOTH candidates — the first ("FooStandard") must
@@ -388,7 +386,7 @@ def test_call_returns_pair_decision_on_first_match() -> None:
 def test_call_returns_no_match_when_all_candidates_different() -> None:
     """`__call__` returns PairDecision(matched=None, canonical=None) when
     no candidate matches."""
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     pool = FakePool(
@@ -415,7 +413,7 @@ def test_entity_type_scopes_cache_key() -> None:
     e.g. 'Cisco' as organisation vs technology — the two entity_type
     groups must NOT cross-contaminate each other's resolution decisions.
     """
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     op_id = uuid.uuid4()
     # Same (name_a, name_b) but different entity_type — independent decisions.
@@ -445,7 +443,7 @@ def test_entity_type_scopes_cache_key() -> None:
 def test_constructor_uses_keyword_only_args() -> None:
     """`KhPairResolver(*, db_pool, op_id, entity_type)` — positional args
     are forbidden per TECH §P-8 signature contract."""
-    from cocoindex_pipeline.pair_resolver import KhPairResolver
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
 
     pool = FakePool()
     op_id = uuid.uuid4()

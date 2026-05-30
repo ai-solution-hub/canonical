@@ -42,9 +42,8 @@ from unittest.mock import MagicMock
 import pytest
 
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
@@ -75,13 +74,11 @@ def _make_coco_stub() -> MagicMock:
 def _flow_module():
     """Load flow under this file's stubbed cocoindex (per-file reload isolation).
 
-    Pops any resident ``cocoindex_pipeline.flow`` first, then imports FRESH under
-    the stubs. Mirrors test_cocoindex_build_dsn.py's resilient pop-then-import
-    pattern rather than test_cocoindex_flow_write_path.py's reload — the reload
-    form raises ``ImportError: module cocoindex_pipeline.flow not in sys.modules``
-    when an earlier file (e.g. build_dsn) popped the module from the registry and
-    a sibling re-imported it under the ``scripts.cocoindex_pipeline.flow``
-    namespace key instead (ID-49.7 reload-isolation fragility). The pop forces a
+    Pops any resident ``scripts.cocoindex_pipeline.flow`` first, then imports
+    FRESH under the stubs. Mirrors test_cocoindex_build_dsn.py's resilient
+    pop-then-import pattern rather than test_cocoindex_flow_write_path.py's
+    reload — the reload form raises ``ImportError: module not in sys.modules``
+    when an earlier file popped the module from the registry. The pop forces a
     clean re-exec of flow.py's body under THIS file's stubs regardless of
     collection order.
     """
@@ -117,7 +114,7 @@ def _flow_module():
     _sys.modules.pop("scripts.cocoindex_pipeline.flow", None)
 
     with stubbed_sys_modules(stubs):
-        from cocoindex_pipeline import flow  # noqa: PLC0415
+        from scripts.cocoindex_pipeline import flow  # noqa: PLC0415
 
     return flow
 
@@ -198,7 +195,7 @@ def _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id) -> None:
     Per ID-53.10 §P-4 the ``em_target`` is the fourth extra arg expected by
     ``ingest_file`` (declare_row body for entity_mentions ships at {53.11}).
     """
-    from cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
+    from scripts.cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
 
     async def _run() -> None:
         async with bind_flow_meta(op_id=run_op_id):

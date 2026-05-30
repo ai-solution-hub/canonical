@@ -44,9 +44,8 @@ from unittest.mock import MagicMock
 import pytest
 
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
@@ -117,13 +116,13 @@ def _flow_module():
         "docling.document_converter": MagicMock(name="docling.document_converter"),
     }
     with stubbed_sys_modules(stubs):
-        from cocoindex_pipeline import flow  # noqa: PLC0415
+        from scripts.cocoindex_pipeline import flow  # noqa: PLC0415
 
     _prior_aiohttp = getattr(flow, "aiohttp", None)
     with stubbed_sys_modules(stubs):
         # A sibling test file may have popped the flow module out of sys.modules
-        # (several use `sys.modules.pop("cocoindex_pipeline.flow")` for their own
-        # re-import isolation). `importlib.reload` raises ImportError ("module
+        # (several use `sys.modules.pop("scripts.cocoindex_pipeline.flow")` for
+        # their own re-import isolation). `importlib.reload` raises ImportError ("module
         # ... not in sys.modules") in that case, so re-seat the captured module
         # under its own spec name before reloading — keeps this loader robust to
         # any pytest collection ordering (ID-56.8 finding).
@@ -227,7 +226,7 @@ def _ingest_with_cc(
 
     Returns the bound run op_id so callers can assert it is stamped on rows.
     """
-    from cocoindex_pipeline.flow_context import bind_flow_meta
+    from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
     ci = _FakeTarget("content_items")
     qa = _FakeTarget("q_a_extractions")
@@ -332,7 +331,7 @@ class TestChunkingStageWritePath:
         guard `if cc_target is not None:`."""
         flow = _flow_module()
         _stub_path_a(flow, monkeypatch)
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         src = tmp_path / "no-cc.md"
         src.write_text(_SAMPLE_TEXT)

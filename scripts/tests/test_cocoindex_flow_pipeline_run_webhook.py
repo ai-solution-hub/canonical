@@ -33,9 +33,8 @@ from unittest.mock import MagicMock, patch
 
 # ── Path setup ──────────────────────────────────────────────────────────────
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── cocoindex + dependent stubs (mirrors test_cocoindex_flow_upsert_log.py) ──
@@ -163,7 +162,7 @@ with stubbed_sys_modules(
         "aiohttp": _aiohttp_stub,
     }
 ):
-    from cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
+    from scripts.cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
 
 
 # Pin the aiohttp symbol on the imported module to the stub — without this
@@ -218,7 +217,7 @@ class TestEmitPipelineRunWebhookConfiguration:
         """No WEBHOOK_URL → log warning, do not POST."""
         with patch.dict(os.environ, {"CRON_SECRET": "secret"}, clear=True):
             with caplog.at_level(
-                logging.WARNING, logger="cocoindex_pipeline.flow"
+                logging.WARNING, logger="scripts.cocoindex_pipeline.flow"
             ):
                 asyncio.run(
                     flow._emit_pipeline_run_webhook(
@@ -245,7 +244,7 @@ class TestEmitPipelineRunWebhookConfiguration:
             clear=True,
         ):
             with caplog.at_level(
-                logging.WARNING, logger="cocoindex_pipeline.flow"
+                logging.WARNING, logger="scripts.cocoindex_pipeline.flow"
             ):
                 asyncio.run(
                     flow._emit_pipeline_run_webhook(
@@ -425,7 +424,7 @@ class TestEmitPipelineRunWebhookErrorHandling:
     def test_http_4xx_logs_error_does_not_raise(self, caplog):
         _StubSession.next_response_status = 401
         _StubSession.next_response_body = '{"error":"Unauthorised"}'
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             # Must not raise — best-effort discipline.
             self._emit_with_env()
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
@@ -435,7 +434,7 @@ class TestEmitPipelineRunWebhookErrorHandling:
 
     def test_http_5xx_logs_error_does_not_raise(self, caplog):
         _StubSession.next_response_status = 500
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             self._emit_with_env()
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
         assert len(error_records) >= 1
@@ -443,7 +442,7 @@ class TestEmitPipelineRunWebhookErrorHandling:
     def test_transport_exception_logs_error_does_not_raise(self, caplog):
         """Connection refused / DNS failure must NOT crash the pipeline."""
         _StubSession.raise_on_post = ConnectionError("connection refused")
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             # Must not raise — pipeline keeps running per best-effort contract.
             self._emit_with_env()
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
@@ -452,7 +451,7 @@ class TestEmitPipelineRunWebhookErrorHandling:
     def test_http_200_does_not_log_error(self, caplog):
         """Success path is silent (no error log)."""
         _StubSession.next_response_status = 200
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             self._emit_with_env()
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
         assert len(error_records) == 0

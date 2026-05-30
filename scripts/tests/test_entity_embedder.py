@@ -36,9 +36,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── cocoindex.ops.litellm stub helper ─────────────────────────────────────────
@@ -118,7 +117,7 @@ class TestKhEntityEmbedderConstruction:
         text-embedding-3-large model name and dimensions=1024 — matching
         Stage-4's vector(1024) for cross-stage consistency (TECH §P-7).
         """
-        from cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
+        from scripts.cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
 
         embedder = KhEntityEmbedder()
 
@@ -151,7 +150,7 @@ class TestKhEntityEmbedderEmbedContract:
         mock LiteLLMEmbedder; assert returned vector has length 1024 AND
         dtype np.float32.
         """
-        from cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
+        from scripts.cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
 
         embedder = KhEntityEmbedder()
 
@@ -174,7 +173,7 @@ class TestKhEntityEmbedderEmbedContract:
         unchanged — proving the wrapper is a thin pass-through (no per-name
         preprocessing) per TECH §P-7's class body.
         """
-        from cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
+        from scripts.cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
 
         embedder = KhEntityEmbedder()
         inner = stub_litellm.instances[0]
@@ -195,7 +194,7 @@ class TestKhEntityEmbedderEmbedContract:
         """
         import inspect  # noqa: PLC0415
 
-        from cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
+        from scripts.cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
 
         embedder = KhEntityEmbedder()
         assert inspect.iscoroutinefunction(embedder.embed), (

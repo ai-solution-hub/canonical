@@ -50,9 +50,8 @@ from unittest.mock import MagicMock, patch
 
 # ── Path setup ──────────────────────────────────────────────────────────────
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts"] makes the bare path insert redundant.
 
 
 # ── cocoindex + dependent stubs (mirrors sibling test file pattern) ─────────
@@ -205,7 +204,7 @@ with stubbed_sys_modules(
         "aiohttp": _aiohttp_stub,
     }
 ):
-    from cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
+    from scripts.cocoindex_pipeline import flow  # noqa: E402  (stub-scoped import)
 
 # NOTE: we deliberately do NOT pin `flow.aiohttp = _aiohttp_stub` at module
 # scope — the sibling `test_cocoindex_flow_pipeline_run_webhook.py` also
@@ -429,7 +428,7 @@ class TestEmitStageErrorLog:
     def test_emits_required_fields(self, caplog):
         op_id = uuid.UUID("11111111-1111-4111-8111-111111111111")
         content_items_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_stage_error_log(
                 op_id=op_id,
                 stage="llm_extraction",
@@ -454,7 +453,7 @@ class TestEmitStageErrorLog:
         # PII redaction policy: never emit unbounded error messages — provider
         # 5xx responses can include user-provided payload echoes.
         long_msg = "x" * 500
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_stage_error_log(
                 op_id=uuid.uuid4(),
                 stage="llm_extraction",
@@ -476,7 +475,7 @@ class TestEmitStageErrorLog:
             "extraction failed for record "
             "33333333-3333-4333-8333-333333333333 — please retry"
         )
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_stage_error_log(
                 op_id=uuid.uuid4(),
                 stage="llm_extraction",
@@ -495,7 +494,7 @@ class TestEmitStageErrorLog:
         # source-walk failure), there is no content_items_id yet. The
         # field must still appear in the payload (Inv-26 contract) but
         # encoded as JSON null.
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_stage_error_log(
                 op_id=uuid.uuid4(),
                 stage="source_walk",
@@ -512,7 +511,7 @@ class TestEmitStageErrorLog:
         # Cloud Run picks JSON-formatted log lines into jsonPayload
         # automatically (Inv-26 v1 substrate). Round-trip through
         # json.dumps + json.loads to assert the wire shape is honest.
-        with caplog.at_level(logging.ERROR, logger="cocoindex_pipeline.flow"):
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_stage_error_log(
                 op_id=uuid.uuid4(),
                 stage="embedding",
@@ -580,7 +579,7 @@ class TestPerRowUpsertAtomicity:
         row_ids = [uuid.uuid4() for _ in range(5)]
 
         with caplog.at_level(
-            logging.INFO, logger="cocoindex_pipeline.flow"
+            logging.INFO, logger="scripts.cocoindex_pipeline.flow"
         ):
             # Rows 1-4: cocoindex's per-row UPSERT completion would invoke
             # `_emit_upsert_log` (modulo the public-API-callback gap from
