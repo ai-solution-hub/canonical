@@ -260,8 +260,11 @@ class QAPair(BaseModel):
 class QAFormExtraction(_ExtractionBase):
     """The q_a_form variant (Q-EX2 PRODUCT inv 2).
 
-    Maps downstream to `q_a_extractions` (per QAPair) + `form_templates`
-    (per FormMetadata).
+    Maps downstream to `q_a_extractions` (per QAPair) only. The `form_metadata`
+    block is NOT persisted by this LLM variant — `form_templates` /
+    `form_template_fields` are written by the deterministic Path-B extractor
+    (`ExtractedForm`, ID-52); Inv-19 keeps Path A off the form tables.
+    (Reconciled S287 / bl-184(a).)
     """
 
     extraction_kind: Literal["q_a_form"] = "q_a_form"
