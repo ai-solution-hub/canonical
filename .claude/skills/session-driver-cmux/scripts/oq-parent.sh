@@ -323,6 +323,202 @@ oq_decide() {
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
+# oq_resolve_project_root
+#
+# Resolve the MAIN working-tree root even when CWD is inside a linked worktree.
+# Inlined here per the session-driver-cmux convention (ID-27 {27.6}/{27.7}); the
+# five sibling scripts (wait-for-fleet.sh, watch-fleet.sh, converse.sh,
+# stop-worker.sh, send-prompt.sh) each carry the same helper.  Prefixed `oq_` to
+# avoid clobbering a sourcing parent's own resolve_project_root.
+#
+# --git-common-dir points at <main>/.git for every linked worktree; its parent
+# is the canonical main root.  Falls back to --show-toplevel then pwd.
+# ──────────────────────────────────────────────────────────────────────────────
+oq_resolve_project_root() {
+    local common_dir
+    common_dir="$(git rev-parse --git-common-dir 2>/dev/null)" \
+        || { git rev-parse --show-toplevel 2>/dev/null || pwd -P; return; }
+    case "$common_dir" in
+        /*) ;;                                   # absolute
+        *) common_dir="$(pwd -P)/$common_dir" ;; # relative -> absolutise
+    esac
+    ( cd "$(dirname "$common_dir")" && pwd -P )
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# oq_scan_fleet [events_base]
+#
+# Parent-side fleet enumeration scan (OQ-INV-20, OQ-INV-23, OQ-INV-28, OQ-INV-30).
+# Stateless re-derivation of the open-awaiting set across every worker session
+# directory — identical for a fresh (just-relaunched, zero-memory) parent and a
+# long-lived one, because both compute the same set-difference over the same
+# on-disk records (OQ-INV-30).
+#
+# Events-base resolution (S281 ID-43 re-point amendment):
+#   events_base = $1 if supplied, else
+#                 ${KH_CMUX_EVENTS_DIR:-$(oq_resolve_project_root)/.claude/cmux-events}
+#   The base MUST be CWD-independent: deriving it from `git rev-parse
+#   --show-toplevel` resolves to whichever worktree the orchestrator's CWD sits
+#   inside and silently points at a non-existent events dir whenever the CWD has
+#   drifted into a worktree (the S277/S279 "events unreadable" regression).  The
+#   --git-common-dir-based oq_resolve_project_root + the KH_CMUX_EVENTS_DIR
+#   override (honoured by every sibling script) enumerate the MAIN repo's events
+#   tree regardless of the orchestrator's runtime CWD.
+#
+# Per-worker isolation (OQ-INV-28): each worker's OQs live under its own
+# <sid>/oq/ directory; cross-worker discovery is THIS scan enumerating sibling
+# <sid>/ dirs.  A worker's own oq_restart_classify (oq-worker.sh) never sees a
+# sibling's OQs — only the parent's sibling-dir scan does.
+#
+# Read discipline (OQ-INV-20):
+#   To answer "which workers are blocked", the scan reads ONLY each worker's
+#   <sid>/oq/oq-state.json (one small marker file) — never an OQ stream.  Only
+#   for a blocked worker does it then read that worker's questions/ to list the
+#   open-awaiting set in FIFO order (OQ-INV-23).
+#
+# Open-awaiting set (per blocked worker):
+#   {questions/*.json} − {decisions/*.json}, drop status:cancelled, filter to
+#   blocking:true, sorted by in-record seq (FIFO — OQ-INV-4/23).
+#
+# Output (stdout), deterministic (sid-sorted, then seq-sorted):
+#   BLOCKED <sid> <blocked_on>      — one per worker in awaiting-decision
+#   OPEN <sid> <oq_id>              — its open-awaiting blocking OQs, FIFO
+#   (workers in 'working', or with no oq-state.json, emit nothing.)
+#
+# Fail-closed (OQ-INV-27): an existing oq-state.json or question record that
+# fails integrity surfaces a channel error and returns non-zero — never a silent
+# skip.  A worker that simply never used the OQ channel (no oq-state.json) is
+# skipped cleanly (absence is not corruption).
+#
+# Exit codes:
+#   0 — scan complete (open-awaiting set printed; empty fleet prints nothing).
+#   1 — channel error (corrupt marker/question record, unreadable base).
+# ──────────────────────────────────────────────────────────────────────────────
+oq_scan_fleet() {
+    local events_base="${1:-}"
+    if [[ -z "$events_base" ]]; then
+        events_base="${KH_CMUX_EVENTS_DIR:-$(oq_resolve_project_root)/.claude/cmux-events}"
+    fi
+
+    python3 - "$events_base" "$_OQ_CANONICAL_PY" <<'PY'
+import json, os, subprocess, sys
+
+events_base  = sys.argv[1]
+canonical_py = sys.argv[2]
+
+
+def fail(msg):
+    print(f"channel error: oq_scan_fleet: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def list_records(dirpath):
+    """Sorted *.json paths excluding dotfiles — mirrors list_records in oq-core.sh."""
+    if not os.path.isdir(dirpath):
+        return []
+    entries = [
+        os.path.join(dirpath, e)
+        for e in os.listdir(dirpath)
+        if e.endswith(".json") and not e.startswith(".")
+    ]
+    return sorted(entries)
+
+
+def verify(filepath, record_type):
+    """Fail-closed integrity check via oq-canonical.py (OQ-INV-27)."""
+    try:
+        with open(filepath, "r", encoding="utf-8") as fh:
+            contents = fh.read()
+    except OSError as exc:
+        fail(f"cannot read {filepath!r} — {exc}")
+    result = subprocess.run(
+        [sys.executable, canonical_py, "verify", record_type],
+        input=contents,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
+        fail(f"corrupt {record_type} record: {filepath}")
+
+
+# An absent events base is an empty fleet, not an error (OQ-INV-30: stateless).
+if not os.path.isdir(events_base):
+    sys.exit(0)
+
+# Enumerate sibling session dirs deterministically (sid-sorted).
+for sid in sorted(os.listdir(events_base)):
+    sid_dir = os.path.join(events_base, sid)
+    if not os.path.isdir(sid_dir):
+        continue
+    oq_root = os.path.join(sid_dir, "oq")
+    state_file = os.path.join(oq_root, "oq-state.json")
+
+    # OQ-INV-20: read ONLY the marker to decide blocked-ness; no stream read here.
+    if not os.path.isfile(state_file):
+        # Worker never used the OQ channel (or is not blocked) — skip cleanly.
+        continue
+
+    verify(state_file, "state")
+    try:
+        with open(state_file, "r", encoding="utf-8") as fh:
+            state = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"cannot parse {state_file!r} — {exc}")
+
+    if state.get("lifecycle_state") != "awaiting-decision":
+        # Working worker — nothing to answer.
+        continue
+    blocked_on = state.get("blocked_on")
+    if not blocked_on:
+        fail(f"{state_file}: awaiting-decision with no blocked_on")
+
+    print(f"BLOCKED {sid} {blocked_on}")
+
+    # OQ-INV-23: only NOW read this blocked worker's questions/ for the FIFO list.
+    questions_dir = os.path.join(oq_root, "questions")
+    decisions_dir = os.path.join(oq_root, "decisions")
+
+    decided_ids = set()
+    for path in list_records(decisions_dir):
+        stem = os.path.splitext(os.path.basename(path))[0]
+        decided_ids.add(stem)
+
+    open_awaiting = []  # (seq, oq_id)
+    for path in list_records(questions_dir):
+        verify(path, "oq")
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, json.JSONDecodeError) as exc:
+            fail(f"cannot parse {path!r} — {exc}")
+
+        oq_id = rec.get("oq_id")
+        if not isinstance(oq_id, str):
+            fail(f"missing or non-string oq_id in {path!r}")
+
+        # Set-difference: drop decided.
+        if oq_id in decided_ids:
+            continue
+        # Drop cancelled (OQ-INV-13/23).
+        if rec.get("status") == "cancelled":
+            continue
+        # Filter to blocking:true — only blocking OQs make a worker awaiting-decision.
+        if rec.get("blocking") is not True:
+            continue
+
+        seq = rec.get("seq")
+        if not isinstance(seq, int):
+            fail(f"invalid seq in {path!r}: {seq!r}")
+        open_awaiting.append((seq, oq_id))
+
+    open_awaiting.sort(key=lambda t: t[0])
+    for _seq, oq_id in open_awaiting:
+        print(f"OPEN {sid} {oq_id}")
+PY
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
 # CLI dispatch guard — only fires when executed directly, not when sourced.
 # This allows tests to `source oq-parent.sh` and call functions directly.
 # ──────────────────────────────────────────────────────────────────────────────

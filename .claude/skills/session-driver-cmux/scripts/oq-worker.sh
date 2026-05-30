@@ -562,22 +562,192 @@ oq_check_decision() {
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
+# oq_restart_classify "$oq_root"
+#
+# Worker-side crash/restart re-derivation (OQ-INV-29, OQ-INV-32).  A relaunched
+# worker (same worker_id) re-classifies every OQ in its OWN oq/ directory purely
+# from disk, with NO parent involvement.  Pure function — it READS and reports,
+# it never re-runs the work that produced an OQ (OQ-INV-21) and never writes.
+#
+# Signature:
+#   oq_restart_classify <oq_root_dir>
+#
+# Classification (per questions/<oq_id>.json, sorted by in-record seq — OQ-INV-4):
+#   status == "cancelled"                  -> RESOLVED   (cancelled, terminal)
+#   decisions/<oq_id>.json exists          -> DECIDED    (parent has answered)
+#   else                                   -> UNRESOLVED (still awaiting)
+#
+# Output (stdout): one line per OQ in seq order:
+#   RESOLVED <oq_id>
+#   DECIDED <oq_id>
+#   UNRESOLVED <oq_id>
+# Followed by exactly one resume directive derived from oq-state.json:
+#   RESUME_POLL <blocked_on>   — oq-state is awaiting-decision and blocked_on is
+#                                UNRESOLVED: the caller resumes oq_poll_decision
+#                                WITHOUT re-running the OQ-producing work, using
+#                                the persisted checkpoint_ref (OQ-INV-21).
+#   RESUME_APPLY <blocked_on>  — oq-state is awaiting-decision and the decision
+#                                ARRIVED during downtime (blocked_on is DECIDED):
+#                                the caller applies it (idempotent reset, OQ-INV-16/17).
+#   RESUME_NONE                — not awaiting-decision, or blocked_on is RESOLVED
+#                                (cancelled): nothing to resume.
+#
+# Per-worker isolation (OQ-INV-28): only this worker's own <oq_root> is read; a
+# sibling worker's OQs are never visible here.  Cross-worker discovery is the
+# parent's job (oq_scan_fleet in oq-parent.sh).
+#
+# Fail-closed (OQ-INV-27): every question, decision, and the state file is
+# verified before use.  A corrupt or schema-invalid record surfaces a channel
+# error on stderr and returns non-zero — it is never silently skipped, and the
+# classification does NOT advance past the bad record.
+#
+# Exit codes:
+#   0 — classification complete (resume directive printed).
+#   1 — channel error (corrupt record, unreadable dir, missing blocked_on target).
+# ──────────────────────────────────────────────────────────────────────────────
+oq_restart_classify() {
+    local oq_root_dir="${1:?oq_restart_classify: oq_root_dir argument is required}"
+
+    python3 - "$oq_root_dir" "$_OQ_CANONICAL_PY" <<'PY'
+import json, os, subprocess, sys
+
+oq_root      = sys.argv[1]
+canonical_py = sys.argv[2]
+
+questions_dir = os.path.join(oq_root, "questions")
+decisions_dir = os.path.join(oq_root, "decisions")
+state_file    = os.path.join(oq_root, "oq-state.json")
+
+
+def fail(msg):
+    print(f"channel error: oq_restart_classify: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def list_records(dirpath):
+    """Sorted *.json paths excluding dotfiles — mirrors list_records in oq-core.sh."""
+    if not os.path.isdir(dirpath):
+        return []
+    entries = [
+        os.path.join(dirpath, e)
+        for e in os.listdir(dirpath)
+        if e.endswith(".json") and not e.startswith(".")
+    ]
+    return sorted(entries)
+
+
+def verify(filepath, record_type):
+    """Fail-closed integrity check via oq-canonical.py (OQ-INV-27)."""
+    try:
+        with open(filepath, "r", encoding="utf-8") as fh:
+            contents = fh.read()
+    except OSError as exc:
+        fail(f"cannot read {filepath!r} — {exc}")
+    result = subprocess.run(
+        [sys.executable, canonical_py, "verify", record_type],
+        input=contents,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        # Surface the specific canonical-helper error, then fail closed.
+        sys.stderr.write(result.stderr)
+        fail(f"corrupt {record_type} record: {filepath}")
+
+
+# ── Classify every question in this worker's own directory (OQ-INV-28). ──
+# Collect (seq, oq_id, classification) so we can sort by seq (FIFO, OQ-INV-4).
+classified = []          # list of (seq, oq_id, state_label)
+state_by_id = {}         # oq_id -> RESOLVED | DECIDED | UNRESOLVED
+
+for path in list_records(questions_dir):
+    verify(path, "oq")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"cannot parse {path!r} — {exc}")
+
+    oq_id = rec.get("oq_id")
+    if not isinstance(oq_id, str):
+        fail(f"missing or non-string oq_id in {path!r}")
+    seq = rec.get("seq")
+    if not isinstance(seq, int):
+        fail(f"missing or non-integer seq in {path!r}")
+
+    if rec.get("status") == "cancelled":
+        label = "RESOLVED"
+    else:
+        decision_path = os.path.join(decisions_dir, f"{oq_id}.json")
+        if os.path.isfile(decision_path):
+            # A present decision must also be integrity-valid (fail-closed).
+            verify(decision_path, "decision")
+            label = "DECIDED"
+        else:
+            label = "UNRESOLVED"
+
+    classified.append((seq, oq_id, label))
+    state_by_id[oq_id] = label
+
+classified.sort(key=lambda t: t[0])
+for _seq, oq_id, label in classified:
+    print(f"{label} {oq_id}")
+
+# ── Derive the resume directive from oq-state.json (OQ-INV-21). ──
+if not os.path.isfile(state_file):
+    print("RESUME_NONE")
+    sys.exit(0)
+
+verify(state_file, "state")
+try:
+    with open(state_file, "r", encoding="utf-8") as fh:
+        state = json.load(fh)
+except (OSError, json.JSONDecodeError) as exc:
+    fail(f"cannot parse oq-state.json — {exc}")
+
+lifecycle = state.get("lifecycle_state")
+blocked_on = state.get("blocked_on")
+
+if lifecycle != "awaiting-decision" or not blocked_on:
+    # Not blocked (working) — nothing to resume.
+    print("RESUME_NONE")
+    sys.exit(0)
+
+label = state_by_id.get(blocked_on)
+if label is None:
+    # awaiting-decision points at an oq_id with no question on disk — corruption.
+    fail(f"oq-state blocked_on {blocked_on!r} has no matching question record")
+
+if label == "UNRESOLVED":
+    # Resume polling WITHOUT re-running the OQ-producing work (OQ-INV-21).
+    print(f"RESUME_POLL {blocked_on}")
+elif label == "DECIDED":
+    # The decision arrived during downtime — apply it (idempotent, OQ-INV-16/17).
+    print(f"RESUME_APPLY {blocked_on}")
+else:  # RESOLVED (cancelled)
+    print("RESUME_NONE")
+PY
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
 # CLI dispatch — guarded so sourcing this file does NOT auto-run the dispatcher.
 # Tests can call: bash oq-worker.sh oq_emit ...
 #                 bash oq-worker.sh oq_cancel ...
 #                 bash oq-worker.sh oq_poll_decision ...
 #                 bash oq-worker.sh oq_check_decision ...
+#                 bash oq-worker.sh oq_restart_classify ...
 # ──────────────────────────────────────────────────────────────────────────────
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    cmd="${1:?oq-worker.sh: command argument required (oq_emit | oq_cancel | oq_poll_decision | oq_check_decision)}"
+    cmd="${1:?oq-worker.sh: command argument required (oq_emit | oq_cancel | oq_poll_decision | oq_check_decision | oq_restart_classify)}"
     shift
     case "$cmd" in
-        oq_emit)           oq_emit "$@" ;;
-        oq_cancel)         oq_cancel "$@" ;;
-        oq_poll_decision)  oq_poll_decision "$@" ;;
-        oq_check_decision) oq_check_decision "$@" ;;
+        oq_emit)             oq_emit "$@" ;;
+        oq_cancel)           oq_cancel "$@" ;;
+        oq_poll_decision)    oq_poll_decision "$@" ;;
+        oq_check_decision)   oq_check_decision "$@" ;;
+        oq_restart_classify) oq_restart_classify "$@" ;;
         *)
-            echo "channel error: oq-worker.sh: unknown command — expected oq_emit, oq_cancel, oq_poll_decision, or oq_check_decision" >&2
+            echo "channel error: oq-worker.sh: unknown command — expected oq_emit, oq_cancel, oq_poll_decision, oq_check_decision, or oq_restart_classify" >&2
             exit 1
             ;;
     esac
