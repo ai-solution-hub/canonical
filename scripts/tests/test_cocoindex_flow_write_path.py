@@ -266,6 +266,138 @@ class TestIngestFileWritePath:
         assert callable(flow.ingest_file)
 
 
+class TestIngestFileStageCounters:
+    """ID-55.2 — ``ingest_file`` bumps the per-flow stage counter for the four
+    stages that were previously stuck at 0 in production (source_walk /
+    binary_conversion / llm_extraction / postgres_upsert), via the same
+    ``bind_stage_counter`` substrate ``embedding`` already used.
+
+    Drives one real ``ingest_file`` invocation under a bound
+    ``_FlowStageCounter`` and asserts each stage incremented by its per-item
+    contract. Targets are the same ``_FakeTarget`` doubles the write-path tests
+    use — no DB, no cocoindex engine.
+    """
+
+    def test_four_stage_counters_increment_per_item(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        from cocoindex_pipeline.flow_context import (
+            bind_flow_meta,
+            bind_stage_counter,
+        )
+
+        markdown = "# Heading\n\nHello world body text."
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+            }
+
+        async def _fake_qa(content_text: str):
+            return {
+                "qa_pairs": [
+                    {"question_text": "What is X?", "answer_text": "X is Y."}
+                ]
+            }
+
+        async def _fake_entities(content_text: str):
+            return []  # zero entity rows — em declare_row loop does not run
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+        src = tmp_path / "doc-one.md"
+        src.write_text(markdown)
+        fake_file = _FakeFile(src)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        # The production per-flow counter (NOT a stub) so we exercise the real
+        # `_FlowStageCounter.increment(stage)` substrate `app_main` folds.
+        counter = flow._FlowStageCounter()
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                async with bind_stage_counter(counter):
+                    await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
+
+        asyncio.run(_exercise())
+
+        # source_walk / binary_conversion: one per item.
+        assert counter.get("source_walk") == 1
+        assert counter.get("binary_conversion") == 1
+        # llm_extraction: the classification + qa_form + entity_mentions trio.
+        assert counter.get("llm_extraction") == 3
+        # embedding: unchanged contract (one vector per content row).
+        assert counter.get("embedding") == 1
+        # postgres_upsert: one per declare_row — sd + ci + one qa_pair row
+        # (zero entity rows, Path B inactive: no manifest bound).
+        assert counter.get("postgres_upsert") == 3
+
+    def test_stage_counters_are_a_silent_noop_without_a_binding(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No `bind_stage_counter` block → `ingest_file` still declares rows;
+        only the observability bumps are skipped (graceful degradation)."""
+        flow = _flow_module()
+        from cocoindex_pipeline.flow_context import bind_flow_meta
+
+        markdown = "# H\n\nbody"
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _fake_entities(content_text: str):
+            return []
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+        src = tmp_path / "doc.md"
+        src.write_text(markdown)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            # NO bind_stage_counter — `_bump` must be a no-op.
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
+
+        asyncio.run(_exercise())  # must not raise
+
+        assert len(sd.rows) == 1 and len(ci.rows) == 1
+
+
 # ── 28.21 — mount_each → ingest_file arity contract (regression guard) ────────
 
 

@@ -1112,6 +1112,26 @@ async def ingest_file(
         )
     op_id = meta.op_id
 
+    # Inv-17 stage observability (ID-55.2): resolve the per-flow stage counter
+    # `app_main` binds via `bind_stage_counter`, then bump it as each stage
+    # produces output for THIS item. `app_main` folds the counter into
+    # `stage_counts` at flow end (mirrors the embedding/entity_resolution folds).
+    # Resolved through flow's OWN package namespace so the bump writes to the
+    # SAME ContextVar `app_main` bound (dual-import-path hazard — same rationale
+    # as `current_flow_meta` above). When no counter is bound (unit tests outside
+    # the binding) `_bump` is a silent no-op — the row still lands; only
+    # observability is skipped (graceful-degradation contract shared with the
+    # retry counter). Before ID-55.2 only `embedding` (+ Stage-5
+    # `entity_resolution`) was wired, so `stage_counts` for source_walk /
+    # binary_conversion / llm_extraction / postgres_upsert read a permanent 0 in
+    # production despite real per-item activity.
+    stage_counter = flow_context_module.current_stage_counter()
+
+    def _bump(stage: str, times: int = 1) -> None:
+        if stage_counter is not None:
+            for _ in range(times):
+                stage_counter.increment(stage)
+
     # Stable per-document path identity, derived FROM the `File` (NOT a phantom
     # param). `mount_each` passes only the item VALUE (the `File`) to `fn`; the
     # (key,value) key — the relative-path string from `walk_dir().items()` — is
@@ -1121,9 +1141,13 @@ async def ingest_file(
     # `.as_posix()` gives the stable string used as the storage_path and the
     # seed of the deterministic per-file UUIDs below.
     rel_path = file.file_path.path.as_posix()
+    # Inv-17: one source item walked + handed to this component per invocation.
+    _bump("source_walk")
 
     # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
     content_text = await convert_binary_to_markdown(file)
+    # Inv-17: one binary→markdown conversion completed for this item.
+    _bump("binary_conversion")
 
     # ── Stage 6 prep: pullmd provenance fan-out (ID-42.9, TECH §WP-E) ────────
     # Resolved via the SEPARATE provenance helper (NOT convert_binary_to_markdown,
@@ -1139,6 +1163,10 @@ async def ingest_file(
     # mentions are declared into `em_target` in the Stage-6 declare-rows block
     # below (AFTER content_item_id / rel_path are computed) — ID-53.11 §P-3.
     entity_mentions = await extract_entity_mentions(content_text)
+    # Inv-17: three Path-A LLM extraction passes ran for this content row
+    # (classification + qa_form + entity_mentions) — mirrors the per-pass
+    # semantic of `_record_extraction_success` (ID-28.16): +3 per row.
+    _bump("llm_extraction", times=3)
 
     # ── Stage 6: declare rows (managed_by=USER row-level upserts) ───────────
     # Deterministic per-DOCUMENT UUIDs seeded on the FIXED namespace + rel_path
@@ -1166,6 +1194,7 @@ async def ingest_file(
             "pullmd_share_id": provenance.pullmd_share_id,
         }
     )
+    _bump("postgres_upsert")  # Inv-17: source_documents row upsert
 
     # ── Stage 4: embedding (text-embedding-3-large → vector(1024), ID-49.2) ──
     # Computed imperatively from the Stage-2 content_text (see embed_content_text
@@ -1188,19 +1217,12 @@ async def ingest_file(
             "primary_subtopic": _field(classification, "primary_subtopic"),
         }
     )
-    # Inv-17: bump the flow-scope embedding stage counter so
-    # `stage_counts["embedding"]` surfaces truthfully in the flow-end webhook
-    # (the gap inherited from ID-49.2 — the counter was initialised to 0 and
-    # never incremented). Resolved via flow's OWN package namespace
-    # (`flow_context_module`, bound at the top of ingest_file) so the bump
-    # writes to the SAME ContextVar `app_main` bound under `bind_stage_counter`
-    # (dual-import-path hazard — same rationale as current_flow_meta). When no
-    # counter is bound (unit tests outside the binding), the bump is silently
-    # skipped — the embedding still lands, only observability is omitted (same
-    # graceful-degradation contract as the retry counter).
-    stage_counter = flow_context_module.current_stage_counter()
-    if stage_counter is not None:
-        stage_counter.increment("embedding")
+    _bump("postgres_upsert")  # Inv-17: content_items row upsert
+    # Inv-17: one embedding vector produced for this content row (the gap
+    # inherited from ID-49.2 — the counter was initialised to 0 and never
+    # incremented; ID-49.4 closed it for embedding, ID-55.2 generalises the
+    # substrate to the remaining stages via `_bump`).
+    _bump("embedding")
 
     content_type = _field(classification, "content_type")
     qa_pairs = _field(qa_form, "qa_pairs", []) or []
@@ -1220,6 +1242,7 @@ async def ingest_file(
                 "op_id": op_id,
             }
         )
+        _bump("postgres_upsert")  # Inv-17: one q_a_extractions row upsert
 
     # ── Stage 5 substrate: entity_mentions rows (ID-53.11 §P-3) ──────────────
     # Each EntityMentionExtraction the LLM returned becomes one entity_mentions
@@ -1253,6 +1276,7 @@ async def ingest_file(
                 "op_id": op_id,
             }
         )
+        _bump("postgres_upsert")  # Inv-17: one entity_mentions row upsert
 
     # ── ID-52 Path B: pipeline-owned form-template write (TECH §2.5) ─────────
     # This block is ADDITIVE and LAST in the body. It runs ONLY when a workspace
@@ -1335,6 +1359,7 @@ async def ingest_file(
                 "evaluation_methodology": None,
             }
         )
+        _bump("postgres_upsert")  # Inv-17: form_templates row upsert (analysis_failed)
         return
 
     if extracted is None:
@@ -1403,6 +1428,7 @@ async def ingest_file(
             "evaluation_methodology": form_metadata.evaluation_methodology,
         }
     )
+    _bump("postgres_upsert")  # Inv-17: form_templates row upsert (analysed)
 
     # TECH §2.8 (Inv-16 shrink): trim stale field rows from a previous LARGER
     # ingest BEFORE declaring the new field rows. A second ingest that produces
@@ -1442,6 +1468,7 @@ async def ingest_file(
                 "reference_urls": field.reference_urls,
             }
         )
+        _bump("postgres_upsert")  # Inv-17: one form_template_fields row upsert
 
 
 async def _trim_stale_form_fields(
@@ -1800,13 +1827,34 @@ async def app_main() -> None:
         stage_counts["entity_resolution"] = flow_stage_counter.get(
             "entity_resolution"
         )
+        # Inv-17 (ID-55.2): fold the remaining four flow-scope stage counters —
+        # bumped per-item inside `ingest_file` via `_bump(...)` under the
+        # `bind_stage_counter` scope above — back into `stage_counts`. Before
+        # ID-55.2 these read a permanent 0 in production despite real per-item
+        # activity (only embedding + entity_resolution were wired). Done in
+        # `finally`, mirroring the two folds above, so a partial-run failure
+        # still reports the stage outputs that DID land before it.
+        stage_counts["source_walk"] = flow_stage_counter.get("source_walk")
+        stage_counts["binary_conversion"] = flow_stage_counter.get(
+            "binary_conversion"
+        )
+        stage_counts["llm_extraction"] = flow_stage_counter.get("llm_extraction")
+        stage_counts["postgres_upsert"] = flow_stage_counter.get("postgres_upsert")
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
+        #
+        # `items_processed` = source files walked + handed to `ingest_file`
+        # (one `_bump("source_walk")` per item) — the intuitive "documents
+        # processed" count. ID-55.2 deliberately moves OFF the prior
+        # `sum(stage_counts.values())`: now that all six stages carry real
+        # per-item counts, that sum would inflate ~6x (source_walk +
+        # binary_conversion + 3x llm_extraction + embedding + N postgres_upsert
+        # per doc) and silently change the magnitude/meaning of the column.
         await _emit_pipeline_run_webhook(
             op_id=run_op_id,
             status=flow_status,
             stage_counts=stage_counts,
-            items_processed=sum(stage_counts.values()) or 0,
+            items_processed=stage_counts["source_walk"],
             items_created=items_created,
             error_message=flow_error_message,
             error_class=flow_error_class,
