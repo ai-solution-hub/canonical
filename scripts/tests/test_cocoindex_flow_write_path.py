@@ -539,32 +539,43 @@ class TestMountEachArityContract:
         assert len({r["id"] for r in ci.rows}) == 2
 
     def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
-        """``ingest_file`` accepts exactly (file, ci, qa, sd, em, ft, ftf).
+        """``ingest_file`` accepts (file, ci, qa, sd, em, ft, ftf, cc=None).
 
         Inspecting the signature directly pins the arity contract: the leading
-        parameter is the File item value, followed by the six target extra args
-        — and there is NO leading ``rel_path`` parameter (the original blocker).
+        parameter is the File item value, followed by the seven target extra
+        args — and there is NO leading ``rel_path`` parameter (the original
+        blocker).
 
         ID-52.12 extended the arity from five to seven: ``ft_target`` /
         ``ftf_target`` (the ``form_templates`` / ``form_template_fields``
         Path-B write targets) follow ``em_target`` positionally, matching the
         ``coco.mount_each`` extra-arg order in ``app_main``.
+
+        ID-56.8 extended it to eight: ``cc_target`` (the ``content_chunks``
+        chunk-row UPSERT target) is appended as a DEFAULTED 8th positional
+        (``cc_target=None``) so the existing 7-arg callers stay valid while
+        ``app_main`` always supplies it via ``mount_each``.
         """
         flow = _flow_module()
 
-        params = list(inspect.signature(flow.ingest_file).parameters)
+        sig = inspect.signature(flow.ingest_file)
+        params = list(sig.parameters)
         assert params[0] != "rel_path", (
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First param is the File item value; remaining six are the targets.
-        assert len(params) == 7, (
-            f"ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf); "
+        # First param is the File item value; remaining seven are the targets.
+        assert len(params) == 8, (
+            f"ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf, cc); "
             f"got {params}"
         )
-        assert params[-2:] == ["ft_target", "ftf_target"], (
-            "the last two extra args must be ft_target then ftf_target "
-            f"(TECH §2.5 positional order); got {params}"
+        assert params[-3:] == ["ft_target", "ftf_target", "cc_target"], (
+            "the last three extra args must be ft_target, ftf_target, cc_target "
+            f"(positional order); got {params}"
+        )
+        # cc_target is DEFAULTED to None so 7-arg legacy callers stay valid.
+        assert sig.parameters["cc_target"].default is None, (
+            "cc_target must default to None (the 7-arg callers omit it)"
         )
 
 

@@ -440,8 +440,10 @@ class _FlowStageCounter:
     no shared state. Thread-safety is not required: cocoindex @coco.fn
     execution is sequential per content row.
 
-    At v1 the only wired stage is `"embedding"` (Inv-17 gap closure inherited
-    from ID-49.2). Keys are the canonical stage names from
+    At v1 the wired stages are `"embedding"` (Inv-17 gap closure inherited from
+    ID-49.2), `"entity_resolution"` (Inv-11 Stage-5 elevation, ID-53.14), and
+    `"chunking"` (Inv-11 elevation, ID-56.8 — bumped once per declared
+    content_chunks row). Keys are the canonical stage names from
     `_empty_stage_counts()`; an unbumped stage reads back as 0.
     """
 
@@ -514,11 +516,12 @@ KH_CANONICAL_PIPELINE_NAME = "kh_canonical_pipeline"
 
 
 def _empty_stage_counts() -> dict[str, int]:
-    """Return the canonical six-stage counter map initialised to zero.
+    """Return the canonical seven-stage counter map initialised to zero.
 
-    The six stages mirror the canonical pipeline topology per
-    `02-data-flow.md` §3.1. The webhook route (`POST
-    /api/internal/pipeline-runs/record`) enforces ALL six keys via Zod, so
+    The stages mirror the canonical pipeline topology per `02-data-flow.md`
+    §3.1, extended by the ID-56.8 `"chunking"` stage (the cocoindex
+    RecursiveSplitter chunk-row writer). The webhook route (`POST
+    /api/internal/pipeline-runs/record`) enforces ALL seven keys via Zod, so
     every emission MUST supply the full map (even zeros).
     """
     return {
@@ -527,6 +530,7 @@ def _empty_stage_counts() -> dict[str, int]:
         "llm_extraction": 0,
         "embedding": 0,
         "entity_resolution": 0,
+        "chunking": 0,
         "postgres_upsert": 0,
     }
 
@@ -881,6 +885,49 @@ ENTITY_MENTIONS_SCHEMA = TableSchema(
 )
 
 
+# ── ID-56 chunking stage (PRODUCT C-10..C-13, C-21, C-30, C-31) ──────────────
+# Variant-B chunk config, Liam-ratified {56.5} (RecursiveSplitter byte budgets).
+# chunk_size is in BYTES; min_chunk_size defaults to chunk_size/2 but is passed
+# EXPLICITLY for self-documentation.
+CHUNK_SIZE_BYTES = 2000
+CHUNK_OVERLAP_BYTES = 200
+CHUNK_MIN_SIZE_BYTES = 1000
+
+# `content_chunks` row-level UPSERT target schema (PRODUCT C-13). Only the
+# columns the pipeline writes are declared — mirrors the CONTENT_ITEMS_SCHEMA
+# style and reuses `_encode_pgvector` for the embedding vector. The
+# heading-derived columns (`heading_text` / `heading_level` / `heading_path` /
+# `parent_chunk_id`) plus the auto columns (`created_at` / `updated_at`) are
+# DELIBERATELY ABSENT: under RecursiveSplitter's budget-driven split no
+# heading-derived value exists to stamp (PRODUCT C-13 + [GAP-CMI-004]
+# disposition (a) — keep-nullable until {56.14}/{56.15}). Omitting them from
+# the schema + the row dict means the 3 nullable columns resolve to NULL and
+# `heading_path` resolves to its DB default `'{}'::text[]` (NOT NULL). This is
+# the same OMIT mechanism the schemas above use for `content_text_hash`
+# (GENERATED ALWAYS) and the entity_mentions PG-defaulted columns.
+CONTENT_CHUNKS_SCHEMA = TableSchema(
+    columns={
+        "id": ColumnDef(type="uuid", nullable=False),
+        "content_item_id": ColumnDef(type="uuid", nullable=False),
+        "content": ColumnDef(type="text", nullable=False),
+        # `position` / `char_count` / `word_count` are smallint/integer columns;
+        # declared `integer` (no smallint ColumnDef precedent in this module) —
+        # values are well within int range and PG implicitly casts int4→int2 on
+        # INSERT for the smallint `position` column.
+        "position": ColumnDef(type="integer", nullable=False),
+        "char_count": ColumnDef(type="integer", nullable=False),
+        "word_count": ColumnDef(type="integer", nullable=False),
+        "embedding": ColumnDef(
+            type="vector(1024)",
+            nullable=True,
+            encoder=_encode_pgvector,
+        ),
+        "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow ({56.6})
+    },
+    primary_key=("id",),
+)
+
+
 # ── ID-52 Path B form-extraction substrate (TECH §2.5) ───────────────────────
 
 # Pipeline service-account user id (CLAUDE.md gotcha: NEVER a literal string in
@@ -1058,6 +1105,7 @@ async def ingest_file(
     em_target: Any,
     ft_target: Any,
     ftf_target: Any,
+    cc_target: Any = None,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
 
@@ -1077,6 +1125,13 @@ async def ingest_file(
     at the end of the body declares onto them ONLY for form-bearing files that
     resolve to a workspace and extract successfully (TECH §2.5); markdown /
     content files leave both untouched.
+
+    `cc_target` (ID-56.8) is the `content_chunks` chunk-row UPSERT target. It is
+    a DEFAULTED 8th positional (defaults to None) so the 7-arg legacy callers
+    stay valid: when None, the budget-driven chunking block is skipped entirely.
+    When supplied, the chunking block runs AFTER the parent `content_items`
+    declare (FK safety + memo cascade) and declares one `content_chunks` row per
+    RecursiveSplitter chunk (PRODUCT C-10..C-13).
 
     This is the reactive 1.0.3 write path proven in RESEARCH.md §R2/§R3 — the
     per-MIME conversion (Stage 2, P-3) and Path A extraction (Stage 3) run as
@@ -1223,6 +1278,67 @@ async def ingest_file(
     # incremented; ID-49.4 closed it for embedding, ID-55.2 generalises the
     # substrate to the remaining stages via `_bump`).
     _bump("embedding")
+
+    # ── ID-56.8: chunking stage (RecursiveSplitter → content_chunks) ─────────
+    # Runs AFTER the parent content_items declare so the FK is satisfiable and
+    # the memo cascade is correct (TECH §2.7): chunking lives inside this same
+    # @coco.fn(memo=True) body, so an unchanged-bytes re-ingest skips the whole
+    # ingest_file component → no re-chunk, op_id retained (PRODUCT C-31). Gated
+    # on `cc_target is not None` so the 7-arg legacy callers skip it.
+    # Variant-B byte budgets (Liam-ratified {56.5}); min_chunk_size passed
+    # EXPLICITLY though it equals the chunk_size/2 default. RecursiveSplitter is
+    # the cocoindex-native splitter (cocoindex.functions.SplitRecursively is
+    # ABSENT in 1.0.3 — V-1 trap). Each chunk's `.text` is the chunk string;
+    # `.start`/`.end` are TextPosition objects (char_offset/byte_offset) — not
+    # used here, the budget split needs only the text.
+    if cc_target is not None:
+        # Lazy import: `cocoindex.ops.text` is a real submodule of the installed
+        # package, but the deterministic flow-import test harnesses stub the
+        # `cocoindex` parent as a bare MagicMock (not a package), so a module-top
+        # `from cocoindex.ops.text import RecursiveSplitter` would raise
+        # ModuleNotFoundError under those stubs. Importing inside the chunking
+        # block (only reached when a real cc_target is supplied) keeps the 7-arg
+        # legacy callers — which pass cc_target=None and never enter here —
+        # import-clean, mirroring the in-body `import_module` idiom used above
+        # for flow_context.
+        from cocoindex.ops.text import RecursiveSplitter
+
+        splitter = RecursiveSplitter()
+        chunks = splitter.split(
+            content_text,
+            CHUNK_SIZE_BYTES,
+            chunk_overlap=CHUNK_OVERLAP_BYTES,
+            min_chunk_size=CHUNK_MIN_SIZE_BYTES,
+        )
+        for position, chunk in enumerate(chunks):
+            chunk_embedding = await embed_content_text(chunk.text)
+            cc_target.declare_row(
+                row={
+                    # Deterministic per-(document,position) PK so a re-ingest
+                    # UPSERTs the same rows (idempotency — mirrors ftf:/em: idiom).
+                    "id": uuid.uuid5(
+                        _KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
+                    ),
+                    "content_item_id": content_item_id,
+                    "content": chunk.text,
+                    "position": position,
+                    "char_count": len(chunk.text),
+                    "word_count": len(chunk.text.split()),
+                    "embedding": chunk_embedding,
+                    "op_id": op_id,
+                    # heading_text / heading_level / heading_path /
+                    # parent_chunk_id OMITTED ([GAP-CMI-004] disposition (a),
+                    # PRODUCT C-13): budget split preserves no semantic heading
+                    # boundary. → NULL for the 3 nullable cols; heading_path →
+                    # DB default '{}'. Kept nullable until {56.14}/{56.15}.
+                }
+            )
+            # Inv-11 (ID-56.8): one content_chunks row declared for this item.
+            # `_bump` is the local helper (no-op when no stage counter bound),
+            # matching the surrounding embedding/postgres_upsert bumps — the
+            # ID-63 refactor replaced the original explicit `stage_counter.
+            # increment(...)` guard with this helper.
+            _bump("chunking")
 
     content_type = _field(classification, "content_type")
     qa_pairs = _field(qa_form, "qa_pairs", []) or []
@@ -1656,6 +1772,15 @@ async def app_main() -> None:
             FORM_TEMPLATE_FIELDS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
+        # ID-56.8 (PRODUCT C-10..C-13). content_chunks chunk-row UPSERT target.
+        # managed_by=ManagedBy.USER: cocoindex UPSERTs rows only — the table +
+        # the {56.6} op_id column already exist on staging; NO DDL here.
+        cc_target = await mount_table_target(
+            DB_CTX,
+            "content_chunks",
+            CONTENT_CHUNKS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
 
         # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
         # recursive=True required — default is False (CLAUDE.md gotcha).
@@ -1704,6 +1829,7 @@ async def app_main() -> None:
                                 em_target,
                                 ft_target,
                                 ftf_target,
+                                cc_target,
                             )
                             # Wait until every per-item component has processed
                             # (cold run) so the rollup webhook below reflects a
@@ -1827,6 +1953,12 @@ async def app_main() -> None:
         stage_counts["entity_resolution"] = flow_stage_counter.get(
             "entity_resolution"
         )
+        # Inv-11 (ID-56.8): fold the flow-scope chunking counter back into
+        # `stage_counts["chunking"]` (mirror of the embedding / entity_resolution
+        # lines). The counter was bumped once per declared content_chunks row
+        # inside the chunking block of `ingest_file`; done in `finally` so
+        # partial-run failures still report the chunk rows that DID land.
+        stage_counts["chunking"] = flow_stage_counter.get("chunking")
         # Inv-17 (ID-55.2): fold the remaining four flow-scope stage counters —
         # bumped per-item inside `ingest_file` via `_bump(...)` under the
         # `bind_stage_counter` scope above — back into `stage_counts`. Before
