@@ -1,41 +1,31 @@
-# Cloud Native Buildpacks project descriptor.
+# Cloud Native Buildpacks project descriptor — WHITELIST the buildpack build context.
 #
-# Build-context exclusions for `pack build` (the {66.7} onprem-deploy.yml GH Action,
-# and any other buildpack build). The off-host workflow runs `pack build` from a full
-# `actions/checkout` of the repo. Unlike the retired Cloud Run path
-# (`gcloud builds submit`, which filtered the upload via `.gcloudignore`), `pack` does
-# NOT honour `.gcloudignore` — so without this descriptor the buildpack bakes the
-# ENTIRE repo (incl. `docs/` + `.planning/` — proprietary historical context and
-# client-specific documentation — and `.claude/`) into the published image layers.
+# The {66.7} onprem-deploy.yml GH Action builds the cocoindex image with `pack build`
+# from a full `actions/checkout`. `pack` does NOT honour `.gcloudignore` (gcloud-only),
+# so without this descriptor the buildpack bakes the ENTIRE git checkout — the whole
+# Next.js app (app/, components/, lib/, hooks/, contexts/, supabase/, types/), docs/,
+# docs-site/, .planning/ (proprietary historical context + client documentation) — into
+# a published, soon-to-be-PUBLIC image.
 #
-# Empirically: the first GH-built image was 6.31 GB (over the 5.3 GB budget); the
-# clean Cloud Run image was within it. These excludes mirror `.gcloudignore` so the
-# off-host buildpack image matches the clean Cloud Run image — only Python sources +
-# requirements.txt reach it. This both slims the image AND protects client IP from
-# landing in a registry artefact (see roadmap theme 12 — repo-public investigation).
+# The cocoindex pipeline image needs ONLY the Python pipeline + its deps:
+#   - scripts/         the pipeline (scripts/cocoindex_pipeline/**) + the runtime taxonomy
+#                      fixture scripts/tests/fixtures/taxonomy_snapshot.json
+#   - requirements.txt buildpack detect + pip deps (all PyPI; no editable/local installs)
 #
-# NOTE: `scripts/tests/` is deliberately NOT excluded — the pipeline reads its taxonomy
-# from `scripts/tests/fixtures/taxonomy_snapshot.json` at runtime (only the root-level
-# `__tests__/` Vitest dir is excluded). Keep this in sync with `.gcloudignore`.
+# Verified safe to whitelist: requirements.txt has no `-e .`/local-path installs, and
+# scripts/ imports nothing from the TS app dirs. pyproject.toml is pytest-only (no
+# [build-system]) → not needed at build or runtime, so it is intentionally NOT shipped.
+#
+# Result: the published image carries no app source, no docs, no docs-site, no .planning,
+# no client documentation. NOTE: the image stays ~6 GB — that is the Docling/ML footprint,
+# NOT source; the 5.3 GB image-size warning is benign (warn-only, T-OQ4). See roadmap
+# theme 12 (repo-public investigation). Gitignored dirs (.gitnexus index, .cache,
+# .cocoindex_code, node_modules, .next) are absent from the checkout and never baked.
 [_]
 schema-version = "0.2"
 
 [io.buildpacks]
-exclude = [
-  ".git/",
-  ".gitignore",
-  "node_modules/",
-  ".next/",
-  "mcp-apps/dist/",
-  "coverage/",
-  "out/",
-  "e2e/",
-  "__tests__/",
-  "docs/",
-  ".planning/",
-  ".claude/",
-  ".env",
-  ".env.local",
-  "*.log",
-  ".DS_Store",
+include = [
+  "scripts/",
+  "requirements.txt",
 ]
