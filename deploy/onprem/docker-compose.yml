@@ -49,6 +49,12 @@ services:
   cocoindex:
     image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
     restart: unless-stopped
+    # Run as root: buildpack images run as uid 1000 (cnb), but a fresh Docker named-volume
+    # mount is root-owned, so the non-root user hits "Permission denied (os error 13)"
+    # initialising the LMDB engine store at /cocoindex-state/lmdb ({66.9}). root resolves
+    # it durably for this single-tenant backend pipeline sidecar (no untrusted code exec).
+    # (Verified on first deploy: uid 1000 could not write the root-owned volume mount.)
+    user: "0:0"
     environment:
       # --- Compose-alias repoint (OQ-66-2): env-only, NO source change to adapters.py ---
       # http://pullmd:3000 is the host-local compose service alias.  This is the
@@ -107,12 +113,13 @@ services:
       # The named volume stub below keeps this compose file syntactically valid.
       - cocoindex-state:/cocoindex-state
 
-    # /health healthcheck — kept for container-restart purposes ONLY.
-    # This is explicitly NOT the datapath signal (that is {66.15}, which watches
-    # pipeline_runs row arrival in Supabase — not container liveness).
-    # Green /health means the container is alive, NOT that the pipeline is ingesting.
+    # Liveness healthcheck — container-restart purposes ONLY; explicitly NOT the datapath
+    # signal ({66.15} watches pipeline_runs row arrival in Supabase, not container liveness).
+    # The buildpack image ships NO curl/wget and python is not on the exec PATH, so we probe
+    # the HTTP wrapper's port via bash /dev/tcp (path-independent, no external deps). {66.8}
+    # — the original curl test produced a false "unhealthy" on the buildpack image.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
       interval: 30s
       timeout: 10s
       retries: 3
