@@ -85,11 +85,24 @@ jobs:
           cloudbuild-cocoindex.yaml)
         run: |
           set -euo pipefail
+          # IMAGE HYGIENE (IP + slim): the cocoindex image must ship ONLY the Python
+          # pipeline + its deps — never the Next.js app, docs/, .planning/ (client IP),
+          # docs-site, .claude, or tests. pack does NOT reliably honour .gcloudignore or
+          # project.toml include/exclude (a whitelist attempt still leaked
+          # .claude / docs-site / __tests__ into /workspace), so we build from an
+          # EXPLICITLY PRUNED context containing nothing but scripts/ + requirements.txt.
+          # This is the authoritative mechanism — verify with `ls /workspace` on the
+          # pulled image (expect: scripts requirements.txt only).
+          CTX="$(mktemp -d)"
+          cp -R scripts "${CTX}/scripts"
+          cp requirements.txt "${CTX}/requirements.txt"
+          echo "Pruned build context:"; ls -A "${CTX}"
           # Same builder/env as cloudrun/cloudbuild-cocoindex.yaml. `-m` invocation
           # is load-bearing (FX-8): the buildpack runtime does not add /workspace
           # to sys.path on bare-script invocation, so `scripts.cocoindex_pipeline`
           # qualified imports need `python3 -m`.
           pack build "${IMAGE}:${TAG}" \
+            --path "${CTX}" \
             --builder gcr.io/buildpacks/builder:google-22 \
             --env "GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server" \
             --env "GOOGLE_RUNTIME=python" \
