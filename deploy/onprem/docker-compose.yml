@@ -80,8 +80,9 @@ services:
       # reservation avoids MDB_MAP_FULL once the pipeline runs at volume.
       # LMDB map size is a sparse virtual reservation, not a pre-allocation.
       # Was 256 MiB on Cloud Run (tmpfs-bounded); can be set larger on disk.
-      # Default matches Cloud Run; operator may increase via Coolify env.
-      COCOINDEX_LMDB_MAP_SIZE: ${COCOINDEX_LMDB_MAP_SIZE:-268435456}
+      # {66.9}: default bumped to 4 GiB for the disk-backed volume (TECH §2 sizing);
+      # operator may override via Coolify env. Sparse virtual reservation, not pre-alloc.
+      COCOINDEX_LMDB_MAP_SIZE: ${COCOINDEX_LMDB_MAP_SIZE:-4294967296}
 
       # --- Pipeline webhook (zero app change — env-only per TECH §7) ---
       # Best-effort POST; flow.py:_emit_pipeline_run_webhook reads from os.environ.
@@ -183,13 +184,20 @@ services:
 # ------------------------------------------------------------------------------
 # Volumes
 #
-# {66.9} owns the named-volume definitions, bind-mount paths, and backup wiring.
-# The stub below is a minimal declaration that keeps this compose file valid.
-# The full persistent-disk design (cocoindex LMDB state store + corpus mount on
-# the IONOS NVMe, mdb_copy→S3 backup) is implemented in {66.9} and {66.14}.
+# {66.9}: cocoindex engine LMDB state store (+ the corpus directory once the pipeline
+# is activated). A plain `local`-driver named volume is disk-backed on the host NVMe —
+# Docker stores named volumes under /var/lib/docker/volumes, which sits on the 480 GB
+# `/` NVMe — satisfying inv 5 (disk-backed, NOT the Cloud Run in-RAM tmpfs/emptyDir)
+# and inv 6 (survives a `cocoindex` container restart without destroying the volume).
+# Coolify persists named volumes across redeploys but does NOT back them up natively
+# (OQ-66-4); the mdb_copy→S3 backup is {66.14}. LMDB loss costs a memo-rebuild only,
+# never KH data (inv 7 — Supabase is canonical).
+#
+# Mounted at /cocoindex-state (see the cocoindex service): the engine store lands at
+# /cocoindex-state/lmdb (COCOINDEX_DB); the corpus, once activated, goes in a subdir
+# set via COCOINDEX_SOURCE_PATH (TECH §2 — "the same volume can host the corpus
+# directory"), so no separate corpus volume is needed for B1.
 # ------------------------------------------------------------------------------
 volumes:
-  # {66.9} owns the named-volume definitions
   cocoindex-state:
-    # driver: local  # {66.9}: set driver + options (bind-mount to NVMe path)
-    # driver_opts:   # {66.9}: e.g. type: none, device: /data/cocoindex-state, o: bind
+    driver: local
