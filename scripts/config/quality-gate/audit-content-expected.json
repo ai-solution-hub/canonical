@@ -1,5 +1,5 @@
 {
-  "description": "Audit-content profile expectations — corpus-specific for example-client .docx bid library + Stage 2 audit markdown. Ranges calibrated from the NEW project 21/04/2026 baseline. See docs/specs/audit-content-quality-gate-spec.md.",
+  "description": "Audit-content profile expectations — corpus-specific for the client's .docx bid library + Stage 2 audit markdown. The {CLIENT_ORGANISATION_NAME} token in accept_any_of entries is resolved at load time from lib/client-config (CLIENT_CONFIG.entity_examples.organisation_name) so the client identity is not hardcoded here. Ranges calibrated from the NEW project 21/04/2026 baseline. See docs/specs/audit-content-quality-gate-spec.md.",
   "baseline_date": "2026-04-21",
   "baseline_project": "mgrmucazfiibsomdmndh",
   "file_groups": {
@@ -36,7 +36,7 @@
   "classification_confidence_min_ratio": 0.9,
   "required_entities": [
     {
-      "accept_any_of": ["advanced audit", "example-client advanced audit", "advanced audits"],
+      "accept_any_of": ["advanced audit", "advanced audits"],
       "entity_type": "product",
       "reason": "Client's flagship product"
     },
@@ -71,7 +71,7 @@
       "reason": "Referenced in every security Q&A"
     },
     {
-      "accept_any_of": ["Example Client Ltd"],
+      "accept_any_of": ["{CLIENT_ORGANISATION_NAME}"],
       "entity_type": "organisation",
       "reason": "The client itself must be extracted"
     }

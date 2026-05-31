@@ -1230,7 +1230,7 @@ async function loadAuditCorpusItems(
   // configured file_groups (not any q_a_pair with a source_file — that would
   // include other clients' imports) PLUS Stage 2 markdown items tagged
   // 'client-new-markdown-2026'. Verification finding M-1: tighten the
-  // isexample-clientDocx gate to use matchFileGroup so cross-client corpus leakage
+  // isClientDocx gate to use matchFileGroup so cross-client corpus leakage
   // cannot dilute audit-content metrics.
   const rows = await fetchAll(sb, 'content_items', (q) =>
     q.select(
@@ -1238,14 +1238,14 @@ async function loadAuditCorpusItems(
     ),
   );
   return (rows as any[]).filter((r) => {
-    const isexample-clientDocx =
+    const isClientDocx =
       (r.content_type as string) === 'q_a_pair' &&
       typeof r.source_file === 'string' &&
       matchFileGroup(r.source_file, auditContent.file_groups) !== null;
     const isStage2 =
       Array.isArray(r.user_tags) &&
       (r.user_tags as string[]).includes('client-new-markdown-2026');
-    return isexample-clientDocx || isStage2;
+    return isClientDocx || isStage2;
   });
 }
 
@@ -1407,14 +1407,25 @@ export async function audit_required_entities(
       const type = row.entity_type?.toLowerCase();
       if (name) foundByType.add(`${name}|${type}`);
     }
+    // Resolve the {CLIENT_ORGANISATION_NAME} placeholder in accept_any_of
+    // entries from client config, so the client identity is not hardcoded in
+    // the expectations JSON. Lazy import keeps the branding loader out of the
+    // CLI script's parse-time module graph.
+    const { CLIENT_CONFIG } = await import('@/lib/client-config');
+    const clientOrgName = CLIENT_CONFIG.entity_examples.organisation_name;
+    const resolveEntityToken = (n: string): string =>
+      n.replaceAll('{CLIENT_ORGANISATION_NAME}', clientOrgName);
+
     const missingRequired: string[] = [];
     for (const req of ctx.auditContent.required_entities) {
       const any = req.accept_any_of.some((n) =>
-        foundByType.has(`${n.toLowerCase()}|${req.entity_type.toLowerCase()}`),
+        foundByType.has(
+          `${resolveEntityToken(n).toLowerCase()}|${req.entity_type.toLowerCase()}`,
+        ),
       );
       if (!any) {
         missingRequired.push(
-          `${req.entity_type}:(${req.accept_any_of.join('|')})`,
+          `${req.entity_type}:(${req.accept_any_of.map(resolveEntityToken).join('|')})`,
         );
       }
     }
