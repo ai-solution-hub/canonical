@@ -155,7 +155,20 @@ class TestIngestFileAcceptsEmTarget:
 
     def test_ingest_file_signature_has_7_params(self) -> None:
         flow = _flow_module()
-        params = list(inspect.signature(flow.ingest_file).parameters)
+        # ID-66.19 appended keyword-only run-context params (flow_op_id + 4
+        # counters + manifest) after a bare `*` so app_main can thread them via
+        # functools.partial across the cocoindex daemon-thread boundary. Inspect
+        # the POSITIONAL slice for the unchanged mount_each arity contract.
+        sig = inspect.signature(flow.ingest_file)
+        params = [
+            name
+            for name, p in sig.parameters.items()
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
         assert params[0] != "rel_path", (
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn "
@@ -167,7 +180,8 @@ class TestIngestFileAcceptsEmTarget:
         # content_chunks chunk-row UPSERT target) is appended as a DEFAULTED 8th
         # positional so the prior 7-arg callers stay valid.
         assert len(params) == 8, (
-            "ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf, cc); "
+            "ingest_file positional params must be exactly "
+            "(file, ci, qa, sd, em, ft, ftf, cc); "
             f"got {params}"
         )
 
@@ -178,7 +192,18 @@ class TestIngestFileAcceptsEmTarget:
         sixth extra args, and the ID-56.8 ``cc_target`` follows as the seventh
         (defaulted None)."""
         flow = _flow_module()
-        params = list(inspect.signature(flow.ingest_file).parameters)
+        # ID-66.19: inspect the POSITIONAL slice (keyword-only run-context params
+        # follow a bare `*`).
+        sig = inspect.signature(flow.ingest_file)
+        params = [
+            name
+            for name, p in sig.parameters.items()
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
         assert params[4] == "em_target", (
             f"the fourth extra arg of ingest_file must be named 'em_target'; "
             f"got params={params}"
