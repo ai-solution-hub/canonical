@@ -1131,6 +1131,13 @@ jobs:
           fi
 
       - name: Typecheck (tsc --noEmit, tsconfig.ci.json)
+        # tsc OOMs at the ~2 GB default Node heap on the whole-repo (incl scripts/)
+        # compile (S289 — exit 134, "Ineffective mark-compacts near heap limit",
+        # surfaced once the database.types.ts CLI-notice parse-fail was removed and
+        # tsc could compile far enough to exhaust the heap). ubuntu-latest has 7 GB
+        # RAM; raise the V8 old-space ceiling to 4 GB.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: bun run typecheck
 
   ci-summary:
