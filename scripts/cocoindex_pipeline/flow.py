@@ -1113,6 +1113,12 @@ async def ingest_file(
     ft_target: Any,
     ftf_target: Any,
     cc_target: Any = None,
+    *,
+    flow_op_id: "uuid.UUID | None" = None,
+    flow_stage_counter: Any = None,
+    flow_retry_counter: Any = None,
+    flow_taxonomy_miss_counter: Any = None,
+    flow_workspace_manifest: Any = None,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
 
@@ -1146,8 +1152,32 @@ async def ingest_file(
     chaining, which is fictional in 1.0.3), and each row lands via
     `TableTarget.declare_row(row=...)` (Stage 6).
 
-    `op_id` is a PLAIN ROW FIELD, read from the currently-bound `FLOW_META_CTX`
-    via `current_flow_meta()` — NOT the fictional `bind_target(op_id=flow['op_id'])`.
+    `op_id` is a PLAIN ROW FIELD. ID-66.19 threads it (and the four per-flow
+    counters + the workspace manifest) as EXPLICIT keyword args
+    (`flow_op_id` / `flow_stage_counter` / `flow_retry_counter` /
+    `flow_taxonomy_miss_counter` / `flow_workspace_manifest`) bound onto the
+    component via `functools.partial` in `app_main`, NOT via `contextvars`
+    propagation. cocoindex 1.0.3 runs this per-item component on its OWN
+    `_LoopRunner` daemon thread (a separate event loop), which does NOT copy the
+    binder task's `ContextVar` snapshot across the dispatch boundary — so reads
+    of `current_flow_meta()` / `current_stage_counter()` /
+    `current_workspace_manifest()` here would return the ContextVar DEFAULT
+    (`None`) and the flow would land ZERO rows. `functools.partial`-captured args
+    live on the partial object, so they cross the daemon-thread boundary intact.
+    The keyword args DEFAULT to None so the existing in-task unit-test callers
+    (which `await ingest_file(...)` inside a `bind_flow_meta` scope) keep working
+    via the ContextVar fallback below.
+
+    CAVEAT (ID-66.19): `extraction.py`'s `stamp_extraction_base` + the
+    retry / taxonomy-miss recorders read `current_flow_meta()` /
+    `current_retry_counter()` / `current_taxonomy_miss_counter()` INSIDE the
+    per-item extractor calls, which run on the SAME daemon thread as this body.
+    So once the explicit args arrive we RE-BIND those three ContextVars LOCALLY
+    around the body (Option A moves the BIND POINT from `app_main`'s wrong thread
+    into this correct thread). `stage_counter` / `workspace_manifest` are read
+    directly from the passed args (only this body reads them), so they need no
+    re-bind.
+
     `content_text_hash` is OMITTED (GENERATED ALWAYS column). `embedding` is now
     a real text-embedding-3-large vector(1024) computed from content_text via
     `embed_content_text()` (Stage 4 — ID-49.2); per-row upsert logging (28.25) is
@@ -1157,37 +1187,101 @@ async def ingest_file(
     `declare_row` is not re-invoked and the row's op_id retains the value from the
     run that last materially changed it (RESEARCH.md §R4 — Inv-11 refinement).
     """
-    # Resolve current_flow_meta via flow's OWN package namespace. flow.py may be
+    import contextlib
+    from importlib import import_module
+
+    # Resolve flow_context via flow's OWN package namespace. flow.py may be
     # imported under BOTH `scripts.cocoindex_pipeline.flow` (runtime) AND
     # `cocoindex_pipeline.flow` (pytest pythonpath) — each pulls its own
     # flow_context module object with separate ContextVar storage. Reading
     # through `__package__` resolves to whichever namespace the caller bound the
     # meta under (same rationale as `stamp_extraction_base` in extraction.py).
-    from importlib import import_module
-
     flow_context_module = import_module(f"{__package__}.flow_context")
-    meta = flow_context_module.current_flow_meta()
-    if meta is None:
-        raise RuntimeError(
-            "ingest_file invoked without an active FLOW_META_CTX binding — "
-            "app_main must wrap mount_each in `async with bind_flow_meta(op_id=...)`."
-        )
-    op_id = meta.op_id
 
-    # Inv-17 stage observability (ID-55.2): resolve the per-flow stage counter
-    # `app_main` binds via `bind_stage_counter`, then bump it as each stage
-    # produces output for THIS item. `app_main` folds the counter into
-    # `stage_counts` at flow end (mirrors the embedding/entity_resolution folds).
-    # Resolved through flow's OWN package namespace so the bump writes to the
-    # SAME ContextVar `app_main` bound (dual-import-path hazard — same rationale
-    # as `current_flow_meta` above). When no counter is bound (unit tests outside
-    # the binding) `_bump` is a silent no-op — the row still lands; only
-    # observability is skipped (graceful-degradation contract shared with the
-    # retry counter). Before ID-55.2 only `embedding` (+ Stage-5
-    # `entity_resolution`) was wired, so `stage_counts` for source_walk /
-    # binary_conversion / llm_extraction / postgres_upsert read a permanent 0 in
-    # production despite real per-item activity.
-    stage_counter = flow_context_module.current_stage_counter()
+    # ID-66.19 — resolve the run context. PREFER the explicit args (threaded via
+    # functools.partial in app_main — these survive the daemon-thread dispatch).
+    # FALL BACK to the ContextVars for the existing in-task unit-test callers
+    # that drive ingest_file inside an `async with bind_flow_meta(...)` scope.
+    op_id = flow_op_id
+    if op_id is None:
+        meta = flow_context_module.current_flow_meta()
+        op_id = None if meta is None else meta.op_id
+    if op_id is None:
+        raise RuntimeError(
+            "ingest_file invoked without a run op_id — app_main must pass "
+            "`flow_op_id=` (via functools.partial) or wrap the in-task caller in "
+            "`async with bind_flow_meta(op_id=...)`."
+        )
+
+    # Inv-17 stage observability (ID-55.2): the per-flow stage counter, threaded
+    # explicitly as `flow_stage_counter` (ID-66.19) or read from the ContextVar
+    # for in-task callers. `app_main` folds it into `stage_counts` at flow end
+    # (mirrors the embedding/entity_resolution folds). When neither is supplied
+    # `_bump` is a silent no-op — the row still lands; only observability is
+    # skipped (graceful-degradation contract shared with the retry counter).
+    stage_counter = flow_stage_counter
+    if stage_counter is None:
+        stage_counter = flow_context_module.current_stage_counter()
+
+    # CAVEAT (ID-66.19): RE-BIND flow_meta / retry_counter / taxonomy_miss_counter
+    # LOCALLY on THIS (daemon) thread so `extraction.py`'s in-task reads
+    # (`stamp_extraction_base` / the retry `before_sleep` hook / the
+    # `_surface_out_of_taxonomy_classification` validator) see the run context.
+    # The explicit args are the bind SOURCE; if they were not supplied (in-task
+    # unit-test callers) the bindings are already active on this same task, so we
+    # enter no-op `nullcontext`s to avoid double-binding/clobbering.
+    rebind_meta: Any = contextlib.nullcontext()
+    if flow_op_id is not None:
+        rebind_meta = flow_context_module.bind_flow_meta(op_id=flow_op_id)
+    rebind_retry: Any = contextlib.nullcontext()
+    if flow_retry_counter is not None:
+        rebind_retry = flow_context_module.bind_retry_counter(flow_retry_counter)
+    rebind_taxonomy: Any = contextlib.nullcontext()
+    if flow_taxonomy_miss_counter is not None:
+        rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
+            flow_taxonomy_miss_counter
+        )
+
+    async with rebind_meta, rebind_retry, rebind_taxonomy:
+        await _ingest_file_body(
+            file,
+            ci_target,
+            qa_target,
+            sd_target,
+            em_target,
+            ft_target,
+            ftf_target,
+            cc_target,
+            op_id=op_id,
+            stage_counter=stage_counter,
+            flow_workspace_manifest=flow_workspace_manifest,
+            flow_context_module=flow_context_module,
+        )
+
+
+async def _ingest_file_body(
+    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    ci_target: Any,
+    qa_target: Any,
+    sd_target: Any,
+    em_target: Any,
+    ft_target: Any,
+    ftf_target: Any,
+    cc_target: Any,
+    *,
+    op_id: "uuid.UUID",
+    stage_counter: Any,
+    flow_workspace_manifest: Any,
+    flow_context_module: Any,
+) -> None:
+    """The Stage 2→6 per-item body of `ingest_file` (ID-66.19 split).
+
+    Factored out of `ingest_file` so the wrapper owns the ID-66.19 run-context
+    resolution + local ContextVar re-bind (which must happen on the daemon
+    thread) and this body owns the actual convert → extract → declare-rows work.
+    `op_id` + `stage_counter` are already resolved; `flow_workspace_manifest` is
+    the explicit Path-B manifest arg (preferred over the ContextVar read below).
+    """
 
     def _bump(stage: str, times: int = 1) -> None:
         if stage_counter is not None:
@@ -1410,16 +1504,23 @@ async def ingest_file(
 
     # ── ID-52 Path B: pipeline-owned form-template write (TECH §2.5) ─────────
     # This block is ADDITIVE and LAST in the body. It runs ONLY when a workspace
-    # manifest is bound at flow scope (i.e. Path B is active for this run); when
-    # no manifest is bound (the Path-A-only content runs and their unit tests)
-    # the block is skipped entirely and the targets stay untouched. The manifest
-    # is resolved through flow's OWN package namespace (dual-import-path hazard —
-    # same rationale as `current_flow_meta` above).
+    # manifest is active for this run (Path B); when none is (the Path-A-only
+    # content runs and their unit tests) the block is skipped entirely and the
+    # targets stay untouched.
+    #
+    # ID-66.19: PREFER the explicit `flow_workspace_manifest` arg (threaded via
+    # functools.partial in app_main — survives the daemon-thread dispatch). FALL
+    # BACK to the ContextVar read for the in-task unit-test callers that bind it
+    # via `bind_workspace_manifest`. The ContextVar read alone returned None in
+    # production (daemon-thread non-propagation) → the form-write was silently
+    # skipped → form rows never landed.
     #
     # Inv-19 guard: the existing Path-A `q_a_extractions` write above is NOT
     # touched — the form-write is a separate, additive write into
     # `form_templates` / `form_template_fields`. The lossy-Path-A fix is ID-54.
-    manifest = flow_context_module.current_workspace_manifest()
+    manifest = flow_workspace_manifest
+    if manifest is None:
+        manifest = flow_context_module.current_workspace_manifest()
     if manifest is None:
         return
 
@@ -1812,43 +1913,51 @@ async def app_main() -> None:
         # (Stage 6). Extra args (ci/qa/sd targets) are passed positionally after
         # the item value per the mount_each signature.
         #
-        # `bind_flow_meta` makes the run's op_id available to `current_flow_meta()`
-        # inside `ingest_file` (op_id is a plain row field — NOT a flow-scope
-        # target binding, which is fictional in 1.0.3). `bind_retry_counter`
-        # exposes the
-        # per-flow retry counter that the tenacity `before_sleep` hook in
-        # `extraction.py:_anthropic_retry` bumps on each Anthropic-503 retry.
-        # `bind_stage_counter` (Inv-17) exposes the per-flow embedding counter
-        # that `ingest_file` bumps once per produced vector. All three bindings
-        # MUST wrap `mount_each` so the per-item `ingest_file` components run
-        # inside the contextvar scope and their bumps reach the bound counters.
-        # `bind_workspace_manifest` (ID-52.12) exposes the flow-start manifest
-        # to `ingest_file`'s Path-B form-write block via
-        # `current_workspace_manifest()` (the form-write block is skipped when no
-        # manifest is bound — but here it always is, the load above aborts the
-        # flow otherwise). Threaded the same way as the op_id / counters.
-        async with bind_flow_meta(op_id=run_op_id, content_items_id=None):
-            async with bind_retry_counter(flow_retry_counter):
-                async with bind_stage_counter(flow_stage_counter):
-                    async with bind_taxonomy_miss_counter(
-                        flow_taxonomy_miss_counter
-                    ):
-                        async with bind_workspace_manifest(workspace_manifest):
-                            handle = await coco.mount_each(
-                                ingest_file,
-                                source.items(),
-                                ci_target,
-                                qa_target,
-                                sd_target,
-                                em_target,
-                                ft_target,
-                                ftf_target,
-                                cc_target,
-                            )
-                            # Wait until every per-item component has processed
-                            # (cold run) so the rollup webhook below reflects a
-                            # settled state.
-                            await handle.ready()
+        # ID-66.19 — thread the run context onto `ingest_file` as EXPLICIT
+        # keyword args via `functools.partial`, NOT via `contextvars`. cocoindex
+        # 1.0.3 does NOT run the per-item component inline on this binding
+        # asyncio task — it schedules it on its OWN `_LoopRunner` daemon thread
+        # (a separate event loop) which does NOT copy this task's `ContextVar`
+        # snapshot across the dispatch boundary. So the previous five
+        # `async with bind_*` CMs wrapping `mount_each` bound the context on the
+        # WRONG thread: inside `ingest_file` every `current_*()` read returned
+        # the ContextVar default (None) → `current_flow_meta()` None → 0 rows;
+        # `current_workspace_manifest()` None → the Path-B form-write skipped;
+        # `current_stage_counter()` None → stage_counts stuck at 0. This was
+        # invisible to the unit suite (every flow test mocks `mount_each`, so
+        # `ingest_file` ran inline on the test's own task with ContextVars
+        # intact); the engine-level daemon-thread dispatch was exercised by NO
+        # test until `test_cocoindex_flow_live_ingest.py` (S291).
+        #
+        # `functools.partial`-captured args live on the partial object, so they
+        # cross the daemon-thread boundary intact. `ingest_file` then RE-BINDS
+        # flow_meta / retry_counter / taxonomy_miss_counter LOCALLY on the daemon
+        # thread (the CAVEAT — `extraction.py` reads those ContextVars in-task on
+        # the SAME thread); stage_counter + workspace_manifest are read directly
+        # from the passed args. Option A moves the BIND POINT from this (wrong)
+        # thread into `ingest_file` (the correct thread).
+        bound_ingest_file = functools.partial(
+            ingest_file,
+            flow_op_id=run_op_id,
+            flow_stage_counter=flow_stage_counter,
+            flow_retry_counter=flow_retry_counter,
+            flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
+            flow_workspace_manifest=workspace_manifest,
+        )
+        handle = await coco.mount_each(
+            bound_ingest_file,
+            source.items(),
+            ci_target,
+            qa_target,
+            sd_target,
+            em_target,
+            ft_target,
+            ftf_target,
+            cc_target,
+        )
+        # Wait until every per-item component has processed (cold run) so the
+        # rollup webhook below reflects a settled state.
+        await handle.ready()
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
         # `ingest_file` now computes a text-embedding-3-large vector(1024) from
