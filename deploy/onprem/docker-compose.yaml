@@ -80,7 +80,11 @@ services:
 
       # COCOINDEX_SOURCE_PATH: corpus directory for ingest (empty = idle mode, matching
       # the Cloud Run manifest).  Set to a real path when the pipeline is activated.
-      COCOINDEX_SOURCE_PATH: ""
+      # {66.16}: made Coolify-env-settable (was a hardcoded "" literal, which the
+      # compose value wins over Coolify env). Unset/empty Coolify env => idle mode
+      # (the :- default preserves the prior idle behaviour); set it to a corpus path
+      # under the persistent volume (e.g. /cocoindex-state/corpus) to activate ingest.
+      COCOINDEX_SOURCE_PATH: ${COCOINDEX_SOURCE_PATH:-}
 
       # LMDB virtual map size.  On NVMe disk, free space is cheap; a generous
       # reservation avoids MDB_MAP_FULL once the pipeline runs at volume.
