@@ -425,21 +425,30 @@ class TestAppMainWiresEmbeddingCounter:
     """
 
     def test_app_main_binds_stage_counter(self) -> None:
+        """ID-66.19: the stage counter is THREADED onto ingest_file, not bound at
+        flow scope — cocoindex runs ingest_file on its own daemon thread which
+        does not inherit app_main's ContextVar bindings. app_main passes
+        `flow_stage_counter=flow_stage_counter` via functools.partial and
+        ingest_file reads it directly from the arg."""
         flow = _flow_module()
         source = inspect.getsource(flow.app_main)
-        assert "bind_stage_counter(" in source, (
-            "app_main() must contain `async with bind_stage_counter(...)` so the "
-            "per-flow _FlowStageCounter is bound to the contextvar scope that "
-            "ingest_file's embedding bump reads. Without it, production runs emit "
-            "stageCounts['embedding']=0 even when embeddings were produced."
+        assert "flow_stage_counter=flow_stage_counter" in source, (
+            "app_main() must thread `flow_stage_counter=flow_stage_counter` onto "
+            "ingest_file (via functools.partial) so the per-flow _FlowStageCounter "
+            "crosses the cocoindex daemon-thread boundary and ingest_file can bump "
+            "it. Without it, production runs emit stageCounts['embedding']=0 even "
+            "when embeddings were produced."
         )
 
     def test_app_main_uses_async_with_for_stage_binding(self) -> None:
+        """ID-66.19: app_main threads the run context onto ingest_file via
+        functools.partial (the bind point moved off app_main's wrong thread)."""
         flow = _flow_module()
         source = inspect.getsource(flow.app_main)
-        assert "async with bind_stage_counter(" in source, (
-            "Binding must use `async with bind_stage_counter(...)` — the context "
-            "manager handles contextvar token reset on exit (exception-safe)."
+        assert "functools.partial(" in source, (
+            "app_main() must build a functools.partial over ingest_file to thread "
+            "the stage counter (+ the rest of the run context) across the "
+            "cocoindex daemon-thread boundary."
         )
 
     def test_app_main_folds_embedding_count_into_stage_counts(self) -> None:

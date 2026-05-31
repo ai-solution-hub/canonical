@@ -453,28 +453,41 @@ class TestAppMainBodyContainsBindRetryCounterWrapper:
     """
 
     def test_app_main_source_contains_bind_retry_counter_call(self) -> None:
-        """The text `bind_retry_counter(flow_retry_counter)` must appear in
-        `app_main()`'s body so the binding is unambiguously wired to the
-        per-flow `_FlowRetryCounter` instance instantiated at line ~876."""
+        """`app_main()` must thread the per-flow `_FlowRetryCounter` onto
+        `ingest_file`.
+
+        ID-66.19 reality: cocoindex runs the per-item `ingest_file` on its own
+        `_LoopRunner` daemon thread, which does NOT inherit `app_main`'s
+        ContextVar bindings — so binding the retry counter around `mount_each`
+        bound it on the WRONG thread and the tenacity `before_sleep` hook in
+        extraction.py read None. `app_main` now threads it as
+        `flow_retry_counter=flow_retry_counter` via `functools.partial`, and
+        `ingest_file` RE-BINDS it locally on the daemon thread."""
         source = inspect.getsource(flow.app_main)
-        assert "bind_retry_counter(flow_retry_counter)" in source, (
-            "app_main() must contain `bind_retry_counter(flow_retry_counter)` "
-            "so the per-flow `_FlowRetryCounter` is bound to the contextvar "
-            "scope that `_bump_flow_retry_counter()` reads inside the "
-            "tenacity `before_sleep` callback. Without this binding, "
-            "production retries fire correctly but the observability counter "
-            "is never updated — `pipeline_runs.result.retry_count` emits 0."
+        assert "flow_retry_counter=flow_retry_counter" in source, (
+            "app_main() must thread `flow_retry_counter=flow_retry_counter` onto "
+            "ingest_file (via functools.partial) so the per-flow `_FlowRetryCounter` "
+            "crosses the cocoindex daemon-thread boundary and ingest_file can "
+            "re-bind it for the tenacity before_sleep hook in extraction.py. "
+            "Without it, production retries fire but the observability counter is "
+            "never updated — `pipeline_runs.result.retry_count` emits 0."
         )
 
     def test_app_main_source_uses_async_with_for_binding(self) -> None:
-        """The binding must use `async with` — the context manager is an
-        `@asynccontextmanager` and the contextvar token-reset on exit is
-        the safety net for exception paths."""
-        source = inspect.getsource(flow.app_main)
-        assert "async with bind_retry_counter(" in source, (
-            "Binding must use `async with bind_retry_counter(...)` — the "
-            "context manager handles contextvar token reset on exit, "
-            "preserving safety across exception paths."
+        """`app_main()` builds the `functools.partial` over `ingest_file`
+        (ID-66.19), and `ingest_file` re-binds the retry counter on the daemon
+        thread via an `async with` — the bind point moved off app_main's wrong
+        thread into ingest_file's correct (daemon) thread."""
+        app_main_source = inspect.getsource(flow.app_main)
+        assert "functools.partial(" in app_main_source, (
+            "app_main() must build a functools.partial over ingest_file to thread "
+            "the run context across the cocoindex daemon-thread boundary."
+        )
+        ingest_source = inspect.getsource(flow.ingest_file)
+        assert "bind_retry_counter(" in ingest_source, (
+            "ingest_file must RE-BIND the retry counter locally on the daemon "
+            "thread (ID-66.19 caveat) so extraction.py's before_sleep hook reads "
+            "it; the contextvar token-reset on exit stays exception-safe."
         )
 
     def test_flow_retry_counter_instantiated_once_in_app_main(self) -> None:

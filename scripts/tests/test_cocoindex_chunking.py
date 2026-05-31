@@ -361,7 +361,18 @@ class TestChunkingStageWritePath:
 
         flow = _flow_module()
         sig = inspect.signature(flow.ingest_file)
-        params = list(sig.parameters)
+        # ID-66.19 appended keyword-only run-context params after a bare `*`; the
+        # cc_target positional contract is the LAST positional, so inspect the
+        # positional slice rather than every parameter.
+        params = [
+            name
+            for name, p in sig.parameters.items()
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
         assert params[-1] == "cc_target", (
             f"the 8th positional must be cc_target; got {params}"
         )
