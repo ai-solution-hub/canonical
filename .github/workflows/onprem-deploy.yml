@@ -22,18 +22,16 @@
 # deploy-SA are DROPPED, not migrated — no gcloud credential lands on the host.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# ⚠️ VERIFY BEFORE ACTIVATING (cannot be settled offline — review items):
-#   1. DEPLOY BRANCH assumed `main` (single on-prem host; cloud-run used
-#      main→prod). Switch to a dedicated `onprem` branch here + in the paths
-#      trigger if preferred.
-#   2. PIN every external ref to a commit SHA before merge (workflow-injection
-#      hardening per cloud-run-deploy.yml header): actions/checkout,
-#      docker/login-action, buildpacks/github-actions/setup-pack — and confirm
-#      the setup-pack version tag resolves. Versions below are current-major
-#      placeholders.
-#   3. LIVE TRIGGER TEST still required ({66.7} testStrategy): run once
-#      (workflow_dispatch) and confirm a pullable ghcr.io/<owner>/
-#      kh-cocoindex-pipeline:sha-<sha> appears and the host stays uncontended.
+# Activation review items (resolved S288 — ID-66.7):
+#   1. ✅ DEPLOY BRANCH = `main` (single on-prem host; mirrors cloud-run main→prod).
+#      A staging on-prem mirror (2nd host or 2nd compose project) is deferred — when
+#      it exists, append `staging` to the push branches below.
+#   2. ✅ EXTERNAL REFS PINNED to commit SHAs (workflow-injection hardening per the
+#      cloud-run-deploy.yml header). SHAs resolved 2026-05-31; floated version in the
+#      trailing comment. setup-pack moved off the v5.8.11 placeholder to current v5.12.3.
+#   3. ⬜ LIVE TRIGGER TEST ({66.7} testStrategy): run once (workflow_dispatch off the
+#      working branch) and confirm a pullable ghcr.io/<owner>/kh-cocoindex-pipeline:sha-<sha>
+#      appears and the host stays uncontended.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: onprem-deploy (B1 cocoindex image → ghcr.io)
@@ -46,7 +44,7 @@ on:
         required: false
         default: "manual"
   push:
-    branches: [main] # ⚠️ review item 1 — deploy branch
+    branches: [main] # prod-equivalent (review item 1); add `staging` when on-prem staging exists
     paths:
       - "scripts/**/*.py"
       - "requirements.txt"
@@ -70,17 +68,17 @@ jobs:
     timeout-minutes: 75 # Docling install + cocoindex Rust wheel + model layer (cloudbuild budgets 60m)
     steps:
       - name: Checkout (build context = repo root)
-        uses: actions/checkout@v4 # ⚠️ pin to SHA (review item 2)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4 (pinned 2026-05-31)
 
       - name: Log in to ghcr.io
-        uses: docker/login-action@v3 # ⚠️ pin to SHA (review item 2)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3 (pinned 2026-05-31)
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up the Cloud Native Buildpacks `pack` CLI
-        uses: buildpacks/github-actions/setup-pack@v5.8.11 # ⚠️ verify version + pin to SHA (review item 2)
+        uses: buildpacks/github-actions/setup-pack@812ff667850b930be2217c48e1f980e71bd3e14f # v5.12.3 (pinned 2026-05-31; was v5.8.11 placeholder)
 
       - name:
           Build + publish cocoindex image (buildpacks — faithful to
