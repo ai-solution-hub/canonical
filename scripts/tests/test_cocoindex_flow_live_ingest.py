@@ -53,7 +53,6 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-import threading
 import uuid
 from pathlib import Path
 
@@ -208,17 +207,30 @@ def _run_app_main_over_dir(
     monkeypatch: pytest.MonkeyPatch,
     *,
     classification=None,
-) -> uuid.UUID:
+) -> tuple[uuid.UUID, object]:
     """Drive the REAL ``flow.app_main`` over ``source_dir`` in live mode, with
     the engine's daemon-thread dispatch reproduced via
     ``_thread_dispatch_mount_each`` and all external services stubbed.
 
     ``classification`` optionally overrides the default classification extractor
     stub (used by the caveat test to read ``current_flow_meta()`` on the worker
-    thread). Returns the run's ``op_id`` (captured from ``uuid.uuid4`` at flow
-    start) so the caller can assert the declared rows carry the SAME op_id.
+    thread). Returns ``(op_id, stage_counter)``:
+
+      * ``op_id`` — the run's op_id (captured from ``uuid.uuid4`` at flow start)
+        so the caller can assert the declared rows carry the SAME op_id.
+      * ``stage_counter`` — the EXACT ``_FlowStageCounter`` instance ``app_main``
+        constructs and threads into ``ingest_file`` via the ID-66.19
+        ``functools.partial`` mechanism. The per-item ``_bump`` calls inside
+        ``ingest_file`` (``"source_walk"``, ``"embedding"``, …) run on the worker
+        thread, so a non-zero count on THIS instance proves the counter crossed
+        the daemon-thread boundary — exactly the third leg of the {66.19}
+        testStrategy (op_id + non-zero stage_counts + Path-B form write). On
+        current main the counter rode the broken ContextVar path (like op_id) and
+        stayed 0 because ``_run``'s ``stage_counter`` was None and every ``_bump``
+        was skipped by the ``if stage_counter is not None`` guard.
     """
     captured_op_id: dict[str, uuid.UUID] = {}
+    captured_stage_counter: dict[str, object] = {}
 
     # ── Stub Stage 2/3/4 so no Docling / anthropic / OpenAI / network fires.
     async def _fake_convert(file: object) -> str:
@@ -283,6 +295,22 @@ def _run_app_main_over_dir(
     # ── Engine-dispatch stand-in: run ingest_file on a separate thread+loop.
     monkeypatch.setattr(flow.coco, "mount_each", _thread_dispatch_mount_each)
 
+    # ── Capture the EXACT stage counter app_main constructs + threads into
+    # ingest_file (ID-66.19 functools.partial). _bump("source_walk") /
+    # _bump("embedding") fire on the worker thread; a non-zero count on THIS
+    # instance proves the counter crossed the daemon-thread boundary — the
+    # non-zero stage_counts leg of the {66.19} testStrategy. Wrap the real class
+    # (do not subclass) so production increment/get semantics are exercised
+    # verbatim.
+    real_stage_counter_cls = flow._FlowStageCounter
+
+    def _capturing_stage_counter():
+        counter = real_stage_counter_cls()
+        captured_stage_counter.setdefault("counter", counter)
+        return counter
+
+    monkeypatch.setattr(flow, "_FlowStageCounter", _capturing_stage_counter)
+
     # ── mount_table_target returns our recording fakes (no real Postgres).
     async def _fake_mount_table_target(db_ctx, table_name, schema, *, managed_by):
         return targets[table_name]
@@ -325,7 +353,7 @@ def _run_app_main_over_dir(
 
     asyncio.run(flow.app_main())
 
-    return captured_op_id["op_id"]
+    return captured_op_id["op_id"], captured_stage_counter["counter"]
 
 
 def _write_workspace_manifest(source_dir: Path, prefix: str, workspace_id: uuid.UUID):
@@ -369,7 +397,9 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "content_chunks": _FakeTarget("content_chunks"),
         }
 
-        run_op_id = _run_app_main_over_dir(flow, source_dir, targets, monkeypatch)
+        run_op_id, stage_counter = _run_app_main_over_dir(
+            flow, source_dir, targets, monkeypatch
+        )
 
         ci = targets["content_items"]
         sd = targets["source_documents"]
@@ -402,6 +432,25 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "the Path-B form-write block must run (resolve_workspace called) — "
             "proves the workspace manifest reached ingest_file across the "
             "daemon-thread boundary"
+        )
+
+        # (c) NON-ZERO stage_counts — the third leg of the {66.19} testStrategy.
+        # ingest_file's _bump("source_walk") / _bump("embedding") run on the
+        # worker thread; a non-zero count on the SAME counter instance app_main
+        # constructed proves the stage_counter crossed the daemon-thread boundary
+        # via the functools.partial fix. On current main the counter rode the
+        # broken ContextVar path (like op_id) and stayed 0 — _run's stage_counter
+        # was None there, so every _bump was skipped by the "is not None" guard.
+        assert stage_counter.get("source_walk") >= 1, (
+            "stage_counts['source_walk'] must be non-zero — the per-item "
+            "_bump('source_walk') must reach the flow-scope counter across the "
+            "daemon-thread boundary; on current main it stays 0 (counter None on "
+            "the worker thread, like op_id)"
+        )
+        assert stage_counter.get("embedding") >= 1, (
+            "stage_counts['embedding'] must be non-zero — the per-item "
+            "_bump('embedding') after the Stage-4 vector must reach the "
+            "flow-scope counter across the daemon-thread boundary"
         )
 
     def test_extraction_reads_rebound_flow_meta_on_worker_thread(
@@ -442,7 +491,7 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "content_chunks": _FakeTarget("content_chunks"),
         }
 
-        run_op_id = _run_app_main_over_dir(
+        run_op_id, _stage_counter = _run_app_main_over_dir(
             flow,
             source_dir,
             targets,
