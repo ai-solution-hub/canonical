@@ -8,7 +8,7 @@ granularity where applicable:
   * Advanced_Audits_Bid_Library_v5.md   → q_a_pair per YAML-frontmatter entry
   * LMS_Bid_Library_v2.2.md              → q_a_pair per `#### CODE-NNN:` entry
   * Website_Bid_Library_v4_2.md          → q_a_pair per `#### Question` entry
-  * example-client-Bid-Library-2026-v4_4.md        → article per `## Section` (reference)
+  * Reference_Bid_Library_2026-v4_4.md   → article per `## Section` (reference)
 
 All items are tagged with batch_tag='client-new-markdown-2026' and flow through
 keyword classification → embedding → DB insert → entity extraction, reusing
@@ -168,10 +168,10 @@ def parse_website(md: str) -> list[Entry]:
     return entries
 
 
-def parse_example-client_sections(md: str) -> list[Entry]:
+def parse_reference_sections(md: str) -> list[Entry]:
     """``## Section Title\\nbody`` — reference article per ## section, skipping index-only sections."""
     entries: list[Entry] = []
-    # The example-client file has an initial BID RESPONSE TOPIC INDEX with ### subsections
+    # The reference file has an initial BID RESPONSE TOPIC INDEX with ### subsections
     # and then later ## reference sections. We split on level-2 headings and
     # filter to sections with substantive body (>= 200 chars excluding bullets).
     sections = re.split(r"\n## ", md)
@@ -200,13 +200,13 @@ def parse_example-client_sections(md: str) -> list[Entry]:
         # Derive a source_id from Merged From / From / section title.
         src_m = re.search(r"\*\*(?:Merged From|From)\*\*:\s*([^\n]+)", body)
         if src_m:
-            source_id = "example-client-" + re.sub(r"[^A-Z0-9]+", "-", src_m.group(1).upper())[:60].strip("-")
+            source_id = "REF-" + re.sub(r"[^A-Z0-9]+", "-", src_m.group(1).upper())[:60].strip("-")
         else:
-            source_id = "example-client-" + re.sub(r"[^A-Za-z0-9]+", "-", title.upper())[:60].strip("-")
+            source_id = "REF-" + re.sub(r"[^A-Za-z0-9]+", "-", title.upper())[:60].strip("-")
         entries.append(
             Entry(
                 source_id=source_id,
-                source_file="example-client_v4_4",
+                source_file="Reference_v4_4",
                 title=title[:120],
                 question="",
                 answer=body,
@@ -311,7 +311,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--only",
-        choices=["aud", "lms", "website", "example-client"],
+        choices=["aud", "lms", "website", "reference"],
         help="Process only one file (debug)",
     )
     parser.add_argument(
@@ -366,7 +366,7 @@ def main() -> int:
         "aud": (STAGE2_DIR / "Advanced_Audits_Bid_Library_v5.md", parse_advanced_audits),
         "lms": (STAGE2_DIR / "LMS_Bid_Library_v2.2.md", parse_lms),
         "website": (STAGE2_DIR / "Website_Bid_Library_v4_2.md", parse_website),
-        "example-client": (STAGE2_DIR / "example-client-Bid-Library-2026-v4_4.md", parse_example-client_sections),
+        "reference": (STAGE2_DIR / "Reference_Bid_Library_2026-v4_4.md", parse_reference_sections),
     }
 
     if args.only:

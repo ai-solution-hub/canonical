@@ -95,7 +95,7 @@ const REWRITES: Rewrite[] = [
   {
     id: '28',
     description:
-      'Stand up the cocoindex 1.0.3 pipeline scaffolding for the canonical document -> embeddings flow plus the Cloud Run sidecar hosting the heavy extractor binaries (Docling 1.8 GB + pullmd 3.7 GB Playwright). T8 is the foundational pipeline implementation step in canonical-pipeline-implementation-plan/PLAN.md §4.8; downstream T7 (example-client Q&A first-ingest) depends on it. Multi-session arc: S252 authored the {28.1}-{28.4} spec chain; implementation Subtasks {28.5+} dispatched S253+. Full acceptance criteria, dependencies, and the close-ceremony journal blocks relocated to docs/research/ledger-field-sweep-s269.md#id-28.',
+      'Stand up the cocoindex 1.0.3 pipeline scaffolding for the canonical document -> embeddings flow plus the Cloud Run sidecar hosting the heavy extractor binaries (Docling 1.8 GB + pullmd 3.7 GB Playwright). T8 is the foundational pipeline implementation step in canonical-pipeline-implementation-plan/PLAN.md §4.8; downstream T7 (client Q&A first-ingest) depends on it. Multi-session arc: S252 authored the {28.1}-{28.4} spec chain; implementation Subtasks {28.5+} dispatched S253+. Full acceptance criteria, dependencies, and the close-ceremony journal blocks relocated to docs/research/ledger-field-sweep-s269.md#id-28.',
     statusNote:
       'Closed S265 (sub-orchestrator subo-id28). Core write path landed: re-grounded specs (28.20) + reactive declare_row write path (28.21) + env-scope @coco.lifespan DB pool (28.22), all Checker-gated. Unblocks ID-42 ingest proof. Remaining pipeline stages deferred to ID-49 (see #id-28 overflow).',
   },

@@ -909,7 +909,7 @@ Compare the output to the value listed under \`subject.json\` in
 
 If anything in this bundle is unclear, contact:
 
-- **example-client** — _(operator's organisational contact details)_
+- **Your data controller** — _(operator's organisational contact details)_
 
 You also have the right to:
 

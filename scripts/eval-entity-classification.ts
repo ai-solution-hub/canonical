@@ -63,7 +63,7 @@ interface GoldEntity {
   canonical_name: string;
   /** Additional acceptable types for context-dependent entities (e.g. CREST: organisation OR certification) */
   alternate_types?: string[];
-  /** Additional acceptable canonical names for alias matching (e.g. "example-client platform" for "example-client audit system") */
+  /** Additional acceptable canonical names for alias matching (e.g. a product short form mapping to its canonical product name) */
   alternate_names?: string[];
 }
 

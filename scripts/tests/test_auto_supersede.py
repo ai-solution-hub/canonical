@@ -56,27 +56,27 @@ def _run_help(script: str, extra: list[str]) -> subprocess.CompletedProcess:
     [
         # Positive cases — spec §5.2
         (
-            "example-client_Security_Final.docx",
-            "DRAFT_example-client_Security_v1.docx",
+            "Acme_Security_Final.docx",
+            "DRAFT_Acme_Security_v1.docx",
             True,
             "final incoming + DRAFT existing",
         ),
         (
-            "example-client_security_final.docx",
-            "draft_example-client_security_v1.docx",
+            "acme_security_final.docx",
+            "draft_acme_security_v1.docx",
             True,
             "case-insensitive match",
         ),
         (
-            "example-client_Security_v2.docx",
-            "DRAFT_example-client_Security_v1.docx",
+            "Acme_Security_v2.docx",
+            "DRAFT_Acme_Security_v1.docx",
             True,
             "incoming without DRAFT + DRAFT existing",
         ),
         # Negative cases — condition 3 fails
         (
-            "example-client_Security_Final.docx",
-            "example-client_Security_v1.docx",
+            "Acme_Security_Final.docx",
+            "Acme_Security_v1.docx",
             False,
             "existing not DRAFT",
         ),
@@ -88,8 +88,8 @@ def _run_help(script: str, extra: list[str]) -> subprocess.CompletedProcess:
         ),
         # Negative cases — condition 2 fails
         (
-            "DRAFT_example-client_Security_v2.docx",
-            "DRAFT_example-client_Security_v1.docx",
+            "DRAFT_Acme_Security_v2.docx",
+            "DRAFT_Acme_Security_v1.docx",
             False,
             "both DRAFT — incoming isn't a final replacement",
         ),

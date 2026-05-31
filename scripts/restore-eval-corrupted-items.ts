@@ -2,10 +2,10 @@
 /**
  * restore-eval-corrupted-items.ts — S196 rollback helper.
  *
- * S196 eval run (2026-04-24) ran LOCALLY without `NEXT_PUBLIC_CLIENT_ID=example-client`
+ * S196 eval run (2026-04-24) ran LOCALLY without `NEXT_PUBLIC_CLIENT_ID`
  * set, so `BRANDING.organisationName` defaulted to "Knowledge Hub" instead
- * of "Example Client Ltd". Every cert with a `holds` source of the actual
- * client org was mis-derived as `holder: 'supplier'`. The eval was killed
+ * of the configured client org. Every cert with a `holds` source of the
+ * actual client org was mis-derived as `holder: 'supplier'`. The eval was killed
  * after processing 18 items (items 1-17 complete, item 18 possibly partial).
  *
  * This script restores entity_mentions + holds_relationships for the 18

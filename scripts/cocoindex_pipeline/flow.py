@@ -1743,7 +1743,7 @@ async def app_main() -> None:
     O-Q8 idle-mode: if COCOINDEX_SOURCE_PATH is unset or points at a
     missing folder, logs an info message and returns cleanly (no raise).
     The Cloud Run Service stays running; cocoindex's live-fs-watch arms
-    once the source-binding is set. T7 example-client first-ingest cutover sets
+    once the source-binding is set. The T7 first-ingest cutover sets
     COCOINDEX_SOURCE_PATH and restarts the Service post-T8-stable.
     """
     source_path_str = os.environ.get("COCOINDEX_SOURCE_PATH", "")
@@ -1751,7 +1751,7 @@ async def app_main() -> None:
         _logger.info(
             "COCOINDEX_SOURCE_PATH not set — Service running in idle mode. "
             "Set COCOINDEX_SOURCE_PATH and restart Service when ready to "
-            "stage files (T7 example-client first-ingest cutover)."
+            "stage files (T7 first-ingest cutover)."
         )
         return
 

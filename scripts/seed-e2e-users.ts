@@ -16,7 +16,7 @@
  *   emails, passwords, and roles to be present in `auth.users` and
  *   `public.user_roles` before the test suite runs. Historically these were
  *   provisioned manually in the live DB, leaving fresh environments (new
- *   demo DB, example-client re-ingest, local dev) unable to run E2E tests until
+ *   demo DB, client re-ingest, local dev) unable to run E2E tests until
  *   someone created the users by hand.
  *
  *   This script closes that gap by provisioning the three users idempotently
@@ -68,7 +68,7 @@
  *
  * **Rebuild flow integration:**
  *   After `supabase db reset && supabase db push` against a fresh project,
- *   run this script before invoking `bun run test:e2e`. The example-client re-ingest
+ *   run this script before invoking `bun run test:e2e`. The client re-ingest
  *   and demo DB rebuild runbooks must reference this step.
  */
 

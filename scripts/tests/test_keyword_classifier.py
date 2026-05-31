@@ -143,7 +143,7 @@ class TestAuditProductDisambiguation:
             "answer_standard": "Yes, the Audit functionality includes automated compliance monitoring with configurable dashboards and reporting features.",
             "answer_advanced": "",
             "section_name": "Audit Features",
-            "source_file": "example-client Advanced Audit Q&A.docx",
+            "source_file": "Acme Advanced Audit Q&A.docx",
         }
         result = classify_pair(pair)
         # Should be reclassified from compliance>audit to product-feature

@@ -302,7 +302,7 @@ def classify_pair(pair: dict) -> dict:
     enriched["classification_confidence"] = round(confidence, 3)
 
     # ── Product name disambiguation ──────────────────────────────
-    # "Audit" is also a example-client product name (Advanced Audits).
+    # "Audit" is also a client product name (Advanced Audits).
     # If the source file is an Audit product document and the content
     # was classified under compliance>audit, it's more likely about
     # the product's audit capabilities than audit processes.

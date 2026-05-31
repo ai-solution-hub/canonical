@@ -149,8 +149,8 @@ async function main(): Promise<void> {
       `[reclassify] BRANDING.organisationName = "Knowledge Hub" (default ` +
         `fallback). This means NEXT_PUBLIC_CLIENT_ID is not set. Running ` +
         `classifyContent would derive holder metadata against the wrong ` +
-        `client org. Set NEXT_PUBLIC_CLIENT_ID=example-client in your shell or ` +
-        `.env.local and retry.`,
+        `client org. Set NEXT_PUBLIC_CLIENT_ID to your client id in your ` +
+        `shell or .env.local and retry.`,
     );
     process.exit(2);
   }

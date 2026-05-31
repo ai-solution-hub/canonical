@@ -382,7 +382,7 @@ def main():
             "When content-hash dedup fires AND filename heuristic matches "
             "(incoming 'final' + existing 'DRAFT'), flip the existing row's "
             "superseded_by to the new insert. Primary use case: collapsing "
-            "example-client DRAFT+final pairs during ingest."
+            "client DRAFT+final pairs during ingest."
         ),
     )
     supersede_group.add_argument(
@@ -743,7 +743,7 @@ def main():
                         chunk_skipped += 1
 
                     # ── Auto-supersession (S186 WP-B.6) ──────────────────
-                    # Primary use case: example-client DRAFT+final pairs. When
+                    # Primary use case: client DRAFT+final pairs. When
                     # content-hash dedup fires AND the incoming filename
                     # heuristic matches the existing row's source_file,
                     # flip the older row's superseded_by to the new ID.
