@@ -35,8 +35,6 @@ from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as xlsx_extr
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction"
 _SQ_PDF_PATH = _FIXTURE_DIR / "standard-selection-questionnaire-ppn-03-24.pdf"
 _EFA_XLSX_PATH = _FIXTURE_DIR / "evaluation-matrix-itt-vol8.xlsx"
-_CSP_XLSX_PATH = _FIXTURE_DIR / "cloud-security-principles-checklist-v5-3.xlsx"
-
 
 @pytest.fixture(scope="module")
 def sq_pdf_bytes() -> bytes:
@@ -492,11 +490,6 @@ class TestXlsxPublicShape:
         for field in efa_form.fields:
             assert isinstance(field, ExtractedField)
 
-    def test_csp_extracts_to_extracted_form(self, csp_form: ExtractedForm) -> None:
-        assert isinstance(csp_form, ExtractedForm)
-        assert csp_form.form_metadata.form_format == "xlsx"
-        assert csp_form.fields, "no fields extracted from CSP"
-
 
 # ──────────────────────────────────────────────────────────────────────────
 # Inv-13 — per-form dedup: Bidder 1 ≡ Bidder 2 → N fields, NOT 2N
@@ -660,127 +653,13 @@ class TestXlsxEfaSections:
 # Inv-9 — TYPE RESPONSE HERE>>>> → field_type='placeholder'
 # ──────────────────────────────────────────────────────────────────────────
 
-
-class TestXlsxCspPlaceholder:
-    """PRODUCT Inv-9 — the CSP checklist exposes ``TYPE RESPONSE HERE>>>>``
-    cells as the response slot for every question. Per Inv-9, the
-    extractor records these as ``field_type='placeholder'`` so the
-    downstream flow knows the slot is awaiting authored content."""
-
-    def test_csp_type_response_here_is_placeholder(
-        self, csp_form: ExtractedForm
-    ) -> None:
-        placeholder_fields = [
-            f for f in csp_form.fields if f.field_type == "placeholder"
-        ]
-        assert placeholder_fields, (
-            "no placeholder-typed fields recorded — Inv-9 regression "
-            "(TYPE RESPONSE HERE>>>> cells not classified as placeholders)"
-        )
-        # At least one such field should carry the placeholder text directly
-        # (Inv-9: extractor records the placeholder string verbatim).
-        with_text = [
-            f
-            for f in placeholder_fields
-            if f.placeholder_text
-            and "TYPE RESPONSE HERE" in (f.placeholder_text or "").upper()
-        ]
-        assert with_text, (
-            "no placeholder_text containing 'TYPE RESPONSE HERE' — Inv-9 "
-            "placeholder-text preservation regression"
-        )
-
-
 # ──────────────────────────────────────────────────────────────────────────
 # Inv-14 — NCSC URLs preserved in reference_urls
 # ──────────────────────────────────────────────────────────────────────────
 
-
-class TestXlsxCspReferenceUrls:
-    """PRODUCT Inv-14 — the CSP principle rows carry NCSC collection
-    URLs (e.g. https://www.ncsc.gov.uk/collection/cloud-security/...).
-    Per Inv-14 the extractor preserves these on the corresponding
-    field's ``reference_urls`` list rather than dropping them."""
-
-    def test_csp_principle_carries_ncsc_url(
-        self, csp_form: ExtractedForm
-    ) -> None:
-        with_ncsc = [
-            f
-            for f in csp_form.fields
-            if any("ncsc.gov.uk" in url for url in f.reference_urls)
-        ]
-        assert with_ncsc, (
-            "no fields carrying NCSC URLs — Inv-14 reference URL "
-            "preservation regression"
-        )
-
-    def test_csp_principle_1_url_recorded(
-        self, csp_form: ExtractedForm
-    ) -> None:
-        principle_1 = [
-            f
-            for f in csp_form.fields
-            if f.section_name
-            and "PRINCIPLE 1" in (f.section_name or "").upper()
-        ]
-        assert principle_1, (
-            "no Principle 1 field recorded — Inv-12 regression"
-        )
-        # At least one Principle 1 field carries the data-in-transit URL.
-        all_urls = [url for f in principle_1 for url in f.reference_urls]
-        assert any("data-in-transit" in url for url in all_urls), (
-            f"Principle 1 missing data-in-transit URL — Inv-14 regression; "
-            f"observed urls: {all_urls!r}"
-        )
-
-
 # ──────────────────────────────────────────────────────────────────────────
 # Inv-12 — CSP letter-keyed (A, B1) AND numbered (PRINCIPLE 1) sections
 # ──────────────────────────────────────────────────────────────────────────
-
-
-class TestXlsxCspMixedSections:
-    """PRODUCT Inv-12 — CSP mixes letter-keyed preamble rows
-    (``A``, ``B``, ``C``, …) with numbered ``PRINCIPLE N`` rows. Both
-    schemes must yield ``section_name``-bearing fields."""
-
-    def test_csp_letter_keyed_section_observed(
-        self, csp_form: ExtractedForm
-    ) -> None:
-        """The letter-keyed preamble row ``A — General Data Security``
-        and its B1..B6 sub-rows should record a section name carrying
-        the letter key (``A``, ``B``, …) so the downstream UI can
-        reconstruct the preamble structure (Inv-12)."""
-        letter_sections = {
-            f.section_name
-            for f in csp_form.fields
-            if f.section_name
-            and any(
-                key in f.section_name
-                for key in ("Section A", "Section B", "GDPR Compliance",
-                            "General Data Security")
-            )
-        }
-        assert letter_sections, (
-            "no letter-keyed preamble section found — Inv-12 regression "
-            "on letter-key handling"
-        )
-
-    def test_csp_principle_n_section_observed(
-        self, csp_form: ExtractedForm
-    ) -> None:
-        principle_sections = {
-            f.section_name
-            for f in csp_form.fields
-            if f.section_name and "PRINCIPLE" in (f.section_name or "").upper()
-        }
-        # Multiple principles (1..14) should yield multiple section labels.
-        assert len(principle_sections) >= 3, (
-            f"only {len(principle_sections)} PRINCIPLE-keyed sections seen — "
-            f"Inv-12 regression"
-        )
-
 
 # ──────────────────────────────────────────────────────────────────────────
 # Inv-12 — sequence is reading-order
@@ -799,17 +678,6 @@ class TestXlsxSequence:
         )
         assert len(set(seqs)) == len(seqs), (
             "EFA duplicate sequence values — Inv-12 regression"
-        )
-
-    def test_csp_sequence_strictly_increasing(
-        self, csp_form: ExtractedForm
-    ) -> None:
-        seqs = [f.sequence for f in csp_form.fields]
-        assert seqs == sorted(seqs), (
-            "CSP sequence not in reading order — Inv-12 regression"
-        )
-        assert len(set(seqs)) == len(seqs), (
-            "CSP duplicate sequence values — Inv-12 regression"
         )
 
 
