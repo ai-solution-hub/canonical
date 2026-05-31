@@ -159,26 +159,24 @@ services:
   # playwright — JS-render sidecar for pullmd (~3.7 GB image).
   # Listens on :8002 (/render).
   #
-  # TODO {66.8}: resolve :2 -> digest before first deploy (pullmd-deploy.md §4).
-  # Run: docker pull aeternalabshq/pullmd-playwright:2
-  #      docker inspect --format='{{index .RepoDigests 0}}' aeternalabshq/pullmd-playwright:2
-  # Then replace :2 with <image>@sha256:<digest> here.
+  # Pinned to the :2 manifest-list digest (resolved 2026-05-31 via the Docker Hub
+  # registry API; pullmd-deploy.md §4). Multi-arch index digest — Docker resolves the
+  # host arch from the list. Re-pin when the upstream :2 tag is bumped.
   # ----------------------------------------------------------------------------
   playwright:
-    image: "aeternalabshq/pullmd-playwright:2"
+    image: "aeternalabshq/pullmd-playwright@sha256:af1993dfbbb7d41f0587b4087c7287d4b872706c139427316202157bf5bb0523" # :2
     restart: unless-stopped
 
   # ----------------------------------------------------------------------------
   # trafilatura — fallback HTML extractor sidecar for pullmd.
   # Listens on :8001 (/extract).
   #
-  # TODO {66.8}: resolve :2 -> digest before first deploy (pullmd-deploy.md §4).
-  # Run: docker pull aeternalabshq/pullmd-trafilatura:2
-  #      docker inspect --format='{{index .RepoDigests 0}}' aeternalabshq/pullmd-trafilatura:2
-  # Then replace :2 with <image>@sha256:<digest> here.
+  # Pinned to the :2 manifest-list digest (resolved 2026-05-31 via the Docker Hub
+  # registry API; pullmd-deploy.md §4). Multi-arch index digest — Docker resolves the
+  # host arch from the list. Re-pin when the upstream :2 tag is bumped.
   # ----------------------------------------------------------------------------
   trafilatura:
-    image: "aeternalabshq/pullmd-trafilatura:2"
+    image: "aeternalabshq/pullmd-trafilatura@sha256:1e8b2f77ace91041cb4bae7f248e2f5af67f587b7cb719cdd19c4bb39c640800" # :2
     restart: unless-stopped
 
 # ------------------------------------------------------------------------------
