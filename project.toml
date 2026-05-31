@@ -1,0 +1,41 @@
+# Cloud Native Buildpacks project descriptor.
+#
+# Build-context exclusions for `pack build` (the {66.7} onprem-deploy.yml GH Action,
+# and any other buildpack build). The off-host workflow runs `pack build` from a full
+# `actions/checkout` of the repo. Unlike the retired Cloud Run path
+# (`gcloud builds submit`, which filtered the upload via `.gcloudignore`), `pack` does
+# NOT honour `.gcloudignore` — so without this descriptor the buildpack bakes the
+# ENTIRE repo (incl. `docs/` + `.planning/` — proprietary historical context and
+# client-specific documentation — and `.claude/`) into the published image layers.
+#
+# Empirically: the first GH-built image was 6.31 GB (over the 5.3 GB budget); the
+# clean Cloud Run image was within it. These excludes mirror `.gcloudignore` so the
+# off-host buildpack image matches the clean Cloud Run image — only Python sources +
+# requirements.txt reach it. This both slims the image AND protects client IP from
+# landing in a registry artefact (see roadmap theme 12 — repo-public investigation).
+#
+# NOTE: `scripts/tests/` is deliberately NOT excluded — the pipeline reads its taxonomy
+# from `scripts/tests/fixtures/taxonomy_snapshot.json` at runtime (only the root-level
+# `__tests__/` Vitest dir is excluded). Keep this in sync with `.gcloudignore`.
+[_]
+schema-version = "0.2"
+
+[io.buildpacks]
+exclude = [
+  ".git/",
+  ".gitignore",
+  "node_modules/",
+  ".next/",
+  "mcp-apps/dist/",
+  "coverage/",
+  "out/",
+  "e2e/",
+  "__tests__/",
+  "docs/",
+  ".planning/",
+  ".claude/",
+  ".env",
+  ".env.local",
+  "*.log",
+  ".DS_Store",
+]
