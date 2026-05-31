@@ -13,6 +13,7 @@ from .config import (
     get_env,
     get_system_prompt,
     CLASSIFICATION_MODEL,
+    CLIENT_ORGANISATION_NAME_LOWER,
     OPUS_INPUT_PRICE,
     OPUS_OUTPUT_PRICE,
     OPUS_CACHE_WRITE_PRICE,
@@ -1142,10 +1143,12 @@ def _merge_entities(
 # Holder metadata derivation
 # ──────────────────────────────────────────
 
-# Client organisation name (lowercased) for holder attribution.
-# Matches BRANDING.organisationName.toLowerCase() in production TS code
-# and CLIENT_CONFIG.entity_examples.organisation_name in the classifier prompt.
-_CLIENT_ORG_LOWER = "Example Client Ltd"
+# Client organisation name (lowercased) for holder attribution. Resolved from
+# the CLIENT_ORGANISATION_NAME env var via config (see config.py) so the client
+# identity is never hardcoded here; matches BRANDING.organisationName on the
+# TypeScript side and CLIENT_CONFIG.entity_examples.organisation_name in the
+# classifier prompt.
+_CLIENT_ORG_LOWER = CLIENT_ORGANISATION_NAME_LOWER
 
 
 def derive_holder_metadata(

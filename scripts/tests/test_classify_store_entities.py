@@ -41,7 +41,7 @@ class TestDeriveHolderMetadata:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },
@@ -84,7 +84,7 @@ class TestDeriveHolderMetadata:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "operates_in",
                 "target": "Data Centre Services",
             },
@@ -104,7 +104,7 @@ class TestDeriveHolderMetadata:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "holds",
                 "target": "GDPR",
             },
@@ -130,7 +130,7 @@ class TestDeriveHolderMetadata:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "holds",
                 "target": "Cyber Essentials Plus",
             },
@@ -162,7 +162,7 @@ class TestDeriveHolderMetadata:
         """Empty entities list yields empty metadata map."""
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },
@@ -182,7 +182,7 @@ class TestDeriveHolderMetadata:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "EXAMPLE CLIENT LIMITED",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },
@@ -235,7 +235,7 @@ class TestStoreEntitiesWithRelationships:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },
@@ -296,7 +296,7 @@ class TestStoreEntitiesWithRelationships:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "operates_in",
                 "target": "Data Centre Services",
             },
@@ -343,7 +343,7 @@ class TestStoreEntitiesWithRelationships:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "holds",
                 "target": "GDPR",
             },
@@ -375,7 +375,7 @@ class TestStoreEntitiesWithRelationships:
         ]
         relationships = [
             {
-                "source": "Example Client Ltd",
+                "source": "Example Client Limited",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },

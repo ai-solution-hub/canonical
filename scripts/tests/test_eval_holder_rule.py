@@ -10,7 +10,7 @@ import pytest
 from kb_pipeline.eval_holder_rule import compute_diff, normalise_rel
 
 
-CLIENT_ORG = "Example Client Ltd"
+CLIENT_ORG = "example client limited"
 
 
 class TestNormaliseRel:
@@ -19,12 +19,12 @@ class TestNormaliseRel:
     def test_normalises_entity_relationships_format(self):
         """DB format with source_entity, relationship_type, target_entity."""
         rel = {
-            "source_entity": "Example Client Ltd",
+            "source_entity": "Example Client Limited",
             "relationship_type": "holds",
             "target_entity": "ISO 27001",
         }
         result = normalise_rel(rel)
-        assert result == ("Example Client Ltd", "holds", "iso 27001")
+        assert result == ("example client limited", "holds", "iso 27001")
 
     def test_normalises_classification_output_format(self):
         """Classification output with source, relationship_type, target."""
@@ -58,24 +58,24 @@ class TestComputeDiff:
         """When existing and new rels are identical, everything is unchanged."""
         existing = [
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 27001",
             },
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "cyber essentials plus",
             },
         ]
         new = [
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "cyber essentials plus",
             },
@@ -92,7 +92,7 @@ class TestComputeDiff:
         """example-datacentre false positive case -- source changes from client to supplier."""
         existing = [
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 27001",
             },
@@ -119,23 +119,23 @@ class TestComputeDiff:
         """All 3 known example-datacentre false positives change -- spec section 4.3."""
         existing = [
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 27001",
             },
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 9001",
             },
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 14001",
             },
             # Self-held cert that should NOT change
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "cyber essentials plus",
             },
@@ -157,7 +157,7 @@ class TestComputeDiff:
                 "target": "iso 14001",
             },
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "cyber essentials plus",
             },
@@ -175,19 +175,19 @@ class TestComputeDiff:
         """A relationship in existing but not in new is 'removed'."""
         existing = [
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 27001",
             },
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 9001",
             },
         ]
         new = [
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
@@ -203,19 +203,19 @@ class TestComputeDiff:
         """A relationship in new but not existing is 'added'."""
         existing = [
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 27001",
             },
         ]
         new = [
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "iso 9001",
             },
@@ -231,14 +231,14 @@ class TestComputeDiff:
         """Different casing should be treated as identical."""
         existing = [
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "Example Client Limited",
                 "relationship_type": "holds",
                 "target_entity": "ISO 27001",
             },
         ]
         new = [
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
@@ -285,19 +285,19 @@ class TestComputeDiff:
         existing = [
             # Should stay unchanged
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "cyber essentials plus",
             },
             # Should change to example-datacentre (positive control)
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 27001",
             },
             # Should be removed (classifier no longer sees it)
             {
-                "source_entity": "Example Client Ltd",
+                "source_entity": "example client limited",
                 "relationship_type": "holds",
                 "target_entity": "iso 45001",
             },
@@ -305,7 +305,7 @@ class TestComputeDiff:
         new = [
             # Unchanged
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "cyber essentials plus",
             },
@@ -317,7 +317,7 @@ class TestComputeDiff:
             },
             # New detection
             {
-                "source": "Example Client Ltd",
+                "source": "example client limited",
                 "relationship_type": "holds",
                 "target": "iso 22301",
             },

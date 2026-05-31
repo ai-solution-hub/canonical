@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
 
 from kb_pipeline.config import (  # noqa: E402
     CLASSIFICATION_MODEL,
+    CLIENT_ORGANISATION_NAME_LOWER,
 )
 from kb_pipeline.classify import (  # noqa: E402
     classify,
@@ -39,8 +40,10 @@ from kb_pipeline.store import _request  # noqa: E402
 logger = logging.getLogger(__name__)
 
 # Client organisation name (lowercased) for holder attribution comparison.
-# Matches BRANDING.organisationName.toLowerCase() in production TS code.
-CLIENT_ORG_LOWER = "Example Client Ltd"
+# Resolved from the CLIENT_ORGANISATION_NAME env var via config (see config.py)
+# so the client identity is never hardcoded here; matches
+# BRANDING.organisationName.toLowerCase() in production TS code.
+CLIENT_ORG_LOWER = CLIENT_ORGANISATION_NAME_LOWER
 
 # Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
 # the prod project ref before any DB reads.

@@ -91,13 +91,26 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 
 /**
  * Client organisation name (lowercased) for holder attribution comparison.
- * Matches `BRANDING.organisationName.toLowerCase()` in production TS code.
  *
- * We hardcode this rather than importing BRANDING to keep the eval script
- * decoupled from Next.js module resolution (BRANDING depends on Zod parse
- * + branding JSON + env vars that may not be set in script context).
+ * Resolved at runtime from `BRANDING.organisationName.toLowerCase()` — the
+ * same value the production classifier (`deriveHolderMetadata`) uses for the
+ * self-vs-supplier split — so the client identity is never hardcoded in this
+ * repo. `BRANDING` is driven by `NEXT_PUBLIC_CLIENT_ID`; see
+ * `resolveClientOrgLower()`, called at the top of `main()`.
  */
-const CLIENT_ORG_LOWER = 'Example Client Ltd';
+let CLIENT_ORG_LOWER = '';
+
+/**
+ * Resolve the client organisation name (lowercased) from the active branding
+ * config. Imported lazily to keep the eval script decoupled from Next.js
+ * module resolution at parse time (BRANDING depends on Zod parse + branding
+ * JSON + env vars that may not be set in script context). Must run before any
+ * holder-attribution comparison uses `CLIENT_ORG_LOWER`.
+ */
+async function resolveClientOrgLower(): Promise<void> {
+  const { BRANDING } = await import('@/lib/client-config');
+  CLIENT_ORG_LOWER = BRANDING.organisationName.toLowerCase();
+}
 
 /**
  * Pipeline service account UUID for `classifyContent` calls.
@@ -536,9 +549,9 @@ async function resolveResidualItemIds(
  * SUPPLIER-held false-positive items that the skill-port must flip from
  * self -> supplier.  Per spec §12.3: "Positive control recall | 3/3 | all
  * 3 known false positives must flip."  The three known false positives
- * are the example-datacentre disclaimer items documented in spec §1.1 (example-client-Procurement-
- * Library-2026-v4_4.md §1349: "Note: Certifications and security
- * measures below are held by example-datacentre, not example-client Design Ltd").
+ * are the example-datacentre disclaimer items documented in spec §1.1 (the procurement
+ * library source §1349: "Note: Certifications and security measures below are
+ * held by example-datacentre, not [the client org]").
  *
  * Selection logic: items whose current `holds` relationships attribute a
  * cert to example-datacentre (post-S192 SQL backfill).  Re-classification under
@@ -715,20 +728,17 @@ async function runEvaluation(
   // config ("Knowledge Hub") — which would mis-derive every holds rel
   // as `holder: 'supplier'` with supplier_name=<actual client org>. Fail
   // fast before a destructive run would corrupt prod entity_mentions.
-  const { BRANDING } = await import('@/lib/client-config');
-  const brandingOrg = BRANDING.organisationName.toLowerCase();
-  if (brandingOrg !== CLIENT_ORG_LOWER) {
+  if (!process.env.NEXT_PUBLIC_CLIENT_ID) {
     logError(
-      `BRANDING mismatch: BRANDING.organisationName = "${BRANDING.organisationName}" ` +
-        `(lowercase "${brandingOrg}") does not match the hardcoded ` +
-        `CLIENT_ORG_LOWER ("${CLIENT_ORG_LOWER}"). This means the classifier ` +
+      `NEXT_PUBLIC_CLIENT_ID is not set, so BRANDING falls back to the ` +
+        `"default" client config ("${CLIENT_ORG_LOWER}"). The classifier ` +
         `would derive holder metadata against the wrong client org and ` +
         `corrupt every cert mention in the target set. Set ` +
-        `NEXT_PUBLIC_CLIENT_ID=example-client in your shell or .env.local and retry.`,
+        `NEXT_PUBLIC_CLIENT_ID in your shell or .env.local and retry.`,
     );
     process.exit(2);
   }
-  log(`✓ BRANDING.organisationName matches CLIENT_ORG_LOWER: "${brandingOrg}"`);
+  log(`✓ Client org resolved from branding: "${CLIENT_ORG_LOWER}"`);
 
   const perItem: RunItemResult[] = [];
   let totalCertMentionsWithHolds = 0;
@@ -1048,6 +1058,9 @@ async function main(): Promise<void> {
   const args = parseArgs();
   // Assert --env=prod when set BEFORE creating client / running anything.
   assertEnvFlag(args.env, process.env.SUPABASE_URL);
+  // Resolve the client org from branding before any holder-attribution
+  // comparison runs (used by both snapshot and evaluation paths).
+  await resolveClientOrgLower();
   const supabase = createServiceRoleClient();
 
   if (args.mode === 'snapshot') {

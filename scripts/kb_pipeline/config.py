@@ -53,6 +53,19 @@ DEDUP_SIMILARITY_THRESHOLD = float(os.environ.get("DEDUP_SIMILARITY_THRESHOLD", 
 SHORT_CONTENT_THRESHOLD = int(os.environ.get("SHORT_CONTENT_THRESHOLD", "100"))  # chars
 LOW_CONFIDENCE_THRESHOLD = float(os.environ.get("LOW_CONFIDENCE_THRESHOLD", "0.60"))
 
+# Client organisation name (lowercased) used for holder attribution
+# (self-vs-supplier split in derive_holder_metadata) and the audit
+# quality-gate's required-entity check. Resolved from the
+# CLIENT_ORGANISATION_NAME env var so the client identity is never hardcoded
+# in this repo — the deployment sets it to the same value as
+# BRANDING.organisationName on the TypeScript side (driven by
+# NEXT_PUBLIC_CLIENT_ID). The neutral fallback keeps the module importable in
+# test/CI contexts; callers that perform real holder attribution against a
+# live corpus must export the env var.
+CLIENT_ORGANISATION_NAME_LOWER = os.environ.get(
+    "CLIENT_ORGANISATION_NAME", "example client limited"
+).lower()
+
 
 def load_env():
     """Return current environment variables as a dict.
