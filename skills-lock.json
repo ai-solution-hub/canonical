@@ -18,6 +18,18 @@
       "sourceType": "github",
       "skillPath": "skills/code-simplification/SKILL.md",
       "computedHash": "7973e746e8e2ea5004d520da970c15a106824b8d6be1bcff48908aec021f3677"
+    },
+    "coolify-compose": {
+      "source": "cachemoney/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/coolify-compose/SKILL.md",
+      "computedHash": "362e71eb56953e24e0714412dee5ffa0aea94fca85be0aa5e321d7ecf8182374"
+    },
+    "coolify-deploy": {
+      "source": "v1truv1us/ai-eng-system",
+      "sourceType": "github",
+      "skillPath": "skills/coolify-deploy/SKILL.md",
+      "computedHash": "2ac70e6bb555aa80cbab80a5c0ca4e26fe4d00b8d265822921357af1cbae6a94"
     }
   }
 }
