@@ -142,7 +142,7 @@ class _KeyedItemsFeed:
             yield pair
 
 
-def _thread_dispatch_mount_each(fn, items, *extra_args):
+async def _thread_dispatch_mount_each(fn, items, *extra_args):
     """Faithful stand-in for ``coco.mount_each`` (1.0.3) that reproduces the
     engine's DAEMON-THREAD dispatch boundary.
 
@@ -154,43 +154,50 @@ def _thread_dispatch_mount_each(fn, items, *extra_args):
     each item's ``fn`` runs via ``asyncio.run`` on a fresh worker thread with a
     fresh loop, so the binder's contextvar snapshot does NOT cross over.
 
+    This is an ``async def`` so it matches the real ``mount_each`` coroutine
+    contract (``app_main`` does ``handle = await coco.mount_each(...)``). It must
+    NOT call ``asyncio.run`` on the binder loop (that raises "cannot be called
+    from a running event loop"); instead each worker thread runs its OWN
+    ``asyncio.run`` on a fresh loop, and the binder coroutine drives the threads
+    via ``run_in_executor`` so the binder loop is never blocked.
+
     A handle exposing ``ready()`` is returned to mirror the
-    ``handle = await coco.mount_each(...); await handle.ready()`` call shape in
-    ``app_main``. The actual per-item work runs synchronously here (the threads
-    are joined before ``mount_each`` returns), so ``ready()`` is a no-op await.
+    ``handle = await coco.mount_each(...); await handle.ready()`` shape. The
+    per-item work completes before this coroutine returns, so ``ready()`` is a
+    no-op await.
 
     The key (relative path) is consumed for subpath routing and NOT forwarded to
     ``fn`` — matching cocoindex ``_internal/api.py`` ``_mount_one``:
     ``fn(item, *extra_args)``.
     """
     errors: list[BaseException] = []
+    loop = asyncio.get_running_loop()
 
-    async def _drive() -> None:
-        async for key, value in items:
-            assert isinstance(key, str), "mount_each keys are relative-path strings"
+    def _run_on_worker_thread(item) -> None:
+        # Fresh event loop on a fresh OS thread → the binder task's ContextVar
+        # snapshot is NOT inherited here (the production _LoopRunner daemon-thread
+        # reality this whole file exists for). asyncio.run is SAFE here because it
+        # runs on a DISTINCT thread with no running loop of its own.
+        try:
+            asyncio.run(fn(item, *extra_args))
+        except BaseException as exc:  # noqa: BLE001 — surfaced on the binder below
+            errors.append(exc)
 
-            def _run_on_worker_thread(item=value) -> None:
-                # Fresh event loop on a fresh OS thread → the binder task's
-                # ContextVar snapshot is NOT inherited here (the production
-                # _LoopRunner daemon-thread reality this whole file exists for).
-                try:
-                    asyncio.run(fn(item, *extra_args))
-                except BaseException as exc:  # noqa: BLE001 — re-raise on binder
-                    errors.append(exc)
+    async for key, value in items:
+        assert isinstance(key, str), "mount_each keys are relative-path strings"
+        # Drive the worker thread from the binder loop WITHOUT blocking it and
+        # WITHOUT a nested asyncio.run on the binder loop.
+        await loop.run_in_executor(None, _run_on_worker_thread, value)
 
-            worker = threading.Thread(target=_run_on_worker_thread)
-            worker.start()
-            worker.join()
-        if errors:
-            # Surface the first worker-thread failure on the binder task so
-            # app_main's try/except classifies it (matches engine propagation).
-            raise errors[0]
+    if errors:
+        # Surface the first worker-thread failure on the binder task so
+        # app_main's try/except classifies it (matches engine propagation).
+        raise errors[0]
 
     class _Handle:
         async def ready(self) -> None:
             return None
 
-    asyncio.run(_drive())
     return _Handle()
 
 

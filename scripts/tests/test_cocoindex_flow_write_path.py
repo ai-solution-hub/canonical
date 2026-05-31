@@ -604,23 +604,40 @@ class TestMountEachArityContract:
         chunk-row UPSERT target) is appended as a DEFAULTED 8th positional
         (``cc_target=None``) so the existing 7-arg callers stay valid while
         ``app_main`` always supplies it via ``mount_each``.
+
+        ID-66.19 appended KEYWORD-ONLY run-context params (``flow_op_id`` + the
+        four counters + ``flow_workspace_manifest``) after a bare ``*`` so
+        ``app_main`` can thread the run context via ``functools.partial`` across
+        the cocoindex daemon-thread dispatch boundary (ContextVars do not
+        propagate to the engine's ``_LoopRunner`` thread). The keyword-only
+        additions are invisible to ``mount_each``'s positional
+        ``fn(File, *extra_args)`` contract, so this guard inspects the POSITIONAL
+        slice only.
         """
         flow = _flow_module()
 
         sig = inspect.signature(flow.ingest_file)
-        params = list(sig.parameters)
-        assert params[0] != "rel_path", (
+        positional = [
+            name
+            for name, p in sig.parameters.items()
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        assert positional[0] != "rel_path", (
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First param is the File item value; remaining seven are the targets.
-        assert len(params) == 8, (
-            f"ingest_file must take exactly (file, ci, qa, sd, em, ft, ftf, cc); "
-            f"got {params}"
+        # First positional is the File item value; remaining seven are the targets.
+        assert len(positional) == 8, (
+            f"ingest_file positional params must be exactly "
+            f"(file, ci, qa, sd, em, ft, ftf, cc); got {positional}"
         )
-        assert params[-3:] == ["ft_target", "ftf_target", "cc_target"], (
-            "the last three extra args must be ft_target, ftf_target, cc_target "
-            f"(positional order); got {params}"
+        assert positional[-3:] == ["ft_target", "ftf_target", "cc_target"], (
+            "the last three positional extra args must be ft_target, ftf_target, "
+            f"cc_target (positional order); got {positional}"
         )
         # cc_target is DEFAULTED to None so 7-arg legacy callers stay valid.
         assert sig.parameters["cc_target"].default is None, (
