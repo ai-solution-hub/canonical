@@ -90,7 +90,7 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 ## Deployment
 
 - **Platform:** Vercel (Next.js app) + Cloud Run
-- **Production URL:** https://www.kh.client.example
+- **Production URL:** https://kh.client.example
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
 - **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`. Auth via
   WIF. Deploy: `.github/workflows/cloud-run-deploy.yml`. Runbook:
