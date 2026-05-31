@@ -1,0 +1,214 @@
+# deploy/coolify/docker-compose.staging.yml
+#
+# ID-66.21: Staging Coolify env — a staging MIRROR of the prod on-prem co-location
+#           compose (deploy/onprem/docker-compose.yaml). cocoindex + pullmd +
+#           Playwright + Trafilatura on one Coolify-managed compose network,
+#           targeting the STAGING Supabase branch.
+#
+# Spec:    docs/specs/ID-66-onprem-pivot/TECH.md §"1. Co-location docker-compose.yaml"
+# Runbook: docs/runbooks/staging-coolify-cocoindex.md
+# Subtask: docs/reference/task-list.json task 66, subtask 21
+#
+# WHY a staging env:
+#   {66.21} gives the operator a staging stack to validate ingest, the {66.16} E2E
+#   smoke, and the ID-62 reachability hand-off WITHOUT touching the live on-prem prod
+#   corpus or the prod Supabase project. It is byte-for-byte the prod compose with
+#   three deliberate divergences (see "STAGING DIVERGENCES" below).
+#
+# STAGING DIVERGENCES from deploy/onprem/docker-compose.yaml (the prod source):
+#   1. Supabase target = the STAGING branch `turayklvaunphgbgscat` (NOT prod
+#      `rovrymhhffssilaftdwd`). Wired purely via Coolify env (SUPABASE_* / COCOINDEX_DB_DSN);
+#      NO ref is hardcoded here — the operator pastes staging-branch values per the runbook.
+#   2. A SEPARATE staging corpus + engine volume (`cocoindex-state-staging`, distinct
+#      from prod's `cocoindex-state`) so staging ingest never touches the live prod corpus.
+#   3. Distinct compose project name + service container names + an exposed host port so
+#      the staging stack can co-reside with prod on the same Coolify server if needed.
+#
+# IDLE-MODE SAFE BY DEFAULT:
+#   COCOINDEX_SOURCE_PATH is left UNSET (the :- default resolves to empty), so the worker
+#   boots in idle mode (per app_main's O-Q8 idle contract — see
+#   scripts/tests/test_cocoindex_flow_idle_mode.py) and stays running with no corpus until
+#   an operator stages one under the staging volume (e.g. /cocoindex-state/corpus).
+#
+# Secrets discipline (invariant 10 / {66.10}):
+#   ALL secret env values (API keys, DSN, tokens, admin creds) are injected by Coolify's
+#   per-app encrypted env at deploy time. This file contains NO literal secret values —
+#   secret vars are ${VAR} refs only. See deploy/coolify/.env.staging.example for the
+#   full env contract and safe placeholders, and docs/runbooks/staging-coolify-cocoindex.md
+#   for the operator stand-up steps. PULLMD_SERVICE_URL is the one plaintext non-secret —
+#   it is the host-local compose alias.
+#
+# Image-tag discipline:
+#   cocoindex — NEVER :latest. COCOINDEX_IMAGE_TAG is a required variable
+#     (${COCOINDEX_IMAGE_TAG:?}) that must be set to a pinned sha- tag from the {66.7}
+#     onprem-deploy.yml GH Action (e.g. sha-abc1234). Staging may pin a release-candidate
+#     tag ahead of prod to validate it before the prod stack adopts it.
+#   pullmd — aeternalabshq/pullmd:2.0.0 (concrete version, NOT :latest).
+#   playwright / trafilatura — pinned to the same :2 manifest-list digests as prod;
+#     re-pin in lockstep with deploy/onprem/docker-compose.yaml when the upstream :2
+#     tag is bumped.
+
+name: kh-onprem-staging
+
+services:
+  # ----------------------------------------------------------------------------
+  # cocoindex — KH ingestion pipeline sidecar (STAGING).
+  #
+  # Image built + pushed to ghcr.io by {66.7}. The tag MUST be a pinned sha- tag —
+  # never :latest. COCOINDEX_IMAGE_TAG is required: compose refuses to start if unset.
+  # ----------------------------------------------------------------------------
+  cocoindex-staging:
+    image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
+    container_name: kh-cocoindex-staging
+    restart: unless-stopped
+    # Run as root: buildpack images run as uid 1000 (cnb), but a fresh Docker named-volume
+    # mount is root-owned, so the non-root user hits "Permission denied (os error 13)"
+    # initialising the LMDB engine store at /cocoindex-state/lmdb. root resolves it durably
+    # for this single-tenant backend pipeline sidecar (no untrusted code exec). Verbatim
+    # from the prod compose — the staging permission model is identical.
+    user: "0:0"
+    environment:
+      # --- Compose-alias repoint (env-only, NO source change to adapters.py) ---
+      # http://pullmd-staging:3000 is the host-local compose service alias for the
+      # STAGING pullmd. Distinct from prod's `pullmd` alias so the two stacks can
+      # co-reside on one Coolify server without colliding on the service name.
+      PULLMD_SERVICE_URL: "http://pullmd-staging:3000"
+
+      # --- Defence-in-depth Bearer auth ---
+      # Retained even on the host-local network. Value injected by Coolify.
+      PULLMD_API_TOKEN: ${PULLMD_API_TOKEN}
+
+      # --- Boot-required vars (must be present before /health serves) ---
+      # COCOINDEX_DB_DSN is the asyncpg STAGING-Supabase pooler string (NOT the LMDB path).
+      # Boot-required: flow.py:_build_dsn() needs it during @coco.lifespan asyncpg pool
+      # creation, before /health can serve. For staging this MUST point at the
+      # `turayklvaunphgbgscat` branch — build it from the staging POSTGRES_PASSWORD and the
+      # region-qualified pooler host (aws-<n>-eu-west-2.pooler.supabase.com); see the runbook
+      # and docs/runbooks/cocoindex-deploy.md §0.1. Value injected by Coolify.
+      COCOINDEX_DB_DSN: ${COCOINDEX_DB_DSN}
+
+      # COCOINDEX_DB is the cocoindex ENGINE's internal LMDB state-store path.
+      # Boot-required: environment.start_sync() raises ValueError when unset.
+      # The staging volume mounts the persistent disk at the parent directory.
+      COCOINDEX_DB: /cocoindex-state/lmdb
+
+      # COCOINDEX_SOURCE_PATH: corpus directory for ingest. UNSET => idle mode (the :-
+      # default resolves to empty), so the staging worker boots clean with no corpus and
+      # stays running (O-Q8 idle contract). Set it via Coolify env to a path under the
+      # STAGING volume (e.g. /cocoindex-state/corpus) to activate staging ingest — this
+      # is a STAGING corpus, isolated from the live prod corpus by the separate volume below.
+      COCOINDEX_SOURCE_PATH: ${COCOINDEX_SOURCE_PATH:-}
+
+      # LMDB virtual map size — sparse virtual reservation, not pre-allocation. 4 GiB
+      # default matches the prod disk-backed sizing; operator may override via Coolify env.
+      COCOINDEX_LMDB_MAP_SIZE: ${COCOINDEX_LMDB_MAP_SIZE:-4294967296}
+
+      # --- Pipeline webhook (zero app change — env-only) ---
+      # Best-effort POST; flow.py:_emit_pipeline_run_webhook reads from os.environ.
+      # For STAGING this should target the STAGING app host (the staging Vercel deployment's
+      # app/api/internal/pipeline-runs/record), reconciled with the {66.13} cutover plan —
+      # NOT the prod app URL. See the .env.staging.example note. Value injected by Coolify.
+      PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
+      CRON_SECRET: ${CRON_SECRET}
+
+      # --- Supabase / API secrets (STAGING values, injected by Coolify) ---
+      # SUPABASE_* MUST be the staging-branch (turayklvaunphgbgscat) values, NOT prod.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN}
+
+    volumes:
+      # STAGING-only named volume — DISTINCT from prod's `cocoindex-state`. The engine
+      # store lands at /cocoindex-state/lmdb (COCOINDEX_DB); a staged corpus, once added,
+      # goes in a subdir set via COCOINDEX_SOURCE_PATH. Keeping this separate from prod
+      # guarantees staging ingest never reads or mutates the live prod corpus.
+      - cocoindex-state-staging:/cocoindex-state
+
+    # Liveness healthcheck — container-restart purposes ONLY; explicitly NOT the datapath
+    # signal ({66.15} watches pipeline_runs row arrival in Supabase, not container liveness).
+    # The buildpack image ships NO curl/wget and python is not on the exec PATH, so we probe
+    # the HTTP wrapper's port via bash /dev/tcp (path-independent, no external deps). Verbatim
+    # from the prod compose — the buildpack-image constraint is identical for staging.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    depends_on:
+      - pullmd-staging
+
+  # ----------------------------------------------------------------------------
+  # pullmd — HTML→Markdown extractor (AGPL; separate service for the licence boundary —
+  # the AGPL binary never lands inside the MIT+proprietary cocoindex image).
+  #
+  # Mirrors deploy/onprem/docker-compose.yaml's pullmd verbatim except for the staging
+  # service/container name. Port 3000 is the compose-internal alias; no external port
+  # exposure needed (cocoindex-staging reaches it via http://pullmd-staging:3000).
+  # ----------------------------------------------------------------------------
+  pullmd-staging:
+    image: "aeternalabshq/pullmd:2.0.0"
+    container_name: kh-pullmd-staging
+    restart: unless-stopped
+    environment:
+      # Bearer-gated; single-admin bootstrap (pullmd exits at boot without these).
+      PULLMD_AUTH_MODE: "single-admin"
+      # Values injected by Coolify.
+      PULLMD_ADMIN_EMAIL: ${PULLMD_ADMIN_EMAIL}
+      PULLMD_ADMIN_PASSWORD: ${PULLMD_ADMIN_PASSWORD}
+      PULLMD_API_TOKEN: ${PULLMD_API_TOKEN}
+
+      # Sidecar wiring — compose-alias form. Distinct staging aliases for the render +
+      # extract sidecars so the staging stack co-resides cleanly with prod.
+      PLAYWRIGHT_URL: "http://playwright-staging:8002/render"
+      TRAFILATURA_URL: "http://trafilatura-staging:8001/extract"
+
+      # Ephemeral SQLite cache. /tmp is writable on startup; better-sqlite3 will not mkdir
+      # the parent so the path must exist. Cache is non-critical: lost on restart, rebuilt.
+      CACHE_DB: "/tmp/pullmd-cache.db"
+
+    depends_on:
+      - playwright-staging
+      - trafilatura-staging
+
+  # ----------------------------------------------------------------------------
+  # playwright — JS-render sidecar for pullmd (~3.7 GB image). Listens on :8002 (/render).
+  # Pinned to the same :2 manifest-list digest as prod (resolved 2026-05-31). Multi-arch
+  # index digest — Docker resolves the host arch. Re-pin in lockstep with the prod compose.
+  # ----------------------------------------------------------------------------
+  playwright-staging:
+    image: "aeternalabshq/pullmd-playwright@sha256:af1993dfbbb7d41f0587b4087c7287d4b872706c139427316202157bf5bb0523" # :2
+    container_name: kh-playwright-staging
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # trafilatura — fallback HTML extractor sidecar for pullmd. Listens on :8001 (/extract).
+  # Pinned to the same :2 manifest-list digest as prod. Re-pin in lockstep with the prod
+  # compose when the upstream :2 tag is bumped.
+  # ----------------------------------------------------------------------------
+  trafilatura-staging:
+    image: "aeternalabshq/pullmd-trafilatura@sha256:1e8b2f77ace91041cb4bae7f248e2f5af67f587b7cb719cdd19c4bb39c640800" # :2
+    container_name: kh-trafilatura-staging
+    restart: unless-stopped
+
+# ------------------------------------------------------------------------------
+# Volumes
+#
+# cocoindex-state-staging: the STAGING cocoindex engine LMDB state store (+ the staging
+# corpus directory once ingest is activated). A plain local-driver named volume is
+# disk-backed on the host NVMe (Docker stores named volumes under /var/lib/docker/volumes).
+# It is DISTINCT from prod's `cocoindex-state` volume, so staging ingest never touches the
+# live prod corpus and a staging teardown never destroys prod state. Coolify persists named
+# volumes across redeploys but does NOT back them up natively; LMDB loss costs a memo-rebuild
+# only, never KH data (Supabase is canonical). See the runbook teardown note.
+# ------------------------------------------------------------------------------
+volumes:
+  cocoindex-state-staging:
+    driver: local
