@@ -67,8 +67,6 @@ const EFA_XLSX =
   'scripts/tests/fixtures/form-extraction/evaluation-matrix-itt-vol8.xlsx';
 const CHARNWOOD_DOCX =
   'scripts/tests/fixtures/form-extraction/itt-services-charnwood.docx';
-const CSP_XLSX =
-  'scripts/tests/fixtures/form-extraction/cloud-security-principles-checklist-v5-3.xlsx';
 const CORRUPT_PDF = 'scripts/tests/fixtures/form-extraction/corrupt.pdf';
 
 // The folder prefix the test manifest maps to a workspace (Inv-4 / Inv-5).
@@ -330,11 +328,10 @@ describe.skipIf(!ENABLED)(
       'Inv-18 — per-question metadata (is_mandatory, word_limit, section_name, reference_urls, coordinates) populated wherever the source carries it; no silent loss',
       async () => {
         const namePrefix = `[52.13-INV18-${RUN}]`;
-        // Stage all three readable corpus fixtures — each demonstrates a
+        // Stage the two readable corpus fixtures — each demonstrates a
         // different metadata facet the form carries (Inv-18 no-silent-loss):
         //   - SQ (PDF):    is_mandatory (M/O flag) + word_limit (inline [NNN])
         //   - EFA (XLSX):  row_index / col_index / table_index coordinates
-        //   - CSP (XLSX):  reference_urls (NCSC links) + section_name
         await stageFixture({
           fixturePath: SQ_PDF,
           destPath: `${MAPPED_FOLDER}/${namePrefix}-sq.pdf`,
@@ -344,11 +341,6 @@ describe.skipIf(!ENABLED)(
           fixturePath: EFA_XLSX,
           destPath: `${MAPPED_FOLDER}/${namePrefix}-efa.xlsx`,
           titlePrefix: `${namePrefix}-efa`,
-        });
-        await stageFixture({
-          fixturePath: CSP_XLSX,
-          destPath: `${MAPPED_FOLDER}/${namePrefix}-csp.xlsx`,
-          titlePrefix: `${namePrefix}-csp`,
         });
 
         const sqTpl = (
@@ -361,20 +353,12 @@ describe.skipIf(!ENABLED)(
             timeoutMs: POLL_TIMEOUT_MS,
           })
         )[0]!;
-        const cspTpl = (
-          await pollFormTemplatesFor(`${namePrefix}-csp`, {
-            timeoutMs: POLL_TIMEOUT_MS,
-          })
-        )[0]!;
-        seededTemplateIds.push(sqTpl.id, efaTpl.id, cspTpl.id);
+        seededTemplateIds.push(sqTpl.id, efaTpl.id);
 
         const sqFields = await pollFormTemplateFieldsFor(sqTpl.id, {
           timeoutMs: POLL_TIMEOUT_MS,
         });
         const efaFields = await pollFormTemplateFieldsFor(efaTpl.id, {
-          timeoutMs: POLL_TIMEOUT_MS,
-        });
-        const cspFields = await pollFormTemplateFieldsFor(cspTpl.id, {
           timeoutMs: POLL_TIMEOUT_MS,
         });
 
@@ -398,16 +382,6 @@ describe.skipIf(!ENABLED)(
               f.table_index !== null,
           ),
           'EFA must carry >=1 row with full coordinates',
-        ).toBe(true);
-
-        // CSP — reference URLs + section names.
-        expect(
-          cspFields.some((f) => (f.reference_urls?.length ?? 0) > 0),
-          'CSP must carry >=1 reference_urls',
-        ).toBe(true);
-        expect(
-          cspFields.some((f) => f.section_name !== null),
-          'CSP must carry >=1 section_name',
         ).toBe(true);
       },
       POLL_TIMEOUT_MS + 60_000,
@@ -442,21 +416,22 @@ describe.skipIf(!ENABLED)(
     }, 90_000);
 
     it(
-      'Inv-19 — Path-A Mode-1 q_a_extractions still land for a markdown fixture (Mode-1 NOT regressed; lossy fix is ID-54, out of scope)',
+      'Inv-19 — Path-A Mode-1 q_a_extractions still land for an xlsx fixture (Mode-1 NOT regressed; lossy fix is ID-54, out of scope)',
       async () => {
         // Light sanity: Path A (answered-form Q&A → q_a_extractions) is a
         // distinct write path the form-extraction work does not touch. The
         // canonical Path-A integration coverage lives in the cocoindex suite
         // (inv-1-content-items-row-produced + the q_a_extractions tests) and
         // in the Python gate test_cocoindex_flow_write_path.py. Here we assert
-        // only that staging a Mode-1 markdown fixture still produces a
+        // only that staging a Mode-1 xlsx fixture still produces a
         // content_items row — i.e. Path A coexists with the new form path.
+        // The assertion is corpus-agnostic (content_items row produced), so the
+        // EFA fixture stands in for the prior CSP fixture removed by ID-68.5.
         const namePrefix = `[52.13-INV19-${RUN}]`;
         const { pollContentItemsFor, dropFixture } =
           await import('./cocoindex/_helpers/fixture-staging');
         await stageFixture({
-          fixturePath:
-            'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+          fixturePath: EFA_XLSX,
           destPath: `${MAPPED_FOLDER}/${namePrefix}-mode1.xlsx`,
           titlePrefix: namePrefix,
         });
