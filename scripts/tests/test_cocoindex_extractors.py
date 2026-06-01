@@ -61,6 +61,7 @@ from cocoindex_pipeline.extraction import (  # noqa: E402
     ClassificationExtraction,
     EntityMentionExtraction,
     QAFormExtraction,
+    _strip_code_fence,
     classify_pydantic_error,
     extract_classification,
     extract_entity_mentions,
@@ -518,3 +519,69 @@ class TestExtractorDecoration:
         ):
             result = asyncio.run(extract_classification("hi"))
         assert isinstance(result, ClassificationExtraction)
+
+
+# ============================================================================
+# CODE-FENCE STRIPPING ({66.16} S295 live-ingest regression)
+# ============================================================================
+
+
+class TestStripCodeFence:
+    """`_strip_code_fence` normalises fenced LLM JSON to a bare document."""
+
+    def test_strips_json_language_fence(self):
+        assert _strip_code_fence('```json\n{"a": 1}\n```') == '{"a": 1}'
+
+    def test_strips_bare_fence(self):
+        assert _strip_code_fence('```\n{"a": 1}\n```') == '{"a": 1}'
+
+    def test_noop_on_unfenced(self):
+        assert _strip_code_fence('{"a": 1}') == '{"a": 1}'
+
+    def test_preserves_inner_backticks(self):
+        # A value containing backticks must survive — only the OUTER fence is
+        # stripped (closing-fence trim takes the final ``` at end-of-string).
+        assert _strip_code_fence('```json\n{"r": "use `x`"}\n```') == '{"r": "use `x`"}'
+
+
+class TestExtractorsTolerateFencedResponse:
+    """Anthropic intermittently wraps JSON in a ```json … ``` fence; all three
+    extractors must strip it before `validate_json`. Mirrors the live
+    `extract_qa_form` crash (`json_invalid` 'expected value at line 1 column 1',
+    {66.16} S295) that the unit suite missed because every happy-path fixture
+    was unfenced."""
+
+    @staticmethod
+    def _fence(payload: str) -> str:
+        return f"```json\n{payload}\n```"
+
+    def test_classification_tolerates_fenced_response(self):
+        mock_client = _make_mock_client(self._fence(_classification_json("policy")))
+        with patch(
+            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            result = asyncio.run(extract_classification("doc text"))
+        assert isinstance(result, ClassificationExtraction)
+        assert result.content_type == "policy"
+
+    def test_qa_form_tolerates_fenced_response(self):
+        mock_client = _make_mock_client(self._fence(_qa_form_json()))
+        with patch(
+            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            result = asyncio.run(extract_qa_form("doc text"))
+        assert isinstance(result, QAFormExtraction)
+        assert result.form_metadata.form_type == "pqq"
+
+    def test_entity_mentions_tolerate_fenced_response(self):
+        mock_client = _make_mock_client(self._fence(_entity_mentions_json()))
+        with patch(
+            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            result = asyncio.run(extract_entity_mentions("doc text"))
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(m, EntityMentionExtraction) for m in result)

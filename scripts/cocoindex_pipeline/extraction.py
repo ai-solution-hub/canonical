@@ -472,6 +472,31 @@ def classify_pydantic_error(exc: ValidationError) -> str:
     return _PYDANTIC_ERROR_TO_ERROR_CLASS.get(first_error_type, "type_coercion")
 
 
+def _strip_code_fence(text: str) -> str:
+    """Strip an enclosing Markdown code fence from an LLM JSON response.
+
+    Anthropic models intermittently wrap JSON output in a ```json … ``` (or a
+    bare ``` … ```) fence despite the prompt asking for raw JSON, which makes
+    `TypeAdapter.validate_json` fail with a `json_invalid` error ("expected
+    value at line 1 column 1" — {66.16} S295 live-ingest, surfaced on
+    `extract_qa_form` once the Inv-5 stamp-field defaults let validation run).
+    This normalises the response to the bare JSON document; no-op when the
+    response is already unfenced. Applied to ALL three extractors because the
+    fencing is non-deterministic per call.
+    """
+    s = text.strip()
+    if not s.startswith("```"):
+        return s
+    # Drop the opening fence line (``` or ```json …) up to its first newline.
+    newline = s.find("\n")
+    s = s[newline + 1 :] if newline != -1 else s[3:]
+    # Drop the trailing closing fence.
+    s = s.rstrip()
+    if s.endswith("```"):
+        s = s[:-3]
+    return s.strip()
+
+
 # ---------------------------------------------------------------------------
 # Inner-tier post-processing helpers (per Q-EX2 TECH §3.2)
 # ---------------------------------------------------------------------------
@@ -699,7 +724,7 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
             ],
         )
     )
-    response_text = response.content[0].text
+    response_text = _strip_code_fence(response.content[0].text)
     return _classification_adapter.validate_json(response_text)
 
 
@@ -725,7 +750,7 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
             ],
         )
     )
-    response_text = response.content[0].text
+    response_text = _strip_code_fence(response.content[0].text)
     return _qa_form_adapter.validate_json(response_text)
 
 
@@ -752,5 +777,5 @@ async def extract_entity_mentions(
             ],
         )
     )
-    response_text = response.content[0].text
+    response_text = _strip_code_fence(response.content[0].text)
     return _entity_mentions_adapter.validate_json(response_text)
