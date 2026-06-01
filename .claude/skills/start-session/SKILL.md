@@ -4,8 +4,7 @@ description:
   Bootstraps a Knowledge Hub session: cleans git worktrees, loads context, presents the session plan from the
   continuation prompt, then chains to `workflow-orchestration` for the canonical SDLC
   flow (ID-N Task / ID-N.M Subtask lifecycle, dispatch, gating, merge cadence). Use at
-  the start of every new session. Triggers on "start session", "begin session", "session
-  bootstrap", "kick off the session".
+  the start of every new session.
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, MCP
 ---
 
@@ -39,9 +38,9 @@ deleted.
 
 ---
 
-## Step 1b: GitNexus Baseline (run before any code-heavy wave / sub-agent dispatch)
+## Step 1b: GitNexus Baseline
 
-Refresh the code-intelligence index at session start so the Orchestrator — and any
+Refresh the code-intelligence index at session start so the sub-orchestrator(s) — and any
 in-tree (non-isolation) sub-agents — query a current graph rather than the
 previous session's:
 
@@ -49,19 +48,8 @@ previous session's:
 npx gitnexus analyze    # minutes; rebuilds .gitnexus/lbug for the primary tree
 ```
 
-Notes (important — the naive "push the baseline" model does NOT work):
+Notes:
 
-- The index (`.gitnexus/lbug`, ~270 MB) is **gitignored and local**
-  (`.gitnexus/**` is ignored except `!.gitnexus/CLAUDE.md`). It does **not**
-  propagate to git worktrees via commit/push, so cherry-picked sub-agent
-  worktrees start with a stale/absent index — this is the root of the
-  "stale (never) in every worktree" friction.
-- Until the worktree index-seeding mechanism lands (tracked under ID-27
-  `{27.5}` + `backlog-190`), a **code-touching** dispatch brief into an
-  isolated worktree must either (a) instruct the worker to run
-  `npx gitnexus analyze` first, or (b) accept that gitnexus tools report stale
-  in that worktree and instead lean on `gitnexus_context` / `gitnexus_impact`
-  run from the primary tree at dispatch-authoring time.
 - A stale-index warning on every commit is expected (the post-commit hook
   compares the index to the new HEAD). Re-run `analyze` only before a genuinely
   code-heavy wave — not per doc/ledger commit.
@@ -74,21 +62,11 @@ Read these documents in parallel to load context:
 
 ### 2a: Memory recall
 
-Mempalace MCP is the canonical memory system. Call `mempalace_diary_read`
-(`agent_name: claude`, `last_n: 5-8`) for the most recent diary entries — these
-recover cross-session context the continuation prompt may not surface (mode
-ratifications, gotchas, build status deltas). For recall during the session,
-use `mempalace_search` and `mempalace_kg_query`; any errors are transient and
-should resolve on retry.
+Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 2`) for the most recent diary entries. For recall during the session, use `mempalace_search` and `mempalace_kg_query`; any errors are transient and should resolve on retry.
 
 ### 2b: Task-list state inspection
 
-Read `docs/reference/task-list.json` at session start. The task-list is the
-canonical **traceability + observability** surface — active AND recently-closed
-Tasks live here. Subtask state machine (per `kh-sdlc-workflow.md` §6.3) is the
-record of what shipped, NOT a per-session test/check artefact.
-
-- Read Tasks whose `session_refs[]` includes the previous
+Read `docs/reference/task-list.json` at session start where a task whose `session_refs[]` includes the previous
   session — these are recently-closed records; their `<info added on …>`
   journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
   in-flight discoveries the previous Executor / Checker left behind that may
@@ -120,7 +98,7 @@ ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -
 
 ## Step 4: Chain to workflow-orchestration
 
-Once the session plan is presented (Step 3), invoke the `workflow-orchestration` skill via the Skill tool. That skill is the canonical SDLC workflow body — it covers the ID-N Task / ID-N.M Subtask lifecycle, the Planner / Executor / Checker / Curator dispatch protocol, sequential cherry-pick merge cadence, state machines, finding routing (in-scope fix-Executor vs out-of-scope Curator), quality gates, and failure handling. See `.claude/skills/workflow-orchestration/SKILL.md` plus its `references/` files (lifecycle-detail, dispatch-primitives, checker-output-schema, state-machines, failure-modes, skill-routing, external-references).
+Once the session plan is presented, invoke the `workflow-orchestration` skill via the Skill tool, to begin session orchestration.
 
 ---
 

@@ -1,20 +1,16 @@
 ---
 name: handoff
 description:
-  Generate the lean orchestrator-of-orchestrators continuation prompt at session
-  close. Triggers on "handoff", "continuation prompt", "session handoff", "wrap up
-  session", "create handoff". Produces a routing + deltas document that points to
-  the canonical ledger / cmux briefs / Mempalace diary instead of reproducing them.
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+  Generate the orchestrator-of-orchestrators continuation prompt at session
+  close. Triggers on "handoff", "continuation prompt", "wrap up session", "create handoff". 
+  allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
-# Session Handoff — Continuation Prompt Generator
+# Session Handoff
 
 Generates `docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
 at session close. The prompt is consumed by the **next session's
-orchestrator-of-orchestrators** — never by an individual cmux terminal. So it is a
-**routing + deltas** document: it points to canonical sources and carries only what
-is NOT already in them.
+orchestrator-of-orchestrators**. It is a **routing + deltas** document: it points to canonical sources and carries only what is NOT already in them.
 
 **Canonical sources — point to these, never reproduce them:**
 
@@ -26,21 +22,7 @@ is NOT already in them.
 
 ---
 
-## Step 1 — Read context
-
-```bash
-ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -3
-git worktree list
-git log --oneline -12
-```
-
-- Identify this session's Task/Subtask status flips from `task-list.json` — the
-  `<info added on …>` journals are the canonical record. Do **not** re-compress them
-  into the prompt; the diary already holds session history.
-
----
-
-## Step 2 — Session number + filename
+## Step 1 — Session number + filename
 
 Filename uses the highest existing number + 1. 
 
@@ -48,19 +30,7 @@ Filename format: `continuation-prompt-kh-s{NNN}-{slug}.md`
 
 ---
 
-## Step 3 — Build status (one line)
-
-```bash
-bun run test 2>&1 | tail -3   # pass / fail / skip headline
-bun lint 2>&1 | tail -3
-```
-
-Record the headline counts. Flag whether failures are pre-existing/tracked
-or new this session.
-
----
-
-## Step 4 — Confirm next-session focus
+## Step 2 — Confirm next-session focus
 
 Confirm before drafting (ask Liam if unsure):
 
@@ -72,7 +42,7 @@ Confirm before drafting (ask Liam if unsure):
 
 ---
 
-## Step 5 — Write the prompt (target 60-100 lines)
+## Step 3 — Write the prompt (target 60-100 lines)
 
 The prompt's **body addresses the next session** (the reader).
 
@@ -83,18 +53,18 @@ _Authored at the close of S{NNN}; for the next session._
 
 Working directory: `{cwd}` ({branch}).
 
-## Build status (end of S{NNN})
+## READ FIRST
 
-{One line: test headline + lint; note pre-existing vs new failures.}
+`docs/themes/canonical-pipeline/reference/canonical-pipeline-sequencing.md` is the v1 master document for the current implementation focus (canonical pipeline implementation). Where any older spec conflicts, the sequencing doc wins.
 
 ## Next-session focus
 
 {3-4 lines: what the next session orchestrates + the O-of-O operating mode —
 delegate heavy lifting to subagents/terminals, keep main-session context lean.}
 
-## Terminals to deploy
+## Deployment Approach
 
-{Table: Terminal | brief file | sequence/gate one-liner. The brief + ledger hold
+{Table: Terminal/Worktree Subagent | brief file | sequence/gate one-liner. The brief + ledger hold
 the detail.}
 
 ## Session deltas / decisions NOT in the ledger
@@ -102,9 +72,9 @@ the detail.}
 {Bullets: only what a fresh orchestrator cannot derive from the ledger/specs —
 ratifications, schema/process changes, gotchas, strategic options.}
 
-## Deferred / separate focus
+## Session Carry
 
-{Tasks explicitly out of the next session's scope + where they go.}
+{Anything which was intended for the previous session, but wasn't completed.}
 
 ## Pre-reqs (Liam)
 
@@ -113,17 +83,17 @@ ratifications, schema/process changes, gotchas, strategic options.}
 
 ---
 
-## Step 6 — Write the file
+## Step 4 — Write the file
 
 `docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
 
-## Step 7 — Prettier sweep
+## Step 5 — Prettier sweep
 
 ```bash
 bun run format
 ```
 
-## Step 8 — Commit and push
+## Step 6 — Commit and push
 
 ```bash
 git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-*.md
@@ -133,7 +103,7 @@ git push
 
 If Liam edits, he creates a new commit (not amend).
 
-## Step 9 — Add MemPalace diary entry
+## Step 7 — Add MemPalace diary entry
 
 Via `mempalace_diary_write` (`agent_name: claude`; `topic`: `main-track` /
 `workflow-orchestration` / `general`). `content` = pipe-separated AAAK facts:
@@ -149,8 +119,6 @@ partially blocked). ~600-1500 chars; one event per segment; entity codes + `.✓
 
 - [ ] Routing + deltas only — no task state, per-WP specs, file ownership, or
       session-history recaps reproduced (those are pointers).
-- [ ] Build status from an actual run; pre-existing vs new failures distinguished.
-- [ ] Terminals listed as brief pointers + sequence/gates, not re-specified.
 - [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
 - [ ] Total length ≤ ~100 lines (longer needs explicit justification).
 - [ ] A fresh orchestrator can start from this prompt + the ledger + the briefs alone.
