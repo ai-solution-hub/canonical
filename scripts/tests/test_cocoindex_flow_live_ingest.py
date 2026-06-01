@@ -192,6 +192,18 @@ async def _thread_dispatch_mount_each(*pos_args):
     items = args[1]
     extra_args = tuple(args[2:])
 
+    # Per item the engine calls `mount(ComponentSubpath(key), fn, ...)` →
+    # `create_core_component_processor` → `core.ComponentProcessorInfo(fn.__qualname__)`
+    # (api.py:394 / function.py:2031). A bare `functools.partial` has no
+    # `__qualname__` either — enforce it UNCONDITIONALLY (independent of the subpath
+    # branch above) so the suite catches the DEEPER layer that an explicit-subpath-
+    # only fix slips past. ({66.16} surfaced both layers; the named-closure fix
+    # satisfies both.)
+    if not hasattr(fn, "__qualname__"):
+        raise AttributeError(
+            f"'{type(fn).__name__}' object has no attribute '__qualname__'"
+        )
+
     errors: list[BaseException] = []
     loop = asyncio.get_running_loop()
 

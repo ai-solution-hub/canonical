@@ -43,7 +43,6 @@ References:
 from __future__ import annotations
 
 import asyncio
-import functools
 import json
 import logging
 import os
@@ -1157,14 +1156,14 @@ async def ingest_file(
     counters + the workspace manifest) as EXPLICIT keyword args
     (`flow_op_id` / `flow_stage_counter` / `flow_retry_counter` /
     `flow_taxonomy_miss_counter` / `flow_workspace_manifest`) bound onto the
-    component via `functools.partial` in `app_main`, NOT via `contextvars`
+    component via a named closure in `app_main`, NOT via `contextvars`
     propagation. cocoindex 1.0.3 runs this per-item component on its OWN
     `_LoopRunner` daemon thread (a separate event loop), which does NOT copy the
     binder task's `ContextVar` snapshot across the dispatch boundary — so reads
     of `current_flow_meta()` / `current_stage_counter()` /
     `current_workspace_manifest()` here would return the ContextVar DEFAULT
-    (`None`) and the flow would land ZERO rows. `functools.partial`-captured args
-    live on the partial object, so they cross the daemon-thread boundary intact.
+    (`None`) and the flow would land ZERO rows. The closure's captured cells live
+    on the function object, so they cross the daemon-thread boundary intact.
     The keyword args DEFAULT to None so the existing in-task unit-test callers
     (which `await ingest_file(...)` inside a `bind_flow_meta` scope) keep working
     via the ContextVar fallback below.
@@ -1200,7 +1199,7 @@ async def ingest_file(
     flow_context_module = import_module(f"{__package__}.flow_context")
 
     # ID-66.19 — resolve the run context. PREFER the explicit args (threaded via
-    # functools.partial in app_main — these survive the daemon-thread dispatch).
+    # the named closure in app_main — these survive the daemon-thread dispatch).
     # FALL BACK to the ContextVars for the existing in-task unit-test callers
     # that drive ingest_file inside an `async with bind_flow_meta(...)` scope.
     op_id = flow_op_id
@@ -1210,7 +1209,7 @@ async def ingest_file(
     if op_id is None:
         raise RuntimeError(
             "ingest_file invoked without a run op_id — app_main must pass "
-            "`flow_op_id=` (via functools.partial) or wrap the in-task caller in "
+            "`flow_op_id=` (via the named closure) or wrap the in-task caller in "
             "`async with bind_flow_meta(op_id=...)`."
         )
 
@@ -1510,7 +1509,7 @@ async def _ingest_file_body(
     # targets stay untouched.
     #
     # ID-66.19: PREFER the explicit `flow_workspace_manifest` arg (threaded via
-    # functools.partial in app_main — survives the daemon-thread dispatch). FALL
+    # the named closure in app_main — survives the daemon-thread dispatch). FALL
     # BACK to the ContextVar read for the in-task unit-test callers that bind it
     # via `bind_workspace_manifest`. The ContextVar read alone returned None in
     # production (daemon-thread non-propagation) → the form-write was silently
@@ -1915,7 +1914,8 @@ async def app_main() -> None:
         # the item value per the mount_each signature.
         #
         # ID-66.19 — thread the run context onto `ingest_file` as EXPLICIT
-        # keyword args via `functools.partial`, NOT via `contextvars`. cocoindex
+        # keyword args via a named closure (NOT `contextvars`; and NOT
+        # `functools.partial` — see the {66.16} note below). cocoindex
         # 1.0.3 does NOT run the per-item component inline on this binding
         # asyncio task — it schedules it on its OWN `_LoopRunner` daemon thread
         # (a separate event loop) which does NOT copy this task's `ContextVar`
@@ -1930,32 +1930,38 @@ async def app_main() -> None:
         # intact); the engine-level daemon-thread dispatch was exercised by NO
         # test until `test_cocoindex_flow_live_ingest.py` (S291).
         #
-        # `functools.partial`-captured args live on the partial object, so they
-        # cross the daemon-thread boundary intact. `ingest_file` then RE-BINDS
-        # flow_meta / retry_counter / taxonomy_miss_counter LOCALLY on the daemon
-        # thread (the CAVEAT — `extraction.py` reads those ContextVars in-task on
-        # the SAME thread); stage_counter + workspace_manifest are read directly
-        # from the passed args. Option A moves the BIND POINT from this (wrong)
-        # thread into `ingest_file` (the correct thread).
-        bound_ingest_file = functools.partial(
-            ingest_file,
-            flow_op_id=run_op_id,
-            flow_stage_counter=flow_stage_counter,
-            flow_retry_counter=flow_retry_counter,
-            flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
-            flow_workspace_manifest=workspace_manifest,
-        )
-        # ID-66.19 follow-up ({66.16} live-verify) — `bound_ingest_file` is a
-        # `functools.partial`, which has NO `__name__`. cocoindex 1.0.3
-        # `mount_each` auto-derives the per-item ComponentSubpath from
-        # `Symbol(fn.__name__)` when no explicit subpath is given, and raises
-        # `TypeError: mount_each() requires a ComponentSubpath when the function
-        # has no __name__` at the live engine boundary (the daemon-thread dispatch
-        # the unit suite stubbed without enforcing this contract — so it only
-        # surfaced on the real on-prem boot). Pass the subpath EXPLICITLY:
-        # `component_subpath("ingest_file")` is exactly what auto-derivation from
-        # the unbound `ingest_file.__name__` would have produced, so per-item
-        # routing is unchanged.
+        # `functools.partial` is INCOMPATIBLE with cocoindex 1.0.3 `mount_each`:
+        # the engine derives the per-item ComponentSubpath from `Symbol(fn.__name__)`
+        # AND builds `core.ComponentProcessorInfo(fn.__qualname__)` (function.py:2031)
+        # — a partial has NEITHER attribute, so it crashed the `_LoopRunner` worker
+        # thread at live boot (first a TypeError on `__name__`, then deeper an
+        # AttributeError on `__qualname__`). Both surfaced at the {66.16} on-prem
+        # boundary, NOT the unit suite — whose `mount_each` stub modelled the
+        # daemon-thread dispatch but not these attribute contracts.
+        #
+        # Use a NAMED nested coroutine instead: it has a real `__name__` +
+        # `__qualname__` + a clean signature, and its CLOSURE CELLS carry the run
+        # context (op_id / counters / manifest) across the daemon-thread boundary
+        # exactly as the partial's captured args did — so Option A still holds: the
+        # BIND POINT stays inside the per-item callable (flow_meta / retry_counter /
+        # taxonomy_miss_counter are RE-BOUND locally on the worker thread, where
+        # `extraction.py` reads those ContextVars in-task; stage_counter +
+        # workspace_manifest are read directly from the passed args), NOT on this
+        # binder task whose ContextVars the engine does not propagate.
+        async def bound_ingest_file(file, *targets):
+            return await ingest_file(
+                file,
+                *targets,
+                flow_op_id=run_op_id,
+                flow_stage_counter=flow_stage_counter,
+                flow_retry_counter=flow_retry_counter,
+                flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
+                flow_workspace_manifest=workspace_manifest,
+            )
+
+        # Pin the subpath explicitly to "ingest_file" (the pre-{66.19} component
+        # identity) — the named coroutine would otherwise auto-derive the subpath to
+        # "bound_ingest_file" from its `__name__`.
         handle = await coco.mount_each(
             coco.component_subpath("ingest_file"),
             bound_ingest_file,

@@ -474,14 +474,21 @@ class TestAppMainBodyContainsBindRetryCounterWrapper:
         )
 
     def test_app_main_source_uses_async_with_for_binding(self) -> None:
-        """`app_main()` builds the `functools.partial` over `ingest_file`
-        (ID-66.19), and `ingest_file` re-binds the retry counter on the daemon
-        thread via an `async with` — the bind point moved off app_main's wrong
-        thread into ingest_file's correct (daemon) thread."""
+        """`app_main()` threads the run context onto `ingest_file` via a NAMED
+        per-item closure (ID-66.19 + {66.16}: NOT `functools.partial`, which has
+        no `__name__`/`__qualname__` and crashes cocoindex `mount_each`), and
+        `ingest_file` re-binds the retry counter on the daemon thread via an
+        `async with` — the bind point moved off app_main's wrong thread into
+        ingest_file's correct (daemon) thread."""
         app_main_source = inspect.getsource(flow.app_main)
-        assert "functools.partial(" in app_main_source, (
-            "app_main() must build a functools.partial over ingest_file to thread "
-            "the run context across the cocoindex daemon-thread boundary."
+        assert "async def bound_ingest_file(" in app_main_source, (
+            "app_main() must thread the run context onto a NAMED per-item closure "
+            "(not functools.partial — a partial has no __name__/__qualname__ and "
+            "crashes cocoindex mount_each, {66.16}) so the context crosses the "
+            "cocoindex daemon-thread boundary."
+        )
+        assert "flow_retry_counter=" in app_main_source, (
+            "the closure must forward flow_retry_counter into ingest_file."
         )
         ingest_source = inspect.getsource(flow.ingest_file)
         assert "bind_retry_counter(" in ingest_source, (

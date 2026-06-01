@@ -441,14 +441,19 @@ class TestAppMainWiresEmbeddingCounter:
         )
 
     def test_app_main_uses_async_with_for_stage_binding(self) -> None:
-        """ID-66.19: app_main threads the run context onto ingest_file via
-        functools.partial (the bind point moved off app_main's wrong thread)."""
+        """ID-66.19 + {66.16}: app_main threads the run context onto ingest_file
+        via a NAMED closure (NOT functools.partial — a partial has no
+        __name__/__qualname__ and crashes cocoindex mount_each; the bind point
+        still moves off app_main's wrong thread)."""
         flow = _flow_module()
         source = inspect.getsource(flow.app_main)
-        assert "functools.partial(" in source, (
-            "app_main() must build a functools.partial over ingest_file to thread "
-            "the stage counter (+ the rest of the run context) across the "
-            "cocoindex daemon-thread boundary."
+        assert "async def bound_ingest_file(" in source, (
+            "app_main() must thread the stage counter (+ the rest of the run "
+            "context) onto a NAMED per-item closure across the cocoindex "
+            "daemon-thread boundary (not functools.partial — {66.16})."
+        )
+        assert "flow_stage_counter=" in source, (
+            "the closure must forward flow_stage_counter into ingest_file."
         )
 
     def test_app_main_folds_embedding_count_into_stage_counts(self) -> None:
