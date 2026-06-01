@@ -46,6 +46,7 @@ Return ONLY a single JSON object — no markdown fences, no commentary, no pream
     "content_type": <one of the canonical values listed below>,
     "primary_domain": <short snake_case domain name>,
     "primary_subtopic": <short snake_case subtopic name, OR null>,
+    "suggested_title": <concise human-readable document title in Title Case, OR null>,
     "classification_confidence": <float between 0.0 and 1.0>,
     "secondary_classifications": [<list of secondary domain names>],
     "rationale": <one-paragraph explanation of the classification decision, OR null>
@@ -58,6 +59,7 @@ FIELD CONSTRAINTS
   article, blog, pdf, note, research, other, q_a_pair, case_study, policy, certification, compliance, methodology, capability, product_description, document.
 - primary_domain: a short snake_case identifier of the document's primary domain (e.g. security, compliance, implementation, support, corporate, product_feature, methodology).
 - primary_subtopic: a short snake_case identifier of the document's primary subtopic WITHIN that domain (e.g. data_protection, access_control, incident_response, supplier_onboarding, tender_evaluation). Use null when no single subtopic is clearly primary.
+- suggested_title: a concise, human-readable title for the document in Title Case (e.g. "G-Cloud 13 Framework Agreement", "Information Security Policy"). Prefer the document's own title or main heading when present; otherwise synthesise a faithful short title (max ~80 characters) from the content. Use null only when no meaningful title can be derived.
 - classification_confidence: a float between 0.0 and 1.0 representing your confidence in the primary classification. Use 0.9+ when the document is unambiguous; 0.6-0.85 when the document spans multiple domains but one is clearly primary; 0.3-0.6 when classification is uncertain.
 - secondary_classifications: a list of zero or more secondary domain names. Use snake_case identifiers. Empty list is acceptable when the document is single-domain.
 - rationale: a one-paragraph (up to ~3 sentences) explanation of why this classification was chosen. Use null when the classification is self-evident from content_type alone.

@@ -206,6 +206,12 @@ class _FakeFile:
         self.file_path = _FakeFile._FilePath(path)
         self._path = path
 
+    @property
+    def size(self) -> int:
+        # cocoindex File.size (byte length) — mirrors the real FileLike. The
+        # ID-64.11 source_documents write reads file.size for file_size (NOT NULL).
+        return self._path.stat().st_size
+
     async def read(self) -> bytes:
         return self._path.read_bytes()
 

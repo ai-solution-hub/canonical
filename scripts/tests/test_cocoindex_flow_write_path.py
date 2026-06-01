@@ -171,6 +171,9 @@ class TestIngestFileWritePath:
                 "content_type": "case_study",
                 "primary_domain": "procurement",
                 "primary_subtopic": "tender_evaluation",
+                # ID-64.10 (S296): classifier proposes a human-readable title;
+                # the content_items write maps it to the NOT-NULL `title` column.
+                "suggested_title": "Doc One Title",
             }
 
         async def _fake_qa(content_text: str):
@@ -239,15 +242,36 @@ class TestIngestFileWritePath:
         assert sd.rows[0]["storage_path"] == src.as_posix(), (
             "storage_path must derive from file.file_path.path, not a param"
         )
+        # ID-64.11 (S296): the NOT-NULL source_documents metadata is written —
+        # filename (basename), mime_type (suffix-resolved), file_size (bytes) —
+        # and content_hash is the prod column (renamed from content_fingerprint,
+        # which does not exist in prod).
+        assert sd.rows[0]["filename"] == "doc-one.md"
+        assert sd.rows[0]["mime_type"] == "text/markdown"
+        assert sd.rows[0]["file_size"] == src.stat().st_size
+        assert isinstance(sd.rows[0]["content_hash"], str) and sd.rows[0]["content_hash"]
+        assert "content_fingerprint" not in sd.rows[0], (
+            "content_fingerprint does not exist in prod — must be content_hash"
+        )
 
-        # content_items: exactly one row, content_text present, op_id stamped,
+        # content_items: exactly one row, content present, op_id stamped,
         # embedding a length-1024 vector (Stage-4 ID-49.2; the dimension contract
         # is proved in test_cocoindex_flow_embedding.py), content_text_hash
         # OMITTED (GENERATED ALWAYS).
         assert len(ci.rows) == 1, "expected one content_items row"
         ci_row = ci.rows[0]
         assert ci_row["op_id"] == run_op_id
-        assert ci_row["content_text"] == markdown
+        # ID-64.10 (S296): prod body column is `content` (rename from the
+        # non-existent content_text).
+        assert ci_row["content"] == markdown
+        assert "content_text" not in ci_row, (
+            "content_text does not exist in prod — must be `content`"
+        )
+        # ID-64.10 (S296): title + content_type are NOT NULL in prod and are now
+        # written — title from the classifier's suggested_title (fallback =
+        # filename stem); content_type from the taxonomy-validated classifier value.
+        assert ci_row["title"] == "Doc One Title"
+        assert ci_row["content_type"] == "case_study"
         assert len(ci_row["embedding"]) == 1024
         assert "content_text_hash" not in ci_row, (
             "content_text_hash is GENERATED ALWAYS — must be omitted from the row"
@@ -576,8 +600,8 @@ class TestMountEachArityContract:
             src_two.as_posix(),
         }
 
-        # content_text differs per file (the per-item File reached the adapter).
-        assert {r["content_text"] for r in ci.rows} == {
+        # content differs per file (the per-item File reached the adapter).
+        assert {r["content"] for r in ci.rows} == {
             markdown_one,
             markdown_two,
         }
@@ -795,7 +819,7 @@ class TestContentFingerprintAwaited:
 
         asyncio.run(_exercise())
 
-        fingerprint = sd.rows[0]["content_fingerprint"]
+        fingerprint = sd.rows[0]["content_hash"]
         # Must be a text-safe string (the column is text), NOT a bound method
         # nor a coroutine nor raw bytes.
         assert isinstance(fingerprint, str), (
@@ -1756,7 +1780,7 @@ class TestReingestUpsertPreservesAssociations:
         # (b) The declared row is an UPSERT of the same PK, NOT a new identity:
         #     the changed content rides the SAME id (declare_row re-stamps the
         #     existing row; op_id is a plain field, not part of the PK).
-        assert ci_second.rows[0]["content_text"] != ci_first.rows[0]["content_text"], (
+        assert ci_second.rows[0]["content"] != ci_first.rows[0]["content"], (
             "the re-ingest carries the changed bytes (content actually changed)"
         )
         assert ci_second.rows[0]["id"] == ci_first.rows[0]["id"], (
@@ -1825,7 +1849,7 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         )
         # …and the record is COMPLETE with zero junction rows: the canonical
         # fields a downstream consumer needs are all present un-associated.
-        assert ci_row["content_text"] == "# Doc\n\nbody"
+        assert ci_row["content"] == "# Doc\n\nbody"
         assert len(ci_row["embedding"]) == 1024
         assert ci_row["source_document_id"] == sd.rows[0]["id"]
 

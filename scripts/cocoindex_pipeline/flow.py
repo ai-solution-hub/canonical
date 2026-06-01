@@ -45,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import mimetypes
 import os
 import re
 import uuid
@@ -813,7 +814,17 @@ def _encode_pgvector(value: list[float]) -> str:
 CONTENT_ITEMS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
-        "content_text": ColumnDef(type="text", nullable=True),
+        # ID-64.10 (S296): the canonical body column in prod is `content` (NOT
+        # NULL), NOT `content_text` — the pipeline was coded against an assumed
+        # schema; the live UndefinedColumnError surfaced once extraction reached
+        # the write. Rename only — the value is the Stage-2 markdown body.
+        "content": ColumnDef(type="text", nullable=False),
+        # ID-64.10 (S296): title + content_type are NOT NULL in prod and were
+        # never written. title = classifier suggested_title ?? filename-stem;
+        # content_type = the taxonomy-validated classifier value (both written
+        # in ci_target.declare_row below).
+        "title": ColumnDef(type="text", nullable=False),
+        "content_type": ColumnDef(type="text", nullable=False),
         "embedding": ColumnDef(
             type="vector(1024)",
             nullable=True,
@@ -856,7 +867,18 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
         "storage_path": ColumnDef(type="text", nullable=False),
-        "content_fingerprint": ColumnDef(type="text", nullable=True),
+        # ID-64.10/64.11 (S296): prod column is `content_hash` (NOT NULL), NOT
+        # `content_fingerprint` (absent in prod). Rename only — value is the
+        # awaited file content-hash hex.
+        "content_hash": ColumnDef(type="text", nullable=False),
+        # ID-64.11 (S296): filename / mime_type / file_size are NOT NULL in prod
+        # and were never written. Derived from the File (basename / suffix-mime /
+        # byte size) per decision-graph Q1.9 Option α (slim-and-keep). The 4th α
+        # NOT-NULL col `original_filename` is RELAXED to NULLABLE by the companion
+        # migration (α retires it), so it is intentionally not written here.
+        "filename": ColumnDef(type="text", nullable=False),
+        "mime_type": ColumnDef(type="text", nullable=False),
+        "file_size": ColumnDef(type="integer", nullable=False),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
         # Pullmd extraction provenance (ID-42.9, TECH §WP-E) — fanned out from the
         # PullmdResult headers via `extract_source_provenance` (NOT the str-only
@@ -952,6 +974,29 @@ MIME_BY_SUFFIX: dict[str, str] = {
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
+
+# ID-64.11 (S296): source_documents.mime_type is NOT NULL and the pipeline
+# ingests every type the Stage-2 adapters route (md/markdown/txt/html/htm in
+# addition to the pdf/docx/xlsx in MIME_BY_SUFFIX). This fallback covers the
+# non-binary suffixes deterministically (stdlib mimetypes varies by platform —
+# .md in particular). Resolution order: authoritative binary map -> stdlib guess
+# -> this fallback -> generic octet-stream (never None, so the NOT NULL holds).
+_SOURCE_MIME_FALLBACK: dict[str, str] = {
+    ".md": "text/markdown",
+    ".markdown": "text/markdown",
+    ".txt": "text/plain",
+    ".html": "text/html",
+    ".htm": "text/html",
+}
+
+
+def _resolve_source_mime(path: Path) -> str:
+    """Resolve a non-NULL MIME type for a source_documents row from its path."""
+    suffix = path.suffix.lower()
+    if suffix in MIME_BY_SUFFIX:
+        return MIME_BY_SUFFIX[suffix]
+    guessed, _ = mimetypes.guess_type(path.name)
+    return guessed or _SOURCE_MIME_FALLBACK.get(suffix, "application/octet-stream")
 
 # `form_templates` row-level UPSERT target schema (TECH §2.5 step 3). Column
 # types mirror the live staging schema (verified against
@@ -1382,7 +1427,15 @@ async def _ingest_file_body(
         row={
             "id": source_document_id,
             "storage_path": rel_path,
-            "content_fingerprint": content_fingerprint,
+            # ID-64.10/64.11 (S296): prod column is `content_hash` (rename); the
+            # value is the same awaited file content-hash hex computed above.
+            "content_hash": content_fingerprint,
+            # ID-64.11 (S296): the NOT-NULL file-metadata cols, derived from the
+            # File (Q1.9 Option α slim-and-keep). original_filename is relaxed to
+            # NULLABLE by the companion migration (α retires it), so it is omitted.
+            "filename": file.file_path.path.name,
+            "mime_type": _resolve_source_mime(file.file_path.path),
+            "file_size": file.size,
             "op_id": op_id,
             # Pullmd provenance (ID-42.9 §WP-E) — nullable; only HTML/pullmd and
             # Docling paths populate them (passthrough leaves both None).
@@ -1397,10 +1450,23 @@ async def _ingest_file_body(
     # docstring). content_text_hash OMITTED (GENERATED ALWAYS); the pgvector
     # text-literal encoding is applied by the `embedding` ColumnDef encoder.
     embedding = await embed_content_text(content_text)
+    # ID-64.10 (S296): content_type is the taxonomy-validated classifier value
+    # (HARD-rejected at extraction if out-of-taxonomy → present in production);
+    # `or "other"` is a defensive floor for the plain-dict write-path test stubs.
+    # Hoisted from its former site below the qa loop, where it was computed but
+    # never written ("value available but never written" — schema-gap audit).
+    content_type = _field(classification, "content_type") or "other"
     ci_target.declare_row(
         row={
             "id": content_item_id,
-            "content_text": content_text,
+            # ID-64.10 (S296): `content` is the prod body column (rename from the
+            # non-existent `content_text`).
+            "content": content_text,
+            # ID-64.10 (S296): title (NOT NULL) — classifier suggested_title with
+            # a filename-stem fallback (decided S296); content_type (NOT NULL).
+            "title": _field(classification, "suggested_title")
+            or file.file_path.path.stem,
+            "content_type": content_type,
             "embedding": embedding,
             "source_document_id": source_document_id,
             "op_id": op_id,
@@ -1408,7 +1474,7 @@ async def _ingest_file_body(
             # to content_items — today neither was written on this path. Read
             # via _field so the write path stays agnostic to whether the
             # extractor returned a Pydantic model (production) or a plain dict
-            # (write-path test stubs) — mirrors the content_type access below.
+            # (write-path test stubs) — mirrors the content_type access above.
             "primary_domain": _field(classification, "primary_domain"),
             "primary_subtopic": _field(classification, "primary_subtopic"),
         }
@@ -1481,7 +1547,6 @@ async def _ingest_file_body(
             # increment(...)` guard with this helper.
             _bump("chunking")
 
-    content_type = _field(classification, "content_type")
     qa_pairs = _field(qa_form, "qa_pairs", []) or []
     for idx, pair in enumerate(qa_pairs):
         qa_target.declare_row(

@@ -350,6 +350,12 @@ class ClassificationExtraction(_ExtractionBase):
     # field, not an extra. Taxonomy-membership enforcement is the
     # snapshot-backed soft-warn added in {63.8}; no field_validator here.
     primary_subtopic: str | None = None
+    # ID-64.10 (S296): human-readable title the classifier proposes for the
+    # document. Nullable/defaulted so it is backward-compatible under
+    # ConfigDict(extra='forbid') and degrades gracefully when an older prompt
+    # omits it. Consumed by the content_items write-path: title =
+    # suggested_title ?? filename-stem (flow.py ci_target.declare_row).
+    suggested_title: str | None = None
     classification_confidence: float = Field(ge=0.0, le=1.0)
     secondary_classifications: list[str] = Field(default_factory=list)
     rationale: str | None = None
