@@ -118,4 +118,83 @@ if (typeof window === 'undefined') {
     writable: true,
     value: MockResizeObserver,
   });
+
+  // In-memory Storage polyfill. Node >= 24 ships a native localStorage getter
+  // that is `in globalThis` but returns undefined without --localstorage-file;
+  // that makes Vitest's jsdom env skip copying jsdom's Storage onto the global,
+  // so a bare `localStorage.clear()` throws. CI pins Node 22 (no native shim) so
+  // this only bites local full-suite runs — but the polyfill makes the suite
+  // Node-version-agnostic. Methods live on Storage.prototype (each instance
+  // backed by its own Map via a WeakMap) so existing
+  // `vi.spyOn(Storage.prototype, 'getItem')` interceptors still fire.
+  const StorageCtor: typeof Storage | undefined =
+    (globalThis as { Storage?: typeof Storage }).Storage ??
+    (window as { Storage?: typeof Storage }).Storage;
+  const StoragePrototype: object = StorageCtor?.prototype ?? Object.prototype;
+  const storageBacking = new WeakMap<object, Map<string, string>>();
+  const mapFor = (self: object): Map<string, string> => {
+    let m = storageBacking.get(self);
+    if (!m) {
+      m = new Map<string, string>();
+      storageBacking.set(self, m);
+    }
+    return m;
+  };
+  Object.defineProperties(StoragePrototype, {
+    length: {
+      configurable: true,
+      get(this: object): number {
+        return mapFor(this).size;
+      },
+    },
+    clear: {
+      configurable: true,
+      writable: true,
+      value(this: object): void {
+        mapFor(this).clear();
+      },
+    },
+    getItem: {
+      configurable: true,
+      writable: true,
+      value(this: object, key: string): string | null {
+        const m = mapFor(this);
+        return m.has(key) ? (m.get(key) as string) : null;
+      },
+    },
+    key: {
+      configurable: true,
+      writable: true,
+      value(this: object, index: number): string | null {
+        return Array.from(mapFor(this).keys())[index] ?? null;
+      },
+    },
+    removeItem: {
+      configurable: true,
+      writable: true,
+      value(this: object, key: string): void {
+        mapFor(this).delete(key);
+      },
+    },
+    setItem: {
+      configurable: true,
+      writable: true,
+      value(this: object, key: string, value: string): void {
+        mapFor(this).set(key, String(value));
+      },
+    },
+  });
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    const instance = Object.create(StoragePrototype) as Storage;
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      writable: true,
+      value: instance,
+    });
+    Object.defineProperty(window, name, {
+      configurable: true,
+      writable: true,
+      value: instance,
+    });
+  }
 } // end if (typeof window !== 'undefined')

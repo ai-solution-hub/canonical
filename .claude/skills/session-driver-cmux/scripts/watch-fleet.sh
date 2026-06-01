@@ -43,6 +43,27 @@ SEEN_SEND="${SEEN_SEND:-}"
 in_list() { case " $2 " in *" $1 "*) return 0;; *) return 1;; esac; }
 seen_oq_lines() { printf '%s' "$SEEN_OQ" | tr ' ' '\n' | awk -F: -v s="$1" '$1==s{print $2; exit}'; }
 
+# Self-seed FINAL/SEND suppression from artefacts ALREADY present at arm time.
+# A FINAL_REPORT / SESSION_END check trips on mere existence, so a watcher armed
+# against a dirty events dir (prior sessions' completed reports left on disk)
+# would otherwise trip and exit on poll 1 — the S291 "watch-fleet exits
+# immediately" friction. Anything that APPEARS during the watch window is still
+# reported (its sid is not in the seeded set). The caller's SEEN_* (re-arm loop)
+# is preserved — we only append, never overwrite.
+for _seed_d in "$EVENTS_BASE"/*/; do
+  [ -f "${_seed_d}meta.json" ] || continue
+  _seed_sid=$(jq -r '.session_id' "${_seed_d}meta.json" 2>/dev/null)
+  [ -n "$_seed_sid" ] && [ "$_seed_sid" != "null" ] || continue
+  if ls "${_seed_d}"final_report.* >/dev/null 2>&1 && ! in_list "$_seed_sid" "$SEEN_FINAL"; then
+    SEEN_FINAL="$SEEN_FINAL $_seed_sid"
+  fi
+  if [ -f "${_seed_d}events.jsonl" ] \
+     && tail -5 "${_seed_d}events.jsonl" | jq -e 'select(.event=="session_end")' >/dev/null 2>&1 \
+     && ! in_list "$_seed_sid" "$SEEN_SEND"; then
+    SEEN_SEND="$SEEN_SEND $_seed_sid"
+  fi
+done
+
 prev_ask=""; prev_stop=""; prev_total=-1; quiet_count=0; poll=0
 
 while [ "$poll" -lt "$MAX_POLLS" ]; do

@@ -321,12 +321,16 @@ build_oq_record() {
     local urgency="${6:?build_oq_record: urgency argument is required}"
     local blocking="${7:?build_oq_record: blocking argument is required}"
     local context_ref_json="${8:?build_oq_record: context_ref_json argument is required}"
-    local status="${9:?build_oq_record: status argument is required}"
+    # NB: `oq_status`, not `status` — `status` is a read-only special parameter
+    # in zsh (alias for $?). Workers source this file into a zsh shell, so a bare
+    # `local status=` aborts build_oq_record with "read-only variable: status"
+    # (which then cascades into atomic_publish's "payload_json required" guard).
+    local oq_status="${9:?build_oq_record: status argument is required}"
     local supersedes="${10:?build_oq_record: supersedes argument is required}"
 
     python3 - \
         "$oq_id" "$worker_id" "$seq" "$emitted_at" "$question" \
-        "$urgency" "$blocking" "$context_ref_json" "$status" "$supersedes" \
+        "$urgency" "$blocking" "$context_ref_json" "$oq_status" "$supersedes" \
         "$_OQ_CANONICAL_PY" \
         <<'PY'
 import json, subprocess, sys
