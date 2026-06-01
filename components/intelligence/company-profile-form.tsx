@@ -196,7 +196,7 @@ export function CompanyProfileForm({
               id="profile-name"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="e.g. example-client Design"
+              placeholder="e.g. Acme Ltd"
               required
             />
           </div>
@@ -208,7 +208,7 @@ export function CompanyProfileForm({
               id="profile-slug"
               value={slug}
               onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="e.g. example-client-design"
+              placeholder="e.g. acme-ltd"
               pattern="^[a-z0-9-]+$"
               required
             />

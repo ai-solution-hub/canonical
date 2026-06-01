@@ -69,13 +69,13 @@ export interface ClientConfig {
   layer_vocabulary: LayerDefinition[];
   /** Examples used in AI classification prompts for entity extraction guidance */
   entity_examples: {
-    /** Full formal organisation name, e.g. "Example Client Ltd" */
+    /** Full formal organisation name, e.g. "Example Organisation Limited" */
     organisation_name: string;
-    /** Short/informal name to avoid, e.g. "example-client" */
+    /** Short/informal name to avoid, e.g. "Example Org" */
     organisation_short: string;
-    /** Canonical product name, e.g. "example-client Audit System" */
+    /** Canonical product name, e.g. "Example Product" */
     product_name: string;
-    /** Informal product name to avoid, e.g. "audit system" */
+    /** Informal product name to avoid, e.g. "product" */
     product_short: string;
   };
   /**
@@ -141,10 +141,10 @@ export const CLIENT_CONFIG = {
   },
 
   entity_examples: {
-    organisation_name: 'Example Client Ltd',
-    organisation_short: 'example-client',
-    product_name: 'example-client Audit System',
-    product_short: 'audit system',
+    organisation_name: 'Example Organisation Limited',
+    organisation_short: 'Example Org',
+    product_name: 'Example Product',
+    product_short: 'product',
   },
 
   classification_disambiguation_rules: [

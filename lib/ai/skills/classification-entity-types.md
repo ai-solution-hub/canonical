@@ -19,11 +19,11 @@ recognised entity.
 institutional standing? Could I look up its official website, company number, or
 regulatory registration?"
 
-**Include:** Example Client Ltd, NHS, HMRC, ICO, BSI, CREST, Companies House
+**Include:** {CLIENT_ORGANISATION_NAME}, NHS, HMRC, ICO, BSI, CREST, Companies House
 
 **Exclude:** "the organisation" (pronoun, not named), "IT Department" (internal division),
 "senior management" (informal grouping), "public sector" (sector, not organisation),
-"Bedford Technology Park" (location)
+"Riverside Business Park" (location)
 
 **Boundary cases:**
 
@@ -103,8 +103,8 @@ not carry legal force and is not a certifiable standard.
 organisation, that another organisation could independently choose to adopt? AND does it
 lack legal force AND is it not a certifiable standard?"
 
-**Include:** OWASP, OWASP Top 10, ITIL, COBIT, G-Cloud, G-Cloud 14, NCSC 10 Steps to Cyber
-Security, Social Value Model, Education Inspection Framework
+**Include:** OWASP, OWASP Top 10, ITIL, COBIT, G-Cloud, NCSC 10 Steps to Cyber Security,
+Social Value Model, Education Inspection Framework
 
 **Exclude:** Information Security Policy (internal policy — Rule 3), ISMS (management
 system, not published framework), "information governance" (generic concept), "Records of
@@ -145,7 +145,7 @@ passing), "information security" (abstract domain)
 - Capability vs methodology: capability = WHAT the organisation does. Methodology = HOW.
   "Project management" is a capability. "PRINCE2" is a methodology.
 - Capability vs product: if it has a branded name and is sold as a distinct product, use
-  `product`. "example-client Audit System" = product. "Security auditing" = capability.
+  `product`. "{CLIENT_PRODUCT_NAME}" = product. "Security auditing" = capability.
 
 ---
 
@@ -157,7 +157,7 @@ surname, or both).
 **The Test:** "Is this the actual name of a specific, identifiable individual person? NOT
 a job title, role description, or generic reference?"
 
-**Include:** Matthew Burgess, Jane Smith, John Doe, Alan Turing, Tim Berners-Lee
+**Include:** Jane Smith, John Doe, Alan Turing, Tim Berners-Lee
 
 **Exclude:** Managing Director (job title — Rule 4), "the DPO" (role reference), "Client
 Project Lead" (role description), "the project team" (group reference), "IT Director" (job
@@ -165,10 +165,11 @@ title)
 
 **Boundary cases:**
 
-- Name with title embedded: "Matthew Burgess, Managing Director" — extract "Matthew
-  Burgess" as `person`. Do not extract "Managing Director" separately.
-- Canonical name consistency: "Matthew Burgess", "Matt Burgess", "Matthew (MD, Example Client Ltd)" all resolve to canonical name "Matthew Burgess".
-- "example-client Director" is a role title, not a person — exclude.
+- Name with title embedded: "Jane Smith, Managing Director" — extract "Jane Smith" as
+  `person`. Do not extract "Managing Director" separately.
+- Canonical name consistency: "Jane Smith", "J. Smith", "Jane (MD,
+  {CLIENT_ORGANISATION_NAME})" all resolve to canonical name "Jane Smith".
+- "{CLIENT_ORGANISATION_SHORT} Director" is a role title, not a person — exclude.
 
 ---
 
@@ -197,7 +198,7 @@ product)
 - SIEM as technology vs concept: prefer extracting the specific product name (Splunk,
   QRadar, Sentinel). Generic "SIEM" may be excluded.
 - Technology vs product: `technology` = infrastructure the org uses internally. `product`
-  = something the org sells. Azure is `technology`. example-client Audit System is `product`.
+  = something the org sells. Azure is `technology`. {CLIENT_PRODUCT_NAME} is `product`.
 
 ---
 
@@ -212,8 +213,8 @@ it have a project name, a client, and a scope?"
 **Include:** NHS Wales Digital Transformation Programme, Project Phoenix, Cloud Migration
 Programme, named contracts discussed as bodies of work
 
-**Exclude:** "cloud migration" (generic activity description), "Bedford Technology Park"
-(location), "example-client Audit System" (product, not project), "G-Cloud Lot 2" (framework
+**Exclude:** "cloud migration" (generic activity description), "Riverside Business Park"
+(location), "{CLIENT_PRODUCT_NAME}" (product, not project), "G-Cloud Lot 2" (framework
 category)
 
 **Boundary cases:**
@@ -261,8 +262,8 @@ offering that the organisation creates, sells, or offers to clients.
 its clients as a branded offering? Does it have a product name, a feature set, and a
 target customer?"
 
-**Include:** example-client Audit System, example-client LMS, WordPress (when offered as a product to
-clients), named service packages with distinct brand identity
+**Include:** {CLIENT_PRODUCT_NAME}, WordPress (when offered as a product to clients),
+named service packages with distinct brand identity
 
 **Exclude:** "professional indemnity insurance" (insurance category), "standard support"
 (pricing tier), "content management system" (generic category), "single sign-on" (feature,
@@ -271,10 +272,10 @@ not product), internal tools not sold to clients
 **Boundary cases:**
 
 - Product vs technology: products are things the org sells; technologies are things the
-  org uses. Azure = `technology`. example-client Audit System = `product`. SharePoint can be either
-  depending on context.
-- example-client LMS as product vs capability: "example-client LMS" = named `product`. "Learning management" =
-  `capability`.
+  org uses. Azure = `technology`. {CLIENT_PRODUCT_NAME} = `product`. SharePoint can be
+  either depending on context.
+- Branded product vs capability: "{CLIENT_PRODUCT_NAME}" = named `product`. "Learning
+  management" = `capability`.
 
 ---
 

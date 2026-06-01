@@ -484,8 +484,8 @@ organisation, that can be independently adopted? AND does it lack legal force AN
 not a certifiable standard?"
 
 **Examples:** ITIL, COBIT, TOGAF, OWASP, OWASP Top 10, NIST Cybersecurity Framework,
-G-Cloud, G-Cloud 14, Digital Outcomes and Specialists, Education Inspection Framework,
-Social Value Model, NCSC 10 Steps to Cyber Security
+G-Cloud, Digital Outcomes and Specialists, Education Inspection Framework, Social Value
+Model, NCSC 10 Steps to Cyber Security
 
 **Exclusions:** Internal policies, procedures, plans (NEVER frameworks). Management
 systems (ISMS, QMS). Generic concepts. GDPR artefacts. Regulations with legal force.
@@ -522,7 +522,7 @@ Named individual human being, identified by personal name.
 **The Test:** "Is this the actual name of a specific, identifiable individual? NOT a job
 title, role description, or generic reference?"
 
-**Examples:** Matthew Burgess, Jane Smith, John Doe
+**Examples:** Jane Smith, John Doe, Alan Turing
 
 **Exclusions:** Job titles (Managing Director, CISO, DPO, Project Manager). Generic role
 references ("the DPO", "the auditor"). Team names or group references.
@@ -858,8 +858,8 @@ domains, and difficulty levels.
 ### Example 1: q_a_pair — security/cyber-security
 
 **Input:** "Do you carry out regular vulnerability and penetration testing against your
-major systems? — Yes, example-client Design conducts regular CREST-accredited penetration
-testing..." **Classification:**
+major systems? — Yes, {CLIENT_ORGANISATION_NAME} conducts regular CREST-accredited
+penetration testing..." **Classification:**
 
 - Domain: security, Subtopic: cyber-security
 - Confidence: 0.92
@@ -910,16 +910,16 @@ personal data..." **Classification:**
 
 ### Example 5: q_a_pair — product-feature/functionality (boundary case)
 
-**Input:** "Can the Audit system be used to comply with KCSIE guidance? — Yes, the example-client
-Audit system includes pre-built templates aligned to Section 175 and Section 11
+**Input:** "Can the audit system be used to comply with KCSIE guidance? — Yes, the
+{CLIENT_PRODUCT_NAME} includes pre-built templates aligned to Section 175 and Section 11
 requirements..." **Classification:**
 
 - Domain: product-feature, Subtopic: functionality
 - Secondary: legislation-policy
 - Confidence: 0.82
-- Entities: [product: example-client Audit System, regulation: Keeping Children Safe in Education]
-  **Why:** Primary is product-feature because the question asks about system capability,
-  not the legislation itself. The KCSIE reference justifies the secondary
+- Entities: [product: {CLIENT_PRODUCT_NAME}, regulation: Keeping Children Safe in
+  Education] **Why:** Primary is product-feature because the question asks about system
+  capability, not the legislation itself. The KCSIE reference justifies the secondary
   legislation-policy domain. This is a boundary case where the product intersects with
   statutory guidance.
 
@@ -940,30 +940,30 @@ covering discovery, design, build..." **Classification:**
 ### Example 7: q_a_pair — corporate/insurance
 
 **Input:** "Does your organisation have current business insurance covering Professional
-Indemnity? — Yes, Example Client Ltd holds professional indemnity insurance with a limit
-of £5,000,000..." **Classification:**
+Indemnity? — Yes, {CLIENT_ORGANISATION_NAME} holds professional indemnity insurance with a
+limit of £1,000,000..." **Classification:**
 
 - Domain: corporate, Subtopic: insurance
 - Confidence: 0.92
-- Entities: [organisation: Example Client Ltd] **Why:** Straightforward corporate
+- Entities: [organisation: {CLIENT_ORGANISATION_NAME}] **Why:** Straightforward corporate
   insurance question with no domain ambiguity. Note that "professional indemnity
   insurance" is an insurance category, not a named product entity — it should not be
   extracted.
 
 ### Example 8: article — market-intelligence/competitor-market-activity
 
-**Input:** "example-client Design -- Industry Positioning and Target Markets. This analysis examines
-example-client Design's competitive position in the UK public sector technology market, including
-G-Cloud 14 presence..." **Classification:**
+**Input:** "{CLIENT_ORGANISATION_NAME} -- Industry Positioning and Target Markets. This
+analysis examines {CLIENT_ORGANISATION_NAME}'s competitive position in the UK public
+sector technology market, including G-Cloud presence..." **Classification:**
 
 - Domain: market-intelligence, Subtopic: competitor-market-activity
 - Secondary: corporate
 - Confidence: 0.82
-- Entities: [organisation: Example Client Ltd, framework: G-Cloud 14, sector: public
+- Entities: [organisation: {CLIENT_ORGANISATION_NAME}, framework: G-Cloud, sector: public
   sector] **Why:** Industry positioning analysis with market intelligence focus. Secondary
   corporate reflects company-specific content. Multiple entity types demonstrate correct
-  type assignment: G-Cloud 14 is a procurement framework (not a product), and public
-  sector is a sector (not an organisation).
+  type assignment: G-Cloud is a procurement framework (not a product), and public sector
+  is a sector (not an organisation).
 
 ---
 

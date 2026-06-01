@@ -4,8 +4,8 @@
 // Used by createIntelligenceGuide() to nest topic sections under sector
 // sections. Topics not present in the map remain top-level.
 //
-// Default mappings cover the example-client Design client. Additional clients can
-// override or extend via per-client configuration when multi-client
+// Default mappings cover the primary client deployment. Additional clients
+// can override or extend via per-client configuration when multi-client
 // support is added.
 
 /**

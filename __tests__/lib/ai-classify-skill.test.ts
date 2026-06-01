@@ -473,10 +473,10 @@ describe('Classification skill placeholder interpolation', () => {
   it('replaces {CLIENT_PRODUCT_NAME} with the product name', () => {
     const interpolated = skillContent.replaceAll(
       '{CLIENT_PRODUCT_NAME}',
-      'example-client Audit System',
+      'Example Product',
     );
 
-    expect(interpolated).toContain('example-client Audit System');
+    expect(interpolated).toContain('Example Product');
     expect(interpolated).not.toContain('{CLIENT_PRODUCT_NAME}');
   });
 
@@ -487,10 +487,10 @@ describe('Classification skill placeholder interpolation', () => {
     const interpolated = skillContent
       .replace('{TAXONOMY}', sampleTaxonomy)
       .replace('{CLIENT_DISAMBIGUATION}', sampleDisambiguation)
-      .replaceAll('{CLIENT_ORGANISATION_NAME}', 'Example Client Ltd')
-      .replaceAll('{CLIENT_ORGANISATION_SHORT}', 'example-client')
-      .replaceAll('{CLIENT_PRODUCT_NAME}', 'example-client Audit System')
-      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'audit system');
+      .replaceAll('{CLIENT_ORGANISATION_NAME}', 'Example Organisation Limited')
+      .replaceAll('{CLIENT_ORGANISATION_SHORT}', 'Example Org')
+      .replaceAll('{CLIENT_PRODUCT_NAME}', 'Example Product')
+      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'product');
 
     // No unreplaced placeholders should remain
     const placeholderPattern = /\{[A-Z_]+\}/g;
@@ -505,10 +505,10 @@ describe('Classification skill placeholder interpolation', () => {
     const interpolated = skillContent
       .replace('{TAXONOMY}', sampleTaxonomy)
       .replace('{CLIENT_DISAMBIGUATION}', sampleDisambiguation)
-      .replaceAll('{CLIENT_ORGANISATION_NAME}', 'Example Client Ltd')
-      .replaceAll('{CLIENT_ORGANISATION_SHORT}', 'example-client')
-      .replaceAll('{CLIENT_PRODUCT_NAME}', 'example-client Audit System')
-      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'audit system');
+      .replaceAll('{CLIENT_ORGANISATION_NAME}', 'Example Organisation Limited')
+      .replaceAll('{CLIENT_ORGANISATION_SHORT}', 'Example Org')
+      .replaceAll('{CLIENT_PRODUCT_NAME}', 'Example Product')
+      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'product');
 
     // Key section headings should remain intact
     expect(interpolated).toContain('# Classification Skill');

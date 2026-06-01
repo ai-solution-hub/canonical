@@ -1178,10 +1178,12 @@ export async function classifyContent(
   // classification_disambiguation_rules. Placeholders inside the rules
   // (e.g. {CLIENT_PRODUCT_NAME}) are resolved by the .replaceAll chain
   // below after the {CLIENT_DISAMBIGUATION} substitution.
-  const prompt =
-    classificationSkill
-      .replace('{TAXONOMY}', taxonomyStr)
-      .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
+  // Resolve the client entity placeholders ({CLIENT_ORGANISATION_NAME} etc.)
+  // across BOTH skill files. The entity-types reference also carries these
+  // placeholders, so it must run through the same substitution — otherwise the
+  // literal tokens would leak into the prompt.
+  const resolveClientPlaceholders = (text: string): string =>
+    text
       .replaceAll(
         '{CLIENT_ORGANISATION_NAME}',
         CLIENT_CONFIG.entity_examples.organisation_name,
@@ -1197,9 +1199,16 @@ export async function classifyContent(
       .replaceAll(
         '{CLIENT_PRODUCT_SHORT}',
         CLIENT_CONFIG.entity_examples.product_short,
-      ) +
+      );
+
+  const prompt =
+    resolveClientPlaceholders(
+      classificationSkill
+        .replace('{TAXONOMY}', taxonomyStr)
+        .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock()),
+    ) +
     '\n\n---\n\n' +
-    entityTypesRef +
+    resolveClientPlaceholders(entityTypesRef) +
     '\n\n---\n\n' +
     PAYMENT_GATEWAY_PRODUCT_ANCHOR;
 

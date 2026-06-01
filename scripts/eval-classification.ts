@@ -458,10 +458,11 @@ async function classifyFixtureItem(
   // eval harness and the production pipeline (lib/ai/classify.ts) now
   // source the rules from lib/client-config.ts via
   // buildDisambiguationBlock() so they cannot drift.
-  const prompt =
-    classificationSkill
-      .replace('{TAXONOMY}', taxonomyStr)
-      .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
+  // Resolve client entity placeholders across BOTH skill files, mirroring
+  // lib/ai/classify.ts. The entity-types reference also carries these
+  // placeholders, so it must run through the same substitution.
+  const resolveClientPlaceholders = (text: string): string =>
+    text
       .replaceAll(
         '{CLIENT_ORGANISATION_NAME}',
         CLIENT_CONFIG.entity_examples.organisation_name,
@@ -477,9 +478,16 @@ async function classifyFixtureItem(
       .replaceAll(
         '{CLIENT_PRODUCT_SHORT}',
         CLIENT_CONFIG.entity_examples.product_short,
-      ) +
+      );
+
+  const prompt =
+    resolveClientPlaceholders(
+      classificationSkill
+        .replace('{TAXONOMY}', taxonomyStr)
+        .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock()),
+    ) +
     '\n\n---\n\n' +
-    entityTypesRef;
+    resolveClientPlaceholders(entityTypesRef);
 
   // Use the fixture's text/content if present, otherwise fall back to title.
   // Title-only is intentional for fixtures that exercise classification on

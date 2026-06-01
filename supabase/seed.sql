@@ -9,7 +9,7 @@
 -- CONTRACT
 -- --------
 -- 1. SCHEMA-ONLY DATA: only data that is true across ALL client deployments.
---    Per-client data (example-client Product Guides, example-client Sector Guides, client-specific
+--    Per-client data (product guides, sector guides, client-specific
 --    taxonomy customisations, real bid Q&A, company profiles) lives elsewhere
 --    — see `docs/runbooks/staging-refresh.md` "Per-client seeding" section.
 --
