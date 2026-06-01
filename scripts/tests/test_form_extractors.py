@@ -422,13 +422,12 @@ class TestPdfFailureSurfacing:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# XLSX reader — {52.10} acceptance tests against EFA + CSP fixtures.
+# XLSX reader — {52.10} acceptance tests against the EFA fixture.
 #
 # Real-behaviour tests (per ``docs/reference/test-philosophy.md``): the
-# extractor reads the actual EFA and CSP fixtures, NO mocks of openpyxl
-# internals. The fixtures live under ``scripts/tests/fixtures/form-extraction``
-# as symlinks to ``docs/testing/test-data/templates/{itt-services-efa,
-# csp-checklist}/...``.
+# extractor reads the actual EFA fixture, NO mocks of openpyxl internals.
+# The fixture lives under ``scripts/tests/fixtures/form-extraction`` as a
+# symlink to ``docs/testing/test-data/templates/itt-services-efa/...``.
 # ══════════════════════════════════════════════════════════════════════════
 
 
@@ -444,32 +443,10 @@ def efa_xlsx_bytes() -> bytes:
 
 
 @pytest.fixture(scope="module")
-def csp_xlsx_bytes() -> bytes:
-    """Raw bytes for the CSP vendor-checklist XLSX fixture."""
-    assert _CSP_XLSX_PATH.exists(), (
-        f"corpus fixture missing — {_CSP_XLSX_PATH} should symlink to "
-        f"docs/testing/test-data/templates/csp-checklist/"
-        f"Cloud Security Principles Checklist V5_3.xlsx"
-    )
-    return _CSP_XLSX_PATH.read_bytes()
-
-
-@pytest.fixture(scope="module")
 def efa_form(efa_xlsx_bytes: bytes) -> ExtractedForm:
     """Module-scoped EFA extraction — amortise openpyxl walk."""
     return asyncio.run(
         xlsx_extract(efa_xlsx_bytes, "evaluation-matrix-itt-vol8.xlsx")
-    )
-
-
-@pytest.fixture(scope="module")
-def csp_form(csp_xlsx_bytes: bytes) -> ExtractedForm:
-    """Module-scoped CSP extraction — amortise openpyxl walk."""
-    return asyncio.run(
-        xlsx_extract(
-            csp_xlsx_bytes,
-            "Cloud Security Principles Checklist V5_3.xlsx",
-        )
     )
 
 
@@ -648,18 +625,6 @@ class TestXlsxEfaSections:
             f"Inv-12 regression"
         )
 
-
-# ──────────────────────────────────────────────────────────────────────────
-# Inv-9 — TYPE RESPONSE HERE>>>> → field_type='placeholder'
-# ──────────────────────────────────────────────────────────────────────────
-
-# ──────────────────────────────────────────────────────────────────────────
-# Inv-14 — NCSC URLs preserved in reference_urls
-# ──────────────────────────────────────────────────────────────────────────
-
-# ──────────────────────────────────────────────────────────────────────────
-# Inv-12 — CSP letter-keyed (A, B1) AND numbered (PRINCIPLE 1) sections
-# ──────────────────────────────────────────────────────────────────────────
 
 # ──────────────────────────────────────────────────────────────────────────
 # Inv-12 — sequence is reading-order
