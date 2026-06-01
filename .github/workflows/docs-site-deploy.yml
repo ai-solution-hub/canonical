@@ -96,10 +96,9 @@ jobs:
 
       - name: Build docs site (astro -> dist/)
         working-directory: docs-site
-        # `bun run build` chains sync + AI-invisibility + broken-link +
-        # token-parity guards + astro check + astro build (see
-        # docs-site/package.json). ALWAYS runs — proves the site compiles
-        # even when the deploy step is skipped.
+        # `bun run build` chains sync + broken-link + token-parity guards +
+        # astro check + astro build (see docs-site/package.json). ALWAYS runs —
+        # proves the site compiles even when the deploy step is skipped.
         run: bun run build
 
       - name: Install Vercel CLI
