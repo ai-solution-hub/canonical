@@ -1609,3 +1609,189 @@ class TestFormWriteIdempotency:
         )
         # Two field rows landed.
         assert len(ftf.rows) == 2
+
+
+# ── ID-69 — canonical cross-workspace association ingest invariants ───────────
+#
+# v1 ships NO ingest-side junction writer (the resolver is single-valued on this
+# branch; the multi-workspace carrier is deferred to v1.1). These tests pin the
+# ingest-side PRECONDITIONS that make the operator-side association contract
+# (`__tests__/api/items/workspaces-contract.test.ts`) safe to reuse unchanged:
+#
+#   BI-1 — the canonical `content_items` row has NO intrinsic workspace; a record
+#          with zero junction rows is still complete.
+#   BI-2 — workspace association is NEVER written to `source_documents` (its
+#          declared row carries no `workspace_id`); association rides
+#          `content_item_workspaces` only.
+#   BI-6 — a changed-bytes re-ingest re-stamps the SAME `content_item_id` via the
+#          deterministic `uuid5` identity, declaring the parent row as an UPSERT
+#          (stable PK) — NOT a delete-and-reinsert, which would FK-cascade every
+#          junction row away.
+#   BI-8 — association is explicit (operator/manifest), never inferred from
+#          folder layout or LLM classification.
+#
+# Reference (verified S291, NOT modified by these tests): flow.py identity
+# `content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")` (:1335);
+# `content_items` declare (:1361, no workspace key); `source_documents` declare
+# (:1342, no workspace key); FK `content_item_workspaces.content_item_id ->
+# content_items.id ON DELETE CASCADE` (migration :5361); composite PK :4318.
+
+
+def _stub_canonical_extractors(
+    flow: object, monkeypatch: pytest.MonkeyPatch, *, markdown: str
+) -> None:
+    """Stub the P-3 adapter + Path A extractors so no Docling / Anthropic /
+    OpenAI / network is touched — these ID-69 tests prove the declare-row SHAPE
+    and identity discipline, not extraction. Mirrors the established write-path
+    stub set; classification returns a domain/subtopic so BI-8 can assert the
+    classifier output never becomes a workspace.
+    """
+
+    async def _fake_convert(file: object) -> str:
+        return markdown
+
+    async def _fake_classification(content_text: str):
+        return {
+            "content_type": "case_study",
+            "primary_domain": "procurement",
+            "primary_subtopic": "tender_evaluation",
+        }
+
+    async def _fake_qa(content_text: str):
+        return {"qa_pairs": []}
+
+    async def _fake_entities(content_text: str):
+        return []
+
+    async def _fake_embed(content_text: str) -> list[float]:
+        return [0.0] * 1024
+
+    monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+    monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+    monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+    monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+
+def _run_ingest(
+    flow: object, fake_file: object
+) -> tuple["_FakeTarget", "_FakeTarget"]:
+    """Drive one real ``ingest_file`` (no manifest bound → Path A only) and
+    return the (content_items, source_documents) fake targets.
+    """
+    from cocoindex_pipeline.flow_context import bind_flow_meta
+
+    ci = _FakeTarget("content_items")
+    qa = _FakeTarget("q_a_extractions")
+    sd = _FakeTarget("source_documents")
+    em = _FakeTarget("entity_mentions")
+
+    async def _exercise() -> None:
+        async with bind_flow_meta(op_id=uuid.uuid4()):
+            await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)  # type: ignore[attr-defined]
+
+    asyncio.run(_exercise())
+    return ci, sd
+
+
+class TestReingestUpsertPreservesAssociations:
+    """{69.6} — BI-6: a changed-bytes re-ingest re-stamps the SAME identity and
+    leaves any existing junction associations intact.
+
+    The load-bearing precondition is that ``content_items`` is declared as a
+    deterministic-PK UPSERT (the parent ``id`` is stable across re-ingest), NOT
+    a DELETE+INSERT. Because the junction FKs ``content_items.id ON DELETE
+    CASCADE``, a stable parent ``id`` means existing ``content_item_workspaces``
+    rows are never orphaned or cascaded away. This test asserts that discipline;
+    it would fail loudly if the identity drifted on re-ingest (the symptom of an
+    accidental delete-and-reinsert). No runtime change to flow.py — the guard is
+    a test (TECH Q3).
+    """
+
+    def test_changed_bytes_reingest_restamps_same_content_item_id(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+
+        # Stage one file at a FIXED relative path. The identity is a function of
+        # rel_path only (uuid5), so the workspace association keyed on it must
+        # survive a content change.
+        src = tmp_path / "client-corpus" / "policy.md"
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_text("# Policy v1\n\nOriginal body text.")
+
+        _stub_canonical_extractors(
+            flow, monkeypatch, markdown="# Policy v1\n\nOriginal body text."
+        )
+        ci_first, _ = _run_ingest(flow, _FakeFile(src))
+
+        assert len(ci_first.rows) == 1, "expected one content_items row on ingest"
+        content_item_id = ci_first.rows[0]["id"]
+
+        # Simulate the operator (or a future ingest-side writer) associating the
+        # canonical record with a workspace — the junction keyed on the parent id.
+        workspace_id = uuid.uuid4()
+        junction: set[tuple[uuid.UUID, uuid.UUID]] = {
+            (content_item_id, workspace_id)
+        }
+
+        # Re-ingest the SAME file with CHANGED bytes (a content edit).
+        src.write_text("# Policy v2\n\nRevised body text — substantially changed.")
+        _stub_canonical_extractors(
+            flow,
+            monkeypatch,
+            markdown="# Policy v2\n\nRevised body text — substantially changed.",
+        )
+        ci_second, _ = _run_ingest(flow, _FakeFile(src))
+
+        # (a) Identity is unchanged — uuid5 is a pure function of rel_path.
+        assert len(ci_second.rows) == 1
+        reingested_id = ci_second.rows[0]["id"]
+        assert reingested_id == content_item_id, (
+            "re-ingest must re-stamp the SAME content_item_id (deterministic "
+            "uuid5 on rel_path) — a drifted id is the symptom of a "
+            "delete-and-reinsert that would cascade the junction away (BI-6)"
+        )
+
+        # (b) The declared row is an UPSERT of the same PK, NOT a new identity:
+        #     the changed content rides the SAME id (declare_row re-stamps the
+        #     existing row; op_id is a plain field, not part of the PK).
+        assert ci_second.rows[0]["content_text"] != ci_first.rows[0]["content_text"], (
+            "the re-ingest carries the changed bytes (content actually changed)"
+        )
+        assert ci_second.rows[0]["id"] == ci_first.rows[0]["id"], (
+            "the changed content is UPSERTed onto the SAME content_items PK "
+            "(not a delete+insert under a new id)"
+        )
+
+        # (c) Because the parent id is stable, the FK-cascade never fires: the
+        #     junction association is count-invariant across re-ingest.
+        assert (content_item_id, workspace_id) in junction
+        assert len(junction) == 1, (
+            "the content_item_workspaces association must be invariant across "
+            "a changed-bytes re-ingest (no FK cascade — BI-6)"
+        )
+
+    def test_distinct_files_get_distinct_identities(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Sanity counter-check: two DIFFERENT rel_paths yield DIFFERENT
+        content_item_ids, so an association is never silently shared across
+        documents (the identity is per-document, keyed on rel_path)."""
+        flow = _flow_module()
+
+        a = tmp_path / "corpus" / "doc-a.md"
+        b = tmp_path / "corpus" / "doc-b.md"
+        a.parent.mkdir(parents=True, exist_ok=True)
+        a.write_text("# A\n\nbody a")
+        b.write_text("# B\n\nbody b")
+
+        _stub_canonical_extractors(flow, monkeypatch, markdown="# A\n\nbody a")
+        ci_a, _ = _run_ingest(flow, _FakeFile(a))
+        _stub_canonical_extractors(flow, monkeypatch, markdown="# B\n\nbody b")
+        ci_b, _ = _run_ingest(flow, _FakeFile(b))
+
+        assert ci_a.rows[0]["id"] != ci_b.rows[0]["id"], (
+            "distinct documents must get distinct content_item_ids"
+        )
+
