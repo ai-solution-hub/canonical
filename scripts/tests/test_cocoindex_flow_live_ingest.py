@@ -58,6 +58,8 @@ from pathlib import Path
 
 import pytest
 
+from cocoindex import ComponentSubpath, component_subpath
+
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS_DIR) not in sys.path:
@@ -141,9 +143,16 @@ class _KeyedItemsFeed:
             yield pair
 
 
-async def _thread_dispatch_mount_each(fn, items, *extra_args):
+async def _thread_dispatch_mount_each(*pos_args):
     """Faithful stand-in for ``coco.mount_each`` (1.0.3) that reproduces the
     engine's DAEMON-THREAD dispatch boundary.
+
+    Also enforces the engine's positional-arg + subpath-derivation CONTRACT
+    (``_internal/api.py`` ``mount_each``): an optional ``ComponentSubpath`` may
+    lead the positional args; when omitted the engine auto-derives the subpath
+    from ``Symbol(fn.__name__)`` and RAISES ``TypeError`` if the callable has no
+    ``__name__`` (e.g. a bare ``functools.partial``). Enforcing it here is what
+    makes the suite catch the {66.16} live-boot crash a lenient stub let through.
 
     The installed engine runs each per-item ``fn(value, *extra_args)`` on its own
     ``_LoopRunner`` daemon thread (a SEPARATE event loop), NOT inline on the
@@ -169,6 +178,20 @@ async def _thread_dispatch_mount_each(fn, items, *extra_args):
     ``fn`` — matching cocoindex ``_internal/api.py`` ``_mount_one``:
     ``fn(item, *extra_args)``.
     """
+    args = list(pos_args)
+    if args and isinstance(args[0], ComponentSubpath):
+        # Explicit subpath provided — the engine consumes it and does NOT need
+        # ``fn.__name__`` (this is the fixed call site).
+        args.pop(0)
+    elif getattr(args[0], "__name__", None) is None:
+        raise TypeError(
+            "mount_each() requires a ComponentSubpath when the function has no "
+            "__name__. Provide an explicit subpath as the first argument."
+        )
+    fn = args[0]
+    items = args[1]
+    extra_args = tuple(args[2:])
+
     errors: list[BaseException] = []
     loop = asyncio.get_running_loop()
 
@@ -294,6 +317,12 @@ def _run_app_main_over_dir(
 
     # ── Engine-dispatch stand-in: run ingest_file on a separate thread+loop.
     monkeypatch.setattr(flow.coco, "mount_each", _thread_dispatch_mount_each)
+    # The conftest cocoindex stub makes `coco` a MagicMock, so `coco.component_subpath`
+    # would return a child mock the stubbed mount_each cannot recognise as a subpath.
+    # Point it at the REAL pure-Python helper (a ComponentSubpath builder — no engine)
+    # so the {66.16} fixed call site `coco.component_subpath("ingest_file")` yields a
+    # genuine ComponentSubpath the faithful stub accepts.
+    monkeypatch.setattr(flow.coco, "component_subpath", component_subpath)
 
     # ── Capture the EXACT stage counter app_main constructs + threads into
     # ingest_file (ID-66.19 functools.partial). _bump("source_walk") /

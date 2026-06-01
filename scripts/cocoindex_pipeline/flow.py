@@ -1945,7 +1945,19 @@ async def app_main() -> None:
             flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
             flow_workspace_manifest=workspace_manifest,
         )
+        # ID-66.19 follow-up ({66.16} live-verify) — `bound_ingest_file` is a
+        # `functools.partial`, which has NO `__name__`. cocoindex 1.0.3
+        # `mount_each` auto-derives the per-item ComponentSubpath from
+        # `Symbol(fn.__name__)` when no explicit subpath is given, and raises
+        # `TypeError: mount_each() requires a ComponentSubpath when the function
+        # has no __name__` at the live engine boundary (the daemon-thread dispatch
+        # the unit suite stubbed without enforcing this contract — so it only
+        # surfaced on the real on-prem boot). Pass the subpath EXPLICITLY:
+        # `component_subpath("ingest_file")` is exactly what auto-derivation from
+        # the unbound `ingest_file.__name__` would have produced, so per-item
+        # routing is unchanged.
         handle = await coco.mount_each(
+            coco.component_subpath("ingest_file"),
             bound_ingest_file,
             source.items(),
             ci_target,
