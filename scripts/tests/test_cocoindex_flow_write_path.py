@@ -1795,3 +1795,76 @@ class TestReingestUpsertPreservesAssociations:
             "distinct documents must get distinct content_item_ids"
         )
 
+
+class TestCanonicalRecordHasNoIntrinsicWorkspace:
+    """{69.7} — BI-1/BI-2/BI-8: the canonical ingest declares content with no
+    intrinsic workspace and never writes a workspace onto source_documents.
+    Negative invariants — these assert the ABSENCE of any workspace coupling on
+    the canonical (Path A) write path; association rides content_item_workspaces
+    only, written explicitly by the operator route (or the deferred v1.1 writer).
+    """
+
+    def test_content_items_row_has_no_workspace_column_and_is_complete(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        src = tmp_path / "doc.md"
+        src.write_text("# Doc\n\nbody")
+        _stub_canonical_extractors(flow, monkeypatch, markdown="# Doc\n\nbody")
+
+        ci, sd = _run_ingest(flow, _FakeFile(src))
+
+        # BI-1: no workspace key on the declared content_items row…
+        ci_row = ci.rows[0]
+        assert "workspace_id" not in ci_row, (
+            "content_items must carry NO intrinsic workspace (BI-1) — "
+            "association is M2M via content_item_workspaces only"
+        )
+        assert "workspace_ids" not in ci_row, (
+            "content_items must carry no embedded workspace list either (BI-1)"
+        )
+        # …and the record is COMPLETE with zero junction rows: the canonical
+        # fields a downstream consumer needs are all present un-associated.
+        assert ci_row["content_text"] == "# Doc\n\nbody"
+        assert len(ci_row["embedding"]) == 1024
+        assert ci_row["source_document_id"] == sd.rows[0]["id"]
+
+    def test_source_documents_row_never_carries_workspace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        src = tmp_path / "doc.md"
+        src.write_text("# Doc\n\nbody")
+        _stub_canonical_extractors(flow, monkeypatch, markdown="# Doc\n\nbody")
+
+        _, sd = _run_ingest(flow, _FakeFile(src))
+
+        # BI-2: the source_documents provenance row carries no workspace — the
+        # canonical-path equivalent of `source_documents.workspace_id IS NULL`.
+        sd_row = sd.rows[0]
+        assert "workspace_id" not in sd_row, (
+            "source_documents must NEVER carry a workspace (BI-2) — workspace "
+            "association is written ONLY to content_item_workspaces"
+        )
+
+    def test_classification_output_is_never_a_workspace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """BI-8: the LLM classification (primary_domain / primary_subtopic) is
+        persisted to content_items but is NEVER interpreted as a workspace.
+        Association is explicit, never inferred from classification."""
+        flow = _flow_module()
+        src = tmp_path / "doc.md"
+        src.write_text("# Doc\n\nbody")
+        _stub_canonical_extractors(flow, monkeypatch, markdown="# Doc\n\nbody")
+
+        ci, _ = _run_ingest(flow, _FakeFile(src))
+        ci_row = ci.rows[0]
+
+        # The classifier output landed on its own columns…
+        assert ci_row["primary_domain"] == "procurement"
+        assert ci_row["primary_subtopic"] == "tender_evaluation"
+        # …and did NOT leak into any workspace field (no classification->workspace
+        # mapping exists on the canonical path — BI-8).
+        assert "workspace_id" not in ci_row
+        assert ci_row.get("primary_domain") != ci_row.get("workspace_id")
