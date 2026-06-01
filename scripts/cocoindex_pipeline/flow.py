@@ -1170,6 +1170,35 @@ def _stamp_if_model(obj: Any, *, op_id: "uuid.UUID", content_items_id: "uuid.UUI
 _KH_PIPELINE_DOC_NS = uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1")
 
 
+# The workspace manifest filename — lives at the ingest source root, loaded ONCE
+# at flow start (app_main) and ALSO enumerated by walk_dir as an item. It is NOT
+# content: ingest_file skips it ({66.23}/BUG-B, S297) so it never reaches
+# convert_binary_to_markdown (which raises ValueError on a '.json' suffix).
+_WORKSPACE_MANIFEST_FILENAME = ".kh-workspace-map.json"
+
+
+def _to_source_relative(path: Path, source_path: Any) -> str:
+    """Return `path` as a POSIX string relative to the ingest source root.
+
+    {66.22}/BUG-A (S297): cocoindex's `File.file_path.path` is ABSOLUTE in
+    production (`/cocoindex-state/corpus/test/x.md`) despite the 1.0.3
+    "relative to source base dir" docstring (observed wrong on the live smoke).
+    The workspace-manifest prefixes (e.g. `test/`) are source-RELATIVE, so the
+    resolver (`resolve_workspace`) only matches the source-relative form; it is
+    also the stable seed for the deterministic per-document uuid5 PKs (portable
+    across mount points / re-ingests). Returns the plain POSIX path when
+    `source_path` is None (in-task unit-test callers) or when `path` is not
+    under `source_path` (already relative, or external). Pure-path computation —
+    no `.resolve()` I/O — keeps it deterministic.
+    """
+    if source_path is not None:
+        try:
+            return path.relative_to(source_path).as_posix()
+        except ValueError:
+            pass  # not under source_path -> already relative, or external
+    return path.as_posix()
+
+
 @coco.fn(memo=True)
 async def ingest_file(
     file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
@@ -1186,6 +1215,7 @@ async def ingest_file(
     flow_retry_counter: Any = None,
     flow_taxonomy_miss_counter: Any = None,
     flow_workspace_manifest: Any = None,
+    flow_source_path: Any = None,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
 
@@ -1222,8 +1252,9 @@ async def ingest_file(
     `op_id` is a PLAIN ROW FIELD. ID-66.19 threads it (and the four per-flow
     counters + the workspace manifest) as EXPLICIT keyword args
     (`flow_op_id` / `flow_stage_counter` / `flow_retry_counter` /
-    `flow_taxonomy_miss_counter` / `flow_workspace_manifest`) bound onto the
-    component via a named closure in `app_main`, NOT via `contextvars`
+    `flow_taxonomy_miss_counter` / `flow_workspace_manifest` /
+    `flow_source_path`) bound onto the component via a named closure in
+    `app_main`, NOT via `contextvars`
     propagation. cocoindex 1.0.3 runs this per-item component on its OWN
     `_LoopRunner` daemon thread (a separate event loop), which does NOT copy the
     binder task's `ContextVar` snapshot across the dispatch boundary — so reads
@@ -1254,6 +1285,22 @@ async def ingest_file(
     `declare_row` is not re-invoked and the row's op_id retains the value from the
     run that last materially changed it (RESEARCH.md §R4 — Inv-11 refinement).
     """
+    # {66.23}/BUG-B (S297): the workspace manifest lives at the source root and
+    # is loaded once at flow start (app_main), but localfs.walk_dir ALSO
+    # enumerates it as an item. It is NOT content — skip it before any context
+    # resolution or conversion (convert_binary_to_markdown raises ValueError on
+    # a '.json' suffix, which aborted per-item processing on the live smoke).
+    if file.file_path.path.name == _WORKSPACE_MANIFEST_FILENAME:
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.ingest.skip_manifest",
+                    "file": _WORKSPACE_MANIFEST_FILENAME,
+                }
+            )
+        )
+        return
+
     import contextlib
     from importlib import import_module
 
@@ -1322,6 +1369,7 @@ async def ingest_file(
             op_id=op_id,
             stage_counter=stage_counter,
             flow_workspace_manifest=flow_workspace_manifest,
+            flow_source_path=flow_source_path,
             flow_context_module=flow_context_module,
         )
 
@@ -1339,6 +1387,7 @@ async def _ingest_file_body(
     op_id: "uuid.UUID",
     stage_counter: Any,
     flow_workspace_manifest: Any,
+    flow_source_path: Any,
     flow_context_module: Any,
 ) -> None:
     """The Stage 2→6 per-item body of `ingest_file` (ID-66.19 split).
@@ -1359,11 +1408,18 @@ async def _ingest_file_body(
     # param). `mount_each` passes only the item VALUE (the `File`) to `fn`; the
     # (key,value) key — the relative-path string from `walk_dir().items()` — is
     # consumed by mount_each for subpath routing and never reaches `fn` (1.0.3
-    # `_internal/api.py` `_mount_one`: `fn(item, *extra_args)`). `file_path.path`
-    # is the path relative to the source base dir (cocoindex `FilePath.path`);
-    # `.as_posix()` gives the stable string used as the storage_path and the
-    # seed of the deterministic per-file UUIDs below.
-    rel_path = file.file_path.path.as_posix()
+    # `_internal/api.py` `_mount_one`: `fn(item, *extra_args)`).
+    #
+    # {66.22}/BUG-A (S297): `file.file_path.path` is ABSOLUTE in production
+    # (`/cocoindex-state/corpus/test/x.md`) — the cocoindex 1.0.3 "relative to
+    # source base dir" claim is WRONG as deployed (observed on the live smoke).
+    # The workspace-manifest prefixes (`test/`) are source-RELATIVE, so we
+    # normalise to the source-relative POSIX string via `flow_source_path`
+    # (threaded from app_main — the {66.19} explicit-arg pattern). This is the
+    # storage_path AND the seed of the deterministic per-file uuid5 PKs below.
+    # Safe to change now: prod has never completed a content write, so no rows
+    # are seeded on the old absolute form (no idempotency break).
+    rel_path = _to_source_relative(file.file_path.path, flow_source_path)
     # Inv-17: one source item walked + handed to this component per invocation.
     _bump("source_walk")
 
@@ -1616,6 +1672,17 @@ async def _ingest_file_body(
         _bump("postgres_upsert")  # Inv-17: one entity_mentions row upsert
 
     # ── ID-52 Path B: pipeline-owned form-template write (TECH §2.5) ─────────
+    # ID-69 / {66.22} (S297) — architectural boundary: everything ABOVE
+    # (content_items / source_documents / content_chunks / q_a_extractions /
+    # entity_mentions) is the CANONICAL, workspace-AGNOSTIC record layer.
+    # `content_items` has no workspace_id (ID-69 BI-1), and the
+    # `content_item_workspaces` M2M junction is DELIBERATELY not populated here:
+    # association is ID-69's job (operator-side in v1 via
+    # `app/api/items/[id]/workspaces`; ingest-side extended manifest in v1.1),
+    # and it gates the real non-TEST ID-45/T7 ingest, NOT this smoke. Only this
+    # Path-B form-write consumes a workspace_id (forms ARE workspace-scoped), so
+    # a workspace-resolution failure below can never affect the content writes
+    # above.
     # This block is ADDITIVE and LAST in the body. It runs ONLY when a workspace
     # manifest is active for this run (Path B); when none is (the Path-A-only
     # content runs and their unit tests) the block is skipped entirely and the
@@ -1912,7 +1979,7 @@ async def app_main() -> None:
     # path must not run without a workspace map). The loaded manifest is bound
     # at flow scope (around `mount_each` below) so the per-item `ingest_file`
     # reaches it via `current_workspace_manifest()`.
-    manifest_path = source_path / ".kh-workspace-map.json"
+    manifest_path = source_path / _WORKSPACE_MANIFEST_FILENAME
     try:
         workspace_manifest = load_workspace_manifest(manifest_path)
     except ManifestLoadError as exc:
@@ -2070,6 +2137,7 @@ async def app_main() -> None:
                 flow_retry_counter=flow_retry_counter,
                 flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
                 flow_workspace_manifest=workspace_manifest,
+                flow_source_path=source_path,
             )
 
         # Pin the subpath explicitly to "ingest_file" (the pre-{66.19} component

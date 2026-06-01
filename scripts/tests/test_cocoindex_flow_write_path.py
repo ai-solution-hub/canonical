@@ -2139,3 +2139,191 @@ class TestStampExtractionBaseWiredIntoIngest:
         )
         # Rows still landed normally.
         assert len(sd.rows) == 1 and len(ci.rows) == 1 and len(qa.rows) == 1
+
+
+# ── {66.22}/{66.23} (S297) — workspace rel_path + manifest-skip fixes ─────────
+# FAITHFUL to the prod reality the mocked suite previously masked: cocoindex's
+# `file.file_path.path` is ABSOLUTE in production, and the workspace manifest is
+# enumerated by walk_dir as an item. The pre-existing write-path tests pass a
+# tmp_path file but NO manifest, so they never exercised `resolve_workspace`
+# (BUG-A) and stub `convert_binary_to_markdown` so a '.json' never raised (BUG-B).
+
+
+class TestWorkspacePathFixes:
+    """{66.22} source-relative rel_path + {66.23} manifest-skip (S297)."""
+
+    def test_to_source_relative_strips_source_root(self) -> None:
+        """{66.22}: the helper normalises an ABSOLUTE prod path to source-relative."""
+        flow = _flow_module()
+        source_root = Path("/cocoindex-state/corpus")
+        # Absolute path under the source root → source-relative POSIX string.
+        assert (
+            flow._to_source_relative(
+                Path("/cocoindex-state/corpus/test/x.md"), source_root
+            )
+            == "test/x.md"
+        )
+        # source_path None (in-task unit-test / legacy callers) → plain as_posix.
+        assert (
+            flow._to_source_relative(Path("/cocoindex-state/corpus/test/x.md"), None)
+            == "/cocoindex-state/corpus/test/x.md"
+        )
+        # Path NOT under source_root → fallback to as_posix (no ValueError leak).
+        assert flow._to_source_relative(Path("/other/y.md"), source_root) == "/other/y.md"
+        # An already-relative path is returned unchanged.
+        assert (
+            flow._to_source_relative(Path("test/x.md"), source_root) == "test/x.md"
+        )
+
+    def test_ingest_file_rel_path_is_source_relative_and_resolves_workspace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """{66.22}/BUG-A: an ABSOLUTE file path under the source root resolves a
+        RELATIVE-prefixed manifest, and storage_path lands source-relative.
+
+        Pre-fix RED: rel_path = file.file_path.path.as_posix() is the ABSOLUTE
+        prod path, so (1) storage_path is absolute and (2) resolve_workspace
+        raises ResolutionFailure ('test/'-prefix never matches the absolute
+        path) → a workspace_resolution stage error is emitted.
+        """
+        flow = _flow_module()
+        from cocoindex_pipeline.workspace_resolver import (
+            WorkspaceManifest,
+            WorkspaceMapping,
+        )
+
+        markdown = "# Heading\n\nBody text."
+
+        async def _conv(file: object) -> str:
+            return markdown
+
+        async def _cls(content_text: str):
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+                "suggested_title": "Doc Title",
+            }
+
+        async def _qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _ent(content_text: str):
+            return []
+
+        async def _emb(content_text: str):
+            return [0.0] * 1024
+
+        # Plain .md is non-form → extract_form_structure returns None; the
+        # Path-B block resolves the workspace then exits cleanly (flow.py:1776).
+        async def _form_none(file: object):
+            return None
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _conv)
+        monkeypatch.setattr(flow, "extract_classification", _cls)
+        monkeypatch.setattr(flow, "extract_qa_form", _qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _ent)
+        monkeypatch.setattr(flow, "embed_content_text", _emb)
+        monkeypatch.setattr(flow, "extract_form_structure", _form_none)
+
+        stage_errors: list[dict] = []
+
+        def _capture_stage_error(**kwargs: object) -> None:
+            stage_errors.append(kwargs)
+
+        monkeypatch.setattr(flow, "_emit_stage_error_log", _capture_stage_error)
+
+        # ABSOLUTE file path under a source root (the prod shape), mapped via a
+        # source-RELATIVE manifest prefix.
+        source_root = tmp_path / "corpus"
+        (source_root / "test").mkdir(parents=True)
+        src = source_root / "test" / "doc.md"
+        src.write_text(markdown)
+        fake_file = _FakeFile(src)
+
+        ws = uuid.UUID("b0000000-0000-4000-8000-000000000001")
+        manifest = WorkspaceManifest(
+            schema_version=1,
+            mappings=[WorkspaceMapping(path_prefix="test/", workspace_id=ws)],
+        )
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+        ft = _FakeTarget("form_templates")
+        ftf = _FakeTarget("form_template_fields")
+
+        async def _exercise() -> None:
+            await flow.ingest_file(
+                fake_file,
+                ci,
+                qa,
+                sd,
+                em,
+                ft,
+                ftf,
+                None,
+                flow_op_id=uuid.uuid4(),
+                flow_workspace_manifest=manifest,
+                flow_source_path=source_root,
+            )
+
+        asyncio.run(_exercise())
+
+        # BUG-A: storage_path is the SOURCE-RELATIVE POSIX string, NOT the
+        # absolute prod path. (Also the seed of the deterministic uuid5 PKs.)
+        assert sd.rows[0]["storage_path"] == "test/doc.md", (
+            "storage_path must be source-relative (the manifest prefix matches "
+            "the relative form, not the absolute prod path)"
+        )
+        # Content lands independently of workspace resolution (ID-69 BI-1).
+        assert len(ci.rows) == 1 and len(sd.rows) == 1
+        # resolve_workspace SUCCEEDED — no workspace_resolution stage error.
+        assert [e for e in stage_errors if e.get("stage") == "workspace_resolution"] == [], (
+            "resolve_workspace must succeed against the source-relative rel_path "
+            "(the absolute path would raise ResolutionFailure on the 'test/' prefix)"
+        )
+
+    def test_workspace_manifest_file_is_skipped_not_ingested(
+        self, tmp_path: Path
+    ) -> None:
+        """{66.23}/BUG-B: the manifest file is skipped before conversion.
+
+        Pre-fix RED: with no skip guard, ingest_file calls the REAL
+        convert_binary_to_markdown on a '.json' suffix → ValueError
+        'Unsupported file extension'. The fix short-circuits before conversion.
+        convert_binary_to_markdown is intentionally NOT stubbed here.
+        """
+        flow = _flow_module()
+
+        src = tmp_path / ".kh-workspace-map.json"
+        src.write_text('{"schema_version": 1, "mappings": []}')
+        fake_file = _FakeFile(src)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+        ft = _FakeTarget("form_templates")
+        ftf = _FakeTarget("form_template_fields")
+
+        async def _exercise() -> None:
+            await flow.ingest_file(
+                fake_file,
+                ci,
+                qa,
+                sd,
+                em,
+                ft,
+                ftf,
+                None,
+                flow_op_id=uuid.uuid4(),
+            )
+
+        # Must NOT raise (the pre-fix path raises ValueError on the .json suffix).
+        asyncio.run(_exercise())
+
+        # The manifest is not content → no rows declared on any target.
+        assert sd.rows == [] and ci.rows == [] and qa.rows == [] and em.rows == []
+        assert ft.rows == [] and ftf.rows == []
