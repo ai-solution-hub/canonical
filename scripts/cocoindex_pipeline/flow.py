@@ -1090,6 +1090,28 @@ def _field(obj: object, name: str, default: Any = None) -> Any:
     return getattr(obj, name, default)
 
 
+def _stamp_if_model(obj: Any, *, op_id: "uuid.UUID", content_items_id: "uuid.UUID") -> Any:
+    """Stamp `_ExtractionBase` flow metadata via `stamp_extraction_base`, but
+    ONLY when ``obj`` is a genuine Pydantic extraction model ({66.16}).
+
+    PRODUCT Inv-5 [RATIFIED-S241] requires every extraction variant to carry
+    op_id / content_items_id / extracted_at, populated by the flow wrapper. The
+    production Path-A extractors return `_ExtractionBase` instances, which are
+    stamped here; the deterministic write-path test stubs return plain dicts —
+    `stamp_extraction_base` would `AttributeError` on a dict's missing
+    ``model_copy``, so those are passed through untouched. The shape-agnostic
+    guard mirrors `_field`: a dict goes straight back; anything else is stamped
+    via the module-level `stamp_extraction_base` (monkeypatchable on `flow` for
+    the wiring proof). Explicit kwargs are mandatory — the cocoindex daemon
+    thread does not inherit the FLOW_META_CTX binding ({66.19}/S294).
+    """
+    if isinstance(obj, dict) or not hasattr(obj, "model_copy"):
+        return obj
+    return stamp_extraction_base(
+        obj, op_id=op_id, content_items_id=content_items_id
+    )
+
+
 # Fixed namespace for deterministic per-DOCUMENT primary keys. The PK is a
 # uuid5 of (this namespace, the document's rel_path) — a function of the
 # DOCUMENT identity ONLY, independent of the per-run op_id. This is the
@@ -1333,6 +1355,24 @@ async def _ingest_file_body(
     source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
     content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
 
+    # ── Inv-5 [RATIFIED-S241]: stamp the outer-tier flow metadata onto each
+    # extraction object ({66.16} stamp-wiring). PRODUCT Inv-5 mandates that every
+    # variant carries op_id / content_items_id / extracted_at populated by THIS
+    # flow wrapper (not the LLM, which omits them by design → they arrive at the
+    # `_UNSTAMPED_*` sentinels). We stamp here, once content_item_id exists, with
+    # EXPLICIT kwargs — NOT a FLOW_META_CTX read: cocoindex runs this body on its
+    # own `_LoopRunner` daemon thread, which does NOT inherit the binder task's
+    # ContextVar snapshot ({66.19}/S294), so explicit kwargs are the only safe
+    # channel. `op_id` is the SAME flow-level value already written to every
+    # declare_row below, so the ROW writes are unchanged (Inv-15 stays satisfied
+    # via the flow op_id). `_stamp_if_model` no-ops on the plain-dict write-path
+    # test stubs (which have no `model_copy`); production extractors return
+    # `_ExtractionBase` instances and ARE stamped.
+    classification = _stamp_if_model(
+        classification, op_id=op_id, content_items_id=content_item_id
+    )
+    qa_form = _stamp_if_model(qa_form, op_id=op_id, content_items_id=content_item_id)
+
     # content_fingerprint is an ASYNC METHOD on FileLike returning bytes
     # (cocoindex resources/file.py L172 → connectorkits.fingerprint); await it
     # and encode to hex so it lands in the `text` content_fingerprint column.
@@ -1480,6 +1520,14 @@ async def _ingest_file_body(
     # deterministic uuid5 (namespace + rel_path + mention index) so re-ingest
     # UPSERTs the same row rather than inserting a duplicate.
     for idx, mention in enumerate(entity_mentions):
+        # Inv-5 [RATIFIED-S241] stamp ({66.16}): each EntityMentionExtraction
+        # carries the flow op_id + this row's content_item_id, populated by the
+        # wrapper (not the LLM). Explicit kwargs — the daemon-thread boundary
+        # forbids a FLOW_META_CTX read ({66.19}/S294). The stamp does not change
+        # `op_id` (same flow value already on the row below) — row-preserving.
+        mention = _stamp_if_model(
+            mention, op_id=op_id, content_items_id=content_item_id
+        )
         per_doc_canonical = canonicalise_entity_name(
             mention.entity_name, mention.entity_type
         )

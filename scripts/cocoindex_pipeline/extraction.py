@@ -189,12 +189,17 @@ _logger = logging.getLogger(__name__)
 # epoch timestamp is an unmistakable "unstamped" marker. Pydantic does not
 # validate defaults, so the sentinel instances pass strict mode untouched.
 #
-# NB ({66.16} S295): `stamp_extraction_base()` is NOT wired into the live flow
-# write path — `flow.py` declares rows with the flow-level `op_id` + a
-# deterministic `content_item_id`, satisfying Inv-15 (rows carry op_id)
-# directly. These three OBJECT fields are vestigial downstream of validation;
-# Inv-5's "the flow wrapper stamps each ExtractionOutput" mechanism is
-# unimplemented (tracked as spec-drift, not load-bearing for the row writes).
+# NB ({66.16} stamp-wiring): `stamp_extraction_base()` IS now wired into the
+# live flow per-item path. `flow.py::ingest_file` stamps each extraction object
+# (classification / qa_form / each entity_mention) via `_stamp_if_model` with the
+# flow-level `op_id` + the row's deterministic `content_item_id` immediately after
+# extraction — realising Inv-5's "the flow wrapper stamps each ExtractionOutput"
+# mechanism. The sentinels below remain the validate_json defaults (every LLM
+# response omits these three fields by design); they are overwritten on the
+# production path by that post-validation stamp, and persist ONLY for any object
+# that bypasses the stamp (e.g. a validation-failure record). The row writes are
+# unchanged — declare_row still uses the SAME flow-level `op_id`, so Inv-15 holds
+# independently of the object stamp.
 _UNSTAMPED_UUID: UUID = UUID(int=0)
 _UNSTAMPED_AT: datetime = datetime(1970, 1, 1, tzinfo=timezone.utc)
 

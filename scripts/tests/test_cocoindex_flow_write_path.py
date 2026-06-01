@@ -1868,3 +1868,250 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         # mapping exists on the canonical path — BI-8).
         assert "workspace_id" not in ci_row
         assert ci_row.get("primary_domain") != ci_row.get("workspace_id")
+
+
+# ── 66.16 — stamp_extraction_base is WIRED into the per-item path (Inv-5) ──────
+
+
+class TestStampExtractionBaseWiredIntoIngest:
+    """PRODUCT Inv-5 [RATIFIED-S241]: every extraction variant carries op_id,
+    content_items_id, and extracted_at — populated by the outer-tier cocoindex
+    flow wrapper, NOT by the LLM.
+
+    Before {66.16} stamp-wiring, ``flow.py`` imported ``stamp_extraction_base``
+    but NEVER invoked it on the per-item write path: the extraction objects sat
+    at the ``_UNSTAMPED_*`` sentinel placeholders while rows were written with
+    the flow-level ``op_id`` directly. This suite proves the import is no longer
+    vestigial — each of classification / qa_form / entity_mention IS stamped with
+    the flow-scope ``op_id`` + the row's deterministic ``content_item_id`` via
+    EXPLICIT kwargs (NOT the FLOW_META_CTX binding, which does not cross the
+    cocoindex ``_LoopRunner`` daemon-thread boundary — {66.19}/S294).
+
+    BEHAVIOUR-PRESERVING: the stamped object ``op_id`` MUST equal the flow-level
+    ``op_id`` already written to the rows — the row writes are unchanged.
+    """
+
+    @staticmethod
+    def _stub_pydantic_extractors(
+        flow: object, monkeypatch: pytest.MonkeyPatch, markdown: str
+    ) -> None:
+        """Stub the extractors to return REAL Pydantic variants (NOT dicts).
+
+        Stamping calls ``model_copy`` — only a Pydantic ``_ExtractionBase``
+        instance can be stamped, so this suite must feed real models (the
+        sibling write-path tests feed plain dicts, which the wiring leaves
+        untouched — proved by ``test_dict_returning_extractors_are_not_stamped``).
+        Each variant is constructed with the ``_UNSTAMPED_*`` defaults (op_id /
+        content_items_id / extracted_at all OMITTED) so the post-stamp assertions
+        can prove the sentinels were overwritten.
+        """
+        from cocoindex_pipeline.extraction import (
+            ClassificationExtraction,
+            EntityMentionExtraction,
+            FormMetadata,
+            QAFormExtraction,
+            QAPair,
+        )
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return ClassificationExtraction(
+                content_type="case_study",
+                primary_domain="procurement",
+                primary_subtopic="tender_evaluation",
+                classification_confidence=0.9,
+            )
+
+        async def _fake_qa(content_text: str):
+            return QAFormExtraction(
+                form_metadata=FormMetadata(form_type="tender", form_format="pdf"),
+                qa_pairs=[
+                    QAPair(
+                        question_text="What is X?",
+                        answer_text="X is Y.",
+                        expected_response_kind="mandatory",
+                    )
+                ],
+            )
+
+        async def _fake_entities(content_text: str):
+            # Two mentions so the per-mention stamp is proved to run for EACH.
+            return [
+                EntityMentionExtraction(
+                    entity_type="organisation",
+                    entity_name="Acme Council",
+                    source_span_start=0,
+                    source_span_end=12,
+                    mention_confidence=0.95,
+                ),
+                EntityMentionExtraction(
+                    entity_type="framework",
+                    entity_name="MEAT",
+                    source_span_start=13,
+                    source_span_end=17,
+                    mention_confidence=0.8,
+                ),
+            ]
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+    @staticmethod
+    def _spy_stamp(flow: object, monkeypatch: pytest.MonkeyPatch) -> list:
+        """Record every ``stamp_extraction_base`` call, delegating to the real
+        implementation so the returned (stamped) object is the genuine article.
+
+        Records ``(input_obj, kwargs, stamped_obj)`` triples so tests can assert
+        BOTH the invocation (input was a sentinel-bearing model) AND the result
+        (stamped with the flow op_id + content_item_id).
+        """
+        real_stamp = flow.stamp_extraction_base
+        calls: list = []
+
+        def _spy(extraction, **kwargs):  # type: ignore[no-untyped-def]
+            stamped = real_stamp(extraction, **kwargs)
+            calls.append((extraction, dict(kwargs), stamped))
+            return stamped
+
+        monkeypatch.setattr(flow, "stamp_extraction_base", _spy)
+        return calls
+
+    def test_each_extraction_object_is_stamped_with_flow_op_id_and_content_item_id(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        from cocoindex_pipeline.extraction import _UNSTAMPED_AT, _UNSTAMPED_UUID
+        from cocoindex_pipeline.flow_context import bind_flow_meta
+
+        markdown = "Acme Council MEAT evaluation case study body."
+        self._stub_pydantic_extractors(flow, monkeypatch, markdown)
+        calls = self._spy_stamp(flow, monkeypatch)
+
+        src = tmp_path / "doc-stamp.md"
+        src.write_text(markdown)
+        fake_file = _FakeFile(src)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        run_op_id = uuid.uuid4()
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=run_op_id):
+                await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
+
+        asyncio.run(_exercise())
+
+        # The row's deterministic content_item_id (flow.py seeds it on rel_path).
+        rel_path = src.as_posix()
+        expected_content_item_id = uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"ci:{rel_path}"
+        )
+
+        # stamp_extraction_base ran for classification + qa_form + each of the
+        # two entity mentions → 4 invocations (the import is no longer dead).
+        assert len(calls) == 4, (
+            "stamp_extraction_base must be invoked once per extraction object "
+            f"(classification + qa_form + 2 mentions); got {len(calls)} calls"
+        )
+
+        for input_obj, kwargs, stamped in calls:
+            # Invoked with EXPLICIT kwargs (NOT relying on FLOW_META_CTX, which
+            # cannot cross the daemon-thread boundary — {66.19}).
+            assert kwargs.get("op_id") == run_op_id, (
+                "stamp must be called with the explicit flow op_id kwarg"
+            )
+            assert kwargs.get("content_items_id") == expected_content_item_id, (
+                "stamp must be called with the explicit row content_item_id kwarg"
+            )
+            # The INPUT object carried the unstamped sentinels (proves the stamp
+            # actually does work — it is not a no-op on already-stamped objects).
+            assert input_obj.op_id == _UNSTAMPED_UUID
+            assert input_obj.content_items_id == _UNSTAMPED_UUID
+            assert input_obj.extracted_at == _UNSTAMPED_AT
+            # The RESULT carries the flow op_id + the row's content_item_id and a
+            # real (post-sentinel) extracted_at — Inv-5 is satisfied on the object.
+            assert stamped.op_id == run_op_id
+            assert stamped.content_items_id == expected_content_item_id
+            assert stamped.extracted_at > _UNSTAMPED_AT
+
+        # BEHAVIOUR-PRESERVING: the stamped object op_id EQUALS the flow op_id
+        # already written to every row (the row writes are unchanged).
+        assert sd.rows[0]["op_id"] == run_op_id
+        assert ci.rows[0]["op_id"] == run_op_id
+        assert ci.rows[0]["id"] == expected_content_item_id
+        assert {row["op_id"] for row in qa.rows} == {run_op_id}
+        assert {row["op_id"] for row in em.rows} == {run_op_id}
+        # The two entity rows still landed (the per-mention stamp did not disturb
+        # the declare_row loop).
+        assert len(em.rows) == 2
+
+    def test_dict_returning_extractors_are_not_stamped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The stamp wiring is a no-op for the plain-dict test stubs.
+
+        ``stamp_extraction_base`` calls ``model_copy`` — passing a dict would
+        raise ``AttributeError``. The wiring must therefore stamp ONLY genuine
+        ``_ExtractionBase`` instances, leaving the dict-returning sibling stubs
+        (and any future dict caller) untouched. Proves the wiring did not break
+        the existing dict-based write-path harness.
+        """
+        flow = _flow_module()
+        from cocoindex_pipeline.flow_context import bind_flow_meta
+
+        markdown = "# H\n\nbody"
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study", "primary_domain": "procurement"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
+
+        async def _fake_entities(content_text: str):
+            return []
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+        calls = self._spy_stamp(flow, monkeypatch)
+
+        src = tmp_path / "doc-dict.md"
+        src.write_text(markdown)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
+
+        asyncio.run(_exercise())  # must not raise (no model_copy on a dict)
+
+        assert calls == [], (
+            "stamp_extraction_base must NOT be called for plain-dict extractor "
+            "outputs — only genuine _ExtractionBase instances are stamped"
+        )
+        # Rows still landed normally.
+        assert len(sd.rows) == 1 and len(ci.rows) == 1 and len(qa.rows) == 1

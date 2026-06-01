@@ -143,16 +143,19 @@ class TestFlowModuleIdleLoad:
                     coro.close()
 
     def test_flow_module_exposes_stamp_extraction_base(self) -> None:
-        """flow.py imports stamp_extraction_base — even though v1 cannot
-        wire it at flow scope yet (per 28.12 WP4 stamp_extraction_base
-        integration gap), the helper MUST be at hand for 28.13's
-        per-row stamping wiring."""
+        """flow.py imports stamp_extraction_base AND wires it into the per-item
+        path ({66.16} stamp-wiring closed the long-standing 28.12 WP4 gap).
+        `ingest_file` now stamps each extraction object (classification /
+        qa_form / each entity_mention) with the flow op_id + the row's
+        content_item_id via `_stamp_if_model`, satisfying PRODUCT Inv-5
+        [RATIFIED-S241]. The invocation contract is proved in
+        test_cocoindex_flow_write_path.py::TestStampExtractionBaseWiredIntoIngest;
+        this guard only pins that the symbol stays exposed + callable."""
         from cocoindex_pipeline import flow
 
         assert hasattr(flow, "stamp_extraction_base"), (
-            "flow.py must import stamp_extraction_base — needed for the "
-            "28.13 per-row stamping wiring (28.12 WP4 documents the "
-            "integration gap)"
+            "flow.py must import stamp_extraction_base — wired into the "
+            "per-item ingest path via _stamp_if_model ({66.16})"
         )
         assert callable(flow.stamp_extraction_base), (
             "stamp_extraction_base must be callable"
