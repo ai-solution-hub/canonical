@@ -422,6 +422,23 @@ CLI above.
 
 ---
 
+## Escalation
+
+If you are a sub-orchestrators and you hit an Open Question that cannot be resolved in-scope, you must NOT silently proceed or block indefinitely. Use the OQ-escalation channel: `.claude/skills/session-driver-cmux/oq-brief-fragment.md`
+
+The OQ protocol is implemented as a durable file-per-record mailbox under each worker's
+`.claude/cmux-events/<sid>/oq/` directory. The helper scripts sit beside the five
+dispatch scripts:
+
+| Script | Side | Functions |
+| --- | --- | --- |
+| `scripts/oq-core.sh` | shared | `atomic_publish`, `verify_record`, `list_records`, `derive_oq_id`, `next_seq`, record builders/validators |
+| `scripts/oq-worker.sh` | worker | `oq_emit`, `oq_cancel`, `oq_poll_decision`, `oq_check_decision`, `oq_restart_classify` |
+| `scripts/oq-parent.sh` | parent | `oq_list_open`, `oq_decide`, `oq_scan_fleet` |
+| `scripts/oq-canonical.py` | shared | canonical-JSON + SHA-256 checksum (stdlib only) |
+
+---
+
 ## References
 
 For the canonical SDLC doc, sibling agent files, dispatch-primitive skills,

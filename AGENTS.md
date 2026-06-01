@@ -346,7 +346,7 @@ Cross-reference CLAUDE.md for project-wide rules; cross-reference `.gitnexus/CLA
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (49383 symbols, 70638
+This project is indexed by GitNexus as **knowledge-hub** (48383 symbols, 69982
 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess
 impact, and navigate safely.
 
@@ -371,12 +371,12 @@ impact, and navigate safely.
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running upstream impact analysis
-  on it.
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the
   call graph.
-- NEVER commit changes without running detect-changes to check affected scope.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected
+  scope.
 
 ## Resources
 
