@@ -181,12 +181,34 @@ _logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+# Post-validation stamp placeholders (PRODUCT Inv-5 — the LLM "does not
+# generate" op_id / content_items_id / extracted_at). The contract the live
+# extractors feed (`_*_adapter.validate_json(llm_json)`) must therefore accept
+# their ABSENCE: they DEFAULT to these sentinels at validate_json time and are
+# overwritten post-validation by `stamp_extraction_base()`. An all-zero UUID /
+# epoch timestamp is an unmistakable "unstamped" marker. Pydantic does not
+# validate defaults, so the sentinel instances pass strict mode untouched.
+#
+# NB ({66.16} S295): `stamp_extraction_base()` is NOT wired into the live flow
+# write path — `flow.py` declares rows with the flow-level `op_id` + a
+# deterministic `content_item_id`, satisfying Inv-15 (rows carry op_id)
+# directly. These three OBJECT fields are vestigial downstream of validation;
+# Inv-5's "the flow wrapper stamps each ExtractionOutput" mechanism is
+# unimplemented (tracked as spec-drift, not load-bearing for the row writes).
+_UNSTAMPED_UUID: UUID = UUID(int=0)
+_UNSTAMPED_AT: datetime = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
 class _ExtractionBase(BaseModel):
     """Shared fields stamped by the flow wrapper, NOT by the LLM (Inv-5).
 
-    `op_id`, `content_items_id`, `extracted_at` are populated post-validation
-    by `stamp_extraction_base()` — keeping them out of the LLM's `output_type`
-    contract prevents the model hallucinating UUIDs.
+    `op_id`, `content_items_id`, `extracted_at` are NOT emitted by the LLM
+    (PRODUCT Inv-5: "the model does not generate them"), so they DEFAULT to the
+    `_UNSTAMPED_*` placeholders when the LLM response JSON is validated, and are
+    overwritten post-validation by `stamp_extraction_base()`. Defaulting (not
+    requiring) them is what lets `validate_json(llm_response)` pass — requiring
+    them crashed the live content ingest with a 3-missing-field `ValidationError`
+    ({66.16} S295), because every LLM response omits them by design.
     """
 
     model_config = ConfigDict(
@@ -196,12 +218,17 @@ class _ExtractionBase(BaseModel):
         extra="forbid",
     )
 
-    op_id: UUID = Field(description="Cocoindex per-flow op_id (02-data-flow §5.1).")
+    op_id: UUID = Field(
+        default=_UNSTAMPED_UUID,
+        description="Cocoindex per-flow op_id (02-data-flow §5.1).",
+    )
     content_items_id: UUID = Field(
-        description="FK to content_items row whose content_text was the input."
+        default=_UNSTAMPED_UUID,
+        description="FK to content_items row whose content_text was the input.",
     )
     extracted_at: datetime = Field(
-        description="UTC timestamp set at LLM-call time by the wrapper."
+        default=_UNSTAMPED_AT,
+        description="UTC timestamp set at LLM-call time by the wrapper.",
     )
 
 

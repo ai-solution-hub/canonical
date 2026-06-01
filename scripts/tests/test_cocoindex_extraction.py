@@ -40,10 +40,15 @@ from scripts.cocoindex_pipeline.extraction import (
     FormMetadata,
     QAFormExtraction,
     QAPair,
+    _UNSTAMPED_AT,
+    _UNSTAMPED_UUID,
     _VALID_CONTENT_TYPES,
     _VALID_DOMAINS,
     _VALID_FORM_TYPES,
     _VALID_SUBTOPICS,
+    _classification_adapter,
+    _entity_mentions_adapter,
+    _qa_form_adapter,
     classify_pydantic_error,
     normalise_entity_span,
     stamp_extraction_base,
@@ -523,7 +528,19 @@ class TestClassifyPydanticError:
 class TestExtractionBaseFields:
     """Q-EX2 PRODUCT inv 5 — op_id / content_items_id / extracted_at."""
 
-    def test_missing_op_id_fails(self, base_fields_json: dict) -> None:
+    def test_llm_omitted_op_id_defaults_to_placeholder(
+        self, base_fields_json: dict
+    ) -> None:
+        """PRODUCT Inv-5: the LLM does NOT generate `op_id` — the outer-tier
+        flow wrapper stamps it post-validation. So an LLM payload that omits
+        `op_id` must VALIDATE (defaulting to the `_UNSTAMPED_UUID` placeholder),
+        NOT fail as `missing_required`.
+
+        Regression witness ({66.16} S295): this test previously asserted
+        `missing_required`, enshrining the required-field contract that crashed
+        the live content ingest (`validate_json` of every real LLM response
+        raised a 3-missing-field `ValidationError` before any row was declared).
+        """
         payload = {
             **{k: v for k, v in base_fields_json.items() if k != "op_id"},
             "extraction_kind": "classification",
@@ -532,11 +549,9 @@ class TestExtractionBaseFields:
             "classification_confidence": 0.7,
         }
         ta = TypeAdapter(ExtractionOutput)
-        with pytest.raises(ValidationError) as exc_info:
-            ta.validate_json(json.dumps(payload))
-        assert (
-            classify_pydantic_error(exc_info.value) == "missing_required"
-        )
+        parsed = ta.validate_json(json.dumps(payload))
+        assert isinstance(parsed, ClassificationExtraction)
+        assert parsed.op_id == _UNSTAMPED_UUID
 
     def test_invalid_op_id_string_fails_via_json(
         self, base_fields_json: dict
@@ -1098,3 +1113,81 @@ class TestOutOfTaxonomySoftWarn:
                 classification_confidence=0.5,
             )
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# §5.1 inv 5 — LLM-output faithfulness ({66.16} S295 regression suite)
+#
+# Every test ABOVE that exercises a full variant spreads `base_fields_json` /
+# `base_fields`, INJECTING op_id / content_items_id / extracted_at — the three
+# fields the live LLM never returns (PRODUCT Inv-5: "the model does not
+# generate them"). That coverage gap let a `ValidationError` ship: the live
+# `extract_*` extractors call `_*_adapter.validate_json(response_text)` on raw
+# Anthropic JSON that OMITS all three, which raised "3 missing fields" before
+# any content row was declared (`content_items=0` for op_ids 2895a85f /
+# 0c9dd1d8). These tests drive the SAME module adapters the extractors use,
+# with stamp-absent payloads, so the gap stays closed.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestLLMOutputOmitsStampedFields:
+    """The validation contract the live extractors actually feed
+    (`_classification_adapter` / `_qa_form_adapter` /
+    `_entity_mentions_adapter`) must accept LLM JSON that omits op_id /
+    content_items_id / extracted_at, leaving them at their `_UNSTAMPED_*`
+    placeholders (stamped at flow scope per PRODUCT Inv-5)."""
+
+    def test_classification_validates_without_stamped_fields(self) -> None:
+        # Byte-for-byte the shape `extract_classification` feeds the adapter:
+        # the classifier's own fields, NO op_id / content_items_id /
+        # extracted_at.
+        payload = {
+            "extraction_kind": "classification",
+            "content_type": "policy",
+            "primary_domain": "compliance",
+            "classification_confidence": 0.92,
+            "secondary_classifications": ["governance"],
+            "rationale": "Document defines an organisation-wide policy.",
+        }
+        parsed = _classification_adapter.validate_json(json.dumps(payload))
+        assert isinstance(parsed, ClassificationExtraction)
+        assert parsed.content_type == "policy"
+        # Stamp placeholders — proving they DEFAULTED (the LLM never sent them).
+        assert parsed.op_id == _UNSTAMPED_UUID
+        assert parsed.content_items_id == _UNSTAMPED_UUID
+        assert parsed.extracted_at == _UNSTAMPED_AT
+
+    def test_qa_form_validates_without_stamped_fields(self) -> None:
+        payload = {
+            "extraction_kind": "q_a_form",
+            "form_metadata": {"form_type": "pqq", "form_format": "docx"},
+            "qa_pairs": [
+                {
+                    "question_text": "Do you hold ISO 27001:2022 certification?",
+                    "expected_response_kind": "mandatory",
+                }
+            ],
+        }
+        parsed = _qa_form_adapter.validate_json(json.dumps(payload))
+        assert isinstance(parsed, QAFormExtraction)
+        assert parsed.form_metadata.form_type == "pqq"
+        assert parsed.op_id == _UNSTAMPED_UUID
+        assert parsed.content_items_id == _UNSTAMPED_UUID
+
+    def test_entity_mentions_validate_without_stamped_fields(self) -> None:
+        # `extract_entity_mentions` validates a JSON ARRAY via the list adapter.
+        payload = [
+            {
+                "extraction_kind": "entity_mention",
+                "entity_type": "certification",
+                "entity_name": "ISO 27001:2022",
+                "source_span_start": 0,
+                "source_span_end": 13,
+                "mention_confidence": 0.95,
+            }
+        ]
+        parsed = _entity_mentions_adapter.validate_json(json.dumps(payload))
+        assert len(parsed) == 1
+        assert isinstance(parsed[0], EntityMentionExtraction)
+        assert parsed[0].entity_name == "ISO 27001:2022"
+        assert parsed[0].op_id == _UNSTAMPED_UUID
