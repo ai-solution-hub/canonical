@@ -206,6 +206,15 @@ _UUID_RE = re.compile(
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
 )
 
+# Pydantic v2 ValidationError messages echo the offending value verbatim via
+# `input_value=…` (e.g. `[type=missing, input_value='ACME Bid', input_type=str]`).
+# On extraction-validation failures that value is LLM-extracted CLIENT content —
+# the dominant PII leak vector (UUID redaction + truncation alone leave a short
+# client name/phrase exposed). Matched non-greedily up to the next `, input_type=`
+# or closing `]`; DOTALL so multi-line echoed values are still captured.
+# See bl-165 / Option D.
+_INPUT_VALUE_RE = re.compile(r"input_value=.+?(?=, input_type=|\])", re.DOTALL)
+
 
 class _EntityResolutionStageError(Exception):
     """Wraps any exception escaping the Stage-5 resolution post-pass so the
@@ -342,12 +351,15 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
 def _redact_error_message(msg: str, *, max_length: int = 200) -> str:
     """Apply PII redaction to a stage-error message for structured logging.
 
-    Two steps (per Inv-26 + ID-28.13 brief):
-      1. Replace UUID-shaped substrings with the placeholder `<uuid>` so
+    Three steps (per Inv-26 + ID-28.13 brief; input_value strip per bl-165 / Option D):
+      1. Strip pydantic `input_value=…` echoes — on extraction
+         ValidationErrors these carry LLM-extracted client content verbatim
+         (the dominant PII vector). Replaced with `input_value=<redacted>`.
+      2. Replace UUID-shaped substrings with the placeholder `<uuid>` so
          per-row identifiers don't leak through error messages — operator
          forensic correlation is via the structured-log `op_id` /
          `content_items_id` fields, not the message body.
-      2. Truncate to `max_length` (default 200) characters so provider
+      3. Truncate to `max_length` (default 200) characters so provider
          5xx responses that echo user-supplied payloads cannot bloat the
          log surface.
 
@@ -358,7 +370,8 @@ def _redact_error_message(msg: str, *, max_length: int = 200) -> str:
     Returns:
       The redacted, truncated message safe for structured-log emission.
     """
-    redacted = _UUID_RE.sub("<uuid>", msg)
+    redacted = _INPUT_VALUE_RE.sub("input_value=<redacted>", msg)
+    redacted = _UUID_RE.sub("<uuid>", redacted)
     if len(redacted) > max_length:
         redacted = redacted[:max_length]
     return redacted
@@ -2252,7 +2265,12 @@ async def app_main() -> None:
         # Python class name + an `unclassified` marker log so the Vercel
         # route's Zod validator surfaces drift as a loud 4xx.
         flow_status = "failed"
-        flow_error_message = str(exc)
+        # PII: redact at capture so BOTH the structured stage-error log AND the
+        # terminal `finally` webhook emit a redacted message — closing the latent
+        # leak where the terminal webhook wrote `str(exc)` un-redacted (bl-165 /
+        # Option D; mirrors the manifest-abort path redaction). The classify call
+        # below reads the exception object, not this string, so it is unaffected.
+        flow_error_message = _redact_error_message(str(exc))
         classified = _classify_stage_exception(exc)
         if classified is not None:
             flow_error_class = classified

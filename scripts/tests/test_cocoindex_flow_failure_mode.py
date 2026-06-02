@@ -489,6 +489,32 @@ class TestEmitStageErrorLog:
         assert "33333333" not in payload["error_message"]
         assert "<uuid>" in payload["error_message"]
 
+    def test_input_value_echo_is_redacted(self, caplog):
+        # bl-165 / Option D: pydantic ValidationError messages echo the
+        # offending value via `input_value=…`. On extraction-validation
+        # failures that value is LLM-extracted CLIENT content and is the
+        # dominant PII leak vector — UUID redaction + truncation alone leave a
+        # short client name/phrase exposed, so it must be stripped outright.
+        msg = (
+            "1 validation error for ExtractionModel\n"
+            "title\n  Field required "
+            "[type=missing, input_value='ACME Confidential Bid 2026', "
+            "input_type=str]"
+        )
+        with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
+            flow._emit_stage_error_log(
+                op_id=uuid.uuid4(),
+                stage="llm_extraction",
+                error_class="extraction_validation_failed",
+                content_items_id=None,
+                error_message=msg,
+            )
+
+        error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+        payload = json.loads(error_records[0].message)
+        assert "ACME Confidential" not in payload["error_message"]
+        assert "input_value=<redacted>" in payload["error_message"]
+
     def test_content_items_id_none_serialises_as_null(self, caplog):
         # When the failure happens before per-row binding (e.g. Stage 1
         # source-walk failure), there is no content_items_id yet. The
