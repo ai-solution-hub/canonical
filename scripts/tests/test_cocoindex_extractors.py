@@ -78,17 +78,25 @@ class _MockTextBlock:
 
 
 class _MockMessageResponse:
-    """Mimics anthropic.types.Message — has a `.content` list of text blocks."""
+    """Mimics anthropic.types.Message — has a `.content` list of text blocks
+    and a `.stop_reason` (the real SDK always populates this; the {73.1}
+    truncation guard reads it before validation)."""
 
-    def __init__(self, json_text: str):
+    def __init__(self, json_text: str, stop_reason: str = "end_turn"):
         self.content = [_MockTextBlock(json_text)]
+        self.stop_reason = stop_reason
 
 
-def _make_mock_client(json_response: str) -> MagicMock:
+def _make_mock_client(
+    json_response: str, stop_reason: str = "end_turn"
+) -> MagicMock:
     """Return a MagicMock AsyncAnthropic instance whose messages.create()
-    awaitable resolves to a Message with `content[0].text == json_response`."""
+    awaitable resolves to a Message with `content[0].text == json_response`
+    and the given `stop_reason` (defaults to the normal `end_turn`)."""
     mock_client = MagicMock(name="AsyncAnthropic_instance")
-    mock_create = AsyncMock(return_value=_MockMessageResponse(json_response))
+    mock_create = AsyncMock(
+        return_value=_MockMessageResponse(json_response, stop_reason=stop_reason)
+    )
     mock_client.messages.create = mock_create
     return mock_client
 
@@ -248,9 +256,16 @@ class TestExtractClassification:
             asyncio.run(extract_classification(content))
         assert len(captured_messages) == 1
         kwargs = captured_messages[0]
-        # Per spec §3.1 + brief: model=claude-opus-4-6, max_tokens=4096
+        # model=claude-opus-4-6; classification's max_tokens ceiling is the
+        # per-extractor constant ({73.1} — classification output is bounded so
+        # it keeps the modest 4096 budget while qa_form / entity_mentions get
+        # larger ceilings).
+        from scripts.cocoindex_pipeline.extraction import (
+            _MAX_TOKENS_CLASSIFICATION,
+        )
+
         assert kwargs["model"] == "claude-opus-4-6"
-        assert kwargs["max_tokens"] == 4096
+        assert kwargs["max_tokens"] == _MAX_TOKENS_CLASSIFICATION
         assert kwargs["messages"][0]["role"] == "user"
         # The user message must contain the content_text appended after a
         # double-newline (the prompt is too long to assert verbatim here;
@@ -583,3 +598,171 @@ class TestExtractorsTolerateFencedResponse:
         assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(m, EntityMentionExtraction) for m in result)
+
+
+# ============================================================================
+# TRUNCATION GUARD ({73.1} S300 Path-B re-smoke regression)
+# ============================================================================
+
+
+class TestMaxTokensCeiling:
+    """The {73.1} ceiling raise: qa_form needs the most headroom (large ITTs
+    produce big `qa_pairs` arrays); entity_mentions is moderate; classification
+    is bounded. All ceilings stay <= 64k (claude-opus-4-6 output limit). The
+    constants are CEILINGS — generosity is free (you only pay for tokens
+    actually generated)."""
+
+    def test_per_extractor_ceilings_are_raised_and_within_opus_limit(self):
+        from scripts.cocoindex_pipeline.extraction import (
+            _MAX_TOKENS_CLASSIFICATION,
+            _MAX_TOKENS_ENTITY_MENTIONS,
+            _MAX_TOKENS_QA_FORM,
+        )
+
+        _OPUS_4_6_OUTPUT_LIMIT = 64000
+        # qa_form gets the largest budget (the bug: a charnwood ITT truncated
+        # at the old shared 4096 ceiling).
+        assert _MAX_TOKENS_QA_FORM == 32768
+        assert _MAX_TOKENS_ENTITY_MENTIONS == 16384
+        assert _MAX_TOKENS_CLASSIFICATION == 4096
+        # Ordering reflects the relative output sizes.
+        assert (
+            _MAX_TOKENS_CLASSIFICATION
+            <= _MAX_TOKENS_ENTITY_MENTIONS
+            < _MAX_TOKENS_QA_FORM
+        )
+        # None may exceed the model's output ceiling.
+        for value in (
+            _MAX_TOKENS_CLASSIFICATION,
+            _MAX_TOKENS_ENTITY_MENTIONS,
+            _MAX_TOKENS_QA_FORM,
+        ):
+            assert 0 < value <= _OPUS_4_6_OUTPUT_LIMIT
+
+    def test_qa_form_requests_its_per_extractor_ceiling(self):
+        from scripts.cocoindex_pipeline.extraction import _MAX_TOKENS_QA_FORM
+
+        mock_client = _make_mock_client(_qa_form_json())
+        captured: list[Any] = []
+        original_create = mock_client.messages.create
+
+        async def _capture(**kwargs: Any) -> Any:
+            captured.append(kwargs)
+            return await original_create()
+
+        mock_client.messages.create = _capture
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            asyncio.run(extract_qa_form("form content"))
+        assert captured[0]["max_tokens"] == _MAX_TOKENS_QA_FORM
+
+    def test_entity_mentions_requests_its_per_extractor_ceiling(self):
+        from scripts.cocoindex_pipeline.extraction import (
+            _MAX_TOKENS_ENTITY_MENTIONS,
+        )
+
+        mock_client = _make_mock_client(_entity_mentions_json())
+        captured: list[Any] = []
+        original_create = mock_client.messages.create
+
+        async def _capture(**kwargs: Any) -> Any:
+            captured.append(kwargs)
+            return await original_create()
+
+        mock_client.messages.create = _capture
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            asyncio.run(extract_entity_mentions("doc text"))
+        assert captured[0]["max_tokens"] == _MAX_TOKENS_ENTITY_MENTIONS
+
+
+class TestTruncationGuard:
+    """The {73.1} silent-failure hardening: when the Anthropic response is cut
+    off by the `max_tokens` ceiling, the SDK sets `stop_reason='max_tokens'`
+    and the body is a TRUNCATED JSON document. Pre-fix this surfaced as a
+    cryptic downstream `Invalid JSON: EOF while parsing` from `validate_json`.
+
+    Post-fix each extractor checks `stop_reason` BEFORE validation and raises a
+    clear `TruncatedExtractionError` naming the extractor + the token limit, so
+    truncation is loud and diagnosable.
+    """
+
+    # A deliberately TRUNCATED qa_form payload — valid JSON prefix cut mid-array
+    # (exactly the failure shape from op 3d1334ba). If the guard did NOT fire,
+    # `validate_json` would raise a JSON-parse error on this — so the test
+    # proves the guard intercepts FIRST.
+    _TRUNCATED_JSON = '{"form_metadata": {"form_type": "itt", "form_format": "pdf"}, "qa_pairs": [{"question_text": "Describe your'
+
+    def test_extract_classification_raises_clear_error_on_truncation(self):
+        from scripts.cocoindex_pipeline.extraction import TruncatedExtractionError
+
+        mock_client = _make_mock_client(
+            self._TRUNCATED_JSON, stop_reason="max_tokens"
+        )
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            with pytest.raises(TruncatedExtractionError) as exc_info:
+                asyncio.run(extract_classification("doc text"))
+        msg = str(exc_info.value)
+        assert "extract_classification" in msg
+        assert "max_tokens" in msg
+
+    def test_extract_qa_form_raises_clear_error_on_truncation(self):
+        from scripts.cocoindex_pipeline.extraction import TruncatedExtractionError
+
+        mock_client = _make_mock_client(
+            self._TRUNCATED_JSON, stop_reason="max_tokens"
+        )
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            with pytest.raises(TruncatedExtractionError) as exc_info:
+                asyncio.run(extract_qa_form("form content"))
+        msg = str(exc_info.value)
+        assert "extract_qa_form" in msg
+        assert "max_tokens" in msg
+
+    def test_extract_entity_mentions_raises_clear_error_on_truncation(self):
+        from scripts.cocoindex_pipeline.extraction import TruncatedExtractionError
+
+        mock_client = _make_mock_client(
+            "[{\"entity_text\": \"Acme", stop_reason="max_tokens"
+        )
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            with pytest.raises(TruncatedExtractionError) as exc_info:
+                asyncio.run(extract_entity_mentions("doc text"))
+        msg = str(exc_info.value)
+        assert "extract_entity_mentions" in msg
+        assert "max_tokens" in msg
+
+    def test_truncation_error_is_not_a_validation_error(self):
+        """The whole point of the guard: truncation must NOT surface as the
+        cryptic downstream JSON-parse `ValidationError`. `TruncatedExtractionError`
+        is a `ValueError` (so it still propagates through the existing
+        non-retryable + Option A flow-scope path) but is NOT a `ValidationError`."""
+        from scripts.cocoindex_pipeline.extraction import TruncatedExtractionError
+
+        assert issubclass(TruncatedExtractionError, ValueError)
+        assert not issubclass(TruncatedExtractionError, ValidationError)
+
+    def test_normal_stop_reason_validates_as_today(self):
+        """An `end_turn` response with well-formed JSON validates normally — the
+        guard does not interfere with the happy path."""
+        mock_client = _make_mock_client(_qa_form_json(), stop_reason="end_turn")
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            result = asyncio.run(extract_qa_form("form content"))
+        assert isinstance(result, QAFormExtraction)
+        assert len(result.qa_pairs) == 2

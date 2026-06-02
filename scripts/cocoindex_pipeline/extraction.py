@@ -637,10 +637,56 @@ _entity_mentions_adapter: TypeAdapter[list[EntityMentionExtraction]] = TypeAdapt
 )
 
 
-# Max-tokens budget — accommodates ~3000-word rationales, ~50 QA-pair forms,
-# ~200 entity mentions per call. Validation failures on truncated JSON
-# raise `ValidationError` → Option A failure path.
-_MAX_TOKENS = 4096
+# Per-extractor max-tokens ceilings ({73.1} S300 Path-B re-smoke fix).
+#
+# `max_tokens` is a CEILING, not a reservation — you only pay for tokens
+# actually generated, so a generous ceiling costs nothing on small outputs
+# while preventing silent truncation on large ones. The old shared 4096 budget
+# truncated the `qa_pairs` array of a large charnwood ITT (op 3d1334ba),
+# producing a cryptic downstream `Invalid JSON: EOF while parsing` from
+# `validate_json` rather than a diagnosable error.
+#
+# Sized per relative output volume; all <= 64k (claude-opus-4-6 output limit):
+#   - qa_form          → largest (a big ITT can produce dozens of long
+#                        question/guidance pairs).
+#   - entity_mentions  → moderate (~hundreds of short mention objects).
+#   - classification   → bounded (one object + a single rationale string).
+_MAX_TOKENS_QA_FORM = 32768
+_MAX_TOKENS_ENTITY_MENTIONS = 16384
+_MAX_TOKENS_CLASSIFICATION = 4096
+
+
+class TruncatedExtractionError(ValueError):
+    """Raised when an Anthropic extraction response was cut off by the
+    `max_tokens` ceiling (`stop_reason == 'max_tokens'`).
+
+    Subclasses `ValueError` (NOT `pydantic.ValidationError`) so it:
+      - propagates immediately through `_anthropic_retry` (not in the
+        retryable-exception set — a truncated response will truncate again);
+      - is caught by `app_main()`'s flow-scope try/except alongside
+        `ValidationError` (Option A failure path), so a truncated extraction
+        still emits the rollup webhook rather than crashing the flow;
+      - surfaces a CLEAR, diagnosable message (naming the extractor + the
+        token ceiling) instead of the cryptic downstream JSON-parse EOF that
+        a silent `max_tokens` cutoff produced pre-{73.1}.
+    """
+
+
+def _guard_not_truncated(response, extractor_name: str, max_tokens: int) -> None:
+    """Raise `TruncatedExtractionError` if the Anthropic response was cut off
+    by the `max_tokens` ceiling.
+
+    Called by all 3 extractors immediately after the SDK call and BEFORE
+    `validate_json`, so a `max_tokens` cutoff surfaces loudly instead of as a
+    downstream JSON-parse error on the truncated body ({73.1})."""
+    if getattr(response, "stop_reason", None) == "max_tokens":
+        raise TruncatedExtractionError(
+            f"{extractor_name}: Anthropic response truncated at the "
+            f"max_tokens={max_tokens} ceiling (stop_reason='max_tokens'). "
+            f"The output JSON is incomplete; raise the per-extractor ceiling "
+            f"or chunk the input. See {extractor_name}'s _MAX_TOKENS_* "
+            f"constant in extraction.py."
+        )
 
 
 # Anthropic 503-retry wrapper (Inv-23 / P-OQ2). Module-level constants so
@@ -721,7 +767,7 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
     response = await _anthropic_retry(
         lambda: client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=_MAX_TOKENS,
+            max_tokens=_MAX_TOKENS_CLASSIFICATION,
             messages=[
                 {
                     "role": "user",
@@ -729,6 +775,9 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
                 }
             ],
         )
+    )
+    _guard_not_truncated(
+        response, "extract_classification", _MAX_TOKENS_CLASSIFICATION
     )
     response_text = _strip_code_fence(response.content[0].text)
     return _classification_adapter.validate_json(response_text)
@@ -747,7 +796,7 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
     response = await _anthropic_retry(
         lambda: client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=_MAX_TOKENS,
+            max_tokens=_MAX_TOKENS_QA_FORM,
             messages=[
                 {
                     "role": "user",
@@ -756,6 +805,7 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
             ],
         )
     )
+    _guard_not_truncated(response, "extract_qa_form", _MAX_TOKENS_QA_FORM)
     response_text = _strip_code_fence(response.content[0].text)
     return _qa_form_adapter.validate_json(response_text)
 
@@ -774,7 +824,7 @@ async def extract_entity_mentions(
     response = await _anthropic_retry(
         lambda: client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=_MAX_TOKENS,
+            max_tokens=_MAX_TOKENS_ENTITY_MENTIONS,
             messages=[
                 {
                     "role": "user",
@@ -782,6 +832,9 @@ async def extract_entity_mentions(
                 }
             ],
         )
+    )
+    _guard_not_truncated(
+        response, "extract_entity_mentions", _MAX_TOKENS_ENTITY_MENTIONS
     )
     response_text = _strip_code_fence(response.content[0].text)
     return _entity_mentions_adapter.validate_json(response_text)
