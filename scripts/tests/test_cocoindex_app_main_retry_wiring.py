@@ -358,17 +358,11 @@ class _MockMessageResponse:
         self.content = [_MockTextBlock(json_text)]
 
 
-_FAKE_OP_ID = "a0000000-0000-4000-8000-000000000001"
-_FAKE_CONTENT_ID = "b1111111-1111-4111-8111-111111111111"
-_FAKE_EXTRACTED_AT = "2026-05-22T12:00:00Z"
-
-
+# bl-220 / ID-74: stamp-free core fixture — no op_id / content_items_id /
+# extracted_at (stamped post-memo, not by the LLM / the memo extractor).
 def _classification_json() -> str:
     return json.dumps(
         {
-            "op_id": _FAKE_OP_ID,
-            "content_items_id": _FAKE_CONTENT_ID,
-            "extracted_at": _FAKE_EXTRACTED_AT,
             "extraction_kind": "classification",
             "content_type": "policy",
             "primary_domain": "compliance",

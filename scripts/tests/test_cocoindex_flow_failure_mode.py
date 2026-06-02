@@ -245,6 +245,26 @@ class TestClassifyStageException:
         else:
             raise AssertionError("Pydantic should have raised ValidationError")
 
+    def test_truncated_extraction_error_maps_to_extraction_validation_failed(
+        self,
+    ):
+        """bl-220 continuation §31: a `max_tokens` truncation is a Stage-3
+        LLM-extraction failure (the output JSON is unusable), so it classifies to
+        the same canonical class as a pydantic ValidationError —
+        `extraction_validation_failed` — rather than logging
+        `cocoindex.stage_error.unclassified`."""
+        from scripts.cocoindex_pipeline.extraction import (
+            TruncatedExtractionError,
+        )
+
+        exc = TruncatedExtractionError(
+            "extract_qa_form: response truncated at max_tokens=32768"
+        )
+        assert (
+            flow._classify_stage_exception(exc)
+            == "extraction_validation_failed"
+        )
+
     def test_asyncpg_postgres_error_maps_to_postgres_write_failed(self):
         import asyncpg
 

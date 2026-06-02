@@ -1916,15 +1916,15 @@ class TestStampExtractionBaseWiredIntoIngest:
     def _stub_pydantic_extractors(
         flow: object, monkeypatch: pytest.MonkeyPatch, markdown: str
     ) -> None:
-        """Stub the extractors to return REAL Pydantic variants (NOT dicts).
+        """Stub the extractors to return REAL Pydantic CORE variants (NOT dicts).
 
-        Stamping calls ``model_copy`` — only a Pydantic ``_ExtractionBase``
-        instance can be stamped, so this suite must feed real models (the
-        sibling write-path tests feed plain dicts, which the wiring leaves
-        untouched — proved by ``test_dict_returning_extractors_are_not_stamped``).
-        Each variant is constructed with the ``_UNSTAMPED_*`` defaults (op_id /
-        content_items_id / extracted_at all OMITTED) so the post-stamp assertions
-        can prove the sentinels were overwritten.
+        bl-220 / ID-74: the memo extractors return the stamp-FREE core types, so
+        this stub feeds genuine cores — `_stamp_if_model` → `stamp_extraction_base`
+        CONSTRUCTS the matching `*Stamped` type from each core (the sibling
+        write-path tests feed plain dicts, which the wiring leaves untouched —
+        proved by ``test_dict_returning_extractors_are_not_stamped``). Each core
+        carries NO stamp fields by construction, so the post-stamp assertions prove
+        the stamp constructed them from the resolved flow values.
         """
         from scripts.cocoindex_pipeline.extraction import (
             ClassificationExtraction,
@@ -2009,7 +2009,7 @@ class TestStampExtractionBaseWiredIntoIngest:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        from scripts.cocoindex_pipeline.extraction import _UNSTAMPED_AT, _UNSTAMPED_UUID
+        from scripts.cocoindex_pipeline.extraction import _UNSTAMPED_AT
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown = "Acme Council MEAT evaluation case study body."
@@ -2055,13 +2055,16 @@ class TestStampExtractionBaseWiredIntoIngest:
             assert kwargs.get("content_items_id") == expected_content_item_id, (
                 "stamp must be called with the explicit row content_item_id kwarg"
             )
-            # The INPUT object carried the unstamped sentinels (proves the stamp
-            # actually does work — it is not a no-op on already-stamped objects).
-            assert input_obj.op_id == _UNSTAMPED_UUID
-            assert input_obj.content_items_id == _UNSTAMPED_UUID
-            assert input_obj.extracted_at == _UNSTAMPED_AT
-            # The RESULT carries the flow op_id + the row's content_item_id and a
-            # real (post-sentinel) extracted_at — Inv-5 is satisfied on the object.
+            # bl-220 / ID-74: the INPUT is the stamp-FREE core the memo extractor
+            # returns — it carries NO stamp fields (they must not cross the memo
+            # boundary). The stamp is therefore a genuine CONSTRUCT-from-core, not
+            # a sentinel overwrite.
+            assert not hasattr(input_obj, "op_id")
+            assert not hasattr(input_obj, "content_items_id")
+            assert not hasattr(input_obj, "extracted_at")
+            # The RESULT (the *Stamped* type) carries the flow op_id + the row's
+            # content_item_id and a real (post-sentinel) extracted_at — Inv-5 is
+            # satisfied on the object the row writers read.
             assert stamped.op_id == run_op_id
             assert stamped.content_items_id == expected_content_item_id
             assert stamped.extracted_at > _UNSTAMPED_AT
@@ -2082,11 +2085,13 @@ class TestStampExtractionBaseWiredIntoIngest:
     ) -> None:
         """The stamp wiring is a no-op for the plain-dict test stubs.
 
-        ``stamp_extraction_base`` calls ``model_copy`` — passing a dict would
-        raise ``AttributeError``. The wiring must therefore stamp ONLY genuine
-        ``_ExtractionBase`` instances, leaving the dict-returning sibling stubs
-        (and any future dict caller) untouched. Proves the wiring did not break
-        the existing dict-based write-path harness.
+        ``stamp_extraction_base`` constructs the stamped type from a Pydantic
+        core (it reads ``model_dump``) — passing a dict would not have that
+        method, so the ``_stamp_if_model`` guard passes dicts straight through.
+        The wiring must therefore stamp ONLY genuine extraction-core instances,
+        leaving the dict-returning sibling stubs (and any future dict caller)
+        untouched. Proves the wiring did not break the existing dict-based
+        write-path harness.
         """
         flow = _flow_module()
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
@@ -2128,11 +2133,11 @@ class TestStampExtractionBaseWiredIntoIngest:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
 
-        asyncio.run(_exercise())  # must not raise (no model_copy on a dict)
+        asyncio.run(_exercise())  # must not raise (no model_dump on a dict)
 
         assert calls == [], (
             "stamp_extraction_base must NOT be called for plain-dict extractor "
-            "outputs — only genuine _ExtractionBase instances are stamped"
+            "outputs — only genuine extraction-core instances are stamped"
         )
         # Rows still landed normally.
         assert len(sd.rows) == 1 and len(ci.rows) == 1 and len(qa.rows) == 1

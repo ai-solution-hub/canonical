@@ -16,10 +16,11 @@ The prompts are written to:
    12-value `entity_type` Literal, the 8-value `form_type` set
    (snapshot-backed; see `extraction.py:_VALID_FORM_TYPES`), the
    2-value `expected_response_kind` Literal — so prompt drift is rare.
-3. Omit the `_ExtractionBase` fields (`op_id`, `content_items_id`,
-   `extracted_at`). Those are stamped POST-validation by
-   `stamp_extraction_base()` — asking the model to emit them would cause it
-   to hallucinate UUIDs.
+3. Omit the flow-stamp fields (`op_id`, `content_items_id`,
+   `extracted_at`). Those are NOT on the memo-returned core shapes at all
+   (bl-220 / ID-74); the flow wrapper stamps the full `*Stamped` type
+   POST-memo via `stamp_extraction_base()` — asking the model to emit them
+   would cause it to hallucinate UUIDs.
 
 UK English throughout (extract, organise, behaviour). All prompts default
 to ~200-400 words; they are stable instruction templates rather than dense

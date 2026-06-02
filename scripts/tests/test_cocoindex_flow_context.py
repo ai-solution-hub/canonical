@@ -261,7 +261,6 @@ class TestStampWithFlowMeta:
         primitive — extractor outputs are stamped at flow-scope without
         the call-site needing to plumb op_id through `.transform()` chains.
         """
-        from datetime import datetime, timezone
         from uuid import UUID
 
         from scripts.cocoindex_pipeline.extraction import (
@@ -275,10 +274,10 @@ class TestStampWithFlowMeta:
 
         # Build a placeholder extraction with throwaway base fields — these
         # will be replaced by the stamping operation.
+        # bl-220 / ID-74: ClassificationExtraction is the stamp-free core (no
+        # op_id / content_items_id / extracted_at); stamp_extraction_base
+        # CONSTRUCTS the stamped type from it + the resolved values.
         original = ClassificationExtraction(
-            op_id=UUID("00000000-0000-4000-8000-000000000000"),
-            content_items_id=UUID("00000000-0000-4000-8000-000000000000"),
-            extracted_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
             content_type="research",
             primary_domain="security",
             classification_confidence=0.9,
@@ -304,7 +303,6 @@ class TestStampWithFlowMeta:
         This preserves the pre-28.16 explicit-stamping call signature so
         existing tests (28.12 WP3) keep passing.
         """
-        from datetime import datetime, timezone
         from uuid import UUID
 
         from scripts.cocoindex_pipeline.extraction import (
@@ -318,10 +316,10 @@ class TestStampWithFlowMeta:
         explicit_op_id = UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
         explicit_row_id = UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
 
+        # bl-220 / ID-74: ClassificationExtraction is the stamp-free core (no
+        # op_id / content_items_id / extracted_at); stamp_extraction_base
+        # CONSTRUCTS the stamped type from it + the resolved values.
         original = ClassificationExtraction(
-            op_id=UUID("00000000-0000-4000-8000-000000000000"),
-            content_items_id=UUID("00000000-0000-4000-8000-000000000000"),
-            extracted_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
             content_type="research",
             primary_domain="security",
             classification_confidence=0.9,
@@ -347,7 +345,6 @@ class TestStampWithFlowMeta:
         FLOW_META_CTX is bound, the helper raises rather than silently
         stamping zero UUIDs. This protects against the "forgot to bind"
         operator error from landing zeroed rows in Postgres."""
-        from datetime import datetime, timezone
         from uuid import UUID
 
         from scripts.cocoindex_pipeline.extraction import (
@@ -355,10 +352,10 @@ class TestStampWithFlowMeta:
             stamp_extraction_base,
         )
 
+        # bl-220 / ID-74: ClassificationExtraction is the stamp-free core (no
+        # op_id / content_items_id / extracted_at); stamp_extraction_base
+        # CONSTRUCTS the stamped type from it + the resolved values.
         original = ClassificationExtraction(
-            op_id=UUID("00000000-0000-4000-8000-000000000000"),
-            content_items_id=UUID("00000000-0000-4000-8000-000000000000"),
-            extracted_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
             content_type="research",
             primary_domain="security",
             classification_confidence=0.9,

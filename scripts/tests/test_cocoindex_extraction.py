@@ -35,12 +35,13 @@ from pydantic import TypeAdapter, ValidationError
 
 from scripts.cocoindex_pipeline.extraction import (
     ClassificationExtraction,
+    ClassificationExtractionStamped,
     EntityMentionExtraction,
+    EntityMentionExtractionStamped,
     ExtractionOutput,
     FormMetadata,
     QAFormExtraction,
     QAPair,
-    _UNSTAMPED_AT,
     _UNSTAMPED_UUID,
     _VALID_CONTENT_TYPES,
     _VALID_DOMAINS,
@@ -57,36 +58,39 @@ from scripts.cocoindex_pipeline.flow_context import bind_taxonomy_miss_counter
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Fixtures — Python-native dicts (note: UUID + datetime as instances, NOT
-# strings, because strict-mode Pydantic refuses to coerce strings to UUID
-# via `model_validate()`. The JSON round-trip via `.validate_json()` does
-# accept strings.)
+# Fixtures (bl-220 / ID-74)
+#
+# The 3 LLM-output shapes (`ClassificationExtraction` / `QAFormExtraction` /
+# `EntityMentionExtraction`) are now the STAMP-FREE cores the memo extractors
+# return — they carry NO op_id / content_items_id / extracted_at fields, and
+# their `strict`, extra="forbid" config REJECTS those fields if supplied. So the
+# shared base-field fixtures are EMPTY: a core construction / a core
+# `validate_json` payload supplies only the LLM fields. The stamp fields live on
+# the post-memo `*Stamped` types and are exercised by `TestStampExtractionBase`
+# below (which passes them as explicit kwargs to `stamp_extraction_base`).
 # ──────────────────────────────────────────────────────────────────────────
 
 
-_OP_ID = UUID("a0000000-0000-4000-8000-000000000001")
-_CONTENT_ID = UUID("b1111111-1111-4111-8111-111111111111")
+# Retained for the post-memo stamp assertions (the `extracted_at > _EXTRACTED_AT`
+# witness in TestStampExtractionBase). _OP_ID / _CONTENT_ID were dropped: the
+# stamp-free cores take no op_id / content_items_id, and the stamp tests mint
+# fresh uuid4() values inline.
 _EXTRACTED_AT = datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
 def base_fields() -> dict:
-    """Base fields stamped post-validation — used in every variant fixture."""
-    return {
-        "op_id": _OP_ID,
-        "content_items_id": _CONTENT_ID,
-        "extracted_at": _EXTRACTED_AT,
-    }
+    """Empty — the stamp-free cores take no op_id / content_items_id /
+    extracted_at (bl-220). Kept as a fixture so the many variant constructions
+    that spread `**base_fields` need no signature change."""
+    return {}
 
 
 @pytest.fixture
 def base_fields_json() -> dict:
-    """JSON-mode equivalents (strings, not UUID / datetime instances)."""
-    return {
-        "op_id": str(_OP_ID),
-        "content_items_id": str(_CONTENT_ID),
-        "extracted_at": _EXTRACTED_AT.isoformat(),
-    }
+    """Empty — the stamp-free cores' `validate_json` payload carries no stamp
+    fields (bl-220); supplying them would raise `extra_forbidden`."""
+    return {}
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -112,7 +116,8 @@ class TestClassificationVariant:
         assert isinstance(parsed, ClassificationExtraction)
         assert parsed.content_type == "policy"
         assert parsed.primary_domain == "compliance"
-        assert parsed.op_id == _OP_ID
+        # bl-220: ExtractionOutput is the stamp-FREE core union — no op_id field.
+        assert not hasattr(parsed, "op_id")
 
     def test_all_canonical_content_types_pass(self, base_fields: dict) -> None:
         """Every value in taxonomy_snapshot.json must validate."""
@@ -482,9 +487,13 @@ class TestClassifyPydanticError:
             ta.validate_json(json.dumps(payload))
         assert classify_pydantic_error(exc_info.value) == "type_coercion"
 
-    def test_uuid_parse_failure(self, base_fields_json: dict) -> None:
+    def test_stamp_field_on_core_maps_to_unexpected_field(self) -> None:
+        """bl-220 / ID-74: a stamp field (`op_id`) in the LLM-output JSON now
+        hits the stamp-free CORE's `extra="forbid"` and maps to `unexpected_field`
+        — BEFORE any UUID parse is attempted. (The `uuid_parsing` →
+        `type_coercion` mapping itself is still exercised on the post-memo
+        `*Stamped` type below, where `op_id` is a real field.)"""
         payload = {
-            **base_fields_json,
             "op_id": "not-a-uuid",
             "extraction_kind": "classification",
             "content_type": "article",
@@ -494,6 +503,27 @@ class TestClassifyPydanticError:
         ta = TypeAdapter(ExtractionOutput)
         with pytest.raises(ValidationError) as exc_info:
             ta.validate_json(json.dumps(payload))
+        assert classify_pydantic_error(exc_info.value) == "unexpected_field"
+
+    def test_uuid_parse_failure_on_stamped_type(self) -> None:
+        """A malformed `op_id` string DOES still map to `type_coercion` via the
+        `uuid_parsing` error — on the post-memo `*Stamped` type, where `op_id` is
+        a declared field. This keeps the canonical LLM-output UUID-parse mapping
+        covered after the bl-220 split."""
+        payload = {
+            "op_id": "not-a-uuid",
+            "content_items_id": "b1111111-1111-4111-8111-111111111111",
+            "extracted_at": "2026-05-22T12:00:00Z",
+            "content_type": "article",
+            "primary_domain": "compliance",
+            "classification_confidence": 0.7,
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            ClassificationExtractionStamped.model_validate_json(
+                json.dumps(payload)
+            )
+        errors = exc_info.value.errors()
+        assert any("uuid" in e.get("type", "").lower() for e in errors)
         assert classify_pydantic_error(exc_info.value) == "type_coercion"
 
     def test_empty_validation_error_falls_back(self) -> None:
@@ -506,9 +536,6 @@ class TestClassifyPydanticError:
         # pydantic API drift.)
         try:
             ClassificationExtraction(
-                op_id=_OP_ID,
-                content_items_id=_CONTENT_ID,
-                extracted_at=_EXTRACTED_AT,
                 content_type="invalid",
                 primary_domain="security",
                 classification_confidence=0.5,
@@ -521,28 +548,23 @@ class TestClassifyPydanticError:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# §5.1 inv 5 — _ExtractionBase fields
+# §5.1 inv 5 — stamp fields live OFF the memo boundary (bl-220 / ID-74)
 # ──────────────────────────────────────────────────────────────────────────
 
 
 class TestExtractionBaseFields:
-    """Q-EX2 PRODUCT inv 5 — op_id / content_items_id / extracted_at."""
+    """bl-220 / ID-74: the memo-returned CORE shapes carry NO op_id /
+    content_items_id / extracted_at. PRODUCT Inv-5 is preserved by stamping the
+    full `*Stamped` shape POST-memo (see TestStampExtractionBase) — the LLM never
+    generates these fields, and they must never cross the cocoindex memo serde
+    (which strict-re-validates on a HIT and would reject the string UUID/datetime
+    forms)."""
 
-    def test_llm_omitted_op_id_defaults_to_placeholder(
-        self, base_fields_json: dict
-    ) -> None:
-        """PRODUCT Inv-5: the LLM does NOT generate `op_id` — the outer-tier
-        flow wrapper stamps it post-validation. So an LLM payload that omits
-        `op_id` must VALIDATE (defaulting to the `_UNSTAMPED_UUID` placeholder),
-        NOT fail as `missing_required`.
-
-        Regression witness ({66.16} S295): this test previously asserted
-        `missing_required`, enshrining the required-field contract that crashed
-        the live content ingest (`validate_json` of every real LLM response
-        raised a 3-missing-field `ValidationError` before any row was declared).
-        """
+    def test_core_has_no_stamp_fields(self) -> None:
+        """The stamp-free core validates from LLM JSON (no stamp fields present)
+        and exposes none of the 3 stamp fields — they are added only on the
+        post-memo `*Stamped` shape."""
         payload = {
-            **{k: v for k, v in base_fields_json.items() if k != "op_id"},
             "extraction_kind": "classification",
             "content_type": "article",
             "primary_domain": "compliance",
@@ -551,20 +573,19 @@ class TestExtractionBaseFields:
         ta = TypeAdapter(ExtractionOutput)
         parsed = ta.validate_json(json.dumps(payload))
         assert isinstance(parsed, ClassificationExtraction)
-        assert parsed.op_id == _UNSTAMPED_UUID
+        assert not hasattr(parsed, "op_id")
+        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "extracted_at")
+        assert "op_id" not in type(parsed).model_fields
 
-    def test_invalid_op_id_string_fails_via_json(
-        self, base_fields_json: dict
-    ) -> None:
-        """Q-EX2 §5.1 verifier N-5 — JSON-mode UUID parse error.
-
-        Per Pydantic v2.12 strict mode + JSON validation: a non-UUID string
-        raises 'uuid_parsing' error type → 'type_coercion' error_class.
-        This is the canonical LLM-output path (Anthropic returns JSON).
-        """
+    def test_stamp_field_in_llm_json_is_rejected_as_extra(self) -> None:
+        """The CORE keeps `ConfigDict(extra="forbid")` (C3 — strictness NOT
+        relaxed): an LLM payload that erroneously includes a stamp field (e.g.
+        `op_id`) is REJECTED as `unexpected_field`, NOT silently coerced. This
+        is the bl-220 contract — the memo boundary must never round-trip a stamp
+        field — and is explicitly NOT option (a)'s lax string→UUID coercion."""
         payload = {
-            **base_fields_json,
-            "op_id": "definitely-not-a-uuid",
+            "op_id": "a0000000-0000-4000-8000-000000000001",
             "extraction_kind": "classification",
             "content_type": "article",
             "primary_domain": "compliance",
@@ -573,11 +594,7 @@ class TestExtractionBaseFields:
         ta = TypeAdapter(ExtractionOutput)
         with pytest.raises(ValidationError) as exc_info:
             ta.validate_json(json.dumps(payload))
-        errors = exc_info.value.errors()
-        # Assert "UUID parse error" — NOT v1/v4 distinction per spec §5.1
-        # verifier N-5.
-        assert any("uuid" in e.get("type", "").lower() for e in errors)
-        assert classify_pydantic_error(exc_info.value) == "type_coercion"
+        assert classify_pydantic_error(exc_info.value) == "unexpected_field"
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -586,22 +603,29 @@ class TestExtractionBaseFields:
 
 
 class TestStampExtractionBase:
-    """Q-EX2 §3.2 — plain-Python helper, NOT @coco.fn."""
+    """Q-EX2 §3.2 / bl-220 — plain-Python helper, NOT @coco.fn.
 
-    def test_round_trip_preserves_variant_fields(
-        self, base_fields: dict
+    Post bl-220 / ID-74: `stamp_extraction_base` CONSTRUCTS the full `*Stamped`
+    type from a stamp-FREE core + the resolved op_id / content_items_id /
+    extracted_at (it no longer `model_copy`s a model that already has the fields,
+    because the core has none). The stamped result is what flow.py's row writers
+    read; the input core never carries the stamp fields (that is the whole point —
+    they must not cross the memo boundary)."""
+
+    def test_constructs_stamped_from_core_preserving_variant_fields(
+        self,
     ) -> None:
-        """Stamping should update only the three base fields, not the
-        variant-specific payload."""
+        """Stamping a stamp-free core yields the matching `*Stamped` type with
+        the 3 stamp fields set from the resolved values and ALL LLM variant
+        fields carried over unchanged."""
         original = ClassificationExtraction(
-            op_id=UUID("00000000-0000-4000-8000-000000000000"),
-            content_items_id=UUID("00000000-0000-4000-8000-000000000000"),
-            extracted_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
             content_type="research",
             primary_domain="security",
             classification_confidence=0.9,
             rationale="A research paper.",
         )
+        # The core is genuinely stamp-free.
+        assert not hasattr(original, "op_id")
         new_op_id = uuid4()
         new_content_id = uuid4()
         stamped = stamp_extraction_base(
@@ -609,34 +633,37 @@ class TestStampExtractionBase:
             op_id=new_op_id,
             content_items_id=new_content_id,
         )
-        # Base fields updated
+        assert isinstance(stamped, ClassificationExtractionStamped)
+        # Stamp fields set from the resolved values
         assert stamped.op_id == new_op_id
         assert stamped.content_items_id == new_content_id
-        assert stamped.extracted_at > original.extracted_at
+        assert stamped.extracted_at > _EXTRACTED_AT  # post-now() > the 2026 fixture
         # Variant fields preserved
-        assert stamped.content_type == "research"  # type: ignore[union-attr]
-        assert stamped.primary_domain == "security"  # type: ignore[union-attr]
-        assert stamped.classification_confidence == 0.9  # type: ignore[union-attr]
-        assert stamped.rationale == "A research paper."  # type: ignore[union-attr]
+        assert stamped.content_type == "research"
+        assert stamped.primary_domain == "security"
+        assert stamped.classification_confidence == 0.9
+        assert stamped.rationale == "A research paper."
+        # extraction_kind discriminator carried over (consumers switch on it)
+        assert stamped.extraction_kind == "classification"
 
-    def test_returns_immutable_copy(self, base_fields: dict) -> None:
-        """`stamp_extraction_base` uses `model_copy` — the original is unchanged."""
+    def test_does_not_mutate_the_input_core(self) -> None:
+        """`stamp_extraction_base` returns a NEW stamped object; the input core
+        is left untouched (it never gains the stamp fields)."""
         original = ClassificationExtraction(
-            **base_fields,
             content_type="article",
             primary_domain="compliance",
             classification_confidence=0.7,
         )
-        original_op_id = original.op_id
         stamped = stamp_extraction_base(
             original,
             op_id=uuid4(),
             content_items_id=uuid4(),
         )
-        # Original unchanged
-        assert original.op_id == original_op_id
-        # Stamped has new op_id
-        assert stamped.op_id != original_op_id
+        # Input core unchanged — still stamp-free
+        assert not hasattr(original, "op_id")
+        # Stamped is a distinct object carrying the stamp
+        assert stamped is not original
+        assert stamped.op_id != _UNSTAMPED_UUID
 
     def test_explicit_kwargs_call_still_works_post_28_16(
         self, base_fields: dict
@@ -706,10 +733,9 @@ class TestNormaliseEntitySpan:
         start: int,
         end: int,
     ) -> EntityMentionExtraction:
+        # bl-220: EntityMentionExtraction is the stamp-free core — no op_id /
+        # content_items_id / extracted_at.
         return EntityMentionExtraction(
-            op_id=_OP_ID,
-            content_items_id=_CONTENT_ID,
-            extracted_at=_EXTRACTED_AT,
             entity_type="organisation",
             entity_name=content_text[start:end].strip(),
             source_span_start=start,
@@ -1116,26 +1142,25 @@ class TestOutOfTaxonomySoftWarn:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# §5.1 inv 5 — LLM-output faithfulness ({66.16} S295 regression suite)
+# §5.1 inv 5 — LLM-output faithfulness (bl-220 / ID-74; {66.16} S295 lineage)
 #
-# Every test ABOVE that exercises a full variant spreads `base_fields_json` /
-# `base_fields`, INJECTING op_id / content_items_id / extracted_at — the three
-# fields the live LLM never returns (PRODUCT Inv-5: "the model does not
-# generate them"). That coverage gap let a `ValidationError` ship: the live
-# `extract_*` extractors call `_*_adapter.validate_json(response_text)` on raw
-# Anthropic JSON that OMITS all three, which raised "3 missing fields" before
-# any content row was declared (`content_items=0` for op_ids 2895a85f /
-# 0c9dd1d8). These tests drive the SAME module adapters the extractors use,
-# with stamp-absent payloads, so the gap stays closed.
+# The live `extract_*` extractors call `_*_adapter.validate_json(response_text)`
+# on raw Anthropic JSON that OMITS op_id / content_items_id / extracted_at (the
+# LLM does not generate them per PRODUCT Inv-5). Post bl-220 the adapters target
+# the STAMP-FREE core shapes, so these three fields are not even declared on the
+# memo-returned type — the LLM-output JSON validates cleanly AND the round-tripped
+# value carries no UUID/datetime field to break the cocoindex memo-HIT strict
+# re-validation (the bl-220 bug). These tests drive the SAME module adapters the
+# extractors use, with stamp-absent payloads, and assert the core is stamp-free.
 # ──────────────────────────────────────────────────────────────────────────
 
 
 class TestLLMOutputOmitsStampedFields:
-    """The validation contract the live extractors actually feed
-    (`_classification_adapter` / `_qa_form_adapter` /
-    `_entity_mentions_adapter`) must accept LLM JSON that omits op_id /
-    content_items_id / extracted_at, leaving them at their `_UNSTAMPED_*`
-    placeholders (stamped at flow scope per PRODUCT Inv-5)."""
+    """The validation contract the live extractors feed (`_classification_adapter`
+    / `_qa_form_adapter` / `_entity_mentions_adapter`) accepts LLM JSON that omits
+    op_id / content_items_id / extracted_at, and (bl-220) returns a STAMP-FREE
+    core that carries none of those fields — they are added only post-memo by
+    `stamp_extraction_base` (PRODUCT Inv-5)."""
 
     def test_classification_validates_without_stamped_fields(self) -> None:
         # Byte-for-byte the shape `extract_classification` feeds the adapter:
@@ -1152,10 +1177,10 @@ class TestLLMOutputOmitsStampedFields:
         parsed = _classification_adapter.validate_json(json.dumps(payload))
         assert isinstance(parsed, ClassificationExtraction)
         assert parsed.content_type == "policy"
-        # Stamp placeholders — proving they DEFAULTED (the LLM never sent them).
-        assert parsed.op_id == _UNSTAMPED_UUID
-        assert parsed.content_items_id == _UNSTAMPED_UUID
-        assert parsed.extracted_at == _UNSTAMPED_AT
+        # bl-220: the core carries NO stamp fields (stamped post-memo).
+        assert not hasattr(parsed, "op_id")
+        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "extracted_at")
 
     def test_qa_form_validates_without_stamped_fields(self) -> None:
         payload = {
@@ -1171,8 +1196,8 @@ class TestLLMOutputOmitsStampedFields:
         parsed = _qa_form_adapter.validate_json(json.dumps(payload))
         assert isinstance(parsed, QAFormExtraction)
         assert parsed.form_metadata.form_type == "pqq"
-        assert parsed.op_id == _UNSTAMPED_UUID
-        assert parsed.content_items_id == _UNSTAMPED_UUID
+        assert not hasattr(parsed, "op_id")
+        assert not hasattr(parsed, "content_items_id")
 
     def test_entity_mentions_validate_without_stamped_fields(self) -> None:
         # `extract_entity_mentions` validates a JSON ARRAY via the list adapter.
@@ -1190,4 +1215,129 @@ class TestLLMOutputOmitsStampedFields:
         assert len(parsed) == 1
         assert isinstance(parsed[0], EntityMentionExtraction)
         assert parsed[0].entity_name == "ISO 27001:2022"
-        assert parsed[0].op_id == _UNSTAMPED_UUID
+        assert not hasattr(parsed[0], "op_id")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# bl-220 / ID-74 — memo-HIT serde regression (THE GATE)
+#
+# cocoindex memo serde round-trips a memoised return value as JSON and, on a
+# memo HIT, deserialises via STRICT pydantic `validate_python(raw)` (the raw is
+# `json.loads(...)` of the cached JSON, so UUID/datetime are STRINGS). With the
+# pre-fix stamp-bearing return type, strict mode rejected the string UUID /
+# datetime forms (`is_instance_of UUID` / `datetime_type`) → `DeserializationError`
+# on EVERY memo HIT — defeating idempotent re-walk and re-burning Anthropic.
+#
+# The fix makes the 3 memo extractor RETURN types stamp-free cores, so no
+# UUID/datetime field crosses the memo boundary. These tests reproduce the
+# cocoindex memo-HIT serde with `T.model_validate(json.loads(inst.model_dump_json()))`
+# and assert it now SUCCEEDS for each core — AND that the pre-fix stamped shape
+# still FAILS the same round-trip (the FAIL-before witness, pinning why the split
+# is load-bearing).
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestMemoHitSerdeRoundTrip:
+    """Each memo-returned CORE type survives the cocoindex memo-HIT strict serde
+    round-trip; the pre-fix STAMPED shape does not (bl-220 / ID-74)."""
+
+    @staticmethod
+    def _memo_hit_roundtrip(model_cls: type, instance) -> object:
+        """Mirror cocoindex memo-HIT deserialisation: serialise to JSON, then
+        STRICT-validate the parsed dict (UUID/datetime arrive as STRINGS)."""
+        raw = json.loads(instance.model_dump_json())
+        return model_cls.model_validate(raw)  # strict — the memo-HIT path
+
+    def test_classification_core_survives_memo_hit_roundtrip(self) -> None:
+        core = ClassificationExtraction(
+            content_type="policy",
+            primary_domain="compliance",
+            classification_confidence=0.9,
+            rationale="A policy doc.",
+        )
+        # Must NOT raise — this is the bl-220 fix.
+        restored = self._memo_hit_roundtrip(ClassificationExtraction, core)
+        assert isinstance(restored, ClassificationExtraction)
+        assert restored.content_type == "policy"
+        assert restored.extraction_kind == "classification"
+
+    def test_qa_form_core_survives_memo_hit_roundtrip(self) -> None:
+        core = QAFormExtraction(
+            form_metadata=FormMetadata(form_type="pqq", form_format="docx"),
+            qa_pairs=[
+                QAPair(question_text="Q?", expected_response_kind="mandatory")
+            ],
+        )
+        restored = self._memo_hit_roundtrip(QAFormExtraction, core)
+        assert isinstance(restored, QAFormExtraction)
+        assert restored.form_metadata.form_type == "pqq"
+
+    def test_entity_mention_core_survives_memo_hit_roundtrip(self) -> None:
+        core = EntityMentionExtraction(
+            entity_type="organisation",
+            entity_name="Acme",
+            source_span_start=0,
+            source_span_end=4,
+            mention_confidence=0.9,
+        )
+        restored = self._memo_hit_roundtrip(EntityMentionExtraction, core)
+        assert isinstance(restored, EntityMentionExtraction)
+        assert restored.entity_name == "Acme"
+
+    def test_entity_mentions_list_survives_memo_hit_roundtrip(self) -> None:
+        """`extract_entity_mentions` memoises a LIST — round-trip the list adapter
+        shape the way cocoindex serde would on a HIT."""
+        cores = [
+            EntityMentionExtraction(
+                entity_type="organisation",
+                entity_name="Acme",
+                source_span_start=0,
+                source_span_end=4,
+                mention_confidence=0.9,
+            )
+        ]
+        raw = json.loads(_entity_mentions_adapter.dump_json(cores))
+        restored = _entity_mentions_adapter.validate_python(raw)  # strict HIT path
+        assert len(restored) == 1
+        assert restored[0].entity_name == "Acme"
+
+    @pytest.mark.parametrize(
+        ("stamped_cls", "kwargs"),
+        [
+            (
+                ClassificationExtractionStamped,
+                {
+                    "content_type": "policy",
+                    "primary_domain": "compliance",
+                    "classification_confidence": 0.9,
+                },
+            ),
+            (
+                EntityMentionExtractionStamped,
+                {
+                    "entity_type": "organisation",
+                    "entity_name": "Acme",
+                    "source_span_start": 0,
+                    "source_span_end": 4,
+                    "mention_confidence": 0.9,
+                },
+            ),
+        ],
+    )
+    def test_prefix_stamped_shape_FAILS_memo_hit_roundtrip(
+        self, stamped_cls: type, kwargs: dict
+    ) -> None:
+        """FAIL-before witness: the PRE-FIX shape (stamp fields ON the memoised
+        type) raises `ValidationError` on the strict memo-HIT round-trip, because
+        op_id / extracted_at arrive as STRINGS and strict mode rejects them. This
+        is exactly the bl-220 bug the core/stamp split removes from the memo
+        boundary."""
+        stamped = stamped_cls(
+            op_id=UUID("a0000000-0000-4000-8000-000000000001"),
+            content_items_id=UUID("b1111111-1111-4111-8111-111111111111"),
+            extracted_at=datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc),
+            **kwargs,
+        )
+        raw = json.loads(stamped.model_dump_json())
+        with pytest.raises(ValidationError):
+            stamped_cls.model_validate(raw)  # strict — rejects string UUID/datetime

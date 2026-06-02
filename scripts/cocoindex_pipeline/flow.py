@@ -90,6 +90,7 @@ from scripts.cocoindex_pipeline.adapters import (
 from scripts.cocoindex_pipeline.canonicalisation import canonicalise_entity_name
 from scripts.cocoindex_pipeline.entity_context import extract_entity_context
 from scripts.cocoindex_pipeline.extraction import (
+    TruncatedExtractionError,
     extract_classification,
     extract_entity_mentions,
     extract_qa_form,
@@ -305,6 +306,19 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
     _exc_module_early = type(exc).__module__ or ""
     if _exc_module_early.startswith("cocoindex.ops.entity_resolution"):
         return "entity_resolution_failed"
+
+    # Truncated extraction (Stage 3 LLM-extraction failure surface — bl-220
+    # continuation §31). A `max_tokens` cutoff yields an incomplete JSON body the
+    # extractor cannot validate; it is the SAME Stage-3 "the LLM output is
+    # unusable" family as a pydantic `ValidationError`, so it maps to the same
+    # canonical class `extraction_validation_failed`. The check is SPECIFIC to
+    # `TruncatedExtractionError` (a `ValueError` subclass) — a BARE `ValueError`
+    # still falls through to `None` (it is NOT a stage-classified failure), so the
+    # `_classify_stage_exception(ValueError(...)) is None` contract is preserved.
+    # Without this branch a truncated extraction logged
+    # `cocoindex.stage_error.unclassified` instead of a classified stage error.
+    if isinstance(exc, TruncatedExtractionError):
+        return "extraction_validation_failed"
 
     # Pydantic validation (Stage 3 LLM-extraction failure surface).
     try:
@@ -1153,21 +1167,25 @@ def _field(obj: object, name: str, default: Any = None) -> Any:
 
 
 def _stamp_if_model(obj: Any, *, op_id: "uuid.UUID", content_items_id: "uuid.UUID") -> Any:
-    """Stamp `_ExtractionBase` flow metadata via `stamp_extraction_base`, but
+    """Stamp an extraction's flow metadata via `stamp_extraction_base`, but
     ONLY when ``obj`` is a genuine Pydantic extraction model ({66.16}).
 
     PRODUCT Inv-5 [RATIFIED-S241] requires every extraction variant to carry
-    op_id / content_items_id / extracted_at, populated by the flow wrapper. The
-    production Path-A extractors return `_ExtractionBase` instances, which are
-    stamped here; the deterministic write-path test stubs return plain dicts —
-    `stamp_extraction_base` would `AttributeError` on a dict's missing
-    ``model_copy``, so those are passed through untouched. The shape-agnostic
-    guard mirrors `_field`: a dict goes straight back; anything else is stamped
-    via the module-level `stamp_extraction_base` (monkeypatchable on `flow` for
-    the wiring proof). Explicit kwargs are mandatory — the cocoindex daemon
-    thread does not inherit the FLOW_META_CTX binding ({66.19}/S294).
+    op_id / content_items_id / extracted_at, populated by the flow wrapper —
+    OUTSIDE the memo boundary (bl-220 / ID-74). The production Path-A extractors
+    return the stamp-FREE core types (`ClassificationExtraction` /
+    `QAFormExtraction` / `EntityMentionExtraction`); `stamp_extraction_base`
+    CONSTRUCTS the matching full `*Stamped` type from the core + the resolved
+    op_id / content_items_id / extracted_at, and that stamped object is what the
+    downstream row writers read. The deterministic write-path test stubs return
+    plain dicts (which have no `model_dump`), so those are passed through
+    untouched. The shape-agnostic guard mirrors `_field`: a dict goes straight
+    back; anything else is stamped via the module-level `stamp_extraction_base`
+    (monkeypatchable on `flow` for the wiring proof). Explicit kwargs are
+    mandatory — the cocoindex daemon thread does not inherit the FLOW_META_CTX
+    binding ({66.19}/S294).
     """
-    if isinstance(obj, dict) or not hasattr(obj, "model_copy"):
+    if isinstance(obj, dict) or not hasattr(obj, "model_dump"):
         return obj
     return stamp_extraction_base(
         obj, op_id=op_id, content_items_id=content_items_id
@@ -1481,8 +1499,9 @@ async def _ingest_file_body(
     # channel. `op_id` is the SAME flow-level value already written to every
     # declare_row below, so the ROW writes are unchanged (Inv-15 stays satisfied
     # via the flow op_id). `_stamp_if_model` no-ops on the plain-dict write-path
-    # test stubs (which have no `model_copy`); production extractors return
-    # `_ExtractionBase` instances and ARE stamped.
+    # test stubs (which have no `model_dump`); production extractors return the
+    # stamp-free core shapes, which `stamp_extraction_base` turns into the full
+    # `*Stamped` type here, OUTSIDE the memo boundary (bl-220 / ID-74).
     classification = _stamp_if_model(
         classification, op_id=op_id, content_items_id=content_item_id
     )

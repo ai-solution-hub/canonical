@@ -4,8 +4,9 @@ Hosts:
   - The discriminated-union typed extraction shapes (Q-EX2 §2.1).
   - The 3 `@coco.fn(memo=True)` Path A extractors that call the Anthropic
     SDK directly + validate via Pydantic `TypeAdapter` (Q-EX2 §3.1).
-  - `stamp_extraction_base()` for post-validation flow-scope stamping
-    of `_ExtractionBase` fields.
+  - `stamp_extraction_base()` for post-memo flow-scope stamping — it
+    CONSTRUCTS a full `*Stamped` type from a stamp-free core + the resolved
+    op_id / content_items_id / extracted_at (bl-220 / ID-74).
   - `_anthropic_retry` — KH-owned tenacity wrapper around the SDK call
     (Inv-23; cocoindex 1.0.3 has no built-in retry primitive for
     `@coco.fn` extractors).
@@ -184,46 +185,73 @@ _logger = logging.getLogger(__name__)
 
 
 # Post-validation stamp placeholders (PRODUCT Inv-5 — the LLM "does not
-# generate" op_id / content_items_id / extracted_at). The contract the live
-# extractors feed (`_*_adapter.validate_json(llm_json)`) must therefore accept
-# their ABSENCE: they DEFAULT to these sentinels at validate_json time and are
-# overwritten post-validation by `stamp_extraction_base()`. An all-zero UUID /
-# epoch timestamp is an unmistakable "unstamped" marker. Pydantic does not
-# validate defaults, so the sentinel instances pass strict mode untouched.
+# generate" op_id / content_items_id / extracted_at). They live on the
+# `_ExtractionStamp` mixin (below), which only the post-memo `*Stamped` types
+# inherit — NOT the stamp-free CORE shapes the memo extractors return. An
+# all-zero UUID / epoch timestamp is an unmistakable "unstamped" marker;
+# `stamp_extraction_base()` overwrites them with the resolved flow values when it
+# constructs the full `*Stamped` type post-memo.
 #
-# NB ({66.16} stamp-wiring): `stamp_extraction_base()` IS now wired into the
-# live flow per-item path. `flow.py::ingest_file` stamps each extraction object
-# (classification / qa_form / each entity_mention) via `_stamp_if_model` with the
-# flow-level `op_id` + the row's deterministic `content_item_id` immediately after
-# extraction — realising Inv-5's "the flow wrapper stamps each ExtractionOutput"
-# mechanism. The sentinels below remain the validate_json defaults (every LLM
-# response omits these three fields by design); they are overwritten on the
-# production path by that post-validation stamp, and persist ONLY for any object
-# that bypasses the stamp (e.g. a validation-failure record). The row writes are
-# unchanged — declare_row still uses the SAME flow-level `op_id`, so Inv-15 holds
-# independently of the object stamp.
+# NB (bl-220 / ID-74 — memo-boundary fix): the 3 `@coco.fn(memo=True)` LLM
+# extractors return the stamp-FREE core types (`ClassificationExtraction` /
+# `QAFormExtraction` / `EntityMentionExtraction`). cocoindex memo serde
+# round-trips the memoised return value as JSON (UUID/datetime → strings) and on
+# a memo HIT deserialises via STRICT pydantic `validate_python(raw)`; strict mode
+# rejects the string forms (`is_instance_of UUID` / `datetime_type`), so a
+# stamp-BEARING return type made every memo HIT raise `DeserializationError` —
+# defeating idempotent re-walk and re-burning Anthropic (a re-ingest idempotency
+# blocker). The fix SPLITS the models: the memo returns a stamp-free core (no
+# UUID/datetime fields cross the memo boundary), and `flow.py::ingest_file`
+# stamps each extraction OUTSIDE that boundary via `_stamp_if_model` →
+# `stamp_extraction_base()`, which CONSTRUCTS the full stamped type (`*Stamped`,
+# below) from the core + the flow-level `op_id` + the row's deterministic
+# `content_item_id`. This is LOSSLESS: `flow.py` already stamped post-memo, so the
+# values the memo cached for these three fields were ALWAYS the `_UNSTAMPED_*`
+# sentinels — the real values are written post-memo (Inv-5: "the flow wrapper
+# stamps each ExtractionOutput"). Row writes are unchanged — declare_row uses the
+# SAME flow-level `op_id`, so Inv-15 holds independently of the object stamp.
 _UNSTAMPED_UUID: UUID = UUID(int=0)
 _UNSTAMPED_AT: datetime = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
-class _ExtractionBase(BaseModel):
-    """Shared fields stamped by the flow wrapper, NOT by the LLM (Inv-5).
+# Shared strict config for ALL extraction shapes (core + stamp + stamped).
+# `strict=True` + `extra="forbid"` surfaces type drift and prompt drift loud per
+# Q-EX2 PRODUCT inv 13; bl-220 keeps this on every shape (C3 — strictness is NOT
+# relaxed anywhere; this is explicitly NOT the lax string→UUID coercion of
+# option (a)).
+_EXTRACTION_MODEL_CONFIG = ConfigDict(strict=True, extra="forbid")
 
-    `op_id`, `content_items_id`, `extracted_at` are NOT emitted by the LLM
-    (PRODUCT Inv-5: "the model does not generate them"), so they DEFAULT to the
-    `_UNSTAMPED_*` placeholders when the LLM response JSON is validated, and are
-    overwritten post-validation by `stamp_extraction_base()`. Defaulting (not
-    requiring) them is what lets `validate_json(llm_response)` pass — requiring
-    them crashed the live content ingest with a 3-missing-field `ValidationError`
-    ({66.16} S295), because every LLM response omits them by design.
+
+class _ExtractionCore(BaseModel):
+    """Stamp-FREE base for the LLM-derived core shapes (bl-220 / ID-74).
+
+    The 3 `@coco.fn(memo=True)` extractors return subclasses of this — they hold
+    ONLY the LLM-generated fields + the `extraction_kind` discriminator, NO UUID /
+    datetime stamp fields — so cocoindex memo serde never round-trips a value that
+    strict re-validation would reject on a memo HIT. The stamp fields are added
+    only on the post-memo `*Stamped` types (via `_ExtractionStamp`).
     """
 
-    model_config = ConfigDict(
-        # Strict + extra="forbid" — surfaces type drift and prompt drift loud
-        # per Q-EX2 PRODUCT inv 13.
-        strict=True,
-        extra="forbid",
-    )
+    model_config = _EXTRACTION_MODEL_CONFIG
+
+
+class _ExtractionStamp(BaseModel):
+    """The 3 flow-stamped fields, added ONLY to the post-memo `*Stamped` types.
+
+    `op_id`, `content_items_id`, `extracted_at` are NOT emitted by the LLM
+    (PRODUCT Inv-5: "the model does not generate them") AND must NOT live on the
+    memoised return type: cocoindex memo serde JSON-round-trips them (UUID /
+    datetime → strings) and re-validates STRICT on a memo HIT, which rejects the
+    string forms (bl-220 / ID-74). So they are split off here, onto a mixin that
+    the stamp-free core shapes do NOT inherit; only the full `*Stamped` types
+    (built post-memo by `stamp_extraction_base()`) carry them. They DEFAULT to the
+    `_UNSTAMPED_*` sentinels so a `*Stamped` instance is constructible before
+    resolution; `stamp_extraction_base()` overwrites them with the resolved flow
+    values. Defaults are never serde-round-tripped through the memo (they live
+    outside the memo boundary), so the strict-deser bug cannot recur here.
+    """
+
+    model_config = _EXTRACTION_MODEL_CONFIG
 
     op_id: UUID = Field(
         default=_UNSTAMPED_UUID,
@@ -291,8 +319,13 @@ class QAPair(BaseModel):
     scope_tags: list[str] = Field(default_factory=list)
 
 
-class QAFormExtraction(_ExtractionBase):
-    """The q_a_form variant (Q-EX2 PRODUCT inv 2).
+class QAFormExtraction(_ExtractionCore):
+    """The q_a_form variant CORE shape (Q-EX2 PRODUCT inv 2; bl-220 stamp-free).
+
+    Returned by the `extract_qa_form` memo extractor — holds ONLY the
+    LLM-generated fields + the `extraction_kind` discriminator (NO stamp fields,
+    so the memo serde round-trip is strict-safe; bl-220 / ID-74). The post-memo
+    stamped shape is `QAFormExtractionStamped` (built by `stamp_extraction_base`).
 
     Maps downstream to `q_a_extractions` (per QAPair) only. The `form_metadata`
     block is NOT persisted by this LLM variant — `form_templates` /
@@ -306,8 +339,13 @@ class QAFormExtraction(_ExtractionBase):
     qa_pairs: list[QAPair] = Field(default_factory=list)
 
 
-class EntityMentionExtraction(_ExtractionBase):
-    """The entity_mention variant (Q-EX2 PRODUCT inv 3).
+class EntityMentionExtraction(_ExtractionCore):
+    """The entity_mention variant CORE shape (Q-EX2 PRODUCT inv 3; bl-220 stamp-free).
+
+    Returned (in a list) by the `extract_entity_mentions` memo extractor — holds
+    ONLY the LLM-generated fields + the `extraction_kind` discriminator (NO stamp
+    fields; bl-220 / ID-74). The post-memo stamped shape is
+    `EntityMentionExtractionStamped`.
 
     `entity_type` values mirror `VALID_ENTITY_TYPES` in
     `lib/validation/schemas.ts:1506-1519`; the §5.4 parity guard asserts
@@ -336,8 +374,13 @@ class EntityMentionExtraction(_ExtractionBase):
     mention_confidence: float = Field(ge=0.0, le=1.0)
 
 
-class ClassificationExtraction(_ExtractionBase):
-    """The classification variant (Q-EX2 PRODUCT inv 4).
+class ClassificationExtraction(_ExtractionCore):
+    """The classification variant CORE shape (Q-EX2 PRODUCT inv 4; bl-220 stamp-free).
+
+    Returned by the `extract_classification` memo extractor — holds ONLY the
+    LLM-generated fields + the `extraction_kind` discriminator (NO stamp fields;
+    bl-220 / ID-74). The post-memo stamped shape is
+    `ClassificationExtractionStamped` (built by `stamp_extraction_base`).
 
     `content_type` is constrained at runtime via `_validate_content_type`
     below, which reads the canonical taxonomy snapshot.
@@ -427,8 +470,38 @@ class ClassificationExtraction(_ExtractionBase):
         return self
 
 
-# Discriminated-union root for code that wants the union type
-# (e.g. tests, mocks). The 3 extractors below return concrete variants.
+# ---------------------------------------------------------------------------
+# Post-memo STAMPED shapes (bl-220 / ID-74). Each adds the 3 flow-stamp fields
+# (`_ExtractionStamp`) to the matching stamp-free core. These are constructed
+# OUTSIDE the memo boundary by `stamp_extraction_base()` (called from
+# `flow.py::_stamp_if_model`), so the UUID/datetime fields never cross cocoindex
+# memo serde and the strict-deser memo-HIT bug cannot recur. The `extraction_kind`
+# discriminator + all LLM fields + validators are inherited from the core via MRO
+# (`class XStamped(XCore, _ExtractionStamp)`), so downstream readers that switch
+# on `extraction_kind` or read LLM fields work unchanged on the stamped shape.
+#
+# Inv-5 is preserved: the full stamped shape (op_id / content_items_id /
+# extracted_at present) is what flow.py's row writers see — the LLM does not
+# generate these; the flow wrapper stamps them.
+# ---------------------------------------------------------------------------
+
+
+class ClassificationExtractionStamped(ClassificationExtraction, _ExtractionStamp):
+    """`ClassificationExtraction` core + the 3 flow-stamp fields (bl-220)."""
+
+
+class QAFormExtractionStamped(QAFormExtraction, _ExtractionStamp):
+    """`QAFormExtraction` core + the 3 flow-stamp fields (bl-220)."""
+
+
+class EntityMentionExtractionStamped(EntityMentionExtraction, _ExtractionStamp):
+    """`EntityMentionExtraction` core + the 3 flow-stamp fields (bl-220)."""
+
+
+# Discriminated-union root over the stamp-FREE CORE variants — this is what the
+# memo extractors return and what cocoindex memo serde round-trips (code that
+# wants the LLM-output union: tests, mocks). The 3 extractors below return
+# concrete core variants.
 ExtractionOutput = Annotated[
     Union[
         QAFormExtraction,
@@ -437,6 +510,31 @@ ExtractionOutput = Annotated[
     ],
     Field(discriminator="extraction_kind"),
 ]
+
+
+# Discriminated-union root over the post-memo STAMPED variants (the full shape
+# flow.py's row writers consume after `stamp_extraction_base`). Kept distinct
+# from `ExtractionOutput` so the memo boundary (stamp-free) and the post-stamp
+# boundary (stamp-bearing) are each typed precisely.
+ExtractionOutputStamped = Annotated[
+    Union[
+        QAFormExtractionStamped,
+        EntityMentionExtractionStamped,
+        ClassificationExtractionStamped,
+    ],
+    Field(discriminator="extraction_kind"),
+]
+
+
+# Core → Stamped class mapping, used by `stamp_extraction_base` to pick the
+# correct full type for a given core instance (constructed OUTSIDE the memo
+# boundary). Keyed on the EXACT core class (not isinstance) so a stamped instance
+# passed back in does not double-resolve.
+_CORE_TO_STAMPED: dict[type, type] = {
+    ClassificationExtraction: ClassificationExtractionStamped,
+    QAFormExtraction: QAFormExtractionStamped,
+    EntityMentionExtraction: EntityMentionExtractionStamped,
+}
 
 
 # Pydantic error → error_class mapping (Q-EX2 TECH §4.1). Empirically
@@ -520,11 +618,25 @@ def stamp_extraction_base(
     *,
     op_id: UUID | None = None,
     content_items_id: UUID | None = None,
-) -> ClassificationExtraction | QAFormExtraction | EntityMentionExtraction:
-    """Stamp `_ExtractionBase` fields post-validation.
+) -> (
+    ClassificationExtractionStamped
+    | QAFormExtractionStamped
+    | EntityMentionExtractionStamped
+):
+    """Construct the post-memo STAMPED extraction from a stamp-free core (bl-220).
 
-    NOT memoised — values change per flow run; `pydantic.model_copy`
-    preserves immutability semantics.
+    NOT memoised — values change per flow run, and this runs OUTSIDE the memo
+    boundary (PRODUCT Inv-5: "the flow wrapper stamps each ExtractionOutput";
+    the LLM does not generate op_id / content_items_id / extracted_at).
+
+    bl-220 / ID-74: the memo extractors now return a stamp-FREE core
+    (`ClassificationExtraction` / `QAFormExtraction` / `EntityMentionExtraction`),
+    so this CONSTRUCTS the matching full `*Stamped` type from the core's fields +
+    the resolved op_id / content_items_id / `datetime.now(timezone.utc)` — it does
+    NOT `model_copy(update=...)` (the core has no stamp fields to update). The
+    stamp fields therefore never cross cocoindex memo serde, so the strict
+    UUID/datetime memo-HIT deser failure cannot recur. Passing an already-`*Stamped`
+    instance back in is tolerated (re-resolved to the same stamped class).
 
     When `op_id` / `content_items_id` are omitted, reads them from the
     currently-bound `FLOW_META_CTX` so the call-site does not have to
@@ -562,12 +674,21 @@ def stamp_extraction_base(
         resolved_op_id = op_id
         resolved_content_items_id = content_items_id
 
-    return extraction.model_copy(
-        update={
-            "op_id": resolved_op_id,
-            "content_items_id": resolved_content_items_id,
-            "extracted_at": datetime.now(timezone.utc),
-        }
+    # Pick the full stamped class for this core (constructed OUTSIDE the memo
+    # boundary). Resolve on the EXACT class so an already-stamped instance passed
+    # back in keeps its own (stamped) class rather than mis-resolving.
+    stamped_cls = _CORE_TO_STAMPED.get(type(extraction), type(extraction))
+    # Carry over the core's LLM fields, then add the 3 resolved stamp fields. We
+    # dump excluding any stamp fields already present (idempotent re-stamp) so the
+    # construct call sets them exactly once from the resolved values.
+    core_fields = extraction.model_dump(
+        exclude={"op_id", "content_items_id", "extracted_at"}
+    )
+    return stamped_cls(
+        **core_fields,
+        op_id=resolved_op_id,
+        content_items_id=resolved_content_items_id,
+        extracted_at=datetime.now(timezone.utc),
     )
 
 
@@ -760,8 +881,10 @@ async def _anthropic_retry(call, /):
 async def extract_classification(content_text: str) -> ClassificationExtraction:
     """Classification extractor — validates LLM JSON into `ClassificationExtraction`.
 
-    `_ExtractionBase` fields remain at placeholders; stamped post-validation
-    by `stamp_extraction_base()`. Memo key is `(content_text,)` per Inv-21.
+    Returns the STAMP-FREE core (bl-220 / ID-74): no op_id / content_items_id /
+    extracted_at cross the memo boundary. The flow wrapper stamps the full
+    `*Stamped` shape post-memo via `stamp_extraction_base()`. Memo key is
+    `(content_text,)` per Inv-21.
     """
     client = anthropic.AsyncAnthropic()  # picks up ANTHROPIC_API_KEY from env
     response = await _anthropic_retry(

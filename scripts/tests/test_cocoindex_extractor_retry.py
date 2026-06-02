@@ -128,19 +128,14 @@ class _MockMessageResponse:
 
 
 # ── Canonical happy-path JSON fixtures ──────────────────────────────────────
-
-
-_FAKE_OP_ID = "a0000000-0000-4000-8000-000000000001"
-_FAKE_CONTENT_ID = "b1111111-1111-4111-8111-111111111111"
-_FAKE_EXTRACTED_AT = "2026-05-22T12:00:00Z"
+# bl-220 / ID-74: the memo extractors return STAMP-FREE cores, so these LLM-output
+# fixtures carry NO op_id / content_items_id / extracted_at (the cores reject them
+# as extra_forbidden). The stamp fields are added post-memo by stamp_extraction_base.
 
 
 def _classification_json() -> str:
     return json.dumps(
         {
-            "op_id": _FAKE_OP_ID,
-            "content_items_id": _FAKE_CONTENT_ID,
-            "extracted_at": _FAKE_EXTRACTED_AT,
             "extraction_kind": "classification",
             "content_type": "policy",
             "primary_domain": "compliance",
@@ -154,9 +149,6 @@ def _classification_json() -> str:
 def _qa_form_json() -> str:
     return json.dumps(
         {
-            "op_id": _FAKE_OP_ID,
-            "content_items_id": _FAKE_CONTENT_ID,
-            "extracted_at": _FAKE_EXTRACTED_AT,
             "extraction_kind": "q_a_form",
             "form_metadata": {
                 "form_type": "pqq",

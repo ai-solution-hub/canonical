@@ -38,7 +38,6 @@ import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -102,26 +101,20 @@ def _make_mock_client(
 
 
 # ── Canonical happy-path JSON fixtures ──────────────────────────────────────
-# These are the LLM-produced JSON payloads (NOT the stamped final form —
-# the LLM omits op_id / content_items_id / extracted_at per prompts.py
-# instruction; those are stamped POST-validation by stamp_extraction_base).
-# However, the strict Pydantic shape DOES require those fields at
-# validation time. So the test fixtures populate them — exercising the
-# JSON-mode round-trip end-to-end. In production, stamp_extraction_base
-# populates these post-validation; the LLM has no business returning UUIDs.
-
-_FAKE_OP_ID = "a0000000-0000-4000-8000-000000000001"
-_FAKE_CONTENT_ID = "b1111111-1111-4111-8111-111111111111"
-_FAKE_EXTRACTED_AT = "2026-05-22T12:00:00Z"
+# These are the LLM-produced JSON payloads — byte-for-byte the shape the live
+# extractors feed `_*_adapter.validate_json(...)`. The LLM omits op_id /
+# content_items_id / extracted_at per prompts.py instruction, and bl-220 / ID-74
+# makes the memo extractor return types STAMP-FREE cores, so these fixtures must
+# NOT carry the 3 stamp fields (the strict, extra="forbid" core shapes reject
+# them as `extra_forbidden`). The stamp fields are added POST-memo by
+# `stamp_extraction_base`, OUTSIDE the extractor, so they never appear in the
+# LLM-output JSON these extractors validate.
 
 
 def _classification_json(content_type: str = "policy") -> str:
     """Return a well-formed classification extraction JSON payload."""
     return json.dumps(
         {
-            "op_id": _FAKE_OP_ID,
-            "content_items_id": _FAKE_CONTENT_ID,
-            "extracted_at": _FAKE_EXTRACTED_AT,
             "extraction_kind": "classification",
             "content_type": content_type,
             "primary_domain": "compliance",
@@ -136,9 +129,6 @@ def _qa_form_json() -> str:
     """Return a well-formed q_a_form extraction JSON payload."""
     return json.dumps(
         {
-            "op_id": _FAKE_OP_ID,
-            "content_items_id": _FAKE_CONTENT_ID,
-            "extracted_at": _FAKE_EXTRACTED_AT,
             "extraction_kind": "q_a_form",
             "form_metadata": {
                 "form_type": "pqq",
@@ -175,9 +165,6 @@ def _entity_mentions_json() -> str:
     return json.dumps(
         [
             {
-                "op_id": _FAKE_OP_ID,
-                "content_items_id": _FAKE_CONTENT_ID,
-                "extracted_at": _FAKE_EXTRACTED_AT,
                 "extraction_kind": "entity_mention",
                 "entity_type": "certification",
                 "entity_name": "ISO 27001:2022",
@@ -187,9 +174,6 @@ def _entity_mentions_json() -> str:
                 "mention_confidence": 0.95,
             },
             {
-                "op_id": _FAKE_OP_ID,
-                "content_items_id": _FAKE_CONTENT_ID,
-                "extracted_at": _FAKE_EXTRACTED_AT,
                 "extraction_kind": "entity_mention",
                 "entity_type": "organisation",
                 "entity_name": "Crown Commercial Service",
@@ -234,7 +218,10 @@ class TestExtractClassification:
         assert result.content_type == "policy"
         assert result.primary_domain == "compliance"
         assert result.classification_confidence == pytest.approx(0.92)
-        assert result.op_id == UUID(_FAKE_OP_ID)
+        # bl-220 / ID-74: the memo extractor returns the STAMP-FREE core, so the
+        # 3 stamp fields are NOT present (they are stamped post-memo by
+        # stamp_extraction_base, outside the extractor).
+        assert not hasattr(result, "op_id")
 
     def test_calls_anthropic_with_classification_prompt_and_content(self):
         """Extractor concatenates `f"{CLASSIFICATION_PROMPT}\\n\\n{content_text}"`
