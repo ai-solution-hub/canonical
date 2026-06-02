@@ -7,8 +7,12 @@
 # (no host CPU/RAM contention) + invariant 14 (push half — a pinned, non-:latest
 # image lands in ghcr.io).
 #
-# SCOPE — this Subtask is BUILD-AND-PUSH ONLY:
-#   * The Coolify pull/deploy webhook is {66.11} — deliberately NOT wired here.
+# SCOPE — the BUILD half ({66.7}) builds-and-pushes; the DEPLOY half ({66.11})
+# bumps the Coolify image tag and triggers a Coolify deploy of the freshly-built
+# pinned tag (see the `deploy-cocoindex` job below):
+#   * The Coolify pull/deploy webhook was {66.11} — now wired as a SECOND job that
+#     `needs:` the build job (so a deploy can NEVER fire on a tag that was not
+#     built + pushed + pull-verified — the "never a stale image" ordering guard).
 #   * pullmd / playwright / trafilatura are UPSTREAM aeternalabshq/* images
 #     (pulled by the {66.8} compose); only the cocoindex image is KH-built, so
 #     this workflow builds exactly ONE image.
@@ -16,6 +20,15 @@
 #     unchanged; the build config is faithful to cloudrun/cloudbuild-cocoindex.yaml
 #     (same google-22 builder, GOOGLE_ENTRYPOINT, runtime, Python version).
 #   * NEXT_PUBLIC_CLIENT_ID is NOT a B1-host concern (OQ-66-6 — Vercel-side bake).
+#
+# BURN-PREVENTION ({66.11}) — read docs/runbooks/onprem-b1-deploy.md "{66.11}"
+# before changing anything here. The on-prem pipeline burned Anthropic tokens
+# TWICE across S294-S297. The deploy job below NEVER sets COCOINDEX_SOURCE_PATH:
+# an empty SOURCE_PATH (compose `${COCOINDEX_SOURCE_PATH:-}`) boots the app IDLE
+# (no corpus walk → zero Anthropic calls), so any auto-restart is harmless. The
+# load-bearing operator guarantee — "this Action is the SOLE deploy trigger" —
+# lives in the runbook (Coolify git-auto-deploy MUST be disabled, else a push
+# would redeploy on the STALE tag before the build finishes).
 #
 # Replaces the build half of cloud-run-deploy.yml (retired at cutover {66.17};
 # the file + Cloud Run manifests stay in git for reversibility, inv 24). WIF /
@@ -43,6 +56,16 @@ on:
         description: "Manual build reason (first off-host build / roll-forward)"
         required: false
         default: "manual"
+      deploy:
+        # Build-only dry-run escape hatch ({66.11}): set false to build + push +
+        # pull-verify the image WITHOUT touching the host (no tag bump, no Coolify
+        # deploy). Defaults true so a plain dispatch behaves like a push. A `push`
+        # event always deploys (this input is workflow_dispatch-only).
+        description:
+          "Trigger the Coolify deploy after build (false = build-only dry-run)"
+        required: false
+        type: boolean
+        default: true
   push:
     branches: [main] # prod-equivalent (review item 1); add `staging` when on-prem staging exists
     paths:
@@ -152,5 +175,95 @@ jobs:
             echo ""
             echo "- **Image:** \`${IMAGE}:${TAG}\` (pinned, non-\`:latest\`)"
             echo "- **Builder:** buildpacks \`google-22\` on GH runner (inv 13 — host uncontended)"
-            echo "- **Next:** Coolify pull/deploy webhook is **{66.11}** (not wired here)"
+            echo "- **Next:** the \`deploy-cocoindex\` job ({66.11}) bumps Coolify \`COCOINDEX_IMAGE_TAG\` to this tag + triggers a deploy"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # DEPLOY HALF — {66.11}: bump the Coolify image tag to the just-built pinned
+  # tag and trigger a Coolify deploy of THAT tag. Coolify re-clones the git
+  # compose and PULLS the finished image (it never builds on the host).
+  #
+  # ORDERING GUARD (never a stale image): `needs: build-and-push-cocoindex`
+  # means this job only runs after the build job has built + pushed +
+  # pull-verified `${IMAGE}:${TAG}`. The PATCH below sets COCOINDEX_IMAGE_TAG to
+  # the SAME `${{ env.TAG }}` the build job published, so the bumped tag is
+  # byte-identical to the built tag.
+  #
+  # BURN GUARD (never an Anthropic crash-loop): this job touches ONLY
+  # COCOINDEX_IMAGE_TAG. It NEVER sets COCOINDEX_SOURCE_PATH — the compose
+  # default `${COCOINDEX_SOURCE_PATH:-}` resolves empty, which boots the app
+  # idle (no corpus walk → zero Anthropic calls), so the deploy/restart is
+  # burn-safe by construction. The "Action is the SOLE deploy trigger"
+  # guarantee (Coolify git-auto-deploy disabled) is an OPERATOR action —
+  # see docs/runbooks/onprem-b1-deploy.md "{66.11}".
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-cocoindex:
+    name: Bump Coolify tag + deploy (on-host pull)
+    needs: build-and-push-cocoindex
+    runs-on: ubuntu-latest
+    # `Production` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN
+    # (added S294) + COOLIFY_BASE_URL (operator must create = http://77.68.122.71:8000).
+    environment: Production
+    timeout-minutes: 10
+    # A `push` always deploys; a `workflow_dispatch` deploys unless the operator
+    # set deploy=false (build-only dry-run). github.event.inputs.deploy is the
+    # boolean input serialised to the string "true"/"false".
+    if: github.event_name == 'push' || github.event.inputs.deploy == 'true'
+    env:
+      # NON-secret Coolify app uuid (git-sourced Docker Compose app
+      # `kh-onprem-pipeline-git`). Safe as a literal — it is not a credential.
+      COOLIFY_APP_UUID: ybiczck7f7e1xbdev3bk89cr
+    steps:
+      - name: Bump COCOINDEX_IMAGE_TAG in Coolify (PATCH — update in place)
+        env:
+          # Map secrets / dynamic values into the shell env (never interpolate
+          # ${{ }} directly inside run: — injection-safe, and no secret is echoed).
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          DEPLOY_TAG: ${{ env.TAG }}
+        run: |
+          set -euo pipefail
+          # PATCH updates the EXISTING COCOINDEX_IMAGE_TAG env in place (by key).
+          # POST would CREATE A DUPLICATE — the §6 duplicate-key footgun — so we
+          # MUST use PATCH. We touch ONLY COCOINDEX_IMAGE_TAG here; we NEVER send
+          # COCOINDEX_SOURCE_PATH, so the compose default keeps it empty (idle =
+          # no extraction = no Anthropic burn on the auto-restart this deploy triggers).
+          # --fail-with-body: non-2xx → non-zero exit + body printed (so the job
+          # fails loudly instead of silently "succeeding" on a Coolify error).
+          curl --fail-with-body -sS \
+            -X PATCH "${COOLIFY_BASE_URL}/api/v1/applications/${COOLIFY_APP_UUID}/envs" \
+            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"COCOINDEX_IMAGE_TAG\",\"value\":\"${DEPLOY_TAG}\",\"is_buildtime\":true,\"is_runtime\":true}"
+          echo "PATCHed COCOINDEX_IMAGE_TAG -> ${DEPLOY_TAG} (SOURCE_PATH left untouched / idle-safe)"
+
+      - name:
+          Trigger Coolify deploy of the pinned tag (host pulls — no on-host
+          build)
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The per-resource deploy webhook the Coolify UI exposes. Coolify
+          # re-clones the git compose and pulls the image resolved from the
+          # (just-bumped) COCOINDEX_IMAGE_TAG. force=false: reuse cache where it
+          # is safe; the pinned tag bump is what guarantees the fresh image.
+          curl --fail-with-body -sS \
+            -X GET "${COOLIFY_BASE_URL}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false" \
+            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}"
+          echo "Triggered Coolify deploy of ${COOLIFY_APP_UUID} (pinned tag pull)."
+
+      - name: Deploy summary
+        env:
+          DEPLOY_TAG: ${{ env.TAG }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### onprem-deploy — Coolify tag bump + deploy ({66.11})"
+            echo ""
+            echo "- **Tag bumped:** \`COCOINDEX_IMAGE_TAG\` → \`${DEPLOY_TAG}\` (PATCH, in place — never duplicated)"
+            echo "- **Deploy:** triggered on \`${COOLIFY_APP_UUID}\` (host pulls the pinned tag; never builds on-host)"
+            echo "- **Burn guard:** \`COCOINDEX_SOURCE_PATH\` **NOT set** by this Action → idle boot (no corpus walk, no Anthropic calls)"
+            echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` {66.11})"
           } >> "$GITHUB_STEP_SUMMARY"
