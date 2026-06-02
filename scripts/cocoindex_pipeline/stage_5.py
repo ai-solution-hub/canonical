@@ -41,8 +41,7 @@ from uuid import UUID
 if TYPE_CHECKING:  # pragma: no cover
     import asyncpg
 
-    from cocoindex.ops.entity_resolution import ResolvedEntities
-
+    from scripts.cocoindex_pipeline._coco_api import ResolvedEntities
     from scripts.cocoindex_pipeline.flow import _FlowStageCounter
     from scripts.cocoindex_pipeline.flow_context import FlowRunMeta
 
@@ -136,7 +135,9 @@ async def _run_stage_5_resolution(
     # Lazy imports (mirrors pair_resolver.py / entity_embedder.py): keeps the
     # faiss + LiteLLM dependency chain out of module import so pipeline unit
     # tests can stub `cocoindex` at the bare-module level.
-    from cocoindex.ops.entity_resolution import resolve_entities  # noqa: PLC0415
+    from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+        resolve_entities,
+    )
 
     from scripts.cocoindex_pipeline.entity_embedder import (  # noqa: PLC0415
         KhEntityEmbedder,

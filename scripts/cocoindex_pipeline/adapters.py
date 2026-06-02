@@ -28,9 +28,17 @@ import json
 import logging
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import cocoindex as coco
+import cocoindex as coco  # public top-level surface — `@coco.fn` decorator
 import httpx
+
+if TYPE_CHECKING:  # pragma: no cover — static-analysis-only
+    # FileLike resolves through the {67.4} insulation façade. The signature
+    # annotations below are string literals (PEP 563 / `from __future__ import
+    # annotations`), so this import is never evaluated at runtime — it only
+    # lets type-checkers and IDEs resolve `"FileLike"`.
+    from scripts.cocoindex_pipeline._coco_api import FileLike
 
 _logger = logging.getLogger(__name__)
 
@@ -45,7 +53,7 @@ _TEXT_EXTENSIONS = frozenset({".md", ".markdown", ".txt"})
 
 
 @coco.fn(memo=True)
-async def convert_binary_to_markdown(file: "coco.resources.file.FileLike") -> str:  # type: ignore[name-defined]
+async def convert_binary_to_markdown(file: "FileLike") -> str:
     """Route a FileLike by extension to the inner-tier extractor.
 
     PDF/DOCX/XLSX → Docling; HTML → pullmd HTTP; markdown/txt → passthrough.
@@ -232,7 +240,7 @@ class SourceProvenance:
 
 
 async def extract_source_provenance(
-    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    file: "FileLike",
 ) -> SourceProvenance:
     """Resolve the Stage-6 provenance for a FileLike (ID-42.9, TECH §WP-E).
 

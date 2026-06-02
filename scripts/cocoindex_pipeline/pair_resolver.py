@@ -55,7 +55,7 @@ from scripts.cocoindex_pipeline.extraction import (
 if TYPE_CHECKING:  # pragma: no cover
     import asyncpg
 
-    from cocoindex.ops.entity_resolution import PairDecision
+    from scripts.cocoindex_pipeline._coco_api import PairDecision
 
 
 # Pair-resolution prompt — VERBATIM per TECH §P-8 / T-OQ2 ratification.
@@ -129,7 +129,9 @@ class KhPairResolver:
         # Lazy import — keeps cocoindex out of module-import-time so unit
         # tests can stub the dependency surface without resolving the real
         # cocoindex 1.0.3 Rust engine.
-        from cocoindex.ops.entity_resolution import PairDecision
+        from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+            PairDecision,
+        )
 
         for candidate in candidates:
             decision = await self._resolve_one_pair(entity, candidate)

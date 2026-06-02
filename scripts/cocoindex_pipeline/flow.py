@@ -55,14 +55,20 @@ from typing import Any, Literal
 import aiohttp
 import asyncpg
 import cocoindex as coco
-from cocoindex.connectors import localfs
-from cocoindex.connectors.postgres import (
+
+# Off-surface cocoindex symbols resolve through the {67.4} insulation façade
+# (`_coco_api`) so a version bump is a one-file fix. These are eager top-level
+# re-exports of connectors / connectorkits sub-package symbols — they do NOT
+# touch the `cocoindex.ops` subtree, so collection-safety for the bare-MagicMock
+# unit tests is preserved. The `ops.*` symbols (LiteLLMEmbedder, RecursiveSplitter)
+# stay function-local below for that reason.
+from scripts.cocoindex_pipeline._coco_api import (
     ColumnDef,
+    ManagedBy,
     TableSchema,
+    localfs,
     mount_table_target,
 )
-from cocoindex.connectorkits.target import ManagedBy
-
 from scripts.cocoindex_pipeline.adapters import (
     convert_binary_to_markdown,  # P-3 outer-tier adapter (28.7 — LANDED)
     extract_source_provenance,  # Stage-6 pullmd provenance fan-out (42.9 §WP-E)
@@ -761,7 +767,9 @@ def _get_embedder() -> object:
     """Return the process-wide LiteLLMEmbedder, instantiating on first use."""
     global _EMBEDDER
     if _EMBEDDER is None:
-        from cocoindex.ops.litellm import LiteLLMEmbedder  # noqa: PLC0415
+        from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+            LiteLLMEmbedder,
+        )
 
         _EMBEDDER = LiteLLMEmbedder(
             EMBEDDING_MODEL,
@@ -1557,7 +1565,9 @@ async def _ingest_file_body(
         # legacy callers — which pass cc_target=None and never enter here —
         # import-clean, mirroring the function-local flow_context import used
         # above.
-        from cocoindex.ops.text import RecursiveSplitter
+        from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+            RecursiveSplitter,
+        )
 
         splitter = RecursiveSplitter()
         chunks = splitter.split(

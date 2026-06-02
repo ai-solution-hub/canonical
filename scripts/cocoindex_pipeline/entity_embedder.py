@@ -85,7 +85,9 @@ class KhEntityEmbedder:
         # module body import cleanly in those test contexts; the LiteLLM
         # dependency is only resolved when an embedder is actually
         # instantiated, which only happens inside Stage-5 resolution.
-        from cocoindex.ops.litellm import LiteLLMEmbedder  # noqa: PLC0415
+        from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+            LiteLLMEmbedder,
+        )
 
         self._embedder = LiteLLMEmbedder(
             ENTITY_EMBEDDING_MODEL,
