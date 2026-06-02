@@ -41,6 +41,7 @@ from scripts.cocoindex_pipeline.extraction import (
     ExtractionOutput,
     FormMetadata,
     QAFormExtraction,
+    QAFormExtractionStamped,
     QAPair,
     _UNSTAMPED_UUID,
     _VALID_CONTENT_TYPES,
@@ -1320,6 +1321,20 @@ class TestMemoHitSerdeRoundTrip:
                     "source_span_start": 0,
                     "source_span_end": 4,
                     "mention_confidence": 0.9,
+                },
+            ),
+            (
+                # All 3 stamped variants inherit `_ExtractionStamp` (UUID/datetime),
+                # so the q_a_form variant must equally fail the strict memo-HIT
+                # round-trip — close the FAIL-before witness gap (Checker note).
+                # `form_metadata` is the only required field beyond the stamp;
+                # form_type="pqq" / form_format="docx" are known-valid (see the
+                # passing TestQAFormVariant cases + the taxonomy snapshot).
+                QAFormExtractionStamped,
+                {
+                    "form_metadata": FormMetadata(
+                        form_type="pqq", form_format="docx"
+                    ),
                 },
             ),
         ],
