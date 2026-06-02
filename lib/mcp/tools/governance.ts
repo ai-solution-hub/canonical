@@ -515,20 +515,10 @@ export async function registerGovernanceTools(
                   errorMessage: classifyError,
                 });
 
-                try {
-                  const { regenerateChunks } =
-                    await import('@/lib/content/chunk-store');
-                  await regenerateChunks(
-                    publishServiceClient,
-                    itemId,
-                    row.content,
-                  );
-                } catch (chunkErr) {
-                  logger.error(
-                    { err: chunkErr },
-                    `MCP publish chunking failed for ${itemId}`,
-                  );
-                }
+                // Chunking removed (ID-56.11): cocoindex is the sole
+                // content_chunks writer and re-ingests the corpus natively
+                // (TECH §1 single-path). No app-side chunk regeneration on
+                // MCP publish.
               }
             } else {
               // Draft: set publication_status to 'draft' (S202 §5.2 Phase 2.5

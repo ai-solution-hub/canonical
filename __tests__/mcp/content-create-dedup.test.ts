@@ -71,10 +71,6 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(() => mocks.mockSupabaseClient),
 }));
 
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
-}));
-
 vi.mock('@/lib/layer-inference', () => ({
   inferLayer: vi.fn().mockReturnValue({
     suggestedLayer: 'capability',

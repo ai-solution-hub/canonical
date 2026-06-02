@@ -1587,8 +1587,8 @@ export async function audit_chunk_count_per_doc(
       if (!ok) {
         const hint =
           chunkTotal < def.chunk_count.min
-            ? 'too low — likely store_chunks skipped at ingest'
-            : 'too high — likely regenerateChunks re-ran without dedup';
+            ? 'too low — likely chunk emission skipped at ingest'
+            : 'too high — likely duplicate chunk emission';
         failures.push(
           `${group} chunks=${chunkTotal} expected=[${def.chunk_count.min},${def.chunk_count.max}]: ${hint}`,
         );

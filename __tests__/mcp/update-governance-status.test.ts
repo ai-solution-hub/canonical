@@ -78,18 +78,15 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
   };
 });
 
-// Stub the lazy-import shims used by the publish branch (classify, chunk,
+// Stub the lazy-import shims used by the publish branch (classify,
 // pipeline-run). These are dynamic imports inside the handler so vi.mock the
-// modules themselves.
+// modules themselves. (ID-56.11 retired the app-side chunk-store mock.)
 vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(() => ({ from: vi.fn() })),
   createClient: vi.fn(),
 }));
 vi.mock('@/lib/pipeline/record-run', () => ({
   recordPipelineRun: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ---------------------------------------------------------------------------

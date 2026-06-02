@@ -63,10 +63,6 @@ vi.mock('@/lib/dedup', () => ({
   resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
 }));
 
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
-}));
-
 vi.mock('@/lib/layer-inference', () => ({
   inferLayer: vi.fn().mockReturnValue({
     suggestedLayer: 'operational',

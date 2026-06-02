@@ -505,7 +505,6 @@ async function patchHandler(
       [field]: effectiveValue,
       updated_by: user.id,
     };
-    let rebuiltQaContent: string | null = null;
     if (
       (field === 'answer_standard' || field === 'answer_advanced') &&
       currentItem.content_type === 'q_a_pair'
@@ -522,9 +521,10 @@ async function patchHandler(
       if (question) parts.push(`Q: ${question}`);
       if (standard) parts.push(String(standard));
       if (advanced) parts.push(String(advanced));
-      const joined = parts.join('\n\n');
-      updateData.content = joined;
-      rebuiltQaContent = joined;
+      // Q&A rebuild reconstructs `content` from the answer fields so the
+      // stored content stays in sync. (ID-56.11: the rebuilt value no longer
+      // feeds app-side chunk regeneration — cocoindex re-ingests natively.)
+      updateData.content = parts.join('\n\n');
     }
 
     // Publishing from draft: generate embedding BEFORE clearing governance_review_status.
@@ -623,16 +623,9 @@ async function patchHandler(
         errorMessage: classifyError,
       });
 
-      try {
-        const { regenerateChunks } = await import('@/lib/content/chunk-store');
-        await regenerateChunks(publishServiceClient, id, currentItem.content);
-      } catch (chunkErr) {
-        logger.warn(
-          { err: chunkErr, op: 'items.patch.publish.chunking', itemId: id },
-          'Publish chunking failed',
-        );
-        warnings.add('Chunk generation failed on publish');
-      }
+      // Chunking removed (ID-56.11): cocoindex is the sole content_chunks
+      // writer and re-ingests the corpus natively (TECH §1 single-path). No
+      // app-side chunk regeneration on publish.
     }
 
     // Check if domain has review-on-change governance posture
@@ -821,37 +814,10 @@ async function patchHandler(
       }
     }
 
-    // Regenerate chunks when content changes.
-    // Triggered by: (a) direct content-field edits, (b) Q&A rebuilds that
-    // reconstruct `content` from answer_standard + answer_advanced.
-    const newContentForChunks: string | null =
-      field === 'content' && typeof value === 'string'
-        ? value
-        : rebuiltQaContent;
-    if (newContentForChunks !== null) {
-      try {
-        const { regenerateChunks } = await import('@/lib/content/chunk-store');
-        const { createServiceClient } = await import('@/lib/supabase/server');
-        const chunkServiceClient = createServiceClient();
-        const chunkResult = await regenerateChunks(
-          chunkServiceClient,
-          id,
-          newContentForChunks,
-        );
-        if (chunkResult.errors.length > 0) {
-          warnings.add(
-            `Chunk regeneration: ${chunkResult.errors.length} error(s)`,
-          );
-        }
-      } catch (chunkErr) {
-        logBestEffortWarn(
-          'items.patch.chunk_regenerate',
-          'Chunk regeneration failed',
-          { itemId: id, err: String(chunkErr) },
-        );
-        warnings.add('Content chunk regeneration failed');
-      }
-    }
+    // Chunk regeneration removed (ID-56.11): cocoindex is the sole
+    // content_chunks writer and re-ingests the corpus natively (TECH §1
+    // single-path). No app-side chunk regeneration on content edit or Q&A
+    // rebuild.
 
     // Flag reclassification as needed — must be triggered via the UI
     // (POST /api/items/:id/classify). Cannot use relative fetch() in

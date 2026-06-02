@@ -75,7 +75,6 @@ import {
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { classifyContent } from '@/lib/ai/classify';
 import { generateEmbedding } from '@/lib/ai/embed';
-import { regenerateChunks } from '@/lib/content/chunk-store';
 import { parseMarkdownFrontMatter } from '@/lib/extraction/markdown-front-matter';
 import { extractMarkdownTitle } from '@/lib/extraction/markdown-title';
 import { cleanMdxTags } from '@/lib/extraction/clean-mdx-tags';
@@ -690,21 +689,9 @@ async function importOneFile(
     );
   }
 
-  // Markdown chunking (spec §7.5) — closes Python markdown-ingest gap.
-  // Non-fatal on failure — item is usable without chunks; backfill repairs.
-  try {
-    await regenerateChunks(supabase, inserted.id, cleanedBody);
-  } catch (err) {
-    logBestEffortWarn(
-      'upload_markdown_batch.import.chunking_failed',
-      `Chunk regeneration failed for ${file.filename}`,
-      {
-        filename: file.filename,
-        itemId: inserted.id,
-        error: err instanceof Error ? err.message : String(err),
-      },
-    );
-  }
+  // Markdown chunking removed (ID-56.11): cocoindex is the sole content_chunks
+  // writer and re-ingests the corpus natively (TECH §1 single-path). No
+  // app-side chunk regeneration in the markdown-batch import path.
 
   return {
     id: inserted.id,

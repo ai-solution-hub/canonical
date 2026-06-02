@@ -8,8 +8,10 @@
  *
  * Closes the unit-test gap on `app/api/upload/route.ts` (POST handler) called
  * out in product-backlog OPS-12. The route is the EP3 single-file upload
- * pipeline: validate → upload → extract → dedup → embed → chunk → classify →
- * summarise. We mirror the canonical pattern from `upload-route-owner.test.ts`
+ * pipeline: validate → upload → extract → dedup → embed → classify →
+ * summarise. (ID-56.11 retired the app-side chunk step — cocoindex re-ingests
+ * the corpus natively.) We mirror the canonical pattern from
+ * `upload-route-owner.test.ts`
  * — invoke the real `POST` handler with a mocked multipart body and shared
  * mock supabase client; AI/extraction collaborators are stubbed so we land on
  * the inline `content_items` insert/update and exit cleanly.
@@ -134,10 +136,6 @@ vi.mock('@/lib/topic-inference', () => ({
 
 vi.mock('@/lib/guide-section-mapping', () => ({
   suggestGuideSections: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
 }));
 
 vi.mock('@/lib/source-documents/document-diff', () => ({

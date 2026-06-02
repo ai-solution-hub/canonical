@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
-// Hoisted mocks — supabase client, lazy-loaded AI + chunk-store modules
+// Hoisted mocks — supabase client, lazy-loaded AI modules
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => {
@@ -29,7 +29,6 @@ const mocks = vi.hoisted(() => {
     _chain: chainMethods,
   };
 
-  const regenerateChunksMock = vi.fn().mockResolvedValue({ errors: [] });
   const createServiceClientMock = vi.fn().mockReturnValue(mockSupabaseClient);
 
   return {
@@ -40,7 +39,6 @@ const mocks = vi.hoisted(() => {
     getMcpUserId: vi
       .fn()
       .mockReturnValue('00000000-0000-4000-8000-000000000001'),
-    regenerateChunksMock,
     createServiceClientMock,
   };
 });
@@ -65,9 +63,6 @@ vi.mock('@/lib/ai/classify', () => ({
 }));
 vi.mock('@/lib/ai/summarise', () => ({
   generateSummary: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: mocks.regenerateChunksMock,
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: mocks.createServiceClientMock,
@@ -113,7 +108,6 @@ function resetSupabaseMocks() {
     .mockReturnValue(mocks.mockSupabaseClient);
   mocks.rpcMock.mockReset().mockResolvedValue({ data: [], error: null });
   mocks.mockSupabaseClient.from.mockReset().mockReturnValue(mocks.chainMethods);
-  mocks.regenerateChunksMock.mockReset().mockResolvedValue({ errors: [] });
 
   for (const key of [
     'select',
@@ -357,111 +351,8 @@ describe('get_content_item chunks fetch', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// create_content_item: chunks generation
-// ---------------------------------------------------------------------------
-
-describe('create_content_item chunking', () => {
-  it('calls regenerateChunks for non-draft items with the new id and content', async () => {
-    const handler = mockServer.getHandler('create_content_item')!;
-
-    // 1. insert.select.single() — created item row
-    mocks.chainMethods.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: {
-            id: 'new-item-1',
-            title: 'New Article',
-            content_type: 'article',
-          },
-          error: null,
-        }),
-    );
-
-    const result = (await handler(
-      {
-        title: 'New Article',
-        content: '# New Article\n\nBody content in markdown.',
-        content_type: 'article',
-      },
-      extra,
-    )) as ToolResult;
-
-    expect(result.isError).toBeUndefined();
-    expect(mocks.regenerateChunksMock).toHaveBeenCalledTimes(1);
-    const [serviceClient, itemId, content] =
-      mocks.regenerateChunksMock.mock.calls[0];
-    expect(serviceClient).toBe(mocks.mockSupabaseClient);
-    expect(itemId).toBe('new-item-1');
-    expect(content).toBe('# New Article\n\nBody content in markdown.');
-  });
-
-  it('does NOT call regenerateChunks for draft items', async () => {
-    const handler = mockServer.getHandler('create_content_item')!;
-
-    mocks.chainMethods.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: {
-            id: 'new-draft-1',
-            title: 'Draft Item',
-            content_type: 'note',
-          },
-          error: null,
-        }),
-    );
-
-    const result = (await handler(
-      {
-        title: 'Draft Item',
-        content: '# Draft\n\nNot yet ready.',
-        content_type: 'note',
-        governance_review_status: 'draft',
-      },
-      extra,
-    )) as ToolResult;
-
-    expect(result.isError).toBeUndefined();
-    expect(mocks.regenerateChunksMock).not.toHaveBeenCalled();
-    expect(result.content[0].text).toContain('Draft');
-  });
-
-  it('returns success with a "Content chunking failed" warning when regenerateChunks throws', async () => {
-    const handler = mockServer.getHandler('create_content_item')!;
-
-    mocks.chainMethods.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: {
-            id: 'new-item-2',
-            title: 'Article With Chunk Failure',
-            content_type: 'article',
-          },
-          error: null,
-        }),
-    );
-    mocks.regenerateChunksMock.mockRejectedValueOnce(
-      new Error('chunk store explosion'),
-    );
-
-    const result = (await handler(
-      {
-        title: 'Article With Chunk Failure',
-        content: '# Content\n\nMarkdown body.',
-        content_type: 'article',
-      },
-      extra,
-    )) as ToolResult;
-
-    // Item was still created — not an error response
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain('# Content Item Created');
-
-    // Warnings appear in both markdown and structuredContent
-    expect(result.content[0].text).toContain('Content chunking failed');
-    const warnings = result.structuredContent!.warnings as string[];
-    expect(warnings).toEqual(
-      expect.arrayContaining(['Content chunking failed']),
-    );
-  });
-});
+// create_content_item chunking describe block removed (ID-56.11): the
+// app-side regenerateChunks path is retired — cocoindex is the sole
+// content_chunks writer and re-ingests the corpus natively. The
+// get_content_item read path above still exercises chunk rendering against
+// cocoindex-emitted rows.

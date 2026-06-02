@@ -54,7 +54,7 @@ def _determine_split_level(markdown: str) -> Optional[int]:
 
 
 def chunk_by_headings(markdown: str) -> List[ContentChunk]:
-    """Split markdown at heading boundaries. Mirrors TS chunkByHeadings()."""
+    """Split markdown at heading boundaries (heading-split chunking)."""
     trimmed = (markdown or '').strip()
     if not trimmed:
         return []

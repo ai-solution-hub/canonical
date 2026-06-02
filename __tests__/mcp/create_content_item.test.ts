@@ -81,10 +81,6 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(() => mocks.mockSupabaseClient),
 }));
 
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
-}));
-
 vi.mock('@/lib/layer-inference', () => ({
   inferLayer: vi.fn().mockReturnValue({
     suggestedLayer: 'capability',
@@ -619,10 +615,10 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
   // paths. Asserts the service-role client (NOT the RLS-scoped MCP client)
   // is passed to recordPipelineRun on success.
   it('uses service-role client (not RLS-scoped) for success-path pipeline_runs (OPS-40)', async () => {
-    // Note: success path calls createServiceClient() twice — once for the
-    // chunk-store service client, once for recordPipelineRun (this WP).
-    // Use mockReturnValue (not Once) so both calls receive the marker
-    // client; we only assert on the recordPipelineRun call site below.
+    // Note: success path calls createServiceClient() for recordPipelineRun
+    // (ID-56.11 retired the former chunk-store service-client call). Use
+    // mockReturnValue (not Once) so the call receives the marker client; we
+    // only assert on the recordPipelineRun call site below.
     const distinctServiceClient = {
       from: vi.fn(),
       rpc: vi.fn(),

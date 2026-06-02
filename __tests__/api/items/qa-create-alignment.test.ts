@@ -50,10 +50,6 @@ vi.mock('@/lib/content/strip-markdown', () => ({
   stripMarkdown: vi.fn((text: string) => text),
 }));
 
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
-}));
-
 vi.mock('@/lib/dedup', () => ({
   checkForDuplicates: vi.fn().mockResolvedValue({
     has_duplicates: false,

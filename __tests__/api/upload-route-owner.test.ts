@@ -109,10 +109,6 @@ vi.mock('@/lib/guide-section-mapping', () => ({
   suggestGuideSections: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
-}));
-
 vi.mock('@/lib/source-documents/document-diff', () => ({
   computeDocumentDiff: vi.fn(),
 }));

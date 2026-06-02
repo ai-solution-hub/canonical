@@ -223,26 +223,9 @@ export const POST = withRequestContext(async (request: NextRequest) => {
     // v1 history rows. See spec docs/specs/ingest-path-consistency-spec.md
     // §3.4 AC4.3.
 
-    // 13a. Chunking — split content into searchable sections
-    try {
-      const { regenerateChunks } = await import('@/lib/content/chunk-store');
-      const { createServiceClient } = await import('@/lib/supabase/server');
-      const chunkServiceClient = createServiceClient();
-      const chunkResult = await regenerateChunks(
-        chunkServiceClient,
-        newItem.id,
-        extracted.content,
-      );
-      if (chunkResult.errors.length > 0) {
-        warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
-      }
-    } catch (chunkErr) {
-      logger.warn(
-        { err: chunkErr, op: 'ingest_url.chunking', itemId: newItem.id },
-        'Chunking failed',
-      );
-      warnings.push('Content chunking failed');
-    }
+    // 13a. Chunking removed (ID-56.11): cocoindex is the sole content_chunks
+    // writer and re-ingests the corpus natively (TECH §1 single-path). No
+    // app-side chunk regeneration on URL ingest.
 
     // 13b. Date extraction — temporal references and expiry date
     let expiryDate: string | null = null;

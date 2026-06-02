@@ -37,7 +37,6 @@ const mocks = vi.hoisted(() => ({
   resolveContentOwnerId: vi.fn(),
   classifyContent: vi.fn(),
   generateEmbedding: vi.fn(),
-  regenerateChunks: vi.fn(),
   sentryCaptureMessage: vi.fn(),
   // S212 W2 Pattern E lifecycle helpers — mocked so the orchestrator
   // can be unit-tested without touching the createServiceClient() service
@@ -79,10 +78,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
     generateEmbedding: mocks.generateEmbedding,
   };
 });
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: mocks.regenerateChunks,
-}));
-
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: mocks.sentryCaptureMessage,
   addBreadcrumb: vi.fn(),
@@ -158,7 +153,6 @@ function setDefaultMocks() {
     classification_reasoning: 'mock',
   });
   mocks.generateEmbedding.mockResolvedValue(new Array(1024).fill(0.01));
-  mocks.regenerateChunks.mockResolvedValue({ stored: 1, errors: [] });
   // Pattern E (S212 W2): startPipelineRun returns the id the caller
   // supplied (mirrors the real DB-adopt flow). updatePipelineProgress is
   // a silent-catch helper; default to a resolved-undefined for tests.
@@ -324,7 +318,7 @@ describe('orchestrateMarkdownBatch', () => {
   // ────────── Phase 2: import ──────────
 
   describe('phase: import — full pipeline success', () => {
-    it('runs Pattern E lifecycle: at-start INSERT → mid-flight UPDATE → terminal UPDATE; inserts content_items with ingest_source=upload + publication_status; classifies, embeds, chunks', async () => {
+    it('runs Pattern E lifecycle: at-start INSERT → mid-flight UPDATE → terminal UPDATE; inserts content_items with ingest_source=upload + publication_status; classifies, embeds', async () => {
       const supabase = buildSupabaseWithSequentialInserts(['new-id-1']);
 
       const result = await orchestrateMarkdownBatch({
@@ -378,12 +372,9 @@ describe('orchestrateMarkdownBatch', () => {
         userId: SERVICE_ACCOUNT_UUID,
       });
       expect(mocks.generateEmbedding).toHaveBeenCalledTimes(1);
-      expect(mocks.regenerateChunks).toHaveBeenCalledTimes(1);
-      expect(mocks.regenerateChunks).toHaveBeenCalledWith(
-        supabase,
-        'new-id-1',
-        expect.any(String),
-      );
+      // ID-56.11: app-side regenerateChunks removed from the markdown-batch
+      // import path — cocoindex re-ingests the corpus natively. No chunk-call
+      // assertion remains.
 
       // content_items insert payload — verify required columns are set.
       const insertCalls = supabase._chain.insert.mock.calls;

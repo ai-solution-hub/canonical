@@ -243,36 +243,10 @@ export const POST = withRequestContext(async (request: NextRequest) => {
     // single authority for v1 history rows. See spec
     // docs/specs/ingest-path-consistency-spec.md §3.4 AC4.3.
 
-    // Chunking — split markdown into heading-based chunks with embeddings.
-    // Skips drafts (drafts stay private; chunks become searchable once published).
-    // Uses service client because the chunks insert needs RLS bypass.
-    // S202 §5.2 Phase 2.5 / T8b: read both columns for back-compat during the
-    // rewire window. publication_status is the new canonical column; the
-    // legacy governance_review_status='draft' read remains until Phase 1f
-    // NULLs the legacy column.
-    const isDraft =
-      publication_status === 'draft' || governance_review_status === 'draft';
-    if (!isDraft) {
-      try {
-        const { regenerateChunks } = await import('@/lib/content/chunk-store');
-        const { createServiceClient } = await import('@/lib/supabase/server');
-        const chunkServiceClient = createServiceClient();
-        const chunkResult = await regenerateChunks(
-          chunkServiceClient,
-          newItem.id,
-          content,
-        );
-        if (chunkResult.errors.length > 0) {
-          warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
-        }
-      } catch (chunkErr) {
-        logger.warn(
-          { err: chunkErr, op: 'items.create.chunking', itemId: newItem.id },
-          'Chunking failed',
-        );
-        warnings.push('Content chunking failed');
-      }
-    }
+    // Chunking removed (ID-56.11): cocoindex is the sole content_chunks writer
+    // and re-ingests the corpus natively (TECH §1 single-path). No app-side
+    // chunk regeneration on item creation; the draft-skip guard is no longer
+    // needed.
 
     // AI processing — awaited before response to avoid serverless truncation
     if (auto_embed && embeddingValue) {

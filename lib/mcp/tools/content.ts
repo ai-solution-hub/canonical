@@ -650,30 +650,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             );
           }
 
-          // Chunking — split markdown into heading-based chunks with embeddings.
-          // Uses service client to bypass RLS (the chunks table mirrors
-          // content_items permissions but a service client avoids edge cases).
-          try {
-            const { regenerateChunks } =
-              await import('@/lib/content/chunk-store');
-            const { createServiceClient } =
-              await import('@/lib/supabase/server');
-            const chunkServiceClient = createServiceClient();
-            const chunkResult = await regenerateChunks(
-              chunkServiceClient,
-              item.id,
-              args.content,
-            );
-            if (chunkResult.errors.length > 0) {
-              warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
-            }
-          } catch (chunkErr) {
-            logger.error(
-              { err: chunkErr },
-              `MCP create_content_item chunking failed for ${item.id}`,
-            );
-            warnings.push('Content chunking failed');
-          }
+          // Chunking removed (ID-56.11): cocoindex is the sole content_chunks
+          // writer and re-ingests the corpus natively (TECH §1 single-path).
+          // No app-side chunk regeneration on MCP create_content_item.
         }
 
         // Guide section suggestion — fetch classified item then match

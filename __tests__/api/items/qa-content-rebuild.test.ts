@@ -56,10 +56,6 @@ vi.mock('@/lib/content/strip-markdown', () => ({
   stripMarkdown: vi.fn((text: string) => text),
 }));
 
-vi.mock('@/lib/content/chunk-store', () => ({
-  regenerateChunks: vi.fn().mockResolvedValue({ errors: [] }),
-}));
-
 // Import route AFTER mocks are registered
 import { PATCH } from '@/app/api/items/[id]/route';
 
