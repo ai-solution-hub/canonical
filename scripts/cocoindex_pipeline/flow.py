@@ -1491,7 +1491,7 @@ async def _ingest_file_body(
             # NULLABLE by the companion migration (α retires it), so it is omitted.
             "filename": file.file_path.path.name,
             "mime_type": _resolve_source_mime(file.file_path.path),
-            "file_size": file.size,
+            "file_size": await file.size(),
             "op_id": op_id,
             # Pullmd provenance (ID-42.9 §WP-E) — nullable; only HTML/pullmd and
             # Docling paths populate them (passthrough leaves both None).
@@ -1630,32 +1630,50 @@ async def _ingest_file_body(
         _bump("postgres_upsert")  # Inv-17: one q_a_extractions row upsert
 
     # ── Stage 5 substrate: entity_mentions rows (ID-53.11 §P-3) ──────────────
-    # Each EntityMentionExtraction the LLM returned becomes one entity_mentions
-    # row. canonicalise_entity_name + extract_entity_context are SYNCHRONOUS
-    # helpers (NOT awaited — they return str). The per-doc canonical lands in
-    # canonical_name BEFORE Stage-5 cross-document resolution runs (Inv-4);
-    # Stage-5's UPDATE may later rewrite it. Pydantic `mention_confidence` maps
-    # to DB `confidence` at row-construction (Inv-15); source spans stash in the
-    # metadata jsonb (Inv-16); context_snippet is NOT NULL (Inv-17). op_id is
-    # the per-flow run stamp (Inv-7, memo-respecting). The PK is the per-DOCUMENT
-    # deterministic uuid5 (namespace + rel_path + mention index) so re-ingest
-    # UPSERTs the same row rather than inserting a duplicate.
-    for idx, mention in enumerate(entity_mentions):
-        # Inv-5 [RATIFIED-S241] stamp ({66.16}): each EntityMentionExtraction
-        # carries the flow op_id + this row's content_item_id, populated by the
-        # wrapper (not the LLM). Explicit kwargs — the daemon-thread boundary
-        # forbids a FLOW_META_CTX read ({66.19}/S294). The stamp does not change
-        # `op_id` (same flow value already on the row below) — row-preserving.
-        mention = _stamp_if_model(
-            mention, op_id=op_id, content_items_id=content_item_id
-        )
+    # Each distinct (canonical_name, entity_type) the LLM returned becomes ONE
+    # entity_mentions row for this document. canonicalise_entity_name +
+    # extract_entity_context are SYNCHRONOUS helpers (return str). The per-doc
+    # canonical lands in canonical_name BEFORE Stage-5 cross-document resolution
+    # runs (Inv-4); Stage-5's UPDATE may later rewrite it. Pydantic
+    # `mention_confidence` maps to DB `confidence` (Inv-15); source spans stash in
+    # the metadata jsonb (Inv-16); context_snippet is NOT NULL (Inv-17). op_id is
+    # the per-flow run stamp (Inv-7).
+    #
+    # {66.16}/BUG-F (S297): prod enforces UNIQUE (canonical_name, entity_type,
+    # content_item_id) — ONE row per (canonical entity, type) per document. The
+    # LLM may emit the SAME entity multiple times, so DEDUP per
+    # (per_doc_canonical, entity_type) keeping the highest-confidence mention, and
+    # seed the deterministic PK on that NATURAL key (NOT the mention index). The
+    # old `em:{rel_path}:{idx}` PK gave distinct ids to duplicate entities, so the
+    # cocoindex upsert's ON CONFLICT (id) did not absorb them and the natural-key
+    # unique constraint raised UniqueViolationError; the natural-key PK both
+    # collapses the duplicates and keeps re-ingest idempotent.
+    _em_dedup: dict[tuple[str, str], Any] = {}
+    for mention in entity_mentions:
         per_doc_canonical = canonicalise_entity_name(
             mention.entity_name, mention.entity_type
+        )
+        key = (per_doc_canonical, mention.entity_type)
+        kept = _em_dedup.get(key)
+        if kept is None or (mention.mention_confidence or 0.0) > (
+            kept.mention_confidence or 0.0
+        ):
+            _em_dedup[key] = mention
+
+    for (per_doc_canonical, entity_type), mention in _em_dedup.items():
+        # Inv-5 [RATIFIED-S241] stamp ({66.16}): the EntityMentionExtraction
+        # carries the flow op_id + this row's content_item_id (explicit kwargs —
+        # the daemon-thread boundary forbids a FLOW_META_CTX read, {66.19}/S294).
+        mention = _stamp_if_model(
+            mention, op_id=op_id, content_items_id=content_item_id
         )
         context_snippet = extract_entity_context(content_text, mention.entity_name)
         em_target.declare_row(
             row={
-                "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"em:{rel_path}:{idx}"),
+                "id": uuid.uuid5(
+                    _KH_PIPELINE_DOC_NS,
+                    f"em:{rel_path}:{per_doc_canonical}:{entity_type}",
+                ),
                 "content_item_id": content_item_id,
                 "entity_type": mention.entity_type,
                 "entity_name": mention.entity_name,
@@ -1755,7 +1773,7 @@ async def _ingest_file_body(
                 "created_by": SERVICE_ACCOUNT_UUID,
                 "name": file.file_path.path.stem,
                 "filename": file.file_path.path.name,
-                "file_size": file.size,
+                "file_size": await file.size(),
                 "mime_type": MIME_BY_SUFFIX[suffix],
                 "storage_path": rel_path,
                 "structure_path": None,
@@ -1824,7 +1842,7 @@ async def _ingest_file_body(
             "created_by": SERVICE_ACCOUNT_UUID,
             "name": form_metadata.form_title or file.file_path.path.stem,
             "filename": file.file_path.path.name,
-            "file_size": file.size,
+            "file_size": await file.size(),
             "mime_type": MIME_BY_SUFFIX[suffix],
             "storage_path": rel_path,
             "structure_path": None,  # populated by Path C later

@@ -124,8 +124,7 @@ class _FakeFile:
         self.file_path = _FakeFile._FilePath(path)
         self._path = path
 
-    @property
-    def size(self) -> int:
+    async def size(self) -> int:
         # cocoindex File.size — the byte length. Used by the ID-52 form-write
         # block for `form_templates.file_size` (NOT NULL). Derived from the
         # staged file so it is honest without the cocoindex engine.
@@ -1081,8 +1080,7 @@ class _FakeFormFile:
         self.file_path = _FakeFormFile._FilePath(Path(rel_path))
         self._disk = disk_path
 
-    @property
-    def size(self) -> int:
+    async def size(self) -> int:
         return self._disk.stat().st_size
 
     async def read(self) -> bytes:
@@ -2362,3 +2360,79 @@ class TestWorkspacePathFixes:
         assert isinstance(guarded, str)
         # Decoder round-trips.
         assert kw["decoder"]('{"a": 1}') == {"a": 1}
+
+    def test_entity_mentions_dedup_by_canonical_type(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """{66.16}/BUG-F (S297): duplicate (canonical, type) entity mentions
+        collapse to ONE entity_mentions row.
+
+        Prod enforces UNIQUE (canonical_name, entity_type, content_item_id). The
+        old em:{rel_path}:{idx} PK declared one row PER raw mention, so two
+        mentions of the same entity produced two rows with distinct ids that the
+        cocoindex ON CONFLICT (id) upsert did not absorb -> UniqueViolationError.
+        The dedup + natural-key PK collapses them.
+        """
+        import types
+
+        flow = _flow_module()
+        markdown = "# Doc\n\nAcme Ltd, and Acme Ltd again."
+
+        async def _conv(file: object) -> str:
+            return markdown
+
+        async def _cls(content_text: str):
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+                "suggested_title": "T",
+            }
+
+        async def _qa(content_text: str):
+            return {"qa_pairs": []}
+
+        def _mention(name: str, conf: float):
+            return types.SimpleNamespace(
+                entity_name=name,
+                entity_type="company",
+                mention_confidence=conf,
+                source_span_start=0,
+                source_span_end=8,
+            )
+
+        # Two mentions of the SAME entity (same name + type) -> same canonical.
+        async def _ent(content_text: str):
+            return [_mention("Acme Ltd", 0.7), _mention("Acme Ltd", 0.9)]
+
+        async def _emb(content_text: str):
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _conv)
+        monkeypatch.setattr(flow, "extract_classification", _cls)
+        monkeypatch.setattr(flow, "extract_qa_form", _qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _ent)
+        monkeypatch.setattr(flow, "embed_content_text", _emb)
+
+        src = tmp_path / "doc.md"
+        src.write_text(markdown)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            await flow.ingest_file(
+                _FakeFile(src), ci, qa, sd, em, None, None, flow_op_id=uuid.uuid4()
+            )
+
+        asyncio.run(_exercise())
+
+        # BUG-F: the two duplicate mentions collapse to exactly ONE row.
+        assert len(em.rows) == 1, (
+            f"expected 1 deduped entity_mentions row, got {len(em.rows)}"
+        )
+        assert em.rows[0]["entity_type"] == "company"
+        # The higher-confidence mention is the one kept.
+        assert em.rows[0]["confidence"] == 0.9

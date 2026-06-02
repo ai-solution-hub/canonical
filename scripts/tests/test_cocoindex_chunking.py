@@ -160,8 +160,7 @@ class _FakeFile:
         self.file_path = _FakeFile._FilePath(path)
         self._path = path
 
-    @property
-    def size(self) -> int:
+    async def size(self) -> int:
         return self._path.stat().st_size
 
     async def read(self) -> bytes:

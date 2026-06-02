@@ -115,8 +115,7 @@ class _FakeFile:
         self.file_path = _FakeFile._FilePath(Path(rel_path))
         self._disk = disk_path
 
-    @property
-    def size(self) -> int:
+    async def size(self) -> int:
         return self._disk.stat().st_size
 
     async def read(self) -> bytes:
