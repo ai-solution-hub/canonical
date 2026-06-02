@@ -96,17 +96,12 @@ from scripts.cocoindex_pipeline.extraction import (
 # flow-scope consumer. Not referenced in flow.py's body — hence the F401
 # suppression (matches the re-export convention in __main__.py / server.py).
 #
-# RELATIVE import is load-bearing: `scripts` is on sys.path under pytest
-# (pyproject pythonpath), so the same physical extraction.py lands in
-# sys.modules under BOTH `cocoindex_pipeline.extraction` AND
-# `scripts.cocoindex_pipeline.extraction`, each with its own module-level
-# objects (the hyphenated "claude-opus-4-6" literal is not interned, so the
-# two copies are NOT identical). A `.extraction` relative import resolves
-# through flow.__package__ — i.e. whichever namespace flow itself was imported
-# under — keeping `flow.ANTHROPIC_MODEL is extraction.ANTHROPIC_MODEL` true for
-# any single-namespace caller. This mirrors the `importlib.import_module(
-# f"{__package__}.flow_context")` lazy-import rationale in extraction.py.
-from .extraction import ANTHROPIC_MODEL  # noqa: F401 — re-export, single source of truth
+# Post-{67.2} the pipeline is canonicalised onto the single
+# `scripts.cocoindex_pipeline.*` namespace, so this uses the absolute import
+# form like its siblings below (the prior relative-import namespace-tolerance
+# rationale is now moot). One module copy guarantees
+# `flow.ANTHROPIC_MODEL is extraction.ANTHROPIC_MODEL`.
+from scripts.cocoindex_pipeline.extraction import ANTHROPIC_MODEL  # noqa: F401 — re-export, single source of truth
 from scripts.cocoindex_pipeline.flow_context import (
     FLOW_META_CTX,  # noqa: F401 — re-exported flow-context surface (28.13 wiring + tests)
     FlowRunMeta,
@@ -115,15 +110,15 @@ from scripts.cocoindex_pipeline.flow_context import (
     bind_stage_counter,
     bind_taxonomy_miss_counter,
     bind_workspace_manifest,
-    current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it via __package__
+    current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it lazily
 )
 
 # ID-52 Path B (form extraction). The orchestrator + per-format readers run as
 # plain awaits inside `ingest_file`'s form-write block; the workspace resolver
 # maps each ingested file's rel_path to a workspace via the flow-start manifest.
-# `current_workspace_manifest` is resolved inside `ingest_file` through the
-# `__package__`-relative flow_context module (dual-import-path hazard — same
-# rationale as `current_flow_meta`), so it is NOT imported by name here.
+# `current_workspace_manifest` is resolved inside `ingest_file` via the
+# function-local `from scripts.cocoindex_pipeline import flow_context` import
+# (same pattern as `current_flow_meta`), so it is NOT imported by name here.
 from scripts.cocoindex_pipeline.form_extractors import extract_form_structure
 from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionError
 from scripts.cocoindex_pipeline.workspace_resolver import (
@@ -757,7 +752,8 @@ EMBEDDING_DIMENSIONS = 1024
 # test files stub `cocoindex` as a bare MagicMock without registering the
 # `cocoindex.ops` subtree. A top-level import would break their collection while
 # the embedder is only ever needed at ingest call time. This mirrors the
-# `import_module(f"{__package__}.flow_context")` lazy-import idiom in this file.
+# function-local `from scripts.cocoindex_pipeline import flow_context` lazy
+# import used elsewhere in this file.
 _EMBEDDER: object | None = None
 
 
@@ -1302,15 +1298,12 @@ async def ingest_file(
         return
 
     import contextlib
-    from importlib import import_module
 
-    # Resolve flow_context via flow's OWN package namespace. flow.py may be
-    # imported under BOTH `scripts.cocoindex_pipeline.flow` (runtime) AND
-    # `cocoindex_pipeline.flow` (pytest pythonpath) — each pulls its own
-    # flow_context module object with separate ContextVar storage. Reading
-    # through `__package__` resolves to whichever namespace the caller bound the
-    # meta under (same rationale as `stamp_extraction_base` in extraction.py).
-    flow_context_module = import_module(f"{__package__}.flow_context")
+    # Canonical single-namespace import post-{67.2} (function-local to preserve
+    # the original lazy-import timing). One module copy means a single
+    # ContextVar store, so bound meta is always visible here (the prior
+    # `__package__`-relative `import_module` indirection is retired).
+    from scripts.cocoindex_pipeline import flow_context as flow_context_module
 
     # ID-66.19 — resolve the run context. PREFER the explicit args (threaded via
     # the named closure in app_main — these survive the daemon-thread dispatch).
@@ -1562,8 +1555,8 @@ async def _ingest_file_body(
         # ModuleNotFoundError under those stubs. Importing inside the chunking
         # block (only reached when a real cc_target is supplied) keeps the 7-arg
         # legacy callers — which pass cc_target=None and never enter here —
-        # import-clean, mirroring the in-body `import_module` idiom used above
-        # for flow_context.
+        # import-clean, mirroring the function-local flow_context import used
+        # above.
         from cocoindex.ops.text import RecursiveSplitter
 
         splitter = RecursiveSplitter()

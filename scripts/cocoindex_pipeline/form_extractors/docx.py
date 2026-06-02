@@ -72,29 +72,22 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 import tempfile
 
 from docx import Document
 
-# Make the top-level ``scripts/`` directory importable for the prior-art
-# helpers. They live at ``scripts/extract_tender_questions.py`` and
-# ``scripts/analyse_template.py`` — module-level scripts, not a package
-# — so we extend ``sys.path`` rather than adopt a package layout (which
-# would require editing the prior-art files, forbidden by PLAN §{52.11}).
-_SCRIPTS_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..")
-)
-if _SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPTS_DIR)
-
-from analyse_template import (  # noqa: E402  — sys.path manipulation above
+# Prior-art helpers live at ``scripts/analyse_template.py`` and
+# ``scripts/extract_tender_questions.py`` (module-level scripts) and
+# ``scripts/docx_utils.py``. Post-{67.2} the pipeline runs under the canonical
+# path with ``scripts`` as a PEP 420 namespace package, so we import them as
+# ``scripts.*`` packages directly — no ``sys.path`` manipulation required.
+from scripts.analyse_template import (
     PLACEHOLDER_PATTERNS,
     _detect_merged_cells,
     _extract_word_limit,
 )
-from docx_utils import open_document_safe  # noqa: E402
-from extract_tender_questions import _classify_header  # noqa: E402
+from scripts.docx_utils import open_document_safe
+from scripts.extract_tender_questions import _classify_header
 
 from scripts.cocoindex_pipeline.form_extractors.shared import (
     ExtractedField,

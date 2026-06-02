@@ -46,12 +46,14 @@ from scripts.cocoindex_pipeline.prompts import (
     Q_A_FORM_PROMPT,
 )
 
-# `flow_context` is imported LAZILY inside the retry hook (and inside
-# `stamp_extraction_base`) — see `_bump_flow_retry_counter` for the
-# dual-import-path rationale (test sys.path injection causes two
-# `sys.modules` entries for the same physical file, each with its own
-# ContextVar storage; lazy `importlib.import_module(f"{__package__}.…")`
-# resolves through whichever path the caller used).
+# `flow_context` is imported LAZILY (function-local) inside the retry hook,
+# `stamp_extraction_base`, and the taxonomy-miss path — preserving the original
+# lazy-import timing. Post-{67.2} the pipeline is canonicalised onto the single
+# `scripts.cocoindex_pipeline.*` namespace, so these now use the absolute
+# `from scripts.cocoindex_pipeline import flow_context` form; the prior
+# `__package__`-relative `import_module` indirection (which existed only to
+# tolerate the dual namespace) is retired. One module copy means a single
+# ContextVar store, so bound state is always visible to the caller.
 
 from tenacity import (
     AsyncRetrying,
@@ -407,14 +409,12 @@ class ClassificationExtraction(_ExtractionBase):
                 misses.append(("secondary_classification", secondary))
 
         if misses:
-            # Lazy import via `__package__` resolves to whichever sys.modules
-            # entry the caller used — same dual-import discipline as
-            # `_bump_flow_retry_counter` / `stamp_extraction_base` (test
-            # sys.path injection otherwise yields two ContextVar stores).
-            from importlib import import_module
+            # Canonical single-namespace import post-{67.2} (kept function-local
+            # to preserve the original lazy-import timing; flow_context imports
+            # neither extraction nor flow, so this is cycle-free).
+            from scripts.cocoindex_pipeline import flow_context
 
-            flow_context_module = import_module(f"{__package__}.flow_context")
-            counter = flow_context_module.current_taxonomy_miss_counter()
+            counter = flow_context.current_taxonomy_miss_counter()
             for field, value in misses:
                 if counter is not None:
                     counter.record(field=field, value=value)
@@ -533,17 +533,12 @@ def stamp_extraction_base(
     zero UUIDs when no binding is active.
     """
     if op_id is None or content_items_id is None:
-        # Lazy import via `__package__` resolves to whichever sys.modules
-        # entry the caller actually used. Without this, tests that inject
-        # via `cocoindex_pipeline.…` (sys.path[0]) and runtime imports via
-        # `scripts.cocoindex_pipeline.…` create TWO modules with separate
-        # ContextVar storage — bound metadata in one is invisible in the
-        # other (see flow_context.py module docstring on the
-        # `coco.ContextKey` global-uniqueness pitfall).
-        from importlib import import_module
+        # Canonical single-namespace import post-{67.2} (kept function-local to
+        # preserve lazy-import timing). One module copy means a single
+        # ContextVar store, so bound metadata is always visible here.
+        from scripts.cocoindex_pipeline import flow_context
 
-        flow_context_module = import_module(f"{__package__}.flow_context")
-        meta = flow_context_module.current_flow_meta()
+        meta = flow_context.current_flow_meta()
         if meta is None:
             raise RuntimeError(
                 "stamp_extraction_base() called without explicit op_id / "
@@ -670,17 +665,17 @@ def _bump_flow_retry_counter(retry_state: RetryCallState) -> None:
     """Tenacity `before_sleep` hook — bumps the flow-bound retry counter
     once per retry attempt.
 
-    Lazy import via `__package__` keeps ContextVar identity consistent
-    across the two import paths (see stamp_extraction_base for the
-    full rationale). When no counter is bound (e.g. unit tests outside
-    `bind_retry_counter`), the bump is silently skipped — the retry
-    still happens, only observability is omitted.
+    The function-local lazy import preserves the original import timing
+    (canonical single namespace post-{67.2} — see stamp_extraction_base).
+    When no counter is bound (e.g. unit tests outside `bind_retry_counter`),
+    the bump is silently skipped — the retry still happens, only
+    observability is omitted.
     """
     del retry_state  # tenacity API requires the parameter
-    from importlib import import_module
+    # Canonical single-namespace import post-{67.2} (kept function-local).
+    from scripts.cocoindex_pipeline import flow_context
 
-    flow_context_module = import_module(f"{__package__}.flow_context")
-    counter = flow_context_module.current_retry_counter()
+    counter = flow_context.current_retry_counter()
     if counter is not None:
         counter.increment()
 
