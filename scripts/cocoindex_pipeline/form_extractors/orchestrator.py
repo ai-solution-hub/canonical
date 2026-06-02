@@ -41,15 +41,18 @@ from scripts.cocoindex_pipeline.form_extractors.pdf import extract as _extract_p
 from scripts.cocoindex_pipeline.form_extractors.shared import ExtractedForm
 from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as _extract_xlsx
 
-if TYPE_CHECKING:  # pragma: no cover - typing only
-    import cocoindex.resources.file  # noqa: F401
+if TYPE_CHECKING:  # pragma: no cover — static-analysis-only
+    # FileLike resolves through the {67.4} insulation façade. The signature
+    # annotation below is a string literal, so this import is never evaluated
+    # at runtime — it only lets type-checkers and IDEs resolve `"FileLike"`.
+    from scripts.cocoindex_pipeline._coco_api import FileLike
 
 _logger = logging.getLogger(__name__)
 
 
 @coco.fn(memo=True)
 async def extract_form_structure(
-    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    file: "FileLike",
 ) -> ExtractedForm | None:
     """Path B Stage-3a — deterministic raw-format extraction (TECH §2.4).
 
