@@ -285,17 +285,34 @@ with stubbed_sys_modules(
     )
 
 
-# Pin `_StubSession` onto the captured `flow.aiohttp` stub so the webhook
+# Pin this file's aiohttp stub onto the captured `flow.aiohttp` so the webhook
 # emission helper sees our in-memory session rather than firing live HTTP. We
-# pin onto the STUB module object captured at import — never the real aiohttp
-# package — so nothing leaks into sibling tests (e.g. test_cocoindex_server.py
-# resolves the real aiohttp). If a sibling imported `flow` first under its own
-# aiohttp stub, `flow.aiohttp` is that cooperative stub (same surface); pinning
-# `ClientSession` here keeps this file's `_StubSession.last_json` capture working.
-flow.aiohttp.ClientSession = _StubSession  # type: ignore[assignment]
+# pin onto the STUB module object — never the real aiohttp package — so nothing
+# leaks into sibling tests (e.g. test_cocoindex_server.py resolves the real
+# aiohttp).
+#
+# Post ID-67.2 namespace canonicalisation `flow` is a SINGLE
+# `scripts.cocoindex_pipeline.flow` sys.modules identity shared with
+# test_cocoindex_flow_pipeline_run_webhook.py, which ALSO assigns its own
+# aiohttp stub onto `flow.aiohttp` at import time. Collection order
+# (`app_main…` < `flow_pipeline…`) means that sibling's import-time
+# `flow.aiohttp = …` would otherwise CLOBBER this module-level pin and swallow
+# this file's webhook POSTs — so the `_pin_webhook_session` autouse fixture
+# below RE-ASSERTS the pin before every test rather than relying on it
+# surviving collection.
+flow.aiohttp = _aiohttp_stub  # type: ignore[assignment]
 
 
 # ── Fast-retry fixture so transient-503 tests do not sleep the full ladder ──
+
+
+@pytest.fixture(autouse=True)
+def _pin_webhook_session() -> None:
+    """Re-assert this file's aiohttp stub on the shared canonical `flow` module
+    before each test (ID-67.2): the single sys.modules identity is shared with
+    test_cocoindex_flow_pipeline_run_webhook.py, whose own import-time pin would
+    otherwise leave its stub (not `_StubSession`) resident on `flow.aiohttp`."""
+    flow.aiohttp = _aiohttp_stub  # type: ignore[assignment]
 
 
 @pytest.fixture(autouse=True)

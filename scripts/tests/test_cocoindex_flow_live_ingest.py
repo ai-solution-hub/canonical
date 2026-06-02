@@ -52,7 +52,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 import uuid
 from pathlib import Path
 
@@ -60,11 +59,10 @@ import pytest
 
 from cocoindex import ComponentSubpath, component_subpath
 
-
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
-
+# sys.path.insert(0, _SCRIPTS_DIR) removed (ID-67.2): pyproject.toml
+# pythonpath = ["scripts", "scripts/tests"] already makes both the canonical
+# `scripts.cocoindex_pipeline.*` namespace and bare `conftest` importable; the
+# per-file insert only re-enabled the bare `cocoindex_pipeline` alias.
 from conftest import fresh_flow_module  # noqa: E402
 
 
@@ -505,7 +503,7 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
         This asserts an extractor invoked DURING ingest_file (on the worker
         thread) sees a non-None current_flow_meta() carrying the run op_id."""
         flow = _flow_module()
-        from cocoindex_pipeline.flow_context import current_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import current_flow_meta
 
         source_dir = tmp_path
         (source_dir / "doc-meta.md").write_text("# H\n\nbody")

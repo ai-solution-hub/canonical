@@ -1700,7 +1700,7 @@ def _run_ingest(
     """Drive one real ``ingest_file`` (no manifest bound → Path A only) and
     return the (content_items, source_documents) fake targets.
     """
-    from cocoindex_pipeline.flow_context import bind_flow_meta
+    from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
     ci = _FakeTarget("content_items")
     qa = _FakeTarget("q_a_extractions")
@@ -1926,7 +1926,7 @@ class TestStampExtractionBaseWiredIntoIngest:
         content_items_id / extracted_at all OMITTED) so the post-stamp assertions
         can prove the sentinels were overwritten.
         """
-        from cocoindex_pipeline.extraction import (
+        from scripts.cocoindex_pipeline.extraction import (
             ClassificationExtraction,
             EntityMentionExtraction,
             FormMetadata,
@@ -2009,8 +2009,8 @@ class TestStampExtractionBaseWiredIntoIngest:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        from cocoindex_pipeline.extraction import _UNSTAMPED_AT, _UNSTAMPED_UUID
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.extraction import _UNSTAMPED_AT, _UNSTAMPED_UUID
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown = "Acme Council MEAT evaluation case study body."
         self._stub_pydantic_extractors(flow, monkeypatch, markdown)
@@ -2089,7 +2089,7 @@ class TestStampExtractionBaseWiredIntoIngest:
         the existing dict-based write-path harness.
         """
         flow = _flow_module()
-        from cocoindex_pipeline.flow_context import bind_flow_meta
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown = "# H\n\nbody"
 
@@ -2184,7 +2184,7 @@ class TestWorkspacePathFixes:
         path) → a workspace_resolution stage error is emitted.
         """
         flow = _flow_module()
-        from cocoindex_pipeline.workspace_resolver import (
+        from scripts.cocoindex_pipeline.workspace_resolver import (
             WorkspaceManifest,
             WorkspaceMapping,
         )

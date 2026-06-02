@@ -31,6 +31,8 @@ import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # ── Path setup ──────────────────────────────────────────────────────────────
 
 # sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
@@ -170,6 +172,17 @@ with stubbed_sys_modules(
 # cached the MagicMock proxy under a different identity. Forcing the stub
 # AFTER import guarantees the helper sees `_StubSession` end-to-end.
 flow.aiohttp = _aiohttp_stub
+
+
+@pytest.fixture(autouse=True)
+def _pin_webhook_session() -> None:
+    """Re-assert this file's aiohttp stub on the shared canonical `flow` module
+    before each test (ID-67.2): post namespace canonicalisation `flow` is a
+    single `scripts.cocoindex_pipeline.flow` sys.modules identity shared with
+    test_cocoindex_app_main_retry_wiring.py, whose own per-test pin would
+    otherwise leave its stub (not this file's `_StubSession`) resident on
+    `flow.aiohttp` and swallow this file's webhook POSTs."""
+    flow.aiohttp = _aiohttp_stub
 
 
 # ============================================================================
