@@ -877,6 +877,37 @@ async def _anthropic_retry(call, /):
             return await call()
 
 
+async def _anthropic_message(client, /, **create_kwargs) -> anthropic.types.Message:
+    """Streaming wrapper around `client.messages.create(...)` — bl-222.
+
+    The non-streaming `messages.create(...)` path calls the SDK's
+    `_calculate_nonstreaming_timeout(max_tokens, ...)`, which raises
+    `ValueError: Streaming is required for operations that may take longer
+    than 10 minutes` whenever `max_tokens` exceeds the model's non-streaming
+    output cap. bl-221 raised the qa_form ceiling to 32768, which trips this
+    guard DETERMINISTICALLY, client-side, before any API call — and because
+    it is NOT one of `_RETRYABLE_ANTHROPIC_EXCEPTIONS` it propagates
+    immediately and aborts the whole cocoindex ingest (zero rows persist).
+
+    Routing through `messages.stream(...)` is exactly what the SDK mandates
+    for large `max_tokens` (and what bl-221 wanted: large form output without
+    truncation or the 10-min cap). `stream(**kwargs)` is a SYNCHRONOUS call
+    returning an `AsyncMessageStreamManager` (async context manager);
+    `get_final_message()` accumulates the streamed deltas into a fully-formed
+    `anthropic.types.Message` exposing the SAME interface the non-streaming
+    path returned — `.content[0].text` and `.stop_reason` — so the callers'
+    `_strip_code_fence`, the TypeAdapters, and `_guard_not_truncated` are
+    unchanged. Verified against anthropic 0.79.0.
+
+    Transient streaming failures surface the same
+    `InternalServerError` / `RateLimitError` / `APIConnectionError`, so
+    `_anthropic_retry` still retries them; this helper is meant to run INSIDE
+    the retry closure (`_anthropic_retry(lambda: _anthropic_message(...))`).
+    """
+    async with client.messages.stream(**create_kwargs) as stream:
+        return await stream.get_final_message()
+
+
 @coco.fn(memo=True)
 async def extract_classification(content_text: str) -> ClassificationExtraction:
     """Classification extractor — validates LLM JSON into `ClassificationExtraction`.
@@ -888,7 +919,8 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
     """
     client = anthropic.AsyncAnthropic()  # picks up ANTHROPIC_API_KEY from env
     response = await _anthropic_retry(
-        lambda: client.messages.create(
+        lambda: _anthropic_message(
+            client,
             model=ANTHROPIC_MODEL,
             max_tokens=_MAX_TOKENS_CLASSIFICATION,
             messages=[
@@ -917,7 +949,8 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
     """
     client = anthropic.AsyncAnthropic()
     response = await _anthropic_retry(
-        lambda: client.messages.create(
+        lambda: _anthropic_message(
+            client,
             model=ANTHROPIC_MODEL,
             max_tokens=_MAX_TOKENS_QA_FORM,
             messages=[
@@ -945,7 +978,8 @@ async def extract_entity_mentions(
     """
     client = anthropic.AsyncAnthropic()
     response = await _anthropic_retry(
-        lambda: client.messages.create(
+        lambda: _anthropic_message(
+            client,
             model=ANTHROPIC_MODEL,
             max_tokens=_MAX_TOKENS_ENTITY_MENTIONS,
             messages=[

@@ -86,17 +86,49 @@ class _MockMessageResponse:
         self.stop_reason = stop_reason
 
 
+class _MockStreamManager:
+    """Mimics anthropic's `AsyncMessageStreamManager` — the async context
+    manager returned (SYNCHRONOUSLY) by `client.messages.stream(**kwargs)`.
+
+    bl-222 converted the 3 extractors from non-streaming
+    `messages.create(...)` to streaming `messages.stream(...)`:
+
+        async with client.messages.stream(**kwargs) as stream:
+            return await stream.get_final_message()
+
+    `__aenter__` yields a stub `stream` whose async `get_final_message()`
+    resolves to the fully-accumulated `Message` (here `_MockMessageResponse`)
+    exposing `.content[0].text` + `.stop_reason` — the same interface the
+    extractors consumed pre-bl-222. Mirrors anthropic 0.79.0 where
+    `stream(...)` is a synchronous call returning this manager."""
+
+    def __init__(self, final_message: _MockMessageResponse):
+        self._final_message = final_message
+
+    async def __aenter__(self) -> Any:
+        stream = MagicMock(name="AsyncMessageStream")
+        stream.get_final_message = AsyncMock(return_value=self._final_message)
+        return stream
+
+    async def __aexit__(self, *exc_info: Any) -> bool:
+        return False
+
+
 def _make_mock_client(
     json_response: str, stop_reason: str = "end_turn"
 ) -> MagicMock:
-    """Return a MagicMock AsyncAnthropic instance whose messages.create()
-    awaitable resolves to a Message with `content[0].text == json_response`
-    and the given `stop_reason` (defaults to the normal `end_turn`)."""
+    """Return a MagicMock AsyncAnthropic instance whose `messages.stream()`
+    yields a streamed final Message with `content[0].text == json_response`
+    and the given `stop_reason` (defaults to the normal `end_turn`).
+
+    `messages.stream` is a PLAIN MagicMock (not AsyncMock): the real SDK
+    method is synchronous and returns the async-context-manager stream
+    manager — only `get_final_message()` (inside the manager) is awaited."""
     mock_client = MagicMock(name="AsyncAnthropic_instance")
-    mock_create = AsyncMock(
-        return_value=_MockMessageResponse(json_response, stop_reason=stop_reason)
+    final_message = _MockMessageResponse(json_response, stop_reason=stop_reason)
+    mock_client.messages.stream = MagicMock(
+        return_value=_MockStreamManager(final_message)
     )
-    mock_client.messages.create = mock_create
     return mock_client
 
 
@@ -228,13 +260,15 @@ class TestExtractClassification:
         per spec §3.1 (prompts.py + content joined with double-newline)."""
         mock_client = _make_mock_client(_classification_json())
         captured_messages: list[Any] = []
-        original_create = mock_client.messages.create
+        original_stream = mock_client.messages.stream
 
-        async def _capture_create(**kwargs: Any) -> Any:
+        # `messages.stream` is synchronous (returns the async-CM manager);
+        # capture the kwargs then delegate to the real manager factory.
+        def _capture_stream(**kwargs: Any) -> Any:
             captured_messages.append(kwargs)
-            return await original_create()
+            return original_stream(**kwargs)
 
-        mock_client.messages.create = _capture_create
+        mock_client.messages.stream = _capture_stream
         content = "The quick brown fox jumps."
         with patch(
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
@@ -321,13 +355,13 @@ class TestExtractQAForm:
 
         mock_client = _make_mock_client(_qa_form_json())
         captured: list[Any] = []
-        original_create = mock_client.messages.create
+        original_stream = mock_client.messages.stream
 
-        async def _capture(**kwargs: Any) -> Any:
+        def _capture(**kwargs: Any) -> Any:
             captured.append(kwargs)
-            return await original_create()
+            return original_stream(**kwargs)
 
-        mock_client.messages.create = _capture
+        mock_client.messages.stream = _capture
         with patch(
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
@@ -631,13 +665,13 @@ class TestMaxTokensCeiling:
 
         mock_client = _make_mock_client(_qa_form_json())
         captured: list[Any] = []
-        original_create = mock_client.messages.create
+        original_stream = mock_client.messages.stream
 
-        async def _capture(**kwargs: Any) -> Any:
+        def _capture(**kwargs: Any) -> Any:
             captured.append(kwargs)
-            return await original_create()
+            return original_stream(**kwargs)
 
-        mock_client.messages.create = _capture
+        mock_client.messages.stream = _capture
         with patch(
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
@@ -652,13 +686,13 @@ class TestMaxTokensCeiling:
 
         mock_client = _make_mock_client(_entity_mentions_json())
         captured: list[Any] = []
-        original_create = mock_client.messages.create
+        original_stream = mock_client.messages.stream
 
-        async def _capture(**kwargs: Any) -> Any:
+        def _capture(**kwargs: Any) -> Any:
             captured.append(kwargs)
-            return await original_create()
+            return original_stream(**kwargs)
 
-        mock_client.messages.create = _capture
+        mock_client.messages.stream = _capture
         with patch(
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
@@ -753,3 +787,114 @@ class TestTruncationGuard:
             result = asyncio.run(extract_qa_form("form content"))
         assert isinstance(result, QAFormExtraction)
         assert len(result.qa_pairs) == 2
+
+
+# ============================================================================
+# STREAMING FOR LARGE max_tokens (bl-222 — S301 live re-smoke regression)
+# ============================================================================
+
+
+class TestStreamingForLargeMaxTokens:
+    """bl-222: bl-221 raised qa_form's `max_tokens` to 32768. The SDK's
+    NON-streaming `messages.create(...)` calls
+    `_calculate_nonstreaming_timeout(max_tokens, ...)`, which raises
+    `ValueError: Streaming is required for operations that may take longer
+    than 10 minutes` whenever the request could exceed the 10-minute cap —
+    `expected_time = 3600 * max_tokens / 128000`. At 32768 that is 921.6 s >
+    600 s, so it fires DETERMINISTICALLY, client-side, before any API call.
+    It is NOT a retryable exception, so pre-fix it aborted the doc's whole
+    cocoindex ingest (zero rows persist) on EVERY document (extract_qa_form
+    runs unconditionally) — regressing both Path-A and Path-B.
+
+    The fix routes all 3 extractors through `messages.stream(...)`, which the
+    SDK mandates for large `max_tokens` (and which is what bl-221 wanted:
+    large form output without truncation or the 10-min cap)."""
+
+    def test_sdk_nonstreaming_guard_fires_at_qa_form_ceiling(self):
+        """FAIL-before witness: the REAL SDK guard raises the
+        'Streaming is required' ValueError at the qa_form ceiling (32768) on
+        the non-streaming path — this is exactly the hazard bl-222 removes by
+        streaming. (Locks in the regression: if a future change reverts to
+        `messages.create`, the large ceiling would trip this same guard.)
+
+        Invokes the SDK's own `_calculate_nonstreaming_timeout` directly. The
+        method uses no `self` attributes (verified against anthropic 0.79.0),
+        so we call it with a throwaway `self` to exercise the genuine guard
+        WITHOUT constructing a networked client (which would touch httpx /
+        proxy env in the sandbox)."""
+        from anthropic._base_client import BaseClient
+
+        from scripts.cocoindex_pipeline.extraction import _MAX_TOKENS_QA_FORM
+
+        with pytest.raises(ValueError, match="Streaming is required"):
+            # Second arg models the model's non-streaming output cap (None =
+            # rely purely on the >10-min expected-time check, which 32768
+            # already exceeds: 3600 * 32768 / 128000 = 921.6 s > 600 s).
+            BaseClient._calculate_nonstreaming_timeout(
+                object(), _MAX_TOKENS_QA_FORM, None
+            )
+
+    def test_qa_form_at_large_ceiling_does_not_raise_streaming_required(self):
+        """The whole point of bl-222: running `extract_qa_form` (max_tokens=
+        32768) end-to-end must NOT raise the 'Streaming is required'
+        ValueError — because the extractor now streams. The happy-path
+        streamed message validates normally."""
+        mock_client = _make_mock_client(_qa_form_json(), stop_reason="end_turn")
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            # If extract_qa_form still called messages.create, the real SDK
+            # guard would raise ValueError('Streaming is required ...') before
+            # the mock could intercept. It does not — proving streaming.
+            result = asyncio.run(extract_qa_form("large ITT form content"))
+        assert isinstance(result, QAFormExtraction)
+        # The extractor used the streaming surface, never non-streaming create.
+        assert mock_client.messages.stream.call_count == 1
+        assert mock_client.messages.stream.call_args.kwargs["max_tokens"] == 32768
+        mock_client.messages.create.assert_not_called()
+
+    def test_all_three_extractors_use_streaming_not_create(self):
+        """Uniform conversion: classification, qa_form, and entity_mentions
+        all route through `messages.stream(...)` and never touch the
+        non-streaming `messages.create(...)`."""
+        for runner, payload in (
+            (extract_classification, _classification_json("policy")),
+            (extract_qa_form, _qa_form_json()),
+            (extract_entity_mentions, _entity_mentions_json()),
+        ):
+            mock_client = _make_mock_client(payload)
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                asyncio.run(runner("doc content"))
+            assert mock_client.messages.stream.call_count == 1, runner.__name__
+            mock_client.messages.create.assert_not_called()
+
+    def test_truncation_guard_still_fires_on_streamed_max_tokens_stop(self):
+        """The {73.1} truncation guard must keep firing on the streaming
+        path: a streamed final Message whose `stop_reason == 'max_tokens'`
+        (even at the large 32768 ceiling) raises `TruncatedExtractionError`
+        BEFORE validation — `get_final_message()` carries `.stop_reason`
+        exactly as the non-streaming Message did."""
+        from scripts.cocoindex_pipeline.extraction import (
+            TruncatedExtractionError,
+            _MAX_TOKENS_QA_FORM,
+        )
+
+        truncated = (
+            '{"form_metadata": {"form_type": "itt", "form_format": "pdf"}, '
+            '"qa_pairs": [{"question_text": "Describe your'
+        )
+        mock_client = _make_mock_client(truncated, stop_reason="max_tokens")
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            with pytest.raises(TruncatedExtractionError) as exc_info:
+                asyncio.run(extract_qa_form("large form content"))
+        msg = str(exc_info.value)
+        assert "extract_qa_form" in msg
+        assert "max_tokens" in msg
+        assert str(_MAX_TOKENS_QA_FORM) in msg

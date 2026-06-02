@@ -121,10 +121,12 @@ class _MockTextBlock:
 
 
 class _MockMessageResponse:
-    """Mimics anthropic.types.Message — has a `.content` list of text blocks."""
+    """Mimics anthropic.types.Message — has a `.content` list of text blocks
+    and a `.stop_reason` (the streamed final message always carries it)."""
 
-    def __init__(self, json_text: str):
+    def __init__(self, json_text: str, stop_reason: str = "end_turn"):
         self.content = [_MockTextBlock(json_text)]
+        self.stop_reason = stop_reason
 
 
 # ── Canonical happy-path JSON fixtures ──────────────────────────────────────
@@ -236,16 +238,51 @@ def _fast_retry_wait(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _make_mock_client_with_side_effects(side_effects: list[Any]) -> MagicMock:
-    """Return a MagicMock AsyncAnthropic client whose messages.create()
-    side-effect sequence is replayed across multiple awaits.
+class _StreamManagerWithSideEffect:
+    """Async-context-manager stand-in for anthropic's
+    `AsyncMessageStreamManager` whose `get_final_message()` replays ONE
+    side-effect: raise it if it's an exception, else return it as the
+    streamed final Message.
 
-    `side_effects` items are either exceptions (raised by the AsyncMock)
-    or `_MockMessageResponse` instances (returned by the AsyncMock).
-    """
+    bl-222 converted the extractors to streaming
+    (`async with client.messages.stream(...) as stream:
+    return await stream.get_final_message()`). A transient SDK failure
+    surfaces from inside the streamed request, so the retryable exception is
+    raised from `get_final_message()` — the await point `_anthropic_retry`
+    wraps."""
+
+    def __init__(self, side_effect: Any):
+        self._side_effect = side_effect
+
+    async def __aenter__(self) -> Any:
+        side_effect = self._side_effect
+        stream = MagicMock(name="AsyncMessageStream")
+        if isinstance(side_effect, BaseException):
+            stream.get_final_message = AsyncMock(side_effect=side_effect)
+        else:
+            stream.get_final_message = AsyncMock(return_value=side_effect)
+        return stream
+
+    async def __aexit__(self, *exc_info: Any) -> bool:
+        return False
+
+
+def _make_mock_client_with_side_effects(side_effects: list[Any]) -> MagicMock:
+    """Return a MagicMock AsyncAnthropic client whose `messages.stream()`
+    side-effect sequence is replayed across the retry attempts.
+
+    `side_effects` items are either exceptions (raised from the streamed
+    `get_final_message()`) or `_MockMessageResponse` instances (returned as
+    the streamed final Message). `messages.stream` is a PLAIN MagicMock
+    (the real SDK method is synchronous and returns the stream manager); its
+    own `side_effect` cycles one manager per call so `.stream.call_count`
+    counts attempts exactly as `.create.call_count` did pre-bl-222."""
     mock_client = MagicMock(name="AsyncAnthropic_instance")
-    mock_create = AsyncMock(side_effect=side_effects)
-    mock_client.messages.create = mock_create
+    mock_client.messages.stream = MagicMock(
+        side_effect=[
+            _StreamManagerWithSideEffect(item) for item in side_effects
+        ]
+    )
     return mock_client
 
 
@@ -282,7 +319,7 @@ class TestRetryOnTransient503:
         assert result.content_type == "policy"
         assert counter.get() == 1
         # Verify the SDK was called twice (1 fail + 1 success)
-        assert mock_client.messages.create.call_count == 2
+        assert mock_client.messages.stream.call_count == 2
 
     def test_rate_limit_error_is_retried(self) -> None:
         """`anthropic.RateLimitError` is in the retry-on set."""
@@ -347,7 +384,7 @@ class TestRetryOnTransient503:
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
         assert counter.get() == 2
-        assert mock_client.messages.create.call_count == 3
+        assert mock_client.messages.stream.call_count == 3
 
 
 # ============================================================================
@@ -385,7 +422,7 @@ class TestRetryExhaustion:
             asyncio.run(_exercise())
 
         assert counter.get() == 3
-        assert mock_client.messages.create.call_count == 4
+        assert mock_client.messages.stream.call_count == 4
 
 
 # ============================================================================
@@ -416,7 +453,7 @@ class TestNoRetryOnAuthErrors:
             asyncio.run(_exercise())
 
         assert counter.get() == 0
-        assert mock_client.messages.create.call_count == 1
+        assert mock_client.messages.stream.call_count == 1
 
     def test_bad_request_error_propagates_without_retry(self) -> None:
         """`anthropic.BadRequestError` is NOT in the retry-on set —
@@ -438,7 +475,7 @@ class TestNoRetryOnAuthErrors:
             asyncio.run(_exercise())
 
         assert counter.get() == 0
-        assert mock_client.messages.create.call_count == 1
+        assert mock_client.messages.stream.call_count == 1
 
 
 # ============================================================================
@@ -471,7 +508,7 @@ class TestWithoutRetryCounterBinding:
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
-        assert mock_client.messages.create.call_count == 2
+        assert mock_client.messages.stream.call_count == 2
 
 
 # ============================================================================

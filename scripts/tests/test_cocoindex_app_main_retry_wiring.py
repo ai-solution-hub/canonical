@@ -352,10 +352,12 @@ class _MockTextBlock:
 
 
 class _MockMessageResponse:
-    """Mimics anthropic.types.Message — has `.content` list of text blocks."""
+    """Mimics anthropic.types.Message — has `.content` list of text blocks
+    and a `.stop_reason` (the streamed final message always carries it)."""
 
-    def __init__(self, json_text: str):
+    def __init__(self, json_text: str, stop_reason: str = "end_turn"):
         self.content = [_MockTextBlock(json_text)]
+        self.stop_reason = stop_reason
 
 
 # bl-220 / ID-74: stamp-free core fixture — no op_id / content_items_id /
@@ -385,10 +387,39 @@ def _internal_server_error() -> anthropic.InternalServerError:
     return _make_anthropic_error(anthropic.InternalServerError)  # type: ignore[return-value]
 
 
+class _StreamManagerWithSideEffect:
+    """Async-CM stand-in for anthropic's `AsyncMessageStreamManager` whose
+    `get_final_message()` replays ONE side-effect — raise if exception, else
+    return as the streamed final Message. bl-222 streamed the extractors, so
+    a transient failure surfaces from `get_final_message()` (the await point
+    `_anthropic_retry` wraps)."""
+
+    def __init__(self, side_effect: Any):
+        self._side_effect = side_effect
+
+    async def __aenter__(self) -> Any:
+        side_effect = self._side_effect
+        stream = MagicMock(name="AsyncMessageStream")
+        if isinstance(side_effect, BaseException):
+            stream.get_final_message = AsyncMock(side_effect=side_effect)
+        else:
+            stream.get_final_message = AsyncMock(return_value=side_effect)
+        return stream
+
+    async def __aexit__(self, *exc_info: Any) -> bool:
+        return False
+
+
 def _make_mock_client_with_side_effects(side_effects: list[Any]) -> MagicMock:
+    # bl-222: extractors stream now, so mock `messages.stream` (synchronous,
+    # returns the async-CM manager) rather than `messages.create`. One
+    # manager per call → `.stream.call_count` counts attempts as before.
     mock_client = MagicMock(name="AsyncAnthropic_instance")
-    mock_create = AsyncMock(side_effect=side_effects)
-    mock_client.messages.create = mock_create
+    mock_client.messages.stream = MagicMock(
+        side_effect=[
+            _StreamManagerWithSideEffect(item) for item in side_effects
+        ]
+    )
     return mock_client
 
 
@@ -597,7 +628,7 @@ class TestRetryBumpFiresInsideAppMainBindingScope:
             f"retries actually fired."
         )
         # Sanity: SDK called twice (1 fail + 1 success).
-        assert mock_client.messages.create.call_count == 2
+        assert mock_client.messages.stream.call_count == 2
 
     def test_webhook_payload_carries_retry_count_after_binding_scope_bump(
         self,
@@ -722,7 +753,7 @@ class TestNoRetryHappyPathPreserved:
             f"correctly."
         )
         # SDK called exactly once (no retry).
-        assert mock_client.messages.create.call_count == 1
+        assert mock_client.messages.stream.call_count == 1
 
 
 # ============================================================================
