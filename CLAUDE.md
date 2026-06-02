@@ -89,12 +89,13 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 
 ## Deployment
 
-- **Platform:** Vercel (Next.js app) + Cloud Run
+- **Platform:** Vercel (Next.js app). Ingestion pipeline runs on-prem (IONOS VPS +
+  Coolify).
 - **Production URL:** https://kh.client.example
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
-- **Cloud Run projects:** `kh-prod-494815` (main branch) + `kh-staging-494815`. Auth via
-  WIF. Deploy: `.github/workflows/cloud-run-deploy.yml`. Runbook:
-  `docs/runbooks/cloud-run-phase-1-handover.md`.
+- **Pipeline deploy:** Cloud Run is fully retired (S298) — the ingestion pipeline now
+  deploys to an IONOS VPS via Coolify (`.github/workflows/onprem-deploy.yml`). Runbook:
+  `docs/runbooks/onprem-b1-deploy.md`.
 - **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
 - **GitHub Environments:** `Production` + `Staging` (case-sensitive). Setup:
   `docs/runbooks/github-environments.md`.
@@ -106,10 +107,9 @@ PR-blocking CI (`ci.yml`) runs 7 jobs in parallel: `quality-precheck`, `quality-
 matrix), `integration`. Triggers: PR (any base) + push on `main`/`staging`. Draft PRs skip
 CI. Full topology + per-step failure-mode table: `docs/runbooks/ci.md`.
 
-Side workflows: `cloud-run-deploy.yml` (Python pipeline), `migration-revoke-guard.yml`
-(anon-EXECUTE lint), `schema-parity.yml` (prod ↔ staging diff),
-`staging-reference-refresh.yml`, `supabase-advisors.yml`, `taxonomy-sync.yml`,
-`task-view-vendor-drift.yml` (non-blocking re-vendor reminder when
+Side workflows: `migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml`
+(prod ↔ staging diff), `staging-reference-refresh.yml`, `supabase-advisors.yml`,
+`taxonomy-sync.yml`, `task-view-vendor-drift.yml` (non-blocking re-vendor reminder when
 `lib/validation/{task-list,roadmap,backlog}-schema.ts` or `work-status.ts` change).
 
 `staging` branch is deploy-only (no long-lived worktree) — used for staging-mirror sync
