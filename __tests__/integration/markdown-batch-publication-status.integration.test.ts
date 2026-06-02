@@ -351,8 +351,10 @@ afterAll(async () => {
     .from('content_history')
     .delete()
     .in('content_item_id', seededIds);
-  // `content_chunks` are emitted by `regenerateChunks` in the orchestrator —
-  // delete them too. Best-effort: if the table doesn't exist for any reason,
+  // `content_chunks` are now written exclusively by the cocoindex pipeline
+  // (the sole content_chunks writer post-{56.11}; the app-side chunker was
+  // retired). This best-effort cleanup remains to sweep any stray rows for the
+  // seeded items. Best-effort: if the table doesn't exist for any reason,
   // continue.
   try {
     await serviceClient
