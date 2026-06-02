@@ -1,4 +1,4 @@
-# deploy/onprem/docker-compose.yaml
+# deploy/coolify/docker-compose.production.yaml
 #
 # ID-66.8: Co-location compose — cocoindex + pullmd + Playwright + Trafilatura
 #           on one Coolify-managed compose network.

@@ -1,7 +1,7 @@
 # deploy/coolify/docker-compose.staging.yaml
 #
 # ID-66.21: Staging Coolify env — a staging MIRROR of the prod on-prem co-location
-#           compose (deploy/onprem/docker-compose.yaml). cocoindex + pullmd +
+#           compose (deploy/coolify/docker-compose.production.yaml). cocoindex + pullmd +
 #           Playwright + Trafilatura on one Coolify-managed compose network,
 #           targeting the STAGING Supabase branch.
 #
@@ -15,7 +15,7 @@
 #   corpus or the prod Supabase project. It is byte-for-byte the prod compose with
 #   three deliberate divergences (see "STAGING DIVERGENCES" below).
 #
-# STAGING DIVERGENCES from deploy/onprem/docker-compose.yaml (the prod source):
+# STAGING DIVERGENCES from deploy/coolify/docker-compose.production.yaml (the prod source):
 #   1. Supabase target = the STAGING branch `turayklvaunphgbgscat` (NOT prod
 #      `rovrymhhffssilaftdwd`). Wired purely via Coolify env (SUPABASE_* / COCOINDEX_DB_DSN);
 #      NO ref is hardcoded here — the operator pastes staging-branch values per the runbook.
@@ -45,7 +45,7 @@
 #     tag ahead of prod to validate it before the prod stack adopts it.
 #   pullmd — aeternalabshq/pullmd:2.0.0 (concrete version, NOT :latest).
 #   playwright / trafilatura — pinned to the same :2 manifest-list digests as prod;
-#     re-pin in lockstep with deploy/onprem/docker-compose.yaml when the upstream :2
+#     re-pin in lockstep with deploy/coolify/docker-compose.production.yaml when the upstream :2
 #     tag is bumped.
 
 name: kh-onprem-staging
@@ -149,7 +149,7 @@ services:
   # pullmd — HTML→Markdown extractor (AGPL; separate service for the licence boundary —
   # the AGPL binary never lands inside the MIT+proprietary cocoindex image).
   #
-  # Mirrors deploy/onprem/docker-compose.yaml's pullmd verbatim except for the staging
+  # Mirrors deploy/coolify/docker-compose.production.yaml's pullmd verbatim except for the staging
   # service/container name. Port 3000 is the compose-internal alias; no external port
   # exposure needed (cocoindex-staging reaches it via http://pullmd-staging:3000).
   # ----------------------------------------------------------------------------

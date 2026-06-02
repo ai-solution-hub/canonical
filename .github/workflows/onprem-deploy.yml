@@ -71,7 +71,7 @@ on:
     paths:
       - "scripts/**/*.py"
       - "requirements.txt"
-      - "deploy/onprem/**"
+      - "deploy/coolify/**"
 
 permissions:
   contents: read
