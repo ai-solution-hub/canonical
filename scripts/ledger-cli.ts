@@ -517,6 +517,121 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
   return { ok: true, value: record };
 }
 
+// ── S299 F7 field-edit value-input layer ─────────────────────────────────────
+
+type FieldValueResult =
+  | { ok: true; raw: string }
+  | { ok: false; result: CliResult };
+
+/**
+ * S299 friction F7 — resolve the RAW STRING value of a field-VALUE edit
+ * (`update-task` / `update-subtask` / `update-roadmap` / `update-backlog`) from
+ * either:
+ *
+ *   1. `--file <path>` (`-` = stdin)  — the body is read verbatim as the field
+ *                                        value (NO JSON.parse — the caller's
+ *                                        `coerceFieldValue` still applies the
+ *                                        field-type-aware coercion downstream,
+ *                                        so an array/number field passed via a
+ *                                        file is parsed exactly as a positional
+ *                                        value would be). A trailing newline
+ *                                        from `cat`/heredoc/editor save is
+ *                                        stripped so `--file body.md` and the
+ *                                        equivalent inline value coerce
+ *                                        identically.
+ *   2. positional `<value>`           — the back-compat path (unchanged).
+ *
+ * `--file` WINS when both are present (an explicit file body is the deliberate
+ * large-body path the friction asked for; a stray positional is ignored rather
+ * than silently concatenated). A missing file / unreadable stdin surfaces
+ * `input-read-failed` (exit non-zero) — NEVER a silent no-op (the F7 footgun).
+ * When NEITHER source is supplied, returns `missing-args` so a malformed
+ * invocation exits non-zero with a clear message instead of no-op'ing.
+ *
+ * The record-CREATING commands already accept `--file`/stdin for the whole
+ * record; this brings the field-EDIT commands to parity for the field value,
+ * so a long multi-clause description need not be inlined (where a shell
+ * mis-parse silently dropped it this session).
+ */
+function readFieldValue(
+  subcommand: string,
+  file: string | undefined,
+  positionalValue: string | undefined,
+): FieldValueResult {
+  if (file !== undefined) {
+    let text: string;
+    try {
+      text =
+        file === '-' ? readFileSync(0, 'utf8') : readFileSync(file, 'utf8');
+    } catch (err) {
+      return {
+        ok: false,
+        result: cliErr(subcommand, 'input-read-failed', `${file}: ${msg(err)}`),
+      };
+    }
+    // Strip a single trailing newline (the universal artefact of `cat`, a
+    // heredoc, or an editor save) so a file body coerces byte-identically to
+    // the same value supplied inline. Internal newlines (multi-line bodies) are
+    // preserved verbatim.
+    const raw = text.endsWith('\n') ? text.slice(0, -1) : text;
+    return { ok: true, raw };
+  }
+  if (positionalValue != null) {
+    return { ok: true, raw: positionalValue };
+  }
+  return {
+    ok: false,
+    result: cliErr(
+      subcommand,
+      'missing-args',
+      `${subcommand} <id> <field> <value> — supply the value positionally or via --file <path> (- = stdin)`,
+    ),
+  };
+}
+
+/**
+ * S299 friction F7 — guard a field-edit invocation against a shell mis-parse.
+ *
+ * `update-*  <id> <field> <value>` accepts the value as a SINGLE positional. A
+ * shell that mis-splits a long, multi-clause, double-quoted value (the ~1KB
+ * description that silently dropped this session) lands EXTRA positionals after
+ * `<value>`; the old code used only `p[2]` and IGNORED the rest, so the write
+ * persisted a truncated value with NO error — the F7 footgun. This guard makes
+ * the arity explicit:
+ *
+ *   - `--file` set  → the value comes from the file, so EXACTLY `<id> <field>`
+ *     are positional (2). A positional value alongside `--file` is a mistake.
+ *   - `--file` unset → EXACTLY `<id> <field> <value>` are positional (3).
+ *
+ * Anything longer is rejected with `unexpected-args` (exit non-zero) and a hint
+ * to use `--file` for a large/multi-word body — never a silent truncated write.
+ * `dottedExtra` lets the subtask editor (whose first positional already encodes
+ * `taskId.subId`) reuse the same 2/3 arity (the dotted id is one positional).
+ */
+function checkFieldEditArity(
+  subcommand: string,
+  positionals: string[],
+  file: string | undefined,
+): { ok: true } | { ok: false; result: CliResult } {
+  const max = file !== undefined ? 2 : 3;
+  if (positionals.length > max) {
+    const extra = positionals.slice(max);
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'unexpected-args',
+        `${positionals.length} positional args (expected ${max}); ` +
+          `unexpected: [${extra.map((a) => JSON.stringify(a)).join(', ')}]. ` +
+          `A multi-word or large value must be a single quoted arg OR supplied ` +
+          `via --file <path> (- = stdin) — this usually means the shell ` +
+          `mis-split an unquoted value.`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
 /**
  * ID-35.15 CLI-layer auto-id (RESEARCH §2.2). Computes `max(existingIds) + 1`
  * for a collection, returning the correct primitive TYPE:
@@ -797,7 +912,10 @@ const SUBCOMMAND_HELP: Record<
       'schema [ledger|recordKind] — print field names + types + budgets',
   },
   'flip-task': {
-    synopsis: 'flip-task <taskId> <status> — set a Task status',
+    synopsis:
+      'flip-task <taskId> <status> — set a Task status (the CANONICAL verb ' +
+      'for status; `update-task <id> status <value>` is the equivalent ' +
+      'generic-editor path — S299 F5).',
     flags: '--whole-file --dry-run --pretty --no-regen-mirrors',
     kinds: ['task'],
   },
@@ -809,28 +927,44 @@ const SUBCOMMAND_HELP: Record<
     kinds: ['subtask'],
   },
   'update-task': {
-    synopsis: 'update-task <taskId> <field> <value> — edit a Task field',
-    flags: '--whole-file --force --dry-run --pretty --no-regen-mirrors',
+    synopsis:
+      'update-task <taskId> <field> <value | --file <path>> — edit a Task ' +
+      'field. For the `status` field, `flip-task <taskId> <status>` is the ' +
+      'CANONICAL verb (S299 F5) — `update-task <id> status <value>` is the ' +
+      'equivalent generic-editor path and still works, but prefer flip-task.',
+    flags:
+      'value: positional <value> | --file <path> (- = stdin) for a large/' +
+      'multi-line body (S299 F7); --whole-file --force --dry-run --pretty ' +
+      '--no-regen-mirrors',
     kinds: ['task'],
   },
   'update-subtask': {
     synopsis:
-      'update-subtask <taskId.subId> <field> <value> — edit a Subtask field',
-    flags: '--whole-file --force --dry-run --pretty --no-regen-mirrors',
+      'update-subtask <taskId.subId> <field> <value | --file <path>> — edit a Subtask field',
+    flags:
+      'value: positional <value> | --file <path> (- = stdin) for a large/' +
+      'multi-line body (S299 F7); --whole-file --force --dry-run --pretty ' +
+      '--no-regen-mirrors',
     kinds: ['subtask'],
   },
   'update-roadmap': {
-    synopsis: 'update-roadmap <themeId> <field> <value> — edit a Theme field',
+    synopsis:
+      'update-roadmap <themeId> <field> <value | --file <path>> — edit a Theme field',
     flags:
-      '--whole-file --force --dry-run --pretty --no-regen-mirrors ' +
-      '--append (notes field only — concatenate newline-joined)',
+      'value: positional <value> | --file <path> (- = stdin) for a large/' +
+      'multi-line body (S299 F7); --whole-file --force --dry-run --pretty ' +
+      '--no-regen-mirrors --append (notes field only — concatenate ' +
+      'newline-joined)',
     kinds: ['theme'],
   },
   'update-backlog': {
-    synopsis: 'update-backlog <itemId> <field> <value> — edit a backlog field',
+    synopsis:
+      'update-backlog <itemId> <field> <value | --file <path>> — edit a backlog field',
     flags:
-      '--whole-file --force --dry-run --pretty --no-regen-mirrors ' +
-      '--append (notes field only — concatenate newline-joined)',
+      'value: positional <value> | --file <path> (- = stdin) for a large/' +
+      'multi-line body (S299 F7); --whole-file --force --dry-run --pretty ' +
+      '--no-regen-mirrors --append (notes field only — concatenate ' +
+      'newline-joined)',
     kinds: ['item'],
   },
   'append-journal': {
@@ -901,8 +1035,12 @@ const SUBCOMMAND_HELP: Record<
       'promote <backlogId> <taskJson | --file …> — atomically promote a backlog item to a Task',
     flags:
       'input (task body): positional JSON | --file <path> (- = stdin) | named ' +
-      'flags (--title --description --status --priority …); the caller supplies ' +
-      'a COMPLETE task record (no auto-id — task.id comes from the body). ' +
+      'flags (--title --description --status --priority …); supply only the ' +
+      'meaningful fields (id/title/description/status/priority/dependencies + ' +
+      'optional effort_estimate) — the optional nullable/array fields auto-fill ' +
+      '(owner/priority_note/status_note→null, cross_doc_links/session_refs/' +
+      'commit_refs→[]) and updatedAt is auto-stamped (F1, parity with open-task). ' +
+      'NO auto-id — task.id comes from the body. ' +
       '--whole-file --force --dry-run --pretty --no-regen-mirrors ' +
       '--capability-theme <themeId> (bind the new Task to a roadmap theme — ' +
       'sets task.capability_theme + appends task id to theme.linked_tasks[])',
@@ -1038,11 +1176,11 @@ function emit(result: CliResult, pretty: boolean): never {
  */
 function mirrorReminderFor(reason: MirrorStaleReason): string {
   if (reason === 'suppressed') {
-    return (
-      'ℹ mirror regen suppressed (--no-regen-mirrors). ' +
-      'Run `bash scripts/regen-mirrors.sh` before committing — ' +
-      'CI ledger-mirror-parity gates on parity.\n'
-    );
+    // S299 F6 — ONE concise line. Across a ~30-op batch the per-call reminder
+    // was ~3 visual lines × 30 = ~90 lines of identical noise; this collapses
+    // it to a single terse line that still names the fix (run regen-mirrors.sh
+    // before committing) and the flag that suppressed it.
+    return 'ℹ mirror regen suppressed (--no-regen-mirrors) — run `bash scripts/regen-mirrors.sh` before committing.\n';
   }
   return (
     '⚠ mirror regen FAILED — run `bash scripts/regen-mirrors.sh` manually ' +
@@ -2327,13 +2465,24 @@ async function run(args: ParsedArgs): Promise<CliResult> {
 
     // ── ID-35.20 task field editor (RESEARCH §4) ────────────────────────────
     case 'update-task': {
-      const [taskId, field, value] = p;
-      if (!taskId || !field || value == null)
+      const [taskId, field] = p;
+      if (!taskId || !field)
         return cliErr(
           'update-task',
           'missing-args',
-          'update-task <taskId> <field> <value>',
+          'update-task <taskId> <field> <value | --file <path>>',
         );
+      // S299 F7 — reject a shell-mis-parsed invocation (extra positionals)
+      // instead of silently using only `p[2]` and dropping the rest. A long
+      // multi-word value MUST come via `--file` (or be a single quoted arg).
+      const arity = checkFieldEditArity('update-task', p, flags.file);
+      if (!arity.ok) return arity.result;
+      // S299 F7 — the value comes from `--file <path>` (- = stdin) OR the
+      // positional, mirroring the record-creating commands. A missing file
+      // exits non-zero (input-read-failed), never a silent no-op.
+      const valueRes = readFieldValue('update-task', flags.file, p[2]);
+      if (!valueRes.ok) return valueRes.result;
+      const value = valueRes.raw;
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
       const descriptor: CollectionDescriptor = { collection: 'tasks' };
@@ -2348,6 +2497,20 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const changedTask =
         loaded.detected.kind === 'task-list'
           ? loaded.detected.data.tasks.find((t) => t.id === taskId)
+          : undefined;
+      // S299 F5 — `flip-task` is the dedicated, canonical verb for setting a
+      // Task status; `update-task <id> status <value>` is the equivalent
+      // generic-editor path (the write is byte-identical). Both are kept
+      // (back-compat), but a non-fatal hint nudges the operator to the canonical
+      // verb so the redundancy stops inviting the wrong guess. The hint is a
+      // soft warning (stderr), never a rejection — the edit still succeeds.
+      const statusHint =
+        field === 'status'
+          ? [
+              `hint: \`flip-task ${taskId} ${value}\` is the canonical verb for ` +
+                `setting a Task status (update-task status is the equivalent ` +
+                `generic-editor path).`,
+            ]
           : undefined;
       return commitMutation({
         subcommand: 'update-task',
@@ -2378,6 +2541,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
             }
           : undefined,
         force: flags.force,
+        // S299 F5 — surface the flip-task canonical-verb hint (status field only).
+        extraWarnings: statusHint,
         // ID-35.30: scope discipline warnings to the touched task.
         warningScope: { taskId },
       });
@@ -2446,18 +2611,28 @@ async function run(args: ParsedArgs): Promise<CliResult> {
 
     // ── ID-35.19 subtask field editor (RESEARCH §2.1) ───────────────────────
     case 'update-subtask': {
-      const [dottedId, field, value] = p;
-      if (!dottedId || !field || value == null)
+      const [dottedId, field] = p;
+      if (!dottedId || !field)
         return cliErr(
           'update-subtask',
           'missing-args',
-          'update-subtask <taskId.subId> <field> <value>',
+          'update-subtask <taskId.subId> <field> <value | --file <path>>',
         );
+      // S299 F7 — reject a shell-mis-parsed invocation (extra positionals). The
+      // dotted `taskId.subId` is a SINGLE positional, so the 2/3 arity matches
+      // the other field editors.
+      const arity = checkFieldEditArity('update-subtask', p, flags.file);
+      if (!arity.ok) return arity.result;
       // ID-65.8 — dotted id parse + bad-id guard factored into the shared
       // helper (no behaviour change — update-subtask was already dotted).
       const parsed = parseDottedSubtaskId('update-subtask', dottedId);
       if (!parsed.ok) return parsed.result;
       const { taskId, subId } = parsed;
+      // S299 F7 — resolve the value from --file/stdin or the positional, so a
+      // large subtask description/testStrategy body need not be inlined.
+      const valueRes = readFieldValue('update-subtask', flags.file, p[2]);
+      if (!valueRes.ok) return valueRes.result;
+      const value = valueRes.raw;
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
       // Field-edit on a subtask: the addressed task's subtask id-set is
@@ -2870,13 +3045,21 @@ async function run(args: ParsedArgs): Promise<CliResult> {
 
     // ── backlog field edit ───────────────────────────────────────────────────
     case 'update-backlog': {
-      const [itemId, field, value] = p;
-      if (!itemId || !field || value == null)
+      const [itemId, field] = p;
+      if (!itemId || !field)
         return cliErr(
           'update-backlog',
           'missing-args',
-          'update-backlog <itemId> <field> <value>',
+          'update-backlog <itemId> <field> <value | --file <path>>',
         );
+      // S299 F7 — reject a shell-mis-parsed invocation (extra positionals).
+      const arity = checkFieldEditArity('update-backlog', p, flags.file);
+      if (!arity.ok) return arity.result;
+      // S299 F7 — resolve the value from --file/stdin or the positional, so a
+      // large notes/description body need not be inlined.
+      const valueRes = readFieldValue('update-backlog', flags.file, p[2]);
+      if (!valueRes.ok) return valueRes.result;
+      const value = valueRes.raw;
       // ID-35.39 Item C: `--append` is only meaningful on the `notes` field
       // (the only nullable-string field on backlog items where concatenation
       // has well-defined semantics). Reject early on other fields so a misuse
@@ -2961,13 +3144,20 @@ async function run(args: ParsedArgs): Promise<CliResult> {
 
     // ── ID-35.20 roadmap field editor (RESEARCH §4 — no editor existed) ──────
     case 'update-roadmap': {
-      const [themeId, field, value] = p;
-      if (!themeId || !field || value == null)
+      const [themeId, field] = p;
+      if (!themeId || !field)
         return cliErr(
           'update-roadmap',
           'missing-args',
-          'update-roadmap <themeId> <field> <value>',
+          'update-roadmap <themeId> <field> <value | --file <path>>',
         );
+      // S299 F7 — reject a shell-mis-parsed invocation (extra positionals).
+      const arity = checkFieldEditArity('update-roadmap', p, flags.file);
+      if (!arity.ok) return arity.result;
+      // S299 F7 — resolve the value from --file/stdin or the positional.
+      const valueRes = readFieldValue('update-roadmap', flags.file, p[2]);
+      if (!valueRes.ok) return valueRes.result;
+      const value = valueRes.raw;
       // ID-35.39 Item C: `--append` is only meaningful on `notes` (the only
       // nullable-string field on themes). Reject early on other fields.
       if (flags.append && field !== 'notes') {
@@ -3386,6 +3576,33 @@ async function promote(
   // Phase 1: validate everything (no bytes touched). ID-65.7 — the body is
   // already resolved + JSON-parsed by the dispatch via `readRecordInput`; no
   // `parseJsonArg` call here anymore. `taskRecord` is the parsed value.
+
+  // S299 friction F1 — promote AUTO-FILLS the optional Task fields the caller
+  // would otherwise have to supply by hand, reaching parity with `open-task`
+  // (which already runs `withCreateDefaults` via the create-record arm). When
+  // the body is a JSON object we merge the structural defaults UNDER it
+  // (nullable→null: owner/priority_note/status_note; array→[]: cross_doc_links/
+  // session_refs/commit_refs; status/dependencies/subtasks/effort_estimate) AND
+  // auto-stamp `updatedAt` (the ISO timestamp `withCreateDefaults` injects when
+  // absent), so the caller supplies only the meaningful fields
+  // (id/title/description/status/priority/dependencies + optional
+  // effort_estimate). Supplied fields ALWAYS win (defaults fill absent keys
+  // only), so a COMPLETE body round-trips byte-for-byte verbatim — the
+  // promote-input parity test asserts this. Unlike `open-task`, promote does NOT
+  // auto-id (its contract: `task.id` comes from the body); a missing id still
+  // fails the insertRecord Zod gate. A non-object body (positional JSON that is
+  // an array/scalar) is left untouched so insertRecord's parse surfaces the same
+  // schema-error as before (back-compat).
+  if (
+    taskRecord !== null &&
+    typeof taskRecord === 'object' &&
+    !Array.isArray(taskRecord)
+  ) {
+    taskRecord = withCreateDefaults(
+      'task',
+      taskRecord as Record<string, unknown>,
+    );
+  }
 
   // ID-35.39 Item A: when `--capability-theme` is set we patch the task record
   // BEFORE schema-validation insert so the `capability_theme` back-link field

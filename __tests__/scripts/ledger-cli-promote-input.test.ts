@@ -145,8 +145,10 @@ describe('ledger-cli — promote input modes (ID-65.7)', () => {
     const fromFile = read('task-list').tasks.find(
       (t: { id: string }) => t.id === '9973',
     );
-    // The inserted record equals the supplied (complete) body verbatim — the
-    // resolver does not mutate it (no withCreateDefaults/auto-id).
+    // The inserted record equals the supplied (complete) body verbatim. S299
+    // F1 runs withCreateDefaults on promote, but defaults only fill ABSENT keys
+    // — a COMPLETE body keeps every supplied value (and there is no auto-id, so
+    // task.id is the body's id). See the dedicated F1 block below.
     expect(fromFile).toEqual(validTaskRecord('9973'));
   });
 
@@ -200,12 +202,13 @@ describe('ledger-cli — promote input modes (ID-65.7)', () => {
   });
 
   it('named flags reach the resolution path (sparse body → schema-error, not crash)', async () => {
-    // Named flags resolve into a record per {35.15}; promote applies NO
-    // withCreateDefaults/auto-id (its contract: caller supplies a COMPLETE
-    // record), so a scalar-only named-flags body is incomplete and the
-    // insertRecord Zod parse rejects it. The point under test: the named-flags
-    // INPUT MODE is reached (we get a structured schema-error envelope, never
-    // a missing-args/crash), proving promote routes through readRecordInput.
+    // Named flags resolve into a record per {35.15}. S299 F1 runs
+    // withCreateDefaults on promote (filling the optional structural fields),
+    // but promote has NO auto-id — so this scalar-only named-flags body is still
+    // incomplete (no task.id) and the insertRecord Zod parse rejects it. The
+    // point under test: the named-flags INPUT MODE is reached (we get a
+    // structured schema-error envelope, never a missing-args/crash), proving
+    // promote routes through readRecordInput.
     const backlogId = firstBacklogId();
     const r = await run(
       args('promote', [backlogId], {
@@ -254,6 +257,125 @@ describe('ledger-cli — promote input modes (ID-65.7)', () => {
     const r = await run(args('promote', [backlogId, '{ not json']));
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('invalid-json-arg');
+  });
+});
+
+// ── S299 friction F1 — promote auto-fills the optional Task fields ────────────
+// Before F1 the caller had to hand-supply updatedAt + owner/priority_note/
+// status_note (null) + cross_doc_links/session_refs/commit_refs ([]) or promote
+// rejected with schema-error. F1 reaches parity with `open-task` (which already
+// runs withCreateDefaults): the caller supplies ONLY the meaningful fields and
+// promote fills the rest + auto-stamps updatedAt. A COMPLETE body still
+// round-trips verbatim (defaults fill ABSENT keys only).
+
+/** ONLY the meaningful fields — the F1 minimal promote body. */
+function meaningfulOnlyTask(id: string) {
+  return {
+    id,
+    title: 'F1 minimal promote',
+    description: 'Only the meaningful fields supplied.',
+    status: 'pending',
+    priority: 'should',
+    dependencies: [],
+    subtasks: [],
+  };
+}
+
+describe('ledger-cli — promote auto-fills optional fields (S299 F1)', () => {
+  it('promote --dry-run succeeds with ONLY the meaningful fields (was schema-error pre-F1)', async () => {
+    const backlogId = firstBacklogId();
+    const r = await run(
+      args('promote', [backlogId, JSON.stringify(meaningfulOnlyTask('9961'))], {
+        dryRun: true,
+      }),
+    );
+    // The exact F1 acceptance: a minimal body that previously needed the 7
+    // hand-supplied fields now validates and reports the dry-run delta.
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.result).toMatchObject({
+        dryRun: true,
+        newTaskId: '9961',
+        removedBacklogId: backlogId,
+      });
+    }
+  });
+
+  it('a real promote with ONLY the meaningful fields fills nullable→null, array→[], and stamps updatedAt', async () => {
+    const backlogId = firstBacklogId();
+    const r = await run(
+      args('promote', [backlogId, JSON.stringify(meaningfulOnlyTask('9962'))]),
+    );
+    expect(r.ok).toBe(true);
+    const t = read('task-list').tasks.find(
+      (x: { id: string }) => x.id === '9962',
+    );
+    expect(t).toBeDefined();
+    // nullable→null
+    expect(t.owner).toBeNull();
+    expect(t.priority_note).toBeNull();
+    expect(t.status_note).toBeNull();
+    expect(t.effort_estimate).toBeNull();
+    // array→[]
+    expect(t.cross_doc_links).toEqual([]);
+    expect(t.session_refs).toEqual([]);
+    expect(t.commit_refs).toEqual([]);
+    // updatedAt auto-stamped to a non-empty ISO string
+    expect(typeof t.updatedAt).toBe('string');
+    expect(t.updatedAt.length).toBeGreaterThan(0);
+    expect(() => new Date(t.updatedAt).toISOString()).not.toThrow();
+    // The meaningful fields are preserved verbatim.
+    expect(t.title).toBe('F1 minimal promote');
+    expect(t.priority).toBe('should');
+  });
+
+  it('a COMPLETE body still round-trips verbatim (defaults only fill absent keys)', async () => {
+    const backlogId = firstBacklogId();
+    const complete = validTaskRecord('9963');
+    const r = await run(args('promote', [backlogId, JSON.stringify(complete)]));
+    expect(r.ok).toBe(true);
+    const t = read('task-list').tasks.find(
+      (x: { id: string }) => x.id === '9963',
+    );
+    // Deep-equality (order-insensitive): the supplied complete body is unchanged
+    // — auto-fill never overwrites a supplied value, including updatedAt.
+    expect(t).toEqual(complete);
+    expect(t.updatedAt).toBe('2026-05-29T00:00:00.000Z');
+  });
+
+  it('caller-supplied updatedAt is NOT overwritten by the auto-stamp', async () => {
+    const backlogId = firstBacklogId();
+    const body = {
+      ...meaningfulOnlyTask('9964'),
+      updatedAt: '2020-01-01T00:00:00.000Z',
+    };
+    const r = await run(args('promote', [backlogId, JSON.stringify(body)]));
+    expect(r.ok).toBe(true);
+    const t = read('task-list').tasks.find(
+      (x: { id: string }) => x.id === '9964',
+    );
+    expect(t.updatedAt).toBe('2020-01-01T00:00:00.000Z');
+  });
+
+  it('still rejects a body missing a meaningful required field (no validation hole)', async () => {
+    // Auto-fill covers the OPTIONAL structural fields only; a body missing a
+    // required scalar (priority) is still a schema-error, and no id auto-fill
+    // means a body missing id also fails. Both ledgers stay pristine.
+    const backlogId = firstBacklogId();
+    const tlBefore = read('task-list');
+    const { priority: _omit, ...noPriority } = meaningfulOnlyTask('9965');
+    const r = await run(
+      args('promote', [backlogId, JSON.stringify(noPriority)]),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('schema-error');
+    // Source item not removed; no Task added.
+    expect(
+      read('product-backlog').items.some(
+        (it: { id: string }) => it.id === backlogId,
+      ),
+    ).toBe(true);
+    expect(read('task-list').tasks.length).toBe(tlBefore.tasks.length);
   });
 });
 
