@@ -42,8 +42,19 @@ from unittest.mock import MagicMock
 import pytest
 
 
-# sys.path.insert(0, _SCRIPTS_DIR) was removed (ID-67.2): pyproject.toml
-# pythonpath = ["scripts"] makes the bare path insert redundant.
+# bl-223 (cwd-robustness): pin THIS checkout's repo root to the FRONT of
+# sys.path. The ID-67.2 removal of the path insert assumed pyproject.toml
+# `pythonpath = ["scripts"]` made it redundant — true ONLY when pytest runs with
+# cwd == this worktree. In a multi-worktree env (pytest invoked from another
+# checkout root, or `cd /tmp && pytest <abs path>`), `scripts` is a namespace
+# package resolved off sys.path, so without this insert flow.py's module-body
+# `from scripts.cocoindex_pipeline.* import …` (lines 65-141) either fail to
+# resolve (`No module named 'scripts'`) or bind a DIFFERENT checkout's modules.
+# parents[2] of `scripts/tests/<file>.py` == this checkout's repo root; FRONT
+# insertion makes the co-located checkout win over any sibling already on path.
+_REPO_ROOT = str(Path(__file__).resolve().parents[2])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
@@ -71,17 +82,34 @@ def _make_coco_stub() -> MagicMock:
     return stub
 
 
-def _flow_module():
-    """Load flow under this file's stubbed cocoindex (per-file reload isolation).
+# bl-223 (cwd-robustness): flow.py lives two dirs up from this test file —
+# `scripts/tests/…` → parents[1] == `scripts/` → `cocoindex_pipeline/flow.py`.
+# Loading BY PATH (not `from scripts.cocoindex_pipeline import flow`) makes the
+# module-under-test load the CO-LOCATED checkout's flow.py regardless of cwd or
+# sys.path ordering. The name-based import resolved `scripts` via sys.path, so in
+# a multi-worktree env (pytest invoked from a different checkout root, or `cd /tmp
+# && pytest <abs path>`) it bound the WRONG repo's flow.py — missing the bl-223
+# `_truncate_embedding_input`/`_get_embedding_encoder` symbols → AttributeError,
+# leaving the truncation assertions unverified (the Checker regression).
+_FLOW_PATH = Path(__file__).resolve().parents[1] / "cocoindex_pipeline" / "flow.py"
 
-    Pops any resident ``scripts.cocoindex_pipeline.flow`` first, then imports
-    FRESH under the stubs. Mirrors test_cocoindex_build_dsn.py's resilient
-    pop-then-import pattern rather than test_cocoindex_flow_write_path.py's
-    reload — the reload form raises ``ImportError: module not in sys.modules``
-    when an earlier file popped the module from the registry. The pop forces a
-    clean re-exec of flow.py's body under THIS file's stubs regardless of
-    collection order.
+
+def _flow_module():
+    """Load flow BY PATH under this file's stubbed cocoindex (cwd-robust).
+
+    Loads `flow.py` from its on-disk location next to this test file via
+    ``importlib.util.spec_from_file_location`` so the load is independent of cwd
+    / sys.path ordering (bl-223 — the name-based ``from scripts.cocoindex_pipeline
+    import flow`` resolved a DIFFERENT checkout's flow.py when pytest ran from
+    another root). Pops both legacy + canonical ``sys.modules`` keys first so
+    flow.py re-executes its body FRESH under THIS file's stubs regardless of
+    collection order (the prior pop-then-import discipline is preserved), then
+    registers the freshly-built module under the canonical
+    ``scripts.cocoindex_pipeline.flow`` key BEFORE ``exec_module`` so its
+    function-local ``from scripts.cocoindex_pipeline import …`` references and any
+    sibling ``importlib.reload(flow)`` resolve to this same identity.
     """
+    import importlib.util as _imp_util  # noqa: PLC0415
     import sys as _sys  # noqa: PLC0415
 
     coco_stub = _make_coco_stub()
@@ -95,8 +123,9 @@ def _flow_module():
     # NB: `cocoindex.ops.litellm` is NOT stubbed here. flow.py imports
     # `LiteLLMEmbedder` LAZILY (inside `_get_embedder`, only on first real
     # embedding), so the module body imports cleanly under a bare cocoindex stub.
-    # Every test in this file injects a fake via the `flow.embed_content_text`
-    # seam, so `_get_embedder` is never reached and no live embedder loads.
+    # The truncation tests inject a fake via `flow._get_embedder`, and the
+    # ingest-shape tests via the `flow.embed_content_text` seam, so no live
+    # embedder ever loads.
     stubs = {
         "cocoindex": coco_stub,
         "cocoindex.connectors": MagicMock(name="cocoindex.connectors"),
@@ -107,14 +136,21 @@ def _flow_module():
         "docling": MagicMock(name="docling"),
         "docling.document_converter": MagicMock(name="docling.document_converter"),
     }
+    _canonical = "scripts.cocoindex_pipeline.flow"
     # Pop both namespace keys so flow.py re-executes its module body under THIS
     # file's stubs (a stale entry under either key would shortcut the import and
     # leave a sibling-stub-captured module resident).
     _sys.modules.pop("cocoindex_pipeline.flow", None)
-    _sys.modules.pop("scripts.cocoindex_pipeline.flow", None)
+    _sys.modules.pop(_canonical, None)
 
     with stubbed_sys_modules(stubs):
-        from scripts.cocoindex_pipeline import flow  # noqa: PLC0415
+        spec = _imp_util.spec_from_file_location(_canonical, _FLOW_PATH)
+        flow = _imp_util.module_from_spec(spec)
+        # Register BEFORE exec so flow.py's lazy `from scripts.cocoindex_pipeline
+        # import …` (function-local) and any downstream reload resolve this
+        # identity rather than re-triggering a path lookup.
+        _sys.modules[_canonical] = flow
+        spec.loader.exec_module(flow)
 
     return flow
 
