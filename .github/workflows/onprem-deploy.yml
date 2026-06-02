@@ -124,9 +124,22 @@ jobs:
           # is load-bearing (FX-8): the buildpack runtime does not add /workspace
           # to sys.path on bare-script invocation, so `scripts.cocoindex_pipeline`
           # qualified imports need `python3 -m`.
+          #
+          # REMOTE LAYER CACHE (approach B — backlog 216 follow-up): --cache-image
+          # persists the buildpack build cache (incl. the heavy pip / Docling / ML /
+          # cocoindex-Rust-wheel deps layer — the bulk of the ~9-min cold build) to a
+          # STABLE registry tag, so each ephemeral GH runner RESTORES it instead of
+          # rebuilding from cold. It is registry-backed (requires --publish; there is
+          # no persistent local volume across runners). On the FIRST run the tag does
+          # not exist — pack treats it as an empty cache and SEEDS it post-build;
+          # subsequent runs with an unchanged requirements.txt cache-hit the deps
+          # layer (~9 min cold -> ~2-4 min warm; a requirements.txt change re-seeds it).
+          # The :buildcache tag is SEPARATE from the pinned :sha- app image, so the
+          # Inv-9 assertion + size-budget steps below still inspect ONLY the app image.
           pack build "${IMAGE}:${TAG}" \
             --path "${CTX}" \
             --builder gcr.io/buildpacks/builder:google-22 \
+            --cache-image "${IMAGE}:buildcache" \
             --env "GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server" \
             --env "GOOGLE_RUNTIME=python" \
             --env "GOOGLE_PYTHON_VERSION=3.13.13" \
