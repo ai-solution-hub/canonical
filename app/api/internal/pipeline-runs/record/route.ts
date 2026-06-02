@@ -142,13 +142,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     const supabase = createServiceClient();
-    // Cast widens the helper's terminal-only `PipelineRunStatus` to accept
-    // `in_progress`. The helper's Sentry switch ignores `in_progress`, so
+    // `status` is the Zod-validated `PipelineStatusSchema` enum, structurally
+    // identical to `recordPipelineRun`'s `PipelineRunStatus` (both:
+    // in_progress | completed | completed_with_errors | failed), so it is
+    // passed through directly — no cast needed. (bl-166: the prior
+    // `as 'completed' | 'completed_with_errors' | 'failed'` downcast mistyped
+    // the flow-start `in_progress` value, narrowing it out of a union it is a
+    // valid member of.) The helper's Sentry switch ignores `in_progress`, so
     // flow-start emissions never trigger an alert.
     await recordPipelineRun({
       supabase,
       pipelineName,
-      status: status as 'completed' | 'completed_with_errors' | 'failed',
+      status,
       itemsProcessed,
       itemsCreated,
       opId,
