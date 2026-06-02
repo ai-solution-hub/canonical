@@ -775,6 +775,111 @@ DB_CTX: coco.ContextKey[asyncpg.Pool] = _build_db_ctx()
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSIONS = 1024
 
+# bl-223: `text-embedding-3-large` has a HARD input ceiling of 8192 tokens —
+# OpenAI's API limit, NOT our config. A real ITT form's `content_text` easily
+# exceeds it; feeding the full body to `.embed()` raises
+# `openai.BadRequestError 400: "maximum input length is 8192 tokens"`, which
+# cocoindex surfaces as "component build failed" and aborts the WHOLE document
+# ingest → zero rows persist (caught in the S301 live re-smoke). We bound only
+# the EMBEDDING INPUT to a budget BELOW the cap (the 400 is exact at 8192, so
+# 8000 leaves headroom). The stored `content_items.content` is unaffected — the
+# caller still writes `content_text` in full and chunks from it; truncation here
+# yields a coarse lead-token document vector (per-chunk retrieval is separate).
+EMBEDDING_INPUT_TOKEN_BUDGET = 8000
+# `text-embedding-3-large` tokenises with the `cl100k_base` BPE (the same
+# encoding litellm uses for its own token accounting). tiktoken ships it; it is
+# a litellm transitive dep, pinned explicitly in requirements.txt because this
+# truncation guard now treats it as a first-class production dependency.
+EMBEDDING_TOKENIZER_ENCODING = "cl100k_base"
+# Conservative fallback when tiktoken is somehow unavailable: ~3.5 chars/token
+# for English prose ⇒ a char budget that stays comfortably under 8192 tokens.
+_EMBEDDING_FALLBACK_CHARS_PER_TOKEN = 3.5
+
+# Lazily-built, process-wide tiktoken encoder for the embedding tokenizer.
+# `None` means "not yet attempted"; a sentinel string distinguishes "attempted
+# and unavailable" so we only emit the fallback warning once.
+_EMBEDDING_ENCODER: object | None = None
+_EMBEDDING_ENCODER_UNAVAILABLE = "tiktoken-unavailable"
+
+
+def _get_embedding_encoder() -> object | None:
+    """Return the `cl100k_base` tiktoken encoder, or None if tiktoken is absent.
+
+    Memoised on the module. Returning None routes `_truncate_embedding_input`
+    onto its conservative character-budget fallback (bl-223) rather than raising
+    — a missing optional tokenizer must never break ingest.
+    """
+    global _EMBEDDING_ENCODER
+    if _EMBEDDING_ENCODER is None:
+        try:
+            import tiktoken  # noqa: PLC0415
+
+            _EMBEDDING_ENCODER = tiktoken.get_encoding(EMBEDDING_TOKENIZER_ENCODING)
+        except Exception:  # noqa: BLE001 — any import/lookup failure ⇒ char fallback
+            _EMBEDDING_ENCODER = _EMBEDDING_ENCODER_UNAVAILABLE
+    if _EMBEDDING_ENCODER == _EMBEDDING_ENCODER_UNAVAILABLE:
+        return None
+    return _EMBEDDING_ENCODER
+
+
+def _truncate_embedding_input(content_text: str) -> str:
+    """Bound `content_text` to ≤ EMBEDDING_INPUT_TOKEN_BUDGET tokens for `.embed()`.
+
+    Token-accurate via tiktoken (`cl100k_base`) when available; otherwise a
+    conservative character-budget fallback. Returns the text unchanged when it is
+    already within budget (no log). On truncation, emits a single structured
+    soft-warn (`cocoindex.embedding.input_truncated`) mirroring the
+    `_emit_upsert_log` / `_emit_stage_error_log` JSON-logging style, then returns
+    the truncated lead slice. This bounds ONLY the embedding input — the caller's
+    `content_text` (stored as `content_items.content`, and the chunking source)
+    is never mutated. bl-223.
+    """
+    encoder = _get_embedding_encoder()
+    if encoder is not None:
+        token_ids = encoder.encode(content_text)
+        if len(token_ids) <= EMBEDDING_INPUT_TOKEN_BUDGET:
+            return content_text
+        truncated = encoder.decode(token_ids[:EMBEDDING_INPUT_TOKEN_BUDGET])
+        _logger.warning(
+            json.dumps(
+                {
+                    "event": "cocoindex.embedding.input_truncated",
+                    "model": EMBEDDING_MODEL,
+                    "tokenizer": EMBEDDING_TOKENIZER_ENCODING,
+                    "from_tokens": len(token_ids),
+                    "to_tokens": EMBEDDING_INPUT_TOKEN_BUDGET,
+                    "from_chars": len(content_text),
+                    "to_chars": len(truncated),
+                }
+            )
+        )
+        return truncated
+
+    # tiktoken unavailable — conservative character-budget fallback. Token-exact
+    # truncation needs tiktoken; this floor only guarantees we stay under the
+    # 8192-token 400 ceiling, it does not target EMBEDDING_INPUT_TOKEN_BUDGET.
+    char_budget = int(EMBEDDING_INPUT_TOKEN_BUDGET * _EMBEDDING_FALLBACK_CHARS_PER_TOKEN)
+    if len(content_text) <= char_budget:
+        return content_text
+    truncated = content_text[:char_budget]
+    _logger.warning(
+        json.dumps(
+            {
+                "event": "cocoindex.embedding.input_truncated",
+                "model": EMBEDDING_MODEL,
+                "tokenizer": "char-fallback",
+                "from_chars": len(content_text),
+                "to_chars": len(truncated),
+                "note": (
+                    "tiktoken unavailable — used char budget; install tiktoken "
+                    "for token-accurate truncation"
+                ),
+            }
+        )
+    )
+    return truncated
+
+
 # Module-level singleton: the embedder memoises its dim probe + per-text memo
 # cache, so one shared instance per process is correct. OPENAI_API_KEY is read
 # by litellm from the environment at call time (and at schema-resolution time if
@@ -816,8 +921,16 @@ async def embed_content_text(content_text: str) -> list[float]:
     writing a wrong-width vector that the `vector(1024)` column would reject at
     INSERT or that would corrupt cosine search. NOT papered over with a bare
     except (S270 landmine).
+
+    bl-223: the embedding INPUT is bounded to EMBEDDING_INPUT_TOKEN_BUDGET tokens
+    (below `text-embedding-3-large`'s hard 8192-token API ceiling) before the
+    `.embed()` call, so a large document body cannot trigger an
+    `openai.BadRequestError 400` that aborts the whole ingest. Only the embedded
+    input is truncated — the caller's full `content_text` is stored / chunked
+    unchanged. The truncation is a no-op (and silent) for under-budget text.
     """
-    vector = await _get_embedder().embed(content_text)
+    embed_input = _truncate_embedding_input(content_text)
+    vector = await _get_embedder().embed(embed_input)
     values = [float(v) for v in vector]
     if len(values) != EMBEDDING_DIMENSIONS:
         raise ValueError(

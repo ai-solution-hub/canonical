@@ -294,3 +294,155 @@ class TestIngestFileEmbedding:
         assert params == ["content_text"], (
             f"embed_content_text must take exactly (content_text); got {params}"
         )
+
+
+# ── bl-223 — embedding-input truncation guard (text-embedding-3-large 8192 cap) ─
+
+
+class _CapturingEmbedder:
+    """Async embedder fake that records the exact text `.embed()` receives.
+
+    `embed_content_text` calls `await _get_embedder().embed(input)`; this captures
+    `input` so a test can assert the truncation budget was applied BEFORE the
+    (mocked) OpenAI call that would otherwise 400 at >8192 tokens. Returns a
+    deterministic `dim`-length numeric vector (default 1024 = the contract width;
+    a wrong width exercises the dimension guard).
+    """
+
+    def __init__(self, dim: int = 1024) -> None:
+        self.dim = dim
+        self.received: list[str] = []
+
+    async def embed(self, text: str) -> list[float]:
+        self.received.append(text)
+        return [round((i % 5) * 0.011 - 0.02, 6) for i in range(self.dim)]
+
+
+def _truncation_warn_records(caplog: pytest.LogCaptureFixture) -> list[dict]:
+    """Parse `cocoindex.embedding.input_truncated` JSON soft-warns from caplog."""
+    import json as _json  # noqa: PLC0415
+    import logging as _logging  # noqa: PLC0415
+
+    events: list[dict] = []
+    for record in caplog.records:
+        if record.levelno != _logging.WARNING:
+            continue
+        try:
+            payload = _json.loads(record.getMessage())
+        except (ValueError, TypeError):
+            continue
+        if payload.get("event") == "cocoindex.embedding.input_truncated":
+            events.append(payload)
+    return events
+
+
+class TestEmbedContentTextTruncation:
+    """`embed_content_text` bounds its embedding INPUT to the model token cap.
+
+    `text-embedding-3-large` 400s at >8192 input tokens (OpenAI hard limit), so
+    `embed_content_text` truncates the text passed to `.embed()` to
+    EMBEDDING_INPUT_TOKEN_BUDGET (8000, headroom below 8192). bl-223.
+    """
+
+    def _budget_in_tokens(self, flow, text: str) -> int:
+        """Token length of `text` under the same encoder the guard uses.
+
+        Returns a char-budget-derived estimate when tiktoken is unavailable so
+        the assertion still bounds the right quantity in either environment.
+        """
+        encoder = flow._get_embedding_encoder()
+        if encoder is not None:
+            return len(encoder.encode(text))
+        # Char-fallback environment: express the char length as a token estimate.
+        return int(len(text) / flow._EMBEDDING_FALLBACK_CHARS_PER_TOKEN)
+
+    def test_oversized_input_is_truncated_below_cap_and_returns_vector(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A >8192-token body is truncated to ≤ budget; embed() never sees the cap.
+
+        Proves: (1) `.embed()` receives ≤ EMBEDDING_INPUT_TOKEN_BUDGET tokens —
+        so the OpenAI 400 cannot fire; (2) the function still returns a valid
+        length-1024 vector WITHOUT raising; (3) the structured soft-warn fired.
+        """
+        import logging  # noqa: PLC0415
+
+        flow = _flow_module()
+        embedder = _CapturingEmbedder(dim=1024)
+        monkeypatch.setattr(flow, "_get_embedder", lambda: embedder)
+
+        # ~10k-token body: each " lorem ipsum dolor" repeat is several cl100k
+        # tokens, so 4000 repeats clears the 8192 cap with margin. Char-fallback
+        # environments also exceed their char budget at this length.
+        oversized = (" lorem ipsum dolor sit amet" * 4000).strip()
+        pre_tokens = self._budget_in_tokens(flow, oversized)
+        assert pre_tokens > 8192, (
+            f"test fixture must exceed the 8192-token cap; got {pre_tokens}"
+        )
+
+        with caplog.at_level(logging.WARNING, logger="scripts.cocoindex_pipeline.flow"):
+            values = asyncio.run(flow.embed_content_text(oversized))
+
+        # (2) valid vector, no raise.
+        assert len(values) == 1024
+        assert all(isinstance(v, float) for v in values)
+
+        # (1) the embedder received a bounded input — strictly under the 8192 cap
+        # and at/under the 8000-token budget the guard targets.
+        assert len(embedder.received) == 1, "embedder must be called exactly once"
+        seen = embedder.received[0]
+        assert seen != oversized, "embedder must receive the TRUNCATED text"
+        seen_tokens = self._budget_in_tokens(flow, seen)
+        assert seen_tokens <= flow.EMBEDDING_INPUT_TOKEN_BUDGET, (
+            f"embedder input {seen_tokens} tokens exceeds budget "
+            f"{flow.EMBEDDING_INPUT_TOKEN_BUDGET}"
+        )
+        assert seen_tokens < 8192, "embedder input must be strictly under the cap"
+
+        # (3) soft-warn fired with the structured event + from/to fields.
+        warns = _truncation_warn_records(caplog)
+        assert len(warns) == 1, (
+            f"expected exactly one input_truncated soft-warn; got {warns}"
+        )
+        assert warns[0]["model"] == "text-embedding-3-large"
+        assert warns[0]["from_chars"] > warns[0]["to_chars"]
+
+    def test_undersized_input_passes_through_unchanged_no_warn(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A small body is embedded verbatim — no truncation, no soft-warn."""
+        import logging  # noqa: PLC0415
+
+        flow = _flow_module()
+        embedder = _CapturingEmbedder(dim=1024)
+        monkeypatch.setattr(flow, "_get_embedder", lambda: embedder)
+
+        small = "# Heading\n\nA short document body, well under the token budget."
+
+        with caplog.at_level(logging.WARNING, logger="scripts.cocoindex_pipeline.flow"):
+            values = asyncio.run(flow.embed_content_text(small))
+
+        assert len(values) == 1024
+        # The embedder saw the ORIGINAL text byte-for-byte (no truncation).
+        assert embedder.received == [small]
+        # No truncation soft-warn for under-budget text.
+        assert _truncation_warn_records(caplog) == [], (
+            "under-budget text must not emit an input_truncated warning"
+        )
+
+    def test_dimension_guard_raises_on_wrong_width_vector(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The S270 dimension guard still raises loudly on a wrong-width vector.
+
+        A misconfigured embedder returning its native 3072-dim (not 1024) must
+        raise ValueError rather than silently writing a vector(1024)-incompatible
+        value. Preserved verbatim through the bl-223 truncation change.
+        """
+        flow = _flow_module()
+        # Native-width (3072) embedder — contract violation.
+        embedder = _CapturingEmbedder(dim=3072)
+        monkeypatch.setattr(flow, "_get_embedder", lambda: embedder)
+
+        with pytest.raises(ValueError, match="embedding dimension mismatch"):
+            asyncio.run(flow.embed_content_text("small body"))
