@@ -1,4 +1,4 @@
-# deploy/coolify/docker-compose.staging.yml
+# deploy/coolify/docker-compose.staging.yaml
 #
 # ID-66.21: Staging Coolify env — a staging MIRROR of the prod on-prem co-location
 #           compose (deploy/onprem/docker-compose.yaml). cocoindex + pullmd +
