@@ -8,8 +8,14 @@ Verifies the canonical 1.x extraction pattern (S256 W1 amendment of
   - `extract_entity_mentions(content_text)` -> list[EntityMentionExtraction]
 
 Each extractor:
-  1. Calls `anthropic.AsyncAnthropic().messages.create(...)` with the
-     appropriate prompt + content_text.
+  1. Calls `_anthropic_message(client, ...)` (bl-222), which routes through
+     the STREAMING `anthropic.AsyncAnthropic().messages.stream(...)` surface
+     — `async with client.messages.stream(**kwargs) as stream:
+     return await stream.get_final_message()` — with the appropriate prompt
+     + content_text. (Pre-bl-222 this was the non-streaming
+     `messages.create(...)`; streaming is mandated by the SDK once
+     `max_tokens` exceeds the non-streaming output cap, which bl-221's
+     32768 qa_form ceiling does.)
   2. Validates the JSON response via `TypeAdapter(<Variant>).validate_json()`.
   3. Returns the typed Pydantic object on success.
   4. Propagates `ValidationError` on schema mismatch (Option A failure
@@ -17,8 +23,10 @@ Each extractor:
 
 The anthropic SDK is mocked at the module-attribute boundary
 (`extraction.anthropic.AsyncAnthropic`) — NO network calls at test time.
-Each test sets ANTHROPIC_API_KEY to a fake value to ensure the
-SDK client constructor doesn't raise on missing env.
+`messages.stream` is mocked as an async context manager whose
+`get_final_message()` resolves to the fake Message (see `_MockStreamManager`
++ `_make_mock_client`). Each test sets ANTHROPIC_API_KEY to a fake value to
+ensure the SDK client constructor doesn't raise on missing env.
 
 Memoisation discipline (Inv-21): the `@coco.fn(memo=True)` decorator
 returns an `AsyncFunction` instance (verified empirically against
@@ -592,7 +600,7 @@ class TestExtractorsTolerateFencedResponse:
     def test_classification_tolerates_fenced_response(self):
         mock_client = _make_mock_client(self._fence(_classification_json("policy")))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_classification("doc text"))
@@ -602,7 +610,7 @@ class TestExtractorsTolerateFencedResponse:
     def test_qa_form_tolerates_fenced_response(self):
         mock_client = _make_mock_client(self._fence(_qa_form_json()))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_qa_form("doc text"))
@@ -612,7 +620,7 @@ class TestExtractorsTolerateFencedResponse:
     def test_entity_mentions_tolerate_fenced_response(self):
         mock_client = _make_mock_client(self._fence(_entity_mentions_json()))
         with patch(
-            "cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_entity_mentions("doc text"))
