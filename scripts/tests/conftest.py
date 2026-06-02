@@ -237,6 +237,68 @@ def fresh_flow_module(
     return flow
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# Bare `cocoindex_pipeline` top-level-alias collection guard (ID-67.5 / bl-185)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# `scripts/` is on the pytest pythonpath, so the pipeline package is importable
+# under BOTH `scripts.cocoindex_pipeline.*` (the canonical runtime spelling used
+# by `python3 -m scripts.cocoindex_pipeline.server`) AND the bare top-level alias
+# `cocoindex_pipeline.*`. Importing the bare alias creates a SECOND `sys.modules`
+# identity for the same physical files → double `coco.ContextKey` registration
+# and independent ContextVar storage. That dual-path identity is the ID-44.5 /
+# ID-177 ContextKey-leak root cause.
+#
+# ID-67 canonicalised the whole pipeline + test corpus onto
+# `scripts.cocoindex_pipeline.*` and removed every bare top-level-alias import.
+# This guard stops that canonicalisation silently re-rotting: because pytest
+# imports every test module during collection, any FUTURE module-level bare-alias
+# import (`from cocoindex_pipeline import ...` / `import cocoindex_pipeline...`)
+# registers a bare key in `sys.modules` before `pytest_collection_finish` fires,
+# and the guard then FAILS collection loudly with the offending keys named.
+
+
+def _bare_cocoindex_alias_keys(modules: Mapping[str, object]) -> list[str]:
+    """Return every bare top-level `cocoindex_pipeline` alias key in `modules`.
+
+    A key is a bare alias when it is exactly ``"cocoindex_pipeline"`` or starts
+    with ``"cocoindex_pipeline."``. The CANONICAL ``scripts.cocoindex_pipeline``
+    / ``scripts.cocoindex_pipeline.*`` keys are NOT bare aliases (they do not
+    start with the bare prefix) and are never flagged.
+
+    Pure predicate over a `sys.modules`-like mapping so the guard logic is unit
+    testable without mutating the real `sys.modules` (ID-67.5).
+    """
+    return [
+        key
+        for key in modules
+        if key == "cocoindex_pipeline" or key.startswith("cocoindex_pipeline.")
+    ]
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Fail collection if any bare `cocoindex_pipeline` alias module is resident.
+
+    All test modules are imported during collection, so a module-level bare-alias
+    import (the ID-44.5 / ID-177 dual-`sys.modules`-identity re-rot vector) will
+    have registered its key by the time this hook fires. Failing here keeps the
+    ID-67 canonicalisation onto `scripts.cocoindex_pipeline.*` from silently
+    regressing.
+    """
+    offending = _bare_cocoindex_alias_keys(sys.modules)
+    if offending:
+        raise pytest.UsageError(
+            "Bare `cocoindex_pipeline` top-level-alias import detected at "
+            "collection time: "
+            + ", ".join(sorted(offending))
+            + ". This creates a second sys.modules identity for the pipeline "
+            "(the ID-44.5 / ID-177 ContextKey-leak root cause). ID-67 "
+            "canonicalised the corpus onto `scripts.cocoindex_pipeline.*`; import "
+            "the canonical spelling (e.g. `from scripts.cocoindex_pipeline import "
+            "flow`) instead of the bare alias. Guard: ID-67.5 / bl-185."
+        )
+
+
 @pytest.fixture(scope="session")
 def taxonomy_from_snapshot():
     """Load taxonomy from committed snapshot file.
