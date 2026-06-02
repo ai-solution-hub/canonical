@@ -2327,3 +2327,38 @@ class TestWorkspacePathFixes:
         # The manifest is not content → no rows declared on any target.
         assert sd.rows == [] and ci.rows == [] and qa.rows == [] and em.rows == []
         assert ft.rows == [] and ftf.rows == []
+
+    def test_register_pg_codecs_serialises_jsonb_dict(self) -> None:
+        """{66.16}/BUG-D (S297): the pool init hook registers a jsonb codec whose
+        encoder turns a Python dict into a JSON string.
+
+        cocoindex's USER-managed row-upsert passes raw declare_row values to
+        asyncpg with no per-column encoder, so a dict jsonb value (e.g.
+        entity_mentions.metadata) would raise DataError 'expected str, got dict'.
+        The codec encoder must produce a str.
+        """
+        import json
+
+        flow = _flow_module()
+
+        calls: list[tuple] = []
+
+        class _FakeConn:
+            async def set_type_codec(self, name: str, **kw: object) -> None:
+                calls.append((name, kw))
+
+        asyncio.run(flow._register_pg_codecs(_FakeConn()))
+
+        assert len(calls) == 1, "exactly one codec registered"
+        name, kw = calls[0]
+        assert name == "jsonb"
+        assert kw["schema"] == "pg_catalog"
+        # The encoder must serialise a dict -> str (the BUG-D fix).
+        encoded = kw["encoder"]({"source_span_start": 2, "source_span_end": 9})
+        assert isinstance(encoded, str)
+        assert json.loads(encoded) == {"source_span_start": 2, "source_span_end": 9}
+        # default=str guards non-JSON-native values (UUID / datetime).
+        guarded = kw["encoder"]({"id": uuid.uuid4()})
+        assert isinstance(guarded, str)
+        # Decoder round-trips.
+        assert kw["decoder"]('{"a": 1}') == {"a": 1}

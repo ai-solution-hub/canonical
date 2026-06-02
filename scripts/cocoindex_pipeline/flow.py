@@ -2339,15 +2339,43 @@ async def app_main() -> None:
 # generator's `finally`).
 
 
+async def _register_pg_codecs(conn: "asyncpg.Connection") -> None:  # type: ignore[name-defined]
+    """asyncpg pool `init` hook: register a jsonb codec on every connection.
+
+    {66.16}/BUG-D (S297): cocoindex's USER-managed row-upsert path
+    (`connectors/postgres/_target.py` `_execute_upsert_chunk`) passes the raw
+    declare_row values straight to `conn.execute(sql, *params)` with NO
+    per-column encoding (the `ColumnDef.encoder` hook is unset for these columns).
+    asyncpg's default jsonb codec then calls `as_pg_string_and_size` on the
+    value, which raises `DataError: expected str, got dict` for a Python dict.
+    The two jsonb columns the pipeline writes (`entity_mentions.metadata`,
+    `q_a_extractions.extraction_metadata`) are dicts. Registering a jsonb codec
+    here fixes ALL jsonb columns at the POOL level (current + future) rather than
+    relying on per-call-site `json.dumps`. `default=str` mirrors cocoindex's own
+    `_json_encoder` so non-JSON-native values (UUID / datetime) serialise rather
+    than raising.
+    """
+    await conn.set_type_codec(
+        "jsonb",
+        encoder=lambda value: json.dumps(value, default=str),
+        decoder=json.loads,
+        schema="pg_catalog",
+        format="text",
+    )
+
+
 @coco.lifespan
 async def kh_pipeline_lifespan(builder: coco.EnvironmentBuilder):
     """Provision the asyncpg pool env-scope for the App's lifetime.
 
     Creates the pool once on environment start, provides it under `DB_CTX` (so
     `mount_table_target` can resolve it), yields for the App lifetime, then closes
-    the pool on teardown.
+    the pool on teardown. The `init` hook registers a jsonb codec on every pooled
+    connection ({66.16}/BUG-D) so dict-valued jsonb columns encode correctly.
     """
-    pool = await asyncpg.create_pool(_build_dsn(), min_size=2, max_size=10)
+    pool = await asyncpg.create_pool(
+        _build_dsn(), min_size=2, max_size=10, init=_register_pg_codecs
+    )
     try:
         builder.provide(DB_CTX, pool)
         yield
