@@ -1631,6 +1631,74 @@ class TestFormWriteIdempotency:
         # Two field rows landed.
         assert len(ftf.rows) == 2
 
+    def test_trim_resolves_pool_via_use_context_and_issues_shrink_delete(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The REAL ``_trim_stale_form_fields`` body resolves the env-scope pool
+        through ``coco.use_context(DB_CTX)`` (NOT ``ContextKey.get()``, which has
+        no such method — bl-224) and issues the Inv-16 shrink DELETE against
+        ``public.form_template_fields`` keyed on ``(template_id, sequence)``.
+
+        Every flow-level form test patches the ``_trim_stale_form_fields`` seam
+        (``_spy_trim`` / ``_fake_trim``), so the real body — and the broken
+        ``DB_CTX.get()`` accessor — never executed in any test. This exercises
+        the unpatched body directly: it would raise ``AttributeError`` against a
+        ``ContextKey`` before the fix.
+        """
+        flow = _flow_module()
+
+        executed: list[tuple] = []
+
+        class _FakeConn:
+            async def execute(self, sql: str, *params: object) -> None:
+                executed.append((sql, params))
+
+        class _FakeAcquire:
+            async def __aenter__(self) -> "_FakeConn":
+                return _FakeConn()
+
+            async def __aexit__(self, *exc: object) -> bool:
+                return False
+
+        class _FakePool:
+            def acquire(self) -> "_FakeAcquire":
+                return _FakeAcquire()
+
+        fake_pool = _FakePool()
+        use_context_calls: list[object] = []
+
+        def _fake_use_context(key: object) -> "_FakePool":
+            use_context_calls.append(key)
+            return fake_pool
+
+        # Monkeypatch the single-arg read accessor on the imported cocoindex
+        # module the flow uses (`import cocoindex as coco`). The real engine is
+        # not running, so there is no environment to resolve DB_CTX from.
+        monkeypatch.setattr(flow.coco, "use_context", _fake_use_context)
+
+        template_id = uuid.uuid4()
+        new_max_sequence = 3
+
+        asyncio.run(
+            flow._trim_stale_form_fields(template_id, new_max_sequence)
+        )
+
+        # (a) the pool was resolved via coco.use_context(DB_CTX) — not .get().
+        assert use_context_calls == [flow.DB_CTX], (
+            "the env-scope pool must be resolved via coco.use_context(DB_CTX); "
+            "ContextKey has no .get() (bl-224)"
+        )
+
+        # (b) the shrink DELETE ran with the (template_id, new_max_sequence)
+        # params against form_template_fields.
+        assert len(executed) == 1, "exactly one DELETE statement is issued"
+        sql, params = executed[0]
+        assert sql == (
+            "DELETE FROM public.form_template_fields "
+            "WHERE template_id = $1 AND sequence > $2"
+        )
+        assert params == (template_id, new_max_sequence)
+
 
 # ── ID-69 — canonical cross-workspace association ingest invariants ───────────
 #

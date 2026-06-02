@@ -2066,7 +2066,7 @@ async def _trim_stale_form_fields(
     a real pool, but the "trim runs before field declares, keyed on
     `(template_id, sequence)`" contract is provable without one.
     """
-    pool = DB_CTX.get()
+    pool = coco.use_context(DB_CTX)
     async with pool.acquire() as conn:
         await conn.execute(
             "DELETE FROM public.form_template_fields "
