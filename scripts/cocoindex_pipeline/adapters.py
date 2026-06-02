@@ -7,7 +7,7 @@ re-trigger inner work (S9 §7.2 COCO.10 / Inv-4).
 
 Topology:
     convert_binary_to_markdown(file: FileLike) -> str   # outer / file-tier memo
-        ├── _docling_to_markdown(content_bytes: bytes) -> str   # inner
+        ├── _docling_to_markdown(content_bytes: bytes, filename: str) -> str  # inner
         ├── _pullmd_to_markdown(url: str) -> PullmdResult       # inner
         └── _passthrough_markdown(content_text: str) -> str     # inner
 
@@ -63,7 +63,13 @@ async def convert_binary_to_markdown(file: "FileLike") -> str:
 
     if suffix in _DOCLING_EXTENSIONS:
         content_bytes = await file.read()
-        return await _docling_to_markdown(content_bytes)
+        # Thread the filename through so Docling can pick the right backend by
+        # extension (PDF/DOCX/XLSX). The inner tier wraps the bytes in a
+        # DocumentStream(name=filename); a bare-bytes `convert()` call raises a
+        # pydantic ValidationError (S299 FINDING-1 — the charnwood.docx 0-row
+        # bug). `file_path.path.name` is the deterministic original filename, so
+        # the inner-tier memo key stays content-stable (COCO.10 / S9 §7.2).
+        return await _docling_to_markdown(content_bytes, file.file_path.path.name)
 
     if suffix in _HTML_EXTENSIONS:
         # Pullmd service resolves local paths and remote URLs transparently.
@@ -91,14 +97,29 @@ async def convert_binary_to_markdown(file: "FileLike") -> str:
 
 
 @coco.fn(memo=True)
-async def _docling_to_markdown(content_bytes: bytes) -> str:
-    """Docling extractor — supports PDF, DOCX, XLSX. Memoised on content hash."""
-    # Lazy import: docling is a ~1.8 GB optional dep, pre-warmed in the Cloud
-    # Run image layer (28.6 P-1); test envs stub via unittest.mock.patch.
+async def _docling_to_markdown(content_bytes: bytes, filename: str) -> str:
+    """Docling extractor — supports PDF, DOCX, XLSX. Memoised on content hash.
+
+    `DocumentConverter.convert()` requires a `Path` or a `DocumentStream`, NOT
+    raw bytes — passing bytes raises a pydantic ValidationError (S299 FINDING-1).
+    We wrap the bytes in a `DocumentStream` whose `name` carries the original
+    filename (with its extension) so Docling selects the correct backend
+    (PDF/DOCX/XLSX).
+
+    `filename` is a deterministic str scalar (NOT a FileLike), so the memo key
+    stays content-stable per content path (COCO.10 / S9 §7.2): the same bytes +
+    same filename always memoise to the same result.
+    """
+    # Lazy import: docling is a ~1.8 GB optional dep, pre-warmed in the on-prem
+    # image layer (28.6 P-1); test envs stub via unittest.mock.patch.
+    from io import BytesIO  # noqa: PLC0415
+
+    from docling.datamodel.base_models import DocumentStream  # noqa: PLC0415
     from docling.document_converter import DocumentConverter  # noqa: PLC0415
 
     converter = DocumentConverter()
-    result = converter.convert(content_bytes)
+    source = DocumentStream(name=filename, stream=BytesIO(content_bytes))
+    result = converter.convert(source)
     return result.document.export_to_markdown()
 
 

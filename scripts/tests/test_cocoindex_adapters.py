@@ -20,6 +20,8 @@ import asyncio
 import inspect
 import os
 import sys
+import types
+from io import BytesIO
 from pathlib import Path, PurePath
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -88,8 +90,35 @@ _coco_stub = _make_coco_stub()
 # It therefore stays resident in sys.modules rather than being import-scoped.
 _docling_stub = MagicMock(name="docling")
 _docling_dc_stub = MagicMock(name="docling.document_converter")
+
+
+class _FakeDocumentStream:
+    """Minimal stand-in for docling.datamodel.base_models.DocumentStream.
+
+    The real DocumentStream is a pydantic model with `name: str` and
+    `stream: BinaryIO` fields. We mirror just those two attributes so the
+    regression test can assert on the wrapped value's TYPE, `.name`, and the
+    round-tripped `.stream` bytes WITHOUT importing the 1.8 GB real package.
+    """
+
+    def __init__(self, *, name, stream):
+        self.name = name
+        self.stream = stream
+
+
+# `docling.datamodel.base_models` hosts DocumentStream (the S299 FINDING-1 fix
+# wraps content bytes in it). Register a REAL ModuleType (not a MagicMock) whose
+# `DocumentStream` IS `_FakeDocumentStream`, so the lazy
+# `from docling.datamodel.base_models import DocumentStream` inside
+# `_docling_to_markdown` resolves deterministically to the fake — patching a
+# MagicMock module attribute does NOT survive a `from ... import` (the auto-child
+# mock wins), so a concrete module object is required. Works in envs WITHOUT the
+# real 1.8 GB package; envs WITH it never trigger a real `import docling` here.
+_docling_bm_stub = types.ModuleType("docling.datamodel.base_models")
+_docling_bm_stub.DocumentStream = _FakeDocumentStream
 sys.modules.setdefault("docling", _docling_stub)
 sys.modules.setdefault("docling.document_converter", _docling_dc_stub)
+sys.modules.setdefault("docling.datamodel.base_models", _docling_bm_stub)
 
 
 with stubbed_sys_modules({"cocoindex": _coco_stub}):
@@ -241,7 +270,9 @@ class TestOuterTierMimeDispatch:
                 adapters, "_docling_to_markdown", new=AsyncMock(return_value="# Docling PDF")
             ) as mock_docling:
                 result = await adapters.convert_binary_to_markdown(mock_file)
-            mock_docling.assert_awaited_once_with(pdf_bytes)
+            # Inner tier now receives (bytes, filename) — the filename threads
+            # through so Docling picks the right backend (S299 FINDING-1 fix).
+            mock_docling.assert_awaited_once_with(pdf_bytes, "test.pdf")
             return result
 
         result = asyncio.run(run())
@@ -257,7 +288,7 @@ class TestOuterTierMimeDispatch:
                 adapters, "_docling_to_markdown", new=AsyncMock(return_value="# Docling DOCX")
             ) as mock_docling:
                 result = await adapters.convert_binary_to_markdown(mock_file)
-            mock_docling.assert_awaited_once_with(docx_bytes)
+            mock_docling.assert_awaited_once_with(docx_bytes, "test.docx")
             return result
 
         result = asyncio.run(run())
@@ -273,7 +304,7 @@ class TestOuterTierMimeDispatch:
                 adapters, "_docling_to_markdown", new=AsyncMock(return_value="# Docling XLSX")
             ) as mock_docling:
                 result = await adapters.convert_binary_to_markdown(mock_file)
-            mock_docling.assert_awaited_once_with(xlsx_bytes)
+            mock_docling.assert_awaited_once_with(xlsx_bytes, "test.xlsx")
             return result
 
         result = asyncio.run(run())
@@ -480,7 +511,14 @@ class TestExtractSourceProvenance:
 
 
 class TestDoclingInnerTier:
-    """_docling_to_markdown smoke tests (mocked Docling converter)."""
+    """_docling_to_markdown smoke tests (mocked Docling converter).
+
+    `DocumentConverter` is lazily imported inside `_docling_to_markdown` and is
+    patched per-test. `DocumentStream` resolves from the module-level stub (a
+    real ModuleType whose `DocumentStream` IS `_FakeDocumentStream`) so no
+    per-test DocumentStream patch is needed and the suite never touches the real
+    1.8 GB docling package.
+    """
 
     def test_returns_markdown_string_from_docling(self):
         """Mocked Docling converter: returns expected markdown string."""
@@ -496,10 +534,8 @@ class TestDoclingInnerTier:
         mock_converter_cls.return_value.convert.return_value = mock_result
 
         async def run():
-            # DocumentConverter is lazily imported inside _docling_to_markdown;
-            # patch the module it comes from (docling.document_converter).
             with patch("docling.document_converter.DocumentConverter", mock_converter_cls):
-                return await adapters._docling_to_markdown(fake_bytes)
+                return await adapters._docling_to_markdown(fake_bytes, "test.pdf")
 
         result = asyncio.run(run())
         assert result == expected_markdown
@@ -517,10 +553,81 @@ class TestDoclingInnerTier:
 
         async def run():
             with patch("docling.document_converter.DocumentConverter", mock_converter_cls):
-                await adapters._docling_to_markdown(b"some bytes")
+                await adapters._docling_to_markdown(b"some bytes", "test.docx")
 
         asyncio.run(run())
         mock_doc.export_to_markdown.assert_called_once()
+
+    def test_convert_receives_documentstream_not_raw_bytes(self):
+        """REGRESSION (S299 FINDING-1): convert() must get a DocumentStream, not bytes.
+
+        The shipped bug passed raw bytes to `DocumentConverter.convert()`, which
+        this Docling version rejects with a pydantic ValidationError — the
+        charnwood.docx produced 0 content + 0 form rows. The old mocked test
+        missed it because it only asserted `convert` was called, never the
+        argument TYPE. This test pins the load-bearing contract:
+
+          1. convert() receives a DocumentStream (NOT raw bytes).
+          2. its `.name` carries the original filename (so Docling picks the
+             right backend by extension).
+          3. its `.stream` round-trips the exact content bytes.
+        """
+        docx_bytes = b"PK\x03\x04 charnwood docx zip magic + payload"
+        filename = "charnwood.docx"
+
+        mock_doc = MagicMock()
+        mock_doc.export_to_markdown.return_value = "# Charnwood"
+        mock_result = MagicMock()
+        mock_result.document = mock_doc
+
+        mock_converter_cls = MagicMock(return_value=MagicMock())
+        mock_converter_cls.return_value.convert.return_value = mock_result
+
+        async def run():
+            with patch("docling.document_converter.DocumentConverter", mock_converter_cls):
+                return await adapters._docling_to_markdown(docx_bytes, filename)
+
+        result = asyncio.run(run())
+        assert result == "# Charnwood"
+
+        # The single positional argument convert() received.
+        convert_call = mock_converter_cls.return_value.convert.call_args
+        assert convert_call is not None, "convert() was never called"
+        source_arg = convert_call.args[0] if convert_call.args else None
+
+        # (1) It is a DocumentStream — NOT raw bytes. This is the exact bug.
+        assert not isinstance(source_arg, (bytes, bytearray)), (
+            "convert() received raw bytes — this is the S299 FINDING-1 regression"
+        )
+        assert isinstance(source_arg, _FakeDocumentStream), (
+            f"convert() must receive a DocumentStream, got {type(source_arg).__name__}"
+        )
+
+        # (2) .name carries the original filename + extension.
+        assert source_arg.name == filename, (
+            f"DocumentStream.name must be {filename!r}, got {source_arg.name!r}"
+        )
+
+        # (3) .stream round-trips the exact content bytes.
+        assert source_arg.stream.read() == docx_bytes, (
+            "DocumentStream.stream must round-trip the original content bytes"
+        )
+
+    def test_documentstream_import_path_is_resolvable(self):
+        """The DocumentStream import path the fix relies on must resolve.
+
+        `_docling_to_markdown` does
+        `from docling.datamodel.base_models import DocumentStream`. This guards
+        against a future docling upgrade silently moving the symbol (which would
+        reintroduce the S299 FINDING-1 failure mode at run time). The assertion
+        holds against both the test-suite stub and the real package.
+        """
+        from docling.datamodel.base_models import DocumentStream  # noqa: PLC0415
+
+        # Duck-type: constructible with keyword name + stream, exposing both.
+        ds = DocumentStream(name="probe.docx", stream=BytesIO(b"payload"))
+        assert ds.name == "probe.docx"
+        assert ds.stream.read() == b"payload"
 
 
 class TestPullmdInnerTier:
