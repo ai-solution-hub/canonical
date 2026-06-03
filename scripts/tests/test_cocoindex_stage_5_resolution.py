@@ -328,10 +328,24 @@ def _stub_resolver_chain(
     import scripts.cocoindex_pipeline.entity_embedder as entity_embedder
     import scripts.cocoindex_pipeline.pair_resolver as pair_resolver
 
-    async def _fake_resolve_entities(names, *, embedder, resolve_pair):  # type: ignore[no-untyped-def]
+    async def _fake_resolve_entities(  # type: ignore[no-untyped-def]
+        names,
+        *,
+        embedder,
+        resolve_pair,
+        is_existing_canonical=None,
+        existing_policy=None,
+    ):
         # Agnostic of embedder / resolve_pair (constructed but unused here —
         # the collapse is what we exercise). Returns a resolver mapping every
         # input name to its cross-document canonical.
+        #
+        # ID-81 PC-1: `_run_stage_5_resolution` now passes `is_existing_canonical`
+        # and `existing_policy=ExistingCanonicalPolicy.PINNED` unconditionally, so
+        # this stub MUST absorb them (TECH §5 prerequisite — without it the three
+        # bl-225 tests + the seeding tests break at call time). The bl-225 tests
+        # supply a fixed `mapping`, so they are agnostic to the predicate; the
+        # PINNED-aware seeding tests use `_stub_pinned_resolver_chain` below.
         return _FakeResolved(mapping)
 
     monkeypatch.setattr(coco_api, "resolve_entities", _fake_resolve_entities)
@@ -649,3 +663,312 @@ def test_roster_is_entity_type_scoped() -> None:
         )
     )
     assert org_roster == {"Cisco", "Juniper"}
+
+
+# ── ID-81 PC-1/PC-7/PC-11/PC-14: PINNED seeding wired into resolve_entities ───
+#
+# These tests prove the WIRING slice ({81.7}): the seed roster from
+# `_select_existing_canonical_roster` (PC-6, {81.6}) is merged into
+# `names_by_type[entity_type]` and fed to `resolve_entities` as a MEMBER of the
+# `entities` iterable (PC-14, Inv-14 determinism), alongside an
+# `is_existing_canonical` predicate + `existing_policy=PINNED` (PC-1). The
+# resolver stub below is PINNED-AWARE: it captures the ACTUAL `names` iterable and
+# `is_existing_canonical` predicate production passes, and models cocoindex 1.0.3
+# PINNED semantics — an existing pins as its own canonical; a lexical near-match
+# chains UNDER the seeded existing. This makes the tests prove the real wiring
+# (seed merged into `names`, correct predicate, PINNED policy), NOT just the stub.
+
+
+class _PinnedResolvedEntities:
+    """PINNED-aware ``ResolvedEntities`` stand-in (cocoindex 1.0.3 ``:262-353``).
+
+    Built from the ACTUAL `names` iterable + `is_existing_canonical` predicate the
+    production wiring passed. Models the PINNED contract for these unit tests:
+
+      * every name where ``is_existing_canonical(name)`` is True PINS as its own
+        canonical (pass_1; never resolved against another — Inv-3/Inv-4);
+      * a name that is NOT existing chains UNDER the lexically-closest seeded
+        existing in the same batch (case-fold equal, else substring overlap in
+        either direction — a deterministic stand-in for the faiss near-match);
+      * a non-existing name with no near seeded existing resolves to ITSELF
+        (Inv-13 — unresolved retains its per-document canonical).
+
+    ``canonical_of`` mirrors cocoindex: returns ``str`` (never None), raises
+    ``KeyError`` for a name never offered to the resolver — which is exactly the
+    assertion that a seeded foreign-op canonical (a MEMBER of ``names``) IS
+    present in the dedup map, while a name never merged in is absent.
+    """
+
+    def __init__(self, names, is_existing_canonical) -> None:  # type: ignore[no-untyped-def]
+        self._names = list(names)
+        pred = is_existing_canonical or (lambda _n: False)
+        self._existing = {n for n in self._names if pred(n)}
+        self._mapping: dict[str, str] = {}
+        for name in self._names:
+            if name in self._existing:
+                self._mapping[name] = name  # pinned as own canonical
+                continue
+            target = self._nearest_existing(name)
+            self._mapping[name] = target if target is not None else name
+
+    def _nearest_existing(self, name: str) -> str | None:
+        n_lower = name.lower()
+        # Exact case-fold first (the dominant "same string, different casing").
+        for existing in self._existing:
+            if existing.lower() == n_lower:
+                return existing
+        # Then substring overlap in either direction (trigram-near stand-in).
+        for existing in self._existing:
+            e_lower = existing.lower()
+            if n_lower in e_lower or e_lower in n_lower:
+                return existing
+        return None
+
+    def canonical_of(self, name: str) -> str:
+        return self._mapping[name]  # KeyError for never-offered names (cocoindex parity)
+
+
+def _stub_pinned_resolver_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, object]:
+    """Patch the resolver chain with a PINNED-aware fake that RECORDS its inputs.
+
+    Returns a ``capture`` dict the test inspects to assert the WIRING: the actual
+    ``names`` iterable fed to ``resolve_entities`` (must include the merged seed
+    roster — PC-14), the ``is_existing_canonical`` predicate (PC-1), and the
+    ``existing_policy`` value (must be ``PINNED`` — PC-1). The ``_FakeResolved``
+    is built from those captured inputs, so a test that the seed is NOT merged
+    would surface as a KeyError / wrong mapping — a real-behaviour proof.
+    """
+    import scripts.cocoindex_pipeline._coco_api as coco_api
+    import scripts.cocoindex_pipeline.entity_embedder as entity_embedder
+    import scripts.cocoindex_pipeline.pair_resolver as pair_resolver
+
+    capture: dict[str, object] = {"calls": []}
+
+    async def _fake_resolve_entities(  # type: ignore[no-untyped-def]
+        names,
+        *,
+        embedder,
+        resolve_pair,
+        is_existing_canonical=None,
+        existing_policy=None,
+    ):
+        names_list = list(names)
+        existing_names = {
+            n for n in names_list if (is_existing_canonical or (lambda _n: False))(n)
+        }
+        cast = capture["calls"]
+        assert isinstance(cast, list)
+        cast.append(
+            {
+                "names": names_list,
+                "existing_names": existing_names,
+                "existing_policy": existing_policy,
+            }
+        )
+        return _PinnedResolvedEntities(names_list, is_existing_canonical)
+
+    monkeypatch.setattr(coco_api, "resolve_entities", _fake_resolve_entities)
+
+    class _StubEmbedder:
+        def __init__(self, *a: object, **k: object) -> None: ...
+
+    class _StubPairResolver:
+        def __init__(self, *a: object, **k: object) -> None: ...
+
+    monkeypatch.setattr(entity_embedder, "KhEntityEmbedder", _StubEmbedder)
+    monkeypatch.setattr(pair_resolver, "KhPairResolver", _StubPairResolver)
+    return capture
+
+
+def test_new_mention_chains_under_seeded_existing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inv-1 / PC-1: a new in-flight mention near a SEEDED existing canonical
+    chains UNDER the existing — the in-flight row resolves to the seeded value.
+
+    Seed roster supplies the existing canonical ``"ISO 27001"`` (a prior-run /
+    NULL-op_id canonical of type ``standard``). This run's only mention is the
+    per-document canonical ``"iso 27001"`` (lower-cased — a near-match: the
+    dominant "same string, different casing, ingested in a prior run" case the
+    case-fold prefilter arm targets). After the pass, the in-flight row's
+    ``canonical_name`` is the SEEDED ``"ISO 27001"``, NOT its own ``"iso 27001"``
+    — the new mention chained under the existing.
+
+    This proves the wiring end-to-end: the seed string was merged into
+    ``names_by_type`` (so the resolver saw it), the ``is_existing_canonical``
+    predicate marked it existing (so PINNED pinned it), and the near-match
+    resolved to it. Production also records the call so we assert the seed is a
+    MEMBER of the resolver's ``names`` (PC-14) and the policy is PINNED.
+    """
+    from scripts.cocoindex_pipeline._coco_api import ExistingCanonicalPolicy
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "standard"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a1")
+    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000101")
+    rows = [_Row(mention_id, "iso 27001", entity_type, content_item_id, 0.8)]
+    conn = _FakeConn(rows)
+    # The seeded existing canonical (op-agnostic — prior-run or NULL-op_id).
+    pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
+
+    capture = _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # The in-flight row chained UNDER the seeded existing canonical.
+    assert len(conn.rows) == 1, "the single in-flight row survives (no collapse)"
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == mention_id
+    assert survivor.canonical_name == "ISO 27001", (
+        "new mention 'iso 27001' must chain UNDER the seeded existing 'ISO 27001'"
+    )
+    assert conn.updated == [(mention_id, "ISO 27001")]
+    assert changed == 1
+    assert counter.counts.get("entity_resolution", 0) == 1
+
+    # WIRING proof: the seed was a MEMBER of the resolver's `names` (PC-14), was
+    # flagged existing by the predicate (PC-1), and the policy was PINNED (PC-1).
+    calls = capture["calls"]
+    assert isinstance(calls, list) and len(calls) == 1
+    call = calls[0]
+    assert "ISO 27001" in call["names"], (
+        "seed roster must be MERGED into names_by_type (PC-14: seed is a member "
+        "of the resolve_entities `entities` iterable, not passed out-of-band)"
+    )
+    assert "iso 27001" in call["names"], "the in-flight per-doc canonical is present too"
+    assert call["names"] == sorted(call["names"]), (
+        "names passed as sorted(...) — Inv-14 determinism (PC-14)"
+    )
+    assert call["existing_names"] == {"ISO 27001"}, (
+        "is_existing_canonical marks ONLY the seeded existing (PC-1 predicate)"
+    )
+    assert call["existing_policy"] is ExistingCanonicalPolicy.PINNED, (
+        "existing_policy must be PINNED (PC-1)"
+    )
+
+
+def test_foreign_op_seed_row_never_written(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inv-7 / PC-7: a foreign-op canonical READ as a chaining target is byte-for-
+    byte unchanged — its ROW is physically unreachable by any DELETE/UPDATE.
+
+    The seed roster supplies ``"ISO 27001"`` (a foreign-op / NULL-op_id canonical
+    used as a chaining target). The in-flight run's mention chains under it. We
+    assert the write-back NEVER touched the seed: the seed string never appears in
+    ``conn.deleted_ids`` (there is no seed ROW in the in-flight store at all — the
+    seed is a STRING from the op-agnostic roster, never a ``name_pairs`` member),
+    and the DELETE/UPDATE the fake conn executed retain their ``AND op_id`` guards
+    (the fake enforces the UUID-typed op_id-scoped bind, ``:177-182``).
+
+    This is the by-construction Inv-5 guarantee (PC-7): seeds merge into
+    ``names_by_type`` ONLY, never ``name_pairs`` — so a foreign-op canonical is
+    READ but never WRITTEN.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "standard"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a2")
+    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000201")
+    rows = [_Row(mention_id, "iso 27001", entity_type, content_item_id, 0.8)]
+    conn = _FakeConn(rows)
+    pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
+
+    _stub_pinned_resolver_chain(monkeypatch)
+
+    asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=_StubStageCounter(),  # type: ignore[arg-type]
+        )
+    )
+
+    # The in-flight store only ever held the ONE in-flight row — the seed was
+    # never a row here (it is a foreign-op canonical, read as a string). Only the
+    # in-flight row was UPDATEd; nothing was DELETEd; the seed contributed NO row.
+    assert conn.deleted_ids == [], "no DELETE — single mention, no collision"
+    assert conn.updated == [(mention_id, "ISO 27001")], (
+        "only the in-flight row was UPDATEd; the foreign-op seed row is untouched"
+    )
+    # The only id that the write-back touched is the in-flight mention id — never
+    # a seed-derived id (seeds are strings, not name_pairs members → no id).
+    touched_ids = {mention_id}
+    assert {u[0] for u in conn.updated} <= touched_ids
+    # The seed canonical string never became a writable row id in this store.
+    assert "ISO 27001" not in {str(rid) for rid in conn.deleted_ids}
+
+
+def test_only_in_flight_op_rows_written_with_seed_roster(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inv-11 / PC-11: every id in ``deletes``/``updates`` was selected by
+    ``_select_run_entity_mentions(op_id=current)``; the seed roster (foreign-op
+    strings) contributes NO row id to either write list.
+
+    Two in-flight per-doc canonicals in one document both chain under a SEEDED
+    existing (``"EIR 2004"``). The collapse picks one survivor (UPDATEd to the
+    seed value) and DELETEs the loser. We assert BOTH the survivor id AND the
+    loser id are in-flight ids (the ids the fixture rows carry — i.e. the ids
+    ``_select_run_entity_mentions`` returned), and that the foreign-op seed
+    contributed no id to ``deleted_ids`` or ``updated``.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "regulation"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a3")
+    in_flight_short = uuid.UUID("00000000-0000-4000-8000-000000000301")  # 0.9 survivor
+    in_flight_long = uuid.UUID("00000000-0000-4000-8000-000000000302")  # 0.7 loser
+    rows = [
+        _Row(in_flight_short, "eir 2004", entity_type, content_item_id, 0.9),
+        _Row(in_flight_long, "eir 2004 regs", entity_type, content_item_id, 0.7),
+    ]
+    conn = _FakeConn(rows)
+    # Seeded existing canonical (foreign-op). Both in-flight names chain under it
+    # (substring overlap with "EIR 2004" — case-fold + substring near-match).
+    pool = _FakePool(conn, seed_rows=[("EIR 2004", entity_type)])
+
+    _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    in_flight_ids = {in_flight_short, in_flight_long}
+
+    # Every written/deleted id is an in-flight op id (Inv-11) — and exactly the
+    # ids the fixture (i.e. _select_run_entity_mentions) produced.
+    assert set(conn.deleted_ids) <= in_flight_ids, "every DELETEd id is in-flight"
+    assert {u[0] for u in conn.updated} <= in_flight_ids, "every UPDATEd id is in-flight"
+
+    # The seed contributed NO row id: the total ids the write-back saw equals the
+    # in-flight set exactly — never grew by a seed-derived id.
+    all_written = set(conn.deleted_ids) | {u[0] for u in conn.updated}
+    assert all_written <= in_flight_ids
+    assert in_flight_long in conn.deleted_ids, "the 0.7 loser was collapsed"
+    assert len(conn.rows) == 1, "one survivor remains"
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == in_flight_short, "0.9 survivor wins"
+    assert survivor.canonical_name == "EIR 2004", (
+        "survivor chained under the seeded existing canonical (Inv-1) and the "
+        "collapse landed it without a UniqueViolation (Inv-10)"
+    )
+    assert changed == 1
+    assert counter.counts.get("entity_resolution", 0) == 1

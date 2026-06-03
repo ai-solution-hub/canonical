@@ -204,6 +204,7 @@ async def _run_stage_5_resolution(
     # faiss + LiteLLM dependency chain out of module import so pipeline unit
     # tests can stub `cocoindex` at the bare-module level.
     from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+        ExistingCanonicalPolicy,
         resolve_entities,
     )
 
@@ -219,10 +220,37 @@ async def _run_stage_5_resolution(
     for _row_id, alias_applied_canonical, entity_type, _cid, _conf in name_pairs:
         names_by_type[entity_type].add(alias_applied_canonical)
 
+    # ID-81 PC-1/PC-6/PC-7/PC-14 — existing-canonical seeding.
+    #
+    # For each entity_type, read the op-AGNOSTIC existing-canonical roster
+    # (prior-run + NULL-op_id app-side canonicals lexically plausible against
+    # this run's names — PC-6, Inv-6) and MERGE it into the resolver INPUT set
+    # `names_by_type[entity_type]`. The seed strings become MEMBERS of the
+    # `entities` iterable passed to resolve_entities (PC-14, Inv-14 determinism:
+    # cocoindex's internal sorted(set(entities)) normalises pass_1 order across
+    # runs). Under existing_policy=PINNED + the `is_existing_canonical`
+    # set-membership predicate, a new in-flight mention near a seeded existing
+    # chains UNDER it (PC-1, Inv-1), and the seeded existing is never demoted
+    # (Inv-3/Inv-4).
+    #
+    # CRITICAL by-construction Inv-5 guarantee (PC-7/PC-11): the roster merges
+    # into `names_by_type` ONLY — NEVER into `name_pairs` (the op_id-scoped
+    # write-back domain). A seeded foreign-op canonical is READ (a string) but
+    # its ROW is physically unreachable by the Step-6 DELETE/UPDATE (both retain
+    # `AND op_id = $current`). Do NOT extend `name_pairs` with seed members.
+    roster_by_type: dict[str, set[str]] = {}
+    for entity_type in names_by_type:
+        roster_by_type[entity_type] = await _select_existing_canonical_roster(
+            db_pool, entity_type, names_by_type[entity_type]
+        )
+        names_by_type[entity_type] |= roster_by_type[entity_type]
+
     # resolved_by_type maps entity_type -> ResolvedEntities for that batch.
     resolved_by_type: dict[str, ResolvedEntities] = {}
     for entity_type, names in names_by_type.items():
         resolved_by_type[entity_type] = await resolve_entities(
+            # Seeds are MEMBERS of the `entities` iterable (PC-14) — passed
+            # sorted for Inv-14 cross-run determinism; NEVER out-of-band.
             sorted(names),
             embedder=KhEntityEmbedder(),
             resolve_pair=KhPairResolver(
@@ -230,6 +258,13 @@ async def _run_stage_5_resolution(
                 op_id=meta.op_id,
                 entity_type=entity_type,
             ),
+            # PC-1 set-membership predicate. `_roster=...` DEFAULT-ARG binding
+            # avoids the late-binding closure trap in this per-type loop (each
+            # lambda captures ITS type's roster, not the loop's final value).
+            is_existing_canonical=lambda name, _roster=roster_by_type[
+                entity_type
+            ]: name in _roster,
+            existing_policy=ExistingCanonicalPolicy.PINNED,
         )
 
     # Step 5: walk ResolvedEntities.canonical_of() and GROUP by the
