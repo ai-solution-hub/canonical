@@ -17,7 +17,9 @@ import pytest
 
 import scripts.cocoindex_pipeline._coco_api as api
 
-# The eleven symbols the pipeline depends on, per the {67.4} brief.
+# The twelve symbols the pipeline depends on, per the {67.4} brief plus the
+# {81.5} addition of ``ExistingCanonicalPolicy`` (Stage-5 cross-run canonical
+# stability — TECH §PC-FACADE).
 _FACADE_SYMBOLS = (
     "localfs",
     "ColumnDef",
@@ -30,6 +32,7 @@ _FACADE_SYMBOLS = (
     "resolve_entities",
     "ResolvedEntities",
     "PairDecision",
+    "ExistingCanonicalPolicy",
 )
 
 
@@ -63,9 +66,9 @@ def test_facade_symbol_resolves(name: str) -> None:
 
 
 def test_all_lists_every_symbol() -> None:
-    """``__all__`` enumerates exactly the eleven façade symbols."""
+    """``__all__`` enumerates exactly the twelve façade symbols."""
     assert set(api.__all__) == set(_FACADE_SYMBOLS)
-    assert len(api.__all__) == len(_FACADE_SYMBOLS) == 11
+    assert len(api.__all__) == len(_FACADE_SYMBOLS) == 12
 
 
 def test_unknown_attribute_raises() -> None:

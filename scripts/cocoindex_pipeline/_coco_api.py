@@ -10,7 +10,7 @@ one-file fix.
 
 Pinned version: ``cocoindex==1.0.3`` (see ``requirements.txt`` and the
 version-pin assertion in ``scripts/tests/test_coco_api_facade.py``, which gates
-upgrades). The eleven re-exported symbols and their real 1.0.3 sources are
+upgrades). The twelve re-exported symbols and their real 1.0.3 sources are
 listed in ``_SYMBOL_SOURCES`` below.
 
 WHY LAZY (PEP 562 module ``__getattr__``)
@@ -71,10 +71,15 @@ _SYMBOL_SOURCES: dict[str, tuple[str, str | None]] = {
     "resolve_entities": ("cocoindex.ops.entity_resolution", "resolve_entities"),
     "ResolvedEntities": ("cocoindex.ops.entity_resolution", "ResolvedEntities"),
     "PairDecision": ("cocoindex.ops.entity_resolution", "PairDecision"),
+    "ExistingCanonicalPolicy": (
+        "cocoindex.ops.entity_resolution",
+        "ExistingCanonicalPolicy",
+    ),
 }
 
 __all__ = [
     "ColumnDef",
+    "ExistingCanonicalPolicy",
     "FileLike",
     "LiteLLMEmbedder",
     "ManagedBy",
@@ -122,6 +127,7 @@ if TYPE_CHECKING:  # pragma: no cover — static-analysis-only real imports
     )
     from cocoindex.connectorkits.target import ManagedBy
     from cocoindex.ops.entity_resolution import (
+        ExistingCanonicalPolicy,
         PairDecision,
         ResolvedEntities,
         resolve_entities,
