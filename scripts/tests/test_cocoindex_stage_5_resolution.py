@@ -62,9 +62,10 @@ References:
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from unittest.mock import MagicMock
 
@@ -232,10 +233,17 @@ class _FakePool:
         self,
         conn: _FakeConn,
         seed_rows: list[tuple[str, str]] | None = None,
+        alias_rows: list[dict[str, str]] | None = None,
     ) -> None:
         self.conn = conn
         # Op-agnostic existing-canonical corpus: (canonical_name, entity_type).
         self.seed_rows: list[tuple[str, str]] = seed_rows or []
+        # Active legacy `entity_aliases` rows answering the Inv-10/Inv-12 preload
+        # (`SELECT alias, canonical FROM public.entity_aliases WHERE is_active`).
+        # The three bl-225 tests + the {81.6}/{81.7} tests default to [] (no
+        # aliases active); the Inv-12 test supplies a non-empty list so the
+        # alias-preload path is genuinely exercised, not stubbed-away.
+        self.alias_rows: list[dict[str, str]] = alias_rows or []
 
     @staticmethod
     def _prefilter_match(canonical: str, probe_lower: list[str]) -> bool:
@@ -256,7 +264,10 @@ class _FakePool:
 
     async def fetch(self, query: str, *args: object) -> list[dict]:
         if "FROM public.entity_aliases" in query:
-            return []  # no aliases active
+            # Active legacy alias rows (default [] — most tests run no aliases).
+            # Each row is {"alias": ..., "canonical": ...}; the production
+            # `_preload_entity_aliases` builds {alias: canonical} from these.
+            return list(self.alias_rows)
         if "SELECT DISTINCT canonical_name" in query:
             # ID-81 PC-6 reader: op-agnostic existing-canonical roster.
             # Binds: $1 = entity_type, $2 = probe (run names), $3 = lowered probe.
@@ -297,6 +308,154 @@ class _FakePool:
             yield conn
 
         return _acquire()
+
+
+# ── Op_id-ENFORCING fake conn (Inv-7 runtime strengthening) ───────────────────
+#
+# The base `_FakeConn` above does NOT model op_id at all: its DELETE/UPDATE
+# handlers ignore the `op_id` bind, so a missing `AND op_id` guard in production
+# would NOT be caught by a test using it (the guard would only be source-read).
+# The Inv-7 strengthening below seeds a REAL foreign-op ROW carrying a DIFFERENT
+# op_id and ENFORCES the `op_id = $current` predicate in the handlers, so a
+# production regression that dropped `AND op_id` would let the foreign-op row be
+# DELETEd/UPDATEd — and the byte-identity assertion would then FAIL. This makes
+# the op_id guard runtime-verified, not just source-read (TECH §5 Inv-7).
+
+
+@dataclass
+class _OpRow:
+    """An ``entity_mentions`` row that ALSO carries its owning ``op_id``."""
+
+    id: uuid.UUID
+    canonical_name: str
+    entity_type: str
+    content_item_id: uuid.UUID
+    confidence: float | None
+    op_id: uuid.UUID
+
+
+class _OpScopedFakeConn:
+    """In-memory store whose DELETE/UPDATE ENFORCE the ``op_id = $current`` guard.
+
+    Mirrors ``_FakeConn`` but every row carries an ``op_id`` and the mutation
+    handlers honour the production binds: DELETE binds ``(ids, op_id)`` and only
+    deletes ids whose row ``op_id`` equals the bound current op; UPDATE binds
+    ``(canonical, id, op_id)`` and only mutates when the row's ``op_id`` equals
+    the bound op. A foreign-op row (different ``op_id``) is therefore physically
+    unreachable — exactly the by-construction Inv-5/Inv-7 guarantee. Also
+    enforces the same UNIQUE(canonical_name, entity_type, content_item_id) the
+    base conn models, so seeding-induced collapses still cannot collide.
+    """
+
+    def __init__(self, rows: list[_OpRow]) -> None:
+        self.rows: dict[uuid.UUID, _OpRow] = {r.id: r for r in rows}
+        self.deleted_ids: list[uuid.UUID] = []
+        self.updated: list[tuple[uuid.UUID, str]] = []
+
+    def _natural_key(self, row: _OpRow) -> tuple[str, str, uuid.UUID]:
+        return (row.canonical_name, row.entity_type, row.content_item_id)
+
+    @asynccontextmanager
+    async def transaction(self):  # type: ignore[no-untyped-def]
+        yield
+
+    async def execute(self, query: str, *args: object) -> str:
+        if query.startswith("DELETE FROM public.entity_mentions"):
+            # DELETE ... WHERE id = ANY($1::uuid[]) AND op_id = $2
+            ids: list[uuid.UUID] = list(args[0])  # type: ignore[arg-type]
+            current_op = args[1]
+            assert isinstance(current_op, uuid.UUID), (
+                "DELETE op_id bind must be a native uuid.UUID (asyncpg-strict)"
+            )
+            for row_id in ids:
+                row = self.rows.get(row_id)
+                # ENFORCE `AND op_id = $2`: a row whose op_id differs from the
+                # bound current op is NOT matched by the production predicate.
+                if row is not None and row.op_id == current_op:
+                    del self.rows[row_id]
+                    self.deleted_ids.append(row_id)
+            return "DELETE"
+
+        if query.startswith("UPDATE public.entity_mentions"):
+            # UPDATE ... SET canonical_name = $1 WHERE id = $2 AND op_id = $3
+            new_canonical = args[0]
+            row_id = args[1]
+            current_op = args[2]
+            assert isinstance(row_id, uuid.UUID), (
+                "row id bind must be a native uuid.UUID (asyncpg-strict typing)"
+            )
+            assert isinstance(current_op, uuid.UUID), (
+                "UPDATE op_id bind must be a native uuid.UUID (asyncpg-strict)"
+            )
+            target = self.rows.get(row_id)  # type: ignore[arg-type]
+            # ENFORCE `AND op_id = $3`: a foreign-op row is never updated.
+            if target is None or target.op_id != current_op:
+                return "UPDATE 0"
+            prospective = _OpRow(
+                id=target.id,
+                canonical_name=str(new_canonical),
+                entity_type=target.entity_type,
+                content_item_id=target.content_item_id,
+                confidence=target.confidence,
+                op_id=target.op_id,
+            )
+            new_key = self._natural_key(prospective)
+            for other_id, other in self.rows.items():
+                if other_id != row_id and self._natural_key(other) == new_key:
+                    raise _UNIQUE_VIOLATION(
+                        "duplicate key value violates unique constraint "
+                        '"entity_mentions_canonical_name_entity_type_'
+                        'content_item_id_key"'
+                    )
+            self.rows[row_id] = prospective  # type: ignore[index]
+            self.updated.append((target.id, str(new_canonical)))
+            return "UPDATE 1"
+
+        raise AssertionError(f"unexpected execute query: {query!r}")
+
+
+class _OpScopedFakePool(_FakePool):
+    """``_FakePool`` whose run-mentions SELECT is itself op_id-scoped.
+
+    ``_FakePool`` returns ALL ``conn.rows`` for the run-mentions SELECT, modelling
+    a conn that only ever held in-flight rows. The op-scoped store holds a FOREIGN
+    op row too, so this subclass overrides the ``FROM public.entity_mentions``
+    (run-mentions) branch to honour the production ``WHERE op_id = $1`` bind —
+    so ``_select_run_entity_mentions`` returns ONLY the in-flight rows, exactly
+    as production does. The roster SELECT stays op-AGNOSTIC (it reads the seed
+    corpus, which may include the foreign-op canonical as a chaining target).
+    """
+
+    def __init__(
+        self,
+        conn: _OpScopedFakeConn,
+        seed_rows: list[tuple[str, str]] | None = None,
+        alias_rows: list[dict[str, str]] | None = None,
+    ) -> None:
+        super().__init__(conn, seed_rows=seed_rows, alias_rows=alias_rows)
+        self.op_conn = conn
+
+    async def fetch(self, query: str, *args: object) -> list[dict]:
+        if (
+            "FROM public.entity_mentions" in query
+            and "WHERE op_id = $1" in query
+            and "SELECT DISTINCT canonical_name" not in query
+        ):
+            # _select_run_entity_mentions: op_id-scoped (Inv-5). Return ONLY rows
+            # belonging to the bound op — the foreign-op row is invisible here.
+            current_op = args[0]
+            return [
+                {
+                    "id": r.id,
+                    "canonical_name": r.canonical_name,
+                    "entity_type": r.entity_type,
+                    "content_item_id": r.content_item_id,
+                    "confidence": r.confidence,
+                }
+                for r in self.op_conn.rows.values()
+                if r.op_id == current_op
+            ]
+        return await super().fetch(query, *args)
 
 
 # ── Stubs for the resolver chain (lazy-imported INSIDE the function) ──────────
@@ -378,6 +537,35 @@ class _StubMeta:
     """Structural ``FlowRunMeta`` stand-in exposing ``.op_id``."""
 
     op_id: uuid.UUID
+
+
+@contextmanager
+def _capture_stage5_logs():  # type: ignore[no-untyped-def]
+    """Capture ``logging`` records emitted by the stage_5 module logger.
+
+    Used to assert the ``cocoindex.stage_5.collapsed`` structured log fires on a
+    bl-225 collapse (Inv-10). Attaches a transient handler to the module logger
+    (`scripts.cocoindex_pipeline.stage_5`) and yields the collected records.
+    Restores the prior level/handlers on exit (no global state leak).
+    """
+    import logging
+
+    logger = logging.getLogger("scripts.cocoindex_pipeline.stage_5")
+    records: list[logging.LogRecord] = []
+
+    class _Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Collector()
+    prior_level = logger.level
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        yield records
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(prior_level)
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -630,39 +818,58 @@ def test_roster_is_entity_type_scoped() -> None:
         _select_existing_canonical_roster,
     )
 
-    # "Cisco" exists as BOTH an organisation and (separately) a technology.
+    # "Cisco" exists as BOTH an organisation and (separately) a technology — a
+    # same-string-different-type pair. But a same-string pair alone cannot
+    # ISOLATE entity_type-scoping from the lexical prefilter: "Cisco" passes the
+    # prefilter under EITHER type, so its presence/absence is confounded by the
+    # prefilter arm. To make entity_type-scoping INDEPENDENTLY falsifiable, we
+    # add UNIQUE per-type canonicals — a name that exists under ONE type only —
+    # and assert it is excluded from the OTHER type's batch even though that
+    # batch's run names lexically near-match it. Only the $1 entity_type bind can
+    # account for that exclusion (the prefilter would otherwise admit it).
     seed_rows = [
-        ("Cisco", "organisation"),  # the company
-        ("Cisco", "technology"),  # the product line
-        ("Juniper", "organisation"),  # organisation-only — must not leak
+        ("Cisco", "organisation"),  # the company (same-string pair, lower value)
+        ("Cisco", "technology"),  # the product line (same-string pair)
+        ("Juniper", "organisation"),  # organisation-only — must not leak to tech
+        ("Kubernetes", "technology"),  # technology-only — must not leak to org
     ]
     pool = _FakePool(_FakeConn([]), seed_rows=seed_rows)
 
-    # Resolving a TECHNOLOGY batch whose run names near-match "Cisco".
+    # Resolving a TECHNOLOGY batch whose run names near-match BOTH "Cisco" and
+    # the organisation-only "Juniper" — so the prefilter WOULD admit "Juniper"
+    # if entity_type were not scoped. Only the $1 = 'technology' bind excludes it.
     tech_roster = asyncio.run(
         _select_existing_canonical_roster(
             pool,  # type: ignore[arg-type]
             "technology",
-            {"cisco"},
+            {"cisco", "juniper"},  # 'juniper' present so prefilter is NOT the gate
         )
     )
-    # Only the technology "Cisco" is eligible; the organisation "Cisco" is scoped
-    # OUT, and the organisation-only "Juniper" never appears in a tech roster.
+    # The technology "Cisco" and "Kubernetes" are eligible; the organisation-only
+    # "Juniper" is scoped OUT by $1 = 'technology' DESPITE being lexically present
+    # in the run names — entity_type-scoping is the sole reason it is absent.
     assert "Cisco" in tech_roster, "technology Cisco IS in the technology roster"
     assert "Juniper" not in tech_roster, (
-        "an organisation-only canonical must never leak into a technology roster"
+        "an organisation-only canonical must never leak into a technology roster, "
+        "even when a run name lexically matches it (entity_type-scoping, not the "
+        "prefilter, is the gate)"
     )
 
-    # And the converse: resolving an ORGANISATION batch sees the organisation
-    # "Cisco" and "Juniper" but the technology rows are scoped out by $1.
+    # And the converse: resolving an ORGANISATION batch whose run names near-match
+    # the technology-only "Kubernetes" — the prefilter would admit it, but the
+    # $1 = 'organisation' bind scopes it out. The org "Cisco" + "Juniper" remain.
     org_roster = asyncio.run(
         _select_existing_canonical_roster(
             pool,  # type: ignore[arg-type]
             "organisation",
-            {"cisco", "juniper"},
+            {"cisco", "juniper", "kubernetes"},  # 'kubernetes' present as a probe
         )
     )
-    assert org_roster == {"Cisco", "Juniper"}
+    assert org_roster == {"Cisco", "Juniper"}, (
+        "the technology-only 'Kubernetes' is scoped OUT of the organisation "
+        "roster despite lexically matching a run name — entity_type-scoping is "
+        "independently falsifiable"
+    )
 
 
 # ── ID-81 PC-1/PC-7/PC-11/PC-14: PINNED seeding wired into resolve_entities ───
@@ -972,3 +1179,484 @@ def test_only_in_flight_op_rows_written_with_seed_roster(
     )
     assert changed == 1
     assert counter.counts.get("entity_resolution", 0) == 1
+
+
+# ── ID-81.8 — remaining per-invariant real-body units (TECH §5 table) ─────────
+#
+# These extend the {81.7} wiring coverage with the invariants TECH §5 lists but
+# which were not yet covered: Inv-4 (two existings never merged), Inv-5 (seeded
+# existing with no match → no event), Inv-10 (seeded-target bl-225 collapse —
+# REQUIRED regression), Inv-12 (alias applied pre-resolution + roster NOT
+# aliased), Inv-13 (unresolved mention retains per-doc canonical with a non-empty
+# seed roster). All drive the REAL `_run_stage_5_resolution` body with the
+# resolver chain stubbed at source via `_stub_pinned_resolver_chain`.
+
+
+def test_two_existing_seeds_never_merged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inv-4 / PC-4: two DISTINCT existing canonicals of one type, with NO
+    matching new mention, are never merged — neither is touched by the run.
+
+    The seed roster supplies TWO distinct existings of type ``organisation``
+    (``"Acme Corporation"`` + ``"Globex Limited"``). This run's only mention is
+    an UNRELATED per-doc canonical (``"Stark Industries"``) that near-matches
+    NEITHER seed. Under PINNED, each existing pins as its own canonical and the
+    resolver is never run existing-against-existing, so the run produces ZERO
+    updates (the single in-flight mention resolves to itself) and ZERO deletes,
+    and NEITHER seed string ever appears in a write-back.
+
+    Falsifiability: were the policy PREFERRED (or were the two existings compared
+    against each other), one existing could be collapsed into the other and
+    appear in ``deletes`` — this asserts that does not happen. The unrelated
+    in-flight mention also proves the seeds are not spuriously chained.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "organisation"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b1")
+    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000401")
+    # The single in-flight mention is UNRELATED to either seed (no near-match).
+    rows = [_Row(mention_id, "Stark Industries", entity_type, content_item_id, 0.8)]
+    conn = _FakeConn(rows)
+    pool = _FakePool(
+        conn,
+        seed_rows=[
+            ("Acme Corporation", entity_type),
+            ("Globex Limited", entity_type),
+        ],
+    )
+
+    capture = _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # No merge: the single in-flight mention resolved to itself; no UPDATE/DELETE.
+    assert conn.updated == [], "no UPDATE — the unrelated mention chains nowhere"
+    assert conn.deleted_ids == [], "no DELETE — two existings are never merged"
+    assert changed == 0
+    assert counter.counts.get("entity_resolution", 0) == 0
+    # The in-flight row keeps its per-doc canonical.
+    assert len(conn.rows) == 1
+    assert next(iter(conn.rows.values())).canonical_name == "Stark Industries"
+
+    # WIRING proof: the roster prefilter near-matches NOTHING here (the seeds are
+    # not lexically close to "Stark Industries"), so the resolver's `names` is the
+    # in-flight name only — neither seed was offered. This is itself the Inv-4
+    # guarantee: with no near in-flight mention, the existings never enter the
+    # resolver batch, so they cannot be merged. Both existings remain untouched.
+    calls = capture["calls"]
+    assert isinstance(calls, list) and len(calls) == 1
+    names = calls[0]["names"]
+    assert "Acme Corporation" not in names and "Globex Limited" not in names, (
+        "no in-flight mention near-matched either seed, so the prefilter admitted "
+        "neither into the resolver batch — they are never compared/merged (Inv-4)"
+    )
+
+
+def test_seeded_existing_no_match_no_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inv-5 / PC-5: a seeded existing with no matching new mention produces NO
+    resolution event — ``updates == []`` AND ``deletes == []``.
+
+    Seed an existing canonical (``"ISO 27001"``, type ``standard``); the run's
+    ONLY mention is unrelated (``"GDPR"``, same type but lexically distant). The
+    existing sits in the candidate corpus but, matched by no in-flight mention,
+    forms no collision group (the group key is built ONLY from ``name_pairs``,
+    `stage_5.py`), so it appears in neither write list. The unrelated mention
+    resolves to itself.
+
+    Falsifiability: if a seeded existing emitted a resolution event merely by
+    being read, ``updates``/``deletes`` would be non-empty — this asserts they
+    are both empty.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "standard"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b2")
+    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000501")
+    rows = [_Row(mention_id, "GDPR", entity_type, content_item_id, 0.8)]
+    conn = _FakeConn(rows)
+    pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
+
+    _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    assert conn.updated == [], "seeded existing with no matching mention → no UPDATE"
+    assert conn.deleted_ids == [], "seeded existing with no matching mention → no DELETE"
+    assert changed == 0
+    assert counter.counts.get("entity_resolution", 0) == 0
+    # The unrelated mention retains its per-doc canonical and is the only row.
+    assert len(conn.rows) == 1
+    assert next(iter(conn.rows.values())).canonical_name == "GDPR"
+
+
+def test_seeded_target_bl225_collapse(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inv-10 / PC-10 (REQUIRED regression): seeding induces a same-document
+    collision — TWO same-doc per-doc canonicals both chain under a SEEDED
+    existing — and the bl-225 collapse absorbs it identically.
+
+    Mirrors ``test_collapse_with_survivor_update`` but the resolution TARGET is a
+    SEEDED existing canonical rather than a same-run name. Two in-flight per-doc
+    canonicals in ONE document (``"eir 2004"`` @0.9 + ``"environmental
+    information regulations 2004"`` @0.7) both chain under the seeded existing
+    ``"EIR 2004 regs"``. The collapse must: pick the 0.9 survivor (highest
+    confidence, smallest id tie-break), UPDATE it into the seeded canonical,
+    DELETE the 0.7 loser FIRST (so the survivor's UPDATE does not transiently
+    collide on UNIQUE(canonical_name, entity_type, content_item_id)), raise NO
+    UniqueViolation, and emit the ``cocoindex.stage_5.collapsed`` structured log.
+
+    Falsifiability: were the collapse skipped (old row-by-row body), the second
+    UPDATE would raise ``UniqueViolationError`` on the fake conn (it models the
+    constraint) — the test would error. Were DELETE-first dropped, the survivor's
+    UPDATE into a value the loser still holds would also collide.
+    """
+    import logging
+
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "regulation"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b3")
+    survivor_id = uuid.UUID("00000000-0000-4000-8000-000000000601")  # 0.9 survivor
+    loser_id = uuid.UUID("00000000-0000-4000-8000-000000000602")  # 0.7 loser
+    seeded_target = "EIR 2004"  # the existing both per-doc canonicals chain under
+    rows = [
+        # Both per-doc canonicals lexically near-match the seed "EIR 2004":
+        #   "eir 2004"       — case-fold equal to the seed;
+        #   "eir 2004 regs"  — contains the lowered seed as a substring.
+        # So BOTH chain under the seeded existing under the PINNED stub → they
+        # collapse to ONE group keyed (content_item_id, entity_type, "EIR 2004").
+        _Row(survivor_id, "eir 2004", entity_type, content_item_id, 0.9),
+        _Row(loser_id, "eir 2004 regs", entity_type, content_item_id, 0.7),
+    ]
+    conn = _FakeConn(rows)
+    # Seeded existing canonical (foreign-op chaining target).
+    pool = _FakePool(conn, seed_rows=[(seeded_target, entity_type)])
+
+    _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    with _capture_stage5_logs() as records:
+        changed = asyncio.run(
+            _run_stage_5_resolution(
+                meta=_StubMeta(op_id=op_id),
+                db_pool=pool,  # type: ignore[arg-type]
+                flow_stage_counter=counter,  # type: ignore[arg-type]
+            )
+        )
+
+    # Exactly one survivor — the 0.9 row, now holding the SEEDED canonical.
+    assert len(conn.rows) == 1, "collapse to a single survivor (no UniqueViolation)"
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == survivor_id, "0.9-confidence row survives (smallest-id n/a)"
+    assert survivor.canonical_name == seeded_target, (
+        "survivor UPDATEd INTO the seeded existing canonical — the new mentions "
+        "chained under the existing (Inv-1), and the collapse landed it (Inv-10)"
+    )
+
+    # DELETE-first ordering: the 0.7 loser was DELETEd; the survivor UPDATEd once.
+    assert conn.deleted_ids == [loser_id], "the 0.7 loser was collapsed (DELETEd)"
+    assert conn.updated == [(survivor_id, seeded_target)], (
+        "exactly one UPDATE landed the seeded canonical on the survivor"
+    )
+    assert changed == 1
+    assert counter.counts.get("entity_resolution", 0) == 1
+
+    # The structured collapse log fired (bl-225 observability obligation).
+    collapse_logs = [
+        json.loads(r.getMessage())
+        for r in records
+        if r.getMessage().startswith("{")
+        and json.loads(r.getMessage()).get("event") == "cocoindex.stage_5.collapsed"
+    ]
+    assert len(collapse_logs) == 1, "exactly one cocoindex.stage_5.collapsed log fired"
+    assert collapse_logs[0]["op_id"] == str(op_id)
+    assert collapse_logs[0]["collapsed_count"] == 1, "one loser was collapsed"
+    # Keep the logging import referenced (the helper uses the logging module).
+    assert logging.getLogger("scripts.cocoindex_pipeline.stage_5") is not None
+
+
+def test_alias_applied_pre_resolution_and_roster_not_aliased(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inv-12 / PC-12: the legacy ``entity_aliases`` rewrite is applied to the
+    per-doc canonical BEFORE resolution, and the seed roster source is
+    ``entity_mentions.canonical_name`` ONLY (NOT a UNION with ``entity_aliases``).
+
+    A NON-empty active alias row (``"eir 2004" → "EIR 2004"``) is supplied via
+    ``_FakePool.alias_rows`` — the ``FROM public.entity_aliases`` fetch branch now
+    genuinely returns it (the other tests return ``[]``, so this exercises the
+    preload path for real). The in-flight per-doc canonical is the alias KEY
+    ``"eir 2004"``. After alias application, the row's canonical becomes
+    ``"EIR 2004"`` BEFORE the resolver sees it; the resolver then receives
+    ``"EIR 2004"`` (the alias VALUE), NOT the raw ``"eir 2004"``.
+
+    Roster-not-aliased proof: the roster reader is invoked with the ALIAS-APPLIED
+    name set, and the only roster SELECT issued is against
+    ``public.entity_mentions`` (the ``_FakePool.fetch`` `SELECT DISTINCT
+    canonical_name` branch); the alias map is NEVER unioned into the roster. We
+    assert the resolver's ``names`` contain the alias VALUE and NOT the alias KEY.
+
+    Falsifiability: if the alias were applied AFTER resolution (or not at all),
+    the resolver's ``names`` would contain the raw ``"eir 2004"`` key and the
+    final row canonical would not be the alias value — this asserts the opposite.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "regulation"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b4")
+    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000701")
+    # The per-doc canonical is the ALIAS KEY; the active alias rewrites it.
+    rows = [_Row(mention_id, "eir 2004", entity_type, content_item_id, 0.8)]
+    conn = _FakeConn(rows)
+    pool = _FakePool(
+        conn,
+        # No seed roster — this test isolates the alias path; the roster reader
+        # still runs (over the alias-applied name) and returns [] (no seeds).
+        seed_rows=[],
+        # NON-EMPTY active alias row → exercises `_preload_entity_aliases`.
+        alias_rows=[{"alias": "eir 2004", "canonical": "EIR 2004"}],
+    )
+
+    capture = _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # The alias was applied BEFORE resolution: the resolver saw the alias VALUE.
+    calls = capture["calls"]
+    assert isinstance(calls, list) and len(calls) == 1
+    names = calls[0]["names"]
+    assert "EIR 2004" in names, (
+        "resolver received the ALIAS-APPLIED canonical 'EIR 2004' (alias applied "
+        "BEFORE resolution — Inv-12)"
+    )
+    assert "eir 2004" not in names, (
+        "the raw alias KEY 'eir 2004' must NOT reach the resolver — the rewrite "
+        "happens before resolution, not after"
+    )
+
+    # ROSTER-NOT-ALIASED proof: the seed-roster read is NOT a UNION with the
+    # alias map. The roster reader ran over the alias-applied name set and the
+    # ONLY SELECT it issued was against `public.entity_mentions` (the `_FakePool`
+    # roster branch); the alias map ("eir 2004"→"EIR 2004") was never offered as a
+    # roster candidate. With an empty seed corpus the roster is empty, so the
+    # alias VALUE is the ONLY name in the resolver batch (no aliased seed leaked).
+    assert names == ["EIR 2004"], (
+        "the resolver batch is the single alias-applied name — the roster is NOT "
+        "unioned with entity_aliases (Inv-12: roster source is entity_mentions "
+        "canonical_name only)"
+    )
+
+    # WRITE-BACK NOTE (real production behaviour, asserted honestly): the
+    # write-back compares the ALIAS-APPLIED canonical against the RESOLVED value
+    # (`survivor_alias_applied != resolved`, stage_5.py). Here the alias-applied
+    # name "EIR 2004" resolves to ITSELF (empty roster, single mention), so
+    # alias-applied == resolved → NO UPDATE fires, and the stored row retains its
+    # raw per-doc "eir 2004". Inv-12's obligation is that the alias is applied
+    # BEFORE resolution (proven above by the resolver seeing the alias VALUE) and
+    # that the roster is not aliased — NOT that the alias is persisted to the row
+    # absent a resolution move. (Persisting the alias rewrite itself is ID-53
+    # Inv-10's app-side `resolveAlias`, not the Stage-5 write-back.)
+    assert len(conn.rows) == 1
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.canonical_name == "eir 2004", (
+        "no UPDATE fires when the alias-applied canonical resolves to itself — "
+        "the write-back skip-condition is `alias_applied != resolved` (Inv-12 "
+        "concerns the PRE-resolution alias rewrite, not row persistence)"
+    )
+    assert conn.updated == [], "alias-applied == resolved → no canonical_name UPDATE"
+    assert changed == 0
+    assert counter.counts.get("entity_resolution", 0) == 0
+
+
+def test_unresolved_mention_retains_canonical_with_seed_roster(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inv-13 / PC-13: an obscure mention with no near-match among run names OR
+    the seed roster retains its per-document canonical and is absent from
+    ``updates`` — even with a NON-empty seed roster present.
+
+    A NON-empty seed roster (``"ISO 27001"``, type ``standard``) is supplied, but
+    the in-flight mention (``"Zphqx Protocol"``) near-matches NEITHER the seed NOR
+    any other run name. Seeding only ADDS candidate targets; it never forces a
+    match — so the obscure mention resolves to ITSELF (``canonical_of(name) ==
+    name``), keeps its per-doc canonical, and Stage-5 issues no UPDATE for it.
+
+    Falsifiability: if seeding spuriously chained the obscure mention under the
+    unrelated seed, the row's canonical would change and it would appear in
+    ``updates`` — this asserts it does not.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "standard"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b5")
+    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000801")
+    rows = [_Row(mention_id, "Zphqx Protocol", entity_type, content_item_id, 0.8)]
+    conn = _FakeConn(rows)
+    # NON-empty seed roster, but lexically distant from the obscure mention.
+    pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
+
+    _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # The obscure mention resolved to itself — retained its per-doc canonical.
+    assert len(conn.rows) == 1
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == mention_id
+    assert survivor.canonical_name == "Zphqx Protocol", (
+        "an unresolved mention retains its per-document canonical (Inv-13) even "
+        "with a non-empty seed roster present — seeding never forces a match"
+    )
+    assert conn.updated == [], "no UPDATE — the mention is absent from `updates`"
+    assert conn.deleted_ids == []
+    assert changed == 0
+    assert counter.counts.get("entity_resolution", 0) == 0
+
+
+# ── ID-81.8 (B1) — Inv-7 op_id-guard RUNTIME strengthening ────────────────────
+
+
+def test_foreign_op_row_byte_for_byte_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inv-7 / PC-7 (RUNTIME-verified op_id guard): a foreign-op ROW supplied as a
+    chaining target is byte-for-byte unchanged because the DELETE/UPDATE enforce
+    ``AND op_id = $current`` — a regression that dropped the guard would let the
+    foreign-op row be touched, FAILING this test.
+
+    Unlike the existing foreign-op test (which models the seed as a STRING only,
+    with a conn that ignores op_id), this seeds a REAL foreign-op ROW into an
+    op-ENFORCING conn carrying a DIFFERENT ``op_id``, snapshots ALL its columns
+    before the pass, and asserts byte-identity after. The op-agnostic ROSTER
+    reader still surfaces the foreign-op canonical (``"ISO 27001"``) as a chaining
+    target (the roster is op-AGNOSTIC by design — Inv-6), and the in-flight
+    mention chains under it. But the write-back is op_id-SCOPED: the
+    ``_OpScopedFakeConn`` only mutates rows whose ``op_id`` equals the bound
+    current op, so the foreign-op row is physically unreachable.
+
+    Falsifiability (the load-bearing point): the conn's handlers ENFORCE the
+    ``op_id`` predicate, so if production dropped ``AND op_id`` from the
+    DELETE/UPDATE binds, the foreign-op row could match a write and its snapshot
+    would change — this assertion would then FAIL. The guard is RUNTIME-verified,
+    not merely source-read.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    current_op = uuid.uuid4()
+    foreign_op = uuid.uuid4()
+    assert current_op != foreign_op
+    entity_type = "standard"
+    in_flight_cid = uuid.UUID("077b27e7-0000-4000-8000-0000000000c1")
+    foreign_cid = uuid.UUID("077b27e7-0000-4000-8000-0000000000c2")
+    in_flight_id = uuid.UUID("00000000-0000-4000-8000-000000000901")
+    foreign_id = uuid.UUID("00000000-0000-4000-8000-000000000902")
+
+    # The foreign-op ROW: a prior-run canonical "ISO 27001" used as a chaining
+    # target. Its op_id differs from the in-flight op → write-back must not touch.
+    foreign_row = _OpRow(
+        id=foreign_id,
+        canonical_name="ISO 27001",
+        entity_type=entity_type,
+        content_item_id=foreign_cid,
+        confidence=0.95,
+        op_id=foreign_op,
+    )
+    # The in-flight mention: a near-match of the foreign-op canonical (case-fold).
+    in_flight_row = _OpRow(
+        id=in_flight_id,
+        canonical_name="iso 27001",
+        entity_type=entity_type,
+        content_item_id=in_flight_cid,
+        confidence=0.8,
+        op_id=current_op,
+    )
+    conn = _OpScopedFakeConn([in_flight_row, foreign_row])
+    # The op-AGNOSTIC roster surfaces the foreign-op canonical as a chaining
+    # target (Inv-6) — supplied here as a seed string so the in-flight mention
+    # chains under it. The op-scoped pool keeps the run-mentions SELECT op-scoped.
+    pool = _OpScopedFakePool(conn, seed_rows=[("ISO 27001", entity_type)])
+
+    # Snapshot ALL columns of the foreign-op row BEFORE the pass (byte-identity).
+    before = (
+        foreign_row.id,
+        foreign_row.canonical_name,
+        foreign_row.entity_type,
+        foreign_row.content_item_id,
+        foreign_row.confidence,
+        foreign_row.op_id,
+    )
+
+    _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=current_op),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # The foreign-op row STILL EXISTS and is byte-for-byte identical.
+    assert foreign_id in conn.rows, "the foreign-op row was not DELETEd"
+    after_row = conn.rows[foreign_id]
+    after = (
+        after_row.id,
+        after_row.canonical_name,
+        after_row.entity_type,
+        after_row.content_item_id,
+        after_row.confidence,
+        after_row.op_id,
+    )
+    assert after == before, (
+        "the foreign-op row is byte-for-byte unchanged — the op_id guard made it "
+        "physically unreachable by the write-back (Inv-7 RUNTIME-verified)"
+    )
+
+    # The foreign-op id never appeared in any write list (op_id-scoped write).
+    assert foreign_id not in conn.deleted_ids
+    assert foreign_id not in {u[0] for u in conn.updated}
+
+    # The in-flight mention DID chain under the foreign-op canonical (Inv-1): it
+    # was UPDATEd to "ISO 27001". This proves the foreign-op canonical was READ
+    # (a string, op-agnostic roster) while its ROW stayed untouched (op-scoped).
+    assert in_flight_id in conn.rows
+    assert conn.rows[in_flight_id].canonical_name == "ISO 27001", (
+        "the in-flight mention chained UNDER the foreign-op canonical (READ side "
+        "is op-agnostic) — yet the foreign-op ROW was never written (WRITE side "
+        "is op_id-scoped)"
+    )
+    assert conn.updated == [(in_flight_id, "ISO 27001")]
+    assert changed == 1
