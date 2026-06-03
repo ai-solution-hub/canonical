@@ -238,11 +238,27 @@ async def _run_stage_5_resolution(
     # write-back domain). A seeded foreign-op canonical is READ (a string) but
     # its ROW is physically unreachable by the Step-6 DELETE/UPDATE (both retain
     # `AND op_id = $current`). Do NOT extend `name_pairs` with seed members.
+    #
+    # ID-81.9 INERT-SEEDING FIX: the roster reader (`_select_existing_canonical_
+    # roster`) reads OP-AGNOSTICALLY from `entity_mentions`, and by Stage-5 time
+    # the in-flight run's OWN rows are ALREADY in the table — so the roster
+    # contains this run's own canonical names, each matching ITSELF. Left in the
+    # roster, those self-memberships make the `is_existing_canonical` predicate
+    # flag EVERY in-flight name `True`, pinning them in pass_1 so they NEVER enter
+    # pass_2 (faiss-search-and-chain) — a run-2 near-match could then never chain
+    # under a run-1 canonical (seeding inert cross-run). Subtract the run's own
+    # names so the roster holds only FOREIGN (other-op + NULL-op) canonicals
+    # BEFORE the `|=` merge: the merge still adds foreign canonicals as resolver-
+    # input chain targets (PC-14), but in-flight names are no longer flagged
+    # `is_existing`, so they re-enter pass_2 and chain. The write-back domain
+    # (`name_pairs`) is untouched — Inv-5/Inv-7 by-construction guarantee holds.
     roster_by_type: dict[str, set[str]] = {}
     for entity_type in names_by_type:
-        roster_by_type[entity_type] = await _select_existing_canonical_roster(
-            db_pool, entity_type, names_by_type[entity_type]
-        )
+        roster_by_type[entity_type] = (
+            await _select_existing_canonical_roster(
+                db_pool, entity_type, names_by_type[entity_type]
+            )
+        ) - names_by_type[entity_type]
         names_by_type[entity_type] |= roster_by_type[entity_type]
 
     # resolved_by_type maps entity_type -> ResolvedEntities for that batch.

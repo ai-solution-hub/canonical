@@ -1660,3 +1660,185 @@ def test_foreign_op_row_byte_for_byte_unchanged(
     )
     assert conn.updated == [(in_flight_id, "ISO 27001")]
     assert changed == 1
+
+
+# ── ID-81.9 — REGRESSION: roster includes the run's OWN in-flight rows ─────────
+#
+# THE FIDELITY GAP THAT SHIPPED THE INERT-SEEDING DEFECT
+# ------------------------------------------------------
+# Every roster-aware fake above (`_FakePool`) models the existing-canonical roster
+# as a SEPARATE `seed_rows` corpus that EXCLUDES the in-flight run's own rows. But
+# `_select_existing_canonical_roster` reads OP-AGNOSTICALLY
+# (`SELECT DISTINCT canonical_name FROM entity_mentions WHERE entity_type = $1
+# AND (... near-match ...)`) — and by Stage-5 time the in-flight run's OWN rows
+# are ALREADY in `entity_mentions` (the per-item `ingest_file` phase wrote them
+# before this post-pass runs). So the REAL roster contains the in-flight run's own
+# canonical names, and each in-flight name matches ITSELF in the roster.
+#
+# Consequence (the defect): with `roster_by_type |= roster`, the in-flight name
+# becomes a member of the roster, the `is_existing_canonical` set-membership
+# predicate flags it `True`, and under PINNED it self-pins in pass_1 — it NEVER
+# enters pass_2 (faiss-search-and-chain), so a run-2 near-match can never chain
+# under a run-1 (foreign) canonical. Seeding is INERT cross-run.
+#
+# `_RealisticRosterFakePool` below faithfully models the real op-agnostic SELECT:
+# its roster branch reads the UNION of the prior/foreign `seed_rows` corpus AND
+# the in-flight `conn.rows` (the run's own rows, already in the table). The fix
+# subtracts the run's own names (`names_by_type[entity_type]`) from the roster
+# BEFORE the `|=` merge, so only FOREIGN canonicals remain `is_existing` and the
+# in-flight name re-enters pass_2 to chain.
+
+
+class _RealisticRosterFakePool(_FakePool):
+    """`_FakePool` whose roster SELECT is OP-AGNOSTIC over the WHOLE table.
+
+    The base `_FakePool` answers the roster `SELECT DISTINCT canonical_name`
+    branch from the `seed_rows` corpus ONLY (a separate body that excludes the
+    in-flight rows). That fidelity gap is exactly why the inert-seeding defect
+    shipped green. This subclass restores fidelity: the roster branch reads the
+    op-agnostic UNION of the prior/foreign `seed_rows` corpus AND the in-flight
+    ``conn.rows`` (the run's OWN canonicals, which are physically present in
+    ``entity_mentions`` by Stage-5 time) — modelling the real
+    ``SELECT DISTINCT canonical_name FROM entity_mentions WHERE entity_type = $1``
+    that does NOT (and cannot) filter the in-flight op out.
+
+    The run-mentions SELECT (`FROM public.entity_mentions ... WHERE op_id = $1`)
+    is left to the base `_FakePool`, which returns all `conn.rows` — modelling a
+    conn that only holds the in-flight run's rows (the prior/foreign canonical is
+    a seed STRING here, not a conn row, so it never becomes a `name_pairs` member,
+    preserving the op_id write-scope by construction).
+    """
+
+    async def fetch(self, query: str, *args: object) -> list[dict]:
+        if "SELECT DISTINCT canonical_name" in query:
+            entity_type = args[0]
+            probe_lower = [str(n) for n in args[2]]  # already-lowered in reader
+            seen: set[str] = set()
+            out: list[dict] = []
+            # OP-AGNOSTIC corpus = prior/foreign seed_rows UNION the in-flight
+            # rows already written to entity_mentions (the run's own canonicals).
+            corpus: list[tuple[str, str]] = list(self.seed_rows) + [
+                (r.canonical_name, r.entity_type) for r in self.conn.rows.values()
+            ]
+            for canonical, seed_type in corpus:
+                if seed_type != entity_type:
+                    continue  # Inv-8: entity_type-scoped (WHERE entity_type = $1)
+                if not self._prefilter_match(canonical, probe_lower):
+                    continue  # candidate prefilter (Inv-1/§4 PERF)
+                if canonical in seen:
+                    continue  # SELECT DISTINCT
+                seen.add(canonical)
+                out.append({"canonical_name": canonical})
+            return out
+        return await super().fetch(query, *args)
+
+
+def test_roster_excludes_in_flight_names_so_run2_chains(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ID-81.9 REGRESSION: a run-2 near-match chains under a prior-run (foreign)
+    canonical EVEN THOUGH the op-agnostic roster SELECT also surfaces the run's
+    OWN in-flight name.
+
+    Scenario (one `_run_stage_5_resolution` call modelling run 2): a prior run 1
+    materialised the canonical ``"ISO 27001"`` (type ``standard``) — present in
+    the table as a foreign-op canonical (here a `seed_rows` string). Run 2's only
+    in-flight mention is the per-doc canonical ``"iso 27001"`` (lower-cased — a
+    case-fold near-match). The roster reader is op-AGNOSTIC, so its
+    ``SELECT DISTINCT canonical_name`` returns BOTH ``"ISO 27001"`` (foreign) AND
+    the in-flight ``"iso 27001"`` (the run's own row, already in the table).
+
+    EXPECTED (post-fix): the fix subtracts the run's own names from the roster, so
+    only the FOREIGN ``"ISO 27001"`` is flagged ``is_existing``; the in-flight
+    ``"iso 27001"`` re-enters pass_2 and chains UNDER ``"ISO 27001"`` →
+    ``changed == 1`` and the in-flight row's canonical becomes ``"ISO 27001"``.
+
+    DEFECT (pre-fix): the op-agnostic roster also contains the in-flight
+    ``"iso 27001"`` (self-membership), so the ``|=`` merge flags it
+    ``is_existing`` → it self-pins in pass_1 and NEVER chains → ``changed == 0``
+    and TWO distinct canonicals (``"ISO 27001"`` + ``"iso 27001"``) survive. This
+    is the inert cross-run seeding the fix repairs.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    op_id = uuid.uuid4()
+    entity_type = "standard"
+    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000d1")
+    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000a01")
+    # Run 2's single in-flight mention — a case-fold near-match of run 1's
+    # canonical. By Stage-5 time this row is ALREADY in entity_mentions, so the
+    # op-agnostic roster SELECT will surface "iso 27001" as a self-match too.
+    rows = [_Row(mention_id, "iso 27001", entity_type, content_item_id, 0.8)]
+    conn = _FakeConn(rows)
+    # The foreign/prior-run canonical "ISO 27001" lives in the table (op-agnostic
+    # corpus). The realistic pool UNIONs this with the in-flight conn.rows.
+    pool = _RealisticRosterFakePool(conn, seed_rows=[("ISO 27001", entity_type)])
+
+    # Sanity-check the fidelity restoration: the op-agnostic roster the reader
+    # sees genuinely INCLUDES the in-flight name (the gap the old fake hid).
+    from scripts.cocoindex_pipeline.stage_5 import (
+        _select_existing_canonical_roster,
+    )
+
+    raw_roster = asyncio.run(
+        _select_existing_canonical_roster(
+            pool,  # type: ignore[arg-type]
+            entity_type,
+            {"iso 27001"},
+        )
+    )
+    assert raw_roster == {"ISO 27001", "iso 27001"}, (
+        "the op-agnostic roster SELECT surfaces BOTH the foreign canonical AND the "
+        "run's own in-flight name (self-membership) — the real-table fidelity the "
+        "old separate-corpus fake hid"
+    )
+
+    capture = _stub_pinned_resolver_chain(monkeypatch)
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=op_id),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # POST-FIX: the in-flight name was SUBTRACTED from the roster, so only the
+    # foreign "ISO 27001" is flagged existing; the in-flight "iso 27001" chained
+    # under it. PRE-FIX: "iso 27001" self-pinned (is_existing via self-membership)
+    # and never chained → this assertion FAILS (changed == 0, two canonicals).
+    assert len(conn.rows) == 1, "the single in-flight row survives (no collapse)"
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == mention_id
+    assert survivor.canonical_name == "ISO 27001", (
+        "the run-2 near-match must chain UNDER the prior-run canonical 'ISO 27001' "
+        "— NOT self-pin to its own 'iso 27001'. The op-agnostic roster's "
+        "self-membership of the in-flight name must be SUBTRACTED before the merge "
+        "so the in-flight name re-enters pass_2 (ID-81.9 inert-seeding fix)."
+    )
+    assert conn.updated == [(mention_id, "ISO 27001")]
+    assert changed == 1, (
+        "exactly one canonical_name UPDATE landed (the cross-run chain). A "
+        "`changed == 0` here is the inert-seeding defect: the in-flight name "
+        "self-pinned because the op-agnostic roster flagged it existing."
+    )
+    assert counter.counts.get("entity_resolution", 0) == 1
+
+    # WIRING proof: the predicate flagged ONLY the foreign canonical existing —
+    # NOT the in-flight name (which the roster also contained, pre-subtraction).
+    calls = capture["calls"]
+    assert isinstance(calls, list) and len(calls) == 1
+    call = calls[0]
+    assert call["existing_names"] == {"ISO 27001"}, (
+        "is_existing_canonical must flag ONLY the foreign canonical — the run's "
+        "OWN in-flight name must be subtracted from the roster (the fix). If "
+        "'iso 27001' is also flagged existing, seeding is inert cross-run."
+    )
+    # Both names are still MEMBERS of the resolver `entities` iterable (PC-14):
+    # the foreign canonical is a pinned chaining target, the in-flight name a
+    # pass_2 candidate. Subtraction affects the PREDICATE, not the input set.
+    assert "ISO 27001" in call["names"] and "iso 27001" in call["names"], (
+        "the foreign canonical stays a resolver-input chain target (the `|=` merge "
+        "is kept); only its `is_existing` flagging of the in-flight name is removed"
+    )
