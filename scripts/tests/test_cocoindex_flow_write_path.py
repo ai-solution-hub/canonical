@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import sys
 import uuid
 from pathlib import Path
@@ -1490,11 +1491,21 @@ class TestFormWriteSkipAndFailurePaths:
         # A form_extraction stage error was emitted.
         assert any(e.get("stage") == "form_extraction" for e in emitted)
 
-    def test_resolution_failure_no_form_rows_and_stage_error(
+    def test_unmapped_path_no_form_rows_soft_warn_not_stage_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Inv-5: ResolutionFailure → 0 form_templates + 0 fields + a
-        workspace_resolution stage error (no sentinel row)."""
+        """bl-219: an UNMAPPED path → 0 form rows + a benign WARNING soft-warn
+        (`workspace_resolution.unmapped`), NOT a `cocoindex.stage_error`.
+
+        An unmapped content path is observability-only: the workspace-agnostic
+        canonical content already wrote ABOVE the form-resolution block
+        (ID-69 BI-1) and the invocation does NOT fail, so emitting a stage error
+        (Inv-26's failed-invocation companion) would be a false alarm. Asserts:
+          (a) NO stage error with stage=='workspace_resolution' is emitted,
+          (b) the soft-warn (`workspace_resolution.unmapped`, WARNING) IS emitted,
+          (c) zero form_templates + zero form_template_fields rows,
+          (d) extraction NOT called (resolution fails before extraction),
+          (e) the CONTENT row still wrote (workspace-agnostic; ID-69 BI-1)."""
         flow = _flow_module()
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)
@@ -1517,18 +1528,155 @@ class TestFormWriteSkipAndFailurePaths:
         monkeypatch.setattr(
             flow, "_emit_stage_error_log", lambda **kw: emitted.append(kw)
         )
+        warns: list[dict] = []
+        monkeypatch.setattr(
+            flow, "_emit_workspace_unmapped_warn", lambda **kw: warns.append(kw)
+        )
+
+        out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+
+        # (c) Zero form rows — no sentinel row on an unmapped path.
+        assert out["ft"].rows == []
+        assert out["ftf"].rows == []
+        # (d) Resolution fails BEFORE extraction — no extraction work performed.
+        assert extract_called["value"] is False, (
+            "resolution must fail BEFORE extraction (no extraction work on an "
+            "unmapped path)"
+        )
+        # (a) NO workspace_resolution stage error is emitted for an unmapped path.
+        ws_errors = [e for e in emitted if e.get("stage") == "workspace_resolution"]
+        assert ws_errors == [], (
+            "an UNMAPPED path must NOT emit a workspace_resolution stage error "
+            "(bl-219: it is observability-only, not a failed invocation)"
+        )
+        # (b) The benign WARNING soft-warn IS emitted exactly once.
+        assert len(warns) == 1, "exactly one unmapped soft-warn must be emitted"
+        assert warns[0]["content_items_id"] is not None
+        # (e) Content still wrote (workspace-agnostic canonical layer, ID-69 BI-1).
+        assert len(out["ci"].rows) == 1, (
+            "content_items must still write on an unmapped path — workspace "
+            "resolution is form-write-only and the content layer is "
+            "workspace-agnostic (ID-69 BI-1)"
+        )
+
+    def test_unmapped_soft_warn_event_name_and_warning_level(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """bl-219: the unmapped soft-warn emits a `workspace_resolution.unmapped`
+        WARNING-level structured log (not an ERROR `cocoindex.stage_error`).
+
+        Captures `_logger.warning` directly (rather than monkeypatching the
+        helper) to lock the event name + level contract end-to-end."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "other-client/", ws)
+        src = tmp_path / "unmapped-form.pdf"
+        src.write_bytes(b"%PDF stub")
+        fake_file = _FakeFormFile("unmapped/unmapped-form.pdf", src)
+
+        async def _fake_extract(file: object):
+            return _make_extracted_form(flow, [])
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+
+        warn_lines: list[str] = []
+        monkeypatch.setattr(
+            flow._logger, "warning", lambda msg, *a, **k: warn_lines.append(msg)
+        )
+        # If a stage error were (wrongly) emitted, capture it to fail loudly.
+        error_lines: list[str] = []
+        monkeypatch.setattr(
+            flow._logger, "error", lambda msg, *a, **k: error_lines.append(msg)
+        )
+
+        _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
+
+        unmapped_warns = [
+            json.loads(line)
+            for line in warn_lines
+            if isinstance(line, str) and '"workspace_resolution.unmapped"' in line
+        ]
+        assert len(unmapped_warns) == 1
+        assert unmapped_warns[0]["event"] == "workspace_resolution.unmapped"
+        assert "reason" in unmapped_warns[0]
+        # No `cocoindex.stage_error` for stage workspace_resolution at ERROR.
+        stage_errors = [
+            json.loads(line)
+            for line in error_lines
+            if isinstance(line, str) and '"cocoindex.stage_error"' in line
+        ]
+        assert [
+            e for e in stage_errors if e.get("stage") == "workspace_resolution"
+        ] == []
+
+    def test_ambiguous_resolution_no_form_rows_and_stage_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """bl-219 regression guard: an AMBIGUOUS resolution (two equal-length
+        matching prefixes tie) STAYS a loud `cocoindex.stage_error` —
+        stage=='workspace_resolution', error_class=='extraction_validation_failed'
+        — and produces zero form rows. Unlike the unmapped case, an ambiguous
+        manifest is a genuine mis-wire that must not be downgraded."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.uuid4()
+
+        from scripts.cocoindex_pipeline.workspace_resolver import (
+            WorkspaceManifest,
+            WorkspaceMapping,
+        )
+
+        # Two equal-length prefixes that BOTH match the rel_path → ambiguous.
+        # `model_construct` bypasses the duplicate-prefix load validator to
+        # exercise the resolver's defensive tie-detection branch.
+        other_ws = uuid.uuid4()
+        manifest = WorkspaceManifest.model_construct(
+            schema_version=1,
+            mappings=[
+                WorkspaceMapping.model_construct(path_prefix="acme/", workspace_id=ws),
+                WorkspaceMapping.model_construct(
+                    path_prefix="acme/", workspace_id=other_ws
+                ),
+            ],
+        )
+        src = tmp_path / "ambiguous-form.pdf"
+        src.write_bytes(b"%PDF stub")
+        fake_file = _FakeFormFile("acme/ambiguous-form.pdf", src)
+
+        extract_called = {"value": False}
+
+        async def _fake_extract(file: object):
+            extract_called["value"] = True
+            return _make_extracted_form(flow, [])
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+
+        emitted: list[dict] = []
+        monkeypatch.setattr(
+            flow, "_emit_stage_error_log", lambda **kw: emitted.append(kw)
+        )
+        warns: list[dict] = []
+        monkeypatch.setattr(
+            flow, "_emit_workspace_unmapped_warn", lambda **kw: warns.append(kw)
+        )
 
         out = _ingest_form(flow, fake_file, manifest=manifest, monkeypatch=monkeypatch)
 
         assert out["ft"].rows == []
         assert out["ftf"].rows == []
-        assert extract_called["value"] is False, (
-            "resolution must fail BEFORE extraction (Inv-5 — no extraction work "
-            "on an unmapped path)"
-        )
+        assert extract_called["value"] is False
+        # Ambiguous stays LOUD: a workspace_resolution stage error IS emitted.
         ws_errors = [e for e in emitted if e.get("stage") == "workspace_resolution"]
-        assert ws_errors, "a workspace_resolution stage error must be emitted"
+        assert ws_errors, (
+            "ambiguous resolution must STILL emit a workspace_resolution stage "
+            "error (bl-219: only the unmapped case is downgraded)"
+        )
         assert ws_errors[0]["error_class"] == "extraction_validation_failed"
+        # And it must NOT be routed to the benign soft-warn.
+        assert warns == [], "ambiguous resolution must not be soft-warned"
 
 
 class TestFormWriteIdempotency:

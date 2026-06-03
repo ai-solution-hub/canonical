@@ -131,6 +131,7 @@ from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionErro
 from scripts.cocoindex_pipeline.workspace_resolver import (
     ManifestLoadError,
     ResolutionFailure,
+    UnmappedPath,
     load_workspace_manifest,
     resolve_workspace,
 )
@@ -425,6 +426,44 @@ def _emit_stage_error_log(
         "error_message": _redact_error_message(error_message),
     }
     _logger.error(json.dumps(payload))
+
+
+def _emit_workspace_unmapped_warn(
+    *,
+    op_id: uuid.UUID | str,
+    content_items_id: uuid.UUID | str | None,
+    error_message: str,
+) -> None:
+    """Emit ONE benign WARNING-level structured log for an unmapped path.
+
+    bl-219: an unmapped content path (no manifest prefix matches) is
+    OBSERVABILITY-ONLY for localfs file content — the workspace-agnostic
+    canonical layer (content_items / source_documents / chunks / q_a /
+    entity_mentions) already wrote ABOVE the form-resolution block
+    (ID-69 BI-1), and the pipeline invocation does NOT fail. It is therefore
+    NOT a `cocoindex.stage_error`: per Inv-26 that event is the companion to
+    a *failed* invocation, so emitting it for a benign unmapped path is a
+    false-alarm contract smell. The ambiguous case stays a loud stage error
+    (`_emit_stage_error_log`) because it is a genuine manifest mis-wire.
+
+    Contract shape (WARNING level):
+
+      {"event": "workspace_resolution.unmapped", "op_id": "<uuid>",
+       "content_items_id": "<uuid>"|null,
+       "reason": "<truncated to 200 chars, UUIDs redacted>"}
+
+    Reuses `_redact_error_message` for the same PII redaction as the error
+    emitter. Returns None; raises nothing.
+    """
+    payload: dict[str, object | None] = {
+        "event": "workspace_resolution.unmapped",
+        "op_id": str(op_id),
+        "content_items_id": (
+            str(content_items_id) if content_items_id is not None else None
+        ),
+        "reason": _redact_error_message(error_message),
+    }
+    _logger.warning(json.dumps(payload))
 
 
 # ── Inv-23 retry-count substrate (ID-28.13 fix-pack) ─────────────────────────
@@ -1873,16 +1912,35 @@ async def _ingest_file_body(
     suffix = file.file_path.path.suffix.lower()
 
     # TECH §2.5 step 1: resolve the workspace BEFORE extraction. A resolution
-    # failure (unmapped / ambiguous prefix — Inv-5) surfaces a structured stage
-    # error and produces ZERO form_templates + ZERO form_template_fields rows
-    # (no sentinel, no silent default). Other files in the flow continue.
+    # failure produces ZERO form_templates + ZERO form_template_fields rows
+    # (no sentinel, no silent default — Inv-5) and the batch continues. bl-219
+    # splits the two failure modes:
+    #   - UnmappedPath (no prefix matches): benign for file content. The
+    #     workspace-agnostic canonical content already wrote ABOVE this block
+    #     (content_items / source_documents / chunks / q_a / entity_mentions —
+    #     ID-69 BI-1), and the invocation does NOT fail. So this is a WARNING
+    #     soft-warn, NOT a `cocoindex.stage_error` (Inv-26: that event is the
+    #     companion to a *failed* invocation — emitting it here would be a
+    #     false alarm).
+    #   - AmbiguousResolution (equal-length prefixes tie — and any future
+    #     ResolutionFailure subtype): a genuine manifest mis-wire. STAYS a loud
+    #     `cocoindex.stage_error`.
     try:
         workspace_id = resolve_workspace(manifest, rel_path)
+    except UnmappedPath as exc:
+        # Benign: content already wrote above; soft-warn and continue (bl-219).
+        _emit_workspace_unmapped_warn(
+            op_id=op_id,
+            content_items_id=content_item_id,
+            error_message=str(exc),
+        )
+        return
     except ResolutionFailure as exc:
-        # error_class is one of the six canonical PIPELINE_ERROR_CLASSES (the
-        # webhook route Zod-validates it); an unmapped/ambiguous manifest prefix
-        # is an input-validation failure of the form-write precondition, so
-        # `extraction_validation_failed` is the canonical class.
+        # Ambiguous (and any future subtype) stays loud. error_class is one of
+        # the six canonical PIPELINE_ERROR_CLASSES (the webhook route
+        # Zod-validates it); an ambiguous manifest prefix is an input-validation
+        # failure of the form-write precondition, so `extraction_validation_failed`
+        # is the canonical class.
         _emit_stage_error_log(
             op_id=op_id,
             stage="workspace_resolution",

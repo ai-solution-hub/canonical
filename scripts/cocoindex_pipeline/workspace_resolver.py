@@ -12,9 +12,15 @@ Public API:
 - `WorkspaceManifest` — versioned container of mappings.
 - `ManifestLoadError` — raised on missing / unparseable / schema-invalid
   manifest; the flow aborts at start (TECH §2.1).
-- `ResolutionFailure` — raised on unmapped or ambiguous `rel_path`; the
-  form is recorded as a surfaced failure with zero `form_template_fields`
-  rows (Inv-5: never silent default / sentinel).
+- `ResolutionFailure` — base class for unmapped / ambiguous `rel_path`.
+- `UnmappedPath` — `ResolutionFailure` subclass: no manifest prefix
+  matches `rel_path`. OBSERVABILITY-ONLY for localfs file content — the
+  workspace-agnostic canonical content already wrote (ID-69 BI-1), so the
+  flow soft-warns and continues (bl-219). Not a `cocoindex.stage_error`.
+- `AmbiguousResolution` — `ResolutionFailure` subclass: two or more
+  equal-length manifest prefixes tie. A genuine manifest mis-wire — the
+  flow surfaces it as a loud structured stage error (Inv-5: never silent
+  default / sentinel).
 - `load_workspace_manifest(path)` — parse + validate manifest file.
 - `resolve_workspace(manifest, rel_path)` — longest-prefix-wins resolution.
 
@@ -48,16 +54,39 @@ class ManifestLoadError(Exception):
 
 
 class ResolutionFailure(Exception):
-    """A `rel_path` does not resolve to exactly one workspace (Inv-5).
+    """Base class: a `rel_path` does not resolve to exactly one workspace.
 
-    Raised by `resolve_workspace` when:
-      - no manifest mapping prefixes the `rel_path` (unmapped), or
+    Raised (via its two subclasses) by `resolve_workspace` when:
+      - no manifest mapping prefixes the `rel_path` (`UnmappedPath`), or
       - two or more equal-length manifest prefixes both match the
-        `rel_path` (ambiguous).
+        `rel_path` (`AmbiguousResolution`).
 
-    Per Inv-5, the form is recorded as a surfaced failure and produces
-    zero `form_template_fields` rows. There is no sentinel workspace and
-    no silent skip.
+    Kept as the catchable base so existing `except ResolutionFailure`
+    handlers and `pytest.raises(ResolutionFailure)` callers continue to
+    work. In all cases the form produces zero `form_template_fields`
+    rows: there is no sentinel workspace and no silent skip (Inv-5).
+    """
+
+
+class UnmappedPath(ResolutionFailure):
+    """No manifest prefix matches `rel_path` (benign for file content).
+
+    For localfs file content (md/pdf/docx) this is OBSERVABILITY-ONLY:
+    the workspace-agnostic canonical layer (content_items / source_documents
+    / chunks / q_a / entity_mentions) already wrote ABOVE the form-resolution
+    block (ID-69 BI-1), and the pipeline invocation does NOT fail. The flow
+    soft-warns and continues — it does NOT emit a `cocoindex.stage_error`
+    (Inv-26: that event is the companion to a *failed* invocation). bl-219.
+    """
+
+
+class AmbiguousResolution(ResolutionFailure):
+    """Two or more equal-length manifest prefixes tie on `rel_path`.
+
+    Unlike `UnmappedPath`, this is a genuine manifest mis-wire — the
+    folder→workspace map cannot deterministically assign an owner. The
+    flow surfaces it as a loud structured `cocoindex.stage_error`
+    (Inv-5: never silent default / sentinel).
     """
 
 
@@ -155,8 +184,9 @@ def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
       - Select the manifest mapping whose `path_prefix` is the longest
         literal string that is a prefix of `rel_path`.
       - If two or more matching prefixes share that maximal length →
-        `ResolutionFailure` (ambiguous).
-      - If no mapping prefixes `rel_path` → `ResolutionFailure` (unmapped).
+        `AmbiguousResolution` (a `ResolutionFailure` subclass).
+      - If no mapping prefixes `rel_path` → `UnmappedPath` (a
+        `ResolutionFailure` subclass).
 
     Determinism is guaranteed by: input-only computation, no I/O, no
     mutation. Same `(manifest, rel_path)` yields the same `UUID` across
@@ -168,7 +198,7 @@ def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
     ]
 
     if not matches:
-        raise ResolutionFailure(
+        raise UnmappedPath(
             f"No manifest mapping prefixes rel_path={rel_path!r} (Inv-5: unmapped path)"
         )
 
@@ -178,7 +208,7 @@ def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
 
     if len(longest) > 1:
         prefixes = sorted({m.path_prefix for m in longest})
-        raise ResolutionFailure(
+        raise AmbiguousResolution(
             f"Ambiguous resolution for rel_path={rel_path!r}: "
             f"{len(longest)} mappings tie at length {max_length} ({prefixes!r})"
         )
@@ -187,8 +217,10 @@ def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
 
 
 __all__ = [
+    "AmbiguousResolution",
     "ManifestLoadError",
     "ResolutionFailure",
+    "UnmappedPath",
     "WorkspaceManifest",
     "WorkspaceMapping",
     "load_workspace_manifest",

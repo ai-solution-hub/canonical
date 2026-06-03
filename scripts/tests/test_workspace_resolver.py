@@ -25,8 +25,10 @@ from uuid import UUID
 import pytest
 
 from scripts.cocoindex_pipeline.workspace_resolver import (
+    AmbiguousResolution,
     ManifestLoadError,
     ResolutionFailure,
+    UnmappedPath,
     WorkspaceManifest,
     WorkspaceMapping,
     load_workspace_manifest,
@@ -141,24 +143,28 @@ def test_resolve_is_deterministic_on_repeat() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# (6) Unmapped path → ResolutionFailure (NOT default; Inv-5)
+# (6) Unmapped path → UnmappedPath (a ResolutionFailure subclass; Inv-5)
 # ──────────────────────────────────────────────────────────────────────────
 
 
-def test_resolve_unmapped_path_raises_resolution_failure() -> None:
-    """Inv-5: unmapped path raises ResolutionFailure — never silent default."""
+def test_resolve_unmapped_path_raises_unmapped_path() -> None:
+    """Inv-5/bl-219: an unmapped path raises the `UnmappedPath` subclass — never
+    a silent default. `UnmappedPath` IS-A `ResolutionFailure`, so existing
+    base-class handlers still catch it (catchability preserved)."""
     manifest = _build_manifest([("example-client-procurement/", example-client_UUID)])
-    with pytest.raises(ResolutionFailure):
+    with pytest.raises(UnmappedPath) as exc_info:
         resolve_workspace(manifest, "unmapped/X.pdf")
+    # Base-class catchability is intact: the subclass IS-A ResolutionFailure.
+    assert isinstance(exc_info.value, ResolutionFailure)
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# (7) Ambiguous resolution → ResolutionFailure
+# (7) Ambiguous resolution → AmbiguousResolution (a ResolutionFailure subclass)
 # ──────────────────────────────────────────────────────────────────────────
 
 
-def test_resolve_ambiguous_equal_length_prefixes_raises_resolution_failure() -> None:
-    """Two equal-length prefixes both matching the rel_path → ResolutionFailure.
+def test_resolve_ambiguous_equal_length_prefixes_raises_ambiguous_resolution() -> None:
+    """Two equal-length prefixes both matching the rel_path → AmbiguousResolution.
 
     TECH §2.1: "Ambiguous prefixes (two mappings of equal length) → resolution
     failure (Inv-5: never silent default)."
@@ -192,8 +198,10 @@ def test_resolve_ambiguous_equal_length_prefixes_raises_resolution_failure() -> 
             ),
         ],
     )
-    with pytest.raises(ResolutionFailure):
+    with pytest.raises(AmbiguousResolution) as exc_info:
         resolve_workspace(manifest, "x/foo.pdf")
+    # bl-219: ambiguous stays loud, but base-class catchability is preserved.
+    assert isinstance(exc_info.value, ResolutionFailure)
 
 
 # ──────────────────────────────────────────────────────────────────────────
