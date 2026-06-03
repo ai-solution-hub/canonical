@@ -44,7 +44,6 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
-from dataclasses import dataclass
 
 import pytest
 
@@ -109,10 +108,6 @@ def _require_disposable_dsn() -> str:
 # >= 0.3). Each test uses a UNIQUE content_item_id + a scoped cleanup so reruns
 # are idempotent.
 
-_PIPELINE_OP_NS = uuid.UUID("a0000000-0000-4000-8000-000000000001")
-
-
-@dataclass
 class _StageCounter:
     """Structural `_FlowStageCounter` stand-in — the function only calls
     `increment(stage)` (mirrors the unit-suite `_StubStageCounter`)."""
@@ -304,12 +299,102 @@ def test_crossrun_pinned_override_of_longer_name() -> None:
     "eir 2004" (chained under the shorter PINNED existing, NOT the reverse) and the
     run-1 row is unchanged (Inv-3 + Inv-7 write-scope).
     """
-    _require_disposable_dsn()
-    raise NotImplementedError(
-        "Inv-3 PINNED override: operator pins a short canonical in run 1, ingests "
-        "a longer near-match in run 2, asserts run 2 chains UNDER run 1's short "
-        "canonical and the run-1 row is unchanged. See TECH §5 Inv-3."
-    )
+    dsn = _require_disposable_dsn()
+
+    async def _body() -> None:
+        import asyncpg
+
+        entity_type = "standard"
+        # Run 1 pins the SHORTER canonical; run 2's per-doc canonical is the
+        # LONGER near-match. KhPairResolver's own canonical preference is "longer
+        # name wins" (max(key=len)) — but PINNED OVERRIDES it: the existing
+        # (shorter) wins, so run 2 chains UNDER the short name. This is the
+        # load-bearing Inv-3 proof — the longer run-2 name does NOT demote/rename
+        # the prior-run canonical.
+        #
+        # Fixture choice (deliberate): "ISO 27001" -> "ISO 27001 standard" is a
+        # genuine SAME-entity longer variant (LLM pair-resolver returns "same",
+        # empirically), embedding dist 0.12 (< 0.3 faiss gate), AND pg_trgm
+        # similarity 0.53 (>= 0.3) so the op-agnostic roster reader actually
+        # recalls the short canonical. (A pair like "Cyber Essentials" ->
+        # "Cyber Essentials Plus" is REJECTED here — the LLM correctly resolves it
+        # "different" because Cyber Essentials Plus is a distinct higher tier; and
+        # "NIST CSF" -> "NIST Cybersecurity Framework" is rejected too — trigram
+        # similarity 0.19 < 0.3 means the prefilter would MISS it, the documented
+        # TECH §4 recall envelope. The chosen pair clears all three gates.)
+        short_canonical = "ISO 27001"
+        long_perdoc = "ISO 27001 standard"
+        op1 = uuid.uuid4()
+        op2 = uuid.uuid4()
+        cid1 = uuid.uuid4()
+        cid2 = uuid.uuid4()
+        all_names = [short_canonical, long_perdoc]
+
+        pool = await asyncpg.create_pool(dsn, min_size=1, max_size=4)
+        try:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+                run1_id = await _seed_mention(
+                    conn,
+                    canonical=short_canonical,
+                    entity_type=entity_type,
+                    content_item_id=cid1,
+                    op_id=op1,
+                    confidence=0.95,
+                )
+            await _run_stage5(pool, op1)
+
+            # Snapshot ALL columns of the run-1 row AFTER run 1 (its settled state)
+            # to assert byte-for-byte invariance across run 2 (Inv-3 + Inv-7).
+            async with pool.acquire() as conn:
+                before = await conn.fetchrow(
+                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "canonical_name, confidence, op_id, normalisation_version, "
+                    "metadata FROM public.entity_mentions WHERE id = $1",
+                    run1_id,
+                )
+                await _seed_mention(
+                    conn,
+                    canonical=long_perdoc,
+                    entity_type=entity_type,
+                    content_item_id=cid2,
+                    op_id=op2,
+                    confidence=0.9,
+                )
+            changed = await _run_stage5(pool, op2)
+
+            async with pool.acquire() as conn:
+                after = await conn.fetchrow(
+                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "canonical_name, confidence, op_id, normalisation_version, "
+                    "metadata FROM public.entity_mentions WHERE id = $1",
+                    run1_id,
+                )
+                run2_canonical = await conn.fetchval(
+                    "SELECT canonical_name FROM public.entity_mentions "
+                    "WHERE op_id = $1",
+                    op2,
+                )
+
+            assert run2_canonical == short_canonical, (
+                f"run 2's LONGER per-doc canonical '{long_perdoc}' must chain UNDER "
+                f"run 1's SHORTER pinned canonical '{short_canonical}' (PINNED "
+                "overrides KhPairResolver's longer-name-wins preference); got "
+                f"'{run2_canonical}'"
+            )
+            assert dict(after) == dict(before), (
+                "the prior-run (run 1) row must be byte-for-byte unchanged — PINNED "
+                "never demotes/renames the existing, and the write-back is "
+                f"op_id-scoped (Inv-3 + Inv-7). before={dict(before)} "
+                f"after={dict(after)}"
+            )
+            assert changed == 1, "exactly one canonical UPDATE landed (run 2's row)"
+        finally:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+            await pool.close()
+
+    asyncio.run(_body())
 
 
 # ── Inv-6 (NULL-op_id case): app-side canonical is an eligible chaining target ──
@@ -326,12 +411,81 @@ def test_crossrun_null_op_id_canonical_chains() -> None:
     run's row carries the NULL-op canonical (chained under it) and the NULL-op row
     is byte-for-byte unchanged (READ op-agnostic, WRITE op_id-scoped — Inv-7/11).
     """
-    _require_disposable_dsn()
-    raise NotImplementedError(
-        "Inv-6 NULL-op_id chaining: operator seeds a NULL-op_id app-side canonical, "
-        "runs a pass with a near-match, asserts the run chains under it and the "
-        "NULL-op row is unchanged. See TECH §5 Inv-6 (integration NULL-op case)."
-    )
+    dsn = _require_disposable_dsn()
+
+    async def _body() -> None:
+        import asyncpg
+
+        entity_type = "standard"
+        # The app-side write: a canonical with NULL op_id (classifyContent / Admin
+        # curation shape). The op-agnostic roster reader must surface it as an
+        # eligible chaining target despite carrying no op_id.
+        null_op_canonical = "ISO 27001"
+        run_perdoc = "ISO-27001"  # punctuation variant, dist 0.04 < 0.3
+        op_a = uuid.uuid4()
+        cid_null = uuid.uuid4()
+        cid_run = uuid.uuid4()
+        all_names = [null_op_canonical, run_perdoc]
+
+        pool = await asyncpg.create_pool(dsn, min_size=1, max_size=4)
+        try:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+                null_op_id = await _seed_mention(
+                    conn,
+                    canonical=null_op_canonical,
+                    entity_type=entity_type,
+                    content_item_id=cid_null,
+                    op_id=None,  # NULL op_id — the app-side write shape
+                    confidence=0.99,
+                )
+                before = await conn.fetchrow(
+                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "canonical_name, confidence, op_id, normalisation_version, "
+                    "metadata FROM public.entity_mentions WHERE id = $1",
+                    null_op_id,
+                )
+                run_id = await _seed_mention(
+                    conn,
+                    canonical=run_perdoc,
+                    entity_type=entity_type,
+                    content_item_id=cid_run,
+                    op_id=op_a,
+                    confidence=0.8,
+                )
+
+            changed = await _run_stage5(pool, op_a)
+
+            async with pool.acquire() as conn:
+                after = await conn.fetchrow(
+                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "canonical_name, confidence, op_id, normalisation_version, "
+                    "metadata FROM public.entity_mentions WHERE id = $1",
+                    null_op_id,
+                )
+                run_canonical = await conn.fetchval(
+                    "SELECT canonical_name FROM public.entity_mentions WHERE id = $1",
+                    run_id,
+                )
+
+            assert run_canonical == null_op_canonical, (
+                f"the run's near-match '{run_perdoc}' must chain UNDER the NULL-op_id "
+                f"app-side canonical '{null_op_canonical}' (op-AGNOSTIC roster read "
+                f"— Inv-6 NULL-op arm); got '{run_canonical}'"
+            )
+            assert dict(after) == dict(before), (
+                "the NULL-op_id row must be byte-for-byte unchanged: READ "
+                "op-agnostic, WRITE op_id-scoped — the write-back's `AND op_id = "
+                "$current` predicate never matches a NULL op_id (Inv-7/Inv-11). "
+                f"before={dict(before)} after={dict(after)}"
+            )
+            assert changed == 1
+        finally:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+            await pool.close()
+
+    asyncio.run(_body())
 
 
 # ── Inv-14: full_reprocess byte-for-byte idempotency ──────────────────────────
@@ -348,9 +502,94 @@ def test_crossrun_full_reprocess_idempotent_mapping() -> None:
     the two pair sets are equal (no cross-run flip — PINNED + the KhPairResolver
     determinism cache + seed-set order normalisation via sorted(entities)).
     """
-    _require_disposable_dsn()
-    raise NotImplementedError(
-        "Inv-14 full_reprocess idempotency: operator captures the (per-doc-name → "
-        "resolved-canonical) pair set in run 1, full_reprocesses as run 2, asserts "
-        "the pair sets match byte-for-byte. See TECH §5 Inv-14."
-    )
+    dsn = _require_disposable_dsn()
+
+    async def _body() -> None:
+        import asyncpg
+
+        entity_type = "standard"
+        # A corpus whose per-doc canonicals trigger chaining WITHIN the run: two
+        # near-match variants of one entity (each in its OWN content item so the
+        # collapse does not fire — we want chaining, not same-doc collapse). The
+        # resolver chains them to one canonical; full_reprocess must reproduce the
+        # SAME (per-doc-name → resolved-canonical) mapping byte-for-byte.
+        perdoc_names = ["ISO 27001", "iso 27001", "ISO-27001"]
+        all_names = list(perdoc_names)
+
+        async def _seed_run(conn, op_id: uuid.UUID):  # type: ignore[no-untyped-def]
+            """Seed one row per per-doc name (distinct content items) for a run."""
+            ids: dict[str, uuid.UUID] = {}
+            for i, name in enumerate(perdoc_names):
+                ids[name] = await _seed_mention(
+                    conn,
+                    canonical=name,
+                    entity_type=entity_type,
+                    content_item_id=uuid.uuid4(),
+                    op_id=op_id,
+                    # Distinct confidences so any collapse tie-break is deterministic
+                    # (none expected here — distinct content items).
+                    confidence=0.9 - i * 0.01,
+                )
+            return ids
+
+        async def _capture_mapping(conn, seed_ids):  # type: ignore[no-untyped-def]
+            """Build {original per-doc name -> post-resolution canonical} for a run."""
+            mapping: dict[str, str] = {}
+            for name, row_id in seed_ids.items():
+                resolved = await conn.fetchval(
+                    "SELECT canonical_name FROM public.entity_mentions WHERE id = $1",
+                    row_id,
+                )
+                # A collapse could DELETE a loser row (resolved is None then). None
+                # of these names share a content item, so no collapse — but guard.
+                mapping[name] = resolved
+            return mapping
+
+        pool = await asyncpg.create_pool(dsn, min_size=1, max_size=4)
+        try:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+
+            # ── Run 1 (op_id A) ──
+            op1 = uuid.uuid4()
+            async with pool.acquire() as conn:
+                ids1 = await _seed_run(conn, op1)
+            await _run_stage5(pool, op1)
+            async with pool.acquire() as conn:
+                mapping1 = await _capture_mapping(conn, ids1)
+
+            # ── full_reprocess (op_id B): same corpus, fresh op. Delete run-1's
+            # entity_mentions (what full_reprocess does — re-extract replaces the
+            # rows) but KEEP the entity_pair_resolutions cache (the cross-run
+            # determinism mechanism — Inv-14). Re-seed the IDENTICAL per-doc names.
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "DELETE FROM public.entity_mentions "
+                    "WHERE entity_type = $1 AND canonical_name = ANY($2::text[])",
+                    entity_type,
+                    all_names,
+                )
+                op2 = uuid.uuid4()
+                ids2 = await _seed_run(conn, op2)
+            await _run_stage5(pool, op2)
+            async with pool.acquire() as conn:
+                mapping2 = await _capture_mapping(conn, ids2)
+
+            assert mapping1 == mapping2, (
+                "full_reprocess must reproduce the SAME (per-doc-name -> resolved-"
+                "canonical) mapping byte-for-byte (Inv-14): PINNED + the persistent "
+                "KhPairResolver determinism cache + cocoindex's sorted(set(entities)) "
+                f"order normalisation. run1={mapping1} run2={mapping2}"
+            )
+            # And the mapping is non-trivial: at least one name chained to another
+            # (otherwise idempotency would be vacuous).
+            assert len(set(mapping1.values())) < len(perdoc_names), (
+                "the corpus must actually chain (a non-trivial mapping) for the "
+                f"idempotency proof to be meaningful; got {mapping1}"
+            )
+        finally:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+            await pool.close()
+
+    asyncio.run(_body())
