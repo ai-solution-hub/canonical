@@ -41,7 +41,10 @@ References:
 
 from __future__ import annotations
 
+import asyncio
 import os
+import uuid
+from dataclasses import dataclass
 
 import pytest
 
@@ -83,6 +86,118 @@ def _require_disposable_dsn() -> str:
     return dsn
 
 
+# ── Real-asyncpg run harness ({81.9} live cross-run proof) ────────────────────
+#
+# The shells were authored for an operator wiring TWO full `app_main` invocations.
+# {81.9} fills them with a LEANER but faithful harness: instead of running the
+# full Stage 1-4 extraction (binary conversion, chunking, LLM classification,
+# embedding of content) we seed `entity_mentions` rows DIRECTLY per op_id — the
+# exact rows the per-item `ingest_file` phase would have written — then drive the
+# REAL `_run_stage_5_resolution(meta, db_pool, flow_stage_counter)` once per run.
+# That isolates the Stage-5 cross-run seeding behaviour (the only thing ID-81
+# touches) while exercising the REAL resolver dependencies: OpenAI embeddings
+# (`KhEntityEmbedder`) + the Anthropic pair-resolver (`KhPairResolver`) + live
+# pg_trgm. `entity_mentions` carries NO foreign key to `content_items` (verified
+# against the live schema), so seeded rows need no parent content_items row.
+#
+# Realistic near-match fixtures (NOT the spec's literal "eir 2004" example, whose
+# embedding cosine ~0.49 is BELOW the 0.7 faiss threshold so it would never chain):
+# case/punctuation variants of ONE entity that genuinely near-match under
+# text-embedding-3-large (empirically: "ISO 27001"~"iso 27001" dist 0.06,
+# ~"ISO-27001" dist 0.04; "Cyber Essentials"~"Cyber Essentials Plus" dist 0.12 —
+# all well inside max_distance=0.3) and pass the pg_trgm prefilter (similarity
+# >= 0.3). Each test uses a UNIQUE content_item_id + a scoped cleanup so reruns
+# are idempotent.
+
+_PIPELINE_OP_NS = uuid.UUID("a0000000-0000-4000-8000-000000000001")
+
+
+@dataclass
+class _StageCounter:
+    """Structural `_FlowStageCounter` stand-in — the function only calls
+    `increment(stage)` (mirrors the unit-suite `_StubStageCounter`)."""
+
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+
+    def increment(self, stage: str) -> None:
+        self.counts[stage] = self.counts.get(stage, 0) + 1
+
+
+async def _seed_mention(
+    conn,  # type: ignore[no-untyped-def]
+    *,
+    canonical: str,
+    entity_type: str,
+    content_item_id: uuid.UUID,
+    op_id: uuid.UUID | None,
+    confidence: float = 0.9,
+) -> uuid.UUID:
+    """INSERT one `entity_mentions` row exactly as the per-item phase would.
+
+    `entity_name` is set to the canonical (the per-doc phase writes the same
+    string into both before any cross-doc resolution). Returns the row id.
+    """
+    row_id = uuid.uuid4()
+    await conn.execute(
+        "INSERT INTO public.entity_mentions "
+        "(id, content_item_id, entity_type, entity_name, canonical_name, "
+        " confidence, op_id) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        row_id,
+        content_item_id,
+        entity_type,
+        canonical,
+        canonical,
+        confidence,
+        op_id,
+    )
+    return row_id
+
+
+async def _run_stage5(pool, op_id: uuid.UUID) -> int:  # type: ignore[no-untyped-def]
+    """Drive the REAL `_run_stage_5_resolution` for one op_id over the seeded rows.
+
+    Imports inside the body (never at collection) so an un-gated collection never
+    drags cocoindex / asyncpg / the resolver chain into import. Uses the REAL
+    `FlowRunMeta` (the production type the function consumes) + a structural stage
+    counter. The resolver dependencies (embedder + pair-resolver) are the REAL
+    collaborators — OpenAI + Anthropic keys come from the loaded `.env.local`.
+    """
+    from scripts.cocoindex_pipeline.flow_context import FlowRunMeta
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    return await _run_stage_5_resolution(
+        meta=FlowRunMeta(op_id=op_id),
+        db_pool=pool,
+        flow_stage_counter=_StageCounter(),
+    )
+
+
+async def _cleanup(conn, entity_type: str, names: list[str]) -> None:  # type: ignore[no-untyped-def]
+    """Scoped delete so reruns are idempotent — removes the test's own
+    entity_mentions rows AND its entity_pair_resolutions cache rows.
+
+    The pair-cache MUST be cleared too: a leftover cache row would let a rerun
+    replay a prior decision instead of re-invoking the LLM, which is correct for
+    Inv-14 (idempotency) but would mask a fresh-decision regression in the OTHER
+    tests. Clearing both keeps each test hermetic.
+    """
+    await conn.execute(
+        "DELETE FROM public.entity_mentions "
+        "WHERE entity_type = $1 AND canonical_name = ANY($2::text[])",
+        entity_type,
+        names,
+    )
+    await conn.execute(
+        "DELETE FROM public.entity_pair_resolutions "
+        "WHERE entity_type = $1 "
+        "AND (name_a = ANY($2::text[]) OR name_b = ANY($2::text[]))",
+        entity_type,
+        names,
+    )
+
+
 # ── Inv-2: same entity across two runs → one canonical ────────────────────────
 
 
@@ -98,12 +213,81 @@ def test_crossrun_same_entity_converges_to_one_canonical() -> None:
     FROM entity_mentions WHERE entity_type = $1 AND canonical_name IN (run1, run2)`
     returns exactly ONE value (run 1's pinned canonical).
     """
-    _require_disposable_dsn()
-    raise NotImplementedError(
-        "Inv-2 cross-run convergence: operator wires two app_main runs (distinct "
-        "op_ids) over the seeding corpus, then asserts SELECT DISTINCT "
-        "canonical_name returns ONE value (run 1's). See TECH §5 Inv-2."
-    )
+    dsn = _require_disposable_dsn()
+
+    async def _body() -> None:
+        import asyncpg
+
+        entity_type = "standard"
+        # ONE entity, two runs. Run 1 materialises "ISO 27001"; run 2's per-doc
+        # canonical is the case-fold near-match "iso 27001" (dist 0.06 < 0.3).
+        run1_canonical = "ISO 27001"
+        run2_perdoc = "iso 27001"
+        op1 = uuid.uuid4()
+        op2 = uuid.uuid4()
+        cid1 = uuid.uuid4()
+        cid2 = uuid.uuid4()
+        all_names = [run1_canonical, run2_perdoc]
+
+        pool = await asyncpg.create_pool(dsn, min_size=1, max_size=4)
+        try:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+                await _seed_mention(
+                    conn,
+                    canonical=run1_canonical,
+                    entity_type=entity_type,
+                    content_item_id=cid1,
+                    op_id=op1,
+                )
+
+            # Run 1: resolves its own single row (unique → resolves to itself,
+            # materialising "ISO 27001" as the prior-run canonical).
+            await _run_stage5(pool, op1)
+
+            # Run 2: seed the near-match, then resolve op2. The op-agnostic roster
+            # surfaces run 1's "ISO 27001"; PINNED chains run 2's near-match under
+            # it. (Pre-fix this would self-pin and NOT chain — the inert defect.)
+            async with pool.acquire() as conn:
+                await _seed_mention(
+                    conn,
+                    canonical=run2_perdoc,
+                    entity_type=entity_type,
+                    content_item_id=cid2,
+                    op_id=op2,
+                )
+            changed = await _run_stage5(pool, op2)
+
+            async with pool.acquire() as conn:
+                distinct = await conn.fetch(
+                    "SELECT DISTINCT canonical_name FROM public.entity_mentions "
+                    "WHERE entity_type = $1 AND canonical_name = ANY($2::text[])",
+                    entity_type,
+                    all_names,
+                )
+                # The run-2 row's post-resolution canonical.
+                run2_canonical = await conn.fetchval(
+                    "SELECT canonical_name FROM public.entity_mentions "
+                    "WHERE op_id = $1",
+                    op2,
+                )
+
+            values = {r["canonical_name"] for r in distinct}
+            assert values == {run1_canonical}, (
+                "the same entity across two runs must carry ONE canonical (run 1's "
+                f"'{run1_canonical}'); got {values}. Two values means run 2 "
+                "self-pinned instead of chaining (the inert-seeding defect)."
+            )
+            assert run2_canonical == run1_canonical, (
+                "run 2's row chained UNDER run 1's canonical"
+            )
+            assert changed == 1, "exactly one canonical UPDATE landed in run 2"
+        finally:
+            async with pool.acquire() as conn:
+                await _cleanup(conn, entity_type, all_names)
+            await pool.close()
+
+    asyncio.run(_body())
 
 
 # ── Inv-3: PINNED override of a longer name (prior-run canonical never demoted) ─
