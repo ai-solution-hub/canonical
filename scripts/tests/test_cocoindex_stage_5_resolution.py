@@ -208,19 +208,72 @@ class _FakeConn:
 class _FakePool:
     """In-memory ``asyncpg.Pool`` stand-in.
 
-    ``fetch`` answers the two read queries the post-pass issues: the
-    ``entity_aliases`` preload (returns []) and the run's ``entity_mentions``
-    SELECT (returns the fixture rows as dict-like records). ``acquire()`` yields
-    the shared ``_FakeConn`` as an async context manager (matching the real
-    pool semantic that all connections back the same database).
+    ``fetch`` answers the read queries the post-pass issues: the
+    ``entity_aliases`` preload (returns []), the run's ``entity_mentions``
+    SELECT (returns the fixture rows as dict-like records), and — ID-81 PC-6 —
+    the op-agnostic existing-canonical roster SELECT
+    (``SELECT DISTINCT canonical_name ... WHERE entity_type = $1 AND (...)``).
+    ``acquire()`` yields the shared ``_FakeConn`` as an async context manager
+    (matching the real pool semantic that all connections back the same
+    database).
+
+    ``seed_rows`` (ID-81 Inv-6 / Inv-8) is an in-memory stand-in for the
+    op-agnostic body of ``public.entity_mentions`` (prior-run rows AND NULL-op_id
+    app-side rows — the stub does NOT model op_id because the PC-6 reader is
+    op-agnostic by design). Each entry is ``(canonical_name, entity_type)``. The
+    stub MODELS the PC-6 query's two predicates WITHOUT executing SQL (no live
+    pg_trgm): ``WHERE entity_type = $1`` (Inv-8 scoping) AND the candidate
+    prefilter (exact case-fold OR a trigram-plausibility stand-in). This keeps
+    the test honest about entity_type scoping and the membership semantics the
+    reader guarantees.
     """
 
-    def __init__(self, conn: _FakeConn) -> None:
+    def __init__(
+        self,
+        conn: _FakeConn,
+        seed_rows: list[tuple[str, str]] | None = None,
+    ) -> None:
         self.conn = conn
+        # Op-agnostic existing-canonical corpus: (canonical_name, entity_type).
+        self.seed_rows: list[tuple[str, str]] = seed_rows or []
+
+    @staticmethod
+    def _prefilter_match(canonical: str, probe_lower: list[str]) -> bool:
+        """Trigram-plausibility stand-in for the PC-6 prefilter (NO live SQL).
+
+        Models the two SQL arms together: exact case-fold equality
+        (``lower(canonical_name) = ANY($3)``) OR a lexical near-match standing
+        in for ``canonical_name OPERATOR(extensions.%) ANY($2)``. The trigram
+        arm is approximated by case-insensitive substring overlap in EITHER
+        direction — sufficient to exercise the reader's set-membership contract
+        without a pg_trgm-backed database.
+        """
+        c_lower = canonical.lower()
+        for name in probe_lower:
+            if c_lower == name or name in c_lower or c_lower in name:
+                return True
+        return False
 
     async def fetch(self, query: str, *args: object) -> list[dict]:
         if "FROM public.entity_aliases" in query:
             return []  # no aliases active
+        if "SELECT DISTINCT canonical_name" in query:
+            # ID-81 PC-6 reader: op-agnostic existing-canonical roster.
+            # Binds: $1 = entity_type, $2 = probe (run names), $3 = lowered probe.
+            entity_type = args[0]
+            probe_lower = [str(n) for n in args[2]]  # already-lowered in reader
+            seen: set[str] = set()
+            out: list[dict] = []
+            for canonical, seed_type in self.seed_rows:
+                if seed_type != entity_type:
+                    continue  # Inv-8: entity_type-scoped (WHERE entity_type = $1)
+                if not self._prefilter_match(canonical, probe_lower):
+                    continue  # candidate prefilter (Inv-1/§4 PERF)
+                if canonical in seen:
+                    continue  # SELECT DISTINCT
+                seen.add(canonical)
+                out.append({"canonical_name": canonical})
+            return out
         if "FROM public.entity_mentions" in query:
             # Mirror _select_run_entity_mentions: id, canonical_name,
             # entity_type, content_item_id, confidence.
@@ -475,3 +528,124 @@ def test_zero_confidence_survivor_not_treated_as_missing(
         "0.0 confidence must rank above None — explicit is-not-None check"
     )
     assert conn.deleted_ids == [none_conf_id]
+
+
+# ── ID-81 PC-6: _select_existing_canonical_roster (op-agnostic seed reader) ───
+
+
+def test_roster_is_op_agnostic_prior_run_and_null_op_canonicals() -> None:
+    """Inv-6: the roster for an entity_type includes BOTH a prior-run canonical
+    AND a NULL-op_id (app-side) canonical of the matching type.
+
+    The PC-6 reader is op-AGNOSTIC: it reads DISTINCT canonical_name across ALL
+    op_ids — prior completed runs AND app-side writes (``classifyContent`` /
+    Admin curation, which write NULL ``op_id``). The seed corpus below models
+    both provenances; the reader must surface both as eligible chaining targets
+    for the in-flight run's near-matching names. Assertion is SET-MEMBERSHIP
+    (``in roster``), NOT identity — a name both 'existing' and 'in this run' is
+    simply is_existing=True (Inv-7 self-membership caveat).
+    """
+    from scripts.cocoindex_pipeline.stage_5 import (
+        _select_existing_canonical_roster,
+    )
+
+    entity_type = "organisation"
+    # Seed corpus spans both op provenances (the reader cannot tell them apart —
+    # that is the point of op-AGNOSTIC). "Acme Corporation" stands in for a
+    # prior-run canonical; "Globex Limited" for a NULL-op_id app-side canonical.
+    seed_rows = [
+        ("Acme Corporation", "organisation"),  # prior-run canonical
+        ("Globex Limited", "organisation"),  # NULL-op_id app-side canonical
+        ("Initech", "organisation"),  # existing but NOT near any run name
+    ]
+    pool = _FakePool(_FakeConn([]), seed_rows=seed_rows)
+
+    # This run mentions near-matches of the two target canonicals (case variant
+    # / substring) — both must be recalled by the prefilter and returned.
+    run_names = {"acme corporation", "globex limited"}
+
+    roster = asyncio.run(
+        _select_existing_canonical_roster(
+            pool,  # type: ignore[arg-type]
+            entity_type,
+            run_names,
+        )
+    )
+
+    assert isinstance(roster, set), "reader returns a set[str] for O(1) membership"
+    # Inv-6: both provenances are eligible chaining targets (set-membership).
+    assert "Acme Corporation" in roster, (
+        "prior-run canonical must be an eligible chaining target (op-agnostic)"
+    )
+    assert "Globex Limited" in roster, (
+        "NULL-op_id app-side canonical must be an eligible chaining target"
+    )
+    # The non-near existing is correctly prefiltered OUT (Inv-1/§4 PERF bound).
+    assert "Initech" not in roster
+
+
+def test_roster_empty_run_names_short_circuits() -> None:
+    """The reader short-circuits to an empty set for an empty run-name set
+    (no DB round-trip) — guards the ``if not run_names: return set()`` arm."""
+    from scripts.cocoindex_pipeline.stage_5 import (
+        _select_existing_canonical_roster,
+    )
+
+    pool = _FakePool(_FakeConn([]), seed_rows=[("Acme Corporation", "organisation")])
+    roster = asyncio.run(
+        _select_existing_canonical_roster(
+            pool,  # type: ignore[arg-type]
+            "organisation",
+            set(),
+        )
+    )
+    assert roster == set()
+
+
+def test_roster_is_entity_type_scoped() -> None:
+    """Inv-8: the roster is entity_type-scoped — an ``organisation`` "Cisco"
+    seed is ABSENT from a ``technology`` batch's roster.
+
+    The PC-6 reader binds ``WHERE entity_type = $1``, so a same-string canonical
+    of a DIFFERENT type is never offered as a chaining target. A ``technology``
+    "Cisco" mention therefore would not chain under the ``organisation`` "Cisco"
+    canonical — the two namespaces stay independent (mirrors the entity_type-keyed
+    KhPairResolver cache, ID-53 P-OQ3).
+    """
+    from scripts.cocoindex_pipeline.stage_5 import (
+        _select_existing_canonical_roster,
+    )
+
+    # "Cisco" exists as BOTH an organisation and (separately) a technology.
+    seed_rows = [
+        ("Cisco", "organisation"),  # the company
+        ("Cisco", "technology"),  # the product line
+        ("Juniper", "organisation"),  # organisation-only — must not leak
+    ]
+    pool = _FakePool(_FakeConn([]), seed_rows=seed_rows)
+
+    # Resolving a TECHNOLOGY batch whose run names near-match "Cisco".
+    tech_roster = asyncio.run(
+        _select_existing_canonical_roster(
+            pool,  # type: ignore[arg-type]
+            "technology",
+            {"cisco"},
+        )
+    )
+    # Only the technology "Cisco" is eligible; the organisation "Cisco" is scoped
+    # OUT, and the organisation-only "Juniper" never appears in a tech roster.
+    assert "Cisco" in tech_roster, "technology Cisco IS in the technology roster"
+    assert "Juniper" not in tech_roster, (
+        "an organisation-only canonical must never leak into a technology roster"
+    )
+
+    # And the converse: resolving an ORGANISATION batch sees the organisation
+    # "Cisco" and "Juniper" but the technology rows are scoped out by $1.
+    org_roster = asyncio.run(
+        _select_existing_canonical_roster(
+            pool,  # type: ignore[arg-type]
+            "organisation",
+            {"cisco", "juniper"},
+        )
+    )
+    assert org_roster == {"Cisco", "Juniper"}

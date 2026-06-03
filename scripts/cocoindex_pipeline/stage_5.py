@@ -105,6 +105,44 @@ async def _select_run_entity_mentions(
     )
 
 
+async def _select_existing_canonical_roster(
+    db_pool: asyncpg.Pool, entity_type: str, run_names: set[str]
+) -> set[str]:
+    """Op-agnostic existing-canonical roster for one entity_type, candidate-prefiltered.
+
+    Reads DISTINCT canonical_name across ALL op_ids (prior-run rows + NULL-op_id
+    app-side rows) for `entity_type` (ID-81 Inv-6), bounded to canonicals
+    lexically plausible against this run's names (pg_trgm similarity OR
+    exact case-fold), per ID-81 Inv-1/§4 PERF. Returns a SET for O(1)
+    set-membership (the `is_existing_canonical` predicate, Inv-7 self-membership
+    caveat: a name that is both 'existing' and 'in this run' is simply
+    is_existing=True — pinned, never demoted). NOT a UNION with entity_aliases
+    (Inv-12). Workspace-agnostic at v1 (Inv-9 — no workspace_id at Stage-5).
+
+    `run_names` is the per-type set from `names_by_type[entity_type]`
+    (`stage_5.py:180`, typed `dict[str, set[str]]`) — a set, NOT a list.
+    """
+    if not run_names:
+        return set()
+    probe = list(run_names)  # asyncpg ANY() binds a list; order irrelevant (set membership)
+    rows = await db_pool.fetch(
+        "SELECT DISTINCT canonical_name "
+        "FROM public.entity_mentions "
+        "WHERE entity_type = $1 "
+        # SCHEMA-QUALIFIED operator: the asyncpg pool session search_path is the
+        # default ("$user", public) — it does NOT include `extensions` (where
+        # pg_trgm lives, §4), so a bare `%` is UNRESOLVABLE at runtime. Qualify
+        # via OPERATOR(extensions.%) so the trigram operator resolves regardless
+        # of search_path. (§6 HIGH-risk row — this is the safe form to copy.)
+        "  AND ( canonical_name OPERATOR(extensions.%) ANY($2::text[]) "  # pg_trgm near-match
+        "        OR lower(canonical_name) = ANY($3::text[]) )",            # exact case-fold
+        entity_type,
+        probe,
+        [n.lower() for n in probe],
+    )
+    return {row["canonical_name"] for row in rows}
+
+
 async def _run_stage_5_resolution(
     *,
     meta: FlowRunMeta,
