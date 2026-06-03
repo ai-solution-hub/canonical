@@ -175,6 +175,18 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!HAS_REQUIRED_ENV) return;
 
+  // Defence — re-query content_items by title prefix to catch any rows
+  // created by the real orchestrator that were not captured in
+  // seededContentItemIds (e.g. if the spy did not fire, or if a future
+  // test exercises the real handler path).
+  const { data: prefixItems } = await serviceClient
+    .from('content_items')
+    .select('id')
+    .like('title', `${TEST_PREFIX}%`);
+  for (const row of prefixItems ?? []) {
+    seededContentItemIds.add(row.id);
+  }
+
   // Scrub seeded rows in dependency order — content_items has FK
   // dependents (entity_mentions, entity_relationships) per the
   // batch-reclassify integration test's pattern.
@@ -192,6 +204,12 @@ afterAll(async () => {
       .delete()
       .in('id', Array.from(seededContentItemIds));
   }
+  // Defence — also scrub content_items by title prefix (catches any rows
+  // the re-query above missed due to timing or partial failures).
+  await serviceClient
+    .from('content_items')
+    .delete()
+    .like('title', `${TEST_PREFIX}%`);
   if (seededJobIds.size > 0) {
     await serviceClient
       .from('processing_queue')

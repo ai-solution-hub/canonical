@@ -244,6 +244,17 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!HAS_REQUIRED_ENV) return;
 
+  // Defence — re-query workspaces by name prefix to catch any bids created
+  // by tests that did not run through createTestBid (e.g. direct inserts),
+  // or where seededBidIds was not populated before a crash.
+  const { data: prefixWorkspaces } = await serviceClient
+    .from('workspaces')
+    .select('id')
+    .like('name', `${TEST_PREFIX}%`);
+  for (const row of prefixWorkspaces ?? []) {
+    seededBidIds.add(row.id);
+  }
+
   // Scrub in dependency-order — bid_responses → bid_questions → workspaces;
   // processing_queue and pipeline_runs are independent.
   if (seededResponseIds.size > 0) {
@@ -271,6 +282,12 @@ afterAll(async () => {
       .delete()
       .in('id', Array.from(seededBidIds));
   }
+  // Defence — also scrub workspaces by name prefix (catches any rows the
+  // re-query above missed due to timing or partial failures).
+  await serviceClient
+    .from('workspaces')
+    .delete()
+    .like('name', `${TEST_PREFIX}%`);
   if (seededJobIds.size > 0) {
     await serviceClient
       .from('processing_queue')
