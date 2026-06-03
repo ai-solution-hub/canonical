@@ -32,9 +32,29 @@ from docx import Document
 logger = logging.getLogger(__name__)
 
 
+def _resolve_pandoc_path() -> str | None:
+    """Resolve a usable pandoc binary path.
+
+    Prefers a system ``pandoc`` on PATH; falls back to the static binary
+    bundled by the ``pypandoc_binary`` wheel. The cocoindex pipeline image is
+    buildpack-built ({66.7}) with no apt layer, so pandoc ships as a
+    pip-installed binary rather than a system package ({80.3}). Returns None
+    when neither is available (the caller then soft-warns and skips resolution).
+    """
+    path = shutil.which("pandoc")
+    if path is not None:
+        return path
+    try:
+        import pypandoc  # noqa: PLC0415
+
+        return pypandoc.get_pandoc_path()
+    except (ImportError, OSError):
+        return None
+
+
 def _check_pandoc_available() -> bool:
-    """Check if pandoc is available on the system PATH."""
-    return shutil.which("pandoc") is not None
+    """Check if pandoc is available (system PATH or pypandoc-bundled binary)."""
+    return _resolve_pandoc_path() is not None
 
 
 def has_tracked_changes(file_path: str) -> bool:
@@ -94,9 +114,11 @@ def resolve_track_changes(input_path: str) -> str:
         FileNotFoundError: If pandoc is not installed
         subprocess.CalledProcessError: If pandoc fails to process the file
     """
-    if not _check_pandoc_available():
+    pandoc_path = _resolve_pandoc_path()
+    if pandoc_path is None:
         raise FileNotFoundError(
-            "pandoc is not installed. Install with: brew install pandoc"
+            "pandoc is not installed. Install with: brew install pandoc "
+            "(or `pip install pypandoc_binary` for a bundled static binary)."
         )
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
@@ -104,7 +126,7 @@ def resolve_track_changes(input_path: str) -> str:
 
     try:
         subprocess.run(
-            ["pandoc", "--track-changes=accept", "-o", tmp_path, input_path],
+            [pandoc_path, "--track-changes=accept", "-o", tmp_path, input_path],
             check=True,
             capture_output=True,
             timeout=60,

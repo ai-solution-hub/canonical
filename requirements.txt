@@ -26,6 +26,11 @@ openpyxl==3.1.5
 # Document processing (used by Python scripts only; JS routes use mammoth + Claude)
 python-docx>=1.1.2
 docxtpl>=0.19.0
+# pandoc (Track-Changes resolution in docx_utils.py) ships as a pip-bundled
+# static binary: the cocoindex image is buildpack-built ({66.7}) with no apt
+# layer, so a system pandoc is unavailable — pypandoc_binary bundles one that
+# docx_utils._resolve_pandoc_path() finds via pypandoc.get_pandoc_path() ({80.3}).
+pypandoc_binary>=1.13
 
 # Environment
 # Floor pinned to CocoIndex's own requirement (>=1.1.0): litellm's loose
