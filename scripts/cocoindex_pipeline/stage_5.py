@@ -10,6 +10,15 @@ per-document canonicals with the KH entity embedder (§P-7) + KH PairResolver
 (§P-8), and issues op_id-scoped UPDATEs (Inv-5) for rows whose
 `canonical_name` resolves to a different cross-document value.
 
+bl-225: when two DISTINCT per-document canonicals in the SAME document resolve
+to one cross-document value, the post-pass would have issued two UPDATEs to that
+value and collided on UNIQUE(canonical_name, entity_type, content_item_id). The
+resolution write-back therefore COLLAPSES each post-resolution collision group
+to a single highest-confidence survivor (mirroring the DB function
+`delete_duplicate_entity_mentions`) and DELETEs the losers (no FK dependents →
+cascade-safe), DELETE-first so the survivor can UPDATE into a canonical a loser
+currently holds without a transient collision.
+
 The module is consumed by `scripts/cocoindex_pipeline/flow.py:app_main`
 (the §P-1 attach), invoked between `await handle.ready()` and the flow-end
 `_emit_pipeline_run_webhook`. To avoid a runtime import cycle (flow.py imports
@@ -34,6 +43,8 @@ References:
 
 from __future__ import annotations
 
+import json
+import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -44,6 +55,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from scripts.cocoindex_pipeline._coco_api import ResolvedEntities
     from scripts.cocoindex_pipeline.flow import _FlowStageCounter
     from scripts.cocoindex_pipeline.flow_context import FlowRunMeta
+
+
+# Module logger (mirrors flow.py's logger pattern). bl-225: a destructive DELETE
+# in the Stage-5 collapse MUST be observable — see the structured log emitted
+# after the transaction when loser rows are collapsed into a survivor.
+_logger = logging.getLogger(__name__)
 
 
 async def _preload_entity_aliases(db_pool: asyncpg.Pool) -> dict[str, str]:
@@ -68,12 +85,20 @@ async def _select_run_entity_mentions(
     """Read this run's `entity_mentions` rows, op_id-scoped (Inv-5).
 
     Returns the rows the per-item phase wrote in this run (`id`,
-    `canonical_name`, `entity_type`). Only op_id-matching rows are selected —
-    NULL-op_id rows (app-side writes) and prior-run rows are NOT read here, so
-    the post-pass never UPDATEs rows outside the in-flight run.
+    `canonical_name`, `entity_type`, `content_item_id`, `confidence`). Only
+    op_id-matching rows are selected — NULL-op_id rows (app-side writes) and
+    prior-run rows are NOT read here, so the post-pass never UPDATEs rows
+    outside the in-flight run.
+
+    bl-225: `content_item_id` is now SELECTed so the post-resolution collapse
+    can group by the natural unique key (canonical_name, entity_type,
+    content_item_id) — the constraint that crashed when two distinct per-doc
+    canonicals in the SAME document resolved to one value. `confidence` is
+    SELECTed so the survivor of a collision group is the highest-confidence row
+    (mirroring `delete_duplicate_entity_mentions`).
     """
     return await db_pool.fetch(
-        "SELECT id, canonical_name, entity_type "
+        "SELECT id, canonical_name, entity_type, content_item_id, confidence "
         "FROM public.entity_mentions "
         "WHERE op_id = $1",
         op_id,
@@ -114,11 +139,16 @@ async def _run_stage_5_resolution(
     # Inv-10: outputs are consistent with legacy entity_aliases reads.
     # The row id is carried as its native uuid.UUID (NOT str()) so the Step-6
     # UPDATE bind satisfies asyncpg's strict uuid typing — see DEVIATION note.
-    name_pairs: list[tuple[UUID, str, str]] = [
+    # bl-225: each tuple now also carries content_item_id + confidence so Step 5
+    # can group by the post-resolution natural key and pick a deterministic
+    # highest-confidence survivor per collision group.
+    name_pairs: list[tuple[UUID, str, str, UUID, float | None]] = [
         (
             row["id"],
             alias_map.get(row["canonical_name"], row["canonical_name"]),
             row["entity_type"],
+            row["content_item_id"],
+            row["confidence"],
         )
         for row in rows
     ]
@@ -148,7 +178,7 @@ async def _run_stage_5_resolution(
 
     # Group (alias_applied_canonical) by entity_type for per-type batches.
     names_by_type: dict[str, set[str]] = defaultdict(set)
-    for _row_id, alias_applied_canonical, entity_type in name_pairs:
+    for _row_id, alias_applied_canonical, entity_type, _cid, _conf in name_pairs:
         names_by_type[entity_type].add(alias_applied_canonical)
 
     # resolved_by_type maps entity_type -> ResolvedEntities for that batch.
@@ -164,33 +194,83 @@ async def _run_stage_5_resolution(
             ),
         )
 
-    # Step 5: walk ResolvedEntities.canonical_of() — find UPDATE-eligible rows.
+    # Step 5: walk ResolvedEntities.canonical_of() and GROUP by the
+    # POST-resolution natural unique key (content_item_id, entity_type,
+    # resolved). This is the bl-225 fix: `resolve_entities` resolves over a NAME
+    # SET, agnostic of content_item_id, so two DISTINCT per-doc canonicals in
+    # the SAME document (e.g. "eir 2004" + "environmental information
+    # regulations 2004") can resolve to ONE value. The old row-by-row logic
+    # then issued two UPDATEs to that value — the second collided with the first
+    # on UNIQUE(canonical_name, entity_type, content_item_id) and crashed. We
+    # instead collapse each collision group to a single survivor and DELETE the
+    # losers (NO FK dependents reference entity_mentions → cascade-safe).
+    #
     # NOTE (cocoindex 1.0.3 API fidelity): `canonical_of` returns `str` (the
     # name itself when already canonical) and raises KeyError for an unknown
     # name — it does NOT return None. Every name queried here was a member of
     # the `names_by_type` batch fed to `resolve_entities`, so it is guaranteed
-    # present in the dedup map (no KeyError). Inv-20 ("unresolved retains the
-    # per-document canonical") is therefore realised by the `==` branch below:
-    # an unresolved name resolves to itself, so no UPDATE fires. The `is None`
-    # guard is retained for spec (§P-6) fidelity + forward-compatibility and is
-    # harmless (canonical_of never returns None under 1.0.3).
-    updates: list[tuple[UUID, str]] = []  # (row_id, new_canonical)
-    for row_id, alias_applied_canonical, entity_type in name_pairs:
-        resolved = resolved_by_type[entity_type]
-        new_canonical = resolved.canonical_of(alias_applied_canonical)
-        if new_canonical is None:
-            continue  # Inv-20: unresolved retains per-doc canonical.
-        if new_canonical == alias_applied_canonical:
-            continue  # already-resolved-correct; no UPDATE needed.
-        updates.append((row_id, new_canonical))
+    # present in the dedup map (no KeyError). The `is None` guard below realises
+    # Inv-20 ("unresolved retains the per-document canonical") and is harmless
+    # under 1.0.3 (canonical_of never returns None).
+    #
+    # group key (content_item_id, entity_type, resolved)
+    #   -> [(row_id, alias_applied_canonical, confidence)]
+    collision_groups: dict[
+        tuple[UUID, str, str], list[tuple[UUID, str, float | None]]
+    ] = defaultdict(list)
+    for (
+        row_id,
+        alias_applied_canonical,
+        entity_type,
+        content_item_id,
+        confidence,
+    ) in name_pairs:
+        resolved = resolved_by_type[entity_type].canonical_of(
+            alias_applied_canonical
+        )
+        if resolved is None:
+            resolved = alias_applied_canonical  # Inv-20: unresolved retains canonical.
+        collision_groups[(content_item_id, entity_type, resolved)].append(
+            (row_id, alias_applied_canonical, confidence)
+        )
 
-    # Step 6: op_id-scoped UPDATE batch (Inv-5).
+    updates: list[tuple[UUID, str]] = []  # (row_id, new_canonical) survivors that CHANGED
+    deletes: list[UUID] = []  # loser row ids collapsed into the survivor
+    for (content_item_id, entity_type, resolved), members in collision_groups.items():
+        # survivor: highest confidence, then smallest id (deterministic; mirrors
+        # delete_duplicate_entity_mentions ORDER BY confidence DESC NULLS LAST,
+        # created_at ASC — id is the deterministic proxy for created_at here
+        # since the post-pass does not SELECT created_at).
+        # Note: `(conf if conf is not None else -1.0)` — explicit None check,
+        # NOT `conf or`, so a legitimate 0.0 confidence is not treated as missing.
+        survivor_id, survivor_alias_applied, _sc = min(
+            members, key=lambda m: (-(m[2] if m[2] is not None else -1.0), m[0])
+        )
+        if survivor_alias_applied != resolved:  # PRESERVE original skip-condition
+            updates.append((survivor_id, resolved))
+        for member_id, _aa, _conf in members:
+            if member_id != survivor_id:
+                deletes.append(member_id)
+
+    # Step 6: op_id-scoped DELETE-then-UPDATE batch (Inv-5).
+    # DELETE-FIRST IS LOAD-BEARING: a survivor may UPDATE INTO a canonical
+    # currently held by a loser; deleting losers first prevents that transient
+    # collision on UNIQUE(canonical_name, entity_type, content_item_id).
     # Wrapped in a single transaction; exceptions propagate to the flow's outer
     # `except` (the §P-10 failure routing) — never swallowed (CLAUDE.md "no
     # silent failures").
-    if updates:
+    if updates or deletes:
         async with db_pool.acquire() as conn:
             async with conn.transaction():
+                if deletes:
+                    # WHERE op_id = $2 — op_id scope is the forcing function
+                    # (Inv-5); ids are native uuid.UUID (asyncpg-strict typing).
+                    await conn.execute(
+                        "DELETE FROM public.entity_mentions "
+                        "WHERE id = ANY($1::uuid[]) AND op_id = $2",
+                        deletes,
+                        meta.op_id,
+                    )
                 for row_id, new_canonical in updates:
                     # WHERE id = $2 AND op_id = $3 — op_id scope is the forcing
                     # function (Inv-5); the row id is naturally scoped to this
@@ -208,4 +288,20 @@ async def _run_stage_5_resolution(
                     # mirrors the per-row embedding counter at flow.py:915).
                     flow_stage_counter.increment("entity_resolution")
 
+    # Observability: a destructive DELETE must be visible. Emit a concise
+    # structured log when any loser was collapsed (bl-225).
+    if deletes:
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.stage_5.collapsed",
+                    "op_id": str(meta.op_id),
+                    "collapsed_count": len(deletes),
+                }
+            )
+        )
+
+    # Return survivors whose canonical_name CHANGED (matches the Inv-11
+    # counter's documented "canonical_name UPDATEs that landed"). Collapsed
+    # losers are reported via the structured log above, not this count.
     return len(updates)
