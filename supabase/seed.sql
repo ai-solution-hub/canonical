@@ -110,12 +110,18 @@ ON CONFLICT (user_id) DO NOTHING;
 --   e0...01 = CI test company profile
 
 -- 2a. Test workspace (required by feed_prompts, feed_sources, and E2E tests)
-INSERT INTO public.workspaces (id, name, description, type, created_by)
+-- NB: `workspaces.type` (was 'bid') was DROPPED in 20260520120828
+-- (t2_combined_pr_intel_shape_b_form_type_split) and replaced by a NOT-NULL
+-- `application_type_id` FK to application_types. Old 'bid' maps to the
+-- 'procurement' application_type (migration 1.4 backfill). Resolved via a
+-- key-subquery because application_types.id is gen_random_uuid() — NOT stable
+-- across branches — so a literal UUID would break on any fresh branch.
+INSERT INTO public.workspaces (id, name, description, application_type_id, created_by)
 VALUES (
   'b0000000-0000-4000-8000-000000000001',
   'CI Test Workspace',
   'Deterministic workspace for CI integration and E2E tests. Seeded by seed.sql.',
-  'bid',
+  (SELECT id FROM public.application_types WHERE key = 'procurement'),
   'a0000000-0000-4000-8000-000000000001'
 )
 ON CONFLICT (id) DO NOTHING;
