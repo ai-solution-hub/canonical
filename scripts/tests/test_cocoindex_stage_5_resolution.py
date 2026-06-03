@@ -1804,6 +1804,15 @@ def test_roster_excludes_in_flight_names_so_run2_chains(
         )
     )
 
+    # Fail LOUD + EARLY if the stubbed resolver was never invoked (a monkeypatch
+    # miss): otherwise the canonical-name assertion below masks it as a confusing
+    # value mismatch rather than a clear "stub not called" (ID-81.9 Checker note).
+    assert capture["calls"], (
+        "the stubbed PINNED resolver was never called — monkeypatch did not "
+        "intercept the lazy `_coco_api.resolve_entities` import in "
+        "_run_stage_5_resolution"
+    )
+
     # POST-FIX: the in-flight name was SUBTRACTED from the roster, so only the
     # foreign "ISO 27001" is flagged existing; the in-flight "iso 27001" chained
     # under it. PRE-FIX: "iso 27001" self-pinned (is_existing via self-membership)
