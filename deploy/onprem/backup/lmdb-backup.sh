@@ -106,7 +106,7 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 if [[ -z "${BACKUP_S3_BUCKET:-}" ]]; then
-  die "BACKUP_S3_BUCKET is required but unset. Set it to the S3 bucket Coolify already targets for DB backups."
+  die "BACKUP_S3_BUCKET is required but unset. Set it to the chosen S3 bucket (Supabase Storage by default — see the {66.14} 'Target' section of onprem-b1-deploy.md)."
 fi
 
 if [[ ! -d "${LMDB_SRC}" ]]; then
