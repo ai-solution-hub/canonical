@@ -34,6 +34,7 @@ import asyncio
 import json
 import os
 import signal
+import sys
 import threading
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -50,6 +51,101 @@ import pytest
 from aiohttp import web  # noqa: E402
 from aiohttp.streams import StreamReader  # noqa: E402
 from aiohttp.test_utils import make_mocked_request  # noqa: E402
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Engine-availability probe (bl-218)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# `TestIdleModeBoot::test_idle_mode_boot_returns_clean_worker_stays_healthy` is
+# the ONE test in this file that drives the REAL cocoindex Rust engine (it does
+# NOT mock `update_blocking`). Under a sandboxed agent worktree the cocoindex
+# Rust core raises EPERM when `core.Environment(...)` boots
+# (`cocoindex/_internal/environment.py:240`, reached via
+# `KH_PIPELINE_APP.update_blocking(live=True)` inside `start_cocoindex_thread()`'s
+# daemon thread). The EPERM is swallowed by server.py's worker-crash handler, so
+# the test sees `lifespan_entered` False + `worker_is_healthy()` False and its
+# assertions FAIL rather than erroring — an in-test try/except cannot catch it.
+# The correct fix is a collection-time `@pytest.mark.skipif` keyed on an
+# independent probe that ACTUALLY ATTEMPTS the engine boot (a bare
+# `importorskip('cocoindex')` is insufficient: cocoindex imports fine; only the
+# engine *boot* EPERMs).
+#
+# The probe runs the minimal real `core.Environment(...)` construction — the
+# exact EPERM site the test drives — in a SUBPROCESS so it cannot pollute the
+# cocoindex process-global registries, leak the loop runner / daemon threads, or
+# otherwise perturb the other tests in this file. It returns False on
+# PermissionError/OSError (EPERM is errno 1 → PermissionError), True on a clean
+# boot (exit 0), so the test STILL RUNS in non-sandboxed CI.
+
+_COCOINDEX_ENGINE_AVAILABLE: bool | None = None
+
+# Minimal real engine boot, executed in an isolated subprocess. Constructs the
+# same `core.Environment(...)` the idle-mode test drives (via
+# `cocoindex._internal.environment.Environment`, whose __init__ reaches
+# `core.Environment(...)` at environment.py:240). Exits 0 on a clean boot,
+# non-zero (and prints the errno) on EPERM/OSError.
+_ENGINE_PROBE_SRC = """
+import sys, tempfile, os
+try:
+    from cocoindex._internal import setting
+    from cocoindex._internal.environment import Environment
+    d = tempfile.mkdtemp(prefix='bl218-engine-probe-')
+    Environment(settings=setting.Settings(db_path=os.path.join(d, 'lmdb')))
+except (PermissionError, OSError) as exc:
+    sys.stderr.write('ENGINE_BOOT_DENIED:%r\\n' % (exc,))
+    sys.exit(3)
+except Exception as exc:  # any other failure → treat as engine-unavailable too
+    sys.stderr.write('ENGINE_BOOT_ERROR:%r\\n' % (exc,))
+    sys.exit(4)
+sys.exit(0)
+"""
+
+
+def _cocoindex_engine_available() -> bool:
+    """Return True iff the cocoindex Rust engine can boot in this environment.
+
+    Cached module-global (runs once). Drives the minimal real
+    `core.Environment(...)` construction in a SUBPROCESS — the exact boot the
+    idle-mode test exercises — and reports availability from the subprocess
+    exit code:
+
+      - exit 0  → engine booted cleanly → True (the idle-mode test RUNS, e.g.
+                  in non-sandboxed CI; this is non-negotiable).
+      - exit 3  → PermissionError/OSError (EPERM under a sandboxed agent
+                  worktree) → False (the idle-mode test self-skips).
+      - other   → cocoindex unavailable / unexpected boot failure → False
+                  (the test cannot meaningfully run, so skip rather than red).
+
+    Subprocess isolation guarantees the probe cannot pollute cocoindex's
+    process-global App/env registries, leak the `_LoopRunner` daemon thread, or
+    perturb the in-process mocked tests in this file.
+    """
+    global _COCOINDEX_ENGINE_AVAILABLE
+    if _COCOINDEX_ENGINE_AVAILABLE is not None:
+        return _COCOINDEX_ENGINE_AVAILABLE
+
+    # Test-of-the-guard hook: setting BL218_FORCE_ENGINE_UNAVAILABLE=1 forces the
+    # probe to report the engine as unavailable WITHOUT running it, so the skip
+    # path can be exercised on a machine where the engine actually boots. Unset in
+    # CI and in normal runs, so it never causes a spurious skip.
+    if os.environ.get("BL218_FORCE_ENGINE_UNAVAILABLE") == "1":
+        _COCOINDEX_ENGINE_AVAILABLE = False
+        return _COCOINDEX_ENGINE_AVAILABLE
+
+    import subprocess  # noqa: PLC0415
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", _ENGINE_PROBE_SRC],
+            capture_output=True,
+            timeout=60,
+        )
+        _COCOINDEX_ENGINE_AVAILABLE = proc.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        # Could not even launch the probe — treat the engine as unavailable.
+        _COCOINDEX_ENGINE_AVAILABLE = False
+    return _COCOINDEX_ENGINE_AVAILABLE
 
 
 def _reset_cocoindex_app_registry() -> None:
@@ -470,6 +566,14 @@ class TestIdleModeBoot:
     COCOINDEX_SOURCE_PATH + restarts the Service to begin ingest.
     """
 
+    @pytest.mark.skipif(
+        not _cocoindex_engine_available(),
+        reason=(
+            "cocoindex Rust engine cannot boot under sandboxed agent worktree "
+            "(EPERM on core.Environment); the real-engine boot is exercised in "
+            "non-sandboxed CI"
+        ),
+    )
     @pytest.mark.filterwarnings(
         "ignore::pytest.PytestUnhandledThreadExceptionWarning"
     )
