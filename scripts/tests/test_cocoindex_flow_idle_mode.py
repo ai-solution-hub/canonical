@@ -29,6 +29,7 @@ Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-2
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import os
 import sys
@@ -236,3 +237,58 @@ class TestExtractionModuleIdleLoad:
                 f"extraction.py must NOT import {sym!r} — Path A pattern "
                 f"(see cocoindex-extraction-contract TECH §3.1 + S256 W1 amendment)"
             )
+
+
+# ============================================================================
+# O-Q8 IDLE EARLY-RETURN — DEFENCE-IN-DEPTH BACKSTOP UNDER THE NEW BOOT MODEL
+# ============================================================================
+
+
+class TestAppMainIdleEarlyReturn:
+    """ID-83 / bl-221 — the O-Q8 `app_main` idle early-return STAYS INTACT as a
+    defence-in-depth backstop under the boot-decoupled model.
+
+    bl-221 (ID-83.1) makes boot lifespan-only (`coco.start_blocking()`), so
+    `app_main` no longer runs at boot at all — the idle early-return is no longer
+    the boot-time burn guard. But it is STILL load-bearing for the on-demand
+    `POST /walk` route: a walk that fires while `COCOINDEX_SOURCE_PATH` is
+    unset/missing must hit this early-return and be a clean no-op (the route also
+    loud-rejects an idle source with a 400 up front, so this is belt-and-braces).
+
+    These tests drive `app_main()` DIRECTLY (no cocoindex engine boot — the
+    early-return fires before any `walk_dir` / `mount_each`, so no LMDB engine,
+    no asyncpg pool, no Anthropic client is exercised). That is the whole point:
+    the early-return is reachable without the Rust engine, which is why it works
+    as a backstop even in a sandboxed worktree.
+    """
+
+    def test_app_main_returns_clean_when_source_path_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`app_main()` returns cleanly (no raise, no walk) when
+        COCOINDEX_SOURCE_PATH is unset — the O-Q8 idle early-return."""
+        monkeypatch.delenv("COCOINDEX_SOURCE_PATH", raising=False)
+        from scripts.cocoindex_pipeline import flow
+
+        # Returns None before any mount_each — proven by the call completing
+        # WITHOUT a cocoindex engine boot (no LMDB, no pool) in this idle env.
+        result = asyncio.run(flow.app_main())
+        assert result is None, (
+            "app_main must take the O-Q8 idle early-return (clean None) when "
+            "COCOINDEX_SOURCE_PATH is unset — the defence-in-depth backstop"
+        )
+
+    def test_app_main_returns_clean_when_source_path_missing_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`app_main()` returns cleanly when COCOINDEX_SOURCE_PATH points at a
+        non-existent folder — the second O-Q8 idle branch."""
+        missing = tmp_path / "does-not-exist"
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(missing))
+        from scripts.cocoindex_pipeline import flow
+
+        result = asyncio.run(flow.app_main())
+        assert result is None, (
+            "app_main must take the O-Q8 idle early-return (clean None) when "
+            "COCOINDEX_SOURCE_PATH points at a missing dir"
+        )
