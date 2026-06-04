@@ -55,7 +55,7 @@ Working directory: `{cwd}` ({branch}).
 
 ## READ FIRST
 
-`docs/themes/canonical-pipeline/reference/canonical-pipeline-sequencing.md` is the v1 master document for the current implementation focus (canonical pipeline implementation). Where any older spec conflicts, the sequencing doc wins.
+- `docs/themes/canonical-pipeline/reference/v1-completion-sequence.md` — the forward map (Spine = re-ingest is the cutover gate).
 
 ## Next-session focus
 
