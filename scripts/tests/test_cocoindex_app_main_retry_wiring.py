@@ -79,7 +79,7 @@ import pytest
 # `_retry_counter_var` ContextVar instances under different module
 # identities, with the bind-write and read sides diverging. Using the
 # same absolute path here matches how `app_main()` runs in production
-# (Cloud Run boots via `python3 -m scripts.cocoindex_pipeline`).
+# (the container boots via `python3 -m scripts.cocoindex_pipeline`).
 #
 # We add the repo ROOT (the parent of `scripts/`) to sys.path so the
 # `scripts` package is importable.

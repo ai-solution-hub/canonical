@@ -55,7 +55,7 @@ def _flow_module():
     return fresh_flow_module()
 
 
-# A concrete, region-qualified pooler DSN — the SHAPE Cloud Run will mount.
+# A concrete, region-qualified pooler DSN — the SHAPE the container will mount.
 # (The real value is minted out-of-band by Liam; this is a representative
 # stand-in for the contract test — NO real credentials.)
 _VALID_DSN = (

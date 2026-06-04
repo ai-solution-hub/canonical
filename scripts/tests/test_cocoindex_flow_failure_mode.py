@@ -554,8 +554,8 @@ class TestEmitStageErrorLog:
         assert payload["content_items_id"] is None
 
     def test_payload_is_machine_parseable_json(self, caplog):
-        # Cloud Run picks JSON-formatted log lines into jsonPayload
-        # automatically (Inv-26 v1 substrate). Round-trip through
+        # The container log collector picks JSON-formatted log lines into
+        # structured logs automatically (Inv-26 v1 substrate). Round-trip through
         # json.dumps + json.loads to assert the wire shape is honest.
         with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_stage_error_log(

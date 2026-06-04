@@ -1,5 +1,5 @@
 """Unit tests for `scripts/cocoindex_pipeline/server.py` — HTTP wrapper for the
-cocoindex sidecar Cloud Run Service.
+cocoindex sidecar (on-prem Coolify service).
 
 Covers PRODUCT Inv-6 (HTTPS /health probe returns 200 OK) + the wrapper
 contract specified in Subtask 28.15 dispatch brief, as amended by ID-83 /
@@ -19,7 +19,7 @@ path is exercised by invoking the registered route handler IN-PROCESS via
 `aiohttp.test_utils.make_mocked_request()` — no `TestClient`/`TestServer`,
 so NO real listening TCP socket is bound (honouring the fixture docstring's
 stated contract and keeping the test green in sandboxed runs). The real
-`GET /health` round-trip against the deployed Cloud Run sidecar is covered
+`GET /health` round-trip against the deployed on-prem sidecar is covered
 separately by
 `__tests__/integration/cocoindex/agpl-boundary.integration.test.ts`, so no
 coverage gap is introduced by dropping the socket-level client here. The
@@ -311,7 +311,7 @@ class TestHealthEndpoint:
 
 
 class TestSigtermHandler:
-    """Inv-6 + Cloud Run scale-down contract — SIGTERM installed for drain."""
+    """Inv-6 + container stop/drain contract — SIGTERM installed for drain."""
 
     def test_install_signal_handlers_replaces_default(self) -> None:
         """After install_signal_handlers() the SIGTERM signal is not the
@@ -472,10 +472,10 @@ class TestWorkerLiveness:
     not just aiohttp.
 
     Root cause context: the worker crashed at boot (asyncpg gaierror) while
-    /health stayed 200 on a separate thread, so Cloud Run reported the revision
-    Ready while the pipeline was dead. The fix wires a shared crash flag the
+    /health stayed 200 on a separate thread, so the health check reported the
+    container Ready while the pipeline was dead. The fix wires a shared crash flag the
     worker thread sets on crash; /health returns non-200 when the worker is
-    dead, so a green revision means the pipeline is actually up.
+    dead, so a healthy container means the pipeline is actually up.
     """
 
     def test_health_200_when_worker_healthy(
@@ -493,8 +493,8 @@ class TestWorkerLiveness:
         self, aiohttp_app: web.Application
     ) -> None:
         """After the worker thread marks itself crashed, /health returns a
-        non-200 status (503) so the Cloud Run liveness probe fails the
-        revision rather than reporting a dead pipeline as Ready."""
+        non-200 status (503) so a health/liveness check flags the
+        container rather than reporting a dead pipeline as Ready."""
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_worker_state()
@@ -683,7 +683,7 @@ class TestPortEnvVar:
             assert resolve_port() == 9090
 
     def test_port_must_be_int_parseable(self) -> None:
-        """Non-int PORT raises ValueError at parse time. Cloud Run only
+        """Non-int PORT raises ValueError at parse time. The platform only
         ever sets a numeric PORT — fail fast on malformed input rather
         than silently fallback to 8080 (defensive, not silent-fail)."""
         from scripts.cocoindex_pipeline.server import resolve_port

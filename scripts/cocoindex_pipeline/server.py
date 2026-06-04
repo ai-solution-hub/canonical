@@ -76,10 +76,10 @@ _logger = logging.getLogger(__name__)
 #
 # The cocoindex worker runs on a daemon thread (start_cocoindex_thread). Before
 # ID-49.8, /health was unconditionally 200 on the aiohttp thread, so a crashed
-# worker (the asyncpg gaierror boot crash) still reported the revision Ready —
-# a green revision with a dead pipeline. This shared Event lets the worker
-# thread signal a crash so /health can return non-200, making the Cloud Run
-# liveness probe fail the revision when the pipeline is actually down.
+# worker (the asyncpg gaierror boot crash) still reported the container Ready —
+# a healthy container with a dead pipeline. This shared Event lets the worker
+# thread signal a crash so /health can return non-200, letting a health/liveness
+# check flag the container when the pipeline is actually down.
 #
 # See docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md §7.5.
 
@@ -179,11 +179,11 @@ def install_signal_handlers() -> threading.Event:
 
 
 async def _health_handler(request: web.Request) -> web.Response:  # noqa: ARG001 — request unused
-    """GET /health — Cloud Run startupProbe + livenessProbe target.
+    """GET /health — container health/liveness probe target.
 
     Reflects the cocoindex worker thread, not just aiohttp (ID-49.8 / audit
-    §7.5). Returns 503 when the worker has crashed so the Cloud Run liveness
-    probe fails the revision — a green revision now means the pipeline is
+    §7.5). Returns 503 when the worker has crashed so a health/liveness check
+    flags the container — a healthy container now means the pipeline is
     actually up, not merely that the HTTP thread survived.
     """
     if worker_is_healthy():
@@ -200,7 +200,7 @@ async def _stage_handler(request: web.Request) -> web.Response:
     Co-resident with the cocoindex worker (ID-62 Slice A): the bytes are
     written to the local-fs `COCOINDEX_SOURCE_PATH` corpus dir that the
     co-located `walk_dir(live=True)` watcher polls — no second process, no
-    network hop. The route is identical on Cloud Run and the B1 host.
+    network hop. The route is host-agnostic — identical on the B1 on-prem host.
 
     Wire contract (matches the {62.8} `stageFixture` client): a
     `multipart/form-data` body with a `file` part (raw bytes, filename set by
@@ -524,7 +524,7 @@ def start_cocoindex_thread() -> threading.Thread:
 
     Crash wiring preserved (ID-49.8): a failure ENTERING the lifespan (e.g. the
     asyncpg gaierror boot crash) flags the worker crashed so /health returns
-    503 and the liveness probe fails the revision (audit §7.5).
+    503 and a health check marks the container unhealthy (audit §7.5).
 
     Returns the thread so callers can join in tests.
     """
@@ -545,7 +545,7 @@ def start_cocoindex_thread() -> threading.Thread:
             coco.start_blocking()
         except Exception:  # noqa: BLE001 — top-level boundary, must log + reraise
             # ID-49.8: flag the worker as crashed so /health returns non-200 and
-            # the liveness probe fails the revision (audit §7.5). The daemon
+            # a health check marks the container unhealthy (audit §7.5). The daemon
             # thread dies after this; the crash flag is the only signal the
             # aiohttp /health handler has to observe the dead environment.
             mark_worker_crashed()
@@ -568,7 +568,7 @@ def start_cocoindex_thread() -> threading.Thread:
 
 def main() -> None:
     """Boot the HTTP server + cocoindex background thread."""
-    # Cloud Run picks up stdout/stderr as jsonPayload with PYTHONUNBUFFERED=1.
+    # Coolify/Docker captures stdout/stderr as container logs; PYTHONUNBUFFERED=1 keeps them unbuffered.
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -588,7 +588,7 @@ def main() -> None:
     start_cocoindex_thread()
 
     app = build_app()
-    web.run_app(app, host="0.0.0.0", port=port, print=None)  # noqa: S104 — Cloud Run requires 0.0.0.0
+    web.run_app(app, host="0.0.0.0", port=port, print=None)  # noqa: S104 — bind all interfaces for Docker-network reachability
 
 
 if __name__ == "__main__":

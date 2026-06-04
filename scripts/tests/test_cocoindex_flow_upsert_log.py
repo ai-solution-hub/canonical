@@ -5,13 +5,13 @@ line at INFO level with the contract shape {event, op_id, table, row_id,
 operation} on Postgres UPSERT completion (Stage 6 bind_target hook).
 
 Per Inv-13 PRODUCT contract (T8 PLAN), the v1 audit-observability path
-is structured logs via Cloud Run's log ingest surface — NOT an
+is structured logs via the container log ingest surface — NOT an
 `audit_log` table (DEFERRED-v1.1 per P-OQ1).
 
 Per S254 TECH amendments (commit 61e163d8), cocoindex 1.0.3 does NOT
 expose `coco.logger`; v1 substrate uses stdlib
-`logging.getLogger(__name__).info(json.dumps(...))` so Cloud Run's
-JSON-payload parser picks the line into `jsonPayload`.
+`logging.getLogger(__name__).info(json.dumps(...))` so the container
+log collector picks the JSON line into structured logs.
 
 Cocoindex is stubbed at the import boundary (mirroring
 test_cocoindex_adapters.py pattern) so the test does NOT require LMDB
@@ -128,7 +128,7 @@ class TestEmitUpsertLog:
         )
 
     def test_log_line_is_json_formatted(self, caplog):
-        """Emitted log line is valid JSON parseable by Cloud Run's jsonPayload ingest."""
+        """Emitted log line is valid JSON parseable by the container log ingest."""
         op_id = uuid.UUID("11111111-1111-4111-8111-111111111111")
         row_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
         with caplog.at_level(logging.INFO, logger="scripts.cocoindex_pipeline.flow"):
@@ -142,8 +142,8 @@ class TestEmitUpsertLog:
             f"Expected exactly one log record; got {len(caplog.records)}"
         )
         record = caplog.records[0]
-        # Parse the message as JSON — Cloud Run requires valid JSON for
-        # jsonPayload extraction.
+        # Parse the message as JSON — structured log ingest requires valid JSON
+        # for field extraction.
         parsed = json.loads(record.message)
         assert isinstance(parsed, dict), "Log message must parse to a JSON object"
 
@@ -190,7 +190,7 @@ class TestEmitUpsertLog:
             )
         assert len(caplog.records) == 1
         assert caplog.records[0].levelno == logging.INFO, (
-            "Log must emit at INFO level — Cloud Run filters DEBUG by default"
+            "Log must emit at INFO level — DEBUG is filtered by default"
         )
 
     def test_logger_is_module_scoped(self, caplog):
@@ -205,7 +205,7 @@ class TestEmitUpsertLog:
         assert len(caplog.records) == 1
         # Per S254 amendment: must use stdlib `logging.getLogger(__name__)`,
         # NOT a (non-existent) `coco.logger`. The flow module's logger name
-        # is the canonical hand-off into the Cloud Run JSON-payload parser.
+        # is the canonical hand-off into the container log parser.
         assert caplog.records[0].name == "scripts.cocoindex_pipeline.flow", (
             f"Logger must be 'scripts.cocoindex_pipeline.flow' (stdlib module-scoped, "
             f"canonical namespace per ID-67); got {caplog.records[0].name!r}"

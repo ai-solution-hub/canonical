@@ -48,7 +48,7 @@ import pytest
 # ── Path setup ──────────────────────────────────────────────────────────────
 #
 # The module under test is resolved via the PRODUCTION-CANONICAL
-# `scripts.cocoindex_pipeline.*` namespace (the path the Cloud Run sidecar runs
+# `scripts.cocoindex_pipeline.*` namespace (the path the on-prem sidecar runs
 # under — `python3 -m scripts.cocoindex_pipeline`). The repo ROOT, not
 # `scripts/`, must be on sys.path for the `scripts.` package prefix to resolve.
 

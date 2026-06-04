@@ -9,8 +9,8 @@ environment WITHOUT triggering:
   - HTTP webhook emission
 
 This contract underpins the O-Q8 idle-mode design (per
-`docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md` §P-2): the Cloud Run
-Service binary boots via `python3 -m scripts.cocoindex_pipeline` and
+`docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md` §P-2): the cocoindex
+worker binary boots via `python3 -m scripts.cocoindex_pipeline` and
 stays running in idle mode until `COCOINDEX_SOURCE_PATH` is set. CI
 must be able to import the module to exercise `KH_PIPELINE_APP` static
 checks even when ANTHROPIC_API_KEY is unset.
@@ -78,7 +78,7 @@ class TestFlowModuleIdleLoad:
 
     def test_flow_module_exposes_kh_pipeline_app(self) -> None:
         """flow.py exposes KH_PIPELINE_APP — the cocoindex App handle used
-        by __main__.py + the Cloud Run Service GOOGLE_ENTRYPOINT."""
+        by __main__.py + the container entrypoint."""
         from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
 
         # KH_PIPELINE_APP is assembled via coco.App(coco.AppConfig(...), app_main)
