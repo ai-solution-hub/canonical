@@ -102,6 +102,38 @@ def worker_is_healthy() -> bool:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# Walk single-flight state (ID-83 / bl-221 G4)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# The `POST /walk` route runs a one-shot `update_blocking(live=False)` corpus
+# walk on a worker thread. A second walk signal arriving while a walk is in
+# flight is rejected with 409 — never two concurrent walks burning Anthropic in
+# parallel. A non-reentrant `threading.Lock` is the single-flight guard: the
+# handler acquires it non-blocking (`acquire(blocking=False)`); a failed acquire
+# means a walk is already in flight. The worker thread releases it in a
+# `finally` so a failed walk (exception in `update_blocking`) does NOT wedge the
+# lock — the next signal can start a fresh walk.
+
+_WALK_IN_FLIGHT = threading.Lock()
+
+
+def walk_in_progress() -> bool:
+    """True while a `/walk` corpus pass is in flight (the single-flight lock is held)."""
+    return _WALK_IN_FLIGHT.locked()
+
+
+def reset_walk_state() -> None:
+    """Release the walk single-flight lock if held — test-only clean-slate helper."""
+    if _WALK_IN_FLIGHT.locked():
+        try:
+            _WALK_IN_FLIGHT.release()
+        except RuntimeError:
+            # Released from a thread that did not acquire it (test teardown) —
+            # tolerate, the goal is simply a clean unlocked state.
+            pass
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Port resolution
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -259,20 +291,191 @@ async def _stage_handler(request: web.Request) -> web.Response:
     )
 
 
+async def _read_full_reprocess_flag(request: web.Request) -> bool:
+    """Parse the optional `full_reprocess` boolean from the /walk request body.
+
+    Default `False` (incremental walk). A missing/empty body, a non-JSON body,
+    or a JSON body without the key all yield the incremental default — the flag
+    is purely opt-in, so a bare `POST /walk` with no body is a valid incremental
+    trigger. Accepts a JSON boolean or the strings "true"/"1" (case-insensitive)
+    for operator-friendly `curl --data` ergonomics.
+    """
+    if not request.can_read_body:
+        return False
+    try:
+        payload = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    raw = payload.get("full_reprocess", False)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"true", "1", "yes"}
+    return False
+
+
+def _run_walk(full_reprocess: bool, request_id: str) -> None:
+    """Worker-thread target — run ONE non-live corpus walk, release the lock.
+
+    Runs `KH_PIPELINE_APP.update_blocking(live=False, full_reprocess=…)`, which
+    reuses the cached lifespan-bearing default env entered at boot and runs
+    `app_main` exactly once (bl-221 G2), then returns to idle. The single-flight
+    lock is released in a `finally` so a FAILED walk (an exception in
+    `update_blocking`) does NOT wedge the lock — the next /walk signal can start
+    a fresh pass. A walk failure does NOT flag the worker crashed: /health
+    reflects the long-lived environment's liveness, not a one-shot walk's
+    outcome (the walk's result is observed via the pipeline_runs webhook +
+    {66.15} datapath monitor), so a transient walk error must not fail the
+    container's liveness probe.
+    """
+    try:
+        from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
+
+        _logger.info(
+            "/walk starting one-shot update_blocking(live=False, "
+            "full_reprocess=%s, requestId=%s)",
+            full_reprocess,
+            request_id,
+        )
+        KH_PIPELINE_APP.update_blocking(live=False, full_reprocess=full_reprocess)
+        _logger.info("/walk completed (requestId=%s)", request_id)
+    except Exception:  # noqa: BLE001 — top-level worker boundary, must log
+        # A walk failure is logged but does NOT mark the worker crashed (see
+        # docstring): the long-lived env is still healthy; only this pass failed.
+        _logger.exception("/walk update_blocking failed (requestId=%s)", request_id)
+    finally:
+        # Release the single-flight guard regardless of outcome so a failed walk
+        # never wedges the lock (bl-221 G4).
+        reset_walk_state()
+
+
+async def _walk_handler(request: web.Request) -> web.Response:
+    """POST /walk — trigger ONE on-demand corpus walk (bl-221 G2, G4).
+
+    The explicit walk-trigger that replaces "container boots with SOURCE_PATH
+    set" as the walk signal. Boot no longer walks (ID-83.1); this route is the
+    only path that runs a corpus pass.
+
+    Auth (bl-221): `Authorization: Bearer <CRON_SECRET>`. Reuses the CRON_SECRET
+    already present in both compose files and read outbound by
+    `flow._emit_pipeline_run_webhook` — here it is the inbound gate. A
+    missing/wrong bearer → 401. If CRON_SECRET is unset in the environment the
+    route fails closed (503) rather than allowing an unauthenticated walk.
+
+    Single-flight (G4): a module-level `threading.Lock` acquired non-blocking.
+    If a walk is already in flight → 409, never a second concurrent walk burning
+    Anthropic in parallel. The lock is released by the worker thread's `finally`
+    (including on a walk exception — a failed walk must not wedge the lock).
+
+    Body (optional): `{"full_reprocess": true}` maps to
+    `update_blocking(full_reprocess=True)` (full re-walk, cache-invalidating);
+    default is an incremental walk. A bare body-less POST is a valid incremental
+    trigger.
+
+    Idle-source safety: if `COCOINDEX_SOURCE_PATH` is unset/missing the route
+    returns a NAMED 400 up front (mirroring the /stage loud-reject discipline,
+    Inv-5) — friendlier for an operator who expected a corpus, and it avoids
+    spending the single-flight slot on a guaranteed no-op walk.
+
+    Behaviour: validate bearer + source → acquire the single-flight guard →
+    spawn a daemon worker thread running `_run_walk` (one-shot
+    `update_blocking(live=False, full_reprocess=…)`) → return 202 Accepted +
+    `requestId` immediately (the walk runs async; completion is observed via the
+    pipeline_runs webhook). Does NOT touch `worker_is_healthy()` — a /walk
+    request cannot flip /health to 503.
+    """
+    # (1) Auth — bearer must match CRON_SECRET. Fail closed if the secret is
+    #     unset (never allow an unauthenticated walk).
+    cron_secret = os.environ.get("CRON_SECRET")
+    if not cron_secret:
+        return web.json_response(
+            {"error": "CRON_SECRET is unset — /walk auth unavailable"},
+            status=503,
+        )
+    auth_header = request.headers.get("Authorization", "")
+    expected = f"Bearer {cron_secret}"
+    if auth_header != expected:
+        return web.json_response(
+            {"error": "missing or invalid bearer token"}, status=401
+        )
+
+    # (2) Idle-source loud-reject (Inv-5) — a walk with no corpus is a named 400,
+    #     not a silent no-op that consumes the single-flight slot.
+    source_path = os.environ.get("COCOINDEX_SOURCE_PATH")
+    if not source_path:
+        return web.json_response(
+            {"error": "COCOINDEX_SOURCE_PATH is unset — nothing to walk"},
+            status=400,
+        )
+    if not Path(source_path).exists():
+        return web.json_response(
+            {"error": f"COCOINDEX_SOURCE_PATH does not exist: {source_path}"},
+            status=400,
+        )
+
+    # (3) Single-flight guard (G4) — non-blocking acquire; a held lock means a
+    #     walk is already running → 409.
+    if not _WALK_IN_FLIGHT.acquire(blocking=False):
+        return web.json_response(
+            {"error": "walk already in progress"}, status=409
+        )
+
+    # (4) Parse the optional full_reprocess flag, then spawn the walk worker.
+    #     If anything below raises before the thread starts, release the lock so
+    #     it is not wedged by a handler-side failure.
+    try:
+        full_reprocess = await _read_full_reprocess_flag(request)
+        request_id = uuid.uuid4().hex
+        thread = threading.Thread(
+            target=_run_walk,
+            args=(full_reprocess, request_id),
+            name="cocoindex-walk",
+            daemon=True,
+        )
+        thread.start()
+    except Exception:
+        reset_walk_state()
+        raise
+
+    _logger.info(
+        "/walk accepted (full_reprocess=%s, requestId=%s)",
+        full_reprocess,
+        request_id,
+    )
+    return web.json_response(
+        {
+            "status": "accepted",
+            "requestId": request_id,
+            "fullReprocess": full_reprocess,
+        },
+        status=202,
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Application factory
 # ──────────────────────────────────────────────────────────────────────────
 
 
 def build_app() -> web.Application:
-    """Build the aiohttp app with the /health route attached.
+    """Build the aiohttp app with the /health, /stage and /walk routes attached.
 
     Factored out so unit tests can exercise the route table without
     booting a listening socket or running the cocoindex App.
+
+    Routes:
+      - GET  /health — liveness probe (reflects the cocoindex worker thread).
+      - POST /stage  — multipart byte-drop into the watched corpus dir (ID-62).
+      - POST /walk   — bearer-gated on-demand corpus walk trigger (ID-83 /
+        bl-221). Adding /walk does NOT touch /health — a walk request cannot
+        flip the liveness probe.
     """
     app = web.Application()
     app.router.add_get("/health", _health_handler)
     app.router.add_post("/stage", _stage_handler)
+    app.router.add_post("/walk", _walk_handler)
     return app
 
 

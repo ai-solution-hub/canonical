@@ -971,3 +971,395 @@ class TestStagePathEscape:
         assert status == 400
         assert "error" in body
         assert not abs_target.exists()
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# §6 — POST /walk on-demand corpus-walk trigger (ID-83.2 / bl-221)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+_WALK_CRON_SECRET = "test-cron-secret-bl221"
+
+
+async def _exercise_walk(
+    aiohttp_app: web.Application,
+    *,
+    bearer: str | None = _WALK_CRON_SECRET,
+    body: dict | None = None,
+) -> tuple[int, dict]:
+    """Invoke the /walk handler in-process (route resolve + direct await).
+
+    Mirrors `_exercise_health` / `_exercise_stage` — no TCP socket. Sends an
+    optional JSON body and an optional `Authorization: Bearer <bearer>` header
+    (omit the header entirely by passing `bearer=None`). Returns
+    `(status, parsed_json_body)`.
+    """
+    headers: dict[str, str] = {}
+    if bearer is not None:
+        headers["Authorization"] = f"Bearer {bearer}"
+    payload: bytes = b""
+    if body is not None:
+        payload = json.dumps(body).encode()
+        headers["Content-Type"] = "application/json"
+    loop = asyncio.get_running_loop()
+    stream = StreamReader(Mock(), limit=2**16, loop=loop)
+    stream.feed_data(payload)
+    stream.feed_eof()
+    request = make_mocked_request(
+        "POST", "/walk", headers=headers, payload=stream, app=aiohttp_app
+    )
+    match_info = await aiohttp_app.router.resolve(request)
+    resp = await match_info.handler(request)
+    return resp.status, json.loads(resp.body)
+
+
+def _patched_walk_app() -> object:
+    """Return the qualified flow module whose KH_PIPELINE_APP the walk worker
+    thread resolves.
+
+    `_run_walk` does `from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP`
+    — patching that module object's `update_blocking` intercepts the real
+    cocoindex run regardless of unqualified-import collection order (same
+    discipline as TestCocoindexBackgroundThread)."""
+    _reset_cocoindex_app_registry()
+    import scripts.cocoindex_pipeline.flow as _flow
+
+    return _flow
+
+
+class TestWalkRouteTable:
+    """`POST /walk` is registered on the same `build_app()` app and does not
+    displace /health or /stage."""
+
+    def test_walk_route_registered(self, aiohttp_app: web.Application) -> None:
+        routes = {
+            (route.method, route.resource.canonical)
+            for route in aiohttp_app.router.routes()
+            if route.resource is not None
+        }
+        assert ("POST", "/walk") in routes
+
+    def test_walk_does_not_displace_existing_routes(
+        self, aiohttp_app: web.Application
+    ) -> None:
+        routes = {
+            (route.method, route.resource.canonical)
+            for route in aiohttp_app.router.routes()
+            if route.resource is not None
+        }
+        assert ("GET", "/health") in routes
+        assert ("POST", "/stage") in routes
+
+
+class TestWalkAuth:
+    """bl-221 — /walk is bearer-gated on CRON_SECRET (401 on missing/wrong)."""
+
+    def test_walk_401_when_no_bearer(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ) as mock_update:
+            status, body = asyncio.run(
+                _exercise_walk(aiohttp_app, bearer=None)
+            )
+        assert status == 401
+        assert "error" in body
+        # A 401 must NOT have kicked a walk, and must NOT have left the lock held.
+        mock_update.assert_not_called()
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_401_when_wrong_bearer(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ) as mock_update:
+            status, _ = asyncio.run(
+                _exercise_walk(aiohttp_app, bearer="wrong-secret")
+            )
+        assert status == 401
+        mock_update.assert_not_called()
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_503_when_cron_secret_unset(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fail closed: if CRON_SECRET is unset the route returns 503, never
+        allowing an unauthenticated walk."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.delenv("CRON_SECRET", raising=False)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, _ = asyncio.run(_exercise_walk(aiohttp_app, bearer=None))
+        assert status == 503
+        assert not server_mod.walk_in_progress()
+
+
+class TestWalkIdleSource:
+    """bl-221 — an idle source (COCOINDEX_SOURCE_PATH unset/missing) is a NAMED
+    400 (mirrors /stage Inv-5), never a silent no-op consuming a walk slot."""
+
+    def test_walk_400_when_source_path_unset(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.delenv("COCOINDEX_SOURCE_PATH", raising=False)
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ) as mock_update:
+            status, body = asyncio.run(_exercise_walk(aiohttp_app))
+        assert status == 400
+        assert "COCOINDEX_SOURCE_PATH" in body["error"]
+        mock_update.assert_not_called()
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_400_when_source_path_missing_dir(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        missing = tmp_path / "does-not-exist"
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(missing))
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ) as mock_update:
+            status, body = asyncio.run(_exercise_walk(aiohttp_app))
+        assert status == 400
+        assert str(missing) in body["error"]
+        mock_update.assert_not_called()
+        assert not server_mod.walk_in_progress()
+
+
+class TestWalkHappyPath:
+    """bl-221 — a valid bearer + present source → 202 + the worker thread runs
+    `update_blocking(live=False, full_reprocess=…)` exactly once, then the
+    single-flight lock is released."""
+
+    def test_walk_202_runs_update_blocking_live_false(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        walk_ran = threading.Event()
+
+        def _record_update(**_kwargs: object) -> None:
+            walk_ran.set()
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP,
+            "update_blocking",
+            side_effect=_record_update,
+        ) as mock_update:
+            status, body = asyncio.run(_exercise_walk(aiohttp_app))
+            # The handler returns 202 immediately; the walk runs async on a
+            # daemon thread. Wait for the worker to actually invoke the mock.
+            assert walk_ran.wait(timeout=2.0), (
+                "the /walk worker thread must invoke update_blocking"
+            )
+
+        assert status == 202
+        assert body["status"] == "accepted"
+        assert isinstance(body["requestId"], str) and len(body["requestId"]) > 0
+        # The ONE-SHOT, non-live walk primitive — NOT live=True (which would
+        # arm the continuous fs-watch loop the boot-decouple retired).
+        mock_update.assert_called_once_with(live=False, full_reprocess=False)
+        # After a successful walk the single-flight lock is released (the
+        # worker's finally), so a subsequent walk could start.
+        _wait_for_lock_release(server_mod)
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_full_reprocess_flag_forwarded(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A `{"full_reprocess": true}` body maps to
+        `update_blocking(full_reprocess=True)`."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        walk_ran = threading.Event()
+
+        def _record_update(**_kwargs: object) -> None:
+            walk_ran.set()
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP,
+            "update_blocking",
+            side_effect=_record_update,
+        ) as mock_update:
+            status, body = asyncio.run(
+                _exercise_walk(aiohttp_app, body={"full_reprocess": True})
+            )
+            assert walk_ran.wait(timeout=2.0)
+
+        assert status == 202
+        assert body["fullReprocess"] is True
+        mock_update.assert_called_once_with(live=False, full_reprocess=True)
+        _wait_for_lock_release(server_mod)
+        assert not server_mod.walk_in_progress()
+
+
+class TestWalkSingleFlight:
+    """bl-221 G4 — a walk arriving while another is in flight is rejected 409;
+    the lock is released after a walk completes AND after a walk raises (a failed
+    walk must not wedge the lock)."""
+
+    def test_walk_409_when_walk_in_flight(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        release = threading.Event()
+        first_walk_started = threading.Event()
+
+        def _blocking_update(**_kwargs: object) -> None:
+            # Hold the walk open so a second request observes the lock held.
+            first_walk_started.set()
+            release.wait(timeout=5.0)
+
+        flow = _patched_walk_app()
+        try:
+            with patch.object(
+                flow.KH_PIPELINE_APP,
+                "update_blocking",
+                side_effect=_blocking_update,
+            ):
+                # First /walk → 202, walk thread now holds the single-flight lock.
+                status1, _ = asyncio.run(_exercise_walk(aiohttp_app))
+                assert status1 == 202
+                assert first_walk_started.wait(timeout=2.0)
+                assert server_mod.walk_in_progress()
+
+                # Second /walk while the first is in flight → 409.
+                status2, body2 = asyncio.run(_exercise_walk(aiohttp_app))
+                assert status2 == 409
+                assert "in progress" in body2["error"]
+        finally:
+            # Let the first walk complete so its finally releases the lock.
+            release.set()
+            _wait_for_lock_release(server_mod)
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_lock_released_after_exception(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A walk that RAISES inside update_blocking must still release the
+        single-flight lock (the worker's finally) so the next walk can start —
+        a failed walk must not wedge the lock."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        walk_attempted = threading.Event()
+
+        def _raising_update(**_kwargs: object) -> None:
+            walk_attempted.set()
+            raise RuntimeError("walk boom")
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP,
+            "update_blocking",
+            side_effect=_raising_update,
+        ):
+            status, _ = asyncio.run(_exercise_walk(aiohttp_app))
+            assert status == 202  # the failure is async; the accept is 202
+            assert walk_attempted.wait(timeout=2.0)
+
+        # The walk raised; the lock must STILL have been released by the finally.
+        _wait_for_lock_release(server_mod)
+        assert not server_mod.walk_in_progress(), (
+            "a failed walk must release the single-flight lock (not wedge it)"
+        )
+        # The worker did NOT flip /health unhealthy — a transient walk failure
+        # must not fail the container liveness probe.
+        assert server_mod.worker_is_healthy()
+
+
+def _wait_for_lock_release(server_mod: object, timeout: float = 2.0) -> None:
+    """Spin-wait until the walk single-flight lock is released (worker finally).
+
+    The lock is released on the walk worker thread, so the assertion must allow
+    a brief window after `update_blocking` returns/raises for the `finally` to
+    run. Uses a short bounded poll rather than a fixed sleep.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout
+    while server_mod.walk_in_progress() and time.monotonic() < deadline:
+        time.sleep(0.01)
