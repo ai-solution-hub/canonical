@@ -1,0 +1,31 @@
+# Dockerfile.tools — S3 upload sidecar for the {66.14} COLD LMDB backup.
+# ID-66.14 (canonical-pipeline / on-prem B1).
+#
+# Role: deploy/onprem/backup/lmdb-backup-cold.sh snapshots the cocoindex LMDB on the
+# HOST (docker stop -> cp data.mdb -> start), then runs THIS image to tar + ship the
+# snapshot to S3. The host needs only docker + cp; this image carries the upload
+# toolchain (awscli + zstd) so the host stays clean (Ubuntu 24.04 dropped the awscli
+# apt package) and the slim cocoindex image is untouched. restore-verify.sh reuses it
+# (in reverse) to pull + validate a backup object.
+#
+# WHY NOT mdb_copy: a HOT mdb_copy snapshot (lmdb-backup.sh) was the original design,
+# but cocoindex's bundled LMDB cannot be opened by ANY distro mdb_copy
+# (MDB_VERSION_MISMATCH, tested lmdb-utils 0.9.24 + 0.9.31) even though the data file
+# is standard LMDB (magic 0xBEEFC0DE) — so the cold snapshot superseded it and
+# lmdb-utils is intentionally NOT installed here.
+#
+#   aws   -> aws s3 cp (S3-compatible upload; --endpoint-url for Supabase Storage)
+#   zstd  -> tar --zstd compression
+#
+# Callers OVERRIDE the entrypoint (`docker run --entrypoint /bin/sh ... -ec '<tar+upload>'`),
+# so this image declares none (tar + /bin/sh + date come from the base).
+#
+# Build (on the IONOS host):  docker build -t kh-lmdb-backup-tools:latest -f Dockerfile.tools .
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      awscli \
+      zstd \
+      ca-certificates \
+ && rm -rf /var/lib/apt/lists/*

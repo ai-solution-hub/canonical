@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 #
-# lmdb-backup.sh — hot-snapshot the cocoindex LMDB engine store and ship it to S3.
-# ID-66.14 (canonical-pipeline / on-prem B1). NEW ARTEFACT — surface-agnostic.
+# lmdb-backup.sh — hot-snapshot (mdb_copy) the cocoindex LMDB engine store -> S3.
+# ID-66.14 (canonical-pipeline / on-prem B1).
+#
+# !!! SUPERSEDED (S312) — NOT USABLE with cocoindex's LMDB. The distro `mdb_copy`
+#     cannot open cocoindex's bundled-LMDB env (MDB_VERSION_MISMATCH, tested
+#     lmdb-utils 0.9.24 AND 0.9.31, even though the data file is standard LMDB —
+#     magic 0xBEEFC0DE). This hot-snapshot design was therefore replaced by the COLD
+#     snapshot in lmdb-backup-cold.sh (stop -> cp -> start -> ship). Retained for the
+#     mdb_copy consistency rationale + in case cocoindex's LMDB ever becomes
+#     mdb_copy-compatible. See the {66.14} section of docs/runbooks/onprem-b1-deploy.md.
 #
 # WHY THIS EXISTS
 #   Coolify's native S3 backups are database-only (scoped to a database_uuid) and do
