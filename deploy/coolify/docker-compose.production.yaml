@@ -78,12 +78,19 @@ services:
       # Volume {66.9} mounts persistent disk at the parent directory.
       COCOINDEX_DB: /cocoindex-state/lmdb
 
-      # COCOINDEX_SOURCE_PATH: corpus directory for ingest (empty = idle mode, matching
-      # the Cloud Run manifest).  Set to a real path when the pipeline is activated.
-      # {66.16}: made Coolify-env-settable (was a hardcoded "" literal, which the
-      # compose value wins over Coolify env). Unset/empty Coolify env => idle mode
-      # (the :- default preserves the prior idle behaviour); set it to a corpus path
-      # under the persistent volume (e.g. /cocoindex-state/corpus) to activate ingest.
+      # COCOINDEX_SOURCE_PATH: corpus directory for ingest.
+      # ID-83 / bl-221: this MAY now stay set permanently to the corpus path
+      # (e.g. /cocoindex-state/corpus). Boot NO LONGER walks the corpus — the
+      # worker enters the cocoindex lifespan via coco.start_blocking() at boot
+      # (NO walk) and the corpus walk fires ONLY via the on-demand POST /walk
+      # trigger (run by a Coolify scheduled task or a supervised operator curl).
+      # A deploy/restart is therefore burn-safe by construction regardless of
+      # this value — the SOURCE_PATH-blanking burn-valve is RETIRED. Leaving it
+      # unset still works (the :- default resolves to empty): /walk then returns
+      # a named 400 ("nothing to walk") rather than walking.
+      # {66.16}: Coolify-env-settable (was a hardcoded "" literal the compose
+      # value won over). Stand up the per-env Coolify scheduled task that POSTs
+      # to /walk per docs/runbooks/onprem-b1-deploy.md §B2.
       COCOINDEX_SOURCE_PATH: ${COCOINDEX_SOURCE_PATH:-}
 
       # LMDB virtual map size.  On NVMe disk, free space is cheap; a generous

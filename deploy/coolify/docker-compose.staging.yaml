@@ -24,11 +24,15 @@
 #   3. Distinct compose project name + service container names + an exposed host port so
 #      the staging stack can co-reside with prod on the same Coolify server if needed.
 #
-# IDLE-MODE SAFE BY DEFAULT:
-#   COCOINDEX_SOURCE_PATH is left UNSET (the :- default resolves to empty), so the worker
-#   boots in idle mode (per app_main's O-Q8 idle contract — see
-#   scripts/tests/test_cocoindex_flow_idle_mode.py) and stays running with no corpus until
-#   an operator stages one under the staging volume (e.g. /cocoindex-state/corpus).
+# BURN-SAFE BY CONSTRUCTION (ID-83 / bl-221):
+#   The worker boots LIFESPAN-ONLY (coco.start_blocking()) and NEVER walks the corpus at
+#   boot, so a deploy/restart is burn-safe regardless of COCOINDEX_SOURCE_PATH's value —
+#   the SOURCE_PATH-blanking burn-valve is RETIRED. COCOINDEX_SOURCE_PATH MAY now stay set
+#   permanently to the staging corpus path (e.g. /cocoindex-state/corpus); the corpus walk
+#   fires ONLY via the on-demand POST /walk trigger (a Coolify scheduled task / operator
+#   curl). The O-Q8 app_main idle early-return survives as a defence-in-depth backstop (see
+#   scripts/tests/test_cocoindex_flow_idle_mode.py). Stand up the scheduled task per
+#   docs/runbooks/onprem-b1-deploy.md §B2.
 #
 # Secrets discipline (invariant 10 / {66.10}):
 #   ALL secret env values (API keys, DSN, tokens, admin creds) are injected by Coolify's
@@ -92,11 +96,19 @@ services:
       # The staging volume mounts the persistent disk at the parent directory.
       COCOINDEX_DB: /cocoindex-state/lmdb
 
-      # COCOINDEX_SOURCE_PATH: corpus directory for ingest. UNSET => idle mode (the :-
-      # default resolves to empty), so the staging worker boots clean with no corpus and
-      # stays running (O-Q8 idle contract). Set it via Coolify env to a path under the
-      # STAGING volume (e.g. /cocoindex-state/corpus) to activate staging ingest — this
-      # is a STAGING corpus, isolated from the live prod corpus by the separate volume below.
+      # COCOINDEX_SOURCE_PATH: corpus directory for ingest.
+      # ID-83 / bl-221: this MAY now stay set permanently to the STAGING corpus
+      # path under the staging volume (e.g. /cocoindex-state/corpus), isolated
+      # from the live prod corpus by the separate volume below. Boot NO LONGER
+      # walks the corpus — the worker enters the cocoindex lifespan via
+      # coco.start_blocking() at boot (NO walk) and the corpus walk fires ONLY
+      # via the on-demand POST /walk trigger (a Coolify scheduled task or a
+      # supervised operator curl). A deploy/restart is burn-safe by construction
+      # regardless of this value — the SOURCE_PATH-blanking burn-valve (the
+      # manual disarm Liam performed on staging) is RETIRED. Leaving it unset
+      # still works (the :- default resolves to empty): /walk then returns a
+      # named 400 ("nothing to walk") rather than walking. Stand up the per-env
+      # Coolify scheduled task per docs/runbooks/onprem-b1-deploy.md §B2.
       COCOINDEX_SOURCE_PATH: ${COCOINDEX_SOURCE_PATH:-}
 
       # LMDB virtual map size — sparse virtual reservation, not pre-allocation. 4 GiB

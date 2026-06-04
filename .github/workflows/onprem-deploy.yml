@@ -21,14 +21,20 @@
 #     (same google-22 builder, GOOGLE_ENTRYPOINT, runtime, Python version).
 #   * NEXT_PUBLIC_CLIENT_ID is NOT a B1-host concern (OQ-66-6 — Vercel-side bake).
 #
-# BURN-PREVENTION ({66.11}) — read docs/runbooks/onprem-b1-deploy.md "{66.11}"
-# before changing anything here. The on-prem pipeline burned Anthropic tokens
-# TWICE across S294-S297. The deploy job below NEVER sets COCOINDEX_SOURCE_PATH:
-# an empty SOURCE_PATH (compose `${COCOINDEX_SOURCE_PATH:-}`) boots the app IDLE
-# (no corpus walk → zero Anthropic calls), so any auto-restart is harmless. The
-# load-bearing operator guarantee — "this Action is the SOLE deploy trigger" —
-# lives in the runbook (Coolify git-auto-deploy MUST be disabled, else a push
-# would redeploy on the STALE tag before the build finishes).
+# BURN-PREVENTION — read docs/runbooks/onprem-b1-deploy.md §B2 before changing
+# anything here. The on-prem pipeline burned Anthropic tokens TWICE across
+# S294-S297. The burn guard is now ARCHITECTURAL (ID-83 / bl-221): the cocoindex
+# worker boots lifespan-only (coco.start_blocking()) and NEVER walks the corpus
+# at boot, so a deploy/auto-restart is burn-safe BY CONSTRUCTION regardless of
+# COCOINDEX_SOURCE_PATH's value. The corpus walk fires only via the on-demand
+# POST /walk trigger. INFORMATIONAL (no longer burn-critical, {66.11} superseded):
+# the deploy jobs below still only PATCH COCOINDEX_IMAGE_TAG and do not set
+# COCOINDEX_SOURCE_PATH — corpus-path management stays with Coolify env / the
+# operator — but this avoidance is no longer load-bearing for burn-safety now
+# that boot is decoupled. The load-bearing operator guarantee — "this Action is
+# the SOLE deploy trigger" — still lives in the runbook (Coolify git-auto-deploy
+# MUST be disabled, else a push would redeploy on the STALE tag before the build
+# finishes); that ordering guard is unchanged.
 #
 # Replaces the build half of cloud-run-deploy.yml (retired at cutover {66.17};
 # the file + Cloud Run manifests stay in git for reversibility, inv 24). WIF /
@@ -206,13 +212,17 @@ jobs:
   # the SAME `${{ env.TAG }}` the build job published, so the bumped tag is
   # byte-identical to the built tag.
   #
-  # BURN GUARD (never an Anthropic crash-loop): this job touches ONLY
-  # COCOINDEX_IMAGE_TAG. It NEVER sets COCOINDEX_SOURCE_PATH — the compose
-  # default `${COCOINDEX_SOURCE_PATH:-}` resolves empty, which boots the app
-  # idle (no corpus walk → zero Anthropic calls), so the deploy/restart is
-  # burn-safe by construction. The "Action is the SOLE deploy trigger"
-  # guarantee (Coolify git-auto-deploy disabled) is an OPERATOR action —
-  # see docs/runbooks/onprem-b1-deploy.md "{66.11}".
+  # BURN GUARD — INFORMATIONAL since ID-83 / bl-221 (boot is decoupled): this
+  # job touches ONLY COCOINDEX_IMAGE_TAG and does NOT set COCOINDEX_SOURCE_PATH —
+  # but that avoidance is NO LONGER load-bearing for burn-safety. The burn guard
+  # is now ARCHITECTURAL: the cocoindex worker boots lifespan-only
+  # (coco.start_blocking()) and never walks the corpus at boot, so the
+  # deploy/restart this job triggers is burn-safe by construction whether or not
+  # COCOINDEX_SOURCE_PATH is set. The corpus walk fires only via the on-demand
+  # POST /walk trigger (a Coolify scheduled task / operator curl). We still leave
+  # SOURCE_PATH to Coolify env / the operator. The "Action is the SOLE deploy
+  # trigger" guarantee (Coolify git-auto-deploy disabled) remains an OPERATOR
+  # action — see docs/runbooks/onprem-b1-deploy.md §B2.
   # ───────────────────────────────────────────────────────────────────────────
   deploy-cocoindex:
     name: Bump Coolify tag + deploy (on-host pull)
@@ -249,8 +259,11 @@ jobs:
           # PATCH updates the EXISTING COCOINDEX_IMAGE_TAG env in place (by key).
           # POST would CREATE A DUPLICATE — the §6 duplicate-key footgun — so we
           # MUST use PATCH. We touch ONLY COCOINDEX_IMAGE_TAG here; we NEVER send
-          # COCOINDEX_SOURCE_PATH, so the compose default keeps it empty (idle =
-          # no extraction = no Anthropic burn on the auto-restart this deploy triggers).
+          # COCOINDEX_SOURCE_PATH (corpus-path management stays with Coolify env /
+          # the operator). INFORMATIONAL since ID-83 / bl-221: not setting it is no
+          # longer burn-critical — boot is decoupled (lifespan-only, no walk), so
+          # the auto-restart this deploy triggers cannot burn Anthropic regardless
+          # of SOURCE_PATH's value; the walk fires only via on-demand POST /walk.
           # --fail-with-body: non-2xx → non-zero exit + body printed (so the job
           # fails loudly instead of silently "succeeding" on a Coolify error).
           curl --fail-with-body -sS \
@@ -287,8 +300,8 @@ jobs:
             echo ""
             echo "- **Tag bumped:** \`COCOINDEX_IMAGE_TAG\` → \`${DEPLOY_TAG}\` (PATCH, in place — never duplicated)"
             echo "- **Deploy:** triggered on \`${COOLIFY_APP_UUID}\` (host pulls the pinned tag; never builds on-host)"
-            echo "- **Burn guard:** \`COCOINDEX_SOURCE_PATH\` **NOT set** by this Action → idle boot (no corpus walk, no Anthropic calls)"
-            echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` {66.11})"
+            echo "- **Burn guard (architectural, ID-83 / bl-221):** boot is decoupled — the worker boots lifespan-only and never walks the corpus, so this deploy/restart is burn-safe regardless of \`COCOINDEX_SOURCE_PATH\` (the walk fires only via on-demand POST /walk). This Action still leaves SOURCE_PATH to Coolify env (informational, no longer burn-critical)."
+            echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` §B2)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ───────────────────────────────────────────────────────────────────────────
@@ -303,13 +316,17 @@ jobs:
   # the SAME `${{ env.TAG }}` the build job published, so the bumped tag is
   # byte-identical to the built tag.
   #
-  # BURN GUARD (never an Anthropic crash-loop): this job touches ONLY
-  # COCOINDEX_IMAGE_TAG. It NEVER sets COCOINDEX_SOURCE_PATH — the compose
-  # default `${COCOINDEX_SOURCE_PATH:-}` resolves empty, which boots the app
-  # idle (no corpus walk → zero Anthropic calls), so the deploy/restart is
-  # burn-safe by construction. The "Action is the SOLE deploy trigger"
-  # guarantee (Coolify git-auto-deploy disabled) is an OPERATOR action —
-  # see docs/runbooks/onprem-b1-deploy.md "{66.11}".
+  # BURN GUARD — INFORMATIONAL since ID-83 / bl-221 (boot is decoupled): this
+  # job touches ONLY COCOINDEX_IMAGE_TAG and does NOT set COCOINDEX_SOURCE_PATH —
+  # but that avoidance is NO LONGER load-bearing for burn-safety. The burn guard
+  # is now ARCHITECTURAL: the cocoindex worker boots lifespan-only
+  # (coco.start_blocking()) and never walks the corpus at boot, so the
+  # deploy/restart this job triggers is burn-safe by construction whether or not
+  # COCOINDEX_SOURCE_PATH is set. The corpus walk fires only via the on-demand
+  # POST /walk trigger (a Coolify scheduled task / operator curl). We still leave
+  # SOURCE_PATH to Coolify env / the operator. The "Action is the SOLE deploy
+  # trigger" guarantee (Coolify git-auto-deploy disabled) remains an OPERATOR
+  # action — see docs/runbooks/onprem-b1-deploy.md §B2.
   # ───────────────────────────────────────────────────────────────────────────
   deploy-cocoindex-staging:
     name: Bump Coolify tag + deploy — STAGING (on-host pull)
@@ -344,8 +361,11 @@ jobs:
           # PATCH updates the EXISTING COCOINDEX_IMAGE_TAG env in place (by key).
           # POST would CREATE A DUPLICATE — the §6 duplicate-key footgun — so we
           # MUST use PATCH. We touch ONLY COCOINDEX_IMAGE_TAG here; we NEVER send
-          # COCOINDEX_SOURCE_PATH, so the compose default keeps it empty (idle =
-          # no extraction = no Anthropic burn on the auto-restart this deploy triggers).
+          # COCOINDEX_SOURCE_PATH (corpus-path management stays with Coolify env /
+          # the operator). INFORMATIONAL since ID-83 / bl-221: not setting it is no
+          # longer burn-critical — boot is decoupled (lifespan-only, no walk), so
+          # the auto-restart this deploy triggers cannot burn Anthropic regardless
+          # of SOURCE_PATH's value; the walk fires only via on-demand POST /walk.
           # --fail-with-body: non-2xx → non-zero exit + body printed (so the job
           # fails loudly instead of silently "succeeding" on a Coolify error).
           curl --fail-with-body -sS \
@@ -382,6 +402,6 @@ jobs:
             echo ""
             echo "- **Tag bumped:** \`COCOINDEX_IMAGE_TAG\` → \`${DEPLOY_TAG}\` (PATCH, in place — never duplicated)"
             echo "- **Deploy:** triggered on \`${COOLIFY_APP_UUID}\` (staging host pulls the pinned tag; never builds on-host)"
-            echo "- **Burn guard:** \`COCOINDEX_SOURCE_PATH\` **NOT set** by this Action → idle boot (no corpus walk, no Anthropic calls)"
-            echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` {66.11})"
+            echo "- **Burn guard (architectural, ID-83 / bl-221):** boot is decoupled — the worker boots lifespan-only and never walks the corpus, so this deploy/restart is burn-safe regardless of \`COCOINDEX_SOURCE_PATH\` (the walk fires only via on-demand POST /walk). This Action still leaves SOURCE_PATH to Coolify env (informational, no longer burn-critical)."
+            echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` §B2)"
           } >> "$GITHUB_STEP_SUMMARY"
