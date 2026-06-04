@@ -58,9 +58,7 @@ def main():
     )
     parser.add_argument(
         "--smoke-test", action="store_true",
-        help="No-op smoke test: import + env-validation only, exit 0. "
-             "Used by Cloud Run firstinvoke verification to prove the "
-             "boot chain is GREEN without performing any DB writes."
+        help="No-op smoke test: import + env-validation only, exit 0 (no DB writes)."
     )
     parser.add_argument(
         "--no-summary", action="store_false", dest="generate_summary",
@@ -104,25 +102,8 @@ def main():
         from kb_pipeline.config import set_static_taxonomy
         set_static_taxonomy(True)
 
-    # KH_SMOKE_TEST env-var trigger (kh-prod-readiness-S35 W1 — OPS-61
-    # firstinvoke close-out). Cloud Run buildpack launcher bakes entry-
-    # point command at image-build time; runtime `--args=--smoke-test`
-    # overrides do not reach this script (S34 close-out verified four
-    # paths ineffective: --args on execute, --args on update, --command
-    # override, GOOGLE_ENTRYPOINT env var). Env vars on the Job spec ARE
-    # honoured at runtime, so KH_SMOKE_TEST=1 +
-    # `gcloud run jobs update --update-env-vars=KH_SMOKE_TEST=1` is the
-    # supported firstinvoke trigger.
-    if os.environ.get("KH_SMOKE_TEST") == "1":
-        print("KH_SMOKE_TEST=1: env + imports OK; exiting 0 without DB writes")
-        sys.exit(0)
-
-    # No-op smoke test (Cloud Run firstinvoke verification — see Phase 2
-    # close-out in docs/runbooks/cloud-run-phase-1-handover.md §8.3).
-    # Validates env-mount + import chain, exits 0 without DB writes.
-    # NOTE: --smoke-test argparse flag is reachable for local dev/testing
-    # but is unreachable from Cloud Run firstinvoke (see KH_SMOKE_TEST
-    # block above) — kept in place for parity with manual invocation.
+    # No-op smoke test: validates env-mount + import chain, exits 0
+    # without DB writes. Reachable via local dev / manual invocation.
     if args.smoke_test:
         print("smoke-test: env + imports OK")
         sys.exit(0)
