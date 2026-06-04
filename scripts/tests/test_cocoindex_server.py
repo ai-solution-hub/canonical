@@ -2,13 +2,17 @@
 cocoindex sidecar Cloud Run Service.
 
 Covers PRODUCT Inv-6 (HTTPS /health probe returns 200 OK) + the wrapper
-contract specified in Subtask 28.15 dispatch brief:
+contract specified in Subtask 28.15 dispatch brief, as amended by ID-83 /
+bl-221 (boot-decouple — boot enters the lifespan, never walks):
 
   - HTTP server bind succeeds on $PORT (default 8080).
   - GET /health returns HTTP 200 + JSON body {"status": "ok"}.
   - SIGTERM handler installed (signal.getsignal(SIGTERM) is not default).
-  - cocoindex `coco.start_blocking()` invoked in a background daemon thread
-    (mock + assert thread spawn).
+  - cocoindex `coco.start_blocking()` (lifespan-only, NO walk) invoked in a
+    background daemon thread, and NO walking `update_blocking(...)` runs at
+    boot (mock + assert thread spawn + inverted boot guard, bl-221 G1).
+  - POST /walk runs the on-demand `update_blocking(live=False)` corpus walk
+    behind a CRON_SECRET bearer + single-flight lock (TestWalkRoute).
 
 Test philosophy: every test asserts real behaviour. The HTTP `/health`
 path is exercised by invoking the registered route handler IN-PROCESS via
@@ -355,20 +359,28 @@ class TestSigtermHandler:
 
 
 class TestCocoindexBackgroundThread:
-    """The cocoindex worker runs `KH_PIPELINE_APP.update_blocking(live=True)`
-    in a background daemon thread so the HTTP server runs concurrently with
-    the cocoindex fs-watch loop.
+    """The cocoindex worker enters the environment's lifespan ONLY at boot via
+    `coco.start_blocking()` — it performs ZERO corpus walk. The HTTP server runs
+    concurrently on the main thread; the walk fires on-demand via `POST /walk`.
 
-    ID-49.1 boot-wiring contract: the worker MUST run the App's
-    `update_blocking(live=True)` — NOT the bare `coco.start_blocking()`.
-    `coco.start_blocking()` only starts the default environment and ENTERS
-    its lifespan (provisioning `DB_CTX`); it does NOT run any registered
-    App's `main_fn`. Booting via `start_blocking()` alone provisions the DB
-    pool but never executes `app_main` — `mount_table_target(DB_CTX, …)`
-    never runs and the pipeline silently does nothing. `update_blocking()`
-    lazily starts the same `_default_env` (entering the lifespan, so
-    `DB_CTX` is provided) AND runs `app_main` on it. Empirically verified
-    against installed cocoindex 1.0.3; spec anchor TECH.md §P-2 line 374.
+    INVERTED boot contract (ID-83 / bl-221, SANCTIONED — TECH.md §5.1 Shape 1):
+    the guard below is the deliberate INVERSE of the ID-49.1 boot-wiring guard
+    it replaces. The ID-49.1 contract was "boot MUST run
+    `update_blocking(live=True)` (walk on boot) and MUST NOT call the bare
+    `coco.start_blocking()`". bl-221 retires the SOURCE_PATH-blanking burn-valve
+    by making boot architecturally walk-free: boot now MUST call
+    `coco.start_blocking()` (enter the lifespan, provisioning `DB_CTX` + LMDB,
+    running NO `app_main`) and MUST NOT call any walking `update_blocking(...)`.
+    A container boot/restart therefore cannot auto-walk the corpus or burn
+    Anthropic tokens regardless of `COCOINDEX_SOURCE_PATH` (bl-221 G1). The
+    on-demand walk is exercised by `TestWalkRoute`. This inversion is a
+    spec-sanctioned contract change, NOT a regression.
+
+    Empirically verified against installed cocoindex 1.0.3:
+    `coco.start_blocking()` → `environment.start_sync()` enters the default
+    env's `@coco.lifespan` and caches the `Environment` on `_default_env._env`,
+    then returns (runs no `main_fn`); a later `update_blocking(live=False)`
+    reuses that cached env and runs `app_main` once.
 
     Test-isolation note: this test triggers `start_cocoindex_thread()`
     which lazy-imports flow.py. flow.py registers cocoindex ContextKeys
@@ -386,11 +398,14 @@ class TestCocoindexBackgroundThread:
     works correctly.
     """
 
-    def test_start_cocoindex_thread_runs_app_update_blocking_live(self) -> None:
-        """`start_cocoindex_thread()` spawns a daemon thread whose target
-        calls `KH_PIPELINE_APP.update_blocking(live=True)` — the App-run that
-        executes `app_main` (NOT the bare `coco.start_blocking()`, which only
-        enters the lifespan without running the pipeline)."""
+    def test_start_cocoindex_thread_enters_lifespan_no_walk(self) -> None:
+        """`start_cocoindex_thread()` spawns a daemon thread whose target calls
+        `coco.start_blocking()` (enter the lifespan, NO walk) and does NOT call
+        any walking `KH_PIPELINE_APP.update_blocking(...)`.
+
+        This is the INVERTED boot guard (bl-221 G1): boot provisions the env
+        (DB pool + LMDB) WITHOUT walking the corpus, so a restart can never
+        auto-burn Anthropic. The walk is on-demand via `POST /walk` only."""
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_worker_state()
@@ -399,24 +414,20 @@ class TestCocoindexBackgroundThread:
         # (ID-49.7 test-side registry reset).
         _reset_cocoindex_app_registry()
 
-        # Patch via the MODULE-CACHED reference, not a locally-imported
-        # instance. A sibling test (test_cocoindex_extractor_retry.py) imports
-        # `cocoindex_pipeline.flow_context` UNQUALIFIED (after inserting
-        # scripts/ on sys.path), which can leave flow loaded under both the
-        # qualified `scripts.cocoindex_pipeline.flow` and the unqualified
-        # `cocoindex_pipeline.flow` paths — two distinct module objects with two
-        # distinct `KH_PIPELINE_APP` instances. The daemon thread inside
-        # `start_cocoindex_thread()` resolves the QUALIFIED
-        # `scripts.cocoindex_pipeline.flow.KH_PIPELINE_APP`; patching that exact
-        # object (rather than `from … import KH_PIPELINE_APP`, which may bind the
-        # unqualified instance depending on collection order) makes the test
-        # order-stable in both directions (Checker FAIL fix, ID-49.1).
+        # Patch `update_blocking` via the MODULE-CACHED reference (not a
+        # locally-imported instance) so the "boot never walks" assertion is
+        # order-stable. A sibling test imports `cocoindex_pipeline.flow`
+        # unqualified, which can leave flow loaded under both the qualified
+        # `scripts.cocoindex_pipeline.flow` and the unqualified
+        # `cocoindex_pipeline.flow` paths — two distinct `KH_PIPELINE_APP`
+        # instances. Patching the qualified module object keeps the assertion
+        # stable in both collection orders (ID-49.1 carry-over).
         import scripts.cocoindex_pipeline.flow as _flow
 
         with patch.object(
             _flow.KH_PIPELINE_APP, "update_blocking", return_value=None
         ) as mock_update:
-            # Guard: the worker must NOT take the lifespan-only boot path.
+            # Boot MUST take the lifespan-only `start_blocking()` path.
             with patch.object(
                 server_mod.coco, "start_blocking", return_value=None
             ) as mock_start_blocking:
@@ -429,20 +440,20 @@ class TestCocoindexBackgroundThread:
                 # mock blocks unexpectedly.
                 thread.join(timeout=2.0)
 
-            mock_update.assert_called_once_with(live=True)
-            mock_start_blocking.assert_not_called()
-            # Secondary behavioural assertion: a successful boot (mocked
-            # update_blocking returns cleanly) must NOT flip the worker
+                # INVERTED contract: boot enters the lifespan exactly once …
+                mock_start_blocking.assert_called_once_with()
+            # … and NEVER walks the corpus at boot (no update_blocking call of
+            # any liveness — the walk is on-demand via POST /walk).
+            mock_update.assert_not_called()
+            # A successful lifespan-only boot must NOT flip the worker
             # unhealthy — proves the daemon thread's success path does not
             # spuriously trip the crash flag.
             assert server_mod.worker_is_healthy(), (
-                "a clean App boot must leave the worker healthy"
+                "a clean lifespan-only boot must leave the worker healthy"
             )
-        # Side-effect verification: flow.py landed in sys.modules via
-        # the lazy import (mirrors the contract test originally split
-        # into a second test case; collapsed here to keep both
-        # assertions in one cocoindex-side-effect-incurring test
-        # rather than incurring the cost twice).
+        # Side-effect verification: flow.py landed in sys.modules via the lazy
+        # import (its registration side-effect binds the App's lifespan onto the
+        # default env that `start_blocking()` enters).
         import sys as _sys
 
         assert (
@@ -502,13 +513,14 @@ class TestWorkerLiveness:
         "ignore::pytest.PytestUnhandledThreadExceptionWarning"
     )
     def test_thread_crash_sets_worker_flag(self) -> None:
-        """When the App boot raises, start_cocoindex_thread()'s target must mark
-        the worker crashed (so /health can observe it).
+        """When entering the lifespan raises, start_cocoindex_thread()'s target
+        must mark the worker crashed (so /health can observe it).
 
-        Post-ID-49.1 the worker runs `KH_PIPELINE_APP.update_blocking(live=True)`;
-        a boot crash there (e.g. the asyncpg gaierror that motivated audit §7.5)
-        must flip the worker unhealthy exactly as the previous
-        `coco.start_blocking()` boot path did.
+        Post-ID-83 / bl-221 the boot path runs `coco.start_blocking()` (enter
+        the lifespan, NO walk); a boot crash there (e.g. the asyncpg gaierror
+        that motivated audit §7.5) must flip the worker unhealthy exactly as the
+        previous `update_blocking` boot path did. The crash-flag wiring is
+        preserved unchanged across the boot-decouple.
 
         The intentional daemon-thread crash emits PytestUnhandledThreadExceptionWarning
         under pytest 9.x. Suppressed here with a SCOPED filterwarnings marker — the
@@ -523,47 +535,50 @@ class TestWorkerLiveness:
         # (ID-49.7 test-side registry reset).
         _reset_cocoindex_app_registry()
 
-        from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
-
         try:
             with patch.object(
-                KH_PIPELINE_APP,
-                "update_blocking",
+                server_mod.coco,
+                "start_blocking",
                 side_effect=RuntimeError("boom"),
             ):
                 thread = server_mod.start_cocoindex_thread()
                 thread.join(timeout=2.0)
             assert not server_mod.worker_is_healthy(), (
-                "a crashed App boot must flip the worker to unhealthy"
+                "a crashed lifespan-entry boot must flip the worker to unhealthy"
             )
         finally:
             server_mod.reset_worker_state()
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# §3c — App boot end-to-end: idle-mode (O-Q8) preserved (ID-49.1)
+# §3c — Lifespan-only boot end-to-end: no walk on boot (ID-83 / bl-221)
 # ──────────────────────────────────────────────────────────────────────────
 
 
-class TestIdleModeBoot:
-    """ID-49.1 / O-Q8 — booting the worker with COCOINDEX_SOURCE_PATH unset
-    must enter the lifespan, run `app_main` to its idle-mode clean return, and
-    leave the Service alive (worker stays healthy, no raise).
+class TestLifespanOnlyBoot:
+    """ID-83 / bl-221 (Shape 1) — booting the worker enters the lifespan via
+    `coco.start_blocking()` (DB_CTX provisioned, LMDB engine up), completes
+    cleanly, leaves the Service alive (worker stays healthy, no raise), and runs
+    NO corpus walk — even were COCOINDEX_SOURCE_PATH set.
 
-    This is the behavioural end-to-end of the boot wiring: it drives the REAL
-    `KH_PIPELINE_APP.update_blocking(live=True)` (NOT a mock of it) through the
-    server's daemon thread, so it proves the chosen boot call actually runs the
-    pipeline's `app_main` AND honours the idle-mode guard. Only the lifespan's
-    asyncpg pool is mocked — a live Supabase pooler connection is impractical in
-    unit scope, and the idle-mode path returns before any `mount_table_target`
-    so the pool is never exercised beyond provisioning. The DSN env var is set
-    to a syntactically-valid (but never-dialled) pooler string so `_build_dsn()`
-    passes its fail-fast validation without a real network call.
+    This is the behavioural end-to-end of the boot-decouple: it drives the REAL
+    `coco.start_blocking()` (NOT a mock of it) through the server's daemon
+    thread, proving the boot call enters the cocoindex environment's lifespan
+    (so `/walk`'s later `update_blocking(live=False)` finds the pool already
+    provisioned) WITHOUT executing `app_main` / `walk_dir` at boot. Only the
+    lifespan's asyncpg pool is mocked — a live Supabase pooler connection is
+    impractical in unit scope and the boot path never reaches
+    `mount_table_target`, so the pool is never exercised beyond provisioning.
+    The DSN env var is set to a syntactically-valid (but never-dialled) pooler
+    string so `_build_dsn()` passes its fail-fast validation without a network
+    call.
 
-    Cloud Run reality this models: T8 ships COCOINDEX_SOURCE_PATH EMPTY; the
-    sidecar boots, the worker enters idle mode and its daemon thread completes
-    cleanly, and aiohttp's main thread keeps /health green. T7 sets
-    COCOINDEX_SOURCE_PATH + restarts the Service to begin ingest.
+    On-prem reality this models (bl-221 steady state): COCOINDEX_SOURCE_PATH
+    stays set; the container boots, the worker enters the lifespan and its
+    daemon thread completes cleanly, aiohttp's main thread keeps /health green,
+    and NO walk runs until an explicit `POST /walk` signal arrives. A
+    deploy/restart is burn-safe by construction (G1) — the SOURCE_PATH-blanking
+    valve is retired.
     """
 
     @pytest.mark.skipif(
@@ -577,7 +592,7 @@ class TestIdleModeBoot:
     @pytest.mark.filterwarnings(
         "ignore::pytest.PytestUnhandledThreadExceptionWarning"
     )
-    def test_idle_mode_boot_returns_clean_worker_stays_healthy(
+    def test_lifespan_only_boot_enters_env_no_walk_worker_stays_healthy(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from unittest.mock import AsyncMock, MagicMock
@@ -602,40 +617,41 @@ class TestIdleModeBoot:
             lifespan_entered.set()
             return fake_pool
 
-        # No COCOINDEX_SOURCE_PATH -> app_main takes the O-Q8 idle-mode return.
-        # COCOINDEX_DB is the engine's LMDB state-store path (a real deploy var
-        # per cloudrun/services/*-cocoindex.yaml — points at /cocoindex-state/lmdb
-        # in prod); without it environment.start raises. Point it at a tmp dir.
-        # A valid-shaped DSN so the lifespan's _build_dsn() fail-fast passes
-        # without dialling a real pooler host.
+        # COCOINDEX_SOURCE_PATH is set to a real (empty) corpus dir to prove the
+        # KEY bl-221 invariant: even WITH a source path set, the lifespan-only
+        # boot does NOT walk it (boot never reaches app_main). COCOINDEX_DB is
+        # the engine's LMDB state-store path; without it environment.start
+        # raises. A valid-shaped DSN so the lifespan's _build_dsn() fail-fast
+        # passes without dialling a real pooler host.
         #
-        # monkeypatch.{setenv,delenv} so EVERY env mutation — including the
-        # COCOINDEX_SOURCE_PATH removal that puts app_main in idle mode — is
-        # restored on teardown (the prior manual os.environ.pop inside a
-        # patch.dict leaked the deletion to sibling tests; Checker NIT fix).
+        # monkeypatch.{setenv,delenv} so EVERY env mutation is restored on
+        # teardown (no leak to sibling tests).
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
         monkeypatch.setenv("COCOINDEX_DB", str(tmp_path / "lmdb"))
         monkeypatch.setenv(
             "COCOINDEX_DB_DSN",
             "postgresql://postgres.fake:pw@"
             "aws-0-eu-west-2.pooler.supabase.com:5432/postgres",
         )
-        monkeypatch.delenv("COCOINDEX_SOURCE_PATH", raising=False)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
         try:
             with patch("asyncpg.create_pool", side_effect=_fake_create_pool):
                 thread = server_mod.start_cocoindex_thread()
                 thread.join(timeout=10.0)
 
             assert not thread.is_alive(), (
-                "idle-mode boot must complete (app_main returns early); the "
-                "worker daemon thread should not hang"
+                "lifespan-only boot must complete (start_blocking returns once "
+                "the lifespan is entered); the worker daemon thread must not hang"
             )
             assert lifespan_entered.is_set(), (
                 "the lifespan must be entered on boot (DB_CTX provisioned) — "
-                "update_blocking(live=True) starts the lifespan-bearing env"
+                "coco.start_blocking() enters the lifespan-bearing default env"
             )
             assert server_mod.worker_is_healthy(), (
-                "idle-mode boot is a CLEAN return (O-Q8); the worker must NOT "
-                "be flagged crashed — the Service stays alive"
+                "lifespan-only boot is a CLEAN return (bl-221 G1); the worker "
+                "must NOT be flagged crashed — the Service stays alive, idle, "
+                "awaiting an explicit POST /walk signal"
             )
         finally:
             server_mod.reset_worker_state()
