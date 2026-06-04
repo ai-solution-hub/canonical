@@ -3153,6 +3153,7 @@ export const PipelineRunRowSchema = z.object({
   status: z.enum([
     'failed',
     'running',
+    'in_progress',
     'completed',
     'completed_with_errors',
     'cancelled',

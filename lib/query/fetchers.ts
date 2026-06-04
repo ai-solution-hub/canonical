@@ -192,8 +192,11 @@ export interface PipelineRunRow {
   // S226 §5.4.4 W1-IMPL: 'cancelled' added — pipeline_runs.status now
   // includes user-initiated cancellation (cooperative-cancel flow per
   // §10 D-8 ratified flip — markdown_batch opts in).
+  // S309 bl-224: 'in_progress' added — cocoindex writes in_progress rows and
+  // the CHECK constraint admits it; the row schema must accept it on read.
   status:
     | 'running'
+    | 'in_progress'
     | 'completed'
     | 'completed_with_errors'
     | 'failed'

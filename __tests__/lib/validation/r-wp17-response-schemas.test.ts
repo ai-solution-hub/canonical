@@ -949,3 +949,51 @@ describe('Source-A findSchemaConstant resolves R-WP17 schemas (AC-5)', () => {
     ).toBeNull();
   });
 });
+
+// bl-224 (S309): PipelineRunRowSchema.status must accept every value the
+// pipeline_runs_status_check CHECK constraint admits — cocoindex writes
+// 'in_progress' rows, so reading them back must not reject. Kept in lock-step
+// with migrations 20260602163234 (adds 'in_progress') + 20260604113356
+// (adds 'cancelled').
+describe('PipelineRunRowSchema status <-> DB constraint parity (bl-224)', () => {
+  const CONSTRAINT_STATUSES = [
+    'running',
+    'in_progress',
+    'completed',
+    'completed_with_errors',
+    'failed',
+    'cancelled',
+  ] as const;
+
+  const baseRow = {
+    id: 'run1',
+    pipeline_name: 'cocoindex',
+    progress: null,
+    source_filename: null,
+    items_created: null,
+    items_processed: null,
+    workspace_id: null,
+    error_message: null,
+    started_at: null,
+    completed_at: null,
+    created_at: null,
+    created_by: null,
+    result: null,
+  };
+
+  it.each(CONSTRAINT_STATUSES)('accepts a row with status=%s', (status) => {
+    const result = schemas.PipelineRunRowSchema.safeParse({
+      ...baseRow,
+      status,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a status outside the constraint set', () => {
+    const result = schemas.PipelineRunRowSchema.safeParse({
+      ...baseRow,
+      status: 'queued',
+    });
+    expect(result.success).toBe(false);
+  });
+});
