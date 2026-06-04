@@ -541,6 +541,74 @@ describe('orchestrateMarkdownBatch', () => {
     });
   });
 
+  describe('phase: import — cooperative cancellation (status=cancelled, ID-76)', () => {
+    it('records status=cancelled (not completed_with_errors) and preserves the partial results_summary on pipeline_runs.result', async () => {
+      // Two files queued; cancelCheck fires BEFORE the first file so the
+      // batch stops immediately with zero files processed. Per ID-76 the
+      // run must finalise as 'cancelled', superseding the prior §10 D-8
+      // 'completed_with_errors' shortcut.
+      const supabase = buildSupabaseWithSequentialInserts([
+        'ok-id-1',
+        'ok-id-2',
+      ]);
+
+      const result = await orchestrateMarkdownBatch({
+        phase: 'import',
+        files: [
+          { filename: 'one.md', content: '# One' },
+          { filename: 'two.md', content: '# Two' },
+        ],
+        supabase: supabase as unknown as SupabaseClient<Database>,
+        callerUserId: ADMIN_USER_ID,
+        callerRole: 'admin',
+        // Cooperative-cancel poll returns true → batch cancels.
+        options: { cancelCheck: async () => true },
+      });
+
+      // pipeline_runs.status === 'cancelled' (terminal UPDATE) — NOT the
+      // legacy 'completed_with_errors'.
+      const updateCalls = supabase._chain.update.mock.calls;
+      const runPayload = updateCalls.find(
+        (call) =>
+          call[0] &&
+          typeof call[0] === 'object' &&
+          (call[0] as Record<string, unknown>).status === 'cancelled',
+      )?.[0] as Record<string, unknown> | undefined;
+      expect(runPayload).toBeDefined();
+      expect(runPayload!.status).toBe('cancelled');
+      // Cancellation message lands on error_message.
+      expect(runPayload!.error_message).toEqual(
+        expect.stringContaining('cancelled mid-batch'),
+      );
+
+      // The rich results_summary still rides on pipeline_runs.result even
+      // though the run was cancelled (partial work preserved).
+      expect(runPayload!.result).toMatchObject({
+        files_processed: 2,
+        stored: [],
+        errored: [],
+        skipped_excluded: [],
+      });
+
+      // No 'completed_with_errors' status was ever written.
+      const cweCall = updateCalls.find(
+        (call) =>
+          call[0] &&
+          typeof call[0] === 'object' &&
+          (call[0] as Record<string, unknown>).status ===
+            'completed_with_errors',
+      );
+      expect(cweCall).toBeUndefined();
+
+      // The caller still receives the rich results_summary envelope.
+      expect(result.results_summary.files_processed).toBe(2);
+
+      // ID-76: cancellation is SILENT in Sentry — no captureMessage for the
+      // cancelled terminal status.
+      expect(mocks.sentryCaptureMessage).not.toHaveBeenCalled();
+    });
+  });
+
   describe('phase: import — pipeline_runs records correct status enum', () => {
     it('writes status=failed when zero files succeed', async () => {
       const supabase = buildSupabaseWithSequentialInserts(['will-fail']);

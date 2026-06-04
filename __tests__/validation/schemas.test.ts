@@ -837,6 +837,45 @@ describe.each(LIMIT_CLAMPING_SCHEMAS)(
   },
 );
 
+// ID-76 — PipelineRunsParamsSchema.status now admits the full
+// pipeline_runs.status enum (running, in_progress, completed,
+// completed_with_errors, failed, cancelled). Previously the filter only
+// allowed the subset ['running','completed','failed','cancelled'], so
+// callers filtering by 'in_progress' or 'completed_with_errors' were
+// rejected at the query-param boundary even though those are valid stored
+// statuses.
+describe('PipelineRunsParamsSchema status filter (ID-76)', () => {
+  it.each([
+    'running',
+    'in_progress',
+    'completed',
+    'completed_with_errors',
+    'failed',
+    'cancelled',
+  ] as const)('accepts status=%s', (status) => {
+    const result = PipelineRunsParamsSchema.safeParse({ status });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBe(status);
+    }
+  });
+
+  it('rejects an unknown status value', () => {
+    const result = PipelineRunsParamsSchema.safeParse({
+      status: 'not_a_real_status',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('treats status as optional (omitted → undefined)', () => {
+    const result = PipelineRunsParamsSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBeUndefined();
+    }
+  });
+});
+
 const OFFSET_CLAMPING_SCHEMAS = [
   { name: 'QualityFlagsParamsSchema', schema: QualityFlagsParamsSchema },
   { name: 'ProcurementListParamsSchema', schema: ProcurementListParamsSchema },

@@ -252,6 +252,34 @@ describe('recordPipelineRun', () => {
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });
 
+  // ID-76 — user-initiated cancellation is a first-class terminal status.
+  // It inserts the row (partial work preserved in `result`) but emits NO
+  // Sentry alert: a user cancel is not a degradation. The guard now covers
+  // 'completed', 'in_progress', AND 'cancelled'.
+  it('inserts the row and does NOT fire Sentry on a cancelled run (ID-76)', async () => {
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'batch_reclassify',
+      status: 'cancelled',
+      itemsProcessed: 7,
+      result: { partial: 'work' },
+      errorMessage: 'cancelled mid-run after 7/25 items',
+    });
+
+    // The row is still inserted (partial work preserved).
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.status).toBe('cancelled');
+    expect(payload.result).toEqual({ partial: 'work' });
+
+    // No Sentry alert — cancellation is silent.
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
   // -------------------------------------------------------------------------
   // Alerting on non-completed runs
   // -------------------------------------------------------------------------

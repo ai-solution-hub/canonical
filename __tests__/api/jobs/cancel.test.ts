@@ -269,4 +269,128 @@ describe('PATCH /api/jobs/[id]/cancel', () => {
     // before issuing the UPDATE (preserves §5.4.1 semantics).
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
+
+  // -------------------------------------------------------------------------
+  // ID-76 — pending-cancel orphan fix.
+  //
+  // When a *pending* job carrying a `pipeline_run_id` on its envelope is
+  // cancelled, the route MUST also close the pre-allocated `pipeline_runs`
+  // row to `status='cancelled'` (otherwise the worker never runs and the
+  // row stays 'running'/'in_progress' forever, spinning the upload-tab
+  // poller). The close-out uses the SERVICE-role client because
+  // `pipeline_runs` has NO UPDATE policy for the auth-scoped client.
+  //
+  // Symmetric assertion: a *processing* cooperative cancel must NOT write
+  // pipeline_runs from the route — the worker's finaliseRun / dispatch
+  // owns that terminal write, and a route-side write would be a double-write
+  // race.
+  // -------------------------------------------------------------------------
+  const PIPELINE_RUN_ID = 'c0ffee00-1234-4567-89ab-cdef01234567';
+
+  it('ID-76: closes the pipeline_runs row to cancelled on a pending cancel carrying a pipeline_run_id (service client)', async () => {
+    configureAuth('editor');
+
+    // SELECT returns a pending markdown_batch job whose envelope payload
+    // carries the pre-allocated pipeline_run_id.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: JOB_ID,
+        status: 'pending',
+        job_type: 'markdown_batch',
+        payload: { pipeline_run_id: PIPELINE_RUN_ID },
+      },
+      error: null,
+    });
+    // Both the queue UPDATE and the pipeline_runs UPDATE resolve cleanly.
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: JOB_ID }], error: null }),
+    );
+
+    const req = makePatchRequest();
+    const params = createTestParams({ id: JOB_ID });
+    const res = await PATCH(req as never, { params });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ jobId: JOB_ID, status: 'cancelled' });
+
+    // Behaviour: a pipeline_runs close-out UPDATE to 'cancelled' was issued
+    // against the pre-allocated row. Locate it by its distinctive payload
+    // (not by call position / count — those couple to the shared-chain mock
+    // shape rather than to behaviour).
+    expect(mockSupabase.from).toHaveBeenCalledWith('pipeline_runs');
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('id', PIPELINE_RUN_ID);
+    const pipelineRunUpdate = mockSupabase._chain.update.mock.calls
+      .map((c) => c[0] as Record<string, unknown>)
+      .find(
+        (payload) =>
+          payload.error_message === 'cancelled before processing started',
+      );
+    expect(pipelineRunUpdate).toBeDefined();
+    expect(pipelineRunUpdate).toMatchObject({
+      status: 'cancelled',
+      error_message: 'cancelled before processing started',
+    });
+    expect(pipelineRunUpdate?.completed_at).toEqual(expect.any(String));
+  });
+
+  it('ID-76: a pending cancel WITHOUT a pipeline_run_id writes only the queue UPDATE (no pipeline_runs close-out)', async () => {
+    configureAuth('editor');
+
+    // Pending job whose envelope has no pipeline_run_id (e.g. a job_type
+    // that never pre-allocates a pipeline_runs row).
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: JOB_ID,
+        status: 'pending',
+        job_type: 'classify',
+        payload: {},
+      },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: JOB_ID }], error: null }),
+    );
+
+    const req = makePatchRequest();
+    const params = createTestParams({ id: JOB_ID });
+    const res = await PATCH(req as never, { params });
+
+    expect(res.status).toBe(200);
+    // Only the queue UPDATE — no pipeline_runs close-out without a run id.
+    expect(mockSupabase._chain.update).toHaveBeenCalledTimes(1);
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('pipeline_runs');
+  });
+
+  it('ID-76: a processing cooperative cancel does NOT write pipeline_runs (no double-write — worker owns the terminal write)', async () => {
+    configureAuth('editor');
+
+    // Processing batch_reclassify job — cooperative cancel returns 200, but
+    // the route must NOT touch pipeline_runs: the worker's dispatch
+    // finalisation owns that terminal write.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: JOB_ID,
+        status: 'processing',
+        job_type: 'batch_reclassify',
+        payload: { pipeline_run_id: PIPELINE_RUN_ID },
+      },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: JOB_ID }], error: null }),
+    );
+
+    const req = makePatchRequest();
+    const params = createTestParams({ id: JOB_ID });
+    const res = await PATCH(req as never, { params });
+
+    expect(res.status).toBe(200);
+    // Only the queue UPDATE — the worker, not the route, closes pipeline_runs.
+    expect(mockSupabase._chain.update).toHaveBeenCalledTimes(1);
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('pipeline_runs');
+  });
 });

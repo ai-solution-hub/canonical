@@ -5,6 +5,8 @@ import { parseBody } from '@/lib/validation';
 import { safeErrorMessage } from '@/lib/error';
 import { canCooperativelyCancel } from '@/lib/queue/cooperative-cancel';
 import type { JobType } from '@/lib/queue/envelope';
+import { createServiceClient } from '@/lib/supabase/server';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 /**
  * PATCH /api/jobs/:id/cancel — user-initiated cancellation of a queued job.
@@ -88,7 +90,7 @@ export async function PATCH(
     // cooperative cancellation per §5.4.2 D-9.
     const { data: existing, error: readErr } = await supabase
       .from('processing_queue')
-      .select('id, status, job_type')
+      .select('id, status, job_type, payload')
       .eq('id', jobId)
       .maybeSingle();
 
@@ -158,6 +160,47 @@ export async function PATCH(
         { error: safeErrorMessage(updateErr, 'Failed to cancel job') },
         { status: 500 },
       );
+    }
+
+    // ID-76 pending-cancel orphan fix: a *pending* job's worker never runs,
+    // so its pre-allocated pipeline_runs row (if any) would stay 'running'/
+    // 'in_progress' forever and the upload-tab poller would spin. Close it to
+    // 'cancelled' here. Cooperative cancel of a *processing* job is finalised
+    // by the worker (finaliseRun / dispatch), so we restrict to 'pending' to
+    // avoid a double-write race. pipeline_run_id lives on the queue envelope,
+    // so this covers all 3 producers (markdown_batch, batch_reclassify,
+    // bid_draft_all). Service-role client: pipeline_runs has admin-only
+    // INSERT/SELECT but NO UPDATE policy, so the auth-scoped client's UPDATE is
+    // silently RLS-denied (see markdown-orchestrator.ts finaliseRun). Do NOT
+    // use recordPipelineRun (INSERT-only → would create a 2nd row).
+    if (existing.status === 'pending') {
+      const payload = existing.payload as { pipeline_run_id?: unknown } | null;
+      const pipelineRunId =
+        payload &&
+        typeof payload === 'object' &&
+        typeof payload.pipeline_run_id === 'string'
+          ? payload.pipeline_run_id
+          : null;
+      if (pipelineRunId) {
+        const serviceClient = createServiceClient();
+        const { error: runErr } = await serviceClient
+          .from('pipeline_runs')
+          .update({
+            status: 'cancelled',
+            completed_at: new Date().toISOString(),
+            error_message: 'cancelled before processing started',
+          })
+          .eq('id', pipelineRunId);
+        if (runErr) {
+          // Best-effort: the queue row is already cancelled; a failed
+          // pipeline_runs close-out must not fail the user's cancel.
+          logBestEffortWarn(
+            'jobs.cancel.pipeline_runs.update_failed',
+            `Failed to close pipeline_runs row ${pipelineRunId} on pending cancel`,
+            { pipelineRunId, dbError: runErr.message },
+          );
+        }
+      }
     }
 
     return NextResponse.json({ jobId, status: 'cancelled' }, { status: 200 });

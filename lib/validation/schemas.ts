@@ -1897,7 +1897,16 @@ export const PipelineRunsParamsSchema = z.object({
     .default(20)
     .transform((v) => Math.min(Math.max(v, 1), 100)),
   pipeline_name: z.string().max(100).optional(),
-  status: z.enum(['running', 'completed', 'failed', 'cancelled']).optional(),
+  status: z
+    .enum([
+      'running',
+      'in_progress',
+      'completed',
+      'completed_with_errors',
+      'failed',
+      'cancelled',
+    ])
+    .optional(),
   all: booleanParam.optional(),
 });
 

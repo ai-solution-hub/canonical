@@ -268,10 +268,14 @@ export async function runJobByType(
           truncated = true;
         }
 
-        let status: 'completed' | 'completed_with_errors' | 'failed';
+        let status:
+          | 'completed'
+          | 'completed_with_errors'
+          | 'failed'
+          | 'cancelled';
         let errorMessage: string | null = null;
         if (result.cancelled) {
-          status = 'completed_with_errors';
+          status = 'cancelled';
           errorMessage =
             result.cancellation_message ??
             `cancelled mid-run after ${result.results.length}/${result.total_items} items`;
@@ -325,9 +329,11 @@ export async function runJobByType(
               },
             },
           );
-        } else if (status !== 'completed') {
+        } else if (status === 'failed' || status === 'completed_with_errors') {
           // Replicates `recordPipelineRun`'s status-driven Sentry
           // alerting (failed → error, completed_with_errors → warning).
+          // 'cancelled' is silent (ID-76) — a user cancel is not a
+          // degradation, so it must not raise a Sentry alert.
           Sentry.captureMessage(
             `Pipeline batch_reclassify ${status}${
               errorMessage ? `: ${errorMessage}` : ''

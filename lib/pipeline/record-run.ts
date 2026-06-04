@@ -37,12 +37,16 @@ import type { Database, Json } from '@/supabase/types/database.types';
  *   emergency.
  * - `failed` — the pipeline did not complete at all. Alerts as a Sentry
  *   error. These should be rare and must be actioned.
+ * - `cancelled` — the run was cancelled by the user (ID-76). Any partial
+ *   work already done is preserved in `result`. No alert (a user cancel is
+ *   not a degradation).
  */
 export type PipelineRunStatus =
   | 'in_progress'
   | 'completed'
   | 'completed_with_errors'
-  | 'failed';
+  | 'failed'
+  | 'cancelled';
 
 /** @public */
 export interface RecordPipelineRunParams {
@@ -134,6 +138,8 @@ export interface RecordPipelineRunParams {
  * - `status === 'completed'` → no Sentry emission (healthy path).
  * - `status === 'in_progress'` → no Sentry emission (lifecycle event,
  *   e.g. flow-start webhook). Added in ID-28.11 FX-1.
+ * - `status === 'cancelled'` → no Sentry emission (user-initiated cancel;
+ *   not a degradation). Added in ID-76.
  * - DB insertion itself fails → `logBestEffortWarn` + Sentry error
  *   capture under the `pipeline.record_run` category. This covers the
  *   Q-36 library smell: the previous `await supabase.from(...).insert`
@@ -249,7 +255,12 @@ export async function recordPipelineRun(
   // and the prior guard fired a spurious Sentry warning on every flow
   // start in production.
   if (skipSentryAlert) return;
-  if (status === 'completed' || status === 'in_progress') return;
+  if (
+    status === 'completed' ||
+    status === 'in_progress' ||
+    status === 'cancelled'
+  )
+    return;
 
   const level: 'error' | 'warning' = status === 'failed' ? 'error' : 'warning';
   Sentry.captureMessage(

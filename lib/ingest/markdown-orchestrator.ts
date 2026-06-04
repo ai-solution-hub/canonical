@@ -482,17 +482,19 @@ async function runImportPhase(
   }
 
   const attemptedCount = files.length - skippedExcluded.length;
-  // When cancelled mid-batch, the run is recorded as
-  // 'completed_with_errors' per §5.4.4 §10 D-8 ratified (no new
-  // pipeline_runs.status enum value introduced); the operator-facing
-  // signal is the cancellation message in `error_message`.
-  const status: 'completed' | 'completed_with_errors' | 'failed' = cancelled
-    ? 'completed_with_errors'
-    : computeRunStatus({
-        failedCount: errored.length,
-        createdCount: itemsCreated.length,
-        attemptedCount,
-      });
+  // When cancelled mid-batch, the run is recorded as the first-class
+  // terminal status 'cancelled' (ID-76 — superseding the §5.4.4 §10 D-8
+  // 'completed_with_errors' shortcut). The operator-facing signal is the
+  // cancellation message in `error_message`; cancellation is silent in
+  // Sentry (a user cancel is not a degradation).
+  const status: 'completed' | 'completed_with_errors' | 'failed' | 'cancelled' =
+    cancelled
+      ? 'cancelled'
+      : computeRunStatus({
+          failedCount: errored.length,
+          createdCount: itemsCreated.length,
+          attemptedCount,
+        });
 
   const errorMessage = cancelled
     ? `cancelled mid-batch after ${filesCompleted}/${filesTotal} files`
@@ -719,6 +721,7 @@ function computeRunStatus(params: {
   failedCount: number;
   createdCount: number;
   attemptedCount: number;
+  // never returns 'cancelled' — cancellation is handled by the caller's ternary branch (ID-76)
 }): 'completed' | 'completed_with_errors' | 'failed' {
   const { failedCount, createdCount, attemptedCount } = params;
   if (attemptedCount === 0) return 'completed';
@@ -730,7 +733,7 @@ function computeRunStatus(params: {
 interface FinaliseRunParams {
   pipelineRunId: string;
   startedAt: string;
-  status: 'completed' | 'completed_with_errors' | 'failed';
+  status: 'completed' | 'completed_with_errors' | 'failed' | 'cancelled';
   errorMessage: string | null;
   itemsProcessed: number;
   itemsCreated: string[];
@@ -779,15 +782,22 @@ async function finaliseRun(params: FinaliseRunParams): Promise<void> {
 
   // Final progress block — mirrors the EP3 'complete' / 'failed' shapes.
   const finalProgress: Json = {
-    step: status === 'failed' ? 'failed' : 'complete',
+    step:
+      status === 'failed'
+        ? 'failed'
+        : status === 'cancelled'
+          ? 'cancelled'
+          : 'complete',
     files_completed: filesCompleted,
     files_total: filesTotal,
     detail:
       status === 'failed'
         ? (errorMessage ?? 'Batch import failed.')
-        : status === 'completed_with_errors'
-          ? `Completed with ${errorMessage ?? 'errors'}.`
-          : 'All files processed successfully.',
+        : status === 'cancelled'
+          ? (errorMessage ?? 'Cancelled before completion.')
+          : status === 'completed_with_errors'
+            ? `Completed with ${errorMessage ?? 'errors'}.`
+            : 'All files processed successfully.',
   };
 
   try {
@@ -836,7 +846,10 @@ async function finaliseRun(params: FinaliseRunParams): Promise<void> {
     return;
   }
 
-  if (status === 'completed') return;
+  // 'cancelled' is silent in Sentry alongside 'completed' (ID-76): a
+  // user-initiated cancel is not a degradation, so it must not raise a
+  // spurious Sentry warning on every cancel.
+  if (status === 'completed' || status === 'cancelled') return;
 
   const level: 'error' | 'warning' = status === 'failed' ? 'error' : 'warning';
   Sentry.captureMessage(
