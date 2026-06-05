@@ -27,11 +27,13 @@ import pytest
 from scripts.cocoindex_pipeline.workspace_resolver import (
     AmbiguousResolution,
     ManifestLoadError,
+    Resolution,
     ResolutionFailure,
     UnmappedPath,
     WorkspaceManifest,
     WorkspaceMapping,
     load_workspace_manifest,
+    resolve_route,
     resolve_workspace,
 )
 
@@ -301,4 +303,126 @@ def test_load_and_resolve_round_trip(tmp_path: Path) -> None:
     assert resolve_workspace(manifest, "acme-bids/foo.pdf") == ACME_UUID
     assert resolve_workspace(manifest, "acme-bids/2026/foo.pdf") == ACME_2026_UUID
     with pytest.raises(ResolutionFailure):
+        resolve_workspace(manifest, "unmapped/X.pdf")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# ID-80.6 — Manifest route tag + resolve_route fork config
+# (80.2-forms-content-separation.md §B.2, RATIFIED OQ-80.2-B)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_manifest_without_route_resolves_route_content(tmp_path: Path) -> None:
+    """(a) Backward-compat: a manifest WITHOUT any `route` key parses
+    unchanged (schema_version stays 1, no migration) and every prefix
+    resolves `route == "content"` — zero behaviour change until an operator
+    opts a prefix into "forms" (Inv-19 preserved for non-forms prefixes)."""
+    manifest_path = _write_manifest(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "mappings": [
+                {"path_prefix": "example-client-procurement/", "workspace_id": str(example-client_UUID)},
+                {"path_prefix": "acme-bids/", "workspace_id": str(ACME_UUID)},
+            ],
+        },
+    )
+    manifest = load_workspace_manifest(manifest_path)
+    example-client = resolve_route(manifest, "example-client-procurement/SQ.pdf")
+    acme = resolve_route(manifest, "acme-bids/foo.pdf")
+    assert example-client == Resolution(workspace_id=example-client_UUID, route="content")
+    assert acme == Resolution(workspace_id=ACME_UUID, route="content")
+
+
+def test_route_forms_prefix_resolves_forms(tmp_path: Path) -> None:
+    """(b) A prefix tagged `route: "forms"` resolves `route == "forms"`."""
+    manifest_path = _write_manifest(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "mappings": [
+                {"path_prefix": "example-client-procurement/", "workspace_id": str(example-client_UUID)},
+                {
+                    "path_prefix": "acme-forms/",
+                    "workspace_id": str(ACME_UUID),
+                    "route": "forms",
+                },
+            ],
+        },
+    )
+    manifest = load_workspace_manifest(manifest_path)
+    result = resolve_route(manifest, "acme-forms/SQ-blank.pdf")
+    assert result == Resolution(workspace_id=ACME_UUID, route="forms")
+    # The untagged sibling prefix stays on the content route.
+    assert resolve_route(manifest, "example-client-procurement/SQ.pdf").route == "content"
+
+
+def test_invalid_route_value_rejected_at_load_time(tmp_path: Path) -> None:
+    """(c) An invalid `route` value (typo) is a load-time error — Literal +
+    extra="forbid" make it a ValidationError → ManifestLoadError at the
+    manifest-load gate (loud abort at flow start, never a silent default)."""
+    manifest_path = _write_manifest(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "mappings": [
+                {
+                    "path_prefix": "acme-forms/",
+                    "workspace_id": str(ACME_UUID),
+                    "route": "froms",  # typo — must be rejected at parse time
+                },
+            ],
+        },
+    )
+    with pytest.raises(ManifestLoadError):
+        load_workspace_manifest(manifest_path)
+
+
+def test_longest_prefix_winner_route_is_returned(tmp_path: Path) -> None:
+    """(d) The longest-prefix WINNER's route is the one returned — a
+    `route:"forms"` child prefix forks away from its `route:"content"`
+    parent, and vice versa for paths only the parent matches."""
+    manifest_path = _write_manifest(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "mappings": [
+                {"path_prefix": "acme-bids/", "workspace_id": str(ACME_UUID)},
+                {
+                    "path_prefix": "acme-bids/blank-forms/",
+                    "workspace_id": str(ACME_2026_UUID),
+                    "route": "forms",
+                },
+            ],
+        },
+    )
+    manifest = load_workspace_manifest(manifest_path)
+    winner = resolve_route(manifest, "acme-bids/blank-forms/SQ.pdf")
+    assert winner == Resolution(workspace_id=ACME_2026_UUID, route="forms")
+    # A path matched only by the shorter parent prefix keeps the parent's route.
+    parent = resolve_route(manifest, "acme-bids/2025/foo.pdf")
+    assert parent == Resolution(workspace_id=ACME_UUID, route="content")
+
+
+def test_resolve_workspace_shim_equivalence() -> None:
+    """(e) `resolve_workspace(m, p) == resolve_route(m, p).workspace_id` for
+    every mapped path — the shim contract — and the exception contract is
+    unchanged (same UnmappedPath / AmbiguousResolution subclasses)."""
+    manifest = _build_manifest(
+        [
+            ("example-client-procurement/", example-client_UUID),
+            ("acme-bids/", ACME_UUID),
+            ("acme-bids/2026/", ACME_2026_UUID),
+        ]
+    )
+    for rel_path in (
+        "example-client-procurement/SQ.pdf",
+        "acme-bids/foo.pdf",
+        "acme-bids/2026/foo.pdf",
+    ):
+        assert resolve_workspace(manifest, rel_path) == resolve_route(manifest, rel_path).workspace_id
+    # Exception contract: the shim raises the SAME subclasses as resolve_route.
+    with pytest.raises(UnmappedPath):
+        resolve_route(manifest, "unmapped/X.pdf")
+    with pytest.raises(UnmappedPath):
         resolve_workspace(manifest, "unmapped/X.pdf")

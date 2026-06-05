@@ -8,8 +8,14 @@ folder→workspace resolution function used by Path B / Path C.
 
 Public API:
 
-- `WorkspaceMapping` — one `{path_prefix, workspace_id}` pair.
+- `RouteKind` — `Literal["content", "forms"]` route discriminator (ID-80.6,
+  80.2 §B.2: the manifest per-prefix route tag IS the Path-A/Path-B fork
+  point — RATIFIED OQ-80.2-B).
+- `WorkspaceMapping` — one `{path_prefix, workspace_id, route}` entry
+  (`route` defaults to `"content"` — existing manifests parse unchanged).
 - `WorkspaceManifest` — versioned container of mappings.
+- `Resolution` — frozen `{workspace_id, route}` pair returned by
+  `resolve_route`.
 - `ManifestLoadError` — raised on missing / unparseable / schema-invalid
   manifest; the flow aborts at start (TECH §2.1).
 - `ResolutionFailure` — base class for unmapped / ambiguous `rel_path`.
@@ -22,7 +28,10 @@ Public API:
   flow surfaces it as a loud structured stage error (Inv-5: never silent
   default / sentinel).
 - `load_workspace_manifest(path)` — parse + validate manifest file.
-- `resolve_workspace(manifest, rel_path)` — longest-prefix-wins resolution.
+- `resolve_route(manifest, rel_path)` — longest-prefix-wins resolution
+  returning BOTH the owning workspace and its route (the fork entry point).
+- `resolve_workspace(manifest, rel_path)` — thin shim over `resolve_route`
+  returning only the workspace UUID (kept for existing callers).
 
 Workspace UUIDs are NOT verified against the live `workspaces` table at
 load time — FK enforcement at INSERT time surfaces stale UUIDs canonically
@@ -32,11 +41,18 @@ load time — FK enforcement at INSERT time surfaces stale UUIDs canonically
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+# Route discriminator (ID-80.6, 80.2 §B.2 — RATIFIED OQ-80.2-B): the manifest
+# per-prefix `route` tag is the Path-A (content) / Path-B (forms) fork point.
+# `Literal` + `extra="forbid"` make any typo a load-time `ValidationError`
+# → `ManifestLoadError` at the manifest-load gate (loud abort at flow start).
+RouteKind = Literal["content", "forms"]
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -96,12 +112,21 @@ class AmbiguousResolution(ResolutionFailure):
 
 
 class WorkspaceMapping(BaseModel):
-    """One `{path_prefix, workspace_id}` entry in the manifest."""
+    """One `{path_prefix, workspace_id, route}` entry in the manifest.
+
+    `route` defaults to `"content"` (80.2 §B.2): existing manifests — and the
+    id-52 fixtures — parse unchanged and every current prefix stays on Path-A.
+    Zero behaviour change until an operator opts a prefix into `"forms"`.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     path_prefix: str = Field(..., description="POSIX path prefix relative to ingest source root.")
     workspace_id: UUID = Field(..., description="Workspace UUID this prefix resolves to.")
+    route: RouteKind = Field(
+        default="content",
+        description="Fork discriminator: 'content' (Path-A, default) or 'forms' (Path-B blank form instruments).",
+    )
 
 
 class WorkspaceManifest(BaseModel):
@@ -133,6 +158,23 @@ class WorkspaceManifest(BaseModel):
                 f"Duplicate path_prefix values in manifest: {sorted(set(duplicates))!r}"
             )
         return self
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Resolution result
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """Result of `resolve_route`: the owning workspace AND its route.
+
+    The `route` carries the Path-A/Path-B fork decision (80.2 §B.2) so the
+    flow computes the fork ONCE, BEFORE either write path runs.
+    """
+
+    workspace_id: UUID
+    route: RouteKind
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -171,8 +213,12 @@ def load_workspace_manifest(path: Path) -> WorkspaceManifest:
         raise ManifestLoadError(f"Workspace manifest at {path!s} failed schema validation: {exc}") from exc
 
 
-def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
-    """Resolve `rel_path` to its owning workspace via longest-prefix match.
+def resolve_route(manifest: WorkspaceManifest, rel_path: str) -> Resolution:
+    """Resolve `rel_path` to its owning workspace AND route (longest-prefix).
+
+    The single fork entry point (ID-80.6, 80.2 §B.2): returns the winning
+    mapping's `workspace_id` and its `route` tag so the flow computes the
+    Path-A/Path-B fork once, before either write path runs.
 
     Inputs:
       - `manifest`: a loaded `WorkspaceManifest`.
@@ -188,9 +234,13 @@ def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
       - If no mapping prefixes `rel_path` → `UnmappedPath` (a
         `ResolutionFailure` subclass).
 
+    The exception contract is identical to the historical
+    `resolve_workspace` — same `UnmappedPath` / `AmbiguousResolution`
+    subclasses of `ResolutionFailure` (unchanged contract, 80.2 §B.2).
+
     Determinism is guaranteed by: input-only computation, no I/O, no
-    mutation. Same `(manifest, rel_path)` yields the same `UUID` across
-    calls and processes.
+    mutation. Same `(manifest, rel_path)` yields the same `Resolution`
+    across calls and processes.
     """
     # Find every mapping whose `path_prefix` is a literal prefix of `rel_path`.
     matches: list[WorkspaceMapping] = [
@@ -213,16 +263,31 @@ def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
             f"{len(longest)} mappings tie at length {max_length} ({prefixes!r})"
         )
 
-    return longest[0].workspace_id
+    winner = longest[0]
+    return Resolution(workspace_id=winner.workspace_id, route=winner.route)
+
+
+def resolve_workspace(manifest: WorkspaceManifest, rel_path: str) -> UUID:
+    """Resolve `rel_path` to its owning workspace via longest-prefix match.
+
+    Thin shim over `resolve_route` (80.2 §B.2): returns only the workspace
+    UUID so existing callers keep working unchanged. Raises the same
+    `UnmappedPath` / `AmbiguousResolution` subclasses — see `resolve_route`
+    for the full resolution contract.
+    """
+    return resolve_route(manifest, rel_path).workspace_id
 
 
 __all__ = [
     "AmbiguousResolution",
     "ManifestLoadError",
+    "Resolution",
     "ResolutionFailure",
+    "RouteKind",
     "UnmappedPath",
     "WorkspaceManifest",
     "WorkspaceMapping",
     "load_workspace_manifest",
+    "resolve_route",
     "resolve_workspace",
 ]
