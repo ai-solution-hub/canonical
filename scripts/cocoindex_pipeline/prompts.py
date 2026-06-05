@@ -1,12 +1,18 @@
 """Instruction-prompt constants for the cocoindex LLM-extraction stage.
 
-This module hosts the three user-message prompt templates that direct the
-Anthropic model to emit JSON matching the Q-EX2 typed extraction shapes
+This module hosts the three static instruction-prompt templates that direct
+the Anthropic model to emit JSON matching the Q-EX2 typed extraction shapes
 defined in `scripts/cocoindex_pipeline/extraction.py`. Each prompt is a
-self-contained instruction block consumed by Wave 4 (Subtask 28.12+) as
-the user-message content of an `anthropic.messages.create()` call:
+self-contained instruction block sent as a CACHED system block (ID-61.1 —
+prompt-cache passthrough, closing GAP-Q-EX2-002), with only the per-document
+content in the uncached user-message suffix:
 
-    messages=[{"role": "user", "content": f"{PROMPT}\\n\\n{content_text}"}]
+    system=[{"type": "text", "text": PROMPT,
+             "cache_control": {"type": "ephemeral"}}],
+    messages=[{"role": "user", "content": content_text}]
+
+(see `extraction.py:_cached_system_block`; the pre-cache shape concatenated
+`f"{PROMPT}\\n\\n{content_text}"` into a single user message).
 
 The prompts are written to:
 
@@ -24,8 +30,10 @@ The prompts are written to:
 
 UK English throughout (extract, organise, behaviour). All prompts default
 to ~200-400 words; they are stable instruction templates rather than dense
-prose — refinement happens at Wave 4 dispatch when prompt-cache passthrough
-verification (GAP-Q-EX2-002 per Q-EX2 PRODUCT.md) is exercised.
+prose. Byte-stability matters: the prompt text is the prompt-cache key, so
+any edit to a constant invalidates the server-side cache for that extractor
+(GAP-Q-EX2-002 closed by ID-61.1 — cache_control wiring lives in
+`extraction.py`, not here).
 
 References:
 - `docs/specs/id-36-cocoindex-extraction-contract/TECH.md` §3.1 (LLM-extraction

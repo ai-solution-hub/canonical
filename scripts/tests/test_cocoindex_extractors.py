@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -84,14 +85,38 @@ class _MockTextBlock:
         self.text = text
 
 
-class _MockMessageResponse:
-    """Mimics anthropic.types.Message — has a `.content` list of text blocks
-    and a `.stop_reason` (the real SDK always populates this; the {73.1}
-    truncation guard reads it before validation)."""
+class _MockUsage:
+    """Mimics anthropic.types.Usage — carries the prompt-cache token counters
+    the real SDK surfaces on `response.usage` (ID-61.1 / GAP-Q-EX2-002)."""
 
-    def __init__(self, json_text: str, stop_reason: str = "end_turn"):
+    def __init__(
+        self,
+        input_tokens: int = 100,
+        output_tokens: int = 50,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
+    ):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.cache_creation_input_tokens = cache_creation_input_tokens
+        self.cache_read_input_tokens = cache_read_input_tokens
+
+
+class _MockMessageResponse:
+    """Mimics anthropic.types.Message — has a `.content` list of text blocks,
+    a `.stop_reason` (the real SDK always populates this; the {73.1}
+    truncation guard reads it before validation) and an optional `.usage`
+    (cache-token observability per ID-61.1)."""
+
+    def __init__(
+        self,
+        json_text: str,
+        stop_reason: str = "end_turn",
+        usage: Any | None = None,
+    ):
         self.content = [_MockTextBlock(json_text)]
         self.stop_reason = stop_reason
+        self.usage = usage
 
 
 class _MockStreamManager:
@@ -264,8 +289,10 @@ class TestExtractClassification:
         assert not hasattr(result, "op_id")
 
     def test_calls_anthropic_with_classification_prompt_and_content(self):
-        """Extractor concatenates `f"{CLASSIFICATION_PROMPT}\\n\\n{content_text}"`
-        per spec §3.1 (prompts.py + content joined with double-newline)."""
+        """Extractor sends CLASSIFICATION_PROMPT as a cached system block and
+        the per-document content as the (uncached) user message (ID-61.1 /
+        GAP-Q-EX2-002 — supersedes the pre-cache `f"{PROMPT}\\n\\n{content}"`
+        user-message concatenation)."""
         mock_client = _make_mock_client(_classification_json())
         captured_messages: list[Any] = []
         original_stream = mock_client.messages.stream
@@ -296,11 +323,13 @@ class TestExtractClassification:
         assert kwargs["model"] == "claude-opus-4-6"
         assert kwargs["max_tokens"] == _MAX_TOKENS_CLASSIFICATION
         assert kwargs["messages"][0]["role"] == "user"
-        # The user message must contain the content_text appended after a
-        # double-newline (the prompt is too long to assert verbatim here;
-        # the WP3 test_cocoindex_prompts.py asserts the prompt shape).
-        user_content = kwargs["messages"][0]["content"]
-        assert user_content.endswith(f"\n\n{content}")
+        # The static prompt rides in the system block (cached — see
+        # TestPromptCachePassthrough); the user message carries ONLY the
+        # per-document content_text.
+        from scripts.cocoindex_pipeline.prompts import CLASSIFICATION_PROMPT
+
+        assert kwargs["system"][0]["text"] == CLASSIFICATION_PROMPT
+        assert kwargs["messages"][0]["content"] == content
 
     def test_invalid_content_type_raises_validation_error(self):
         """LLM returns content_type not in taxonomy → ValidationError."""
@@ -376,10 +405,11 @@ class TestExtractQAForm:
         ):
             asyncio.run(extract_qa_form("form content"))
         assert len(captured) == 1
-        user_content = captured[0]["messages"][0]["content"]
-        # Assert the user-message starts with the Q_A_FORM_PROMPT — proves
+        # The Q_A_FORM_PROMPT rides in the cached system block (ID-61.1);
+        # the user message carries only the per-document content — proves
         # the extractor uses the correct prompt constant.
-        assert user_content.startswith(Q_A_FORM_PROMPT)
+        assert captured[0]["system"][0]["text"] == Q_A_FORM_PROMPT
+        assert captured[0]["messages"][0]["content"] == "form content"
 
     def test_info_only_response_kind_raises_validation_error(self):
         """LLM returns expected_response_kind='info_only' → ValidationError.
@@ -906,3 +936,182 @@ class TestStreamingForLargeMaxTokens:
         assert "extract_qa_form" in msg
         assert "max_tokens" in msg
         assert str(_MAX_TOKENS_QA_FORM) in msg
+
+
+# ============================================================================
+# PROMPT-CACHE PASSTHROUGH (ID-61.1 — GAP-Q-EX2-002)
+# ============================================================================
+
+
+class TestPromptCachePassthrough:
+    """ID-61.1 / GAP-Q-EX2-002: each of the 3 extractors sends its STATIC
+    instruction prompt in a system block carrying a
+    `cache_control: {"type": "ephemeral"}` breakpoint, with ONLY the
+    per-document `content_text` in the uncached user-message suffix. The
+    pattern mirrors the proven prior art (`lib/ai/draft.ts` cachedBlocks vs
+    uncachedBlocks; legacy `kb_pipeline/classify.py` system-block
+    cache_control) and was verified against the pinned anthropic SDK
+    (0.79.0: `TextBlockParam.cache_control: Optional[CacheControlEphemeralParam]`,
+    and `messages.stream(...)` accepts `system: Union[str, Iterable[TextBlockParam]]`).
+
+    Cache-token observability: `_anthropic_message` logs the usage counters
+    (cache_creation_input_tokens / cache_read_input_tokens) from the streamed
+    final Message, so a live cache hit is visible in pipeline logs — the
+    cache-hit fixture below shows `cache_read_input_tokens > 0` on the second
+    call (pattern: test_classify.py::test_cache_tokens_extracted).
+    """
+
+    @staticmethod
+    def _capture_stream_kwargs(mock_client: MagicMock) -> list[dict[str, Any]]:
+        """Wrap `messages.stream` so each call's kwargs are recorded while
+        still delegating to the original mock stream-manager factory."""
+        captured: list[dict[str, Any]] = []
+        original_stream = mock_client.messages.stream
+
+        def _capture(**kwargs: Any) -> Any:
+            captured.append(kwargs)
+            return original_stream(**kwargs)
+
+        mock_client.messages.stream = _capture
+        return captured
+
+    def _cases(self) -> list[tuple[Any, str, str]]:
+        from scripts.cocoindex_pipeline.prompts import (
+            CLASSIFICATION_PROMPT,
+            ENTITY_MENTION_PROMPT,
+            Q_A_FORM_PROMPT,
+        )
+
+        return [
+            (extract_classification, CLASSIFICATION_PROMPT, _classification_json()),
+            (extract_qa_form, Q_A_FORM_PROMPT, _qa_form_json()),
+            (extract_entity_mentions, ENTITY_MENTION_PROMPT, _entity_mentions_json()),
+        ]
+
+    def test_each_extractor_sends_static_prompt_in_cached_system_block(self):
+        """All 3 extractor calls carry the static prompt as a single system
+        block stamped `cache_control: ephemeral` — byte-for-byte the prompt
+        constant, nothing else (no flow-stamp fields, no per-doc content)."""
+        content = "Per-document content text only."
+        for extractor, prompt, payload in self._cases():
+            mock_client = _make_mock_client(payload)
+            captured = self._capture_stream_kwargs(mock_client)
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                asyncio.run(extractor(content))
+            assert len(captured) == 1, extractor
+            assert captured[0]["system"] == [
+                {
+                    "type": "text",
+                    "text": prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ], f"{extractor}: static prompt must be a cached system block"
+
+    def test_per_doc_content_stays_in_uncached_user_message(self):
+        """The per-document content_text is the ENTIRE user message — a plain
+        (uncached) string with no prompt prefix and no cache_control block."""
+        content = "Unique per-document body that must never be cached."
+        for extractor, prompt, payload in self._cases():
+            mock_client = _make_mock_client(payload)
+            captured = self._capture_stream_kwargs(mock_client)
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                asyncio.run(extractor(content))
+            assert captured[0]["messages"] == [
+                {"role": "user", "content": content}
+            ], f"{extractor}: user message must be exactly the uncached content_text"
+            # The static prompt must NOT leak into the uncached suffix.
+            assert prompt not in captured[0]["messages"][0]["content"]
+
+    def test_flow_stamp_fields_stay_out_of_both_blocks(self):
+        """No regression on prompts.py flow-stamp discipline: op_id /
+        content_items_id / extracted_at never enter the prompt or the user
+        message (they are stamped POST-memo by stamp_extraction_base)."""
+        for extractor, prompt, payload in self._cases():
+            mock_client = _make_mock_client(payload)
+            captured = self._capture_stream_kwargs(mock_client)
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                asyncio.run(extractor("doc body"))
+            sent_text = (
+                captured[0]["system"][0]["text"]
+                + captured[0]["messages"][0]["content"]
+            )
+            for stamp_field in ("op_id", "content_items_id", "extracted_at"):
+                assert stamp_field not in sent_text, (
+                    f"{extractor}: flow-stamp field {stamp_field!r} must stay "
+                    f"out of the prompt (prompts.py flow-stamp discipline)"
+                )
+
+    def test_cache_hit_fixture_shows_cache_read_tokens_on_second_call(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """Cache-hit fixture: the first call writes the cache
+        (cache_creation_input_tokens > 0, cache_read_input_tokens == 0); the
+        second call HITS it (cache_read_input_tokens > 0) — and both surface
+        in the `_anthropic_message` usage log so a live run's cache behaviour
+        is observable (testStrategy: cache_read_input_tokens > 0 on call 2)."""
+        first = _MockMessageResponse(
+            _classification_json(),
+            usage=_MockUsage(
+                cache_creation_input_tokens=2048, cache_read_input_tokens=0
+            ),
+        )
+        second = _MockMessageResponse(
+            _classification_json(),
+            usage=_MockUsage(
+                cache_creation_input_tokens=0, cache_read_input_tokens=2048
+            ),
+        )
+        mock_client = MagicMock(name="AsyncAnthropic_instance")
+        mock_client.messages.stream = MagicMock(
+            side_effect=[_MockStreamManager(first), _MockStreamManager(second)]
+        )
+        with caplog.at_level(
+            logging.INFO, logger="scripts.cocoindex_pipeline.extraction"
+        ):
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                asyncio.run(extract_classification("first document body"))
+                asyncio.run(extract_classification("second document body"))
+        usage_logs = [
+            record.getMessage()
+            for record in caplog.records
+            if "cache_read_input_tokens" in record.getMessage()
+        ]
+        assert len(usage_logs) == 2, "one usage log line per extractor call"
+        # First call: cache write, no read.
+        assert "cache_creation_input_tokens=2048" in usage_logs[0]
+        assert "cache_read_input_tokens=0" in usage_logs[0]
+        # Second call: cache HIT — cache_read_input_tokens > 0.
+        assert "cache_read_input_tokens=2048" in usage_logs[1]
+
+    def test_usage_log_skipped_when_usage_absent(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """A Message without `.usage` (defensive: mocks / unexpected SDK
+        shapes) must not crash the extractor — the usage log is simply
+        omitted."""
+        mock_client = _make_mock_client(_classification_json())  # usage=None
+        with caplog.at_level(
+            logging.INFO, logger="scripts.cocoindex_pipeline.extraction"
+        ):
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                result = asyncio.run(extract_classification("doc body"))
+        assert isinstance(result, ClassificationExtraction)
+        assert not any(
+            "cache_read_input_tokens" in record.getMessage()
+            for record in caplog.records
+        )

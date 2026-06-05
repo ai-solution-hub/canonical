@@ -877,6 +877,61 @@ async def _anthropic_retry(call, /):
             return await call()
 
 
+def _cached_system_block(prompt: str) -> list[dict[str, object]]:
+    """Wrap a static instruction prompt in a system block carrying a
+    `cache_control: ephemeral` breakpoint (ID-61.1 — closes GAP-Q-EX2-002).
+
+    The three extractor prompts are stable instruction templates; sending
+    them WITHOUT a cache breakpoint re-bills the full prompt on every
+    document. Stamping `cache_control: {"type": "ephemeral"}` on the system
+    block caches the static prefix server-side, so only the per-document
+    `content_text` (the uncached user-message suffix) is billed at the full
+    input rate on subsequent calls within the cache TTL.
+
+    Prior art: `lib/ai/draft.ts` (cachedBlocks vs uncachedBlocks) and the
+    legacy `kb_pipeline/classify.py` system-block cache_control. Shape
+    verified against the pinned anthropic SDK (0.79.0):
+    `TextBlockParam.cache_control: Optional[CacheControlEphemeralParam]`,
+    and `messages.stream(...)` accepts
+    `system: Union[str, Iterable[TextBlockParam]]`.
+
+    Flow-stamp fields (op_id / content_items_id / extracted_at) stay OUT of
+    the prompt — they are stamped POST-memo by `stamp_extraction_base()`
+    (see prompts.py module docstring) — so the cached block is byte-stable
+    across documents, which is precisely what makes it cacheable.
+    """
+    return [
+        {
+            "type": "text",
+            "text": prompt,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+
+
+def _log_prompt_cache_usage(message: anthropic.types.Message) -> None:
+    """Surface the prompt-cache token counters from a final Message (ID-61.1).
+
+    Emits one INFO line per extractor call so a live run's cache behaviour
+    is observable in pipeline logs: the first call on a fresh cache shows
+    `cache_creation_input_tokens > 0`; subsequent calls within the TTL show
+    `cache_read_input_tokens > 0` (the cache hit). Defensive `getattr`
+    guards tolerate mocked / unexpected SDK shapes — when `usage` is absent
+    the log is simply omitted.
+    """
+    usage = getattr(message, "usage", None)
+    if usage is None:
+        return
+    _logger.info(
+        "anthropic prompt-cache usage: input_tokens=%s output_tokens=%s "
+        "cache_creation_input_tokens=%s cache_read_input_tokens=%s",
+        getattr(usage, "input_tokens", 0) or 0,
+        getattr(usage, "output_tokens", 0) or 0,
+        getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        getattr(usage, "cache_read_input_tokens", 0) or 0,
+    )
+
+
 async def _anthropic_message(client, /, **create_kwargs) -> anthropic.types.Message:
     """Streaming wrapper around `client.messages.create(...)` — bl-222.
 
@@ -905,7 +960,9 @@ async def _anthropic_message(client, /, **create_kwargs) -> anthropic.types.Mess
     the retry closure (`_anthropic_retry(lambda: _anthropic_message(...))`).
     """
     async with client.messages.stream(**create_kwargs) as stream:
-        return await stream.get_final_message()
+        message = await stream.get_final_message()
+    _log_prompt_cache_usage(message)
+    return message
 
 
 @coco.fn(memo=True)
@@ -923,12 +980,10 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
             client,
             model=ANTHROPIC_MODEL,
             max_tokens=_MAX_TOKENS_CLASSIFICATION,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"{CLASSIFICATION_PROMPT}\n\n{content_text}",
-                }
-            ],
+            # Static prompt rides the cached system block; ONLY the
+            # per-document content_text is in the uncached suffix (ID-61.1).
+            system=_cached_system_block(CLASSIFICATION_PROMPT),
+            messages=[{"role": "user", "content": content_text}],
         )
     )
     _guard_not_truncated(
@@ -953,12 +1008,10 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
             client,
             model=ANTHROPIC_MODEL,
             max_tokens=_MAX_TOKENS_QA_FORM,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"{Q_A_FORM_PROMPT}\n\n{content_text}",
-                }
-            ],
+            # Static prompt rides the cached system block; ONLY the
+            # per-document content_text is in the uncached suffix (ID-61.1).
+            system=_cached_system_block(Q_A_FORM_PROMPT),
+            messages=[{"role": "user", "content": content_text}],
         )
     )
     _guard_not_truncated(response, "extract_qa_form", _MAX_TOKENS_QA_FORM)
@@ -982,12 +1035,10 @@ async def extract_entity_mentions(
             client,
             model=ANTHROPIC_MODEL,
             max_tokens=_MAX_TOKENS_ENTITY_MENTIONS,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"{ENTITY_MENTION_PROMPT}\n\n{content_text}",
-                }
-            ],
+            # Static prompt rides the cached system block; ONLY the
+            # per-document content_text is in the uncached suffix (ID-61.1).
+            system=_cached_system_block(ENTITY_MENTION_PROMPT),
+            messages=[{"role": "user", "content": content_text}],
         )
     )
     _guard_not_truncated(
