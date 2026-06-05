@@ -40,7 +40,9 @@
 #
 # HOST PREREQUISITES (operator — see docs/runbooks/onprem-b1-deploy.md §ID-62):
 #   - docker CLI access to the cocoindex compose stack.
-#   - A knowledge-hub repo checkout + `bun install` (the Vitest step runs from it).
+#   - A knowledge-hub repo checkout + `bun install` (the Vitest step runs from
+#     it, AND step 0b docker-cps its docs/testing fixture corpus into the
+#     container — the buildpack image does not carry the corpus).
 #   - A host env file (default /root/.kh-live-verify.env, NEVER committed) providing:
 #       NEXT_PUBLIC_SUPABASE_URL=…       # live Supabase project URL
 #       SUPABASE_SERVICE_ROLE_KEY=…      # live service-role key
@@ -77,6 +79,23 @@ WALK_PUMP_INTERVAL_SECS="${WALK_PUMP_INTERVAL_SECS:-30}"
 log() { printf '[live-verify] %s\n' "$*" >&2; }
 die() { log "FATAL: $*"; exit 1; }
 
+# Google-buildpack python env (S316 — verified live on B1). The onprem image is
+# a Google buildpack build: python3 lives at
+# /layers/google.python.runtime/python/bin/python3 and site-packages resolve
+# via the pip user-site at PYTHONUSERBASE=/layers/google.python.pip/pip. A bare
+# `docker exec … python3` exits 127 (the exec PATH omits the buildpack layers),
+# so EVERY `docker exec` in this script injects this env block.
+BUILDPACK_PYTHON_ENV=(
+  -e PYTHONUSERBASE=/layers/google.python.pip/pip
+  -e PATH=/layers/google.python.pip/pip/bin:/layers/google.python.runtime/python/bin:/usr/bin:/bin
+)
+
+# Where the buildpack image roots the app checkout inside the container.
+# verify_driver resolves its repo root two parents above its own module path
+# (<app-dir>/scripts/cocoindex_pipeline/verify_driver.py → <app-dir>), so the
+# fixture corpus seeded in step 0b must land under <app-dir>/docs/testing.
+COCOINDEX_APP_DIR="${COCOINDEX_APP_DIR:-/workspace}"
+
 # Resolve the cocoindex container (compose names drift across Coolify deploys,
 # so default to an image-name grep rather than a hard-coded container name).
 if [[ -z "${COCOINDEX_CONTAINER:-}" ]]; then
@@ -100,7 +119,7 @@ fi
 # ──────────────────────────────────────────────────────────────────────────
 
 container_health() {
-  docker exec "$COCOINDEX_CONTAINER" python3 -c "
+  docker exec "${BUILDPACK_PYTHON_ENV[@]}" "$COCOINDEX_CONTAINER" python3 -c "
 import urllib.request, sys
 with urllib.request.urlopen('http://127.0.0.1:${COCOINDEX_INTERNAL_PORT}/health', timeout=15) as r:
     sys.exit(0 if r.status == 200 else 1)
@@ -111,7 +130,7 @@ with urllib.request.urlopen('http://127.0.0.1:${COCOINDEX_INTERNAL_PORT}/health'
 # Exit 0 on 202 (accepted) AND on 409 (walk already in flight — pump-tolerable);
 # non-zero on 400/401/503/network failure.
 container_walk_post() {
-  docker exec "$COCOINDEX_CONTAINER" python3 -c "
+  docker exec "${BUILDPACK_PYTHON_ENV[@]}" "$COCOINDEX_CONTAINER" python3 -c "
 import json, os, sys, urllib.request, urllib.error
 req = urllib.request.Request(
     'http://127.0.0.1:${COCOINDEX_INTERNAL_PORT}/walk',
@@ -140,12 +159,35 @@ log "preflight: /health probe (loopback, in-container)"
 container_health || die "/health probe failed — sidecar not healthy; aborting before any stage/walk"
 
 # ──────────────────────────────────────────────────────────────────────────
+# Step 0b — seed the fixture corpus into the container (docker cp).
+#
+# The buildpack image packages ONLY scripts/ + requirements.txt — the committed
+# docs/testing/test-data/** fixture corpus is NOT in the image (verified live
+# on B1, S316). verify_driver reads its fixture bytes repo-relative INSIDE the
+# container, so without this seed it exits non-zero and the script dies
+# pre-walk. Ratified mechanism (option a, S318): docker-cp the corpus from the
+# host checkout — no image change, no compose change.
+#
+# Idempotence: the `/.` source suffix copies the CONTENTS of docs/testing into
+# the destination dir, so re-runs overwrite in place. (A bare
+# `docker cp docs/testing <c>:…/docs/testing` would NEST a second testing/
+# level on re-run — do not "simplify" this form.)
+# ──────────────────────────────────────────────────────────────────────────
+
+[[ -d "${KH_REPO_DIR}/docs/testing" ]] || die "fixture corpus not found at ${KH_REPO_DIR}/docs/testing — is KH_REPO_DIR a full checkout?"
+log "step 0b: seeding fixture corpus → ${COCOINDEX_CONTAINER}:${COCOINDEX_APP_DIR}/docs/testing (docker cp)"
+docker exec "${BUILDPACK_PYTHON_ENV[@]}" "$COCOINDEX_CONTAINER" mkdir -p "${COCOINDEX_APP_DIR}/docs/testing" \
+  || die "could not create ${COCOINDEX_APP_DIR}/docs/testing in the container"
+docker cp "${KH_REPO_DIR}/docs/testing/." "${COCOINDEX_CONTAINER}:${COCOINDEX_APP_DIR}/docs/testing" \
+  || die "docker cp of the fixture corpus failed"
+
+# ──────────────────────────────────────────────────────────────────────────
 # Step 1 — verify driver stages the fixture set (stage-only by design, {62.7}).
 # A non-zero driver exit fails HERE — before the walk and before Vitest.
 # ──────────────────────────────────────────────────────────────────────────
 
 log "step 1: verify driver staging fixture set '${FIXTURE_SET}' (loopback /stage)"
-if ! docker exec "$COCOINDEX_CONTAINER" python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures "$FIXTURE_SET"; then
+if ! docker exec "${BUILDPACK_PYTHON_ENV[@]}" "$COCOINDEX_CONTAINER" python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures "$FIXTURE_SET"; then
   die "verify driver exited non-zero — failing BEFORE the Vitest step (ID-62 {62.9})"
 fi
 
