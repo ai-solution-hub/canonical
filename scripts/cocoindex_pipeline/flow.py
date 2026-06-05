@@ -1624,7 +1624,14 @@ async def _ingest_file_body(
     resolution + local ContextVar re-bind (which must happen on the daemon
     thread) and this body owns the actual convert → extract → declare-rows work.
     `op_id` + `stage_counter` are already resolved; `flow_workspace_manifest` is
-    the explicit Path-B manifest arg (preferred over the ContextVar read below).
+    the explicit Path-B manifest arg (preferred over the ContextVar read in the
+    form branch).
+
+    ID-80.7 (80.2 §B.3): this body is now the DISPATCHER. It derives
+    `rel_path`, bumps `source_walk`, then runs `_ingest_content_branch`
+    (ci/qa/sd/em/cc targets only) THEN `_ingest_form_branch` (ft/ftf targets
+    only) — today's pre-split order, bit-identical behaviour. The route fork
+    (one branch per file via the manifest `route`) is {80.8}'s change.
     """
 
     def _bump(stage: str, times: int = 1) -> None:
@@ -1651,6 +1658,52 @@ async def _ingest_file_body(
     # Inv-17: one source item walked + handed to this component per invocation.
     _bump("source_walk")
 
+    # ── ID-80.7 (80.2 §B.3): branch bodies extracted. TODAY the dispatcher
+    # runs the content branch THEN the form branch unconditionally — the exact
+    # pre-split order, bit-identical behaviour. The route fork (manifest
+    # `resolve_route` → exactly ONE branch per file) lands in {80.8}, NOT here.
+    await _ingest_content_branch(
+        file,
+        rel_path,
+        ci_target,
+        qa_target,
+        sd_target,
+        em_target,
+        cc_target,
+        op_id=op_id,
+        _bump=_bump,
+    )
+    await _ingest_form_branch(
+        file,
+        rel_path,
+        ft_target,
+        ftf_target,
+        op_id=op_id,
+        _bump=_bump,
+        flow_workspace_manifest=flow_workspace_manifest,
+        flow_context_module=flow_context_module,
+    )
+
+
+async def _ingest_content_branch(
+    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    rel_path: str,
+    ci_target: Any,
+    qa_target: Any,
+    sd_target: Any,
+    em_target: Any,
+    cc_target: Any,
+    *,
+    op_id: "uuid.UUID",
+    _bump: Any,
+) -> None:
+    """Path-A content branch — Stage 2→6 (ID-80.7 extraction, 80.2 §B.3).
+
+    Extracted verbatim from `_ingest_file_body`. Touches ONLY the ci/qa/sd/em/cc
+    targets — it NEVER touches `ft_target` / `ftf_target`. `_bump` is the
+    dispatcher's stage-counter closure, threaded through unchanged so the
+    Inv-17 stage-count semantics do not shift.
+    """
     # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
     content_text = await convert_binary_to_markdown(file)
     # Inv-17: one binary→markdown conversion completed for this item.
@@ -1920,6 +1973,28 @@ async def _ingest_file_body(
         )
         _bump("postgres_upsert")  # Inv-17: one entity_mentions row upsert
 
+
+async def _ingest_form_branch(
+    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    rel_path: str,
+    ft_target: Any,
+    ftf_target: Any,
+    *,
+    op_id: "uuid.UUID",
+    _bump: Any,
+    flow_workspace_manifest: Any,
+    flow_context_module: Any,
+) -> None:
+    """Path-B form branch — pipeline-owned form-template write (ID-80.7, 80.2 §B.3).
+
+    Extracted verbatim from `_ingest_file_body`. Touches ONLY `ft_target` /
+    `ftf_target` — it NEVER touches the ci/qa/sd/em/cc targets. Keeps,
+    unchanged: the workspace-manifest gate, the `UnmappedPath` soft-warn and
+    `ResolutionFailure` loud handling, the `extract_form_structure` raw-bytes
+    call, the `FormExtractionError` → `analysis_failed` row, the Inv-17
+    graceful-empty path, and the `_trim_stale_form_fields` trim. `_bump` is
+    the dispatcher's stage-counter closure, threaded through unchanged.
+    """
     # ── ID-52 Path B: pipeline-owned form-template write (TECH §2.5) ─────────
     # ID-69 / {66.22} (S297) — architectural boundary: everything ABOVE
     # (content_items / source_documents / content_chunks / q_a_extractions /
@@ -1954,6 +2029,13 @@ async def _ingest_file_body(
         return
 
     suffix = file.file_path.path.suffix.lower()
+
+    # ID-80.7: the SAME deterministic per-document uuid5 the content branch
+    # seeds (a pure function of rel_path — no clock, no I/O), recomputed here
+    # ONLY for error-log attribution (the UnmappedPath soft-warn and the
+    # ResolutionFailure / FormExtractionError stage_error events below). No
+    # form-branch row write uses it, so the two branches stay decoupled.
+    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
 
     # TECH §2.5 step 1: resolve the workspace BEFORE extraction. A resolution
     # failure produces ZERO form_templates + ZERO form_template_fields rows
