@@ -45,6 +45,25 @@ const EMBEDDING_MODEL = 'text-embedding-3-large';
 const EMBEDDING_DIMENSIONS = 1024;
 
 /**
+ * Non-NULL `template_version` sentinel ({52.22} design §2.2). The natural key
+ * `(template_name, template_version, section_ref, question_number)` backs the
+ * `form_template_requirements_unique_section` UNIQUE constraint, which is
+ * plain `NULLS DISTINCT` — a NULL `template_version` would defeat
+ * `ON CONFLICT` and silently duplicate rows on re-run. Emitting this sentinel
+ * keeps every key column non-NULL, aligning with
+ * `scripts/catalogue-standard-sq.ts` (which always sets a non-null version).
+ */
+export const DEFAULT_TEMPLATE_VERSION = 'v1';
+
+/**
+ * The four natural-key columns of the live
+ * `form_template_requirements_unique_section` UNIQUE constraint — the
+ * `onConflict` target that makes the catalogue write idempotent ({52.22}).
+ */
+const CATALOGUE_CONFLICT_TARGET =
+  'template_name,template_version,section_ref,question_number';
+
+/**
  * The CHECK-constrained `requirement_type` value set. Plain strings on the
  * row (the column is `string`), but the classifier must choose one of these.
  */
@@ -271,6 +290,90 @@ export async function generateRequirementEmbedding(
   return data.data[0].embedding;
 }
 
+// ── Conditional embedding recompute ({52.22} design §3.2) ───────────────────
+
+/** Outcome of the conditional embedding resolution for one candidate row. */
+export interface ResolvedEmbedding {
+  embedding: number[] | null;
+  /** True when the stored embedding was reused (no embed call made). */
+  reused: boolean;
+}
+
+/**
+ * Resolve the `requirement_embedding` for a candidate catalogue row,
+ * recomputing only when the requirement text changed ({52.22} design §3.2).
+ *
+ * Reads the existing catalogue row for the natural key
+ * `(template_name, template_version, section_ref, question_number)`. If a row
+ * exists and its `requirement_text` equals the candidate text (the
+ * deterministic, human-authored change signal — NOT the LLM-derived
+ * keyword-augmented embed input), the stored vector is reused and the OpenAI
+ * call is skipped. Otherwise (no row, changed text, unusable stored vector,
+ * or a failed pre-read) the embedding is recomputed via `embedFn`.
+ *
+ * The natural-key derivation mirrors `buildCatalogueRow` exactly
+ * (`section_ref` = `section_name ?? 'General'`, `question_number` =
+ * `sequence`, version defaults to the non-NULL sentinel) so the pre-read and
+ * the subsequent UPSERT target the same row.
+ */
+export async function resolveRequirementEmbedding(args: {
+  supabase: SupabaseClient<Database>;
+  field: FormTemplateField;
+  templateName: string;
+  templateVersion?: string | null;
+  /** The embed-input text used if a recompute is needed. */
+  embedText: string;
+  /** Injectable for tests; defaults to the real OpenAI embed call. */
+  embedFn?: (text: string) => Promise<number[]>;
+}): Promise<ResolvedEmbedding> {
+  const { supabase, field, templateName, embedText } = args;
+  const embedFn = args.embedFn ?? generateRequirementEmbedding;
+  const candidateText = field.question_text ?? '';
+
+  const existing = await tryQuery<Pick<
+    Tables<'form_template_requirements'>,
+    'requirement_text' | 'requirement_embedding'
+  > | null>(
+    supabase
+      .from('form_template_requirements')
+      .select('requirement_text, requirement_embedding')
+      .eq('template_name', templateName)
+      .eq('template_version', args.templateVersion ?? DEFAULT_TEMPLATE_VERSION)
+      .eq('section_ref', field.section_name ?? 'General')
+      .eq('question_number', field.sequence)
+      .maybeSingle(),
+    'form_template_requirements.byNaturalKey',
+  );
+
+  if (!existing.ok) {
+    // The pre-read is an optimisation; a failed read falls back to the
+    // always-correct (if wasteful) recompute path. Logged, not silent.
+    logger.warn(
+      { err: existing.error, requirement: candidateText },
+      '[catalogue:from-instance] natural-key pre-read failed — recomputing embedding',
+    );
+  } else if (
+    existing.data &&
+    existing.data.requirement_text === candidateText &&
+    typeof existing.data.requirement_embedding === 'string'
+  ) {
+    try {
+      const parsed = JSON.parse(existing.data.requirement_embedding) as unknown;
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed.every((v): v is number => typeof v === 'number')
+      ) {
+        return { embedding: parsed, reused: true };
+      }
+    } catch {
+      // Unparsable stored vector — fall through to recompute.
+    }
+  }
+
+  return { embedding: await embedFn(embedText), reused: false };
+}
+
 // ── Build the catalogue row (Inv-22 read shape; Inv-23 no workspace_id) ─────
 
 /**
@@ -291,7 +394,9 @@ export function buildCatalogueRow(args: {
   return {
     template_name: templateName,
     template_type: templateType,
-    template_version: args.templateVersion ?? null,
+    // Never NULL — a NULL key member defeats the natural-key ON CONFLICT
+    // ({52.22} design §2.2; NULLS DISTINCT semantics on the constraint).
+    template_version: args.templateVersion ?? DEFAULT_TEMPLATE_VERSION,
     section_ref: field.section_name ?? 'General',
     section_name: field.section_name ?? 'General',
     question_number: field.sequence,
@@ -363,9 +468,10 @@ export interface ConfirmAndWriteArgs {
  * The human-confirmed catalogue write. Enforces the auth gate FIRST (Inv-24):
  * if the caller is not admin/editor, NO row is written and the whole step is
  * refused. Then, per row, the `confirmRow` callback must return `true`
- * (Inv-21) before the row is inserted via `tryQuery()` (no silent Supabase
- * failures). Each insert is its own statement; a failed row is recorded and
- * the remaining rows continue.
+ * (Inv-21) before the row is UPSERTed on the natural key via `tryQuery()`
+ * (no silent Supabase failures; idempotent re-runs per {52.22}). Each write
+ * is its own statement; a failed row is recorded and the remaining rows
+ * continue.
  */
 export async function confirmAndWriteCatalogue(
   args: ConfirmAndWriteArgs,
@@ -398,16 +504,24 @@ export async function confirmAndWriteCatalogue(
       continue;
     }
 
-    const insertResult = await tryQuery(
-      supabase.from('form_template_requirements').insert(row),
-      'form_template_requirements.insert',
+    // UPSERT on the natural key ({52.22}): a re-run over the same instance
+    // UPDATEs the existing row in place (zero net new rows) instead of
+    // raising 23505. The existing row's `id` is preserved, so the
+    // `bid_questions.template_requirement_id` FK survives re-cataloguing;
+    // `created_at` is not in the row, so the DB default only fires on INSERT.
+    const upsertResult = await tryQuery(
+      supabase.from('form_template_requirements').upsert(row, {
+        onConflict: CATALOGUE_CONFLICT_TARGET,
+        ignoreDuplicates: false,
+      }),
+      'form_template_requirements.upsert',
     );
-    if (!insertResult.ok) {
+    if (!upsertResult.ok) {
       failed += 1;
-      errors.push(insertResult.error.message);
+      errors.push(upsertResult.error.message);
       logger.error(
-        { err: insertResult.error, requirement: row.requirement_text },
-        '[catalogue:from-instance] row insert failed',
+        { err: upsertResult.error, requirement: row.requirement_text },
+        '[catalogue:from-instance] row upsert failed',
       );
       continue;
     }

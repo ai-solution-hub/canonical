@@ -70,8 +70,13 @@ flow:
    Supabase vector param.
 4. **Confirm** — each candidate row is printed to stdout and the script HALTS
    pending an explicit `y/n` per row. Declined rows are not written (Inv-21).
-5. **Write** — confirmed rows are inserted into `form_template_requirements` via
-   `tryQuery()` (per-row insert), but only after the auth gate passes.
+5. **Write** — confirmed rows are written to `form_template_requirements` via
+   `tryQuery()` (per-row write), but only after the auth gate passes.
+
+Re-runs UPSERT on the natural key
+`(template_name, template_version, section_ref, question_number)` — row `id`s
+are preserved and unchanged-text embeddings reused, so re-cataloguing the same
+instance is safe and idempotent ({52.22}).
 
 ## Auth gate (Inv-24)
 

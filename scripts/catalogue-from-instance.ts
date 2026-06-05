@@ -32,7 +32,7 @@ import type { Database } from '@/supabase/types/database.types';
 import {
   readInstanceFields,
   classifyField,
-  generateRequirementEmbedding,
+  resolveRequirementEmbedding,
   buildCatalogueRow,
   confirmAndWriteCatalogue,
   type CatalogueRowInsert,
@@ -211,19 +211,35 @@ async function main(): Promise<void> {
   console.log(`  Read ${fields.length} fields. Classifying + embedding...`);
 
   // ── Classify + embed each field into a candidate row ──
+  // Embedding recompute is conditional ({52.22} design §3.2): when the
+  // catalogue already holds a row for this natural key with unchanged
+  // requirement text, the stored vector is reused (no OpenAI call); the row
+  // is still UPSERTed so other changed fields update.
   const rows: CatalogueRowInsert[] = [];
+  let reusedEmbeddings = 0;
   for (const field of fields) {
     const classification = await classifyField(anthropic, field);
     const embedText = `${field.question_text ?? ''}\n\nKeywords: ${classification.matching_keywords.join(', ')}`;
-    const embedding = await generateRequirementEmbedding(embedText);
+    const resolved = await resolveRequirementEmbedding({
+      supabase,
+      field,
+      templateName: template.name,
+      embedText,
+    });
+    if (resolved.reused) reusedEmbeddings += 1;
     rows.push(
       buildCatalogueRow({
         field,
         classification,
-        embedding,
+        embedding: resolved.embedding,
         templateName: template.name,
         templateType: resolvedType,
       }),
+    );
+  }
+  if (reusedEmbeddings > 0) {
+    console.log(
+      `  Reused ${reusedEmbeddings} stored embedding(s) (requirement text unchanged).`,
     );
   }
 
