@@ -130,14 +130,14 @@ adding or modifying UI elements.
 | Skill routing map    | `docs/reference/skill-routing-map.md`                                       |
 | CI runbook           | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
 | Session handoffs     | `docs/continuation-prompts/`                                                |
-| Codebase mapping     | `.planning/codebase/`                                                       |
 | Runbooks             | `docs/runbooks/` — local-development, staging-refresh, github-environments  |
 
 Full inventory of all reference docs: `docs/reference/documentation-inventory.md`
 
-Historical planning: `.planning/.archive/{doc-type}` (`.specs/`, `.audits/`, `.research/`,
-`.coninuation-prompts/` etc.) Grep explicitly when researching past decisions; treat as
-point-in-time snapshots.
+Historical planning: relocated to the `knowledge-hub-archive` cold-storage repo (sibling
+checkout; formerly `.planning/.archive/`). Grep there explicitly when researching past
+decisions; treat as point-in-time snapshots. Codebase mapping (`.planning/codebase/`) is
+retired — GitNexus + ast-dataflow supersede it (S294).
 
 ## Spec directory convention (ID-48.4)
 
@@ -268,7 +268,7 @@ Mempalace MCP server is the canonical memory system.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (49632 symbols, 71745 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **knowledge-hub**. Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
