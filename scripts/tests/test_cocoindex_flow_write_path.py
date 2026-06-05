@@ -1121,8 +1121,14 @@ def _stub_path_a(flow: object, monkeypatch: "pytest.MonkeyPatch") -> None:
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 
-def _make_manifest(flow: object, prefix: str, workspace_id: "uuid.UUID"):
-    """Build a real WorkspaceManifest mapping ``prefix`` → ``workspace_id``."""
+def _make_manifest(
+    flow: object, prefix: str, workspace_id: "uuid.UUID", *, route: str = "content"
+):
+    """Build a real WorkspaceManifest mapping ``prefix`` → ``workspace_id``.
+
+    ID-80.8: the per-prefix ``route`` tag is the fork discriminator — form-write
+    tests pass ``route="forms"`` so the file takes the form branch (the default
+    ``"content"`` keeps every other prefix on Path-A, 80.2 §B.2)."""
     from scripts.cocoindex_pipeline.workspace_resolver import (
         WorkspaceManifest,
         WorkspaceMapping,
@@ -1130,7 +1136,11 @@ def _make_manifest(flow: object, prefix: str, workspace_id: "uuid.UUID"):
 
     return WorkspaceManifest(
         schema_version=1,
-        mappings=[WorkspaceMapping(path_prefix=prefix, workspace_id=workspace_id)],
+        mappings=[
+            WorkspaceMapping(
+                path_prefix=prefix, workspace_id=workspace_id, route=route
+            )
+        ],
     )
 
 
@@ -1212,7 +1222,10 @@ class TestFormWriteSuccessPath:
         _spy_trim(flow, monkeypatch)
 
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
 
         # Stage the form on disk; the logical rel_path is under the mapped
         # prefix so resolution succeeds.
@@ -1287,7 +1300,10 @@ class TestFormWriteSuccessPath:
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         src = tmp_path / "no-title.pdf"
         src.write_bytes(b"%PDF stub")
         fake_file = _FakeFormFile("acme/no-title.pdf", src)
@@ -1327,7 +1343,10 @@ class TestFormWriteGracefulEmptyProvenance:
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         src = tmp_path / "zero-archetype.xlsx"
         src.write_bytes(b"PK\x03\x04 stub xlsx bytes")
         rel_path = "acme/zero-archetype.xlsx"
@@ -1381,7 +1400,10 @@ class TestFormWriteGracefulEmptyProvenance:
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         src = tmp_path / "zero-with-method.xlsx"
         src.write_bytes(b"PK\x03\x04 stub")
         fake_file = _FakeFormFile("acme/zero-with-method.xlsx", src)
@@ -1429,7 +1451,10 @@ class TestFormWriteSkipAndFailurePaths:
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         src = tmp_path / "legacy.xls"
         src.write_bytes(b"\xd0\xcf\x11\xe0")
         fake_file = _FakeFormFile("acme/legacy.xls", src)
@@ -1452,7 +1477,10 @@ class TestFormWriteSkipAndFailurePaths:
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         src = tmp_path / "corrupt.pdf"
         src.write_bytes(b"not a pdf")
         rel_path = "acme/corrupt.pdf"
@@ -1689,7 +1717,10 @@ class TestFormWriteIdempotency:
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         src = tmp_path / "stable-form.pdf"
         src.write_bytes(b"%PDF stable")
         fake_file = _FakeFormFile("acme/stable-form.pdf", src)
@@ -1718,7 +1749,10 @@ class TestFormWriteIdempotency:
         _stub_path_a(flow, monkeypatch)
 
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         src = tmp_path / "shrink-form.pdf"
         src.write_bytes(b"%PDF shrink")
         rel_path = "acme/shrink-form.pdf"

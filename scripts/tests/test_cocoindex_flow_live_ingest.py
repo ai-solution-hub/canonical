@@ -292,24 +292,24 @@ def _run_app_main_over_dir(
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
-    # ── Stub the Path-B form-write boundary: this .md resolves to a workspace
-    # via the manifest but is NOT a form-bearing file, so extract_form_structure
-    # returns None and the form-write block returns AFTER proving it RAN (i.e.
-    # current_workspace_manifest() was non-None on the worker thread). We assert
-    # the form-write path executed by spying on resolve_workspace.
+    # ── Spy the ID-80.8 fork's workspace resolution: this .md resolves to a
+    # workspace via the manifest (default route:"content" → the content
+    # branch). The fork's `resolve_route` call is the proof the manifest
+    # reached the worker thread (pre-{80.8} this spied `resolve_workspace`
+    # inside the form-write block; the fork now resolves ONCE, up front).
     resolve_calls: list[str] = []
-    real_resolve = flow.resolve_workspace
+    real_resolve = flow.resolve_route
 
     def _spy_resolve(manifest, rel_path):
         resolve_calls.append(rel_path)
         return real_resolve(manifest, rel_path)
 
-    monkeypatch.setattr(flow, "resolve_workspace", _spy_resolve)
+    monkeypatch.setattr(flow, "resolve_route", _spy_resolve)
     targets.setdefault("_resolve_calls", resolve_calls)  # type: ignore[arg-type]
 
     async def _fake_form_structure(file: object):
-        # Not a form-bearing file — the form-write block resolves the workspace
-        # (proving the manifest reached the worker thread) then returns None.
+        # Defensive: a route:"content" file must never reach the form branch
+        # (ID-80.8 structural mutual exclusion); returns None if it ever does.
         return None
 
     monkeypatch.setattr(flow, "extract_form_structure", _fake_form_structure)
@@ -404,15 +404,16 @@ def _write_workspace_manifest(source_dir: Path, prefix: str, workspace_id: uuid.
 
 
 class TestLiveIngestAcrossDaemonThreadBoundary:
-    """``app_main`` lands a correctly-stamped row + non-zero stage_counts + a
-    Path-B form write when ``ingest_file`` runs on the engine's daemon thread.
+    """``app_main`` lands a correctly-stamped row + non-zero stage_counts + the
+    ID-80.8 fork's workspace resolution when ``ingest_file`` runs on the
+    engine's daemon thread.
 
     This is the regression that bites the ID-66.19 bug: the per-item component
     runs on a SEPARATE thread+loop, so contextvar bindings set by ``app_main``
     do NOT reach ``ingest_file`` unless the run context is threaded explicitly
     (Option A: functools.partial args + local re-bind)."""
 
-    def test_app_main_live_lands_row_with_op_id_and_form_write(
+    def test_app_main_live_lands_row_with_op_id_and_fork_resolution(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
@@ -462,12 +463,12 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
         )
         assert len(sd.rows) == 1 and sd.rows[0]["op_id"] == run_op_id
 
-        # (b) The Path-B form-write block RAN on the worker thread — proven by
-        # resolve_workspace being called with the .md rel_path (only reachable
-        # when current_workspace_manifest() was non-None there). On current main
-        # ingest_file never reaches the form-write block (it raised earlier).
+        # (b) The ID-80.8 fork's workspace resolution RAN on the worker thread
+        # — proven by resolve_route being called with the .md rel_path (only
+        # reachable when the manifest was non-None there). On current main
+        # ingest_file never reaches the fork (it raised earlier).
         assert "doc-one.md" in resolve_calls, (
-            "the Path-B form-write block must run (resolve_workspace called) — "
+            "the fork's workspace resolution must run (resolve_route called) — "
             "proves the workspace manifest reached ingest_file across the "
             "daemon-thread boundary"
         )

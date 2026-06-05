@@ -192,7 +192,9 @@ class _FakeFormFile:
         return hashlib.sha256(self._disk.read_bytes()).digest()
 
 
-def _make_manifest(flow: object, prefix: str, workspace_id: uuid.UUID):
+def _make_manifest(
+    flow: object, prefix: str, workspace_id: uuid.UUID, *, route: str = "content"
+):
     from scripts.cocoindex_pipeline.workspace_resolver import (
         WorkspaceManifest,
         WorkspaceMapping,
@@ -200,7 +202,11 @@ def _make_manifest(flow: object, prefix: str, workspace_id: uuid.UUID):
 
     return WorkspaceManifest(
         schema_version=1,
-        mappings=[WorkspaceMapping(path_prefix=prefix, workspace_id=workspace_id)],
+        mappings=[
+            WorkspaceMapping(
+                path_prefix=prefix, workspace_id=workspace_id, route=route
+            )
+        ],
     )
 
 
@@ -274,7 +280,10 @@ class TestFormWriteRealExtractorEndToEnd:
         )
 
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork takes the form branch (the
+        # pre-fork dispatcher ran the form block for every manifest-active
+        # file; the ratified fork requires the explicit route tag).
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         rel_path = "acme/corrupt.pdf"
         fake_file = _FakeFormFile(rel_path, _CORRUPT_PDF)
 
@@ -328,12 +337,20 @@ class TestFormWriteRealExtractorEndToEnd:
             "the real FormExtractionError must surface a form_extraction stage error"
         )
 
-    def test_corrupt_pdf_failure_is_scoped_canonical_rows_still_land(
+    def test_corrupt_pdf_failure_is_scoped_and_lands_zero_content_rows(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Inv-17 batch-safety through the REAL extractor: the form-extraction
-        failure does not halt the per-item flow — the Path-A canonical rows
-        (content_items / source_documents) still land for the same file."""
+        failure does not halt the per-item flow (the call returns, it does not
+        raise) and the analysis_failed row records the failure.
+
+        ID-80.8 expectation change — RATIFIED OQ-80.2-A (Liam, S314,
+        05/06/2026): a forms-routed file lands ZERO content rows (no
+        content_items / source_documents / content_chunks / q_a_extractions /
+        entity_mentions); the minimal-provenance-row fallback is DROPPED.
+        Pre-fork, this test asserted the canonical Path-A rows landed for the
+        same file — that was the shared-path behaviour the {80.8} fork
+        eliminates (one file → one branch → one write-target set)."""
         flow = _flow_module()
         _stub_path_a(flow, monkeypatch)
 
@@ -343,7 +360,7 @@ class TestFormWriteRealExtractorEndToEnd:
         )
 
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         fake_file = _FakeFormFile("acme/corrupt.pdf", _CORRUPT_PDF)
 
         monkeypatch.setattr(flow, "_emit_stage_error_log", lambda **kw: None)
@@ -358,15 +375,26 @@ class TestFormWriteRealExtractorEndToEnd:
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_workspace_manifest(manifest):
+                    # Must NOT raise — Inv-17 scopes the FormExtractionError
+                    # per-file so the batch is not halted.
                     await flow.ingest_file(fake_file, ci, qa, sd, em, ft, ftf)
 
         asyncio.run(_exercise())
 
-        # The canonical Path-A rows landed (the form failure was scoped).
-        assert len(sd.rows) == 1, "source_documents row lands despite form failure"
-        assert len(ci.rows) == 1, "content_items row lands despite form failure"
-        # And the form path recorded the analysis_failed row (real extractor).
+        # ZERO content rows for the forms-routed file (OQ-80.2-A ratified).
+        assert sd.rows == [], (
+            "a forms-routed file must land ZERO source_documents rows "
+            "(OQ-80.2-A zero-content-rows, ratified 05/06/2026)"
+        )
+        assert ci.rows == [], (
+            "a forms-routed file must land ZERO content_items rows "
+            "(OQ-80.2-A zero-content-rows, ratified 05/06/2026)"
+        )
+        assert qa.rows == [] and em.rows == []
+        # The form path recorded the analysis_failed row (real extractor) —
+        # the failure is visible AND scoped (the batch continues).
         assert len(ft.rows) == 1 and ft.rows[0]["status"] == "analysis_failed"
+        assert ftf.rows == []
 
 
 # ── Deliverable C — maintenance-hazard guard for the raw DELETE ───────────────
@@ -427,7 +455,8 @@ class TestTrimDeleteColumnsMatchDeclaredSchema:
         monkeypatch.setattr(flow, "_trim_stale_form_fields", _fake_trim)
 
         ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws)
+        # ID-80.8: route="forms" so the fork reaches the form branch.
+        manifest = _make_manifest(flow, "acme/", ws, route="forms")
         # rel_path suffix .pdf so the (faked) extractor branch is the analysed
         # path; the on-disk bytes are never read because the extractor is faked.
         fake_file = _FakeFormFile("acme/has-fields.pdf", _CORRUPT_PDF)

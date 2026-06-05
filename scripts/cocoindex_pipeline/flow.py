@@ -131,10 +131,11 @@ from scripts.cocoindex_pipeline.form_extractors import extract_form_structure
 from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionError
 from scripts.cocoindex_pipeline.workspace_resolver import (
     ManifestLoadError,
+    Resolution,
     ResolutionFailure,
     UnmappedPath,
     load_workspace_manifest,
-    resolve_workspace,
+    resolve_route,
 )
 
 # ID-53 §P-1 (Inv-1). Stage-5 entity-resolution flow-scope post-pass. Imported
@@ -1202,6 +1203,14 @@ MIME_BY_SUFFIX: dict[str, str] = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
+# ID-80.8 (80.2 §B.3, candidate 5 — secondary suffix guard): a non-form suffix
+# under a `route:"forms"` manifest prefix is a manifest mis-wire (an operator
+# put content under a forms folder, or mis-tagged the prefix) and is surfaced
+# LOUDLY with zero rows. NB: HTML is not a form format — the form orchestrator
+# dispatches .pdf/.xlsx/.docx only, and the form_templates.mime_type CHECK
+# permits DOCX/PDF/XLSX.
+_NON_FORM_SUFFIXES: frozenset[str] = frozenset({".md", ".txt", ".html"})
+
 # ID-64.11 (S296): source_documents.mime_type is NOT NULL and the pipeline
 # ingests every type the Stage-2 adapters route (md/markdown/txt/html/htm in
 # addition to the pdf/docx/xlsx in MIME_BY_SUFFIX). This fallback covers the
@@ -1415,7 +1424,7 @@ def _to_source_relative(path: Path, source_path: Any) -> str:
     production (`/cocoindex-state/corpus/test/x.md`) despite the 1.0.3
     "relative to source base dir" docstring (observed wrong on the live smoke).
     The workspace-manifest prefixes (e.g. `test/`) are source-RELATIVE, so the
-    resolver (`resolve_workspace`) only matches the source-relative form; it is
+    resolver (`resolve_route`) only matches the source-relative form; it is
     also the stable seed for the deterministic per-document uuid5 PKs (portable
     across mount points / re-ingests). Returns the plain POSIX path when
     `source_path` is None (in-task unit-test callers) or when `path` is not
@@ -1624,14 +1633,26 @@ async def _ingest_file_body(
     resolution + local ContextVar re-bind (which must happen on the daemon
     thread) and this body owns the actual convert → extract → declare-rows work.
     `op_id` + `stage_counter` are already resolved; `flow_workspace_manifest` is
-    the explicit Path-B manifest arg (preferred over the ContextVar read in the
-    form branch).
+    the explicit Path-B manifest arg (preferred over the ContextVar read at the
+    fork below).
 
-    ID-80.7 (80.2 §B.3): this body is now the DISPATCHER. It derives
-    `rel_path`, bumps `source_walk`, then runs `_ingest_content_branch`
-    (ci/qa/sd/em/cc targets only) THEN `_ingest_form_branch` (ft/ftf targets
-    only) — today's pre-split order, bit-identical behaviour. The route fork
-    (one branch per file via the manifest `route`) is {80.8}'s change.
+    ID-80.8 (80.2 §B.1/§B.3): this body is the DISPATCHER and owns THE FORK.
+    It derives `rel_path`, bumps `source_walk`, resolves the manifest route
+    ONCE (`resolve_route` — a pure function of `rel_path` + manifest, so the
+    same file deterministically takes the same branch every run, 80.2 §B.6),
+    then runs EXACTLY ONE branch:
+
+      - `route == "forms"` → `_ingest_form_branch` (ft/ftf targets ONLY);
+      - otherwise          → `_ingest_content_branch` (ci/qa/sd/em/cc ONLY).
+
+    Mutual exclusion is structural — one file, one branch, one write-target
+    set. Route defaults to "content" when no manifest is active (Path-A-only
+    runs) or when no prefix owns the file (`UnmappedPath` — the bl-219 benign
+    soft-warn semantics, preserved at the fork). `AmbiguousResolution` (and
+    any future `ResolutionFailure` subtype) fails the file LOUDLY at the fork:
+    one `cocoindex.stage_error` and ZERO rows on every target — neither branch
+    runs. RATIFIED OQ-80.2-A (Liam, S314, 05/06/2026): forms land ZERO content
+    rows; OQ-80.2-B: the manifest per-prefix `route` tag IS the fork point.
     """
 
     def _bump(stage: str, times: int = 1) -> None:
@@ -1658,10 +1679,68 @@ async def _ingest_file_body(
     # Inv-17: one source item walked + handed to this component per invocation.
     _bump("source_walk")
 
-    # ── ID-80.7 (80.2 §B.3): branch bodies extracted. TODAY the dispatcher
-    # runs the content branch THEN the form branch unconditionally — the exact
-    # pre-split order, bit-identical behaviour. The route fork (manifest
-    # `resolve_route` → exactly ONE branch per file) lands in {80.8}, NOT here.
+    # ── THE FORK (ID-80.8, 80.2 §B.1/§B.3) — computed ONCE, BEFORE either
+    # write path runs. The manifest-presence gate that previously lived at the
+    # top of the form branch moves UP here: PREFER the explicit
+    # `flow_workspace_manifest` arg (threaded via the named closure in
+    # app_main — survives the daemon-thread dispatch, ID-66.19), FALL BACK to
+    # the ContextVar read for the in-task unit-test callers that bind it via
+    # `bind_workspace_manifest`.
+    manifest = flow_workspace_manifest
+    if manifest is None:
+        manifest = flow_context_module.current_workspace_manifest()
+
+    # Deterministic per-document uuid5 (a pure function of rel_path) used ONLY
+    # for error-log attribution on the fork failure paths below.
+    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
+
+    route = "content"  # default: no manifest active (Path-A-only runs)
+    resolution: Resolution | None = None
+    if manifest is not None:
+        try:
+            resolution = resolve_route(manifest, rel_path)
+            route = resolution.route
+        except UnmappedPath as exc:
+            # bl-219 preserved at the fork: no prefix owns this file — benign
+            # for file content. Soft-warn (WARNING, not a `cocoindex.stage_error`
+            # — Inv-26: that event is the companion to a *failed* invocation)
+            # and route down the content branch.
+            _emit_workspace_unmapped_warn(
+                op_id=op_id,
+                content_items_id=content_item_id,
+                error_message=str(exc),
+            )
+        except ResolutionFailure as exc:
+            # AmbiguousResolution (and any future subtype): a genuine manifest
+            # mis-wire. LOUD `cocoindex.stage_error` + ZERO rows on every
+            # target — neither branch runs. error_class is one of the six
+            # canonical PIPELINE_ERROR_CLASSES (the webhook route Zod-validates
+            # it); an ambiguous manifest prefix is an input-validation failure,
+            # so `extraction_validation_failed` is the canonical class.
+            _emit_stage_error_log(
+                op_id=op_id,
+                stage="workspace_resolution",
+                error_class="extraction_validation_failed",
+                content_items_id=content_item_id,
+                error_message=str(exc),
+            )
+            return
+
+    if route == "forms":
+        # `resolution` is always non-None here: "forms" is only reachable via
+        # a successful `resolve_route` (the defaults above are "content").
+        assert resolution is not None
+        await _ingest_form_branch(
+            file,
+            rel_path,
+            ft_target,
+            ftf_target,
+            op_id=op_id,
+            _bump=_bump,
+            resolution=resolution,
+        )
+        return
+
     await _ingest_content_branch(
         file,
         rel_path,
@@ -1672,16 +1751,6 @@ async def _ingest_file_body(
         cc_target,
         op_id=op_id,
         _bump=_bump,
-    )
-    await _ingest_form_branch(
-        file,
-        rel_path,
-        ft_target,
-        ftf_target,
-        op_id=op_id,
-        _bump=_bump,
-        flow_workspace_manifest=flow_workspace_manifest,
-        flow_context_module=flow_context_module,
     )
 
 
@@ -1982,97 +2051,70 @@ async def _ingest_form_branch(
     *,
     op_id: "uuid.UUID",
     _bump: Any,
-    flow_workspace_manifest: Any,
-    flow_context_module: Any,
+    resolution: Resolution,
 ) -> None:
-    """Path-B form branch — pipeline-owned form-template write (ID-80.7, 80.2 §B.3).
+    """Path-B form branch — pipeline-owned form-template write (ID-80.8, 80.2 §B.3).
 
-    Extracted verbatim from `_ingest_file_body`. Touches ONLY `ft_target` /
-    `ftf_target` — it NEVER touches the ci/qa/sd/em/cc targets. Keeps,
-    unchanged: the workspace-manifest gate, the `UnmappedPath` soft-warn and
-    `ResolutionFailure` loud handling, the `extract_form_structure` raw-bytes
-    call, the `FormExtractionError` → `analysis_failed` row, the Inv-17
-    graceful-empty path, and the `_trim_stale_form_fields` trim. `_bump` is
-    the dispatcher's stage-counter closure, threaded through unchanged.
+    Touches ONLY `ft_target` / `ftf_target` — it NEVER touches the ci/qa/sd/
+    em/cc targets. Reached EXCLUSIVELY via the `_ingest_file_body` fork when
+    the manifest tags the file's prefix `route:"forms"`, so workspace
+    resolution has already happened ONCE at the fork — `resolution` carries
+    the winning workspace; the manifest-presence gate and the duplicated
+    resolve call this branch used to own are gone (ID-80.8). Keeps,
+    unchanged: the `extract_form_structure` raw-bytes call, the
+    `FormExtractionError` → `analysis_failed` row, the Inv-17 graceful-empty
+    path, and the `_trim_stale_form_fields` trim. `_bump` is the dispatcher's
+    stage-counter closure, threaded through unchanged.
+
+    The forms route performs NO Stage-2 Markdown conversion and NO Anthropic
+    extraction passes — `extract_form_structure` reads the raw native bytes
+    (the Markdown run for forms was Path-A waste the fork eliminated).
+    RATIFIED OQ-80.2-A (Liam, S314, 05/06/2026): forms land ZERO content rows
+    (no content_items / source_documents / content_chunks / q_a_extractions /
+    entity_mentions); the minimal-provenance-row fallback is DROPPED. CAVEAT:
+    only BLANK form instruments route here (ID-52 Mode-3) — ANSWERED/completed
+    forms are knowledge containers and stay on the content branch via
+    `route:"content"` folder placement (the folder contract carries the
+    distinction; the suffix guard below is the loud backstop for mis-wires).
     """
     # ── ID-52 Path B: pipeline-owned form-template write (TECH §2.5) ─────────
-    # ID-69 / {66.22} (S297) — architectural boundary: everything ABOVE
-    # (content_items / source_documents / content_chunks / q_a_extractions /
-    # entity_mentions) is the CANONICAL, workspace-AGNOSTIC record layer.
-    # `content_items` has no workspace_id (ID-69 BI-1), and the
-    # `content_item_workspaces` M2M junction is DELIBERATELY not populated here:
-    # association is ID-69's job (operator-side in v1 via
-    # `app/api/items/[id]/workspaces`; ingest-side extended manifest in v1.1),
-    # and it gates the real non-TEST ID-45/T7 ingest, NOT this smoke. Only this
-    # Path-B form-write consumes a workspace_id (forms ARE workspace-scoped), so
-    # a workspace-resolution failure below can never affect the content writes
-    # above.
-    # This block is ADDITIVE and LAST in the body. It runs ONLY when a workspace
-    # manifest is active for this run (Path B); when none is (the Path-A-only
-    # content runs and their unit tests) the block is skipped entirely and the
-    # targets stay untouched.
-    #
-    # ID-66.19: PREFER the explicit `flow_workspace_manifest` arg (threaded via
-    # the named closure in app_main — survives the daemon-thread dispatch). FALL
-    # BACK to the ContextVar read for the in-task unit-test callers that bind it
-    # via `bind_workspace_manifest`. The ContextVar read alone returned None in
-    # production (daemon-thread non-propagation) → the form-write was silently
-    # skipped → form rows never landed.
-    #
-    # Inv-19 guard: the existing Path-A `q_a_extractions` write above is NOT
-    # touched — the form-write is a separate, additive write into
-    # `form_templates` / `form_template_fields`. The lossy-Path-A fix is ID-54.
-    manifest = flow_workspace_manifest
-    if manifest is None:
-        manifest = flow_context_module.current_workspace_manifest()
-    if manifest is None:
-        return
+    # ID-69 / {66.22} (S297) — architectural boundary: the content branch's
+    # targets (content_items / source_documents / content_chunks /
+    # q_a_extractions / entity_mentions) are the CANONICAL, workspace-AGNOSTIC
+    # record layer. `content_items` has no workspace_id (ID-69 BI-1), and the
+    # `content_item_workspaces` M2M junction is DELIBERATELY not populated
+    # here: association is ID-69's job (operator-side in v1 via
+    # `app/api/items/[id]/workspaces`; ingest-side extended manifest in v1.1).
+    # Only this Path-B form-write consumes a workspace_id (forms ARE
+    # workspace-scoped) — it arrives via `resolution` from the fork.
+    workspace_id = resolution.workspace_id
 
     suffix = file.file_path.path.suffix.lower()
 
-    # ID-80.7: the SAME deterministic per-document uuid5 the content branch
-    # seeds (a pure function of rel_path — no clock, no I/O), recomputed here
-    # ONLY for error-log attribution (the UnmappedPath soft-warn and the
-    # ResolutionFailure / FormExtractionError stage_error events below). No
-    # form-branch row write uses it, so the two branches stay decoupled.
+    # The SAME deterministic per-document uuid5 the content branch seeds (a
+    # pure function of rel_path — no clock, no I/O), recomputed here ONLY for
+    # error-log attribution (the suffix-guard and FormExtractionError
+    # stage_error events below). No form-branch row write uses it, so the two
+    # branches stay decoupled.
     content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
 
-    # TECH §2.5 step 1: resolve the workspace BEFORE extraction. A resolution
-    # failure produces ZERO form_templates + ZERO form_template_fields rows
-    # (no sentinel, no silent default — Inv-5) and the batch continues. bl-219
-    # splits the two failure modes:
-    #   - UnmappedPath (no prefix matches): benign for file content. The
-    #     workspace-agnostic canonical content already wrote ABOVE this block
-    #     (content_items / source_documents / chunks / q_a / entity_mentions —
-    #     ID-69 BI-1), and the invocation does NOT fail. So this is a WARNING
-    #     soft-warn, NOT a `cocoindex.stage_error` (Inv-26: that event is the
-    #     companion to a *failed* invocation — emitting it here would be a
-    #     false alarm).
-    #   - AmbiguousResolution (equal-length prefixes tie — and any future
-    #     ResolutionFailure subtype): a genuine manifest mis-wire. STAYS a loud
-    #     `cocoindex.stage_error`.
-    try:
-        workspace_id = resolve_workspace(manifest, rel_path)
-    except UnmappedPath as exc:
-        # Benign: content already wrote above; soft-warn and continue (bl-219).
-        _emit_workspace_unmapped_warn(
-            op_id=op_id,
-            content_items_id=content_item_id,
-            error_message=str(exc),
-        )
-        return
-    except ResolutionFailure as exc:
-        # Ambiguous (and any future subtype) stays loud. error_class is one of
-        # the six canonical PIPELINE_ERROR_CLASSES (the webhook route
-        # Zod-validates it); an ambiguous manifest prefix is an input-validation
-        # failure of the form-write precondition, so `extraction_validation_failed`
-        # is the canonical class.
+    # ── Secondary suffix guard (ID-80.8, 80.2 §B.3 candidate 5) ─────────────
+    # A non-form suffix (.md/.txt/.html) under a `route:"forms"` prefix is a
+    # manifest mis-wire (content placed in a forms folder, or a mis-tagged
+    # prefix) → surface LOUDLY, mirroring the AmbiguousResolution treatment at
+    # the fork: one `cocoindex.stage_error` + ZERO rows. This catches operator
+    # error early rather than silently producing an `analysis_failed` row.
+    if suffix in _NON_FORM_SUFFIXES:
         _emit_stage_error_log(
             op_id=op_id,
             stage="workspace_resolution",
             error_class="extraction_validation_failed",
             content_items_id=content_item_id,
-            error_message=str(exc),
+            error_message=(
+                f"manifest mis-wire: non-form suffix {suffix!r} under a "
+                f"route:'forms' prefix (rel_path={rel_path!r}) — content files "
+                "belong under a route:'content' prefix (80.2 §B.3)"
+            ),
         )
         return
 
@@ -2124,8 +2166,9 @@ async def _ingest_form_branch(
         return
 
     if extracted is None:
-        # Not a form-bearing file (or out-of-scope .xls already logged). The
-        # Path-A stages above already ran; leave the form targets untouched.
+        # Not a form-bearing file (or out-of-scope .xls already logged) —
+        # graceful fall-through: leave the form targets untouched and continue
+        # the batch (no content rows either — OQ-80.2-A zero-content-rows).
         return
 
     # TECH §2.5 step 3: declare the form_templates instance row (status

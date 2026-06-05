@@ -72,7 +72,8 @@ class ManifestLoadError(Exception):
 class ResolutionFailure(Exception):
     """Base class: a `rel_path` does not resolve to exactly one workspace.
 
-    Raised (via its two subclasses) by `resolve_workspace` when:
+    Raised (via its two subclasses) by `resolve_route` (and its
+    `resolve_workspace` shim) when:
       - no manifest mapping prefixes the `rel_path` (`UnmappedPath`), or
       - two or more equal-length manifest prefixes both match the
         `rel_path` (`AmbiguousResolution`).
