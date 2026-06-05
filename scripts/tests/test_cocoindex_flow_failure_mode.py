@@ -1018,3 +1018,170 @@ class TestTransient503RetryScenario:
         assert payload.get("retryCount") == 1
         # No errorClass on the happy-path retry scenario.
         assert "errorClass" not in payload
+
+
+# ============================================================================
+# bl-165 Option B — fine-grained Pydantic error-detail persistence (ID-61.4)
+# ============================================================================
+
+
+class TestPydanticErrorDetail:
+    """`_pydantic_error_detail()` builds the fine-grained detail object.
+
+    bl-165 Option B (ID-61.4): when a `pydantic.ValidationError` aborts the
+    flow, the terminal webhook additionally carries
+    `errorDetail = {"pydantic_class": <classify_pydantic_error(exc)>,
+    "stage": "flow"}` so `pipeline_runs.result.error_detail` makes the
+    failure classifiable in the ledger. The coarse Inv-25 `errorClass`
+    stays `extraction_validation_failed` — the fine class is a
+    SUB-classification, never a replacement.
+
+    The detail carries NO message text — only the fine class + stage — so
+    the Option-D PII-redaction guarantee (`_redact_error_message` applied
+    to `flow_error_message`) is preserved by construction: there is no
+    message surface in the detail to leak `input_value=` echoes through.
+    """
+
+    def _validation_error(self):
+        """Build a real ValidationError whose message echoes PII-shaped input."""
+        from pydantic import BaseModel, ValidationError
+
+        class _Probe(BaseModel):
+            required_field: str
+
+        try:
+            _Probe.model_validate(
+                {
+                    "other": "client-confidential text "
+                    "123e4567-e89b-42d3-a456-426614174000",
+                }
+            )
+        except ValidationError as exc:
+            return exc
+        raise AssertionError("Pydantic should have raised ValidationError")
+
+    def test_helper_function_is_exposed(self):
+        assert hasattr(flow, "_pydantic_error_detail")
+
+    def test_validation_error_yields_fine_class_and_flow_stage(self):
+        exc = self._validation_error()
+        detail = flow._pydantic_error_detail(exc)
+        # A missing required field maps to 'missing_required' per
+        # `_PYDANTIC_ERROR_TO_ERROR_CLASS` in extraction.py (the grounded
+        # codomain of classify_pydantic_error — single source of truth).
+        assert detail == {"pydantic_class": "missing_required", "stage": "flow"}
+
+    def test_coarse_class_stays_extraction_validation_failed(self):
+        # Inv-25: the 6-class stage-level vocabulary is untouched — the SAME
+        # exception still classifies coarse as extraction_validation_failed
+        # while the fine class rides the detail object alongside it.
+        exc = self._validation_error()
+        assert (
+            flow._classify_stage_exception(exc) == "extraction_validation_failed"
+        )
+        detail = flow._pydantic_error_detail(exc)
+        assert detail is not None
+        assert detail["pydantic_class"] == "missing_required"
+
+    def test_detail_carries_no_message_text_or_pii(self):
+        # Option-D regression guard: the serialised detail must contain no
+        # `input_value=` echo, no client content, and no UUID-shaped
+        # substring — the exception message itself echoes all three.
+        exc = self._validation_error()
+        # The leak vector is real: pydantic echoes the offending input via
+        # `input_value=` (long values are truncated, so assert on the
+        # prefix that survives truncation).
+        assert "input_value" in str(exc)
+        assert "client-confide" in str(exc)
+        detail = flow._pydantic_error_detail(exc)
+        assert detail is not None
+        assert set(detail.keys()) == {"pydantic_class", "stage"}
+        serialised = json.dumps(detail)
+        assert "input_value" not in serialised
+        assert "client-confide" not in serialised
+        assert "123e4567" not in serialised
+
+    def test_non_validation_error_returns_none(self):
+        # Non-pydantic failures carry no fine detail — the webhook omits
+        # the field entirely (never `errorDetail: null`).
+        assert flow._pydantic_error_detail(ValueError("boom")) is None
+        assert flow._pydantic_error_detail(RuntimeError("boom")) is None
+
+
+class TestErrorDetailWebhookEmission:
+    """`_emit_pipeline_run_webhook()` forwards `error_detail` as `errorDetail`.
+
+    Mirrors the TestRetryCountWebhookEmission cooperative-stub pattern. The
+    Vercel route's Zod schema accepts the field as an optional strict object
+    `{pydantic_class: <fine enum>, stage: string}` and composes it into
+    `pipeline_runs.result.error_detail` (ID-61.4).
+    """
+
+    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    SECRET = "test-cron-secret"
+
+    def setup_method(self):
+        active_session_cls = getattr(flow.aiohttp, "ClientSession", None)
+        if active_session_cls is not None and hasattr(
+            active_session_cls, "reset"
+        ):
+            active_session_cls.reset()
+
+    def _active_stub(self):
+        return getattr(flow.aiohttp, "ClientSession", None)
+
+    def _emit(self, **overrides):
+        env = {
+            "PIPELINE_RUN_WEBHOOK_URL": self.URL,
+            "CRON_SECRET": self.SECRET,
+        }
+        kwargs = {
+            "op_id": uuid.uuid4(),
+            "status": "failed",
+            "stage_counts": flow._empty_stage_counts(),
+            "items_processed": 0,
+            "items_created": [],
+            "error_message": "boom",
+            "error_class": "extraction_validation_failed",
+        }
+        kwargs.update(overrides)
+        with patch.dict(os.environ, env, clear=True):
+            asyncio.run(flow._emit_pipeline_run_webhook(**kwargs))
+        return getattr(self._active_stub(), "last_json", None)
+
+    def test_emit_includes_error_detail_when_provided(self):
+        active_session_cls = self._active_stub()
+        if active_session_cls is None or not hasattr(
+            active_session_cls, "last_json"
+        ):
+            import pytest  # noqa: PLC0415
+
+            pytest.skip(
+                "active aiohttp stub does not expose last_json — sibling "
+                "stub pattern not in residence under this test ordering"
+            )
+
+        detail = {"pydantic_class": "missing_required", "stage": "flow"}
+        payload = self._emit(error_detail=detail)
+        assert payload is not None
+        assert payload.get("errorDetail") == detail
+        # The coarse class rides alongside, unchanged (Inv-25).
+        assert payload.get("errorClass") == "extraction_validation_failed"
+
+    def test_emit_omits_error_detail_when_default(self):
+        # Non-pydantic failures pass `error_detail=None`; the payload must
+        # omit the field entirely so the Vercel route composes the result
+        # WITHOUT an `error_detail` key (no undefined/null leakage).
+        active_session_cls = self._active_stub()
+        if active_session_cls is None or not hasattr(
+            active_session_cls, "last_json"
+        ):
+            import pytest  # noqa: PLC0415
+
+            pytest.skip(
+                "active aiohttp stub does not expose last_json"
+            )
+
+        payload = self._emit()
+        assert payload is not None
+        assert "errorDetail" not in payload

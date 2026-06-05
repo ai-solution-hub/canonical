@@ -77,8 +77,10 @@ function makePayload(
     stageCounts: Record<string, number>;
     errorMessage: string;
     errorClass: string;
+    errorDetail: Record<string, unknown>;
     extractorVersion: string;
     retryCount: number;
+    taxonomyMisses: Record<string, number>;
   }> = {},
 ): Record<string, unknown> {
   return {
@@ -104,11 +106,17 @@ function makePayload(
     ...(overrides.errorClass !== undefined
       ? { errorClass: overrides.errorClass }
       : {}),
+    ...(overrides.errorDetail !== undefined
+      ? { errorDetail: overrides.errorDetail }
+      : {}),
     ...(overrides.extractorVersion !== undefined
       ? { extractorVersion: overrides.extractorVersion }
       : {}),
     ...(overrides.retryCount !== undefined
       ? { retryCount: overrides.retryCount }
+      : {}),
+    ...(overrides.taxonomyMisses !== undefined
+      ? { taxonomyMisses: overrides.taxonomyMisses }
       : {}),
   };
 }
@@ -540,5 +548,151 @@ describe('POST /api/internal/pipeline-runs/record — recordPipelineRun call sha
 
     const res = await POST(buildRequest() as never);
     expect(res.status).toBe(500);
+  });
+});
+
+describe('POST /api/internal/pipeline-runs/record — errorDetail (bl-165 Option B, ID-61.4)', () => {
+  beforeEach(resetMocks);
+
+  it('lands errorDetail inside result.error_detail alongside the coarse error_class', async () => {
+    // ID-61.4 acceptance: the fine classify_pydantic_error class rides the
+    // payload as `errorDetail` and persists into pipeline_runs.result as
+    // `result.error_detail`, WITHOUT displacing the coarse Inv-25 class in
+    // `result.error_class`.
+    await POST(
+      buildRequest({
+        body: makePayload({
+          status: 'failed',
+          errorMessage: 'extraction validation failed',
+          errorClass: 'extraction_validation_failed',
+          errorDetail: { pydantic_class: 'missing_required', stage: 'flow' },
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.error_detail).toEqual({
+      pydantic_class: 'missing_required',
+      stage: 'flow',
+    });
+    expect(result.error_class).toBe('extraction_validation_failed');
+  });
+
+  it('accepts every member of the pydantic fine vocabulary', async () => {
+    // Vocabulary source (grounded): the codomain of
+    // `_PYDANTIC_ERROR_TO_ERROR_CLASS` in
+    // scripts/cocoindex_pipeline/extraction.py (classify_pydantic_error).
+    // The route MUST accept every value the function can actually return —
+    // a 400 on the terminal failed-run webhook would lose the entire
+    // pipeline_runs row.
+    const fineClasses = [
+      'missing_required',
+      'invalid_enum',
+      'invalid_discriminator',
+      'unexpected_field',
+      'type_coercion',
+    ];
+
+    for (const pydanticClass of fineClasses) {
+      const payload = makePayload({
+        status: 'failed',
+        errorClass: 'extraction_validation_failed',
+        errorDetail: { pydantic_class: pydanticClass, stage: 'flow' },
+      });
+      const res = await POST(buildRequest({ body: payload }) as never);
+      expect(res.status, `pydantic_class=${pydanticClass} must parse`).toBe(
+        200,
+      );
+    }
+  });
+
+  it('rejects an unknown pydantic_class value with HTTP 400', async () => {
+    // The fine vocabulary is strict at the trust boundary — a drifting
+    // sidecar fails loudly with a 4xx rather than silently landing an
+    // unmapped class string in pipeline_runs.result.error_detail.
+    const payload = makePayload({
+      status: 'failed',
+      errorClass: 'extraction_validation_failed',
+      errorDetail: { pydantic_class: 'totally_made_up_class', stage: 'flow' },
+    });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+    expect(mockRecordPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects errorDetail missing the stage key with HTTP 400', async () => {
+    const payload = makePayload({
+      status: 'failed',
+      errorDetail: { pydantic_class: 'missing_required' },
+    });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('omits error_detail from result when errorDetail is absent (no undefined leakage)', async () => {
+    // Back-compat + no-silent-failure bar: the composed result must not
+    // synthesise an `error_detail: undefined` key when the sidecar does
+    // not send the field.
+    await POST(buildRequest({ body: makePayload() }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result).not.toHaveProperty('error_detail');
+  });
+});
+
+describe('POST /api/internal/pipeline-runs/record — taxonomyMisses (ID-63.8 Inv-7 rider)', () => {
+  beforeEach(resetMocks);
+
+  it('lands taxonomyMisses inside result.taxonomy_misses', async () => {
+    // flow.py emits `payload["taxonomyMisses"]` (per-field tally of
+    // out-of-taxonomy soft-warns, `_FlowTaxonomyMissCounter.tally_by_field()`
+    // → dict[str, int]). Before ID-61.4 the strict BodySchema silently
+    // stripped the key — the live ID-63.8 Inv-7 regression this fixes.
+    await POST(
+      buildRequest({
+        body: makePayload({
+          taxonomyMisses: { primary_domain: 2, primary_subtopic: 1 },
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.taxonomy_misses).toEqual({
+      primary_domain: 2,
+      primary_subtopic: 1,
+    });
+  });
+
+  it('lands an empty taxonomyMisses map verbatim (zero misses is meaningful)', async () => {
+    // ID-63.8 Inv-7 semantics: an empty dict at flow-end means
+    // "extractions ran, zero misses" — distinguishable from the field
+    // being omitted (flow-start emission, no extraction yet).
+    await POST(
+      buildRequest({ body: makePayload({ taxonomyMisses: {} }) }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.taxonomy_misses).toEqual({});
+  });
+
+  it('rejects negative miss counts with HTTP 400', async () => {
+    const payload = makePayload({ taxonomyMisses: { primary_domain: -1 } });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+  });
+
+  it('omits taxonomy_misses from result when taxonomyMisses is absent (no undefined leakage)', async () => {
+    await POST(buildRequest({ body: makePayload() }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result).not.toHaveProperty('taxonomy_misses');
   });
 });

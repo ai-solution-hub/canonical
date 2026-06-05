@@ -62,6 +62,26 @@ const PipelineStatusSchema = z.enum([
   'failed',
 ]);
 
+/**
+ * bl-165 Option B (ID-61.4): fine-grained Pydantic error vocabulary —
+ * the exact codomain of `classify_pydantic_error()` /
+ * `_PYDANTIC_ERROR_TO_ERROR_CLASS` in
+ * `scripts/cocoindex_pipeline/extraction.py` (grounded from the source, not
+ * the dispatch brief — the brief's `missing_field`/`literal_violation`
+ * names exist nowhere in the codebase). Strict enum at the trust boundary
+ * (mirrors `PipelineErrorClassSchema`): a drifting sidecar fails with HTTP
+ * 400 rather than silently landing an unmapped class string. This is a
+ * SUB-classification persisted into `result.error_detail` — the coarse
+ * Inv-25 `errorClass` stays the 6-class stage-level vocabulary, unchanged.
+ */
+const PydanticErrorClassSchema = z.enum([
+  'missing_required',
+  'invalid_enum',
+  'invalid_discriminator',
+  'unexpected_field',
+  'type_coercion',
+]);
+
 const BodySchema = z.object({
   /** cocoindex per-flow op_id — UUID v4 minted at flow construction. */
   opId: z.string().uuid(),
@@ -83,6 +103,20 @@ const BodySchema = z.object({
    * an unknown class. Source: `lib/pipeline/error-classes.ts`.
    */
   errorClass: PipelineErrorClassSchema.optional(),
+  /**
+   * bl-165 Option B (ID-61.4): fine-grained Pydantic failure detail emitted
+   * when a `pydantic.ValidationError` aborts the flow. Inner keys are
+   * snake_case because they persist verbatim into
+   * `pipeline_runs.result.error_detail`. Carries NO message text (the
+   * Option-D PII-redaction surface stays `errorMessage`), so nothing here
+   * needs redaction by construction.
+   */
+  errorDetail: z
+    .object({
+      pydantic_class: PydanticErrorClassSchema,
+      stage: z.string(),
+    })
+    .optional(),
   /** IMAGE_SHA from Cloud Build — Inv-8 forensic correlation key. */
   extractorVersion: z.string().optional(),
   /**
@@ -91,6 +125,19 @@ const BodySchema = z.object({
    * indicates a sidecar bug, rejected at the boundary).
    */
   retryCount: z.number().int().nonnegative().optional(),
+  /**
+   * ID-63.8 Inv-7 (rider on ID-61.4): per-field tally of out-of-taxonomy
+   * soft-warns — `_FlowTaxonomyMissCounter.tally_by_field()` in
+   * `scripts/cocoindex_pipeline/flow.py` emits `dict[str, int]` as
+   * `payload["taxonomyMisses"]` at flow end. Before ID-61.4 this strict
+   * schema silently stripped the key, so the tally never reached
+   * `pipeline_runs.result` (live Inv-7 regression). Empty map is meaningful:
+   * "extractions ran, zero misses" — distinguishable from the field being
+   * omitted entirely (flow-start emission).
+   */
+  taxonomyMisses: z
+    .record(z.string(), z.number().int().nonnegative())
+    .optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -126,8 +173,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     stageCounts,
     errorMessage,
     errorClass,
+    errorDetail,
     extractorVersion,
     retryCount,
+    taxonomyMisses,
   } = parsed.data;
 
   // Compose `pipeline_runs.result` (Inv-17 / Inv-8 / Inv-23 envelope).
@@ -138,7 +187,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   };
   if (extractorVersion) result.extractor_version = extractorVersion;
   if (errorClass) result.error_class = errorClass;
+  // bl-165 Option B (ID-61.4): fine Pydantic detail lands ALONGSIDE the
+  // coarse `error_class` — never in place of it. Key absent when the
+  // sidecar omits the field (no `error_detail: undefined` leakage).
+  if (errorDetail !== undefined) result.error_detail = errorDetail;
   if (retryCount !== undefined) result.retry_count = retryCount;
+  // ID-63.8 Inv-7: `!== undefined` (not truthy) — an empty map means
+  // "extractions ran, zero misses" and must land verbatim.
+  if (taxonomyMisses !== undefined) result.taxonomy_misses = taxonomyMisses;
 
   try {
     const supabase = createServiceClient();

@@ -91,6 +91,7 @@ from scripts.cocoindex_pipeline.canonicalisation import canonicalise_entity_name
 from scripts.cocoindex_pipeline.entity_context import extract_entity_context
 from scripts.cocoindex_pipeline.extraction import (
     TruncatedExtractionError,
+    classify_pydantic_error,
     extract_classification,
     extract_entity_mentions,
     extract_qa_form,
@@ -361,6 +362,43 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
         return "binary_conversion_failed"
 
     return None
+
+
+def _pydantic_error_detail(exc: BaseException) -> dict[str, str] | None:
+    """Build the fine-grained Pydantic error detail for the run record.
+
+    bl-165 Option B (ID-61.4): when a `pydantic.ValidationError` aborts the
+    flow, the coarse Inv-25 class (`extraction_validation_failed`, via
+    `_classify_stage_exception`) is too blunt for ledger triage. This helper
+    additionally maps the exception through `classify_pydantic_error()`
+    (extraction.py — single source of truth for the fine vocabulary:
+    missing_required / invalid_enum / invalid_discriminator /
+    unexpected_field / type_coercion) so the terminal webhook can carry
+
+      errorDetail = {"pydantic_class": <fine class>, "stage": "flow"}
+
+    which the Vercel route persists into `pipeline_runs.result.error_detail`
+    ALONGSIDE the unchanged coarse `result.error_class`.
+
+    PII (Option-D preservation): the detail deliberately carries NO message
+    text — only the fine class + stage — so there is no surface for pydantic
+    `input_value=` echoes or UUIDs to leak through. `_redact_error_message`
+    continues to guard the one message surface (`flow_error_message`).
+
+    Args:
+      exc: The captured flow-scope exception.
+
+    Returns:
+      The two-key detail dict for a `ValidationError`, or `None` for any
+      other exception type (the webhook then omits the field entirely).
+    """
+    try:
+        from pydantic import ValidationError as _PydanticValidationError
+    except ImportError:  # pragma: no cover — pydantic is required at runtime
+        return None
+    if not isinstance(exc, _PydanticValidationError):
+        return None
+    return {"pydantic_class": classify_pydantic_error(exc), "stage": "flow"}
 
 
 def _redact_error_message(msg: str, *, max_length: int = 200) -> str:
@@ -674,6 +712,7 @@ async def _emit_pipeline_run_webhook(
     items_created: list[str],
     error_message: str | None = None,
     error_class: str | None = None,
+    error_detail: dict[str, str] | None = None,
     extractor_version: str | None = None,
     retry_count: int | None = None,
     taxonomy_misses: dict[str, int] | None = None,
@@ -726,6 +765,11 @@ async def _emit_pipeline_run_webhook(
         payload["errorMessage"] = error_message
     if error_class is not None:
         payload["errorClass"] = error_class
+    # bl-165 Option B (ID-61.4): fine Pydantic detail rides ALONGSIDE the
+    # coarse errorClass — `None` omits the field entirely so the Vercel
+    # route composes `result` without an `error_detail` key.
+    if error_detail is not None:
+        payload["errorDetail"] = error_detail
     if extractor_version is not None:
         payload["extractorVersion"] = extractor_version
     # `retry_count=0` is meaningful (no-retry happy path) — use `is not None`
@@ -2243,6 +2287,9 @@ async def app_main() -> None:
     flow_status: PipelineRunStatus = "completed"
     flow_error_message: str | None = None
     flow_error_class: str | None = None
+    # bl-165 Option B (ID-61.4): fine-grained Pydantic detail — populated
+    # only when the captured exception is a pydantic ValidationError.
+    flow_error_detail: dict[str, str] | None = None
 
     try:
         # ── Stage 6 prep: mount the 3 row-level targets (managed_by=USER) ──
@@ -2461,6 +2508,13 @@ async def app_main() -> None:
         # Option D; mirrors the manifest-abort path redaction). The classify call
         # below reads the exception object, not this string, so it is unaffected.
         flow_error_message = _redact_error_message(str(exc))
+        # bl-165 Option B (ID-61.4): when the exception is a pydantic
+        # ValidationError, additionally capture the fine classify_pydantic_error
+        # class for `pipeline_runs.result.error_detail`. The coarse Inv-25
+        # class below stays `extraction_validation_failed` — unchanged. The
+        # detail carries no message text (PII-safe by construction; see
+        # `_pydantic_error_detail`).
+        flow_error_detail = _pydantic_error_detail(exc)
         classified = _classify_stage_exception(exc)
         if classified is not None:
             flow_error_class = classified
@@ -2542,6 +2596,7 @@ async def app_main() -> None:
             items_created=items_created,
             error_message=flow_error_message,
             error_class=flow_error_class,
+            error_detail=flow_error_detail,
             extractor_version=extractor_version,
             retry_count=flow_retry_counter.get(),
             taxonomy_misses=flow_taxonomy_miss_counter.tally_by_field(),
