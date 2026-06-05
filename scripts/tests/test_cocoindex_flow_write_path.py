@@ -1536,6 +1536,136 @@ class TestFormWriteSuccessPath:
         assert out["ft"].rows[0]["name"] == "no-title"  # file stem
 
 
+class TestFormWriteMemoHitRoundTrip:
+    """ID-80.13 (D2) — the form branch must declare the SAME row set when the
+    extraction arrives as a memo-HIT dict (REAL cocoindex serde round-trip)
+    as when it arrives as the live typed ``ExtractedForm``.
+
+    S316 live-smoke evidence: walk-2's memo HIT handed ``ingest_file`` a plain
+    dict (cocoindex deserialises with hint=Any because the orchestrator's
+    ``"FileLike"`` annotation is unresolvable at runtime) → ``.form_metadata``
+    AttributeError → ft/ftf rows never declared → cocoindex declared-target
+    reconciliation garbage-collected walk-1's rows (ft=0/ftf=0).
+
+    NB: the dict is produced by the REAL ``cocoindex._internal.serde``
+    serialise→deserialise pair — NOT by mocking the memo into returning the
+    live typed object, which is exactly why {80.10}'s idempotency sweep
+    missed this defect."""
+
+    @staticmethod
+    def _form_with_deadline(flow: object):
+        """A typed ExtractedForm whose ``deadline`` exercises the JSON-unstable
+        datetime crossing the memo boundary (the bl-220-class shape)."""
+        from datetime import datetime, timezone
+
+        from scripts.cocoindex_pipeline.form_extractors.shared import (
+            ExtractedField,
+            ExtractedForm,
+            FormMetadata,
+        )
+
+        return ExtractedForm(
+            form_metadata=FormMetadata(
+                form_type=_FORM_TYPE,
+                form_format="docx",
+                form_title="ITT Services",
+                issuing_organisation="Acme Council",
+                deadline=datetime(2026, 7, 1, 12, 0, 0, tzinfo=timezone.utc),
+                evaluation_methodology="MEAT 60/40",
+            ),
+            fields=[
+                ExtractedField(
+                    question_text="Describe your approach",
+                    field_type="empty_cell",
+                    fill_status="pending",
+                    sequence=0,
+                    word_limit=500,
+                    is_mandatory=True,
+                ),
+                ExtractedField(
+                    placeholder_text="[Insert]",
+                    field_type="placeholder",
+                    fill_status="pending",
+                    sequence=1,
+                ),
+            ],
+        )
+
+    def _run_walk(
+        self,
+        flow: object,
+        monkeypatch: "pytest.MonkeyPatch",
+        tmp_path: Path,
+        extraction_value: object,
+    ) -> dict:
+        """One form-branch pass with ``extract_form_structure`` returning
+        ``extraction_value`` (typed on walk-1; the serde dict on walk-2)."""
+        _stub_path_a(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        ws = uuid.UUID("11111111-1111-4111-8111-111111111111")
+        manifest = _make_manifest(flow, "s316-smoke/", ws, route="forms")
+        src = tmp_path / "ITT Services.docx"
+        src.write_bytes(b"PK\x03\x04 stub docx bytes")
+        fake_file = _FakeFormFile("s316-smoke/forms/ITT Services.docx", src)
+
+        async def _fake_extract(file: object):
+            return extraction_value
+
+        monkeypatch.setattr(flow, "extract_form_structure", _fake_extract)
+        return _ingest_form(
+            flow, fake_file, manifest=manifest, monkeypatch=monkeypatch
+        )
+
+    def test_memo_hit_dict_declares_identical_row_set_to_typed_walk(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Walk-1 (typed) and walk-2 (REAL-serde memo-HIT dict) must declare
+        identical ft + ftf row sets — same id-stable uuid5 ``ft:``/``ftf:``
+        keys, same payloads — so re-walk idempotency holds and reconciliation
+        never garbage-collects the form rows."""
+        from typing import Any
+
+        from cocoindex._internal import serde
+
+        flow = _flow_module()
+        form = self._form_with_deadline(flow)
+
+        # Walk-1: live typed extraction (the memo MISS path).
+        walk1 = self._run_walk(flow, monkeypatch, tmp_path, form)
+        assert len(walk1["ft"].rows) == 1
+        assert len(walk1["ftf"].rows) == 2
+
+        # Walk-2: the REAL memo-HIT payload — serialise with the real
+        # cocoindex serde, deserialise under the hint=Any fallback (dict).
+        memo_hit = serde.deserialize(serde.serialize(form), Any)
+        assert isinstance(memo_hit, dict), "precondition: memo HIT is a dict"
+
+        # Must NOT raise (pre-fix: AttributeError at extracted.form_metadata).
+        walk2 = self._run_walk(flow, monkeypatch, tmp_path, memo_hit)
+
+        # Identical declared row sets — the Inv-16 idempotency contract.
+        assert walk2["ft"].rows == walk1["ft"].rows, (
+            "walk-2 (memo HIT) must declare the SAME form_templates row as "
+            "walk-1 — any drift lets reconciliation garbage-collect the form"
+        )
+        assert walk2["ftf"].rows == walk1["ftf"].rows, (
+            "walk-2 (memo HIT) must declare the SAME form_template_fields "
+            "rows as walk-1 (id-stable ftf: uuid5 keys)"
+        )
+        # And the rows carry the deterministic uuid5 keys (id-stability).
+        rel_path = "s316-smoke/forms/ITT Services.docx"
+        assert walk2["ft"].rows[0]["id"] == uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}"
+        )
+        assert {r["id"] for r in walk2["ftf"].rows} == {
+            uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ftf:{rel_path}:{seq}")
+            for seq in (0, 1)
+        }
+        # The deadline survived the round-trip as a datetime (bl-220-class
+        # JSON-unstable field) and landed on the declared row both walks.
+        assert walk2["ft"].rows[0]["deadline"] == form.form_metadata.deadline
+
+
 class TestFormWriteGracefulEmptyProvenance:
     """PRODUCT Inv-17 graceful-empty-with-recorded-reason (ratified S278).
 

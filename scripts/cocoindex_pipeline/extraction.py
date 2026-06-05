@@ -284,7 +284,20 @@ class FormMetadata(BaseModel):
     form_format: Literal["docx", "xlsx", "pdf", "html", "md"]
     form_title: str | None = None
     issuing_organisation: str | None = None
-    deadline: datetime | None = None
+    # ID-80.13 sweep — per-field strict=False, a documented field-scoped
+    # exception to the model-wide strict config. `deadline` is the one
+    # JSON-unstable LLM-EMITTED field crossing the `extract_qa_form` memo
+    # boundary: the bl-220 core/stamp split removed the stamp UUIDs/datetimes,
+    # but `deadline` cannot be split off (it IS LLM content). The memo HIT
+    # path strict-python-validates the cached `model_dump(mode="json")`
+    # payload, and strict python mode rejects the ISO string form →
+    # DeserializationError on every memo HIT of a deadline-bearing form.
+    # Lax parse here accepts the ISO string while a junk string still fails
+    # (must parse as a datetime), so drift stays loud. This is NOT the global
+    # lax coercion bl-220 C3 rejected — it is scoped to this field only.
+    # Regression: test_cocoindex_extraction.py::TestMemoHitSerdeRoundTrip::
+    # test_qa_form_with_deadline_survives_real_memo_hit_serde.
+    deadline: datetime | None = Field(default=None, strict=False)
     evaluation_methodology: str | None = None
 
     @field_validator("form_type")

@@ -128,6 +128,9 @@ from scripts.cocoindex_pipeline.flow_context import (
 # function-local `from scripts.cocoindex_pipeline import flow_context` import
 # (same pattern as `current_flow_meta`), so it is NOT imported by name here.
 from scripts.cocoindex_pipeline.form_extractors import extract_form_structure
+from scripts.cocoindex_pipeline.form_extractors.orchestrator import (
+    coerce_extracted_form,
+)
 from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionError
 from scripts.cocoindex_pipeline.workspace_resolver import (
     ManifestLoadError,
@@ -2189,9 +2192,15 @@ async def _ingest_form_branch(
     # (the latter already emits its own `form_extractor.skip` log — Inv-3); it
     # raises FormExtractionError on an unreadable form (Inv-17). The whole call
     # is wrapped per-file so one form's failure never halts the batch.
+    # ID-80.13 (D2): a memo HIT arrives as a plain dict (cocoindex resolves the
+    # memoised return hint to `Any` — see the orchestrator module docstring),
+    # so EVERY return is normalised through `coerce_extracted_form` before the
+    # typed attribute accesses below. Without this, walk-2's memo HIT raised
+    # AttributeError at `extracted.form_metadata` and reconciliation
+    # garbage-collected walk-1's ft/ftf rows (S316 B1 staging smoke).
     form_template_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
     try:
-        extracted = await extract_form_structure(file)
+        extracted = coerce_extracted_form(await extract_form_structure(file))
     except FormExtractionError as exc:
         # Inv-17: workspace resolved, but the reader failed. Record ONE
         # form_templates row with status='analysis_failed' and ZERO fields so

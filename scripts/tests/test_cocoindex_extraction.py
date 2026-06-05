@@ -1356,3 +1356,39 @@ class TestMemoHitSerdeRoundTrip:
         raw = json.loads(stamped.model_dump_json())
         with pytest.raises(ValidationError):
             stamped_cls.model_validate(raw)  # strict — rejects string UUID/datetime
+
+    def test_qa_form_with_deadline_survives_real_memo_hit_serde(self) -> None:
+        """ID-80.13 sweep finding — the bl-220 core/stamp split removed the
+        STAMP datetimes from the memo boundary but left the LLM-emitted
+        ``FormMetadata.deadline`` (``datetime | None``) crossing it.
+        ``extract_qa_form``'s return hint RESOLVES (str → QAFormExtraction),
+        so a memo HIT goes through cocoindex's strict python-mode
+        ``TypeAdapter(QAFormExtraction).validate_python(raw)`` — and strict
+        python mode rejects the ISO string form of a populated deadline
+        (``DeserializationError`` on every memo HIT of a deadline-bearing
+        form). ``deadline`` cannot be split off (it IS LLM content), so the
+        field is per-field ``strict=False`` — a documented, field-scoped
+        exception to bl-220 C3 (which rejected GLOBAL lax coercion).
+
+        Uses the REAL ``cocoindex._internal.serde`` pair with the resolved
+        return hint — the exact memo-HIT path."""
+        from cocoindex._internal import serde
+
+        qa = QAFormExtraction(
+            form_metadata=FormMetadata(
+                form_type="pqq",
+                form_format="docx",
+                deadline=datetime(2026, 7, 1, 12, 0, 0, tzinfo=timezone.utc),
+            ),
+            qa_pairs=[
+                QAPair(question_text="Q?", expected_response_kind="mandatory")
+            ],
+        )
+
+        # Must NOT raise — pre-fix this was DeserializationError on every
+        # memo HIT of a deadline-bearing q_a_form extraction.
+        restored = serde.deserialize(serde.serialize(qa), QAFormExtraction)
+
+        assert isinstance(restored, QAFormExtraction)
+        assert restored == qa
+        assert restored.form_metadata.deadline == qa.form_metadata.deadline

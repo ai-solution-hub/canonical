@@ -12,6 +12,19 @@ type classification arrives via the per-reader ``FormMetadata`` (reused from
 re-extraction on unchanged file bytes — the substrate for Inv-16 idempotency
 (TECH §2.8).
 
+MEMO-HIT SHAPE (ID-80.13 / D2): cocoindex's memo serde resolves the memoised
+fn's return hint via ``typing.get_type_hints`` and falls back to ``Any`` on
+any exception (``cocoindex/_internal/function.py``). This fn's ``"FileLike"``
+annotation is TYPE_CHECKING-only, so resolution raises ``NameError`` → hint
+``Any`` → a memo HIT hands back the msgpack-decoded ``model_dump(mode="json")``
+payload as a plain **dict**, not an ``ExtractedForm``. The flow call-site MUST
+wrap this fn with ``coerce_extracted_form`` (below) to reconstruct the typed
+structure. Do NOT "fix" this by making the annotation resolvable: a resolved
+hint makes cocoindex strict-python-validate the raw payload, and strict python
+mode rejects the ISO string form of ``FormMetadata.deadline`` (the bl-220-class
+``DeserializationError``) — the coercion boundary is the robust contract under
+BOTH hint outcomes.
+
 Dispatch contract:
   - ``.pdf`` / ``.xlsx`` / ``.docx`` → the matching reader's ``extract(raw, name)``.
   - ``.xls`` → ``None`` + a structured ``form_extractor.skip`` log (Inv-3: legacy
@@ -89,4 +102,37 @@ async def extract_form_structure(
     return None
 
 
-__all__ = ["extract_form_structure"]
+def coerce_extracted_form(value: object) -> ExtractedForm | None:
+    """Reconstruct the typed ``ExtractedForm`` after the memo serde round-trip
+    (ID-80.13 / D2 — S316 live-smoke defect).
+
+    A memo HIT on ``extract_form_structure`` arrives as a plain dict (see the
+    module docstring's MEMO-HIT SHAPE note); a memo MISS arrives as the live
+    typed object (or ``None`` for non-form files). The flow consumption site
+    calls this on EVERY return so both arrivals normalise to
+    ``ExtractedForm | None``.
+
+    Reconstruction is JSON-mode revalidation
+    (``model_validate_json(json.dumps(value))``) deliberately: the dict IS the
+    msgpack-decoded ``model_dump(mode="json")`` payload, so the dump is
+    lossless, and pydantic's strict config accepts the JSON string forms of
+    datetime (``deadline``) in JSON mode that strict PYTHON mode rejects
+    (bl-220). This stays correct if future fields add more JSON-unstable
+    types (UUID, datetime) to the shape.
+
+    Any other arrival shape is a serde-contract breach — raise ``TypeError``
+    loudly (caught by the ingest_item isolation wrapper) rather than letting
+    a malformed payload reach the row writes.
+    """
+    if value is None or isinstance(value, ExtractedForm):
+        return value
+    if isinstance(value, dict):
+        return ExtractedForm.model_validate_json(json.dumps(value))
+    raise TypeError(
+        "extract_form_structure memo payload must be ExtractedForm | dict | "
+        f"None; got {type(value).__name__} — the cocoindex memo serde "
+        "contract changed (ID-80.13)"
+    )
+
+
+__all__ = ["coerce_extracted_form", "extract_form_structure"]
