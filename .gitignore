@@ -37,6 +37,7 @@ venv/
 # Both are blanket-ignored by .claude/* above; listing explicitly to document
 # intent and so newcomers don't try to track them.
 .claude/cmux-events/
+.claude/scheduled_tasks.lock
 .claude/worktrees/
 
 # Worktree symlinkDirectories artefacts — Anthropic's worktree.symlinkDirectories
