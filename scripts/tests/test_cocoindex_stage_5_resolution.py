@@ -268,6 +268,13 @@ class _FakePool:
             # Each row is {"alias": ..., "canonical": ...}; the production
             # `_preload_entity_aliases` builds {alias: canonical} from these.
             return list(self.alias_rows)
+        if "op_id IS DISTINCT FROM $4" in query:
+            # ID-80.14 cross-op key-holder probe (`_select_prior_op_key_holders`).
+            # The base pool models a store holding ONLY in-flight rows (no
+            # op_id column) — production excludes the current op, so the base
+            # fake honestly answers "no prior-op key-holders". The op-aware
+            # `_OpScopedFakePool` overrides this with a real key-scoped read.
+            return []
         if "SELECT DISTINCT canonical_name" in query:
             # ID-81 PC-6 reader: op-agnostic existing-canonical roster.
             # Binds: $1 = entity_type, $2 = probe (run names), $3 = lowered probe.
@@ -361,17 +368,32 @@ class _OpScopedFakeConn:
 
     async def execute(self, query: str, *args: object) -> str:
         if query.startswith("DELETE FROM public.entity_mentions"):
-            # DELETE ... WHERE id = ANY($1::uuid[]) AND op_id = $2
             ids: list[uuid.UUID] = list(args[0])  # type: ignore[arg-type]
             current_op = args[1]
             assert isinstance(current_op, uuid.UUID), (
                 "DELETE op_id bind must be a native uuid.UUID (asyncpg-strict)"
             )
+            # ID-80.14: TWO delete shapes exist. The op-scoped intra-op collapse
+            # (`AND op_id = $2`) only matches current-op rows; the widened-
+            # predicate cross-op collapse (`AND op_id IS DISTINCT FROM $2`) only
+            # matches NON-current-op rows (prior-op + NULL-op key-holders).
+            # Each predicate is ENFORCED so a production regression that
+            # widened/narrowed the wrong statement fails loudly here.
+            cross_op = "op_id IS DISTINCT FROM" in query
             for row_id in ids:
                 row = self.rows.get(row_id)
+                if row is None:
+                    continue
+                if cross_op:
+                    # ENFORCE `AND op_id IS DISTINCT FROM $2`: ONLY a row whose
+                    # op_id differs from the current op is matched (ID-80.14
+                    # widened-predicate cross-op collapse).
+                    if row.op_id != current_op:
+                        del self.rows[row_id]
+                        self.deleted_ids.append(row_id)
                 # ENFORCE `AND op_id = $2`: a row whose op_id differs from the
                 # bound current op is NOT matched by the production predicate.
-                if row is not None and row.op_id == current_op:
+                elif row.op_id == current_op:
                     del self.rows[row_id]
                     self.deleted_ids.append(row_id)
             return "DELETE"
@@ -436,6 +458,35 @@ class _OpScopedFakePool(_FakePool):
         self.op_conn = conn
 
     async def fetch(self, query: str, *args: object) -> list[dict]:
+        if "op_id IS DISTINCT FROM $4" in query:
+            # ID-80.14 cross-op key-holder probe (`_select_prior_op_key_holders`):
+            # binds $1/$2/$3 = parallel arrays of the EXACT colliding
+            # (canonical_name, entity_type, content_item_id) keys, $4 = the
+            # current op. Returns rows holding one of those keys whose op_id IS
+            # DISTINCT FROM the current op (prior-op + NULL-op rows). The
+            # key-scoping is ENFORCED: a row not matching a probed key is never
+            # returned (Inv-5 read-boundary — never the whole table).
+            canonicals = [str(c) for c in args[0]]  # type: ignore[union-attr]
+            etypes = [str(t) for t in args[1]]  # type: ignore[union-attr]
+            cids = list(args[2])  # type: ignore[arg-type]
+            current_op = args[3]
+            assert isinstance(current_op, uuid.UUID), (
+                "key-holder probe op_id bind must be a native uuid.UUID"
+            )
+            probed_keys = set(zip(canonicals, etypes, cids, strict=True))
+            return [
+                {
+                    "id": r.id,
+                    "canonical_name": r.canonical_name,
+                    "entity_type": r.entity_type,
+                    "content_item_id": r.content_item_id,
+                    "confidence": r.confidence,
+                }
+                for r in self.op_conn.rows.values()
+                if r.op_id != current_op
+                and (r.canonical_name, r.entity_type, r.content_item_id)
+                in probed_keys
+            ]
         if (
             "FROM public.entity_mentions" in query
             and "WHERE op_id = $1" in query
@@ -1851,3 +1902,326 @@ def test_roster_excludes_in_flight_names_so_run2_chains(
         "the foreign canonical stays a resolver-input chain target (the `|=` merge "
         "is kept); only its `is_existing` flagging of the in-flight name is removed"
     )
+
+
+# ── ID-80.14 — cross-op canonical-merge collision (S316 smoke D1) ─────────────
+#
+# THE DEFECT (live-smoke-diagnosed, walk op 9382c6a2): the bl-225 collapse
+# groups ONLY the current op's rows (`_select_run_entity_mentions` is
+# op_id-scoped), so a prior-op row already holding the survivor's UPDATE-target
+# key `(canonical_name, entity_type, content_item_id)` is structurally
+# invisible to `collision_groups`. The survivor's UPDATE then collides with the
+# prior-op key-holder — UniqueViolationError, walk-wide failure. Live pair:
+# survivor 2597d787 ("Modern Slavery Act 2015", current op) UPDATEd to
+# "modern slavery act" while row f244e3eb ("Modern Slavery Act", canonical
+# already "modern slavery act", PRIOR op 7af673af) held the key.
+#
+# THE FIX (these tests prove it): collision DETECTION is widened to the exact
+# colliding keys regardless of op (`_select_prior_op_key_holders` — a
+# key-scoped op-agnostic READ, never the whole table), and the merge extends
+# the established survivor rule (highest confidence, then smallest id) ACROSS
+# ops: if the prior-op key-holder wins, the current-op survivor's UPDATE is
+# skipped and the survivor is collapsed into the prior row (op-scoped DELETE);
+# if the current-op survivor wins, the prior-op key-holder is deleted via an
+# explicit widened-predicate DELETE (`AND op_id IS DISTINCT FROM $current`)
+# before the survivor's UPDATE lands. Either way: NO UniqueViolation, exactly
+# ONE surviving row per key, deterministic selection.
+#
+# All four tests use the op-ENFORCING `_OpScopedFakeConn`/`_OpScopedFakePool`
+# (the conn models the unique constraint AND both DELETE predicates), so
+# pre-fix each test raises UniqueViolationError exactly as production did —
+# a TRUE regression suite.
+
+_MSA_CANONICAL = "modern slavery act"  # the colliding cross-op key value
+_MSA_CURRENT_PERDOC = "Modern Slavery Act 2015"  # current-op per-doc canonical
+_MSA_CID = uuid.UUID("077b27e7-aab4-5ac2-829e-e58f8c3170cc")  # live content item
+_MSA_TYPE = "regulation"
+
+
+def _msa_fixture(
+    *,
+    prior_confidence: float | None,
+    current_confidence: float | None,
+    prior_id: uuid.UUID,
+    current_id: uuid.UUID,
+) -> tuple[_OpScopedFakeConn, _OpScopedFakePool, uuid.UUID, uuid.UUID]:
+    """Build the S316 D1 shape: one prior-op row already holding the target key
+    + one current-op row whose canonical resolves to that same key.
+
+    Returns (conn, pool, current_op, prior_op).
+    """
+    current_op = uuid.uuid4()
+    prior_op = uuid.uuid4()
+    prior_row = _OpRow(
+        id=prior_id,
+        canonical_name=_MSA_CANONICAL,  # already carries the target canonical
+        entity_type=_MSA_TYPE,
+        content_item_id=_MSA_CID,
+        confidence=prior_confidence,
+        op_id=prior_op,
+    )
+    current_row = _OpRow(
+        id=current_id,
+        canonical_name=_MSA_CURRENT_PERDOC,
+        entity_type=_MSA_TYPE,
+        content_item_id=_MSA_CID,
+        confidence=current_confidence,
+        op_id=current_op,
+    )
+    conn = _OpScopedFakeConn([prior_row, current_row])
+    pool = _OpScopedFakePool(conn, seed_rows=[])
+    return conn, pool, current_op, prior_op
+
+
+def test_cross_op_prior_holder_wins_current_row_collapsed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ID-80.14 (prior-row-wins direction): the current-op row's canonical
+    resolves to a key a HIGHER-confidence prior-op row already holds → the
+    UPDATE is skipped and the current-op row is collapsed INTO the prior row.
+
+    Pre-fix: the survivor UPDATE collides with the invisible prior-op
+    key-holder → UniqueViolationError (the exact S316 D1 walk failure).
+    Post-fix: NO raise; the prior-op row (0.95 > 0.8) wins under the extended
+    survivor rule; the current-op row is DELETEd via the op-SCOPED delete (it
+    belongs to the current op); the prior row is byte-for-byte unchanged;
+    exactly ONE row holds the key; resolution returns success with changed==0.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    prior_id = uuid.UUID("00000000-0000-4000-8000-000000000b01")
+    current_id = uuid.UUID("00000000-0000-4000-8000-000000000b02")
+    conn, pool, current_op, _prior_op = _msa_fixture(
+        prior_confidence=0.95,
+        current_confidence=0.8,
+        prior_id=prior_id,
+        current_id=current_id,
+    )
+    before = (
+        conn.rows[prior_id].id,
+        conn.rows[prior_id].canonical_name,
+        conn.rows[prior_id].entity_type,
+        conn.rows[prior_id].content_item_id,
+        conn.rows[prior_id].confidence,
+        conn.rows[prior_id].op_id,
+    )
+
+    _stub_resolver_chain(monkeypatch, {_MSA_CURRENT_PERDOC: _MSA_CANONICAL})
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=current_op),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # NO UniqueViolation — the collapse absorbed the cross-op collision.
+    # Exactly ONE row survives for the key: the prior-op key-holder.
+    assert len(conn.rows) == 1, "exactly one surviving row for the colliding key"
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == prior_id, (
+        "the 0.95-confidence PRIOR-op key-holder wins the extended survivor "
+        "rule (highest confidence, then smallest id — across BOTH ops)"
+    )
+    after = (
+        survivor.id,
+        survivor.canonical_name,
+        survivor.entity_type,
+        survivor.content_item_id,
+        survivor.confidence,
+        survivor.op_id,
+    )
+    assert after == before, "the winning prior-op row is byte-for-byte unchanged"
+
+    # The current-op row was collapsed INTO the prior row (op-scoped DELETE);
+    # no UPDATE fired (the prior row already carries the target canonical).
+    assert conn.deleted_ids == [current_id]
+    assert conn.updated == [], "UPDATE skipped — prior row already holds the key"
+    assert changed == 0
+    assert counter.counts.get("entity_resolution", 0) == 0
+
+
+def test_cross_op_current_survivor_wins_prior_holder_deleted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ID-80.14 (current-row-wins direction): the current-op row out-ranks the
+    prior-op key-holder → the prior row is deleted via the explicit
+    widened-predicate DELETE, then the survivor's UPDATE lands collision-free.
+
+    Post-fix: the prior-op row (0.6) loses to the current-op row (0.9); it is
+    DELETEd FIRST via `AND op_id IS DISTINCT FROM $current` (the documented
+    Inv-5 boundary widening, scoped to the exact colliding key's row id); the
+    current row UPDATEs into the freed key; exactly ONE row holds the key;
+    changed==1; the cross-op collapse is observable via the structured log.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    prior_id = uuid.UUID("00000000-0000-4000-8000-000000000b11")
+    current_id = uuid.UUID("00000000-0000-4000-8000-000000000b12")
+    conn, pool, current_op, _prior_op = _msa_fixture(
+        prior_confidence=0.6,
+        current_confidence=0.9,
+        prior_id=prior_id,
+        current_id=current_id,
+    )
+
+    _stub_resolver_chain(monkeypatch, {_MSA_CURRENT_PERDOC: _MSA_CANONICAL})
+    counter = _StubStageCounter()
+
+    with _capture_stage5_logs() as records:
+        changed = asyncio.run(
+            _run_stage_5_resolution(
+                meta=_StubMeta(op_id=current_op),
+                db_pool=pool,  # type: ignore[arg-type]
+                flow_stage_counter=counter,  # type: ignore[arg-type]
+            )
+        )
+
+    # NO UniqueViolation. Exactly ONE row survives: the current-op row, now
+    # holding the resolved canonical.
+    assert len(conn.rows) == 1
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == current_id, (
+        "the 0.9-confidence CURRENT-op row wins the extended survivor rule"
+    )
+    assert survivor.canonical_name == _MSA_CANONICAL, (
+        "survivor UPDATEd into the key the deleted prior-op row freed"
+    )
+    assert survivor.op_id == current_op
+
+    # The prior-op key-holder was DELETEd (widened-predicate cross-op DELETE —
+    # the op-ENFORCING fake only matches it under `IS DISTINCT FROM`).
+    assert conn.deleted_ids == [prior_id]
+    assert conn.updated == [(current_id, _MSA_CANONICAL)]
+    assert changed == 1
+    assert counter.counts.get("entity_resolution", 0) == 1
+
+    # The destructive cross-op DELETE is observable (structured log).
+    cross_op_logs = [
+        json.loads(r.getMessage())
+        for r in records
+        if r.getMessage().startswith("{")
+        and json.loads(r.getMessage()).get("event")
+        == "cocoindex.stage_5.cross_op_collapsed"
+    ]
+    assert len(cross_op_logs) == 1, "exactly one cross_op_collapsed log fired"
+    assert cross_op_logs[0]["op_id"] == str(current_op)
+    assert cross_op_logs[0]["cross_op_collapsed_count"] == 1
+
+
+def test_cross_op_equal_confidence_smallest_id_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ID-80.14 determinism: equal confidence across ops → smallest id wins
+    (mirroring `delete_duplicate_entity_mentions` ORDER BY ... id tie-break,
+    exactly as the intra-op collapse already does).
+
+    The prior-op row carries the SMALLER id at equal confidence → it wins; the
+    current-op row is collapsed. Re-running the same shape can never flip the
+    outcome (deterministic survivor selection).
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    prior_id = uuid.UUID("00000000-0000-4000-8000-000000000b21")  # smaller id
+    current_id = uuid.UUID("00000000-0000-4000-8000-000000000b22")
+    assert prior_id < current_id
+    conn, pool, current_op, _prior_op = _msa_fixture(
+        prior_confidence=0.8,
+        current_confidence=0.8,
+        prior_id=prior_id,
+        current_id=current_id,
+    )
+
+    _stub_resolver_chain(monkeypatch, {_MSA_CURRENT_PERDOC: _MSA_CANONICAL})
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=current_op),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=_StubStageCounter(),  # type: ignore[arg-type]
+        )
+    )
+
+    assert len(conn.rows) == 1
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == prior_id, (
+        "at equal confidence the SMALLEST id wins across ops — deterministic "
+        "tie-break mirroring the intra-op survivor rule"
+    )
+    assert conn.deleted_ids == [current_id]
+    assert conn.updated == []
+    assert changed == 0
+
+
+def test_cross_op_collision_combined_with_intra_op_collapse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ID-80.14 (full live shape): an INTRA-op collapse picks a survivor whose
+    UPDATE target is ALSO held by a prior-op row — both collapse layers compose.
+
+    Current op: "Modern Slavery Act" (0.7) + "Modern Slavery Act 2015" (0.9) in
+    the SAME document, both resolving to "modern slavery act" (the bl-225
+    intra-op group). Prior op: a 0.95 row already holding the key. Expected:
+    the intra-op loser (0.7) is collapsed first; the intra-op survivor (0.9)
+    then LOSES the cross-op comparison to the 0.95 prior row and is collapsed
+    too; the prior-op row survives untouched; exactly ONE row holds the key;
+    NO UniqueViolation anywhere.
+    """
+    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+    current_op = uuid.uuid4()
+    prior_op = uuid.uuid4()
+    prior_id = uuid.UUID("00000000-0000-4000-8000-000000000b31")
+    intra_loser_id = uuid.UUID("00000000-0000-4000-8000-000000000b32")
+    intra_survivor_id = uuid.UUID("00000000-0000-4000-8000-000000000b33")
+    rows = [
+        _OpRow(prior_id, _MSA_CANONICAL, _MSA_TYPE, _MSA_CID, 0.95, prior_op),
+        _OpRow(
+            intra_loser_id, "Modern Slavery Act", _MSA_TYPE, _MSA_CID, 0.7, current_op
+        ),
+        _OpRow(
+            intra_survivor_id,
+            _MSA_CURRENT_PERDOC,
+            _MSA_TYPE,
+            _MSA_CID,
+            0.9,
+            current_op,
+        ),
+    ]
+    conn = _OpScopedFakeConn(rows)
+    pool = _OpScopedFakePool(conn, seed_rows=[])
+
+    _stub_resolver_chain(
+        monkeypatch,
+        {
+            "Modern Slavery Act": _MSA_CANONICAL,
+            _MSA_CURRENT_PERDOC: _MSA_CANONICAL,
+        },
+    )
+    counter = _StubStageCounter()
+
+    changed = asyncio.run(
+        _run_stage_5_resolution(
+            meta=_StubMeta(op_id=current_op),
+            db_pool=pool,  # type: ignore[arg-type]
+            flow_stage_counter=counter,  # type: ignore[arg-type]
+        )
+    )
+
+    # The prior-op row is the sole survivor for the key.
+    assert len(conn.rows) == 1
+    survivor = next(iter(conn.rows.values()))
+    assert survivor.id == prior_id, (
+        "the 0.95 prior-op key-holder out-ranks the 0.9 intra-op survivor — "
+        "both current-op rows are collapsed into it"
+    )
+    assert survivor.canonical_name == _MSA_CANONICAL
+    assert survivor.op_id == prior_op
+
+    # Both current-op rows were DELETEd (op-scoped); no UPDATE fired.
+    assert set(conn.deleted_ids) == {intra_loser_id, intra_survivor_id}
+    assert conn.updated == []
+    assert changed == 0
+    assert counter.counts.get("entity_resolution", 0) == 0

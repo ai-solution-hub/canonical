@@ -19,6 +19,20 @@ to a single highest-confidence survivor (mirroring the DB function
 cascade-safe), DELETE-first so the survivor can UPDATE into a canonical a loser
 currently holds without a transient collision.
 
+ID-80.14 (S316 smoke D1) — Inv-5 boundary, stated honestly: the bl-225 collapse
+above only ever sees the CURRENT op's rows, so a PRIOR-op (or NULL-op app-side)
+row already holding a survivor's UPDATE-target key was structurally invisible
+and the UPDATE collided walk-wide on any re-ingest with cross-op mention
+history. Collision DETECTION is therefore widened to the exact planned target
+keys regardless of op (`_select_prior_op_key_holders` — key-scoped read, never
+the whole table), and the survivor rule (highest confidence, then smallest id)
+extends across both ops. When the current-op survivor wins, the out-ranked
+prior-op key-holder is removed via an explicit widened-predicate DELETE
+(`op_id IS DISTINCT FROM $current`, id-pinned to the colliding row) — the ONE
+deliberate exception to the otherwise op_id-scoped writes. Inv-5's intent (no
+BLIND cross-run interference) is preserved: a foreign-op row is only ever read
+or written here when it provably holds a key this run resolved into.
+
 The module is consumed by `scripts/cocoindex_pipeline/flow.py:app_main`
 (the §P-1 attach), invoked between `await handle.ready()` and the flow-end
 `_emit_pipeline_run_webhook`. To avoid a runtime import cycle (flow.py imports
@@ -88,7 +102,9 @@ async def _select_run_entity_mentions(
     `canonical_name`, `entity_type`, `content_item_id`, `confidence`). Only
     op_id-matching rows are selected — NULL-op_id rows (app-side writes) and
     prior-run rows are NOT read here, so the post-pass never UPDATEs rows
-    outside the in-flight run.
+    outside the in-flight run. (ID-80.14: cross-op COLLISION detection happens
+    separately and key-scoped via `_select_prior_op_key_holders` — see the
+    module header for the documented Inv-5 boundary.)
 
     bl-225: `content_item_id` is now SELECTed so the post-resolution collapse
     can group by the natural unique key (canonical_name, entity_type,
@@ -141,6 +157,48 @@ async def _select_existing_canonical_roster(
         [n.lower() for n in probe],
     )
     return {row["canonical_name"] for row in rows}
+
+
+async def _select_prior_op_key_holders(
+    db_pool: asyncpg.Pool,
+    op_id: UUID,
+    keys: list[tuple[str, str, UUID]],
+) -> list[asyncpg.Record]:
+    """Cross-op collision probe (ID-80.14): rows OUTSIDE the in-flight op that
+    already hold a natural key a current-op survivor is about to UPDATE into.
+
+    `keys` is the exact list of post-resolution `(canonical_name, entity_type,
+    content_item_id)` targets the Step-5 collapse planned UPDATEs for. The read
+    is op-AGNOSTIC by design — `op_id IS DISTINCT FROM $4` matches prior-op
+    rows AND NULL-op_id app-side rows (both can hold the key and both made the
+    S316 D1 collision invisible to the op-scoped `collision_groups`) — but it
+    is scoped to EXACTLY those keys via the unnest join, never the whole table
+    (preserving Inv-5's no-blind-cross-run-interference intent: a foreign-op
+    row is only readable here when it provably holds a key this run is about
+    to write).
+
+    At most ONE row can hold each key (the UNIQUE constraint), so the result
+    has at most `len(keys)` rows. Returns `id`, the key columns, and
+    `confidence` so the caller can extend the deterministic survivor rule
+    (highest confidence, then smallest id) across ops.
+    """
+    if not keys:
+        return []
+    return await db_pool.fetch(
+        "SELECT em.id, em.canonical_name, em.entity_type, em.content_item_id, "
+        "       em.confidence "
+        "FROM public.entity_mentions em "
+        "JOIN unnest($1::text[], $2::text[], $3::uuid[]) "
+        "  AS k(canonical_name, entity_type, content_item_id) "
+        "  ON em.canonical_name = k.canonical_name "
+        " AND em.entity_type = k.entity_type "
+        " AND em.content_item_id = k.content_item_id "
+        "WHERE em.op_id IS DISTINCT FROM $4",
+        [k[0] for k in keys],
+        [k[1] for k in keys],
+        [k[2] for k in keys],
+        op_id,
+    )
 
 
 async def _run_stage_5_resolution(
@@ -323,8 +381,12 @@ async def _run_stage_5_resolution(
             (row_id, alias_applied_canonical, confidence)
         )
 
-    updates: list[tuple[UUID, str]] = []  # (row_id, new_canonical) survivors that CHANGED
-    deletes: list[UUID] = []  # loser row ids collapsed into the survivor
+    # planned_updates carries the survivor's UPDATE target key components +
+    # confidence so Step 5b (ID-80.14) can probe for cross-op key-holders and
+    # extend the survivor rule across ops. Narrowed to (row_id, new_canonical)
+    # for the Step-6 execution below.
+    planned_updates: list[tuple[UUID, str, str, UUID, float | None]] = []
+    deletes: list[UUID] = []  # current-op loser row ids collapsed into a survivor
     for (content_item_id, entity_type, resolved), members in collision_groups.items():
         # survivor: highest confidence, then smallest id (deterministic; mirrors
         # delete_duplicate_entity_mentions ORDER BY confidence DESC NULLS LAST,
@@ -332,25 +394,99 @@ async def _run_stage_5_resolution(
         # since the post-pass does not SELECT created_at).
         # Note: `(conf if conf is not None else -1.0)` — explicit None check,
         # NOT `conf or`, so a legitimate 0.0 confidence is not treated as missing.
-        survivor_id, survivor_alias_applied, _sc = min(
+        survivor_id, survivor_alias_applied, survivor_conf = min(
             members, key=lambda m: (-(m[2] if m[2] is not None else -1.0), m[0])
         )
         if survivor_alias_applied != resolved:  # PRESERVE original skip-condition
-            updates.append((survivor_id, resolved))
+            planned_updates.append(
+                (survivor_id, resolved, entity_type, content_item_id, survivor_conf)
+            )
         for member_id, _aa, _conf in members:
             if member_id != survivor_id:
                 deletes.append(member_id)
 
-    # Step 6: op_id-scoped DELETE-then-UPDATE batch (Inv-5).
+    # Step 5b (ID-80.14, S316 smoke D1): cross-op canonical-merge collision.
+    # `collision_groups` only ever contains the CURRENT op's rows (Step 2 is
+    # op_id-scoped), so a PRIOR-op (or NULL-op app-side) row already holding a
+    # survivor's UPDATE-target key (canonical_name, entity_type,
+    # content_item_id) is structurally invisible above — the survivor's UPDATE
+    # would collide with it (UniqueViolationError, walk-wide failure on any
+    # re-ingest with cross-op mention history). Widen collision DETECTION to
+    # the exact planned target keys regardless of op (a key-scoped read — see
+    # `_select_prior_op_key_holders`), and MERGE deterministically by
+    # extending the established survivor rule (highest confidence, then
+    # smallest id) across both ops:
+    #   - prior-op key-holder wins → skip the UPDATE (the prior row already
+    #     carries the target canonical) and collapse the current-op survivor
+    #     into it via the op-SCOPED delete below;
+    #   - current-op survivor wins → delete the prior-op key-holder via the
+    #     explicit widened-predicate DELETE (`op_id IS DISTINCT FROM`,
+    #     id-pinned to the colliding row) so the UPDATE lands collision-free.
+    # Ranks can never tie: ids are unique. At most one holder exists per key
+    # (the UNIQUE constraint); a survivor whose canonical is NOT changing
+    # cannot cross-op-collide (it already holds its key).
+    updates: list[tuple[UUID, str]] = []  # (row_id, new_canonical) that will land
+    cross_op_deletes: list[UUID] = []  # prior-op/NULL-op key-holder ids out-ranked
+    if planned_updates:
+        prior_holders = await _select_prior_op_key_holders(
+            db_pool,
+            meta.op_id,
+            [(u[1], u[2], u[3]) for u in planned_updates],
+        )
+        holders_by_key: dict[tuple[str, str, UUID], asyncpg.Record] = {
+            (r["canonical_name"], r["entity_type"], r["content_item_id"]): r
+            for r in prior_holders
+        }
+        for row_id, resolved, entity_type, content_item_id, conf in planned_updates:
+            prior = holders_by_key.get((resolved, entity_type, content_item_id))
+            if prior is None:
+                updates.append((row_id, resolved))
+                continue
+            prior_conf = prior["confidence"]
+            current_rank = (-(conf if conf is not None else -1.0), row_id)
+            prior_rank = (
+                -(prior_conf if prior_conf is not None else -1.0),
+                prior["id"],
+            )
+            if prior_rank < current_rank:
+                # Prior-op key-holder wins: skip the UPDATE; collapse the
+                # current-op survivor into it (op-scoped DELETE — the row
+                # belongs to this run, so Inv-5's write scope is untouched).
+                deletes.append(row_id)
+            else:
+                # Current-op survivor wins: the prior-op key-holder is the
+                # loser. Deleted via the widened-predicate DELETE below.
+                cross_op_deletes.append(prior["id"])
+                updates.append((row_id, resolved))
+
+    # Step 6: DELETE-then-UPDATE batch in one transaction.
     # DELETE-FIRST IS LOAD-BEARING: a survivor may UPDATE INTO a canonical
-    # currently held by a loser; deleting losers first prevents that transient
-    # collision on UNIQUE(canonical_name, entity_type, content_item_id).
+    # currently held by a loser (in-op OR prior-op); deleting losers first
+    # prevents that transient collision on UNIQUE(canonical_name, entity_type,
+    # content_item_id).
     # Wrapped in a single transaction; exceptions propagate to the flow's outer
     # `except` (the §P-10 failure routing) — never swallowed (CLAUDE.md "no
     # silent failures").
-    if updates or deletes:
+    if updates or deletes or cross_op_deletes:
         async with db_pool.acquire() as conn:
             async with conn.transaction():
+                if cross_op_deletes:
+                    # ID-80.14 widened-predicate DELETE — the ONE deliberate
+                    # exception to the op_id-scoped write rule (Inv-5). Each id
+                    # here was selected by `_select_prior_op_key_holders` as
+                    # the unique holder of an exact key this run's survivor is
+                    # about to UPDATE into, and it LOST the deterministic
+                    # cross-op survivor comparison. `op_id IS DISTINCT FROM`
+                    # asserts the foreign-op/NULL-op provenance at the DB (a
+                    # current-op id can never match), keeping the predicate
+                    # honest about what it touches.
+                    await conn.execute(
+                        "DELETE FROM public.entity_mentions "
+                        "WHERE id = ANY($1::uuid[]) "
+                        "AND op_id IS DISTINCT FROM $2",
+                        cross_op_deletes,
+                        meta.op_id,
+                    )
                 if deletes:
                     # WHERE op_id = $2 — op_id scope is the forcing function
                     # (Inv-5); ids are native uuid.UUID (asyncpg-strict typing).
@@ -386,6 +522,19 @@ async def _run_stage_5_resolution(
                     "event": "cocoindex.stage_5.collapsed",
                     "op_id": str(meta.op_id),
                     "collapsed_count": len(deletes),
+                }
+            )
+        )
+    # ID-80.14: the cross-op widened-predicate DELETE is MORE destructive than
+    # the in-op collapse (it removes a row a PRIOR run wrote) — it must be
+    # independently observable.
+    if cross_op_deletes:
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.stage_5.cross_op_collapsed",
+                    "op_id": str(meta.op_id),
+                    "cross_op_collapsed_count": len(cross_op_deletes),
                 }
             )
         )
