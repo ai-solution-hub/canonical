@@ -9,7 +9,7 @@
  *   - docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §4 Subtask 32.8
  *
  * Scope (Subtask 32.8): Source A only. Reads
- * `docs/generated/type-drift-baseline.json`; for each baseline entry, maps
+ * `.type-drift-baseline.json` (repo root); for each baseline entry, maps
  * the interface name to its route file via the heuristic URL matcher
  * (equivalent to `urlToRoutePath` + `routePathMatches` in
  * `lib/ast-dataflow/queries/type-drift-detect.ts` — that file is the
@@ -32,7 +32,7 @@ import type { NeedsManualReason } from './types';
 // ── Public types ──────────────────────────────────────────────────────────
 
 /**
- * One entry in `docs/generated/type-drift-baseline.json` per the R-WP17
+ * One entry in `.type-drift-baseline.json` (repo root) per the R-WP17
  * shape. Forward-compatible with optional extra fields the baseline may
  * carry (e.g. `line`, `bucket`) — those are ignored by Source A logic.
  */
@@ -68,7 +68,7 @@ export type InferSchemaResult =
  */
 export interface InferSchemaOptions {
   /** Pre-loaded baseline entries. If omitted, loaded from
-   *  `docs/generated/type-drift-baseline.json` via `loadBaseline()`. */
+   *  `.type-drift-baseline.json` (repo root) via `loadBaseline()`. */
   baseline?: BaselineEntry[];
   /**
    * Retained for back-compat with pre-32.21 callers. The fetcher walk is now
@@ -95,7 +95,7 @@ export interface InferSchemaOptions {
  */
 const SCHEMAS_PATH_SUFFIX = 'lib/validation/schemas.ts';
 /** Default on-disk baseline location, repo-relative. */
-const DEFAULT_BASELINE_PATH = 'docs/generated/type-drift-baseline.json';
+const DEFAULT_BASELINE_PATH = '.type-drift-baseline.json';
 
 /** Placeholder returned when no `${interfaceName}Schema` constant is found. */
 export const Z_UNKNOWN_PLACEHOLDER = 'z.unknown()';
@@ -103,7 +103,7 @@ export const Z_UNKNOWN_PLACEHOLDER = 'z.unknown()';
 // ── Baseline loading ──────────────────────────────────────────────────────
 
 /**
- * Load and parse `docs/generated/type-drift-baseline.json` from disk.
+ * Load and parse `.type-drift-baseline.json` (repo root) from disk.
  *
  * Resolves `path` against `process.cwd()`; tests inject the array directly
  * via `InferSchemaOptions.baseline` rather than touching the on-disk file.

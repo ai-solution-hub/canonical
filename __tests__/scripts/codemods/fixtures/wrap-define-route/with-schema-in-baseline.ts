@@ -2,7 +2,7 @@
  * Fixture: with-schema-in-baseline — Source A inference happy path.
  *
  * The route's response interface name (`ReviewStatsResponse`) is present in
- * `docs/generated/type-drift-baseline.json` (one of the 37 R-WP17
+ * repo-root `.type-drift-baseline.json` (one of the 37 R-WP17
  * fetcher-only entries). When Subtask 32.8 lands, its `inferSchema()` will
  * look up `ReviewStatsResponseSchema` (or `ReviewStatsResponseZodSchema`) in
  * `lib/validation/schemas.ts` via name-convention and inject that identifier

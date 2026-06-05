@@ -424,7 +424,7 @@ describe('wrap-define-route classifier — fixture corpus (Subtask 32.7)', () =>
  *
  * The synthetic baseline is supplied via the `options.baseline` injection
  * point on `inferSchema()` so the test does not touch the on-disk
- * `docs/generated/type-drift-baseline.json` file.
+ * repo-root `.type-drift-baseline.json` file.
  */
 function buildInferenceProject(opts: {
   routeFixture: string;
@@ -446,7 +446,7 @@ function buildInferenceProject(opts: {
   return { project, routeSf };
 }
 
-describe('wrap-define-route inferSchema — Source A (type-drift-baseline.json)', () => {
+describe('wrap-define-route inferSchema — Source A (.type-drift-baseline.json)', () => {
   it('inserts real schema when baseline interface has a co-located Schema constant', () => {
     // Synthetic baseline: one entry whose interface is `ReviewStatsResponse`,
     // the same interface declared in the `with-schema-in-baseline.ts`

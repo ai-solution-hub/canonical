@@ -2,7 +2,7 @@
  * Fixture: with-baseline-but-no-schema-constant — Source A inference fall-back.
  *
  * The route's response interface name (`PipelineRunRow`) is present in
- * `docs/generated/type-drift-baseline.json` (one of the 37 R-WP17
+ * repo-root `.type-drift-baseline.json` (one of the 37 R-WP17
  * fetcher-only entries), but `lib/validation/schemas.ts` does NOT export a
  * matching `${interfaceName}Schema` or `${interfaceName}ZodSchema` constant.
  * This exercises the fall-back branch of `inferSchema()`: return

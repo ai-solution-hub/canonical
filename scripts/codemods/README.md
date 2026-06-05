@@ -39,7 +39,7 @@ Both modes always emit, into `docs/generated/`:
 Override the artefact destination with the `CODEMOD_OUTPUT_DIR` environment variable; the
 test suite redirects emission to a `tmpdir()` so it never dirties the committed tree.
 
-> **Prerequisite:** `docs/generated/type-drift-baseline.json` must exist before you run
+> **Prerequisite:** `.type-drift-baseline.json` (repo root) must exist before you run
 > either mode — the codemod's schema-inference step reads it to bind a route's response
 > interface to its co-located `ResponseSchema`, and aborts with an `ENOENT` if the file is
 > missing. The baseline is produced by the `type-drift-detect` verifier (see below).
@@ -59,9 +59,9 @@ bun run ast-dataflow type-drift-detect --update-baseline  # regenerate baseline
 It classifies every response-interface candidate as `enforced`, `fetcher-only`,
 `route-only`, or `unused`. A `fetcher-only` interface is a gap: a client fetcher consumes
 the type but no route annotates it. The `--ci` gate fails the build if any `fetcher-only`
-interface appears that is **not already recorded** in
-`docs/generated/type-drift-baseline.json`. Closing a gap therefore means removing its
-entry from the baseline so it can never silently reappear.
+interface appears that is **not already recorded** in `.type-drift-baseline.json` (repo
+root). Closing a gap therefore means removing its entry from the baseline so it can never
+silently reappear.
 
 > **The verifier recognises route annotations via the handler return type, not via the
 > `defineRoute(...)` wrap.** Wrapping a route does not, on its own, move its interface out
@@ -77,7 +77,7 @@ entry from the baseline so it can never silently reappear.
    `ResponseSchema` object.
 4. **Apply** — `bun scripts/codemods/wrap-define-route.ts --apply`.
 5. **Human review** — `bun run ast-dataflow type-drift-detect --pretty`.
-6. **Update the baseline** — edit `docs/generated/type-drift-baseline.json` to remove
+6. **Update the baseline** — edit `.type-drift-baseline.json` (repo root) to remove
    closed-gap entries (or regenerate with `--update-baseline`).
 7. **Test + lint** — `bun run test` and `bun lint`.
 8. **CI gate** — `bun run ast-dataflow type-drift-detect --ci` (must exit `0`).

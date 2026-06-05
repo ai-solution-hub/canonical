@@ -76,10 +76,7 @@ export const BLOCK_END =
 // ── Paths ──────────────────────────────────────────────────────────────────
 
 const REPO_ROOT = process.cwd();
-const BASELINE_PATH = resolve(
-  REPO_ROOT,
-  'docs/generated/type-drift-baseline.json',
-);
+const BASELINE_PATH = resolve(REPO_ROOT, '.type-drift-baseline.json');
 const SCHEMAS_PATH = resolve(REPO_ROOT, 'lib/validation/schemas.ts');
 const TSCONFIG_PATH = resolve(REPO_ROOT, 'tsconfig.json');
 

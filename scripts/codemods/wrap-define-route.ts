@@ -17,7 +17,7 @@
  *     [32.5]
  *   - `classifyRoute()` shape classifier — 17 RouteShape variants per TECH
  *     §2.3 with body-detection AST refactor from 32.17. [32.6 + 32.17]
- *   - `inferSchema()` Source A inference (`type-drift-baseline.json` →
+ *   - `inferSchema()` Source A inference (`.type-drift-baseline.json` →
  *     `${interfaceName}Schema` lookup with NEEDS_SCHEMA fall-back). [32.8]
  *   - `buildRouteRecords()` per-route assembly + `emitDryRunReport()` +
  *     `emitNeedsManualReport()` — both artefacts emitted on EVERY run per
@@ -590,7 +590,7 @@ export function classifyRoute(sf: SourceFile): RouteShape {
 /**
  * Infer the `ResponseSchema` argument for a route handler.
  *
- * Composes Source A (`docs/generated/type-drift-baseline.json` URL-matcher,
+ * Composes Source A (repo-root `.type-drift-baseline.json` URL-matcher,
  * Subtask 32.8) with Source B (existing `Promise<NextResponse<X>>` return-
  * type annotation, Subtask 32.9). Source C (handler return-statement walk)
  * is explicitly out of scope per PLAN.md §4 Subtask 32.9 OQ-2 / TECH §3.C.
@@ -938,7 +938,7 @@ export function buildRouteRecords(routeFiles: readonly SourceFile[]): {
  * Options forwarded to `applyAll`'s per-method `inferSchema()` calls. Tests
  * inject `baseline` / `schemasPath` so Source A/B resolution can be exercised
  * deterministically; production callers omit it and the chain falls through to
- * the on-disk `docs/generated/type-drift-baseline.json` (or the `z.unknown()`
+ * the on-disk repo-root `.type-drift-baseline.json` (or the `z.unknown()`
  * + `NEEDS_SCHEMA` fall-back when no source resolves).
  */
 type ApplyOptions = InferSchemaOptions;

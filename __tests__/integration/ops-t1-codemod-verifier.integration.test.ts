@@ -18,7 +18,7 @@
  * `process.cwd()`, so the whole pipeline is run against a SELF-CONTAINED
  * temporary corpus (`mkdtempSync(tmpdir())`) with its own `tsconfig.json`,
  * `app/api/<route>/route.ts` fixtures, `lib/query/fetchers.ts`, and
- * `docs/generated/type-drift-baseline.json`. The working tree is never
+ * `.type-drift-baseline.json` (corpus root). The working tree is never
  * touched — apply runs against the temp copy only (testStrategy constraint).
  *
  * The assertion is non-vacuous: the test first proves the `--ci` gate FAILS
@@ -80,7 +80,7 @@ function run(
 }
 
 /** Repo-relative path to the type-drift baseline both CLIs read/write. */
-const BASELINE_REL = 'docs/generated/type-drift-baseline.json';
+const BASELINE_REL = '.type-drift-baseline.json';
 
 /** Write a file, creating parent directories as needed. */
 function writeCorpusFile(root: string, relPath: string, contents: string) {
@@ -313,8 +313,8 @@ describe('OPS-T1 codemod → type-drift-detect verifier integration (Subtask 32.
 
     // ── Step 6: update the baseline to reflect the closed gaps. ──
     // The CLI's --update-baseline regenerates the baseline from the current
-    // fetcher-only set — the canonical "update docs/generated/
-    // type-drift-baseline.json" step. (This is the public-CLI equivalent of
+    // fetcher-only set — the canonical "update the repo-root
+    // .type-drift-baseline.json" step. (This is the public-CLI equivalent of
     // a developer hand-editing the file to remove closed-gap entries.)
     const updateBaseline = run(
       AST_DATAFLOW_CLI,

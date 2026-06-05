@@ -871,7 +871,7 @@ jobs:
     # R-WP17 (S10 Wave-B / R-WP21 option c) — fetcher-only interface regression
     # gate. Runs `bun run ast-dataflow type-drift-detect --ci`, which exits
     # non-zero if any new fetcher-only interface is detected that is absent from
-    # the committed baseline (`docs/generated/type-drift-baseline.json`).
+    # the committed baseline (repo-root `.type-drift-baseline.json`).
     # The 37 existing gaps at S9 close-out are in the baseline (accepted debt);
     # this gate prevents new drift from being introduced unreviewed.
     #

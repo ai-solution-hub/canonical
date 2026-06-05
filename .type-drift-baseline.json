@@ -1,0 +1,224 @@
+[
+  {
+    "interface": "ChangeReportGenerateResponse",
+    "declaredAt": {
+      "file": "types/change-reports.ts"
+    }
+  },
+  {
+    "interface": "RescoringPreviewResponse",
+    "declaredAt": {
+      "file": "types/intelligence-refinement.ts"
+    }
+  },
+  {
+    "interface": "ResolveFlagsResponse",
+    "declaredAt": {
+      "file": "types/intelligence-refinement.ts"
+    }
+  },
+  {
+    "interface": "AnalyseFlagsResponse",
+    "declaredAt": {
+      "file": "types/intelligence-refinement.ts"
+    }
+  },
+  {
+    "interface": "ReviewQueueResponse",
+    "declaredAt": {
+      "file": "types/review.ts"
+    }
+  },
+  {
+    "interface": "ReviewStatsResponse",
+    "declaredAt": {
+      "file": "types/review.ts"
+    }
+  },
+  {
+    "interface": "DedupQueueResponse",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "DedupItemResponse",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "NearDupPairsResponse",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "NearDupMergeResult",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "NearDupConfirmUniqueResult",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "PipelineRunsRecentResponse",
+    "declaredAt": {
+      "file": "app/api/admin/pipeline-runs/recent/route.ts"
+    }
+  },
+  {
+    "interface": "BatchCreateResult",
+    "declaredAt": {
+      "file": "hooks/use-batch-create.ts"
+    }
+  },
+  {
+    "interface": "TargetsResponse",
+    "declaredAt": {
+      "file": "hooks/use-coverage-targets.ts"
+    }
+  },
+  {
+    "interface": "SendToReviewResult",
+    "declaredAt": {
+      "file": "hooks/use-diff-review.ts"
+    }
+  },
+  {
+    "interface": "EntityDetail",
+    "declaredAt": {
+      "file": "hooks/use-entity-detail.ts"
+    }
+  },
+  {
+    "interface": "NotificationsResponse",
+    "declaredAt": {
+      "file": "hooks/use-notifications.ts"
+    }
+  },
+  {
+    "interface": "MutationResult",
+    "declaredAt": {
+      "file": "hooks/use-tags-data.ts"
+    }
+  },
+  {
+    "interface": "PatchResponse",
+    "declaredAt": {
+      "file": "components/review/publication-review-action-bar.tsx"
+    }
+  },
+  {
+    "interface": "ReadinessData",
+    "declaredAt": {
+      "file": "hooks/procurement/use-procurement-readiness.ts"
+    }
+  },
+  {
+    "interface": "ProcurementResponse",
+    "declaredAt": {
+      "file": "hooks/streaming/use-stream-coordination.ts"
+    }
+  },
+  {
+    "interface": "CompanyProfile",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-company-profiles.ts"
+    }
+  },
+  {
+    "interface": "ArticlesResponse",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-feed-articles.ts"
+    }
+  },
+  {
+    "interface": "FeedFlag",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-feed-articles.ts"
+    }
+  },
+  {
+    "interface": "FeedPrompt",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-feed-prompts.ts"
+    }
+  },
+  {
+    "interface": "CreateFeedSourceResponse",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-feed-sources.ts"
+    }
+  },
+  {
+    "interface": "FeedSource",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-feed-sources.ts"
+    }
+  },
+  {
+    "interface": "TestPollResult",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-feed-sources.ts"
+    }
+  },
+  {
+    "interface": "MetricsSummary",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-intelligence-metrics.ts"
+    }
+  },
+  {
+    "interface": "IntelligenceWorkspace",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-intelligence-workspaces.ts"
+    }
+  },
+  {
+    "interface": "SeedStarterPackResult",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-seed-starter-pack.ts"
+    }
+  },
+  {
+    "interface": "TriggerPollResponse",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-trigger-poll.ts"
+    }
+  },
+  {
+    "interface": "WorkspaceHealthResponse",
+    "declaredAt": {
+      "file": "hooks/intelligence/use-workspace-health.ts"
+    }
+  },
+  {
+    "interface": "AssignmentsResponse",
+    "declaredAt": {
+      "file": "hooks/review/use-review-queue-data.ts"
+    }
+  },
+  {
+    "interface": "TaxonomySyncStatus",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "PipelineRunRow",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "NearDupPairDetail",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  }
+]
