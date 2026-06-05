@@ -468,3 +468,70 @@ class TestEmitPipelineRunWebhookErrorHandling:
             self._emit_with_env()
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
         assert len(error_records) == 0
+
+
+class TestEmitPipelineRunWebhookItemFailures:
+    """`item_failures` payload contract (ID-80.9, 80.2 §B.4 OQ-80.2-C).
+
+    The per-branch item-failure tally (`{'forms': n, 'content': m}`) rides
+    the terminal emission as camelCase `itemFailures`, omit-when-None —
+    mirroring the errorDetail (ID-61.4) pattern. Strictly additive alongside
+    errorDetail / taxonomyMisses (coordinate, don't clobber).
+    """
+
+    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    SECRET = "test-cron-secret"
+
+    def setup_method(self):
+        _StubSession.reset()
+
+    def _emit(self, **kwargs):
+        env = {
+            "PIPELINE_RUN_WEBHOOK_URL": self.URL,
+            "CRON_SECRET": self.SECRET,
+        }
+        defaults = {
+            "op_id": uuid.UUID("11111111-1111-4111-8111-111111111111"),
+            "status": "completed",
+            "stage_counts": flow._empty_stage_counts(),
+            "items_processed": 2,
+            "items_created": [],
+        }
+        defaults.update(kwargs)
+        with patch.dict(os.environ, env, clear=True):
+            asyncio.run(flow._emit_pipeline_run_webhook(**defaults))
+
+    def test_payload_includes_item_failures_when_set(self):
+        self._emit(item_failures={"forms": 1, "content": 0})
+        assert _StubSession.last_json is not None
+        assert _StubSession.last_json["itemFailures"] == {
+            "forms": 1,
+            "content": 0,
+        }
+
+    def test_payload_includes_zero_tally_verbatim(self):
+        # A clean walk still threads {'forms': 0, 'content': 0} at flow end —
+        # meaningful ("walk ran, zero per-item faults") and distinguishable
+        # from the field being omitted (flow-start emission).
+        self._emit(item_failures={"forms": 0, "content": 0})
+        assert _StubSession.last_json is not None
+        assert _StubSession.last_json["itemFailures"] == {
+            "forms": 0,
+            "content": 0,
+        }
+
+    def test_payload_omits_item_failures_when_unset(self):
+        self._emit()
+        assert _StubSession.last_json is not None
+        assert "itemFailures" not in _StubSession.last_json
+
+    def test_payload_status_stays_completed_with_item_failures(self):
+        # OQ-80.2-C: per-item faults are reported on a 'completed' run;
+        # 'failed' is reserved for walk-wide faults.
+        self._emit(status="completed", item_failures={"forms": 3, "content": 1})
+        assert _StubSession.last_json is not None
+        assert _StubSession.last_json["status"] == "completed"
+        assert _StubSession.last_json["itemFailures"] == {
+            "forms": 3,
+            "content": 1,
+        }

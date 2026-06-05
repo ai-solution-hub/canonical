@@ -81,6 +81,7 @@ function makePayload(
     extractorVersion: string;
     retryCount: number;
     taxonomyMisses: Record<string, number>;
+    itemFailures: Record<string, number>;
   }> = {},
 ): Record<string, unknown> {
   return {
@@ -117,6 +118,9 @@ function makePayload(
       : {}),
     ...(overrides.taxonomyMisses !== undefined
       ? { taxonomyMisses: overrides.taxonomyMisses }
+      : {}),
+    ...(overrides.itemFailures !== undefined
+      ? { itemFailures: overrides.itemFailures }
       : {}),
   };
 }
@@ -694,5 +698,111 @@ describe('POST /api/internal/pipeline-runs/record — taxonomyMisses (ID-63.8 In
     const call = mockRecordPipelineRun.mock.calls[0][0];
     const result = call.result as Record<string, unknown>;
     expect(result).not.toHaveProperty('taxonomy_misses');
+  });
+});
+
+describe('POST /api/internal/pipeline-runs/record — itemFailures (80.2 §B.4 OQ-80.2-C, ID-80.9)', () => {
+  beforeEach(resetMocks);
+
+  it('lands itemFailures inside result.item_failures on a completed run', async () => {
+    // OQ-80.2-C (RATIFIED): per-item form failures ride a COMPLETED run as
+    // an item_failures tally — 'failed' is reserved for walk-wide faults.
+    // The bl-224 cascade inversion: a form-branch fault never zeroes a
+    // content file's reported writes.
+    await POST(
+      buildRequest({
+        body: makePayload({
+          status: 'completed',
+          itemFailures: { forms: 1, content: 0 },
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.item_failures).toEqual({ forms: 1, content: 0 });
+    expect(call.status).toBe('completed');
+  });
+
+  it('persists itemFailures additively alongside errorDetail and taxonomyMisses without 400', async () => {
+    // Coordinate, don't clobber: ID-61.4 extended this same payload surface
+    // (errorDetail + taxonomyMisses); itemFailures composes additively.
+    const res = await POST(
+      buildRequest({
+        body: makePayload({
+          status: 'failed',
+          errorClass: 'extraction_validation_failed',
+          errorDetail: { pydantic_class: 'missing_required', stage: 'flow' },
+          taxonomyMisses: { primary_domain: 2 },
+          itemFailures: { forms: 1, content: 2 },
+        }),
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.item_failures).toEqual({ forms: 1, content: 2 });
+    expect(result.error_detail).toEqual({
+      pydantic_class: 'missing_required',
+      stage: 'flow',
+    });
+    expect(result.taxonomy_misses).toEqual({ primary_domain: 2 });
+    expect(result.error_class).toBe('extraction_validation_failed');
+  });
+
+  it('lands an all-zero tally verbatim (clean walk is meaningful)', async () => {
+    // The sidecar always threads the tally at flow end; {forms: 0,
+    // content: 0} means "walk ran, zero per-item faults" — distinguishable
+    // from the field being omitted entirely (flow-start emission).
+    await POST(
+      buildRequest({
+        body: makePayload({ itemFailures: { forms: 0, content: 0 } }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.item_failures).toEqual({ forms: 0, content: 0 });
+  });
+
+  it('rejects a negative branch count with HTTP 400', async () => {
+    const res = await POST(
+      buildRequest({
+        body: makePayload({ itemFailures: { forms: -1, content: 0 } }),
+      }) as never,
+    );
+    expect(res.status).toBe(400);
+    expect(mockRecordPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-integer branch count with HTTP 400', async () => {
+    const res = await POST(
+      buildRequest({
+        body: makePayload({ itemFailures: { forms: 1.5, content: 0 } }),
+      }) as never,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects itemFailures missing the content key with HTTP 400', async () => {
+    // Both branch keys are required when the field is present — the sidecar
+    // counter always emits the full {forms, content} shape.
+    const res = await POST(
+      buildRequest({
+        body: makePayload({ itemFailures: { forms: 1 } }),
+      }) as never,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('omits item_failures from result when itemFailures is absent (no undefined leakage)', async () => {
+    // Back-compat: pre-80.9 sidecars (and flow-start emissions) omit the
+    // field; the composed result must not synthesise item_failures.
+    await POST(buildRequest({ body: makePayload() }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result).not.toHaveProperty('item_failures');
   });
 });

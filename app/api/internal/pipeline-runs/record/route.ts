@@ -138,6 +138,23 @@ const BodySchema = z.object({
   taxonomyMisses: z
     .record(z.string(), z.number().int().nonnegative())
     .optional(),
+  /**
+   * ID-80.9 (80.2 §B.4, OQ-80.2-C RATIFIED): per-branch tally of CONTAINED
+   * per-item ingest faults — `_FlowItemFailureCounter.tally()` in
+   * `scripts/cocoindex_pipeline/flow.py` emits `{'forms': n, 'content': m}`
+   * as `payload["itemFailures"]` at flow end. Per-item faults ride a
+   * `completed` run (status `failed` is reserved for walk-wide faults —
+   * the bl-224 cascade inversion). An all-zero tally is meaningful ("walk
+   * ran, zero per-item faults") and distinguishable from the field being
+   * omitted entirely (flow-start emission / pre-80.9 sidecars). Sibling of
+   * ID-61.4's `errorDetail` + `taxonomyMisses` — strictly additive.
+   */
+  itemFailures: z
+    .object({
+      forms: z.number().int().nonnegative(),
+      content: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -177,6 +194,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     extractorVersion,
     retryCount,
     taxonomyMisses,
+    itemFailures,
   } = parsed.data;
 
   // Compose `pipeline_runs.result` (Inv-17 / Inv-8 / Inv-23 envelope).
@@ -195,6 +213,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // ID-63.8 Inv-7: `!== undefined` (not truthy) — an empty map means
   // "extractions ran, zero misses" and must land verbatim.
   if (taxonomyMisses !== undefined) result.taxonomy_misses = taxonomyMisses;
+  // ID-80.9 (80.2 §B.4): `!== undefined` (not truthy) — an all-zero tally
+  // means "walk ran, zero per-item faults" and must land verbatim. Key
+  // absent when the sidecar omits the field (no `item_failures: undefined`
+  // leakage).
+  if (itemFailures !== undefined) result.item_failures = itemFailures;
 
   try {
     const supabase = createServiceClient();

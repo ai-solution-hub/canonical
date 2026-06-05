@@ -1185,3 +1185,463 @@ class TestErrorDetailWebhookEmission:
         payload = self._emit()
         assert payload is not None
         assert "errorDetail" not in payload
+
+
+# ============================================================================
+# 80.2 §B.4 — per-item failure isolation + item_failures tally (ID-80.9)
+# ============================================================================
+
+
+class _PathOnlyFile:
+    """Minimal File stand-in carrying only `file_path.path` (branch tests)."""
+
+    class _FilePath:
+        def __init__(self, rel_path: Path) -> None:
+            self.path = rel_path
+
+    def __init__(self, rel_path: str) -> None:
+        self.file_path = _PathOnlyFile._FilePath(Path(rel_path))
+
+
+def _two_route_manifest():
+    """Real WorkspaceManifest with a forms/ + content/ route pair (80.2 §B.2)."""
+    from scripts.cocoindex_pipeline.workspace_resolver import WorkspaceManifest
+
+    return WorkspaceManifest.model_validate(
+        {
+            "schema_version": 1,
+            "mappings": [
+                {
+                    "path_prefix": "forms/",
+                    "workspace_id": "33333333-3333-4333-8333-333333333333",
+                    "route": "forms",
+                },
+                {
+                    "path_prefix": "content/",
+                    "workspace_id": "44444444-4444-4444-8444-444444444444",
+                    "route": "content",
+                },
+            ],
+        }
+    )
+
+
+class TestFlowItemFailureCounter:
+    """`_FlowItemFailureCounter` — per-flow per-branch item-failure tally.
+
+    80.2 §B.4 (OQ-80.2-C RATIFIED): per-item faults are contained at the
+    `mount_each` boundary and tallied per branch (`{'forms': n, 'content': m}`)
+    instead of flipping `flow_status` to 'failed'. Mirrors the
+    `_FlowRetryCounter` per-flow instance pattern (no shared state).
+    """
+
+    def test_helper_class_is_exposed(self):
+        assert hasattr(flow, "_FlowItemFailureCounter")
+
+    def test_new_counter_tallies_zero_for_both_branches(self):
+        counter = flow._FlowItemFailureCounter()
+        assert counter.tally() == {"forms": 0, "content": 0}
+
+    def test_increment_forms_bumps_forms_only(self):
+        counter = flow._FlowItemFailureCounter()
+        counter.increment("forms")
+        assert counter.tally() == {"forms": 1, "content": 0}
+
+    def test_increment_content_bumps_content_only(self):
+        counter = flow._FlowItemFailureCounter()
+        counter.increment("content")
+        assert counter.tally() == {"forms": 0, "content": 1}
+
+    def test_increment_is_repeatable(self):
+        counter = flow._FlowItemFailureCounter()
+        counter.increment("forms")
+        counter.increment("forms")
+        counter.increment("content")
+        assert counter.tally() == {"forms": 2, "content": 1}
+
+    def test_tally_returns_a_copy_not_internal_state(self):
+        counter = flow._FlowItemFailureCounter()
+        snapshot = counter.tally()
+        snapshot["forms"] = 99
+        assert counter.tally() == {"forms": 0, "content": 0}
+
+    def test_counter_instances_are_independent(self):
+        first = flow._FlowItemFailureCounter()
+        second = flow._FlowItemFailureCounter()
+        first.increment("forms")
+        assert second.tally() == {"forms": 0, "content": 0}
+
+
+class TestItemFailureBranchDerivation:
+    """`_item_failure_branch` — forms|content attribution for a contained fault.
+
+    Derived from the SAME pure `resolve_route(manifest, rel_path)` computation
+    the {80.8} fork uses (80.2 §B.2/§B.4) — no I/O, no clock. The helper MUST
+    NEVER raise: it runs inside the per-item containment handler, where an
+    escape would abort the batch (the exact all-or-nothing failure mode B.4
+    kills).
+    """
+
+    def test_helper_function_is_exposed(self):
+        assert hasattr(flow, "_item_failure_branch")
+
+    def test_forms_route_yields_forms(self):
+        manifest = _two_route_manifest()
+        file = _PathOnlyFile("forms/blank-form.md")
+        assert flow._item_failure_branch(manifest, file, None) == "forms"
+
+    def test_content_route_yields_content(self):
+        manifest = _two_route_manifest()
+        file = _PathOnlyFile("content/doc.md")
+        assert flow._item_failure_branch(manifest, file, None) == "content"
+
+    def test_unmapped_path_defaults_to_content(self):
+        # UnmappedPath from resolve_route must NOT escape the containment
+        # handler — default the attribution to 'content' (the manifest's own
+        # route default per 80.2 §B.2).
+        manifest = _two_route_manifest()
+        file = _PathOnlyFile("elsewhere/mystery.md")
+        assert flow._item_failure_branch(manifest, file, None) == "content"
+
+    def test_broken_file_object_defaults_to_content_without_raising(self):
+        # A malformed item (no file_path) must not raise from inside the
+        # containment handler.
+        manifest = _two_route_manifest()
+        assert flow._item_failure_branch(manifest, object(), None) == "content"
+
+    def test_absolute_path_is_normalised_via_source_path(self):
+        # Production File paths are ABSOLUTE ({66.22}/BUG-A); the helper must
+        # apply the same _to_source_relative normalisation the dispatcher uses
+        # so the manifest prefixes still match.
+        manifest = _two_route_manifest()
+        file = _PathOnlyFile("/cocoindex-state/corpus/forms/blank-form.md")
+        source = Path("/cocoindex-state/corpus")
+        assert flow._item_failure_branch(manifest, file, source) == "forms"
+
+
+class TestItemFailuresWebhookEmission:
+    """`_emit_pipeline_run_webhook()` forwards `item_failures` as `itemFailures`.
+
+    Mirrors the TestErrorDetailWebhookEmission cooperative-stub pattern.
+    Strictly additive alongside ID-61.4's errorDetail + taxonomyMisses
+    (coordinate, don't clobber — 80.2 §B.4 ratification note).
+    """
+
+    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    SECRET = "test-cron-secret"
+
+    def setup_method(self):
+        active_session_cls = getattr(flow.aiohttp, "ClientSession", None)
+        if active_session_cls is not None and hasattr(
+            active_session_cls, "reset"
+        ):
+            active_session_cls.reset()
+
+    def _active_stub(self):
+        return getattr(flow.aiohttp, "ClientSession", None)
+
+    def _emit(self, **overrides):
+        env = {
+            "PIPELINE_RUN_WEBHOOK_URL": self.URL,
+            "CRON_SECRET": self.SECRET,
+        }
+        kwargs = {
+            "op_id": uuid.uuid4(),
+            "status": "completed",
+            "stage_counts": flow._empty_stage_counts(),
+            "items_processed": 2,
+            "items_created": [],
+        }
+        kwargs.update(overrides)
+        with patch.dict(os.environ, env, clear=True):
+            asyncio.run(flow._emit_pipeline_run_webhook(**kwargs))
+        return getattr(self._active_stub(), "last_json", None)
+
+    def _skip_if_no_introspectable_stub(self):
+        active_session_cls = self._active_stub()
+        if active_session_cls is None or not hasattr(
+            active_session_cls, "last_json"
+        ):
+            import pytest  # noqa: PLC0415
+
+            pytest.skip(
+                "active aiohttp stub does not expose last_json — sibling "
+                "stub pattern not in residence under this test ordering"
+            )
+
+    def test_emit_includes_item_failures_when_provided(self):
+        self._skip_if_no_introspectable_stub()
+        payload = self._emit(item_failures={"forms": 1, "content": 0})
+        assert payload is not None
+        assert payload.get("itemFailures") == {"forms": 1, "content": 0}
+        # OQ-80.2-C: per-item faults do NOT flip the terminal status.
+        assert payload.get("status") == "completed"
+
+    def test_emit_rides_alongside_error_detail_and_taxonomy_misses(self):
+        # Coordinate, don't clobber: the three ID-61.4-era optional fields and
+        # itemFailures all land in ONE payload.
+        self._skip_if_no_introspectable_stub()
+        detail = {"pydantic_class": "missing_required", "stage": "flow"}
+        payload = self._emit(
+            item_failures={"forms": 2, "content": 1},
+            error_detail=detail,
+            taxonomy_misses={"primary_domain": 3},
+        )
+        assert payload is not None
+        assert payload.get("itemFailures") == {"forms": 2, "content": 1}
+        assert payload.get("errorDetail") == detail
+        assert payload.get("taxonomyMisses") == {"primary_domain": 3}
+
+    def test_emit_omits_item_failures_when_default(self):
+        # The flow-start emission passes no item_failures — the payload must
+        # omit the field entirely (never `itemFailures: null`).
+        self._skip_if_no_introspectable_stub()
+        payload = self._emit()
+        assert payload is not None
+        assert "itemFailures" not in payload
+
+
+class TestPerItemFailureIsolation:
+    """The 80.2 §B.4 headline: a raising form item must NOT zero a good
+    content item's writes (the bl-224 cascade inversion, OQ-80.2-C RATIFIED).
+
+    Drives the REAL `flow.app_main` over a 2-file batch [raising form,
+    good content] through a faithful inline `mount_each` stand-in:
+
+      - content rows still land (ci target receives the content doc's row),
+      - flow_status == 'completed' (per-item faults never flip it),
+      - the terminal webhook threads item_failures == {'forms': 1, 'content': 0},
+      - ONE `cocoindex.stage_error` with stage='ingest_item' is emitted.
+    """
+
+    @staticmethod
+    def _fake_file(rel_path: str, disk_path: Path):
+        class _FilePath:
+            def __init__(self, p: Path) -> None:
+                self.path = p
+
+        class _File:
+            def __init__(self) -> None:
+                self.file_path = _FilePath(Path(rel_path))
+
+            async def size(self) -> int:
+                return disk_path.stat().st_size
+
+            async def read(self) -> bytes:
+                return disk_path.read_bytes()
+
+            async def read_text(self) -> str:
+                return disk_path.read_text()
+
+            async def content_fingerprint(self) -> bytes:
+                import hashlib  # noqa: PLC0415
+
+                return hashlib.sha256(disk_path.read_bytes()).digest()
+
+        return _File()
+
+    class _FakeTarget:
+        def __init__(self, table_name: str) -> None:
+            self.table_name = table_name
+            self.rows: list[dict] = []
+
+        def declare_row(self, *, row: dict) -> None:
+            self.rows.append(row)
+
+        def declare_vector_index(self, **kwargs: object) -> None:
+            pass
+
+    class _ItemsFeed:
+        def __init__(self, pairs: list) -> None:
+            self._pairs = pairs
+
+        async def __aiter__(self):
+            for pair in self._pairs:
+                yield pair
+
+    def test_raising_form_item_is_contained_and_content_still_lands(
+        self, tmp_path, monkeypatch
+    ):
+        # ── Stage a 2-file source: forms/ (will raise) + content/ (good) ──
+        forms_dir = tmp_path / "forms"
+        forms_dir.mkdir()
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        form_path = forms_dir / "blank-form.md"
+        form_path.write_text("# Blank form\n\nName: ____\n")
+        content_path = content_dir / "doc.md"
+        good_markdown = "# Doc\n\nGood content body."
+        content_path.write_text(good_markdown)
+
+        manifest = {
+            "schema_version": 1,
+            "mappings": [
+                {
+                    "path_prefix": "forms/",
+                    "workspace_id": "33333333-3333-4333-8333-333333333333",
+                    "route": "forms",
+                },
+                {
+                    "path_prefix": "content/",
+                    "workspace_id": "44444444-4444-4444-8444-444444444444",
+                    "route": "content",
+                },
+            ],
+        }
+        (tmp_path / ".kh-workspace-map.json").write_text(json.dumps(manifest))
+
+        # ── Stub Stage 2/3/4: the FORM file faults (in whichever branch the
+        # dispatcher routes it through — conversion pre-{80.8}, form-extract
+        # post-{80.8}); the CONTENT file completes normally.
+        async def _convert(file: object) -> str:
+            rel = file.file_path.path.as_posix()  # type: ignore[attr-defined]
+            if rel.startswith("forms/") or "/forms/" in rel:
+                raise RuntimeError("synthetic per-item fault on the form file")
+            return good_markdown
+
+        async def _form_structure(file: object):
+            rel = file.file_path.path.as_posix()  # type: ignore[attr-defined]
+            if rel.startswith("forms/") or "/forms/" in rel:
+                raise RuntimeError("synthetic per-item fault on the form file")
+            return None
+
+        async def _classification(content_text: str):
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+            }
+
+        async def _qa(content_text: str):
+            return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
+
+        async def _entities(content_text: str):
+            return []
+
+        async def _embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _convert)
+        monkeypatch.setattr(flow, "extract_form_structure", _form_structure)
+        monkeypatch.setattr(flow, "extract_classification", _classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _entities)
+        monkeypatch.setattr(flow, "embed_content_text", _embed)
+
+        # ── Recording targets (no real Postgres). ──
+        targets = {
+            name: self._FakeTarget(name)
+            for name in (
+                "content_items",
+                "q_a_extractions",
+                "source_documents",
+                "entity_mentions",
+                "form_templates",
+                "form_template_fields",
+                "content_chunks",
+            )
+        }
+
+        async def _fake_mount_table_target(
+            db_ctx, table_name, schema, *, managed_by
+        ):
+            return targets[table_name]
+
+        monkeypatch.setattr(flow, "mount_table_target", _fake_mount_table_target)
+
+        # ── Source walk: keyed (rel_path, File) feed, form FIRST so the
+        # fault precedes the good content item (the bl-224 cascade shape).
+        feed_pairs = [
+            ("forms/blank-form.md", self._fake_file("forms/blank-form.md", form_path)),
+            ("content/doc.md", self._fake_file("content/doc.md", content_path)),
+        ]
+
+        items_feed_cls = self._ItemsFeed
+
+        class _FakeWalk:
+            def items(self):
+                return items_feed_cls(list(feed_pairs))
+
+        def _fake_walk_dir(path, *, live, recursive):
+            return _FakeWalk()
+
+        monkeypatch.setattr(flow.localfs, "walk_dir", _fake_walk_dir)
+
+        # ── Faithful inline mount_each: per-item fn(value, *extra_args); a
+        # per-item raise PROPAGATES to the binder (engine semantics) — the
+        # containment under test lives in bound_ingest_file, NOT here.
+        async def _inline_mount_each(_subpath, fn, items, *extra_args):
+            async for _key, value in items:
+                await fn(value, *extra_args)
+
+            class _Handle:
+                async def ready(self) -> None:
+                    return None
+
+            return _Handle()
+
+        monkeypatch.setattr(flow.coco, "mount_each", _inline_mount_each)
+        monkeypatch.setattr(flow.coco, "use_context", lambda key: None)
+
+        # ── Stage 5 is flow-scope; stub it (not under test). ──
+        async def _fake_stage_5(*args, **kwargs):
+            return 0
+
+        monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
+
+        # ── Capture webhook emissions + stage-error logs. ──
+        webhook_calls: list[dict] = []
+
+        async def _capture_webhook(**kwargs):
+            webhook_calls.append(kwargs)
+
+        monkeypatch.setattr(flow, "_emit_pipeline_run_webhook", _capture_webhook)
+
+        stage_error_calls: list[dict] = []
+        real_emit_stage_error = flow._emit_stage_error_log
+
+        def _spy_stage_error(**kwargs):
+            stage_error_calls.append(kwargs)
+            return real_emit_stage_error(**kwargs)
+
+        monkeypatch.setattr(flow, "_emit_stage_error_log", _spy_stage_error)
+
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(tmp_path))
+
+        # ── Drive the REAL app_main — it must NOT raise (containment). ──
+        asyncio.run(flow.app_main())
+
+        # 1. Content rows land: the good content file's writes are NOT zeroed
+        # by the sibling form fault (the bl-224 inversion).
+        ci_rows = targets["content_items"].rows
+        assert len(ci_rows) == 1, (
+            f"expected exactly the content doc's content_items row; "
+            f"got {len(ci_rows)}"
+        )
+        assert ci_rows[0]["content"] == good_markdown
+
+        # 2. flow_status == 'completed': per-item faults never flip the
+        # terminal status ('failed' is reserved for walk-wide faults).
+        assert webhook_calls, "expected webhook emissions"
+        terminal = webhook_calls[-1]
+        assert terminal["status"] == "completed"
+        assert terminal.get("error_class") is None
+        assert terminal.get("error_message") is None
+
+        # 3. The terminal webhook threads the per-branch tally.
+        assert terminal.get("item_failures") == {"forms": 1, "content": 0}
+
+        # 4. The fault is attributed: ONE ingest_item stage error, classified
+        # via the `_classify_stage_exception(exc) or type name` fallback.
+        ingest_item_errors = [
+            c for c in stage_error_calls if c.get("stage") == "ingest_item"
+        ]
+        assert len(ingest_item_errors) == 1
+        assert ingest_item_errors[0]["error_class"] == "RuntimeError"
+        # Redaction applied at the call site (spec B.4 sketch).
+        assert "synthetic per-item fault" in ingest_item_errors[0]["error_message"]
+
+        # 5. The flow-start emission carries NO item_failures (omitted, not 0).
+        flow_start = webhook_calls[0]
+        assert flow_start["status"] == "in_progress"
+        assert flow_start.get("item_failures") is None

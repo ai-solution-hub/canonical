@@ -603,6 +603,64 @@ class _FlowTaxonomyMissCounter:
         return tally
 
 
+# ── 80.2 §B.4 per-item-failure substrate (ID-80.9 — OQ-80.2-C RATIFIED) ─────
+
+
+class _FlowItemFailureCounter:
+    """Per-flow per-branch item-failure tally for 80.2 §B.4 observability.
+
+    `.increment(branch)` is called from the per-item containment handler in
+    `app_main`'s `bound_ingest_file` each time an UNEXPECTED exception escapes
+    one file's ingest (`branch` is `'forms'` or `'content'`, derived via
+    `_item_failure_branch` from the same pure `resolve_route` computation the
+    {80.8} fork uses). `.tally()` is read at flow end and emitted via the
+    pipeline-run webhook as `itemFailures` (`{'forms': n, 'content': m}`).
+
+    OQ-80.2-C (Liam, S314, 05/06/2026): per-item faults leave
+    `flow_status='completed'` and ride this tally; `'failed'` is reserved for
+    walk-wide faults (manifest load, Stage-5, mount errors). This is the
+    bl-224 cascade inversion — one form file's fault must never zero a
+    content file's reported writes.
+
+    Instances are per-flow — one per `app_main()` invocation, no shared
+    state. Thread-safety is not required: cocoindex @coco.fn execution is
+    sequential per content row. Mirrors `_FlowRetryCounter` /
+    `_FlowStageCounter`.
+    """
+
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {"forms": 0, "content": 0}
+
+    def increment(self, branch: str) -> None:
+        self._counts[branch] = self._counts.get(branch, 0) + 1
+
+    def tally(self) -> dict[str, int]:
+        return dict(self._counts)
+
+
+def _item_failure_branch(manifest: Any, file: Any, source_path: Any) -> str:
+    """Attribute a contained per-item fault to its `'forms'`/`'content'` branch.
+
+    Uses the SAME pure `resolve_route(manifest, rel_path)` computation the
+    {80.8} route fork uses (80.2 §B.2: input-only, no I/O, no clock), with the
+    same `_to_source_relative` normalisation the dispatcher applies
+    ({66.22}/BUG-A — production File paths are absolute).
+
+    NEVER raises: this helper runs inside the per-item containment handler
+    (80.2 §B.4), where an escape would abort the batch — the exact
+    all-or-nothing failure mode the containment exists to kill. Any
+    derivation failure (unmapped path, ambiguous manifest, malformed item)
+    defaults the attribution to `'content'` (the manifest's own `route`
+    default per 80.2 §B.2).
+    """
+    try:
+        rel_path = _to_source_relative(file.file_path.path, source_path)
+        route = resolve_route(manifest, rel_path).route
+    except Exception:  # noqa: BLE001 — containment handler must never raise
+        return "content"
+    return "forms" if route == "forms" else "content"
+
+
 # ── Inv-16 / Inv-17 / Inv-18 rollup substrate (P-7 — ID-28.11) ───────────────
 
 
@@ -717,6 +775,7 @@ async def _emit_pipeline_run_webhook(
     extractor_version: str | None = None,
     retry_count: int | None = None,
     taxonomy_misses: dict[str, int] | None = None,
+    item_failures: dict[str, int] | None = None,
     pipeline_name: str = KH_CANONICAL_PIPELINE_NAME,
 ) -> None:
     """POST a pipeline-run rollup to the Vercel webhook.
@@ -782,6 +841,13 @@ async def _emit_pipeline_run_webhook(
     # run yet); an empty dict at flow-end means "extractions ran, zero misses".
     if taxonomy_misses is not None:
         payload["taxonomyMisses"] = taxonomy_misses
+    # ID-80.9 (80.2 §B.4, OQ-80.2-C): per-branch tally of CONTAINED per-item
+    # faults — `{'forms': n, 'content': m}`. `None` omits the field entirely
+    # (flow-start emission); the terminal emission always threads the tally,
+    # so an all-zero map at flow end means "walk ran, zero per-item faults".
+    # Rides ALONGSIDE errorDetail/taxonomyMisses (ID-61.4) — never clobbers.
+    if item_failures is not None:
+        payload["itemFailures"] = item_failures
 
     headers = {
         "Authorization": f"Bearer {secret}",
@@ -2364,6 +2430,12 @@ async def app_main() -> None:
     # written unchanged). Its per-field tally is folded into the flow-end
     # webhook payload (ID-63.8).
     flow_taxonomy_miss_counter = _FlowTaxonomyMissCounter()
+    # 80.2 §B.4 per-item-failure substrate (ID-80.9): bumped by the
+    # containment handler in `bound_ingest_file` below each time an
+    # unexpected exception escapes ONE file's ingest; its per-branch tally
+    # (`{'forms': n, 'content': m}`) is threaded into the terminal webhook
+    # emit. Per-item faults never flip `flow_status` (OQ-80.2-C).
+    flow_item_failure_counter = _FlowItemFailureCounter()
 
     # ── ID-52 Path B: load the folder→workspace manifest ONCE at flow start ──
     # (TECH §2.1). The manifest lives at the root of the ingest source folder.
@@ -2524,17 +2596,39 @@ async def app_main() -> None:
         # `extraction.py` reads those ContextVars in-task; stage_counter +
         # workspace_manifest are read directly from the passed args), NOT on this
         # binder task whose ContextVars the engine does not propagate.
+        # ID-80.9 (80.2 §B.4): per-item containment at the mount_each
+        # boundary. An UNEXPECTED escape from one file's branch is contained
+        # and attributed (per-branch tally + ingest_item stage error), NOT
+        # promoted to a whole-walk failure — Inv-17: one file's fault must
+        # not abort the batch or flip flow_status (the bl-224 cascade
+        # inversion). Walk-wide faults (manifest load, Stage-5, mount
+        # errors) still propagate through the flow-scope except below and
+        # correctly land status='failed'.
         async def bound_ingest_file(file, *targets):
-            return await ingest_file(
-                file,
-                *targets,
-                flow_op_id=run_op_id,
-                flow_stage_counter=flow_stage_counter,
-                flow_retry_counter=flow_retry_counter,
-                flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
-                flow_workspace_manifest=workspace_manifest,
-                flow_source_path=source_path,
-            )
+            try:
+                return await ingest_file(
+                    file,
+                    *targets,
+                    flow_op_id=run_op_id,
+                    flow_stage_counter=flow_stage_counter,
+                    flow_retry_counter=flow_retry_counter,
+                    flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
+                    flow_workspace_manifest=workspace_manifest,
+                    flow_source_path=source_path,
+                )
+            except Exception as exc:  # noqa: BLE001 — per-item containment
+                flow_item_failure_counter.increment(
+                    _item_failure_branch(workspace_manifest, file, source_path)
+                )
+                _emit_stage_error_log(
+                    op_id=run_op_id,
+                    stage="ingest_item",
+                    error_class=_classify_stage_exception(exc)
+                    or type(exc).__name__,
+                    content_items_id=None,
+                    error_message=_redact_error_message(str(exc)),
+                )
+                return None  # swallow → batch continues (80.2 §B.4)
 
         # Pin the subpath explicitly to "ingest_file" (the pre-{66.19} component
         # identity) — the named coroutine would otherwise auto-derive the subpath to
@@ -2725,6 +2819,10 @@ async def app_main() -> None:
             extractor_version=extractor_version,
             retry_count=flow_retry_counter.get(),
             taxonomy_misses=flow_taxonomy_miss_counter.tally_by_field(),
+            # ID-80.9 (80.2 §B.4): per-branch tally of contained per-item
+            # faults. Always threaded at flow end — an all-zero map means
+            # "walk ran, zero per-item faults" (omitted only at flow start).
+            item_failures=flow_item_failure_counter.tally(),
         )
 
 
