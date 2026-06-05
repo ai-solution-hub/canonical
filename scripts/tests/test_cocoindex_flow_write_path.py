@@ -761,6 +761,216 @@ class TestStablePrimaryKeysAcrossRuns:
         assert rows_a["sd"][0]["op_id"] != rows_b["sd"][0]["op_id"]
 
 
+# ── ID-80.10 — Inv-19: Path-A q_a declare payload untouched by form routing ───
+
+
+class TestInv19QaDeclareSnapshot:
+    """Inv-19 — Path-A writes are never touched by form routing (80.2 §Testing
+    row 5; ID-80.10).
+
+    Snapshot-compares the content branch's FULL ``q_a_extractions``
+    ``declare_row`` payload against a frozen golden literal transcribed from
+    the pre-{80.7}/{80.8} refactor declare contract (the per-field shape
+    ``TestIngestFileWritePath`` pinned BEFORE the fork landed — ID-54.1 +
+    OQ-54-E + the ID-28.21 op_id stamp). Exact ``dict`` equality on the whole
+    row list means ANY added, removed, renamed or re-valued key — including a
+    drifted ``_KH_PIPELINE_DOC_NS`` (the uuid5 values are hard-coded) — fails
+    the snapshot.
+
+    Two modes prove the Inv-19 claim end-to-end through the REAL
+    ``ingest_file`` fork body:
+      (a) no manifest bound (the Path-A-only default — pre-fork behaviour),
+      (b) a mapped ``route:"content"`` manifest (the fork actively resolves
+          and routes the content branch).
+    Both must produce the IDENTICAL golden payload — the form-routing fork
+    must not perturb a single byte of the Path-A q_a declare."""
+
+    _REL_PATH = "acme/inv19-doc.md"
+    # Pinned per-run op_id (a literal, not uuid4 — the golden embeds it).
+    _OP_ID = uuid.UUID("0b6db886-26be-4c40-bd9f-d44dd5ee1f30")
+    # Hard-coded uuid5 values for _KH_PIPELINE_DOC_NS
+    # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") over the pinned rel_path —
+    # computed once and FROZEN so namespace or seed-string drift is caught.
+    _CI_ID = uuid.UUID("390cb80c-ae52-5769-b3db-1c34df81a7a1")  # ci:{rel}
+    _QA0_ID = uuid.UUID("1552220b-1f2b-5901-adc9-b84b94a5a099")  # qa:{rel}:0
+    _QA1_ID = uuid.UUID("05be7ffd-305c-55f9-9068-805d1fa1fae9")  # qa:{rel}:1
+
+    _GOLDEN_QA_ROWS = [
+        {
+            "id": _QA0_ID,
+            "source_content_item_id": _CI_ID,
+            "extractor_kind": "llm_extraction",
+            "extracted_question_text": "What is X?",
+            "extracted_answer_text": "X is Y.",
+            "expected_response_kind": "mandatory",
+            "evaluation_criteria": "scored on completeness",
+            "evidence_requirements": ["certificate"],
+            "scope_tags": ["lot-1"],
+            "extraction_metadata": {
+                "extraction_kind": "q_a_form",
+                "qa_index": 0,
+                "rel_path": "acme/inv19-doc.md",
+            },
+            "op_id": _OP_ID,
+        },
+        {
+            "id": _QA1_ID,
+            "source_content_item_id": _CI_ID,
+            "extractor_kind": "llm_extraction",
+            "extracted_question_text": "What is Z?",
+            "extracted_answer_text": "Z is W.",
+            "expected_response_kind": None,
+            "evaluation_criteria": None,
+            "evidence_requirements": [],
+            "scope_tags": [],
+            "extraction_metadata": {
+                "extraction_kind": "q_a_form",
+                "qa_index": 1,
+                "rel_path": "acme/inv19-doc.md",
+            },
+            "op_id": _OP_ID,
+        },
+    ]
+
+    @classmethod
+    def _drive(
+        cls,
+        flow: object,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        manifest: object | None = None,
+    ) -> dict:
+        """Drive the REAL ``ingest_file`` with pinned outside-world seams
+        (Docling / Anthropic / OpenAI — process boundaries only) and return
+        the recording targets."""
+        from scripts.cocoindex_pipeline.flow_context import (
+            bind_flow_meta,
+            bind_workspace_manifest,
+        )
+
+        markdown = "# Inv-19\n\nFrozen body text."
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+                "suggested_title": "Inv-19 Doc",
+            }
+
+        async def _fake_qa(content_text: str):
+            # The SAME two-pair input the pre-fork write-path contract test
+            # used: one fully-populated pair + one defaults-fallback pair.
+            return {
+                "qa_pairs": [
+                    {
+                        "question_text": "What is X?",
+                        "answer_text": "X is Y.",
+                        "expected_response_kind": "mandatory",
+                        "evaluation_criteria": "scored on completeness",
+                        "evidence_requirements": ["certificate"],
+                        "scope_tags": ["lot-1"],
+                    },
+                    {
+                        "question_text": "What is Z?",
+                        "answer_text": "Z is W.",
+                    },
+                ]
+            }
+
+        async def _fake_entities(content_text: str):
+            return []
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+        src = tmp_path / "inv19-doc.md"
+        src.write_text(markdown)
+        fake_file = _FakeFormFile(cls._REL_PATH, src)
+
+        targets = {
+            "ci": _FakeTarget("content_items"),
+            "qa": _FakeTarget("q_a_extractions"),
+            "sd": _FakeTarget("source_documents"),
+            "em": _FakeTarget("entity_mentions"),
+            "ft": _FakeTarget("form_templates"),
+            "ftf": _FakeTarget("form_template_fields"),
+        }
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=cls._OP_ID):
+                if manifest is None:
+                    await flow.ingest_file(
+                        fake_file,
+                        targets["ci"],
+                        targets["qa"],
+                        targets["sd"],
+                        targets["em"],
+                        targets["ft"],
+                        targets["ftf"],
+                    )
+                else:
+                    async with bind_workspace_manifest(manifest):
+                        await flow.ingest_file(
+                            fake_file,
+                            targets["ci"],
+                            targets["qa"],
+                            targets["sd"],
+                            targets["em"],
+                            targets["ft"],
+                            targets["ftf"],
+                        )
+
+        asyncio.run(_exercise())
+        return targets
+
+    def test_qa_declare_payload_matches_pre_refactor_golden_no_manifest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """(a) Path-A-only default (no manifest bound): the q_a declare
+        payload is EXACTLY the frozen pre-refactor golden — full-dict
+        equality, every key and value."""
+        flow = _flow_module()
+        out = self._drive(flow, tmp_path, monkeypatch, manifest=None)
+
+        assert out["qa"].rows == self._GOLDEN_QA_ROWS, (
+            "the content branch's q_a_extractions declare payload must be "
+            "byte-identical to the pre-{80.7}/{80.8} refactor contract "
+            "(Inv-19 — 80.2 §Testing row 5)"
+        )
+
+    def test_qa_declare_payload_identical_under_content_routed_manifest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """(b) The fork actively resolves a ``route:"content"`` mapping for
+        this file — and the q_a declare payload is STILL the identical
+        golden. Form routing never touches a Path-A write."""
+        flow = _flow_module()
+        ws = uuid.uuid4()
+        manifest = _make_manifest(flow, "acme/", ws, route="content")
+        out = self._drive(flow, tmp_path, monkeypatch, manifest=manifest)
+
+        assert out["qa"].rows == self._GOLDEN_QA_ROWS, (
+            "routing a content file through the {80.8} fork (mapped "
+            "route:'content' manifest) must leave the q_a_extractions "
+            "declare payload byte-identical to the no-manifest golden "
+            "(Inv-19 — Path-A writes never touched by form routing)"
+        )
+        # And the fork's mutual exclusion held: zero form rows either way.
+        assert out["ft"].rows == []
+        assert out["ftf"].rows == []
+
+
 # ── 28.21 — content_fingerprint is awaited (async method, not attribute) ──────
 
 
@@ -1525,15 +1735,18 @@ class TestFormWriteSkipAndFailurePaths:
         """bl-219: an UNMAPPED path → 0 form rows + a benign WARNING soft-warn
         (`workspace_resolution.unmapped`), NOT a `cocoindex.stage_error`.
 
-        An unmapped content path is observability-only: the workspace-agnostic
-        canonical content already wrote ABOVE the form-resolution block
-        (ID-69 BI-1) and the invocation does NOT fail, so emitting a stage error
-        (Inv-26's failed-invocation companion) would be a false alarm. Asserts:
+        An unmapped content path is observability-only: post-{80.8} fork an
+        unmapped file soft-warns at the fork, defaults to `route=content` and
+        runs the content branch, and the invocation does NOT fail, so emitting
+        a stage error (Inv-26's failed-invocation companion) would be a false
+        alarm. Asserts:
           (a) NO stage error with stage=='workspace_resolution' is emitted,
           (b) the soft-warn (`workspace_resolution.unmapped`, WARNING) IS emitted,
           (c) zero form_templates + zero form_template_fields rows,
           (d) extraction NOT called (resolution fails before extraction),
-          (e) the CONTENT row still wrote (workspace-agnostic; ID-69 BI-1)."""
+          (e) the content branch ran (unmapped → soft-warn → route=content →
+              _ingest_content_branch) and the ci row landed (workspace-agnostic,
+              ID-69 BI-1)."""
         flow = _flow_module()
         _stub_path_a(flow, monkeypatch)
         _spy_trim(flow, monkeypatch)

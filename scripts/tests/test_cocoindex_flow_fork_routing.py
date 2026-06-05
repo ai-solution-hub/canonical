@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import uuid
 from pathlib import Path
 
@@ -462,3 +463,210 @@ class TestAmbiguousResolutionAtForkIsLoudZeroRows:
         assert ws_errors[0]["error_class"] == "extraction_validation_failed"
         # Neither branch did any work.
         assert calls["convert"] == 0
+
+
+class TestIdempotencyAcrossBothBranches:
+    """80.2 §Testing row 7 (ID-80.10): re-ingesting the SAME bytes twice down
+    EACH branch of the {80.8} fork mints IDENTICAL deterministic uuid5 PKs —
+    so ``declare_row`` UPSERTs the same rows on the second run instead of
+    inserting duplicates. The op_id ROW FIELD differs per run (it identifies
+    the RUN; ratified OQ-A re-stamps the same row's op_id).
+
+    The pre-fork idempotency guards
+    (``TestStablePrimaryKeysAcrossRuns`` — content, no manifest;
+    ``TestFormWriteIdempotency`` — forms, faked extractor) predate the fork:
+    neither re-ingests through an ACTIVE manifest ``route`` resolution on the
+    content side, and the forms side never ran the REAL extractor twice. These
+    two tests close that gap through the real fork body."""
+
+    def test_content_branch_reingest_same_bytes_mints_identical_pks(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """route:'content' mapped .md ingested twice → identical sd/ci/qa/cc
+        uuid5 PKs across runs (UPSERT, not duplicates) + per-run op_id."""
+        flow = _flow_module()
+        _observe_path_a_seams(flow, monkeypatch)
+
+        # One qa pair so the qa: uuid5 PK is exercised (the shared observer's
+        # qa stub returns zero pairs).
+        async def _one_pair_qa(content_text: str):
+            return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
+
+        monkeypatch.setattr(flow, "extract_qa_form", _one_pair_qa)
+
+        ws = uuid.uuid4()
+        manifest = _make_manifest("acme/", ws, route="content")
+        rel_path = "acme/stable-doc.md"
+        same_bytes = b"# Stable\n\nSame bytes every run."
+
+        out_a = _drive_ingest(
+            flow, _FakeFile(rel_path, data=same_bytes), manifest=manifest
+        )
+        out_b = _drive_ingest(
+            flow, _FakeFile(rel_path, data=same_bytes), manifest=manifest
+        )
+        # Two genuinely distinct runs.
+        assert out_a["op_id"] != out_b["op_id"]
+
+        # Identical deterministic PKs across runs, matching the uuid5 formulae
+        # (so the second run's declare_row UPSERTs the SAME rows).
+        ns = flow._KH_PIPELINE_DOC_NS
+        for key, seed in (("sd", f"sd:{rel_path}"), ("ci", f"ci:{rel_path}")):
+            assert len(out_a[key].rows) == 1 and len(out_b[key].rows) == 1
+            id_a = out_a[key].rows[0]["id"]
+            id_b = out_b[key].rows[0]["id"]
+            assert id_a == id_b == uuid.uuid5(ns, seed), (
+                f"{out_a[key].table_name} PK must be the stable uuid5({seed!r}) "
+                "across re-ingest (80.2 §Testing row 7 idempotency)"
+            )
+        assert len(out_a["qa"].rows) == 1 and len(out_b["qa"].rows) == 1
+        assert (
+            out_a["qa"].rows[0]["id"]
+            == out_b["qa"].rows[0]["id"]
+            == uuid.uuid5(ns, f"qa:{rel_path}:0")
+        )
+        # Chunk rows: same count, identical per-position uuid5 PKs.
+        chunk_ids_a = [r["id"] for r in out_a["cc"].rows]
+        chunk_ids_b = [r["id"] for r in out_b["cc"].rows]
+        assert chunk_ids_a and chunk_ids_a == chunk_ids_b
+        assert chunk_ids_a == [
+            uuid.uuid5(ns, f"chunk:{rel_path}:{pos}")
+            for pos in range(len(chunk_ids_a))
+        ]
+        # No duplicate PKs WITHIN a run either (one declare per logical row).
+        assert len(set(chunk_ids_a)) == len(chunk_ids_a)
+
+        # op_id is the per-RUN stamp, re-stamped on the same row (UPSERT
+        # semantics — ratified OQ-A), never part of the PK seed.
+        assert out_a["sd"].rows[0]["op_id"] == out_a["op_id"]
+        assert out_b["sd"].rows[0]["op_id"] == out_b["op_id"]
+        # Zero form rows on the content branch, both runs.
+        assert out_a["ft"].rows == [] and out_b["ft"].rows == []
+        assert out_a["ftf"].rows == [] and out_b["ftf"].rows == []
+
+    def test_form_branch_reingest_same_bytes_mints_identical_pks(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """route:'forms' real .docx ingested twice through the REAL extractor
+        → identical ft:/ftf: uuid5 PKs + identical field payloads (UPSERT,
+        not duplicates)."""
+        assert _CHARNWOOD_DOCX.exists(), (
+            f"corpus fixture missing — {_CHARNWOOD_DOCX}"
+        )
+
+        flow = _flow_module()
+        _observe_path_a_seams(flow, monkeypatch)
+        _spy_trim(flow, monkeypatch)
+        # extract_form_structure NOT patched — the real docx reader runs on
+        # the same committed bytes both times (deterministic extraction).
+
+        ws = uuid.uuid4()
+        manifest = _make_manifest("_held_forms/", ws, route="forms")
+        rel_path = "_held_forms/charnwood/itt-services.docx"
+
+        out_a = _drive_ingest(
+            flow, _FakeFile(rel_path, disk_path=_CHARNWOOD_DOCX), manifest=manifest
+        )
+        out_b = _drive_ingest(
+            flow, _FakeFile(rel_path, disk_path=_CHARNWOOD_DOCX), manifest=manifest
+        )
+        assert out_a["op_id"] != out_b["op_id"]
+
+        ns = flow._KH_PIPELINE_DOC_NS
+        # form_templates: ONE row per run, the SAME deterministic ft: PK.
+        assert len(out_a["ft"].rows) == 1 and len(out_b["ft"].rows) == 1
+        assert (
+            out_a["ft"].rows[0]["id"]
+            == out_b["ft"].rows[0]["id"]
+            == uuid.uuid5(ns, f"ft:{rel_path}")
+        ), "form_templates PK must be stable across re-ingest (row 7)"
+
+        # form_template_fields: identical ordered uuid5 PK lists — the second
+        # run UPSERTs every field row rather than duplicating it.
+        ftf_ids_a = [r["id"] for r in out_a["ftf"].rows]
+        ftf_ids_b = [r["id"] for r in out_b["ftf"].rows]
+        assert ftf_ids_a, "the real docx reader must extract at least one field"
+        assert ftf_ids_a == ftf_ids_b
+        assert ftf_ids_a == [
+            uuid.uuid5(ns, f"ftf:{rel_path}:{r['sequence']}")
+            for r in out_a["ftf"].rows
+        ]
+        assert len(set(ftf_ids_a)) == len(ftf_ids_a), (
+            "no duplicate field PKs within a run"
+        )
+        # The real extractor is deterministic on identical bytes: the full
+        # field payloads (not just the PKs) match run-for-run.
+        assert out_a["ftf"].rows == out_b["ftf"].rows
+
+
+class TestRouteLessManifestBackwardCompat:
+    """80.2 §Testing row 8 (ID-80.10): a manifest WITHOUT any ``route`` key —
+    the EXACT id-52-era fixture shape (schema_version 1; mappings carrying
+    ONLY path_prefix + workspace_id) — parses unchanged through the REAL
+    ``load_workspace_manifest`` and every mapped file resolves
+    ``route="content"`` at the fork, taking the content branch end-to-end.
+    The resolver-level default is {80.6}'s
+    ``test_manifest_without_route_resolves_route_content``; this test proves
+    it THROUGH the real ``ingest_file`` fork body (flow level)."""
+
+    def test_route_less_manifest_parses_and_drives_content_branch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline.workspace_resolver import (
+            load_workspace_manifest,
+            resolve_route,
+        )
+
+        # The id-52 manifest shape, verbatim — NO route key anywhere.
+        manifest_path = tmp_path / ".kh-workspace-map.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "mappings": [
+                        {
+                            "path_prefix": "example-client-procurement/",
+                            "workspace_id": (
+                                "11111111-1111-4111-8111-111111111111"
+                            ),
+                        },
+                        {
+                            "path_prefix": "acme-bids/",
+                            "workspace_id": (
+                                "22222222-2222-4222-8222-222222222222"
+                            ),
+                        },
+                    ],
+                }
+            )
+        )
+        # REAL parse — the pre-{80.6} fixture loads unchanged (no migration,
+        # schema_version stays 1).
+        manifest = load_workspace_manifest(manifest_path)
+        assert manifest.schema_version == 1
+        # Every prefix resolves the content default at the fork's resolver.
+        for rel in ("example-client-procurement/SQ.pdf", "acme-bids/notes.md"):
+            assert resolve_route(manifest, rel).route == "content"
+
+        flow = _flow_module()
+        calls = _observe_path_a_seams(flow, monkeypatch)
+
+        async def _must_not_run(file: object):
+            raise AssertionError(
+                "extract_form_structure must NEVER run under a route-less "
+                "manifest — every prefix defaults route='content' (row 8)"
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _must_not_run)
+
+        fake_file = _FakeFile("acme-bids/notes.md", data=b"# H\n\nbody")
+        out = _drive_ingest(flow, fake_file, manifest=manifest)
+
+        # The content branch ran end-to-end: content rows landed, zero form
+        # rows, and the Stage-2 conversion + LLM passes executed.
+        assert len(out["ci"].rows) == 1
+        assert len(out["sd"].rows) == 1
+        assert out["ft"].rows == []
+        assert out["ftf"].rows == []
+        assert calls["convert"] == 1
+        assert calls["classification"] == 1
