@@ -279,7 +279,7 @@ async function main(): Promise<void> {
       `\nDONE: ${result.written} written, ${result.declined} declined, ${result.failed} failed.`,
     );
     if (result.failed > 0) {
-      for (const err of result.errors) console.error(`  insert error: ${err}`);
+      for (const err of result.errors) console.error(`  upsert error: ${err}`);
       process.exit(1);
     }
   } finally {
