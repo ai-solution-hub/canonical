@@ -1467,8 +1467,13 @@ class TestPerItemFailureIsolation:
         forms_dir.mkdir()
         content_dir = tmp_path / "content"
         content_dir.mkdir()
-        form_path = forms_dir / "blank-form.md"
-        form_path.write_text("# Blank form\n\nName: ____\n")
+        # Genuine form suffix (.xlsx): the {80.8} fork's secondary suffix guard
+        # rejects .md/.txt/.html under a route:'forms' prefix as a manifest
+        # mis-wire (stage_error + early return) BEFORE extract_form_structure
+        # runs — a non-form suffix would never reach the per-item containment
+        # under test. Bytes are irrelevant: extract_form_structure is stubbed.
+        form_path = forms_dir / "blank-form.xlsx"
+        form_path.write_text("not a real xlsx; reader is stubbed")
         content_path = content_dir / "doc.md"
         good_markdown = "# Doc\n\nGood content body."
         content_path.write_text(good_markdown)
@@ -1490,9 +1495,16 @@ class TestPerItemFailureIsolation:
         }
         (tmp_path / ".kh-workspace-map.json").write_text(json.dumps(manifest))
 
-        # ── Stub Stage 2/3/4: the FORM file faults (in whichever branch the
-        # dispatcher routes it through — conversion pre-{80.8}, form-extract
-        # post-{80.8}); the CONTENT file completes normally.
+        # ── Stub Stage 2/3/4: the FORM file faults in the form branch — the
+        # manifest tags forms/ route:'forms', so the {80.8} fork sends it into
+        # _ingest_form_branch where the raising extract_form_structure stub's
+        # RuntimeError (NOT a FormExtractionError) PROPAGATES to
+        # bound_ingest_file's per-item catch. The CONTENT file completes
+        # normally. The raising arm in _convert is a deliberate TRIPWIRE: the
+        # forms route performs NO Markdown conversion, so if a regression ever
+        # mis-routes the form file down the content branch, _convert raises and
+        # Path-A's stage-level containment lands ZERO ci rows + a forms:0 tally
+        # — assertions 3 and 4 then fail loudly instead of silently passing.
         async def _convert(file: object) -> str:
             rel = file.file_path.path.as_posix()  # type: ignore[attr-defined]
             if rel.startswith("forms/") or "/forms/" in rel:
@@ -1552,7 +1564,10 @@ class TestPerItemFailureIsolation:
         # ── Source walk: keyed (rel_path, File) feed, form FIRST so the
         # fault precedes the good content item (the bl-224 cascade shape).
         feed_pairs = [
-            ("forms/blank-form.md", self._fake_file("forms/blank-form.md", form_path)),
+            (
+                "forms/blank-form.xlsx",
+                self._fake_file("forms/blank-form.xlsx", form_path),
+            ),
             ("content/doc.md", self._fake_file("content/doc.md", content_path)),
         ]
 
