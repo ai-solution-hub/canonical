@@ -285,7 +285,11 @@ oq_decide() {
     # Respect ${TMPDIR} (sandbox allowlist is /tmp/claude*, not bare /tmp —
     # bl-214); fall back to /tmp when TMPDIR is unset.
     local tmp_validate
-    tmp_validate="$(mktemp "${TMPDIR:-/tmp}/oq-decide-validate.XXXXXX.json")"
+    # Trailing-X template: BSD/macOS mktemp only randomises a TRAILING X-run —
+    # with a ".json" suffix after the Xs it creates the LITERAL filename, so any
+    # two oq_decide calls sharing TMPDIR collide (bl-230 root cause, S320:
+    # proven 15/15 on concurrent pairs; presented as flaky test_decide failures).
+    tmp_validate="$(mktemp "${TMPDIR:-/tmp}/oq-decide-validate.json.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$tmp_validate'" EXIT
 

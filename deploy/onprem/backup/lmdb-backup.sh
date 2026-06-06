@@ -151,7 +151,7 @@ else
 fi
 
 OBJECT_NAME="lmdb-${TIMESTAMP}.tar.${COMPRESS_EXT}"
-TARBALL="$(mktemp -t "lmdb-backup.XXXXXX.tar.${COMPRESS_EXT}")"
+TARBALL="$(mktemp -t "lmdb-backup.tar.${COMPRESS_EXT}.XXXXXX")"  # trailing Xs — BSD mktemp literalises mid-template X-runs (bl-230 class)
 
 log "Packaging snapshot -> '${TARBALL}' (${COMPRESS_EXT})."
 # -C into the snapshot dir and tar '.' so the archive holds the env files at the
