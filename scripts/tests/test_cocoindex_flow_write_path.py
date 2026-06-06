@@ -1056,9 +1056,13 @@ class TestSourceDocumentProvenanceWritePath:
     Proves the WIRING SHAPE (ID-42.9 §WP-E): ``ingest_file`` resolves provenance
     via ``extract_source_provenance`` (the real helper, routing by suffix) and
     writes ``extraction_method`` / ``pullmd_share_id`` into the declare_row dict.
-    Stubs ONLY at the ``_pullmd_to_markdown``/httpx boundary per
+    Stubs ONLY at the ``_pullmd_http_get``/httpx boundary per
     docs/reference/test-philosophy.md — the live-service proof is {42.10}'s job.
     The content_text path (Stage 3-6) stays stubbed so this is a pure shape test.
+
+    ID-75 WP-D: the localfs HTML→PullMD branch is RETIRED — a staged
+    .html/.htm now fails LOUDLY per-file (LocalfsHtmlRetiredError) with NO
+    PullMD call; HTML content lands via the URL source instead.
     """
 
     @staticmethod
@@ -1096,47 +1100,59 @@ class TestSourceDocumentProvenanceWritePath:
         asyncio.run(_exercise())
         return sd
 
-    def test_html_source_carries_pullmd_method_and_share_id(
+    def test_html_source_raises_loud_retired_error_with_no_pullmd_call(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """A staged .html fails LOUDLY (LocalfsHtmlRetiredError) — NO PullMD call.
+
+        ID-75 WP-D: HTML content lands via the URL source; the file corpus does
+        not route HTML to PullMD (a local file path is unreachable for the
+        service anyway). The error propagates out of ``ingest_file`` and is
+        contained per-file at the mount boundary (ID-80.9) — one bad .html
+        never aborts the batch. ZERO rows land on any target.
+        """
         flow = _flow_module()
         from unittest.mock import AsyncMock
         import sys as _sys
 
         self._stub_extractors(flow, monkeypatch)
 
-        # Stub the content_text path (the str body feeding Stages 3-6) so no
-        # network is touched on the markdown side; the provenance side is proved
-        # via the real extract_source_provenance routing + a stubbed pullmd HTTP.
-        async def _fake_convert(file: object) -> str:
-            return "# HTML body\n\nExtracted markdown."
-
-        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
-
-        # Stub the pullmd HTTP boundary only (test-philosophy: shape, not service).
-        # Resolve the EXACT adapters module flow imported extract_source_provenance
-        # from (flow.py uses `scripts.cocoindex_pipeline.adapters`; sibling tests
-        # may import `cocoindex_pipeline.adapters` — different module objects). We
-        # patch `_pullmd_to_markdown` on the function's OWN globals so the patch is
-        # module-identity-agnostic.
+        # convert_binary_to_markdown is NOT stubbed: the REAL adapter routing
+        # must raise the named error at Stage 2 — that is the behaviour under
+        # test. Stub only the pullmd HTTP boundary to prove it is never reached.
+        # Resolve the EXACT adapters module flow imported the helpers from
+        # (module-identity-agnostic, as the sibling tests do).
         adapters = _sys.modules[flow.extract_source_provenance.__module__]
-        stub_result = adapters.PullmdResult(
-            markdown="# HTML body\n\nExtracted markdown.",
-            x_source="playwright",
-            x_quality=0.77,
-            share_id="cafe1234",
-        )
-        monkeypatch.setattr(
-            adapters, "_pullmd_to_markdown", AsyncMock(return_value=stub_result)
-        )
+        pullmd_http = AsyncMock(name="_pullmd_http_get")
+        monkeypatch.setattr(adapters, "_pullmd_http_get", pullmd_http)
+
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         src = tmp_path / "page.html"
         src.write_text("<html><body>hi</body></html>")
-        sd = self._ingest(flow, _FakeFile(src))
+        fake_file = _FakeFile(src)
 
-        assert len(sd.rows) == 1
-        assert sd.rows[0]["extraction_method"] == "pullmd_playwright"
-        assert sd.rows[0]["pullmd_share_id"] == "cafe1234"
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)  # type: ignore[attr-defined]
+
+        with pytest.raises(adapters.LocalfsHtmlRetiredError):
+            asyncio.run(_exercise())
+
+        # The retired branch must never reach the PullMD HTTP boundary…
+        assert pullmd_http.await_count == 0, (
+            "PullMD was called for a localfs HTML file — the retired branch leaked"
+        )
+        # …and the failed file declares ZERO rows on every target.
+        assert ci.rows == []
+        assert qa.rows == []
+        assert sd.rows == []
+        assert em.rows == []
 
     def test_docling_source_carries_docling_method_and_null_share_id(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

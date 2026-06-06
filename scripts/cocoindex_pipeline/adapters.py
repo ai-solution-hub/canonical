@@ -8,18 +8,27 @@ re-trigger inner work (S9 §7.2 COCO.10 / Inv-4).
 Topology:
     convert_binary_to_markdown(file: FileLike) -> str   # outer / file-tier memo
         ├── _docling_to_markdown(content_bytes: bytes, filename: str) -> str  # inner
-        ├── _pullmd_to_markdown(url: str) -> PullmdResult       # inner
         └── _passthrough_markdown(content_text: str) -> str     # inner
+
+    _pullmd_fetch(url: str, content_epoch: str) -> PullmdResult  # URL-source epoch-keyed memo (D-4)
+        └── _pullmd_http_get(url: str) -> PullmdResult           # plain HTTP body (non-memo)
 
 MIME routing uses `file.file_path.path.suffix` since cocoindex 1.0.3's
 `FileLike` exposes no `.mime_type` attribute.
+
+Localfs HTML retirement (ID-75 WP-D): a `.html`/`.htm` file staged into the
+file corpus raises `LocalfsHtmlRetiredError` LOUDLY per-file (contained at the
+mount boundary, ID-80.9) — HTML content lands via the URL source
+(`ingest_url` → `_pullmd_fetch`), the file corpus does not route HTML to
+PullMD.
 
 HTML/pullmd AGPL boundary (O-Q3): HTML extraction calls pullmd over HTTP
 rather than importing the AGPL package directly — the network-service clause
 means the licence does not propagate. URL via `PULLMD_SERVICE_URL`,
 mounted via Cloud Run Secret Manager (Subtask 28.6).
 
-Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3.
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3 +
+docs/specs/ID-75-pullmd-cocoindex/TECH.md §3 (D-4 / WP-D).
 """
 
 from __future__ import annotations
@@ -44,9 +53,22 @@ _logger = logging.getLogger(__name__)
 
 
 # Extension → MIME group mapping (lower-case suffix comparison).
+# `_HTML_EXTENSIONS` stays for mime resolution (`_SOURCE_MIME_FALLBACK` in
+# flow.py) — it only exits the CONVERSION routing (ID-75 WP-D).
 _DOCLING_EXTENSIONS = frozenset({".pdf", ".docx", ".xlsx"})
 _HTML_EXTENSIONS = frozenset({".html", ".htm"})
 _TEXT_EXTENSIONS = frozenset({".md", ".markdown", ".txt"})
+
+
+class LocalfsHtmlRetiredError(ValueError):
+    """A `.html`/`.htm` file was staged into the localfs corpus (ID-75 WP-D).
+
+    The localfs HTML→PullMD branch is RETIRED: HTML content lands via the URL
+    source (`ingest_url` → `_pullmd_fetch`, TECH §WP-C) — the file corpus does
+    not route HTML to PullMD (a local file path is unreachable for the service
+    anyway). Raised LOUDLY per-file and contained at the mount boundary
+    (ID-80.9): one bad `.html` never aborts the batch.
+    """
 
 
 # Outer tier — file-handle memo.
@@ -56,7 +78,8 @@ _TEXT_EXTENSIONS = frozenset({".md", ".markdown", ".txt"})
 async def convert_binary_to_markdown(file: "FileLike") -> str:
     """Route a FileLike by extension to the inner-tier extractor.
 
-    PDF/DOCX/XLSX → Docling; HTML → pullmd HTTP; markdown/txt → passthrough.
+    PDF/DOCX/XLSX → Docling; markdown/txt → passthrough. HTML raises
+    `LocalfsHtmlRetiredError` (ID-75 WP-D — HTML lands via the URL source).
     Raises `ValueError` for unsupported extensions.
     """
     suffix = file.file_path.path.suffix.lower()
@@ -72,14 +95,14 @@ async def convert_binary_to_markdown(file: "FileLike") -> str:
         return await _docling_to_markdown(content_bytes, file.file_path.path.name)
 
     if suffix in _HTML_EXTENSIONS:
-        # Pullmd service resolves local paths and remote URLs transparently.
-        url = str(file.file_path.path)
-        result = await _pullmd_to_markdown(url)
-        # Keep the outer fn's contract as `str` for the downstream content_text
-        # flow; the X-Source / X-Quality / X-Share-Id provenance on the
-        # PullmdResult is surfaced to the Stage-6 write site in a later subtask
-        # (42.9, TECH §WP-E), not here.
-        return result.markdown
+        # ID-75 WP-D: the localfs HTML→PullMD branch is RETIRED. Fail LOUDLY
+        # per-file (contained at the mount boundary, ID-80.9) instead of
+        # silently handing PullMD an unreachable local path.
+        raise LocalfsHtmlRetiredError(
+            f"HTML file {file.file_path.path.name!r} staged into the localfs "
+            "corpus — the localfs HTML→PullMD branch is retired (ID-75 WP-D); "
+            "HTML content lands via the URL source (`ingest_url`)."
+        )
 
     if suffix in _TEXT_EXTENSIONS:
         content_text = await file.read_text()
@@ -87,7 +110,7 @@ async def convert_binary_to_markdown(file: "FileLike") -> str:
 
     raise ValueError(
         f"Unsupported file extension {suffix!r} — supported: "
-        f"{sorted(_DOCLING_EXTENSIONS | _HTML_EXTENSIONS | _TEXT_EXTENSIONS)}"
+        f"{sorted(_DOCLING_EXTENSIONS | _TEXT_EXTENSIONS)}"
     )
 
 
@@ -141,15 +164,17 @@ class PullmdResult:
     share_id: str | None
 
 
-@coco.fn(memo=True)
-async def _pullmd_to_markdown(url: str) -> PullmdResult:
-    """Pullmd HTTP extractor (AGPL boundary per O-Q3). Memoised on url.
+async def _pullmd_http_get(url: str) -> PullmdResult:
+    """Pullmd HTTP extractor body (AGPL boundary per O-Q3). Plain NON-memo.
 
-    Calls the pullmd v2.x contract (TECH §WP-A / RESEARCH §2.1):
+    Memoisation lives on the `_pullmd_fetch(url, content_epoch)` wrapper —
+    the D-4 epoch-keyed memo. Calls the pullmd v2.x contract (TECH §WP-A /
+    RESEARCH §2.1):
       GET {PULLMD_SERVICE_URL}/api?url=<encoded> with `Authorization: Bearer`,
     returning a raw `text/markdown` body plus `X-Source`/`X-Quality`/`X-Share-Id`
     provenance headers. Uses `httpx.AsyncClient` (NOT a synchronous `httpx.post`,
-    which would block the event loop inside this `@coco.fn` async function).
+    which would block the event loop inside the calling `@coco.fn` async
+    function). Structured log-then-raise on HTTP failure — no silent failures.
     """
     pullmd_url = os.environ.get("PULLMD_SERVICE_URL")
     if not pullmd_url:
@@ -219,26 +244,45 @@ async def _pullmd_to_markdown(url: str) -> PullmdResult:
 
 
 @coco.fn(memo=True)
+async def _pullmd_fetch(url: str, content_epoch: str) -> PullmdResult:
+    """Epoch-keyed PullMD fetch (D-4 — BI-2 update-in-place).
+
+    Memoised on `(url, content_epoch)`, NOT on the URL alone: a URL-only memo
+    would return stale markdown forever, silently breaking BI-2's
+    changed-content re-fetch. v1 epoch = the ledger rows' max `ingested_at`
+    ISO string (`UrlItem.content_epoch`) — one fetch per article in steady
+    state; the recorded changed-content re-fetch route is
+    `POST /walk {"full_reprocess": true}` (cache-invalidating, server.py).
+
+    `content_epoch` participates ONLY in the memo key — the HTTP request is a
+    pure function of `url`, so the epoch is deliberately unused in the body.
+    """
+    return await _pullmd_http_get(url)
+
+
+@coco.fn(memo=True)
 async def _passthrough_markdown(content_text: str) -> str:
     """Identity transform for markdown/text. Memoised on content hash."""
     return content_text
 
 
 # ── Stage-6 provenance fan-out (ID-42.9, TECH §WP-E) ─────────────────────────
-# The Stage-6 `source_documents` write needs the pullmd provenance
+# The Stage-6 `source_documents` write needs the extraction provenance
 # (`extraction_method`, `pullmd_share_id`) WITHOUT disturbing the `-> str`
 # content_text contract of `convert_binary_to_markdown` (Stages 3-6 consume the
 # markdown body as a plain str; its memo key must stay content-hash-stable). So
 # the provenance is fanned out via this SEPARATE helper, which mirrors
-# `convert_binary_to_markdown`'s suffix routing. For HTML it awaits
-# `_pullmd_to_markdown(url)` — memoised on `url`, so this issues NO second HTTP
-# call when the same URL was already converted in the same run.
+# `convert_binary_to_markdown`'s suffix routing. For the FILE corpus this
+# resolves docling/passthrough provenance only — the localfs HTML branch is
+# retired (ID-75 WP-D); HTML/pullmd provenance lands via the URL source.
 
 # Only the five known pullmd X-Source values map onto the
 # `source_documents.extraction_method` CHECK enum
 # (`20260526074944_id42_pullmd_provenance.sql`). Any other / missing X-Source
 # maps to None (the column is nullable) so we NEVER emit `pullmd_<unknown>`,
-# which would violate the CHECK on insert.
+# which would violate the CHECK on insert. Consumed by the URL-source write
+# site (`ingest_url`, TECH §WP-C step 2) when mapping `_pullmd_fetch`
+# provenance onto `extraction_method` (RESEARCH constraint 8).
 _PULLMD_X_SOURCE_METHODS = frozenset(
     {"readability", "playwright", "cloudflare", "reddit", "trafilatura"}
 )
@@ -266,10 +310,9 @@ async def extract_source_provenance(
     """Resolve the Stage-6 provenance for a FileLike (ID-42.9, TECH §WP-E).
 
     Suffix routing mirrors `convert_binary_to_markdown`:
-      - HTML → await `_pullmd_to_markdown(url)` (memo-cached on `url` — no second
-        HTTP call) and map X-Source → `extraction_method`, X-Share-Id →
-        `pullmd_share_id`.
       - PDF/DOCX/XLSX → `("docling", None)`.
+      - HTML → raises `LocalfsHtmlRetiredError` (ID-75 WP-D — HTML lands via
+        the URL source; the file corpus does not route HTML to PullMD).
       - markdown/txt → `(None, None)` (passthrough has no extraction provenance).
       - unsupported → `(None, None)` (convert_binary_to_markdown raises first; a
         defensive None keeps this helper total).
@@ -280,28 +323,12 @@ async def extract_source_provenance(
         return SourceProvenance(extraction_method="docling", pullmd_share_id=None)
 
     if suffix in _HTML_EXTENSIONS:
-        url = str(file.file_path.path)
-        result = await _pullmd_to_markdown(url)  # memo-cached on url; no 2nd HTTP call
-        x_source = result.x_source
-        if x_source in _PULLMD_X_SOURCE_METHODS:
-            extraction_method: str | None = f"pullmd_{x_source}"
-        else:
-            # No silent failure: an unrecognised / missing X-Source would violate
-            # the CHECK enum if mapped to `pullmd_<unknown>`, so degrade to None
-            # and log structured context (the markdown body is still usable).
-            extraction_method = None
-            _logger.warning(
-                json.dumps(
-                    {
-                        "event": "cocoindex.pullmd_unknown_x_source",
-                        "url": url,
-                        "x_source": x_source,
-                    }
-                )
-            )
-        return SourceProvenance(
-            extraction_method=extraction_method,
-            pullmd_share_id=result.share_id,
+        # ID-75 WP-D: mirrors the retired conversion branch — fail LOUDLY
+        # per-file; HTML/pullmd provenance lands via the URL source instead.
+        raise LocalfsHtmlRetiredError(
+            f"HTML file {file.file_path.path.name!r} staged into the localfs "
+            "corpus — the localfs HTML→PullMD branch is retired (ID-75 WP-D); "
+            "HTML content lands via the URL source (`ingest_url`)."
         )
 
     # markdown/txt passthrough (and any other suffix) — no extraction provenance.

@@ -1847,11 +1847,12 @@ async def _ingest_content_branch(
     # Inv-17: one binary→markdown conversion completed for this item.
     _bump("binary_conversion")
 
-    # ── Stage 6 prep: pullmd provenance fan-out (ID-42.9, TECH §WP-E) ────────
+    # ── Stage 6 prep: provenance fan-out (ID-42.9, TECH §WP-E) ───────────────
     # Resolved via the SEPARATE provenance helper (NOT convert_binary_to_markdown,
-    # whose `-> str` content_text contract must stay intact). For HTML this awaits
-    # `_pullmd_to_markdown(url)` which is memo-cached on `url`, so no second HTTP
-    # call is issued for a URL already converted above.
+    # whose `-> str` content_text contract must stay intact). The file corpus
+    # resolves docling/passthrough provenance only — the localfs HTML→PullMD
+    # branch is retired (ID-75 WP-D); HTML/pullmd provenance lands via the URL
+    # source instead.
     provenance = await extract_source_provenance(file)
 
     # ── Stage 3: Path A extraction (direct anthropic inside @coco.fn) ───────

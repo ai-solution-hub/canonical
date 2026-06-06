@@ -36,8 +36,9 @@ Disposition table (symbol → class → covering / new test):
                                     test_cocoindex_flow_embedding_stage_count.py
                                     (_get_embedder / OpenAI seam, real dimension proof).
   _get_embedder               (1)  test_cocoindex_flow_embedding.py (OpenAI client ctor).
-  _pullmd_to_markdown         (1)  test_cocoindex_adapters.py (httpx/pullmd HTTP seam;
-                                    real extract_source_provenance routing exercised).
+  _pullmd_http_get            (1)  test_cocoindex_adapters.py (httpx/pullmd HTTP seam;
+                                    epoch-keyed _pullmd_fetch delegates to it —
+                                    ID-75.9 WP-D/D-4; localfs HTML routing retired).
   asyncpg.create_pool         (1)  test_cocoindex_flow_write_path.py::TestLifespanProvidesDbCtx
                                     (the lifespan body is exercised; only the asyncpg
                                     pool ctor — the DB seam — is faked).

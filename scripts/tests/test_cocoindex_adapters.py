@@ -8,10 +8,14 @@ standard Python environment.
 Async adapter functions are exercised via asyncio.run() within synchronous test
 functions — no pytest-asyncio plugin required.
 
-Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3
+Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3 +
+docs/specs/ID-75-pullmd-cocoindex/TECH.md §3 (D-4 / WP-D).
 Test strategy: ID-28.7 — convert_binary_to_markdown signature matches FileLike->str;
 inner-tier functions take bytes/str (verified via inspect.signature — never FileLike);
-per-MIME dispatch smoke tests; PULLMD_SERVICE_URL env var required for HTML path.
+per-MIME dispatch smoke tests. ID-75.9 — a staged .html/.htm raises
+LocalfsHtmlRetiredError with NO PullMD call (WP-D retirement); `_pullmd_fetch`
+memo-keys on (url, content_epoch) and delegates to the plain `_pullmd_http_get`
+HTTP body (D-4).
 """
 
 from __future__ import annotations
@@ -45,8 +49,12 @@ def _make_coco_stub():
     # When used as @coco.fn(memo=True) def f(...): ... the call chain is:
     #   1. coco.fn(memo=True) -> decorator
     #   2. decorator(f) -> f  (pass-through so the function is testable)
+    # The decorator kwargs are recorded on the wrapped function
+    # (`__coco_fn_kwargs__`) so tests can pin declaration contracts such as
+    # memo=True on `_pullmd_fetch` (D-4) without running the Rust engine.
     def _fn_decorator(**kwargs):
         def _wrap(func):
+            func.__coco_fn_kwargs__ = dict(kwargs)
             return func
         return _wrap
 
@@ -176,25 +184,54 @@ class TestSignatureLocks:
                 f"_docling_to_markdown first param must be bytes, got {ann!r}"
             )
 
-    def test_pullmd_inner_tier_first_param_is_url(self):
-        """_pullmd_to_markdown first param must be named 'url'."""
-        sig = inspect.signature(adapters._pullmd_to_markdown)
+    def test_pullmd_http_get_first_param_is_url(self):
+        """_pullmd_http_get first param must be named 'url' (plain HTTP body)."""
+        sig = inspect.signature(adapters._pullmd_http_get)
         params = list(sig.parameters.values())
-        assert len(params) >= 1, "_pullmd_to_markdown must accept at least one parameter"
+        assert len(params) >= 1, "_pullmd_http_get must accept at least one parameter"
         first_param = params[0]
         assert first_param.name == "url", (
             f"First param must be 'url', got '{first_param.name}'"
         )
 
-    def test_pullmd_inner_tier_annotation_is_str(self):
-        """_pullmd_to_markdown first param annotation must be str."""
-        sig = inspect.signature(adapters._pullmd_to_markdown)
+    def test_pullmd_http_get_annotation_is_str(self):
+        """_pullmd_http_get first param annotation must be str."""
+        sig = inspect.signature(adapters._pullmd_http_get)
         params = list(sig.parameters.values())
         ann = params[0].annotation
         if ann is not inspect.Parameter.empty:
             assert ann is str or ann == "str", (
-                f"_pullmd_to_markdown first param must be str, got {ann!r}"
+                f"_pullmd_http_get first param must be str, got {ann!r}"
             )
+
+    def test_pullmd_fetch_params_are_url_and_content_epoch(self):
+        """_pullmd_fetch memo key is (url, content_epoch) — D-4, NOT url alone.
+
+        A URL-only memo would return stale markdown forever, silently breaking
+        BI-2's changed-content re-fetch. The epoch param is the memo-key salt.
+        """
+        sig = inspect.signature(adapters._pullmd_fetch)
+        param_names = list(sig.parameters)
+        assert param_names == ["url", "content_epoch"], (
+            f"_pullmd_fetch params must be exactly ['url', 'content_epoch'], "
+            f"got {param_names!r}"
+        )
+        for name in param_names:
+            ann = sig.parameters[name].annotation
+            if ann is not inspect.Parameter.empty:
+                assert ann is str or ann == "str", (
+                    f"_pullmd_fetch param '{name}' must be str, got {ann!r}"
+                )
+
+    def test_pullmd_fetch_is_declared_memo_true(self):
+        """_pullmd_fetch must be declared @coco.fn(memo=True) (D-4 epoch-keyed memo)."""
+        kwargs = getattr(adapters._pullmd_fetch, "__coco_fn_kwargs__", None)
+        assert kwargs is not None, (
+            "_pullmd_fetch must be wrapped by @coco.fn — no decorator kwargs recorded"
+        )
+        assert kwargs.get("memo") is True, (
+            f"_pullmd_fetch must be declared memo=True, got {kwargs!r}"
+        )
 
     def test_passthrough_inner_tier_first_param_is_content_text(self):
         """_passthrough_markdown first param must be named 'content_text'."""
@@ -224,7 +261,8 @@ class TestSignatureLocks:
         """
         inner_fns = [
             adapters._docling_to_markdown,
-            adapters._pullmd_to_markdown,
+            adapters._pullmd_fetch,
+            adapters._pullmd_http_get,
             adapters._passthrough_markdown,
         ]
         for fn in inner_fns:
@@ -237,11 +275,12 @@ class TestSignatureLocks:
             )
 
     def test_all_adapter_functions_are_async(self):
-        """All @coco.fn adapter functions must be coroutine functions (async def)."""
+        """All adapter functions must be coroutine functions (async def)."""
         fns = [
             adapters.convert_binary_to_markdown,
             adapters._docling_to_markdown,
-            adapters._pullmd_to_markdown,
+            adapters._pullmd_fetch,
+            adapters._pullmd_http_get,
             adapters._passthrough_markdown,
         ]
         for fn in fns:
@@ -310,39 +349,29 @@ class TestOuterTierMimeDispatch:
         result = asyncio.run(run())
         assert result == "# Docling XLSX"
 
-    def test_html_routes_to_pullmd_with_str_arg(self):
-        """HTML routes to _pullmd_to_markdown(str); outer fn returns the markdown str.
+    @pytest.mark.parametrize("suffix", [".html", ".htm"])
+    def test_html_raises_loud_retired_error_with_no_pullmd_call(self, suffix):
+        """A staged .html/.htm raises LocalfsHtmlRetiredError; PullMD is never called.
 
-        The inner tier returns a structured PullmdResult (carrying provenance
-        headers), but the OUTER convert_binary_to_markdown keeps its `str`
-        contract for the downstream content_text flow — it extracts `.markdown`.
+        WP-D (ID-75): the localfs HTML→PullMD branch is RETIRED — HTML content
+        lands via the URL source. A .html file staged into the file corpus fails
+        LOUDLY per-file (contained at the mount boundary, ID-80.9) instead of
+        silently handing PullMD an unreachable local path.
         """
-        mock_file = _make_filelike(".html")
-        inner_result = adapters.PullmdResult(
-            markdown="# PullMD HTML",
-            x_source="readability",
-            x_quality=0.88,
-            share_id="deadbeef",
-        )
+        mock_file = _make_filelike(suffix)
 
         async def run():
             with patch.object(
-                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
-            ) as mock_pullmd:
-                result = await adapters.convert_binary_to_markdown(mock_file)
-            # Inner tier must be called with a str (url or path string), not a FileLike
-            call_args = mock_pullmd.call_args
-            assert call_args is not None, "_pullmd_to_markdown was not called"
-            url_arg = call_args.args[0] if call_args.args else None
-            assert isinstance(url_arg, str), (
-                f"_pullmd_to_markdown must receive a str, got {type(url_arg).__name__}"
+                adapters, "_pullmd_http_get", new=AsyncMock()
+            ) as mock_http:
+                with pytest.raises(adapters.LocalfsHtmlRetiredError):
+                    await adapters.convert_binary_to_markdown(mock_file)
+            # The retired branch must NOT reach the PullMD HTTP boundary.
+            assert mock_http.await_count == 0, (
+                "PullMD was called for a localfs HTML file — the retired branch leaked"
             )
-            return result
 
-        result = asyncio.run(run())
-        # Outer contract is unchanged: a bare markdown str (the .markdown field).
-        assert result == "# PullMD HTML"
-        assert isinstance(result, str)
+        asyncio.run(run())
 
     def test_markdown_routes_to_passthrough(self):
         """Markdown extension triggers _passthrough_markdown with file text content."""
@@ -388,103 +417,45 @@ class TestOuterTierMimeDispatch:
 
 
 # ============================================================================
-# STAGE-6 PROVENANCE FAN-OUT (ID-42.9 §WP-E)
+# STAGE-6 PROVENANCE FAN-OUT (ID-42.9 §WP-E, HTML retired per ID-75 WP-D)
 # `extract_source_provenance` mirrors convert_binary_to_markdown's suffix
-# routing and maps pullmd X-Source / X-Share-Id onto the source_documents
-# write columns WITHOUT disturbing the str-only content_text path.
+# routing for the FILE corpus: docling/passthrough provenance only. The
+# localfs HTML branch raises LocalfsHtmlRetiredError — HTML provenance now
+# lands via the URL source (`ingest_url` → `_pullmd_fetch`, TECH §WP-C).
 # ============================================================================
 
 
 class TestExtractSourceProvenance:
     """`extract_source_provenance` maps each MIME route onto SourceProvenance."""
 
-    def test_html_maps_known_x_source_to_pullmd_method_and_share_id(self):
-        """HTML → pullmd_<x_source> + the X-Share-Id permalink (no 2nd HTTP call)."""
-        mock_file = _make_filelike(".html")
-        inner_result = adapters.PullmdResult(
-            markdown="# Body",
-            x_source="readability",
-            x_quality=0.91,
-            share_id="deadbeef",
-        )
+    @pytest.mark.parametrize("suffix", [".html", ".htm"])
+    def test_html_raises_loud_retired_error_with_no_pullmd_call(self, suffix):
+        """HTML provenance via the file corpus is retired (ID-75 WP-D) — raises LOUDLY."""
+        mock_file = _make_filelike(suffix)
 
         async def run():
             with patch.object(
-                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
-            ) as mock_pullmd:
-                prov = await adapters.extract_source_provenance(mock_file)
-            # Routed through the memo-cached inner tier with a str url/path arg.
-            call_args = mock_pullmd.call_args
-            assert call_args is not None, "_pullmd_to_markdown was not called"
-            assert isinstance(call_args.args[0], str)
-            return prov
+                adapters, "_pullmd_http_get", new=AsyncMock()
+            ) as mock_http:
+                with pytest.raises(adapters.LocalfsHtmlRetiredError):
+                    await adapters.extract_source_provenance(mock_file)
+            assert mock_http.await_count == 0, (
+                "PullMD was called for a localfs HTML file — the retired branch leaked"
+            )
 
-        prov = asyncio.run(run())
-        assert prov.extraction_method == "pullmd_readability"
-        assert prov.pullmd_share_id == "deadbeef"
+        asyncio.run(run())
 
-    @pytest.mark.parametrize(
-        "x_source",
-        ["readability", "playwright", "cloudflare", "reddit", "trafilatura"],
-    )
-    def test_html_maps_each_known_x_source(self, x_source):
-        """All five known X-Source values map to the CHECK-enum pullmd_* method."""
-        mock_file = _make_filelike(".html")
-        inner_result = adapters.PullmdResult(
-            markdown="# Body", x_source=x_source, x_quality=0.5, share_id="abcd1234"
+    def test_pullmd_x_source_methods_mapping_unchanged(self):
+        """The five CHECK-enum X-Source values stay intact (RESEARCH constraint 8).
+
+        The mapping's consumer moves to the URL-source write site (`ingest_url`,
+        TECH §WP-C step 2) — the frozenset itself must not drift, or
+        `extraction_method='pullmd_<x_source>'` inserts would violate the CHECK
+        enum in `20260526074944_id42_pullmd_provenance.sql`.
+        """
+        assert adapters._PULLMD_X_SOURCE_METHODS == frozenset(
+            {"readability", "playwright", "cloudflare", "reddit", "trafilatura"}
         )
-
-        async def run():
-            with patch.object(
-                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
-            ):
-                return await adapters.extract_source_provenance(mock_file)
-
-        prov = asyncio.run(run())
-        assert prov.extraction_method == f"pullmd_{x_source}"
-        assert prov.pullmd_share_id == "abcd1234"
-
-    def test_html_unknown_x_source_yields_none_method_and_warns(self, caplog):
-        """An unrecognised X-Source must NOT emit pullmd_<unknown> (CHECK enum)."""
-        mock_file = _make_filelike(".html")
-        inner_result = adapters.PullmdResult(
-            markdown="# Body", x_source="some_new_source", x_quality=0.5, share_id="ffff0000"
-        )
-
-        async def run():
-            with patch.object(
-                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
-            ):
-                return await adapters.extract_source_provenance(mock_file)
-
-        import logging as _logging
-
-        with caplog.at_level(_logging.WARNING):
-            prov = asyncio.run(run())
-
-        # Degraded to None (nullable column) — never `pullmd_some_new_source`.
-        assert prov.extraction_method is None
-        # share_id still captured even when the method degrades.
-        assert prov.pullmd_share_id == "ffff0000"
-        # No silent failure: a structured warning is emitted.
-        assert any("pullmd_unknown_x_source" in rec.message for rec in caplog.records)
-
-    def test_html_missing_x_source_yields_none_method(self):
-        """A missing (None) X-Source maps to None, not pullmd_None."""
-        mock_file = _make_filelike(".html")
-        inner_result = adapters.PullmdResult(
-            markdown="# Body", x_source=None, x_quality=None, share_id=None
-        )
-
-        async def run():
-            with patch.object(
-                adapters, "_pullmd_to_markdown", new=AsyncMock(return_value=inner_result)
-            ):
-                return await adapters.extract_source_provenance(mock_file)
-
-        prov = asyncio.run(run())
-        assert prov.extraction_method is None
-        assert prov.pullmd_share_id is None
 
     @pytest.mark.parametrize("suffix", [".pdf", ".docx", ".xlsx"])
     def test_docling_route_yields_docling_method_no_share_id(self, suffix):
@@ -630,21 +601,25 @@ class TestDoclingInnerTier:
         assert ds.stream.read() == b"payload"
 
 
-class TestPullmdInnerTier:
-    """_pullmd_to_markdown unit tests against the pullmd v2.x contract.
+class TestPullmdHttpGet:
+    """_pullmd_http_get unit tests against the pullmd v2.x contract.
 
-    Contract (docs/specs/id-42-pullmd-deploy/TECH.md §WP-A + RESEARCH §2.1):
+    `_pullmd_http_get` is the plain NON-memo HTTP body extracted from the
+    retired url-only-memo extractor (ID-75 WP-D / D-4) — the contract is
+    UNCHANGED (docs/specs/id-42-pullmd-deploy/TECH.md §WP-A + RESEARCH §2.1):
       - GET {PULLMD_SERVICE_URL}/api with params={"url": <target>} (httpx URL-encodes).
       - Authorization: Bearer <PULLMD_API_TOKEN> header.
       - Body is raw text/markdown (resp.text), NOT JSON.
       - Provenance headers X-Source / X-Quality / X-Share-Id captured onto the result.
       - Fail-fast RuntimeError when PULLMD_SERVICE_URL OR PULLMD_API_TOKEN is unset.
-      - HTTP errors propagate via raise_for_status().
+      - HTTP errors propagate via raise_for_status() (log-then-raise, no silent failure).
 
-    Transport is mocked at httpx.AsyncClient (NOT httpx.post — the contract is async
-    GET). The non-mocked end-to-end proof against the deployed Service is a later
-    subtask (WP-F / 42.10), per docs/reference/test-philosophy.md these unit tests
-    assert observable BEHAVIOUR, not implementation shape.
+    Memoisation lives on the `_pullmd_fetch(url, content_epoch)` wrapper (D-4)
+    — see TestPullmdFetch. Transport is mocked at httpx.AsyncClient (NOT
+    httpx.post — the contract is async GET). The non-mocked end-to-end proof
+    against the deployed Service is a later subtask (WP-F / 42.10), per
+    docs/reference/test-philosophy.md these unit tests assert observable
+    BEHAVIOUR, not implementation shape.
     """
 
     @staticmethod
@@ -697,7 +672,7 @@ class TestPullmdInnerTier:
                 with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     mock_client = self._install_async_client(mock_httpx, mock_response)
-                    result = await adapters._pullmd_to_markdown(test_url)
+                    result = await adapters._pullmd_http_get(test_url)
 
                     # GET /api (NOT POST /extract).
                     assert mock_client.get.await_count == 1
@@ -739,7 +714,7 @@ class TestPullmdInnerTier:
                 with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     self._install_async_client(mock_httpx, mock_response)
-                    return await adapters._pullmd_to_markdown("https://example.com/p")
+                    return await adapters._pullmd_http_get("https://example.com/p")
 
         result = asyncio.run(run())
         assert result.markdown == "# Body"
@@ -769,7 +744,7 @@ class TestPullmdInnerTier:
                 with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     self._install_async_client(mock_httpx, mock_response)
-                    return await adapters._pullmd_to_markdown("https://example.com/p")
+                    return await adapters._pullmd_http_get("https://example.com/p")
 
         result = asyncio.run(run())
         # Markdown + other provenance still captured; only the bad quality degrades.
@@ -792,7 +767,7 @@ class TestPullmdInnerTier:
                 with patch("scripts.cocoindex_pipeline.adapters.httpx") as mock_httpx:
                     mock_httpx.Timeout = MagicMock(return_value="timeout-sentinel")
                     self._install_async_client(mock_httpx, mock_response)
-                    return await adapters._pullmd_to_markdown("https://example.com/p")
+                    return await adapters._pullmd_http_get("https://example.com/p")
 
         result = asyncio.run(run())
         assert result.x_source is None
@@ -811,7 +786,7 @@ class TestPullmdInnerTier:
         async def run():
             with patch.dict(os.environ, env_without, clear=True):
                 with pytest.raises(RuntimeError, match="PULLMD_SERVICE_URL"):
-                    await adapters._pullmd_to_markdown("https://example.com/page")
+                    await adapters._pullmd_http_get("https://example.com/page")
 
         asyncio.run(run())
 
@@ -827,7 +802,7 @@ class TestPullmdInnerTier:
         async def run():
             with patch.dict(os.environ, env_without, clear=True):
                 with pytest.raises(RuntimeError, match="PULLMD_API_TOKEN"):
-                    await adapters._pullmd_to_markdown("https://example.com/page")
+                    await adapters._pullmd_http_get("https://example.com/page")
 
         asyncio.run(run())
 
@@ -860,7 +835,7 @@ class TestPullmdInnerTier:
                     mock_httpx.HTTPStatusError = _real_httpx.HTTPStatusError
                     self._install_async_client(mock_httpx, mock_response)
                     with pytest.raises(_real_httpx.HTTPStatusError):
-                        await adapters._pullmd_to_markdown("https://example.com/fail")
+                        await adapters._pullmd_http_get("https://example.com/fail")
 
         asyncio.run(run())
 
@@ -891,7 +866,94 @@ class TestPullmdInnerTier:
                     async_cm.__aexit__ = AsyncMock(return_value=False)
                     mock_httpx.AsyncClient = MagicMock(return_value=async_cm)
                     with pytest.raises(_real_httpx.RequestError):
-                        await adapters._pullmd_to_markdown("https://example.com/down")
+                        await adapters._pullmd_http_get("https://example.com/down")
+
+        asyncio.run(run())
+
+
+class TestPullmdFetch:
+    """_pullmd_fetch — the epoch-keyed memo wrapper around _pullmd_http_get (D-4).
+
+    The engine memo-keys a @coco.fn(memo=True) component on its serialised
+    args, so the load-bearing contract here is that BOTH `url` AND
+    `content_epoch` are positional args: same url + same epoch = memo hit (no
+    second HTTP call); same url + DIFFERENT epoch = a fresh fetch (BI-2
+    changed-content re-fetch). The cocoindex stub's @coco.fn is pass-through,
+    so the memo-key test applies an args-keyed memoiser mirroring the engine
+    contract — proving the key INCLUDES the epoch, not testing the engine.
+    """
+
+    @staticmethod
+    def _result(markdown="# Body"):
+        return adapters.PullmdResult(
+            markdown=markdown, x_source="readability", x_quality=0.9, share_id="abcd1234"
+        )
+
+    def test_delegates_to_http_get_with_url_only(self):
+        """_pullmd_fetch awaits _pullmd_http_get(url) and returns its PullmdResult.
+
+        `content_epoch` is memo-key salt ONLY — the HTTP request is a pure
+        function of `url`, so the epoch must NOT reach the HTTP boundary.
+        """
+        stub_result = self._result()
+
+        async def run():
+            with patch.object(
+                adapters, "_pullmd_http_get", new=AsyncMock(return_value=stub_result)
+            ) as mock_http:
+                result = await adapters._pullmd_fetch(
+                    "https://example.com/article", "2026-06-01T00:00:00Z"
+                )
+            mock_http.assert_awaited_once_with("https://example.com/article")
+            return result
+
+        result = asyncio.run(run())
+        assert result is stub_result
+
+    def test_memo_key_is_url_and_content_epoch(self):
+        """Same url + same epoch = memo hit; same url + DIFFERENT epoch = re-fetch.
+
+        BI-2 (D-4): a URL-only memo returns stale markdown forever. Under an
+        args-keyed memoiser (the engine contract for @coco.fn(memo=True)),
+        bumping the epoch MUST force a second HTTP fetch, while an unchanged
+        epoch must NOT.
+        """
+
+        def _memoise_on_args(fn):
+            # Mirrors the engine contract: memo key = the serialised positional
+            # args of the @coco.fn component.
+            cache = {}
+
+            async def wrapper(*args):
+                if args not in cache:
+                    cache[args] = await fn(*args)
+                return cache[args]
+
+            return wrapper
+
+        url = "https://example.com/article"
+
+        async def run():
+            with patch.object(
+                adapters, "_pullmd_http_get", new=AsyncMock(return_value=self._result())
+            ) as mock_http:
+                memoed_fetch = _memoise_on_args(adapters._pullmd_fetch)
+
+                await memoed_fetch(url, "2026-06-01T00:00:00Z")
+                assert mock_http.await_count == 1
+
+                # Same url + same epoch — memo hit, NO second HTTP call.
+                await memoed_fetch(url, "2026-06-01T00:00:00Z")
+                assert mock_http.await_count == 1, (
+                    "unchanged (url, content_epoch) must memo-hit, not re-fetch"
+                )
+
+                # Same url + DIFFERENT epoch — changed content, MUST re-fetch.
+                await memoed_fetch(url, "2026-06-02T12:00:00Z")
+                assert mock_http.await_count == 2, (
+                    "a bumped content_epoch must force a fresh PullMD fetch (BI-2) — "
+                    "a URL-only memo key would silently serve stale markdown forever"
+                )
 
         asyncio.run(run())
 
