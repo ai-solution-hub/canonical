@@ -64,13 +64,19 @@ def normalise_url(url: str) -> str:
 
     # Rebuild netloc with lowercased hostname, preserving userinfo and any
     # non-default port (WHATWG strips http:80 / https:443 at serialisation).
+    # urlsplit strips the square brackets from an IPv6 host (`[2001:db8::1]`
+    # -> `2001:db8::1`); WHATWG serialisation keeps them, so re-wrap any
+    # hostname containing a colon before appending the port.
     netloc = ""
     if parts.username:
         netloc += parts.username
         if parts.password:
             netloc += f":{parts.password}"
         netloc += "@"
-    netloc += hostname.lower()
+    host = hostname.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    netloc += host
     if port is not None and _DEFAULT_PORTS.get(scheme) != port:
         netloc += f":{port}"
 

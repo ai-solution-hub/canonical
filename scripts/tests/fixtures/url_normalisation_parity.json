@@ -97,6 +97,26 @@
       "expected": "https://example.com/a"
     },
     {
+      "name": "IPv6 host brackets preserved",
+      "input": "http://[2001:db8::1]/path",
+      "expected": "http://[2001:db8::1]/path"
+    },
+    {
+      "name": "IPv6 host lowercased with tracking param and trailing slash",
+      "input": "http://[2001:DB8::1]/path/?utm_source=x",
+      "expected": "http://[2001:db8::1]/path"
+    },
+    {
+      "name": "IPv6 host with non-default port preserved",
+      "input": "http://[2001:db8::1]:8080/path/",
+      "expected": "http://[2001:db8::1]:8080/path"
+    },
+    {
+      "name": "IPv6 host with default port stripped",
+      "input": "https://[2001:db8::1]:443/a",
+      "expected": "https://[2001:db8::1]/a"
+    },
+    {
       "name": "parse failure returns input unchanged",
       "input": "not a url",
       "expected": "not a url"
