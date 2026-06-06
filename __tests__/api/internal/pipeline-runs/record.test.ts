@@ -819,8 +819,9 @@ describe('POST /api/internal/pipeline-runs/record — itemFailures (80.2 §B.4 O
   });
 
   it('rejects itemFailures missing the content key with HTTP 400', async () => {
-    // Both branch keys are required when the field is present — the sidecar
-    // counter always emits the full {forms, content} shape.
+    // forms and content are required when the field is present; url is
+    // optional ({80.17} back-compat — pre-75.11 sidecars emit two-key payloads
+    // during the deploy window; post-75.11 the counter emits {forms, content, url}).
     const res = await POST(
       buildRequest({
         body: makePayload({ itemFailures: { forms: 1 } }),
