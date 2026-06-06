@@ -45,6 +45,8 @@ References:
 from __future__ import annotations
 
 import io
+import json
+import logging
 import re
 from typing import Any
 
@@ -57,7 +59,14 @@ from scripts.cocoindex_pipeline.form_extractors.shared import (
     FormMetadata,
 )
 
+# PRODUCT Inv-17 graceful-empty reason token — single source of truth lives in
+# xlsx.py (no string duplication; see its docstring). bl-232 brings the PDF
+# extractor to log parity with the XLSX extractor's zero-archetype pattern.
+from scripts.cocoindex_pipeline.form_extractors.xlsx import NO_ARCHETYPE_REASON
+
 __all__ = ["extract"]
+
+_logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -498,6 +507,27 @@ async def extract(raw_bytes: bytes, filename: str) -> ExtractedForm:
                     page_urls=page_urls,
                 )
                 fields.extend(fields_emitted)
+
+        # PRODUCT Inv-17 (graceful-empty-with-recorded-reason, ratified S278).
+        # A structurally VALID PDF whose pages matched no archetype (no table
+        # rows, no M/O-flagged prose) yields zero fields. This is GRACEFUL (we
+        # return an empty ``ExtractedForm`` rather than raising — distinct from
+        # the strict-raise empty/corrupt/zero-page paths above), but it MUST
+        # NOT be SILENT: surface a structured, machine-readable reason so the
+        # {52.12} form-write path can RECORD it on the ``form_templates`` row
+        # provenance. Mirrors xlsx.py's zero-archetype log shape (bl-232).
+        if not fields:
+            _logger.info(
+                json.dumps(
+                    {
+                        "event": "form_extractor.zero_archetype",
+                        "reason": NO_ARCHETYPE_REASON,
+                        "rel_path": filename,
+                        "form_format": "pdf",
+                        "page_count": len(pdf.pages),
+                    }
+                )
+            )
 
     metadata = FormMetadata(
         form_type="questionnaire",

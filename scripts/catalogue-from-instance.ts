@@ -29,6 +29,7 @@ import { createInterface } from 'node:readline';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { Database } from '@/supabase/types/database.types';
+import { tryQuery } from '@/lib/supabase/safe';
 import {
   readInstanceFields,
   classifyField,
@@ -174,14 +175,17 @@ async function main(): Promise<void> {
 
   // ── Read the instance (read-only) ──
   console.log(`Reading form_template_fields for instance ${formTemplateId}...`);
-  const templateResult = await supabase
-    .from('form_templates')
-    .select('id, name, form_type')
-    .eq('id', formTemplateId)
-    .single();
-  if (templateResult.error || !templateResult.data) {
+  const templateResult = await tryQuery(
+    supabase
+      .from('form_templates')
+      .select('id, name, form_type')
+      .eq('id', formTemplateId)
+      .single(),
+    'form_templates.byId',
+  );
+  if (!templateResult.ok) {
     console.error(
-      `ERROR: could not load form_templates row ${formTemplateId}: ${templateResult.error?.message ?? 'not found'}`,
+      `ERROR: could not load form_templates row ${formTemplateId}: ${templateResult.error.message}`,
     );
     process.exit(1);
   }
