@@ -189,9 +189,27 @@ services:
       PLAYWRIGHT_URL: "http://playwright-staging:8002/render"
       TRAFILATURA_URL: "http://trafilatura-staging:8001/extract"
 
-      # Ephemeral SQLite cache. /tmp is writable on startup; better-sqlite3 will not mkdir
-      # the parent so the path must exist. Cache is non-critical: lost on restart, rebuilt.
-      CACHE_DB: "/tmp/pullmd-cache.db"
+      # S319 {75.18}: PERSISTENT SQLite store — was /tmp/pullmd-cache.db (ephemeral;
+      # wiped on every recreate). This single DB is pullmd's ONLY store: the
+      # `conversions` table holds the 8-hex share ids that `GET /s/:id` serves, and
+      # the auth layer (users, sessions, minted pmd_ tokens) reuses the SAME db
+      # handle (upstream server.js: `createCache(process.env.CACHE_DB || './data/cache.db')`
+      # then `createAuth({ db: cache.db, ... })`). With /tmp, every Coolify
+      # recreate/redeploy 404'd ALL persisted reference_items.pullmd_share_id values
+      # (S319 live-observed). /data is the upstream-blessed store dir: the pullmd
+      # Dockerfile runs `mkdir -p /data && chown -R app:app /app /data` before
+      # `USER app`, so a fresh named volume mounted there inherits app:app ownership
+      # (Docker copies the image mountpoint content + ownership into an empty named
+      # volume) — no user override needed. better-sqlite3 still does not mkdir the
+      # parent; the volume mount guarantees /data exists. Mirror this (and the
+      # volume below) into the prod compose at {75.15} cutover.
+      CACHE_DB: "/data/pullmd-cache.db"
+
+    volumes:
+      # {75.18}: share-link store persistence — survives container recreate/redeploy.
+      # Loss of this volume invalidates persisted reference_items.pullmd_share_id
+      # permalinks (they 404) but never KH data (markdown is canonical in Supabase).
+      - pullmd-data-staging:/data
 
     depends_on:
       - playwright-staging
@@ -227,7 +245,17 @@ services:
 # live prod corpus and a staging teardown never destroys prod state. Coolify persists named
 # volumes across redeploys but does NOT back them up natively; LMDB loss costs a memo-rebuild
 # only, never KH data (Supabase is canonical). See the runbook teardown note.
+#
+# pullmd-data-staging ({75.18}): pullmd's SQLite store (CACHE_DB=/data/pullmd-cache.db) —
+# share-link ids (`GET /s/:id` permalinks recorded in reference_items.pullmd_share_id),
+# plus users/sessions/minted pmd_ tokens (one DB, shared by cache + auth). Named volume so
+# the store SURVIVES Coolify recreates/redeploys — the S319 defect was this store living
+# in container /tmp, invalidating every persisted share id on recreate. Loss costs
+# share-link 404s only, never KH data (extracted markdown is canonical in Supabase).
+# See docs/runbooks/onprem-b1-deploy.md §"pullmd share-link store persistence".
 # ------------------------------------------------------------------------------
 volumes:
   cocoindex-state-staging:
+    driver: local
+  pullmd-data-staging:
     driver: local
