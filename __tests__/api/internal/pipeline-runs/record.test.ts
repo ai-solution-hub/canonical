@@ -766,6 +766,39 @@ describe('POST /api/internal/pipeline-runs/record — itemFailures (80.2 §B.4 O
     expect(result.item_failures).toEqual({ forms: 0, content: 0 });
   });
 
+  it('persists a three-key tally {forms, content, url} verbatim (ID-80.17, {75.11} url branch)', async () => {
+    // {75.11} (Stage-1b URL-source mount) added a third branch to the
+    // sidecar counter — init {'forms': 0, 'content': 0, 'url': 0},
+    // incremented by bound_ingest_url. The BodySchema must admit the
+    // 'url' key or Zod strips it at parse and the persisted
+    // result.item_failures silently loses the url tally ({80.16} delta).
+    await POST(
+      buildRequest({
+        body: makePayload({
+          itemFailures: { forms: 1, content: 0, url: 2 },
+        }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.item_failures).toEqual({ forms: 1, content: 0, url: 2 });
+  });
+
+  it('rejects a negative url branch count with HTTP 400', async () => {
+    // The url key, when present, is validated like its siblings — not
+    // merely passed through.
+    const res = await POST(
+      buildRequest({
+        body: makePayload({
+          itemFailures: { forms: 0, content: 0, url: -1 },
+        }),
+      }) as never,
+    );
+    expect(res.status).toBe(400);
+    expect(mockRecordPipelineRun).not.toHaveBeenCalled();
+  });
+
   it('rejects a negative branch count with HTTP 400', async () => {
     const res = await POST(
       buildRequest({

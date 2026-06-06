@@ -148,11 +148,21 @@ const BodySchema = z.object({
    * ran, zero per-item faults") and distinguishable from the field being
    * omitted entirely (flow-start emission / pre-80.9 sidecars). Sibling of
    * ID-61.4's `errorDetail` + `taxonomyMisses` — strictly additive.
+   *
+   * ID-80.17 ({80.16} rider delta): `url` is the third branch, emitted by
+   * `bound_ingest_url` (ID-75.11, the Stage-1b URL-source mount) — counter
+   * init is `{'forms': 0, 'content': 0, 'url': 0}`. Optional (unlike its
+   * siblings) for wire back-compat: pre-75.11 sidecars emit the two-key
+   * `{forms, content}` shape, and the route (Vercel) deploys independently
+   * of the pipeline (VPS), so a required `url` would 400 the whole run
+   * recording during the align/deploy window — a worse failure than the
+   * key-strip this fixes.
    */
   itemFailures: z
     .object({
       forms: z.number().int().nonnegative(),
       content: z.number().int().nonnegative(),
+      url: z.number().int().nonnegative().optional(),
     })
     .optional(),
 });
