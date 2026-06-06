@@ -100,7 +100,6 @@
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.575.0",
     "mammoth": "^1.12.0",
-    "marked": "^17.0.4",
     "mcp-handler": "^1.1.0",
     "motion": "^12.38.0",
     "next": "16.2.6",
