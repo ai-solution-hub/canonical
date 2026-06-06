@@ -169,6 +169,19 @@ jobs:
         if: steps.changes.outputs.python == 'true'
         run: pip install -r requirements.txt
 
+      - name: Install pandoc
+        # ID-85.1 — the B1 production image ships pandoc and local dev
+        # machines have it, but ubuntu-latest runners do not. Without it,
+        # docx_cell_to_markdown.py falls back to tag stripping and 8
+        # conversion tests fail (6 in test_docx_cell_to_markdown.py + 2 in
+        # test_extract_docx_tables.py), gating all 4 quality-test shards.
+        # Installing pandoc keeps those tests exercising REAL conversion
+        # (production parity) rather than skipping via @requires_pandoc.
+        if: steps.changes.outputs.python == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pandoc
+
       - name: Test (pytest)
         if: steps.changes.outputs.python == 'true'
         env:
