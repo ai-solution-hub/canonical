@@ -1,6 +1,11 @@
 // __tests__/lib/intelligence/pipeline.test.ts
 /* eslint-disable @typescript-eslint/no-explicit-any -- mock supabase clients require flexible typing */
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+
+// ID-75 WP-E (D-3): the walk nudge fires a real `fetch` from runPipeline.
+// Hoisted so the stubGlobal swap below never races vi.mock hoisting
+// (CLAUDE.md vi.mock gotcha).
+const fetchMock = vi.hoisted(() => vi.fn());
 
 // WP2 (S19): pipeline.ts routes telemetry through @/lib/logger (logger.warn/
 // logger.error) and the embedding-failure best-effort path goes through
@@ -539,199 +544,33 @@ describe('processFeedSource', () => {
     expect(contentItemInsert).toBeUndefined();
   });
 
-  // ── S189 WP1: Firecrawl resolvedUrl preference ──
+  // ── ID-75 WP-E (BI-11): TS legacy promotion retired ──
+  //
+  // A gate-passed article must land NOTHING in content_items or
+  // content_item_workspaces from the TS pipeline. The feed_articles row
+  // (passed=true) is the ledger the Python cocoindex walk enumerates —
+  // landing into the KB is the walk's job, not the pipeline's.
+  // (The two S189 WP1 resolvedUrl-promotion tests previously here tested
+  // the deleted storeAsContentItem path and were retired with it.)
 
-  it('uses extraction.resolvedUrl as content_items.source_url when present (S189 WP1)', async () => {
+  it('performs ZERO content_items / content_item_workspaces inserts for a passed article (ID-75 WP-E, BI-11)', async () => {
     vi.clearAllMocks();
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
     const { extractContent } =
       await import('@/lib/intelligence/content-extractor');
     const { embeddingPreFilter, scoreRelevance } =
       await import('@/lib/intelligence/relevance-scorer');
-
-    const googleNewsUrl = 'https://news.google.com/rss/articles/CBMiX2h0dHBz';
-    const publisherUrl =
-      'https://www.farrer.co.uk/news/kcsie-2026-proposed-changes';
+    const { classifyContent } = await import('@/lib/ai/classify');
 
     vi.mocked(pollFeed).mockResolvedValue({
       feedSourceId: 'source-1',
       status: 'success',
       items: [
         {
-          title: 'KCSIE 2026 Changes',
-          url: googleNewsUrl,
-          guid: 'guid-gn-1',
-          publishedAt: '2026-04-01T10:00:00Z',
-          summary: 'Proposed changes to KCSIE',
-          contentEncoded: null,
-          categories: [],
-        },
-      ],
-      etag: null,
-      lastModified: null,
-    });
-
-    vi.mocked(extractContent).mockResolvedValue({
-      content: 'Long article content. '.repeat(50),
-      title: 'KCSIE 2026 Changes',
-      description: 'Proposed changes',
-      thumbnailUrl: null,
-      method: 'firecrawl',
-      wordCount: 200,
-      resolvedUrl: publisherUrl,
-    });
-
-    vi.mocked(embeddingPreFilter).mockResolvedValue({
-      similarity: 0.8,
-      passed: true,
-    });
-
-    vi.mocked(scoreRelevance).mockResolvedValue({
-      score: 0.9,
-      category: 'high',
-      reasoning: 'Highly relevant',
-      matchedCategories: ['safeguarding'],
-      passed: true,
-    });
-
-    // Track all inserts and updates
-    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
-      [];
-    const updateCalls: Array<{
-      table: string;
-      data: Record<string, unknown>;
-      filters: Record<string, unknown>;
-    }> = [];
-
-    // Mock dedup module
-    vi.doMock('@/lib/dedup', () => ({
-      checkExactDuplicate: vi.fn().mockResolvedValue({ isDuplicate: false }),
-      resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
-    }));
-
-    const mockSupabase = {
-      from: vi.fn().mockImplementation((table: string) => {
-        const builder: Record<string, unknown> = {};
-        builder.select = vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-            is: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                maybeSingle: vi
-                  .fn()
-                  .mockResolvedValue({ data: null, error: null }),
-              }),
-            }),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        });
-        builder.insert = vi
-          .fn()
-          .mockImplementation((data: Record<string, unknown>) => {
-            insertCalls.push({ table, data });
-            return {
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: { id: `${table}-id-1` },
-                  error: null,
-                }),
-              }),
-              error: null,
-            };
-          });
-        builder.update = vi
-          .fn()
-          .mockImplementation((data: Record<string, unknown>) => {
-            const eqFn = vi
-              .fn()
-              .mockImplementation((col: string, val: unknown) => {
-                const innerEq = vi
-                  .fn()
-                  .mockImplementation((col2: string, val2: unknown) => {
-                    updateCalls.push({
-                      table,
-                      data,
-                      filters: { [col]: val, [col2]: val2 },
-                    });
-                    return Promise.resolve({ error: null });
-                  });
-                return { eq: innerEq };
-              });
-            return { eq: eqFn };
-          });
-        return builder;
-      }),
-    } as any;
-
-    const source = {
-      id: 'source-1',
-      workspace_id: 'ws-1',
-      name: 'Google News Feed',
-      url: 'https://news.google.com/rss/search?q=education',
-      etag: null,
-      last_modified: null,
-      polling_interval_minutes: 30,
-      consecutive_failures: 0,
-      article_count: 0,
-    };
-
-    const companyContext = {
-      name: 'Test Co',
-      sectors: ['education'],
-      services: ['safeguarding'],
-      keyTopics: ['KCSIE'],
-      targetCustomers: 'Schools',
-      valueProposition: 'Safeguarding support',
-    };
-
-    await processFeedSource(
-      mockSupabase,
-      source,
-      companyContext,
-      [0.1, 0.2],
-      null,
-    );
-
-    // Verify content_items was inserted with the PUBLISHER URL, not the Google News URL
-    const contentItemInsert = insertCalls.find(
-      (c) => c.table === 'content_items',
-    );
-    expect(contentItemInsert).toBeDefined();
-    expect(contentItemInsert!.data.source_url).toBe(publisherUrl);
-    expect(contentItemInsert!.data.source_url).not.toContain('news.google.com');
-
-    // Verify feed_articles was inserted with the ORIGINAL RSS URL (normalised)
-    const feedArticleInsert = insertCalls.find(
-      (c) => c.table === 'feed_articles',
-    );
-    expect(feedArticleInsert).toBeDefined();
-    expect(feedArticleInsert!.data.external_url as string).toContain(
-      'news.google.com',
-    );
-  });
-
-  it('falls back to raw RSS URL for content_items when extraction has no resolvedUrl (S189 WP1)', async () => {
-    vi.clearAllMocks();
-    const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } =
-      await import('@/lib/intelligence/content-extractor');
-    const { embeddingPreFilter, scoreRelevance } =
-      await import('@/lib/intelligence/relevance-scorer');
-
-    const govUkUrl = 'https://www.gov.uk/government/news/article-123';
-
-    vi.mocked(pollFeed).mockResolvedValue({
-      feedSourceId: 'source-1',
-      status: 'success',
-      items: [
-        {
-          title: 'Gov UK Article',
-          url: govUkUrl,
-          guid: 'guid-gov-1',
-          publishedAt: '2026-04-01T10:00:00Z',
+          title: 'Highly Relevant Article',
+          url: 'https://www.gov.uk/government/news/article-123',
+          guid: 'guid-pass-1',
+          publishedAt: '2026-06-01T10:00:00Z',
           summary: 'Government announcement',
           contentEncoded: null,
           categories: [],
@@ -741,15 +580,13 @@ describe('processFeedSource', () => {
       lastModified: null,
     });
 
-    // No resolvedUrl — direct feeds provide the publisher URL already
     vi.mocked(extractContent).mockResolvedValue({
       content: 'Long article content. '.repeat(50),
-      title: 'Gov UK Article',
+      title: 'Highly Relevant Article',
       description: 'Government announcement',
       thumbnailUrl: null,
       method: 'fetch',
       wordCount: 200,
-      // resolvedUrl deliberately omitted
     });
 
     vi.mocked(embeddingPreFilter).mockResolvedValue({
@@ -764,11 +601,6 @@ describe('processFeedSource', () => {
       matchedCategories: ['policy'],
       passed: true,
     });
-
-    vi.doMock('@/lib/dedup', () => ({
-      checkExactDuplicate: vi.fn().mockResolvedValue({ isDuplicate: false }),
-      resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
-    }));
 
     const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
       [];
@@ -836,7 +668,7 @@ describe('processFeedSource', () => {
       valueProposition: 'Policy support',
     };
 
-    await processFeedSource(
+    const result = await processFeedSource(
       mockSupabase,
       source,
       companyContext,
@@ -844,19 +676,29 @@ describe('processFeedSource', () => {
       null,
     );
 
-    // content_items should use the original gov.uk URL (no resolvedUrl available)
-    const contentItemInsert = insertCalls.find(
-      (c) => c.table === 'content_items',
-    );
-    expect(contentItemInsert).toBeDefined();
-    expect(contentItemInsert!.data.source_url).toBe(govUkUrl);
+    // The article passed the gate and was counted.
+    expect(result.articlesPassed).toBe(1);
+    expect(result.articlesFailed).toBe(0);
+    expect(result.errors).toEqual([]);
 
-    // feed_articles also uses the same URL
+    // feed_articles got the ledger row with passed=true.
     const feedArticleInsert = insertCalls.find(
       (c) => c.table === 'feed_articles',
     );
     expect(feedArticleInsert).toBeDefined();
-    expect(feedArticleInsert!.data.external_url as string).toContain('gov.uk');
+    expect(feedArticleInsert!.data.passed).toBe(true);
+
+    // BI-11 acceptance: ZERO content_items / content_item_workspaces
+    // inserts — the legacy TS promotion is retired.
+    expect(insertCalls.filter((c) => c.table === 'content_items')).toHaveLength(
+      0,
+    );
+    expect(
+      insertCalls.filter((c) => c.table === 'content_item_workspaces'),
+    ).toHaveLength(0);
+
+    // Classification belonged to the deleted promotion path.
+    expect(vi.mocked(classifyContent)).not.toHaveBeenCalled();
   });
 
   // ── source_type branching (P0-WEB / WP3B) ──
@@ -1594,5 +1436,174 @@ describe('runPipeline (§2.1.8 hoist regression)', () => {
       'source-B1',
       'source-B2',
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)
+// ---------------------------------------------------------------------------
+//
+// After a run where articlesPassed > 0, runPipeline fires exactly ONE
+// fire-and-forget bearer POST to `${COCOINDEX_WORKER_URL}/walk` so the
+// Python cocoindex walk picks the passed feed_articles rows up promptly.
+// A failed or undeliverable nudge is a DELAY, not a loss — the standing
+// hourly walk bounds the latency, so the nudge must never fail the run.
+
+/** Prime poller/extractor/scorer mocks so one article passes the gate. */
+async function primePassedArticleMocks() {
+  const { pollFeed } = await import('@/lib/intelligence/feed-poller');
+  const { extractContent } =
+    await import('@/lib/intelligence/content-extractor');
+  const { embeddingPreFilter, scoreRelevance } =
+    await import('@/lib/intelligence/relevance-scorer');
+
+  vi.mocked(pollFeed).mockResolvedValue({
+    feedSourceId: 'source-1',
+    status: 'success',
+    items: [
+      {
+        title: 'Passed Article',
+        url: 'https://example.com/passed-1',
+        guid: 'guid-passed-1',
+        publishedAt: '2026-06-01T10:00:00Z',
+        summary: 'Summary',
+        contentEncoded: null,
+        categories: [],
+      },
+    ],
+    etag: null,
+    lastModified: null,
+  });
+
+  vi.mocked(extractContent).mockResolvedValue({
+    content: 'Long article content. '.repeat(60),
+    title: 'Passed Article',
+    description: 'Summary',
+    thumbnailUrl: null,
+    method: 'fetch',
+    wordCount: 120,
+  });
+
+  vi.mocked(embeddingPreFilter).mockResolvedValue({
+    similarity: 0.85,
+    passed: true,
+  });
+
+  vi.mocked(scoreRelevance).mockResolvedValue({
+    score: 0.9,
+    category: 'high',
+    reasoning: 'Highly relevant',
+    matchedCategories: ['ai'],
+    passed: true,
+  });
+}
+
+const NUDGE_DUE_SOURCE = {
+  id: 'source-1',
+  workspace_id: 'ws-A',
+  name: 'Feed 1',
+  url: 'https://example.com/feed1.xml',
+  etag: null,
+  last_modified: null,
+  polling_interval_minutes: 30,
+  consecutive_failures: 0,
+  article_count: 0,
+};
+
+const NUDGE_MOCK_OPTIONS = {
+  dueSources: [NUDGE_DUE_SOURCE],
+  workspaceProfiles: { 'ws-A': 'profile-A' },
+  cachedEmbeddings: { 'profile-A': JSON.stringify([0.1, 0.2, 0.3]) },
+};
+
+describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('COCOINDEX_WORKER_URL', 'https://cocoindex-worker.example.com');
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it('fires exactly one bearer POST /walk after a run where articlesPassed > 0', async () => {
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    const result = await runPipeline(supabase);
+
+    expect(result.totalArticlesPassed).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://cocoindex-worker.example.com/walk',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-cron-secret' },
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('never fires the nudge when no articles pass', async () => {
+    const { pollFeed } = await import('@/lib/intelligence/feed-poller');
+    vi.mocked(pollFeed).mockResolvedValue({
+      feedSourceId: 'source-1',
+      status: 'success',
+      items: [],
+      etag: null,
+      lastModified: null,
+    });
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    const result = await runPipeline(supabase);
+
+    expect(result.totalArticlesPassed).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('skips the nudge with a structured log when COCOINDEX_WORKER_URL is unset', async () => {
+    vi.stubEnv('COCOINDEX_WORKER_URL', '');
+    loggerMocks.warn.mockClear();
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    const result = await runPipeline(supabase);
+
+    // The run itself is unaffected — the article still passed.
+    expect(result.totalArticlesPassed).toBe(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ articlesPassed: 1 }),
+      expect.stringContaining('COCOINDEX_WORKER_URL unset'),
+    );
+  });
+
+  it('logs and absorbs a failed nudge — a failed nudge is a delay, not a loss', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+    loggerMocks.warn.mockClear();
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    // Must NOT throw — catch-and-log is the ratified tolerant shape.
+    const result = await runPipeline(supabase);
+
+    expect(result.totalArticlesPassed).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // The rejection is handled asynchronously (fire-and-forget) — wait for
+    // the catch-and-log handler to run.
+    await vi.waitFor(() => {
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          err: expect.stringContaining('ECONNREFUSED'),
+        }),
+        expect.stringContaining('Walk nudge failed'),
+      );
+    });
   });
 });

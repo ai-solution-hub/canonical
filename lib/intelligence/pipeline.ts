@@ -15,18 +15,13 @@ import {
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
 import { generateArticleSummary } from './article-summariser';
 import { generateEmbedding } from '@/lib/ai/embed';
-import { classifyContent } from '@/lib/ai/classify';
 import type {
   CompanyContext,
   FeedProcessingResult,
   PipelineRunResult,
   PollResult,
 } from './types';
-import {
-  PIPELINE_SYSTEM_USER_ID,
-  SOURCES_PER_INVOCATION,
-  DEFAULT_RELEVANCE_THRESHOLD,
-} from './types';
+import { SOURCES_PER_INVOCATION, DEFAULT_RELEVANCE_THRESHOLD } from './types';
 import { RateLimitError } from './rate-limiter';
 import { logger } from '@/lib/logger';
 
@@ -156,61 +151,6 @@ async function loadOrGenerateCompanyEmbedding(
     .eq('id', profileId);
 
   return embedding;
-}
-
-/**
- * SI-L3: Infer a more specific content_type from classification domain/subtopic.
- * Returns null if no better type can be inferred (stays as 'article').
- */
-export function inferContentType(
-  primaryDomain: string | null,
-  primarySubtopic: string | null,
-): string | null {
-  if (!primaryDomain && !primarySubtopic) return null;
-
-  const domain = (primaryDomain ?? '').toLowerCase();
-  const subtopic = (primarySubtopic ?? '').toLowerCase();
-
-  // Policy-related subtopics -> 'policy'
-  if (
-    subtopic.includes('policy') ||
-    subtopic.includes('regulation') ||
-    subtopic.includes('legislation')
-  ) {
-    return 'policy';
-  }
-
-  // Case studies (check before research to avoid 'study' false positive)
-  if (subtopic.includes('case-study') || subtopic.includes('case_study')) {
-    return 'case_study';
-  }
-
-  // Research-related subtopics -> 'research'
-  if (
-    subtopic.includes('research') ||
-    subtopic.includes('study') ||
-    subtopic.includes('analysis')
-  ) {
-    return 'research';
-  }
-
-  // Compliance/certification subtopics
-  if (subtopic.includes('compliance') || subtopic.includes('audit')) {
-    return 'compliance';
-  }
-  if (
-    subtopic.includes('certification') ||
-    subtopic.includes('accreditation')
-  ) {
-    return 'certification';
-  }
-
-  // Methodology domain hints
-  if (domain.includes('methodology') || subtopic.includes('methodology')) {
-    return 'methodology';
-  }
-
-  return null;
 }
 
 /** Check if an article URL already exists in feed_articles for this workspace */
@@ -493,29 +433,12 @@ export async function processFeedSource(
       }
 
       if (passed) {
+        // ID-75 WP-E (BI-11): the gate-passed feed_articles row IS the
+        // landing record. The Python cocoindex walk enumerates passed rows
+        // and lands them as reference_items — the legacy TS promotion into
+        // content_items is retired. runPipeline nudges the worker after
+        // the run (D-3).
         result.articlesPassed++;
-
-        // 2f. For passed articles: create content_item + classify.
-        // Prefer the Firecrawl-resolved publisher URL (e.g. real article URL
-        // behind a Google News redirect) over the raw RSS URL. Falls back to
-        // the raw URL when Firecrawl did not resolve or was not reached.
-        // Pass the original RSS URL (normalisedUrl) as feedArticleUrl so the
-        // feed_articles link update matches on the stored external_url.
-        try {
-          const contentItemUrl = extraction.resolvedUrl ?? item.url;
-          await storeAsContentItem(
-            supabase,
-            source,
-            { ...item, url: contentItemUrl },
-            extraction,
-            normalisedUrl,
-          );
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          result.errors.push(
-            `Content item creation failed for ${normalisedUrl}: ${msg}`,
-          );
-        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -534,204 +457,6 @@ export async function processFeedSource(
 
   result.durationMs = Date.now() - startTime;
   return result;
-}
-
-/**
- * Insert the `(workspace_id, content_item_id)` pair into the junction
- * table if it does not already exist.
- *
- * The table has a composite PK on `(content_item_id, workspace_id)`
- * (constraint name `content_item_projects_pkey`, legacy — pre-rename).
- * The pre-check makes the common case — re-polling the same feed — a
- * clean no-op rather than a PK-violation error. RSS polling is serial
- * per source so a race is unlikely.
- */
-async function ensureWorkspaceLink(
-  supabase: Supabase,
-  workspaceId: string,
-  contentItemId: string,
-): Promise<void> {
-  const existingLink = await sb(
-    supabase
-      .from('content_item_workspaces')
-      .select('content_item_id')
-      .eq('workspace_id', workspaceId)
-      .eq('content_item_id', contentItemId)
-      .limit(1)
-      .maybeSingle(),
-    'intelligence.pipeline.junction.existing-link',
-  );
-  if (existingLink) return;
-  await supabase.from('content_item_workspaces').insert({
-    workspace_id: workspaceId,
-    content_item_id: contentItemId,
-  });
-}
-
-/** Store a passed article as a content_item in the KB.
- *  @param feedArticleUrl — the normalised URL stored in feed_articles.external_url
- *    (used for the content_item_id link update). When a Firecrawl-resolved
- *    publisher URL differs from the raw RSS URL, item.url carries the publisher
- *    URL for content_items.source_url while feedArticleUrl carries the original
- *    RSS URL for the feed_articles join. */
-async function storeAsContentItem(
-  supabase: Supabase,
-  source: FeedSource,
-  item: { title: string; url: string; publishedAt: string | null },
-  extraction: {
-    content: string;
-    title: string | null;
-    description: string | null;
-    thumbnailUrl: string | null;
-  },
-  feedArticleUrl?: string,
-): Promise<void> {
-  // D3 (spec §6): one content_items row per unique source_url, linked
-  // to many workspaces via `content_item_workspaces`. If the URL is
-  // already in the KB, attach the existing row to this workspace and
-  // skip creating a duplicate. Cross-workspace re-promotes of the same
-  // article therefore share a single item + classification.
-  const existingByUrl = await sb(
-    supabase
-      .from('content_items')
-      .select('id')
-      .eq('source_url', item.url)
-      .is('archived_at', null)
-      .limit(1)
-      .maybeSingle(),
-    'intelligence.pipeline.content-items.existing-by-url',
-  );
-
-  if (existingByUrl) {
-    // Use feedArticleUrl (the RSS URL stored in feed_articles.external_url)
-    // for the link update — item.url may be the resolved publisher URL which
-    // would not match the feed_articles row.
-    const normalisedFeedUrl = normaliseUrl(feedArticleUrl ?? item.url);
-    await supabase
-      .from('feed_articles')
-      .update({ content_item_id: existingByUrl.id })
-      .eq('workspace_id', source.workspace_id)
-      .eq('external_url', normalisedFeedUrl);
-    await ensureWorkspaceLink(supabase, source.workspace_id, existingByUrl.id);
-    return;
-  }
-
-  // D1 (spec §6): exact-hash content match on a DIFFERENT source_url
-  // stamps `dedup_status='suspected_duplicate'` + records the existing
-  // id in `metadata.suspected_duplicate_of`. Insert still proceeds
-  // (soft block). Admin override does not apply — RSS is automated.
-  const { checkExactDuplicate, resolveDedupStamp } =
-    await import('@/lib/dedup');
-  let dedupStamp: {
-    dedup_status: 'clean' | 'suspected_duplicate';
-    suspected_duplicate_of?: string;
-  } = { dedup_status: 'clean' };
-  try {
-    const dedupCheck = await checkExactDuplicate(supabase, extraction.content);
-    dedupStamp = resolveDedupStamp(
-      dedupCheck.isDuplicate ? dedupCheck.existingId : undefined,
-    );
-  } catch (err) {
-    logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
-      `[Pipeline] Dedup check failed for ${item.url}`,
-    );
-  }
-
-  // Create content item — no `status` column on content_items
-  const { data: contentItem, error } = await supabase
-    .from('content_items')
-    .insert({
-      title: extraction.title ?? item.title,
-      content: extraction.content,
-      content_type: 'article',
-      source_url: item.url,
-      dedup_status: dedupStamp.dedup_status,
-      // S207 WP-A4 (Plan Task 3.2): typed provenance column. Read by
-      // ensure_v1_history_at_commit() to set
-      // content_history.change_reason='initial_ingest'.
-      ingest_source: 'rss_feed',
-      metadata: {
-        source: 'intelligence_pipeline',
-        feed_source_id: source.id,
-        feed_source_name: source.name,
-        published_at: item.publishedAt,
-        thumbnail_url: extraction.thumbnailUrl,
-        ...(dedupStamp.suspected_duplicate_of && {
-          suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
-        }),
-      },
-    })
-    .select('id')
-    .single();
-
-  if (error || !contentItem) return;
-
-  // Update feed_article with content_item_id link. Use feedArticleUrl (the
-  // raw RSS URL stored in feed_articles.external_url) so the WHERE clause
-  // matches even when item.url is a Firecrawl-resolved publisher URL.
-  const normalisedFeedUrl = normaliseUrl(feedArticleUrl ?? item.url);
-  await supabase
-    .from('feed_articles')
-    .update({ content_item_id: contentItem.id })
-    .eq('workspace_id', source.workspace_id)
-    .eq('external_url', normalisedFeedUrl);
-
-  // Classify the content item (adds taxonomy, entities, AND embeddings)
-  // classifyContent already generates and stores embeddings — no separate embedding call needed
-  try {
-    await classifyContent({
-      supabase,
-      itemId: contentItem.id,
-      force: true,
-      userId: PIPELINE_SYSTEM_USER_ID,
-    });
-
-    // SI-L3: After classification, re-read the content_item to check if content_type
-    // was updated (e.g. by classifyContent or a DB trigger). If classification results
-    // suggest a more specific type, update accordingly.
-    const classified = await sb(
-      supabase
-        .from('content_items')
-        .select('content_type, primary_domain, primary_subtopic')
-        .eq('id', contentItem.id)
-        .single(),
-      'intelligence.pipeline.content-item.reread',
-    );
-
-    if (classified.content_type === 'article') {
-      // Infer a more specific content_type from classification results
-      const inferredType = inferContentType(
-        classified.primary_domain,
-        classified.primary_subtopic,
-      );
-      if (inferredType && inferredType !== 'article') {
-        // SI-L3: Wrap content_type update with error handling. The DB CHECK
-        // constraint on content_items.content_type may reject values if it
-        // ever drifts from VALID_CONTENT_TYPES (lib/validation/schemas.ts).
-        // Failures here must surface in logs (soft failure — pipeline must
-        // not crash) so any future drift is visible immediately.
-        const { error: contentTypeError } = await supabase
-          .from('content_items')
-          .update({ content_type: inferredType })
-          .eq('id', contentItem.id);
-
-        if (contentTypeError) {
-          logger.error(
-            `[Pipeline] SI-L3: content_type update failed for item ${contentItem.id} (inferred: "${inferredType}", domain: "${classified.primary_domain ?? 'null'}", subtopic: "${classified.primary_subtopic ?? 'null'}"): ${contentTypeError.message}`,
-          );
-        }
-      }
-    }
-  } catch (err) {
-    // Classification failure is non-fatal — item is still stored
-    logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
-      `[Pipeline] Classification failed for content item ${contentItem.id}`,
-    );
-  }
-
-  await ensureWorkspaceLink(supabase, source.workspace_id, contentItem.id);
 }
 
 /** Update feed_sources after a poll attempt (including etag/lastModified for conditional requests) */
@@ -765,6 +490,52 @@ async function updateSourceAfterPoll(
   }
 
   await supabase.from('feed_sources').update(updateData).eq('id', source.id);
+}
+
+/** Short timeout for the fire-and-forget walk nudge (D-3). */
+const COCOINDEX_NUDGE_TIMEOUT_MS = 5_000;
+
+/**
+ * ID-75 WP-E (D-3, ratified OQ-T2): fire-and-forget nudge to the cocoindex
+ * worker after a pipeline run that passed at least one article. The
+ * gate-passed feed_articles rows are the ledger the Python walk enumerates;
+ * the nudge merely shortens the latency between gate pass and KB landing.
+ * A failed or undeliverable nudge is a DELAY, not a loss — the standing
+ * hourly walk bounds the latency, so failures are caught and logged, never
+ * propagated to the run result.
+ */
+function nudgeCocoindexWalk(articlesPassed: number): void {
+  const workerUrl = process.env.COCOINDEX_WORKER_URL;
+  if (!workerUrl) {
+    logger.warn(
+      { articlesPassed },
+      '[Pipeline] COCOINDEX_WORKER_URL unset — skipping walk nudge; passed articles will be picked up by the next scheduled walk',
+    );
+    return;
+  }
+
+  void fetch(`${workerUrl}/walk`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    signal: AbortSignal.timeout(COCOINDEX_NUDGE_TIMEOUT_MS),
+  })
+    .then((res) => {
+      if (!res.ok) {
+        logger.warn(
+          { status: res.status, articlesPassed },
+          '[Pipeline] Walk nudge rejected by cocoindex worker — ingest delayed until the next scheduled walk',
+        );
+      }
+    })
+    .catch((err: unknown) => {
+      logger.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          articlesPassed,
+        },
+        '[Pipeline] Walk nudge failed — ingest delayed until the next scheduled walk',
+      );
+    });
 }
 
 /** Run the full pipeline: query due sources, process each, track in queue */
@@ -885,6 +656,17 @@ export async function runPipeline(
     }
   }
 
+  const totalArticlesPassed = feedResults.reduce(
+    (sum, r) => sum + r.articlesPassed,
+    0,
+  );
+
+  // D-3 (ID-75 WP-E): one nudge per run, only when something passed the
+  // gate — the walk has nothing to pick up otherwise.
+  if (totalArticlesPassed > 0) {
+    nudgeCocoindexWalk(totalArticlesPassed);
+  }
+
   return {
     runId: crypto.randomUUID(),
     startedAt,
@@ -895,10 +677,7 @@ export async function runPipeline(
       0,
     ),
     totalArticlesNew: feedResults.reduce((sum, r) => sum + r.articlesNew, 0),
-    totalArticlesPassed: feedResults.reduce(
-      (sum, r) => sum + r.articlesPassed,
-      0,
-    ),
+    totalArticlesPassed,
     feedResults,
     errors,
   };

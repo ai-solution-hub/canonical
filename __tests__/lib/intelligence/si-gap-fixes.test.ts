@@ -1,11 +1,12 @@
 // __tests__/lib/intelligence/si-gap-fixes.test.ts
-// Tests for SI gap analysis fixes: SI-L3 (dynamic content type), SI-L5 (workspace scoring threshold)
+// Tests for SI gap analysis fixes: SI-L5 (workspace scoring threshold).
+// The SI-L3 (dynamic content type) suite previously here exercised
+// inferContentType(), which was retired with the TS legacy promotion
+// (ID-75 WP-E, BI-11).
 /* eslint-disable @typescript-eslint/no-explicit-any -- mock supabase clients require flexible typing */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ── SI-L3: Dynamic Content Type Detection ──
-
-// Mock pipeline dependencies so we can import inferContentType
+// Mock pipeline dependencies so we can import processFeedSource
 vi.mock('@/lib/intelligence/feed-poller', () => ({
   pollFeed: vi.fn(),
   validateFeedUrl: vi.fn(),
@@ -31,70 +32,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),
 }));
-
-describe('SI-L3: inferContentType', () => {
-  it('infers policy type from subtopic', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType('education', 'education-policy')).toBe('policy');
-    expect(inferContentType('safeguarding', 'regulation-updates')).toBe(
-      'policy',
-    );
-    expect(inferContentType('legal', 'new-legislation')).toBe('policy');
-  });
-
-  it('infers research type from subtopic', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType('education', 'academic-research')).toBe('research');
-    expect(inferContentType('health', 'longitudinal-study')).toBe('research');
-    expect(inferContentType('data', 'market-analysis')).toBe('research');
-  });
-
-  it('infers compliance type from subtopic', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType('safeguarding', 'compliance-requirements')).toBe(
-      'compliance',
-    );
-    expect(inferContentType('finance', 'audit-standards')).toBe('compliance');
-  });
-
-  it('infers certification type from subtopic', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType('quality', 'iso-certification')).toBe(
-      'certification',
-    );
-    expect(inferContentType('education', 'school-accreditation')).toBe(
-      'certification',
-    );
-  });
-
-  it('infers case_study type from subtopic', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType('education', 'implementation-case-study')).toBe(
-      'case_study',
-    );
-  });
-
-  it('infers methodology type', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType('methodology', 'assessment-frameworks')).toBe(
-      'methodology',
-    );
-    expect(inferContentType('education', 'teaching-methodology')).toBe(
-      'methodology',
-    );
-  });
-
-  it('returns null for generic article content', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType('education', 'curriculum-update')).toBeNull();
-    expect(inferContentType('technology', 'ai-tools')).toBeNull();
-  });
-
-  it('returns null for null inputs', async () => {
-    const { inferContentType } = await import('@/lib/intelligence/pipeline');
-    expect(inferContentType(null, null)).toBeNull();
-  });
-});
 
 // ── SI-L5: Workspace-Level Scoring Threshold ──
 
