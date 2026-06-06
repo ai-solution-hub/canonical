@@ -500,14 +500,15 @@ class TestRunExitCodes:
         assert len(http.calls_to("POST", "/walk")) == 1
 
     def test_missing_env_exits_2(self, monkeypatch: Any) -> None:
+        # Only the genuinely required vars are removed — PULLMD_SERVICE_URL and
+        # COCOINDEX_URL_VERIFY_URL default (localhost:3000 / PROOF_URL_DEFAULT)
+        # and must NOT be needed for the exit-2 required-env diagnostic.
         for var in (
             "NEXT_PUBLIC_SUPABASE_URL",
             "SUPABASE_URL",
             "SUPABASE_SERVICE_ROLE_KEY",
             "COCOINDEX_WORKER_URL",
             "CRON_SECRET",
-            "PULLMD_SERVICE_URL",
-            "COCOINDEX_URL_VERIFY_URL",
         ):
             monkeypatch.delenv(var, raising=False)
         assert vd.run([]) == 2
