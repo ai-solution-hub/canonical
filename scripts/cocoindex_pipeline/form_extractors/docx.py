@@ -512,8 +512,7 @@ async def extract(raw_bytes: bytes, filename: str) -> ExtractedForm:
     fields: list[ExtractedField] = []
     sequence = 0
     current_section: str | None = None
-    table_index = 0
-    table_dispatch_index = 0  # ``doc.tables`` index for the dispatcher
+    table_index = 0  # ``doc.tables`` index, in body order
 
     try:
         try:
@@ -548,8 +547,8 @@ async def extract(raw_bytes: bytes, filename: str) -> ExtractedForm:
                         fields.extend(para_fields)
 
                 elif tag == "tbl":
-                    if table_dispatch_index < len(tables):
-                        table = tables[table_dispatch_index]
+                    if table_index < len(tables):
+                        table = tables[table_index]
                         table_fields, sequence = _emit_table_fields(
                             table=table,
                             table_index=table_index,
@@ -558,9 +557,8 @@ async def extract(raw_bytes: bytes, filename: str) -> ExtractedForm:
                         )
                         fields.extend(table_fields)
                         table_index += 1
-                        table_dispatch_index += 1
 
-            if paragraphs_seen == 0 and table_dispatch_index == 0:
+            if paragraphs_seen == 0 and table_index == 0:
                 raise FormExtractionError(
                     reason="empty_docx",
                     rel_path=filename,

@@ -57,7 +57,6 @@ import re
 from typing import Any
 
 import openpyxl
-from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.worksheet.worksheet import Worksheet
 
 from scripts.cocoindex_pipeline.form_extractors.shared import (
@@ -115,15 +114,6 @@ _CSP_PRINCIPLE_KEY = re.compile(
     r"^\s*PRINCIPLE\s*\s*\n?\s*(\d+)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
-
-# CSP sub-key embedded in column C prose: ``B1/ Please confirm…``,
-# ``B2/ Do you have…``. The slash distinguishes it from question
-# numbers like ``2.1`` (used in CSP principles too).
-_CSP_LETTER_SUBKEY = re.compile(r"^\s*([A-Z]\d+)/\s*", re.MULTILINE)
-
-# CSP numbered sub-row: ``2.1 Physical location…`` (no slash, leading
-# token has a dot — different from the letter subkey shape).
-_CSP_PRINCIPLE_SUBKEY = re.compile(r"^\s*(\d+\.\d+)\s+", re.MULTILINE)
 
 # Placeholder pattern — CSP's ``TYPE RESPONSE HERE>>>>`` shape plus the
 # canonical PDF reader's placeholder vocabulary for parity.
@@ -286,7 +276,6 @@ def _walk_efa_scoring_matrix(
     *,
     table_index: int,
     sequence_start: int,
-    sheet_name: str,
 ) -> tuple[list[ExtractedField], int]:
     """Walk a sheet's EFA-style scoring matrix into ExtractedField rows.
 
@@ -474,7 +463,7 @@ def _walk_csp_checklist(
                 # Emit the principle row itself as a question row when its
                 # response slot is a placeholder (Inv-9). The first line is
                 # the title, the remainder is the prose.
-                _emit_csp_question(
+                if _emit_csp_question(
                     ws=ws,
                     row=row,
                     table_index=table_index,
@@ -482,8 +471,7 @@ def _walk_csp_checklist(
                     section=current_section,
                     prose_raw=prose_raw,
                     emitted=emitted,
-                )
-                if emitted and emitted[-1].sequence == sequence:
+                ):
                     sequence += 1
                 continue
 
@@ -498,7 +486,7 @@ def _walk_csp_checklist(
                 current_section = (
                     f"Section {letter} — {title}" if title else f"Section {letter}"
                 )
-                _emit_csp_question(
+                if _emit_csp_question(
                     ws=ws,
                     row=row,
                     table_index=table_index,
@@ -506,14 +494,13 @@ def _walk_csp_checklist(
                     section=current_section,
                     prose_raw=prose_raw,
                     emitted=emitted,
-                )
-                if emitted and emitted[-1].sequence == sequence:
+                ):
                     sequence += 1
                 continue
 
         # Sub-row: no key in col B; inherits ``current_section``.
         if prose_clean:
-            _emit_csp_question(
+            if _emit_csp_question(
                 ws=ws,
                 row=row,
                 table_index=table_index,
@@ -521,8 +508,7 @@ def _walk_csp_checklist(
                 section=current_section,
                 prose_raw=prose_raw,
                 emitted=emitted,
-            )
-            if emitted and emitted[-1].sequence == sequence:
+            ):
                 sequence += 1
 
     return emitted, sequence
@@ -537,15 +523,18 @@ def _emit_csp_question(
     section: str | None,
     prose_raw: Any,
     emitted: list[ExtractedField],
-) -> None:
+) -> bool:
     """Emit one CSP question row, classifying placeholder vs authored.
 
     Inv-9: the question_text is the prose; the response slot (column 5)
     determines field_type. NCSC URLs (column 4 hyperlink) → reference_urls.
+
+    Returns True when a field was appended (the caller advances the
+    sequence counter); False when the row carried no prose.
     """
     prose = _clean(prose_raw)
     if not prose:
-        return
+        return False
 
     response_value = ws.cell(row=row, column=5).value
     response_text = _clean(response_value)
@@ -582,6 +571,7 @@ def _emit_csp_question(
             reference_urls=reference_urls,
         )
     )
+    return True
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -617,7 +607,6 @@ def _walk_sheet(
             ws,
             table_index=table_index_offset,
             sequence_start=sequence_start,
-            sheet_name=ws.title,
         )
         return fields, next_seq, 1
 
@@ -701,13 +690,9 @@ async def extract(raw_bytes: bytes, filename: str) -> ExtractedForm:
             data_only=True,
             read_only=False,
         )
-    except (InvalidFileException, KeyError, OSError, ValueError) as exc:
-        raise FormExtractionError(
-            reason="unreadable_xlsx",
-            rel_path=filename,
-            details=str(exc),
-        ) from exc
-    except Exception as exc:  # noqa: BLE001 — openpyxl can surface generic types
+    except Exception as exc:  # noqa: BLE001 — openpyxl surfaces a wide mix of
+        # types on corrupt input (InvalidFileException, KeyError, OSError,
+        # ValueError, …); every load failure maps to the same typed error.
         raise FormExtractionError(
             reason="unreadable_xlsx",
             rel_path=filename,

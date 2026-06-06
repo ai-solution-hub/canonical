@@ -103,6 +103,22 @@ _URL_PATTERN = re.compile(
     r"https?://[^\s\)\]\}]+", re.IGNORECASE
 )
 
+# Placeholder shapes recognised in response cells (Inv-9): ``[insert…]``,
+# ``[enter…]``, ``[type…]``, ``[provide…]``, ``{{…}}``, ``<<…>>``,
+# ``{ANSWER}``, lone ``n/a`` or dashes/ellipsis.
+_PLACEHOLDER_PATTERNS = [
+    re.compile(r"^\[\s*insert\b.*?\]$", re.IGNORECASE),
+    re.compile(r"^\[\s*enter\b.*?\]$", re.IGNORECASE),
+    re.compile(r"^\[\s*type\b.*?\]$", re.IGNORECASE),
+    re.compile(r"^\[\s*provide\b.*?\]$", re.IGNORECASE),
+    re.compile(r"^\{\{[^}]+\}\}$"),
+    re.compile(r"^<<[A-Z_ ]+>>$"),
+    re.compile(r"^\{[A-Z_]+\}$"),
+    re.compile(r"^n/?a$", re.IGNORECASE),
+    re.compile(r"^-+$"),
+    re.compile(r"^\.{3,}$"),
+]
+
 
 # ──────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -200,26 +216,12 @@ def _is_placeholder(text: str) -> tuple[bool, str | None]:
     """Detect placeholder scaffolding in a response cell (Inv-9).
 
     Returns ``(True, text)`` if the cell carries placeholder text;
-    ``(False, None)`` otherwise. Placeholder shapes covered:
-    ``[insert…]``, ``[enter…]``, ``[type…]``, ``[provide…]``,
-    ``{{…}}``, ``<<…>>``, ``{ANSWER}``, lone ``n/a`` or dashes/ellipsis.
+    ``(False, None)`` otherwise. Shapes covered: ``_PLACEHOLDER_PATTERNS``.
     """
     stripped = text.strip()
     if not stripped:
         return False, None
-    placeholder_patterns = [
-        re.compile(r"^\[\s*insert\b.*?\]$", re.IGNORECASE),
-        re.compile(r"^\[\s*enter\b.*?\]$", re.IGNORECASE),
-        re.compile(r"^\[\s*type\b.*?\]$", re.IGNORECASE),
-        re.compile(r"^\[\s*provide\b.*?\]$", re.IGNORECASE),
-        re.compile(r"^\{\{[^}]+\}\}$"),
-        re.compile(r"^<<[A-Z_ ]+>>$"),
-        re.compile(r"^\{[A-Z_]+\}$"),
-        re.compile(r"^n/?a$", re.IGNORECASE),
-        re.compile(r"^-+$"),
-        re.compile(r"^\.{3,}$"),
-    ]
-    for pattern in placeholder_patterns:
+    for pattern in _PLACEHOLDER_PATTERNS:
         if pattern.fullmatch(stripped):
             return True, stripped
     return False, None
