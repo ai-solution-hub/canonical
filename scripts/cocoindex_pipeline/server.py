@@ -210,6 +210,13 @@ async def _stage_handler(request: web.Request) -> web.Response:
     stage -> walk -> assert verify sequence (ID-62) issues `/walk` between
     staging and asserting — staging alone produces no rows.
 
+    URL items ({75.11} WP-G): a URL-sourced reference item is staged by
+    seeding a gate-passed `feed_articles` ledger row (`passed = true`), NOT
+    by staging bytes — the walk's URL source (`FeedUrlSource`, mounted in
+    `flow.app_main`) enumerates the ledger directly and PullMD/Docling fetch
+    the body at ingest time. `/stage` remains file-fixture-only; the {62.10}
+    URL proof seeds its ledger row, then issues the same `POST /walk`.
+
     Wire contract (matches the {62.8} `stageFixture` client): a
     `multipart/form-data` body with a `file` part (raw bytes, filename set by
     the caller), a `destPath` text part (corpus-relative target), and a

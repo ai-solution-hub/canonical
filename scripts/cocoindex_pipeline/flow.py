@@ -142,8 +142,9 @@ from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionErro
 
 # ID-75 WP-C — URL-source substrate ({75.7}/{75.8} leaf modules). `UrlItem` is
 # the frozen memo-keyed component argument (EXECUTOR-VERIFY-1); `validate_url`
-# is the verbatim SSRF port gating every fetch (BI-21).
-from scripts.cocoindex_pipeline.url_source import UrlItem
+# is the verbatim SSRF port gating every fetch (BI-21). `FeedUrlSource` is the
+# passed-ledger snapshot source `app_main` mounts at {75.11} (D-1/D-2).
+from scripts.cocoindex_pipeline.url_source import FeedUrlSource, UrlItem
 from scripts.cocoindex_pipeline.url_validation import validate_url
 from scripts.cocoindex_pipeline.workspace_resolver import (
     ManifestLoadError,
@@ -625,12 +626,14 @@ class _FlowTaxonomyMissCounter:
 class _FlowItemFailureCounter:
     """Per-flow per-branch item-failure tally for 80.2 §B.4 observability.
 
-    `.increment(branch)` is called from the per-item containment handler in
-    `app_main`'s `bound_ingest_file` each time an UNEXPECTED exception escapes
-    one file's ingest (`branch` is `'forms'` or `'content'`, derived via
-    `_item_failure_branch` from the same pure `resolve_route` computation the
-    {80.8} fork uses). `.tally()` is read at flow end and emitted via the
-    pipeline-run webhook as `itemFailures` (`{'forms': n, 'content': m}`).
+    `.increment(branch)` is called from the per-item containment handlers in
+    `app_main` — `bound_ingest_file` (`branch` is `'forms'` or `'content'`,
+    derived via `_item_failure_branch` from the same pure `resolve_route`
+    computation the {80.8} fork uses) and `bound_ingest_url` (`branch` is
+    always `'url'`, {75.11} / BI-19) — each time an UNEXPECTED exception
+    escapes one item's ingest. `.tally()` is read at flow end and emitted via
+    the pipeline-run webhook as `itemFailures`
+    (`{'forms': n, 'content': m, 'url': k}`).
 
     OQ-80.2-C (Liam, S314, 05/06/2026): per-item faults leave
     `flow_status='completed'` and ride this tally; `'failed'` is reserved for
@@ -645,7 +648,10 @@ class _FlowItemFailureCounter:
     """
 
     def __init__(self) -> None:
-        self._counts: dict[str, int] = {"forms": 0, "content": 0}
+        # 'url' joined the branch vocabulary at {75.11} (the URL-source mount)
+        # — initialised to 0 so an all-zero tally reports every branch ("walk
+        # ran, zero per-item faults" is meaningful per branch, 80.2 §B.4).
+        self._counts: dict[str, int] = {"forms": 0, "content": 0, "url": 0}
 
     def increment(self, branch: str) -> None:
         self._counts[branch] = self._counts.get(branch, 0) + 1
@@ -2965,6 +2971,15 @@ async def app_main() -> None:
             CONTENT_CHUNKS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
+        # ID-75.11 (TECH §3 WP-C). reference_items — the URL source's Layer-5
+        # write target (BI-3). managed_by=ManagedBy.USER: rows only, never DDL
+        # — the table + UNIQUE(source_url) shipped in Migration M1 (WP-A).
+        ri_target = await mount_table_target(
+            DB_CTX,
+            "reference_items",
+            REFERENCE_ITEMS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
 
         # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
         # recursive=True required — default is False (CLAUDE.md gotcha).
@@ -3069,6 +3084,69 @@ async def app_main() -> None:
         # Wait until every per-item component has processed (cold run) so the
         # rollup webhook below reflects a settled state.
         await handle.ready()
+
+        # ── Stage 1b: URL source walk ({75.11} — TECH §3 WP-C wiring) ──────
+        # Second Stage-1 source: the passed-URL ledger (`feed_articles WHERE
+        # passed = true`), enumerated one item per normalised URL (BI-8) by
+        # `FeedUrlSource` over the SAME env-scope asyncpg pool the
+        # `mount_table_target(DB_CTX, ...)` calls above resolve (28.22 — no
+        # second pool). KNOWN ACCEPTED GAP (TECH §8): the idle-mode gate at
+        # the top of app_main (COCOINDEX_SOURCE_PATH unset/missing → early
+        # return) also skips this URL enumeration; deployed workers always
+        # mount the corpus, so v1 accepts it — do NOT split the gate.
+        url_source = FeedUrlSource(pool=coco.use_context(DB_CTX))
+
+        # ID-66.19 named-closure discipline, verbatim from bound_ingest_file
+        # above: `functools.partial` is PROHIBITED (the engine derives the
+        # ComponentSubpath from `fn.__name__` AND builds
+        # `ComponentProcessorInfo(fn.__qualname__)` — a partial has neither
+        # and crashes the `_LoopRunner` worker at live boot, {66.16}). The
+        # closure cells carry the run context (op_id / counters) across the
+        # daemon-thread dispatch boundary; `ingest_url` RE-BINDS the
+        # ContextVars locally on the worker thread.
+        #
+        # BI-19 per-item containment at the mount boundary (the ID-80.9
+        # pattern at bound_ingest_file): an UNEXPECTED escape from one URL's
+        # ingest is tallied on the 'url' branch + attributed via an
+        # ingest_item stage error, NEVER promoted to a whole-walk failure.
+        # A failed item declared NOTHING (declare_row runs only after fetch +
+        # extraction succeed — see _ingest_url_body ORDERING), so the next
+        # walk's enumeration re-runs it: log + skip + retry-on-a-later-walk.
+        async def bound_ingest_url(item, *targets):
+            try:
+                return await ingest_url(
+                    item,
+                    *targets,
+                    flow_op_id=run_op_id,
+                    flow_stage_counter=flow_stage_counter,
+                    flow_retry_counter=flow_retry_counter,
+                    flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
+                )
+            except Exception as exc:  # noqa: BLE001 — per-item containment
+                flow_item_failure_counter.increment("url")
+                _emit_stage_error_log(
+                    op_id=run_op_id,
+                    stage="ingest_item",
+                    error_class=_classify_stage_exception(exc)
+                    or type(exc).__name__,
+                    content_items_id=None,
+                    error_message=_redact_error_message(str(exc)),
+                )
+                return None  # swallow → batch continues (BI-19)
+
+        # Pin the subpath explicitly to "ingest_url" (the component identity)
+        # — the named coroutine would otherwise auto-derive the subpath to
+        # "bound_ingest_url" from its `__name__`. `ingest_url` declares ONLY
+        # the sd+ri pair (no ci_target in its signature — BI-1 structural
+        # impossibility of a content_items write from a URL).
+        url_handle = await coco.mount_each(
+            coco.component_subpath("ingest_url"),
+            bound_ingest_url,
+            url_source.items(),
+            ri_target,
+            sd_target,
+        )
+        await url_handle.ready()
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
         # `ingest_file` now computes a text-embedding-3-large vector(1024) from

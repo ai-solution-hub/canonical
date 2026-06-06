@@ -1230,46 +1230,56 @@ class TestFlowItemFailureCounter:
     """`_FlowItemFailureCounter` — per-flow per-branch item-failure tally.
 
     80.2 §B.4 (OQ-80.2-C RATIFIED): per-item faults are contained at the
-    `mount_each` boundary and tallied per branch (`{'forms': n, 'content': m}`)
-    instead of flipping `flow_status` to 'failed'. Mirrors the
-    `_FlowRetryCounter` per-flow instance pattern (no shared state).
+    `mount_each` boundary and tallied per branch
+    (`{'forms': n, 'content': m, 'url': k}` — the `'url'` branch joined at
+    {75.11} when `bound_ingest_url` mounted the URL source) instead of
+    flipping `flow_status` to 'failed'. Mirrors the `_FlowRetryCounter`
+    per-flow instance pattern (no shared state).
     """
 
     def test_helper_class_is_exposed(self):
         assert hasattr(flow, "_FlowItemFailureCounter")
 
-    def test_new_counter_tallies_zero_for_both_branches(self):
+    def test_new_counter_tallies_zero_for_all_three_branches(self):
+        # {75.11}: an all-zero tally must report 'url' alongside
+        # forms/content — "walk ran, zero per-item faults" is meaningful per
+        # branch (the 80.2 §B.4 omitted-vs-zero distinction).
         counter = flow._FlowItemFailureCounter()
-        assert counter.tally() == {"forms": 0, "content": 0}
+        assert counter.tally() == {"forms": 0, "content": 0, "url": 0}
 
     def test_increment_forms_bumps_forms_only(self):
         counter = flow._FlowItemFailureCounter()
         counter.increment("forms")
-        assert counter.tally() == {"forms": 1, "content": 0}
+        assert counter.tally() == {"forms": 1, "content": 0, "url": 0}
 
     def test_increment_content_bumps_content_only(self):
         counter = flow._FlowItemFailureCounter()
         counter.increment("content")
-        assert counter.tally() == {"forms": 0, "content": 1}
+        assert counter.tally() == {"forms": 0, "content": 1, "url": 0}
+
+    def test_increment_url_bumps_url_only(self):
+        counter = flow._FlowItemFailureCounter()
+        counter.increment("url")
+        assert counter.tally() == {"forms": 0, "content": 0, "url": 1}
 
     def test_increment_is_repeatable(self):
         counter = flow._FlowItemFailureCounter()
         counter.increment("forms")
         counter.increment("forms")
         counter.increment("content")
-        assert counter.tally() == {"forms": 2, "content": 1}
+        assert counter.tally() == {"forms": 2, "content": 1, "url": 0}
 
     def test_tally_returns_a_copy_not_internal_state(self):
         counter = flow._FlowItemFailureCounter()
         snapshot = counter.tally()
         snapshot["forms"] = 99
-        assert counter.tally() == {"forms": 0, "content": 0}
+        assert counter.tally() == {"forms": 0, "content": 0, "url": 0}
 
     def test_counter_instances_are_independent(self):
         first = flow._FlowItemFailureCounter()
         second = flow._FlowItemFailureCounter()
         first.increment("forms")
-        assert second.tally() == {"forms": 0, "content": 0}
+        assert second.tally() == {"forms": 0, "content": 0, "url": 0}
 
 
 class TestItemFailureBranchDerivation:
@@ -1410,7 +1420,8 @@ class TestPerItemFailureIsolation:
 
       - content rows still land (ci target receives the content doc's row),
       - flow_status == 'completed' (per-item faults never flip it),
-      - the terminal webhook threads item_failures == {'forms': 1, 'content': 0},
+      - the terminal webhook threads
+        item_failures == {'forms': 1, 'content': 0, 'url': 0},
       - ONE `cocoindex.stage_error` with stage='ingest_item' is emitted.
     """
 
@@ -1541,6 +1552,8 @@ class TestPerItemFailureIsolation:
         monkeypatch.setattr(flow, "embed_content_text", _embed)
 
         # ── Recording targets (no real Postgres). ──
+        # reference_items joined the Stage-6 prep block at {75.11} (the URL
+        # source's write target) — app_main mounts it on every walk.
         targets = {
             name: self._FakeTarget(name)
             for name in (
@@ -1551,6 +1564,7 @@ class TestPerItemFailureIsolation:
                 "form_templates",
                 "form_template_fields",
                 "content_chunks",
+                "reference_items",
             )
         }
 
@@ -1596,7 +1610,18 @@ class TestPerItemFailureIsolation:
             return _Handle()
 
         monkeypatch.setattr(flow.coco, "mount_each", _inline_mount_each)
-        monkeypatch.setattr(flow.coco, "use_context", lambda key: None)
+
+        # {75.11}: app_main builds `FeedUrlSource(pool=coco.use_context(DB_CTX))`
+        # and iterates it on the second mount_each — give the URL source an
+        # empty ledger (zero passed URLs) so this test stays a pure
+        # localfs-branch scenario.
+        class _EmptyLedgerPool:
+            async def fetch(self, sql):
+                return []
+
+        monkeypatch.setattr(
+            flow.coco, "use_context", lambda key: _EmptyLedgerPool()
+        )
 
         # ── Stage 5 is flow-scope; stub it (not under test). ──
         async def _fake_stage_5(*args, **kwargs):
@@ -1643,8 +1668,13 @@ class TestPerItemFailureIsolation:
         assert terminal.get("error_class") is None
         assert terminal.get("error_message") is None
 
-        # 3. The terminal webhook threads the per-branch tally.
-        assert terminal.get("item_failures") == {"forms": 1, "content": 0}
+        # 3. The terminal webhook threads the per-branch tally ('url' joined
+        # the branch vocabulary at {75.11}; zero here — no URL items walked).
+        assert terminal.get("item_failures") == {
+            "forms": 1,
+            "content": 0,
+            "url": 0,
+        }
 
         # 4. The fault is attributed: ONE ingest_item stage error, classified
         # via the `_classify_stage_exception(exc) or type name` fallback.
@@ -1660,3 +1690,348 @@ class TestPerItemFailureIsolation:
         flow_start = webhook_calls[0]
         assert flow_start["status"] == "in_progress"
         assert flow_start.get("item_failures") is None
+
+
+class TestUrlPerItemFailureIsolation:
+    """{75.11} BI-19: URL-branch per-item containment at the mount boundary.
+
+    Drives the REAL `flow.app_main` over a 2-URL passed ledger [URL A whose
+    PullMD fetch 5xxes, URL B that fetches cleanly] through the same faithful
+    inline `mount_each` stand-in the localfs precedent uses:
+
+      - URL A lands ZERO rows (no sd, no ri) while sibling URL B's sd+ri
+        pair lands — one URL's fault never aborts the batch (BI-19),
+      - flow_status == 'completed' (per-item faults never flip it),
+      - the terminal webhook threads
+        item_failures == {'forms': 0, 'content': 0, 'url': 1},
+      - ONE `cocoindex.stage_error` with stage='ingest_item' is emitted,
+      - a SECOND walk (PullMD recovered) re-runs URL A and lands its rows —
+        a failed item declared nothing, so the next enumeration retries it,
+      - the callable mounted for the URL fan-out is a NAMED closure
+        `bound_ingest_url` with real `__name__`/`__qualname__` — NEVER a
+        `functools.partial` (the {66.16}/{66.19} engine contract).
+    """
+
+    _URL_A = "https://example.org/articles/alpha"
+    _URL_B = "https://example.org/articles/beta"
+
+    class _FakeTarget:
+        def __init__(self, table_name: str) -> None:
+            self.table_name = table_name
+            self.rows: list[dict] = []
+
+        def declare_row(self, *, row: dict) -> None:
+            self.rows.append(row)
+
+        def declare_vector_index(self, **kwargs: object) -> None:
+            pass
+
+    class _FakeLedgerPool:
+        """asyncpg-pool stand-in: `fetch` returns the passed-URL ledger rows."""
+
+        def __init__(self, rows: list[dict]) -> None:
+            self._rows = rows
+
+        async def fetch(self, sql: str) -> list[dict]:
+            return list(self._rows)
+
+    @staticmethod
+    def _ledger_row(url: str, title: str, ingested_at: str) -> dict:
+        return {
+            "external_url": url,
+            "title": title,
+            "ai_summary": None,
+            "published_at": "2026-05-01T09:00:00+00:00",
+            "ingested_at": ingested_at,
+            "workspace_id": "55555555-5555-4555-8555-555555555555",
+        }
+
+    def _build_harness(self, tmp_path, monkeypatch):
+        """Wire app_main's collaborators; return the mutable harness state."""
+        # app_main aborts without a workspace manifest at the source root —
+        # provide a minimal content-only one (the localfs walk is empty here).
+        manifest = {
+            "schema_version": 1,
+            "mappings": [
+                {
+                    "path_prefix": "",
+                    "workspace_id": "44444444-4444-4444-8444-444444444444",
+                    "route": "content",
+                }
+            ],
+        }
+        (tmp_path / ".kh-workspace-map.json").write_text(json.dumps(manifest))
+
+        # ── Localfs walk: EMPTY feed — this scenario is URL-branch only. ──
+        class _EmptyFeed:
+            async def __aiter__(self):
+                return
+                yield  # pragma: no cover — makes this an async generator
+
+        class _FakeWalk:
+            def items(self):
+                return _EmptyFeed()
+
+        monkeypatch.setattr(
+            flow.localfs, "walk_dir", lambda path, *, live, recursive: _FakeWalk()
+        )
+
+        # ── Passed-URL ledger: two URLs, A then B. ──
+        pool = self._FakeLedgerPool(
+            [
+                self._ledger_row(self._URL_A, "Alpha", "2026-05-02T10:00:00+00:00"),
+                self._ledger_row(self._URL_B, "Beta", "2026-05-02T11:00:00+00:00"),
+            ]
+        )
+        monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
+
+        # ── PullMD: URL A 5xxes while `fail_urls` holds it; B succeeds.
+        # `_pullmd_http_get` is log-then-raise RuntimeError on HTTP failure —
+        # mirror that exact production shape (adapters.py).
+        harness = {"fail_urls": {self._URL_A}}
+
+        class _PullmdResult:
+            def __init__(self, url: str) -> None:
+                self.markdown = f"# Fetched\n\n{url}"
+                self.x_source = "trafilatura"
+                self.x_quality = 0.9
+                self.share_id = "abcd1234"
+
+        async def _fake_pullmd_fetch(url: str, content_epoch: str):
+            if url in harness["fail_urls"]:
+                raise RuntimeError(
+                    f"pullmd extraction failed for {url}: "
+                    "status=502 body='upstream fetch error'"
+                )
+            return _PullmdResult(url)
+
+        monkeypatch.setattr(flow, "_pullmd_fetch", _fake_pullmd_fetch)
+
+        # No network: never HEAD-sniff; both URLs take the PullMD route.
+        async def _never_pdf(url: str) -> bool:
+            return False
+
+        monkeypatch.setattr(flow, "_url_is_pdf", _never_pdf)
+
+        # ── Stage-3 stubs (classification + embedding). ──
+        async def _classification(content_text: str):
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+                "suggested_title": "Suggested",
+            }
+
+        async def _embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "extract_classification", _classification)
+        monkeypatch.setattr(flow, "embed_content_text", _embed)
+
+        # ── D-7 backlink: record, don't touch a pool. ──
+        backlinks: list[tuple] = []
+
+        async def _fake_backlink(reference_item_id, ledger_urls):
+            backlinks.append((reference_item_id, ledger_urls))
+
+        monkeypatch.setattr(flow, "_backlink_feed_articles", _fake_backlink)
+        harness["backlinks"] = backlinks
+
+        # ── Recording targets. ──
+        targets = {
+            name: self._FakeTarget(name)
+            for name in (
+                "content_items",
+                "q_a_extractions",
+                "source_documents",
+                "entity_mentions",
+                "form_templates",
+                "form_template_fields",
+                "content_chunks",
+                "reference_items",
+            )
+        }
+        harness["targets"] = targets
+
+        async def _fake_mount_table_target(db_ctx, table_name, schema, *, managed_by):
+            return targets[table_name]
+
+        monkeypatch.setattr(flow, "mount_table_target", _fake_mount_table_target)
+
+        # ── Faithful inline mount_each; capture each mounted callable so the
+        # named-closure contract ({66.16}/{66.19}) is assertable. ──
+        mounted_fns: list = []
+        harness["mounted_fns"] = mounted_fns
+
+        async def _inline_mount_each(_subpath, fn, items, *extra_args):
+            mounted_fns.append(fn)
+            async for _key, value in items:
+                await fn(value, *extra_args)
+
+            class _Handle:
+                async def ready(self) -> None:
+                    return None
+
+            return _Handle()
+
+        monkeypatch.setattr(flow.coco, "mount_each", _inline_mount_each)
+
+        # ── Stage 5 is flow-scope; stub it (not under test). ──
+        async def _fake_stage_5(*args, **kwargs):
+            return 0
+
+        monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
+
+        # ── Capture webhook emissions + stage-error logs. ──
+        webhook_calls: list[dict] = []
+        harness["webhook_calls"] = webhook_calls
+
+        async def _capture_webhook(**kwargs):
+            webhook_calls.append(kwargs)
+
+        monkeypatch.setattr(flow, "_emit_pipeline_run_webhook", _capture_webhook)
+
+        stage_error_calls: list[dict] = []
+        harness["stage_error_calls"] = stage_error_calls
+        real_emit_stage_error = flow._emit_stage_error_log
+
+        def _spy_stage_error(**kwargs):
+            stage_error_calls.append(kwargs)
+            return real_emit_stage_error(**kwargs)
+
+        monkeypatch.setattr(flow, "_emit_stage_error_log", _spy_stage_error)
+
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(tmp_path))
+        return harness
+
+    def test_pullmd_5xx_lands_zero_rows_siblings_land_later_walk_retries(
+        self, tmp_path, monkeypatch
+    ):
+        harness = self._build_harness(tmp_path, monkeypatch)
+        targets = harness["targets"]
+
+        # ── Walk 1: URL A 5xxes; URL B is clean. Must NOT raise. ──
+        asyncio.run(flow.app_main())
+
+        ri_rows = targets["reference_items"].rows
+        sd_rows = targets["source_documents"].rows
+
+        # 1. Sibling B's sd+ri pair lands; A lands ZERO rows (BI-19).
+        assert [r["source_url"] for r in ri_rows] == [self._URL_B], (
+            f"expected exactly URL B's reference_items row; got "
+            f"{[r.get('source_url') for r in ri_rows]}"
+        )
+        assert [r["source_url"] for r in sd_rows] == [self._URL_B]
+        assert ri_rows[0]["title"] == "Beta"
+
+        # 2. flow_status == 'completed' — a per-item URL fault never flips it.
+        terminal = harness["webhook_calls"][-1]
+        assert terminal["status"] == "completed"
+        assert terminal.get("error_class") is None
+
+        # 3. The fault rides the 'url' branch of the per-branch tally.
+        assert terminal.get("item_failures") == {
+            "forms": 0,
+            "content": 0,
+            "url": 1,
+        }
+
+        # 4. ONE attributed structured log: stage='ingest_item', classified
+        # via the `_classify_stage_exception(exc) or type name` fallback.
+        ingest_item_errors = [
+            c
+            for c in harness["stage_error_calls"]
+            if c.get("stage") == "ingest_item"
+        ]
+        assert len(ingest_item_errors) == 1
+        assert ingest_item_errors[0]["error_class"] == "RuntimeError"
+        assert "pullmd extraction failed" in ingest_item_errors[0]["error_message"]
+
+        # 5. Only B was backlinked on walk 1.
+        assert len(harness["backlinks"]) == 1
+
+        # ── Walk 2: PullMD recovered — the failed item declared NOTHING on
+        # walk 1, so re-enumeration re-runs it and its rows land (BI-19). ──
+        harness["fail_urls"].clear()
+        asyncio.run(flow.app_main())
+
+        ri_urls = sorted(r["source_url"] for r in targets["reference_items"].rows)
+        assert self._URL_A in ri_urls, (
+            "a later walk must retry the previously-failed URL — its "
+            "reference_items row should land once PullMD recovers"
+        )
+        terminal_walk_2 = harness["webhook_calls"][-1]
+        assert terminal_walk_2["status"] == "completed"
+        assert terminal_walk_2.get("item_failures") == {
+            "forms": 0,
+            "content": 0,
+            "url": 0,
+        }
+
+    def test_bound_ingest_url_is_a_named_closure_not_a_partial(
+        self, tmp_path, monkeypatch
+    ):
+        """The {66.16}/{66.19} engine contract: cocoindex 1.0.3 derives the
+        ComponentSubpath from `fn.__name__` and builds
+        `ComponentProcessorInfo(fn.__qualname__)` — a `functools.partial` has
+        NEITHER and crashes the `_LoopRunner` worker at live boot. The URL
+        binding must be a NAMED closure, exactly the `bound_ingest_file`
+        precedent."""
+        import functools
+        import inspect
+
+        harness = self._build_harness(tmp_path, monkeypatch)
+        harness["fail_urls"].clear()
+
+        asyncio.run(flow.app_main())
+
+        mounted = harness["mounted_fns"]
+        names = [getattr(fn, "__name__", None) for fn in mounted]
+        assert "bound_ingest_url" in names, (
+            f"app_main must mount a NAMED closure 'bound_ingest_url' for the "
+            f"URL fan-out; mounted callables: {names}"
+        )
+        for fn in mounted:
+            assert not isinstance(fn, functools.partial), (
+                "functools.partial is PROHIBITED at the mount_each boundary "
+                "({66.16}: the engine reads __name__/__qualname__)"
+            )
+            assert getattr(fn, "__qualname__", None), (
+                f"mounted callable {fn!r} lacks a real __qualname__"
+            )
+
+        # Source-level belt-and-braces: the named closure + pinned subpath
+        # are visible in app_main's source (the localfs precedent pattern).
+        source = inspect.getsource(flow.app_main)
+        assert "async def bound_ingest_url(" in source
+        assert 'component_subpath("ingest_url")' in source
+
+
+class TestStageHandlerUrlStagingDocstring:
+    """WP-G ({75.11}): `_stage_handler` documents how URL items are staged.
+
+    Asserted against the SOURCE TEXT (not an import) — `server.py` imports
+    the real cocoindex at module scope, and booting the engine inside this
+    stub-scoped suite would leak process-global state (ID-44.5).
+    """
+
+    def test_stage_handler_docstring_notes_url_ledger_row_seeding(self):
+        server_path = (
+            Path(flow.__file__).resolve().parent / "server.py"
+        )
+        source = server_path.read_text()
+        marker = "async def _stage_handler"
+        assert marker in source, "server.py must define _stage_handler"
+        handler_block = source.split(marker, 1)[1]
+        # The docstring is the first triple-quoted block after the def;
+        # collapse the wrap-indentation whitespace before phrase-matching.
+        docstring = " ".join(handler_block.split('"""')[1].split())
+        assert "feed_articles" in docstring, (
+            "_stage_handler docstring must note that URL items are staged by "
+            "seeding a gate-passed feed_articles ledger row ({75.11} WP-G)"
+        )
+        assert "not by staging bytes" in docstring.lower()
+        assert "file-fixture" in docstring.lower(), (
+            "_stage_handler docstring must state /stage remains "
+            "file-fixture-only"
+        )

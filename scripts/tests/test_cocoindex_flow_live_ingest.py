@@ -378,7 +378,16 @@ def _run_app_main_over_dir(
         return 0
 
     monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
-    monkeypatch.setattr(flow.coco, "use_context", lambda key: None)
+
+    # {75.11}: app_main also builds `FeedUrlSource(pool=coco.use_context(...))`
+    # and iterates its snapshot on a second mount_each — return an EMPTY
+    # passed-URL ledger so this file stays a pure localfs-branch harness (the
+    # URL branch has its own suite in test_cocoindex_flow_failure_mode.py).
+    class _EmptyLedgerPool:
+        async def fetch(self, sql):
+            return []
+
+    monkeypatch.setattr(flow.coco, "use_context", lambda key: _EmptyLedgerPool())
 
     # ── Silence the flow-start / flow-end webhook emission.
     async def _fake_webhook(**kwargs):
@@ -434,6 +443,8 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "form_templates": _FakeTarget("form_templates"),
             "form_template_fields": _FakeTarget("form_template_fields"),
             "content_chunks": _FakeTarget("content_chunks"),
+            # {75.11}: the URL source's write target — mounted on every walk.
+            "reference_items": _FakeTarget("reference_items"),
         }
 
         run_op_id, stage_counter = _run_app_main_over_dir(
@@ -528,6 +539,8 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "form_templates": _FakeTarget("form_templates"),
             "form_template_fields": _FakeTarget("form_template_fields"),
             "content_chunks": _FakeTarget("content_chunks"),
+            # {75.11}: the URL source's write target — mounted on every walk.
+            "reference_items": _FakeTarget("reference_items"),
         }
 
         run_op_id, _stage_counter = _run_app_main_over_dir(
