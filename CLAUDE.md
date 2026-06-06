@@ -258,6 +258,13 @@ Mempalace MCP server is the canonical memory system.
 - **Worktree isolation:** Use `isolation: "worktree"` on parallel Agent dispatch.
   Cherry-pick (not merge) parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
+- **`gitnexus_detect_changes()` is unrunnable in worktree dispatches:** agent worktrees
+  inherit no `.gitnexus` index ("last indexed: never") — `git diff --name-only` is the
+  authoritative scope-containment fallback. `gitnexus_impact` (primary-tree symbol index)
+  stays reliable.
+- **Worktree pytest must run from the worktree CWD:** main-repo-CWD invocations resolve
+  `scripts.*` to the MAIN tree's modules (namespace-package hazard — spurious
+  failures/passes against stale code).
 - **ALWAYS check worktree `git status` before removing it**
 - **Use General Purpose agents (unless otherwise specified)**
 - **`classifyContent` userId must be a UUID:** Use pipeline service account UUID

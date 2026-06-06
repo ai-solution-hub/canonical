@@ -261,6 +261,13 @@ this discipline on every code-touching Subtask:
 >    set is contained within this Subtask's file-ownership boundary. If detect_changes
 >    reports symbols outside the boundary, STOP and escalate — this is scope creep and
 >    the Checker will FAIL the scope-containment audit.
+>
+> 4. **Worktree-dispatch caveats** (`isolation: "worktree"`): (a) `gitnexus_detect_changes()`
+>    is unrunnable in agent worktrees — they inherit no `.gitnexus` index ("last indexed:
+>    never"); use `git diff --name-only` as the authoritative scope-containment fallback.
+>    `gitnexus_impact` (primary-tree symbol index) stays reliable. (b) pytest MUST run from
+>    the worktree CWD — main-repo-CWD invocations resolve `scripts.*` to the MAIN tree's
+>    modules (namespace-package hazard; spurious results against stale code).
 
 <!-- code-intel:executor-block-end -->
 
