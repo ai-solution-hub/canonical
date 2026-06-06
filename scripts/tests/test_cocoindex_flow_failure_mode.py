@@ -43,6 +43,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import sys
 import uuid
 from pathlib import Path
@@ -172,6 +173,23 @@ _aiohttp_stub.ClientTimeout = MagicMock(name="ClientTimeout")
 
 class _PostgresError(Exception):
     """Stand-in for asyncpg.PostgresError used by classification tests."""
+
+
+class _FkViolation(_PostgresError):
+    """Stand-in for asyncpg.ForeignKeyViolationError ({75.17}).
+
+    Carries the `.constraint_name` surface the step-8 backlink tolerance in
+    `_ingest_url_body` narrows on. Subclasses `_PostgresError` so an escaping
+    (non-tolerated) violation still classifies `postgres_write_failed` — the
+    REAL asyncpg shape (ForeignKeyViolationError < PostgresError, with a
+    `constraint_name` attribute) is pinned in a fresh interpreter by
+    `TestUrlPerItemFailureIsolation.
+    test_real_asyncpg_fk_violation_exposes_constraint_name`.
+    """
+
+    def __init__(self, message: str, *, constraint_name: str) -> None:
+        super().__init__(message)
+        self.constraint_name = constraint_name
 
 
 if "asyncpg" not in sys.modules:
@@ -1714,6 +1732,7 @@ class TestUrlPerItemFailureIsolation:
 
     _URL_A = "https://example.org/articles/alpha"
     _URL_B = "https://example.org/articles/beta"
+    _RI_FKEY = "feed_articles_reference_item_id_fkey"
 
     class _FakeTarget:
         def __init__(self, table_name: str) -> None:
@@ -1828,14 +1847,36 @@ class TestUrlPerItemFailureIsolation:
         monkeypatch.setattr(flow, "extract_classification", _classification)
         monkeypatch.setattr(flow, "embed_content_text", _embed)
 
-        # ── D-7 backlink: record, don't touch a pool. ──
+        # ── D-7 backlink: record, don't touch a pool. {75.17}: the harness
+        # can inject a per-walk backlink failure via harness["backlink_exc"]
+        # (the harness["fail_urls"] mutability pattern) — while the cell holds
+        # an exception instance, EVERY backlink write on that walk raises it.
         backlinks: list[tuple] = []
+        backlink_exc: dict = {"exc": None}
 
         async def _fake_backlink(reference_item_id, ledger_urls):
+            exc = backlink_exc["exc"]
+            if exc is not None:
+                raise exc
             backlinks.append((reference_item_id, ledger_urls))
 
         monkeypatch.setattr(flow, "_backlink_feed_articles", _fake_backlink)
         harness["backlinks"] = backlinks
+        harness["backlink_exc"] = backlink_exc
+
+        # {75.17}: the step-8 FK tolerance in `_ingest_url_body` narrows on
+        # `asyncpg.ForeignKeyViolationError` read off flow's captured asyncpg
+        # module — which, depending on suite import ordering, is either the
+        # resident MagicMock stub (no real exception classes) or the real
+        # package. Pin BOTH classes on whatever module flow sees so the
+        # narrowing and the classifier behave deterministically here
+        # (monkeypatch restores the attributes after each test).
+        monkeypatch.setattr(
+            flow.asyncpg, "PostgresError", _PostgresError, raising=False
+        )
+        monkeypatch.setattr(
+            flow.asyncpg, "ForeignKeyViolationError", _FkViolation, raising=False
+        )
 
         # ── Recording targets. ──
         targets = {
@@ -1967,6 +2008,210 @@ class TestUrlPerItemFailureIsolation:
             "content": 0,
             "url": 0,
         }
+
+    def test_walk1_fk_deferral_completes_item_then_walk2_converges(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        """{75.17}: the engine deferred-flush race. The step-8 backlink
+        UPDATE runs IN-component, but the engine flushes the `ri_target` row
+        declared at step 6 only AFTER the component returns
+        (cocoindex-write-model.md §1 — no per-row UPSERT completion
+        callback), so on a clean walk 1 the backlink write ALWAYS hits the
+        `feed_articles_reference_item_id_fkey` violation. EXACTLY that FK
+        class is tolerated: the item COMPLETES (sd/ri stay declared → the
+        engine flushes them), one structured
+        `cocoindex.url_backlink_deferred` line is logged per deferred URL,
+        the url tally is NOT incremented, and walk 2's re-enumeration (the
+        per-walk op_id kwarg busts the component memo — real-engine probed)
+        lands the backlink against the flushed ri row.
+        """
+        harness = self._build_harness(tmp_path, monkeypatch)
+        harness["fail_urls"].clear()  # both URLs fetch cleanly
+        targets = harness["targets"]
+
+        # ── Walk 1: every backlink write hits the deferred-flush race. ──
+        harness["backlink_exc"]["exc"] = _FkViolation(
+            'insert or update on table "feed_articles" violates foreign key '
+            f'constraint "{self._RI_FKEY}"',
+            constraint_name=self._RI_FKEY,
+        )
+        with caplog.at_level(
+            logging.INFO, logger="scripts.cocoindex_pipeline.flow"
+        ):
+            asyncio.run(flow.app_main())
+
+        # 1. Both items COMPLETED: the sd+ri evidence pairs stay declared —
+        #    a raise here would have made the engine DISCARD them (the
+        #    {75.16}-proven faulted-item contract), killing convergence.
+        ri_rows = targets["reference_items"].rows
+        sd_rows = targets["source_documents"].rows
+        assert sorted(r["source_url"] for r in ri_rows) == sorted(
+            [self._URL_A, self._URL_B]
+        )
+        assert sorted(r["source_url"] for r in sd_rows) == sorted(
+            [self._URL_A, self._URL_B]
+        )
+
+        # 2. The backlink write was SKIPPED (deferred to walk 2) — never
+        #    recorded, never retried in-walk.
+        assert harness["backlinks"] == []
+
+        # 3. The deferral is NOT a contained per-item fault: flow completed,
+        #    the url tally stays 0, ZERO ingest_item stage errors.
+        terminal = harness["webhook_calls"][-1]
+        assert terminal["status"] == "completed"
+        assert terminal.get("item_failures") == {
+            "forms": 0,
+            "content": 0,
+            "url": 0,
+        }
+        assert [
+            c
+            for c in harness["stage_error_calls"]
+            if c.get("stage") == "ingest_item"
+        ] == []
+
+        # 4. One structured deferral line per deferred URL: the event name +
+        #    url + ri id contract ({75.17}).
+        deferred = [
+            json.loads(r.getMessage())
+            for r in caplog.records
+            if "url_backlink_deferred" in r.getMessage()
+        ]
+        assert len(deferred) == 2, (
+            f"expected one cocoindex.url_backlink_deferred line per deferred "
+            f"URL; got {len(deferred)}"
+        )
+        ri_by_url = {r["source_url"]: str(r["id"]) for r in ri_rows}
+        assert sorted(d["source_url"] for d in deferred) == sorted(
+            [self._URL_A, self._URL_B]
+        )
+        for d in deferred:
+            assert d["event"] == "cocoindex.url_backlink_deferred"
+            assert d["reference_item_id"] == ri_by_url[d["source_url"]]
+            assert d["op_id"], "the deferral line must carry the run op_id"
+
+        # ── Walk 2: the ri rows flushed after walk 1 → the backlink lands. ──
+        harness["backlink_exc"]["exc"] = None
+        asyncio.run(flow.app_main())
+
+        assert len(harness["backlinks"]) == 2, (
+            "walk 2 must re-run the backlink write for both URLs "
+            "(convergence-by-walk-2)"
+        )
+        assert sorted(str(ri) for ri, _urls in harness["backlinks"]) == sorted(
+            ri_by_url.values()
+        )
+        terminal_walk_2 = harness["webhook_calls"][-1]
+        assert terminal_walk_2["status"] == "completed"
+        assert terminal_walk_2.get("item_failures") == {
+            "forms": 0,
+            "content": 0,
+            "url": 0,
+        }
+
+    def test_fk_violation_on_another_constraint_still_tallies(
+        self, tmp_path, monkeypatch
+    ):
+        """The {75.17} tolerance is scoped to EXACTLY
+        `feed_articles_reference_item_id_fkey`: a ForeignKeyViolation on ANY
+        other constraint is a real fault — contained per-item at the mount
+        boundary, tallied on the url branch, attributed via an ingest_item
+        stage error classified `postgres_write_failed`.
+
+        Engine-contract caveat (do NOT extend this test with landing
+        assertions for the faulted items): under the REAL engine a faulted
+        item's declared rows are DISCARDED at flush (the {75.16}-proven
+        contract); the recording `_FakeTarget` retains them, so declared-row
+        state is meaningless for the faulted path here.
+        """
+        harness = self._build_harness(tmp_path, monkeypatch)
+        harness["fail_urls"].clear()
+        harness["backlink_exc"]["exc"] = _FkViolation(
+            'insert or update on table "feed_articles" violates foreign key '
+            'constraint "feed_articles_content_item_id_fkey"',
+            constraint_name="feed_articles_content_item_id_fkey",
+        )
+
+        asyncio.run(flow.app_main())
+
+        terminal = harness["webhook_calls"][-1]
+        assert terminal["status"] == "completed"
+        assert terminal.get("item_failures") == {
+            "forms": 0,
+            "content": 0,
+            "url": 2,
+        }
+        ingest_item_errors = [
+            c
+            for c in harness["stage_error_calls"]
+            if c.get("stage") == "ingest_item"
+        ]
+        assert len(ingest_item_errors) == 2
+        for call in ingest_item_errors:
+            assert call["error_class"] == "postgres_write_failed"
+        assert harness["backlinks"] == []
+
+    def test_other_postgres_error_in_backlink_still_tallies(
+        self, tmp_path, monkeypatch
+    ):
+        """A non-FK postgres error in the backlink write (e.g. a dropped
+        connection) must STILL raise into the BI-19 containment tally — the
+        {75.17} tolerance never swallows it. Same engine-contract caveat as
+        the sibling test: no declared-row assertions for faulted items.
+        """
+        harness = self._build_harness(tmp_path, monkeypatch)
+        harness["fail_urls"].clear()
+        harness["backlink_exc"]["exc"] = _PostgresError(
+            "connection was closed in the middle of operation"
+        )
+
+        asyncio.run(flow.app_main())
+
+        terminal = harness["webhook_calls"][-1]
+        assert terminal["status"] == "completed"
+        assert terminal.get("item_failures") == {
+            "forms": 0,
+            "content": 0,
+            "url": 2,
+        }
+        ingest_item_errors = [
+            c
+            for c in harness["stage_error_calls"]
+            if c.get("stage") == "ingest_item"
+        ]
+        assert len(ingest_item_errors) == 2
+        for call in ingest_item_errors:
+            assert call["error_class"] == "postgres_write_failed"
+        assert harness["backlinks"] == []
+
+    def test_real_asyncpg_fk_violation_exposes_constraint_name(self):
+        """Pin the REAL asyncpg seam the {75.17} narrowing depends on, in a
+        fresh interpreter (this suite's process may hold the MagicMock
+        asyncpg stub): `ForeignKeyViolationError` carries `.constraint_name`
+        and subclasses `PostgresError` — were either to drift, the tolerance
+        would silently never defer (getattr → None → re-raise → the S319
+        no-convergence defect returns) or an escaping violation would stop
+        classifying `postgres_write_failed`.
+        """
+        src = (
+            "import asyncpg, asyncpg.exceptions as ex\n"
+            "e = ex.ForeignKeyViolationError.new({'C': '23503', 'M': "
+            "'insert or update on table violates foreign key constraint', "
+            "'n': 'feed_articles_reference_item_id_fkey'})\n"
+            "assert e.constraint_name == "
+            "'feed_articles_reference_item_id_fkey', e.constraint_name\n"
+            "assert isinstance(e, asyncpg.PostgresError), type(e).__mro__\n"
+            "print('OK')\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", src],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip() == "OK"
 
     def test_bound_ingest_url_is_a_named_closure_not_a_partial(
         self, tmp_path, monkeypatch

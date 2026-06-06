@@ -2303,6 +2303,13 @@ async def _log_ssrf_rejection(
         )
 
 
+# {75.17}: the ONE FK class the step-7/8 backlink write tolerates on walk 1
+# (the engine deferred-flush race — see the call site in `_ingest_url_body`).
+# Postgres auto-named the constraint from the inline REFERENCES clause in
+# migration 20260606121451_id75_reference_items_layer.sql.
+_FEED_ARTICLES_RI_FKEY = "feed_articles_reference_item_id_fkey"
+
+
 async def _backlink_feed_articles(
     reference_item_id: "uuid.UUID", ledger_urls: tuple[str, ...]
 ) -> None:
@@ -2312,6 +2319,10 @@ async def _backlink_feed_articles(
     enumeration (precise even if normalisation rules ever drift from stored
     values). All N workspace rows for the URL backlink the ONE reference row
     (BI-8/BI-10). Module-level seam, mirroring `_trim_stale_form_fields`.
+
+    {75.17}: raises like any raw pool write — the walk-1 FK-deferral
+    tolerance (the `_FEED_ARTICLES_RI_FKEY` ForeignKeyViolation ONLY) lives
+    at the `_ingest_url_body` call site, not here.
     """
     pool = coco.use_context(DB_CTX)
     async with pool.acquire() as conn:
@@ -2346,9 +2357,14 @@ async def ingest_url(
     EXECUTOR-VERIFY-1 ({75.8}, SUPPORTED) verified empirically that the engine
     fingerprints a frozen dataclass on module, qualname and field VALUES, so
     the scalar-positional fallback is not needed. `content_epoch` rides the
-    item (D-4): a bumped epoch re-executes the component and re-fetches; an
-    unchanged item memo-hits and declares nothing (op_id retained, the
-    `ingest_file` Inv-11 refinement).
+    item (D-4): a bumped epoch re-fetches via `_pullmd_fetch`'s (url, epoch)
+    memo. {75.17} real-engine probe CORRECTION to the earlier Inv-11 framing:
+    the memo fingerprint ALSO covers the `flow_op_id` kwarg, and `app_main`
+    mints a fresh op_id per walk — so across walks this component RE-RUNS for
+    every enumerated item (cheaply: `_pullmd_fetch` memo-hits on an unchanged
+    epoch). The step-7/8 backlink deferral depends on exactly this re-run
+    (convergence by walk 2); a true memo-hit happens only within one walk /
+    op_id.
 
     Run-context resolution mirrors `ingest_file` (ID-66.19): PREFER the
     explicit `flow_*` kwargs threaded via the named closure in `app_main`
@@ -2411,6 +2427,13 @@ async def _ingest_url_body(
     ORDERING (BI-19): `declare_row` runs only AFTER fetch + extraction
     succeed — a failed item lands NO partial rows, and because nothing was
     declared the next walk re-runs it (memo miss on a failure-aborted run).
+
+    BACKLINK DEFERRAL ({75.17}): the step-7/8 backlink write races the
+    engine's post-return target flush, so its
+    `feed_articles_reference_item_id_fkey` violation on walk 1 is tolerated
+    (structured `cocoindex.url_backlink_deferred` log, item completes,
+    sd/ri flush) and the backlink converges on walk 2's re-run. Every OTHER
+    error in that write still raises into the BI-19 containment.
     """
 
     def _bump(stage: str, times: int = 1) -> None:
@@ -2527,7 +2550,44 @@ async def _ingest_url_body(
     _bump("postgres_upsert")  # Inv-17: reference_items row upsert
 
     # ── Step 7: D-7 backlink — all N ledger rows → the one reference ─────────
-    await _backlink_feed_articles(reference_item_id, item.ledger_urls)
+    # {75.17} FK-tolerant walk-1 write (S319 live discovery): this UPDATE runs
+    # IN-component, but the engine flushes the `ri_target` row declared at
+    # step 6 only AFTER the component returns (cocoindex-write-model.md §1 —
+    # no per-row UPSERT completion callback), so on a clean first walk the
+    # `feed_articles_reference_item_id_fkey` FK CANNOT yet be satisfied.
+    # Tolerate EXACTLY that violation: log a structured deferral and let the
+    # item COMPLETE — a raise would route into the BI-19 per-item containment,
+    # whose faulted-item contract DISCARDS the declared sd/ri rows ({75.16}
+    # probe), so every subsequent walk would re-hit the same race (zero
+    # convergence — the S319 defect). Walk 2 re-runs this component (the
+    # per-walk `flow_op_id` kwarg busts the `@coco.fn(memo=True)` fingerprint
+    # — real-engine probed at {75.17}; `_pullmd_fetch`'s own (url, epoch) memo
+    # keeps the re-run cheap) and the backlink then lands against the ri row
+    # flushed at the end of walk 1. ANY other error — including a
+    # ForeignKeyViolation on a DIFFERENT constraint — still raises into the
+    # containment tally.
+    try:
+        await _backlink_feed_articles(reference_item_id, item.ledger_urls)
+    except Exception as exc:  # noqa: BLE001 — narrowed immediately below
+        # `getattr` + type-guard mirrors `_classify_stage_exception`'s
+        # defence: unit suites import flow under a MagicMock asyncpg.
+        _fk_cls = getattr(asyncpg, "ForeignKeyViolationError", None)
+        if not (
+            isinstance(_fk_cls, type)
+            and isinstance(exc, _fk_cls)
+            and getattr(exc, "constraint_name", None) == _FEED_ARTICLES_RI_FKEY
+        ):
+            raise
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.url_backlink_deferred",
+                    "op_id": str(op_id),
+                    "source_url": item.url,
+                    "reference_item_id": str(reference_item_id),
+                }
+            )
+        )
 
 
 async def _ingest_form_branch(

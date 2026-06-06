@@ -25,7 +25,12 @@ a fork of the file-fixture driver, it is the URL (fixture, assertion) pair):
     single-flight lock 409s while walk 1 runs), then wait for the walk-2
     terminal `pipeline_runs` row (webhook-landed; staging compose wires
     `PIPELINE_RUN_WEBHOOK_URL`) so the Vitest leg never races a half-done
-    second walk.
+    second walk. {75.17}: this leg is ALSO load-bearing for the Vitest §5.4
+    backlink assertion — walk 1 ALWAYS defers the
+    `feed_articles.reference_item_id` backlink (the in-component write races
+    the engine's post-return ri_target flush; structured
+    `cocoindex.url_backlink_deferred` log) and it converges on walk 2, so
+    `--skip-second-walk` invalidates §5.4, not just the idempotency counts.
 
 WHY THIS FILE LIVES HERE (and not beside the {62.7} stage driver)
 -----------------------------------------------------------------

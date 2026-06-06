@@ -21,7 +21,12 @@
  *   3. ZERO content_items rows at uuid5(NS, 'ci:' + normalisedUrl) OR with
  *      source_url = the URL.
  *   4. feed_articles backlink: reference_item_id = the ri id AND
- *      content_item_id IS NULL.
+ *      content_item_id IS NULL. TWO-WALK TIMING ({75.17}): the in-component
+ *      backlink write races the engine's post-return ri_target flush, so
+ *      walk 1 defers it (structured cocoindex.url_backlink_deferred log)
+ *      and the backlink CONVERGES on walk 2 — this assertion is valid only
+ *      after the driver's second-walk leg (never run the driver with
+ *      --skip-second-walk before asserting 4).
  *   5. Idempotency (post-second-walk): row counts unchanged (exactly one
  *      sd, exactly one ri, zero ci) and PKs unchanged (the deterministic
  *      uuid5 ids ARE the PK-stability proof).
@@ -231,6 +236,10 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
   });
 
   it('backlinks every ledger row to the ri id with content_item_id NULL (§5.4)', async () => {
+    // {75.17} two-walk contract: walk 1 ALWAYS defers this backlink (the
+    // engine flushes the ri row only after the component returns); it lands
+    // on walk 2's re-run. The driver's second-walk leg ran before this
+    // suite, so the converged state is asserted here.
     const { data, error } = await client
       .from('feed_articles')
       .select('id, reference_item_id, content_item_id, passed')
