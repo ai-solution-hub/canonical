@@ -31,10 +31,12 @@ jobs:
     # repo-level Dependabot secret namespace + repo-level vars (which
     # mirror staging values). See docs/runbooks/ci.md §4.4.
     environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Production' }}
-    # 10 min headroom covers lint + format + knip + build + test:build + (gated)
+    # 15 min headroom covers lint + format + knip + build + test:build + (gated)
     # Python pytest at ~3-4 min observed on push-to-main. Vitest now lives in
-    # `quality-test`. Per spec D-CI.RES.1-3 + D-CI.RES.1-11.
-    timeout-minutes: 10
+    # `quality-test`. Per spec D-CI.RES.1-3 + D-CI.RES.1-11. Raised 10 → 15
+    # after S319 push run 27070911984 was cancelled at 10m13s mid-pytest
+    # (pip install alone took 2m36s).
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: read
@@ -204,9 +206,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Production' }}
     needs: quality-precheck
-    # 10 min headroom covers slowest shard at ~2-3 min observed wall-clock
-    # (~30-45 s bun install + ~2 min test step). Per spec D-CI.RES.1-3.
-    timeout-minutes: 10
+    # 15 min headroom covers the slowest full-suite shard. Per spec
+    # D-CI.RES.1-3. Raised 10 → 15 after S319 push run 27070914918 killed
+    # shard 2/4 at 9m47s with tests still passing.
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: read
