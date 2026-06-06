@@ -560,7 +560,6 @@ describe('processFeedSource', () => {
       await import('@/lib/intelligence/content-extractor');
     const { embeddingPreFilter, scoreRelevance } =
       await import('@/lib/intelligence/relevance-scorer');
-    const { classifyContent } = await import('@/lib/ai/classify');
 
     vi.mocked(pollFeed).mockResolvedValue({
       feedSourceId: 'source-1',
@@ -696,9 +695,6 @@ describe('processFeedSource', () => {
     expect(
       insertCalls.filter((c) => c.table === 'content_item_workspaces'),
     ).toHaveLength(0);
-
-    // Classification belonged to the deleted promotion path.
-    expect(vi.mocked(classifyContent)).not.toHaveBeenCalled();
   });
 
   // ── source_type branching (P0-WEB / WP3B) ──
@@ -1603,6 +1599,28 @@ describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
           err: expect.stringContaining('ECONNREFUSED'),
         }),
         expect.stringContaining('Walk nudge failed'),
+      );
+    });
+  });
+
+  it('logs and absorbs a non-ok worker response — rejection by the worker is also a delay, not a loss', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 429 });
+    loggerMocks.warn.mockClear();
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    // Must NOT throw — the non-ok branch logs and moves on.
+    const result = await runPipeline(supabase);
+
+    expect(result.totalArticlesPassed).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // The non-ok response is handled asynchronously (fire-and-forget) —
+    // wait for the log handler to run.
+    await vi.waitFor(() => {
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 429, articlesPassed: 1 }),
+        expect.stringContaining('Walk nudge rejected by cocoindex worker'),
       );
     });
   });
