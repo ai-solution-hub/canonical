@@ -3,8 +3,10 @@
 Verifies the BI-18 enumeration contract (`feed_articles WHERE passed = true`,
 no `feed_sources` read, no scoring logic), the BI-8 cross-workspace URL-dedup
 grouping (N ledger rows collapse to one item per normalised URL), and the D-2
-`LiveMapView` conformance of the snapshot iterator (``__aiter__`` +
-benign-no-op ``watch``).
+`LiveMapView` conformance of the snapshot iterator (``__aiter__`` + a
+``watch`` that feeds the snapshot via ``subscriber.update_all()`` before
+``mark_ready()`` — the ID-75.16 probe-proven mount_each consumption contract;
+the real-engine twin is ``scripts/tests/test_url_source_engine_consumption.py``).
 
 The pool seam is faked (this is a unit test of the source's enumeration
 contract, not of asyncpg); ``LiveMapView`` conformance is asserted against the
@@ -235,17 +237,39 @@ class TestLiveMapViewConformance:
         assert isinstance(src, LiveMapView)
         assert isinstance(src, LiveMapFeed)
 
-    def test_watch_marks_ready_without_feeding(self):
-        # bl-221 one-shot posture: watch() signals readiness and returns —
-        # it must never push updates or deletes into the subscriber.
+    def test_watch_feeds_snapshot_via_update_all_then_marks_ready(self):
+        # ID-75.16 PROBE-PROVEN engine contract (cocoindex 1.0.3,
+        # update_blocking(live=False)): mount_each wraps ANY watch-bearing
+        # source in _MountEachLiveComponent and consumes it EXCLUSIVELY via
+        # process_live() -> items.watch(subscriber). __aiter__ is reached
+        # ONLY through subscriber.update_all() (-> operator.update_full() ->
+        # process() -> __aiter__). A mark_ready-only watch() feeds ZERO items
+        # (the S319 live defect: url tally 0, no errors). The proven fix is
+        # the _LiveDirItems twin shape: update_all() THEN mark_ready().
         subscriber = AsyncMock()
         src = FeedUrlSource(FakePool([])).items()
 
         asyncio.run(src.watch(subscriber))
 
+        subscriber.update_all.assert_awaited_once()
         subscriber.mark_ready.assert_awaited_once()
+        # Ordering is load-bearing: readiness must be signalled AFTER the
+        # snapshot feed is triggered, or the engine settles on zero items.
+        assert [name for name, _, _ in subscriber.method_calls] == [
+            "update_all",
+            "mark_ready",
+        ], "watch() must trigger the snapshot feed BEFORE signalling ready"
+
+    def test_watch_never_pushes_incremental_updates(self):
+        # bl-221 one-shot posture: the snapshot is fed wholesale via
+        # update_all(); watch() must never push per-item updates or deletes
+        # (no live watching — the localfs watchfiles loop has no twin here).
+        subscriber = AsyncMock()
+        src = FeedUrlSource(FakePool([])).items()
+
+        asyncio.run(src.watch(subscriber))
+
         subscriber.update.assert_not_awaited()
-        subscriber.update_all.assert_not_awaited()
         subscriber.delete.assert_not_awaited()
 
 

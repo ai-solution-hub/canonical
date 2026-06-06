@@ -16,12 +16,23 @@ Contract (TECH §3 WP-C, docs/specs/ID-75-pullmd-cocoindex/TECH.md):
   rows (one per workspace) collapse to ONE item per URL (BI-8). The
   re-normalisation is defensive: `external_url` is stored already-normalised
   by the TS pipeline and `normalise_url` is idempotent (D-8).
-- `items()` returns a `LiveMapView`-conforming snapshot iterator (D-2):
-  `__aiter__` yields `(normalised_url, UrlItem)`; `watch(subscriber)` calls
-  `subscriber.mark_ready()` and returns — a benign no-op matching the bl-221
-  one-shot `update_blocking(live=False)` posture. Conformance is structural
-  (`runtime_checkable` protocol) so this module never imports cocoindex —
-  preserving the collection-safety property `_coco_api.py` documents.
+- `items()` returns a `LiveMapView`-conforming snapshot iterator (D-2, as
+  corrected by ID-75.16): `__aiter__` yields `(normalised_url, UrlItem)`;
+  `watch(subscriber)` feeds the snapshot via `subscriber.update_all()` and
+  THEN calls `subscriber.mark_ready()`. The ID-75.16 real-engine probe
+  (`scripts/tests/test_url_source_engine_consumption.py`) proved the original
+  D-2 claim ("the engine consumes the snapshot per walk via `__aiter__`")
+  FALSE on cocoindex 1.0.3: `mount_each` wraps any watch-bearing source in a
+  `_MountEachLiveComponent` consumed EXCLUSIVELY via `watch()` — `__aiter__`
+  is reached only through `update_all()` → `update_full()` → `process()`.
+  A mark_ready-only `watch()` therefore enumerated NOTHING (the S319
+  staging `{url: 0}` tally). The fixed shape mirrors the localfs
+  `_LiveDirItems` twin minus its watchfiles loop, preserving the bl-221
+  one-shot `update_blocking(live=False)` posture: in catch-up mode
+  `mark_ready()` terminates the watch — no live watching. Conformance is
+  structural (`runtime_checkable` protocol) so this module never imports
+  cocoindex — preserving the collection-safety property `_coco_api.py`
+  documents.
 
 `UrlItem` is the memo-keyed argument of the `ingest_url` component.
 EXECUTOR-VERIFY-1 (TECH §WP-C + §8) verified empirically against the installed
@@ -166,9 +177,13 @@ class _PassedUrlItems:
     """`LiveMapView`-conforming snapshot over the passed-URL ledger (D-2).
 
     Structural twin of the localfs `_LiveDirItems` (RESEARCH §4.1), minus the
-    live watch: `__aiter__` scans the snapshot; `watch` only signals
-    readiness (bl-221 one-shot posture — the engine consumes the snapshot
-    per walk).
+    watchfiles loop: `__aiter__` scans the snapshot; `watch` feeds that
+    snapshot to the engine via `subscriber.update_all()` then signals
+    readiness. The engine NEVER consults `__aiter__` directly — `mount_each`
+    consumes watch-bearing sources only through `watch()` (ID-75.16
+    probe-proven; see the module docstring). Under the bl-221 one-shot
+    `update_blocking(live=False)` posture, `mark_ready()` terminates the
+    watch, so exactly one snapshot feed happens per walk.
     """
 
     def __init__(self, pool: Any) -> None:
@@ -183,7 +198,15 @@ class _PassedUrlItems:
             yield pair
 
     async def watch(self, subscriber: "LiveMapSubscriber[str, UrlItem]") -> None:
-        """Benign no-op (D-2): signal readiness, feed nothing, return."""
+        """Feed the snapshot, then signal readiness (ID-75.16).
+
+        `update_all()` triggers the engine's full re-iteration of `__aiter__`
+        (`update_full()` → `_MountEachLiveComponent.process()`) — the ONLY
+        path by which items reach `mount_each` from a watch-bearing source.
+        `mark_ready()` then terminates the watch in catch-up mode (bl-221
+        one-shot posture): no incremental updates, no live watching.
+        """
+        await subscriber.update_all()
         await subscriber.mark_ready()
 
 
