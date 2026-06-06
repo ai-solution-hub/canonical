@@ -154,7 +154,7 @@ async def _root(items) -> None:
     await handle.ready()
 """
 
-# Case 1 — PRODUCTION class: FeedUrlSource.items() consumed by mount_each
+# CASE A — PRODUCTION class: FeedUrlSource.items() consumed by mount_each
 # under update_blocking(live=False) must enumerate the grouped snapshot.
 _PRODUCTION_PROBE_SRC = (
     _PROBE_PRELUDE
@@ -165,7 +165,7 @@ print(json.dumps(sorted(CONSUMED)))
 """
 )
 
-# Case 2 — ENGINE-CONTRACT CONTROL: a mark_ready()-only watch (the pre-fix
+# CASE B — ENGINE-CONTRACT CONTROL: a mark_ready()-only watch (the pre-fix
 # _PassedUrlItems shape) feeds NOTHING, even though __aiter__ would yield.
 # Pins the engine semantics the fix depends on: if a future cocoindex
 # version starts consuming __aiter__ directly under live=False, this control
@@ -186,6 +186,54 @@ class NoopWatchSnapshot:
 
 
 app = coco.App("id75_16_noop_watch", _root, NoopWatchSnapshot())
+app.update_blocking()
+print(json.dumps(sorted(CONSUMED)))
+"""
+)
+
+# CASE C — FIX-SHAPE CONTROL, decoupled from the production class: a minimal
+# update_all-then-mark_ready watch (the _LiveDirItems twin shape the fix
+# adopts) DOES feed the snapshot — update_all() -> update_full() ->
+# _MountEachLiveComponent.process() -> __aiter__. Isolates the engine
+# contract from FeedUrlSource's grouping/SQL seam, so a CASE-A failure can
+# be attributed: engine drift (C also red) vs production-class regression
+# (C still green).
+_UPDATE_ALL_WATCH_PROBE_SRC = (
+    _PROBE_PRELUDE
+    + """
+class UpdateAllWatchSnapshot:
+    def __aiter__(self):
+        return self._impl()
+
+    async def _impl(self):
+        yield ("k1", "v1")
+        yield ("k2", "v2")
+
+    async def watch(self, subscriber):
+        await subscriber.update_all()
+        await subscriber.mark_ready()
+
+
+app = coco.App("id75_16_update_all_watch", _root, UpdateAllWatchSnapshot())
+app.update_blocking()
+print(json.dumps(sorted(CONSUMED)))
+"""
+)
+
+# CASE D — PLAIN ASYNC GENERATOR (the localfs DirWalker.items() live=False
+# catch-up shape): no watch attribute -> fails mount_each's LiveMapFeed
+# isinstance routing -> consumed DIRECTLY via `async for`. The alternative
+# consumption path, pinned so this executable D-2 record covers the engine's
+# full mount_each routing matrix.
+_PLAIN_ASYNC_GEN_PROBE_SRC = (
+    _PROBE_PRELUDE
+    + """
+async def plain_items():
+    yield ("k1", "v1")
+    yield ("k2", "v2")
+
+
+app = coco.App("id75_16_plain_async_gen", _root, plain_items())
 app.update_blocking()
 print(json.dumps(sorted(CONSUMED)))
 """
@@ -215,8 +263,8 @@ class TestMountEachConsumption:
     """The ID-75.16 engine-semantics contract, executable."""
 
     def test_production_snapshot_is_enumerated_under_one_shot_walk(self):
-        # The landing-path acceptance: one update_blocking(live=False) walk
-        # over FeedUrlSource.items() mounts ONE component per grouped URL.
+        # CASE A — the landing-path acceptance: one update_blocking(live=False)
+        # walk over FeedUrlSource.items() mounts ONE component per grouped URL.
         consumed = _run_probe(_PRODUCTION_PROBE_SRC)
         assert consumed == [
             "https://example.com/article",
@@ -227,10 +275,33 @@ class TestMountEachConsumption:
         )
 
     def test_mark_ready_only_watch_feeds_nothing(self):
-        # The S319 defect, pinned: a watch() that only signals readiness
-        # starves mount_each — __aiter__ is NEVER consulted directly.
+        # CASE B — the S319 defect, pinned: a watch() that only signals
+        # readiness starves mount_each — __aiter__ is NEVER consulted
+        # directly.
         consumed = _run_probe(_NOOP_WATCH_PROBE_SRC)
         assert consumed == [], (
             "engine contract changed: a mark_ready-only watch now feeds "
             f"items ({consumed!r}) — re-verify the D-2 consumption contract"
+        )
+
+    def test_update_all_then_mark_ready_watch_feeds_snapshot(self):
+        # CASE C — the fix shape, decoupled from FeedUrlSource: an
+        # update_all-then-mark_ready watch feeds the full snapshot through
+        # update_full() -> process() -> __aiter__.
+        consumed = _run_probe(_UPDATE_ALL_WATCH_PROBE_SRC)
+        assert consumed == ["v1", "v2"], (
+            "engine contract changed: the update_all-then-mark_ready watch "
+            f"shape no longer feeds the snapshot ({consumed!r}) — re-verify "
+            "the D-2 consumption contract"
+        )
+
+    def test_plain_async_generator_is_consumed_directly(self):
+        # CASE D — a watch-less plain async generator (the localfs
+        # live=False catch-up shape) bypasses the live-component wrapper and
+        # is iterated directly by mount_each.
+        consumed = _run_probe(_PLAIN_ASYNC_GEN_PROBE_SRC)
+        assert consumed == ["v1", "v2"], (
+            "engine contract changed: mount_each no longer iterates a plain "
+            f"AsyncIterable directly ({consumed!r}) — re-verify the D-2 "
+            "consumption contract"
         )

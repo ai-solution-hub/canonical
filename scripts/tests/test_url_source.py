@@ -251,10 +251,15 @@ class TestLiveMapViewConformance:
 
         asyncio.run(src.watch(subscriber))
 
-        subscriber.update_all.assert_awaited_once()
-        subscriber.mark_ready.assert_awaited_once()
-        # Ordering is load-bearing: readiness must be signalled AFTER the
-        # snapshot feed is triggered, or the engine settles on zero items.
+        # Single load-bearing assertion over `method_calls` — recorded
+        # synchronously at call time, so it is robust across environments
+        # (AsyncMock await accounting under asyncio.run() in a sync test
+        # method proved environment-sensitive: await_count read 0 on a
+        # checker machine while the implementation was provably correct).
+        # Exact-list equality pins all three properties at once: update_all
+        # exactly once, mark_ready exactly once, and ordering — readiness
+        # must be signalled AFTER the snapshot feed is triggered, or the
+        # engine settles on zero items.
         assert [name for name, _, _ in subscriber.method_calls] == [
             "update_all",
             "mark_ready",
@@ -269,8 +274,11 @@ class TestLiveMapViewConformance:
 
         asyncio.run(src.watch(subscriber))
 
-        subscriber.update.assert_not_awaited()
-        subscriber.delete.assert_not_awaited()
+        # method_calls-based (not await accounting) for the same
+        # environment-robustness reason as the ordering test above.
+        called = {name for name, _, _ in subscriber.method_calls}
+        assert "update" not in called, "watch() must not push per-item updates"
+        assert "delete" not in called, "watch() must not push per-item deletes"
 
 
 class TestUrlItemShape:
