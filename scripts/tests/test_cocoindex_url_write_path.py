@@ -332,6 +332,19 @@ class TestUrlLandingDeclaresEvidencePair:
             "no path segment ⇒ filename falls back to the hostname (BI-4)"
         )
 
+    def test_malformed_published_at_fails_the_item_loudly(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """BI-19 loud containment: a malformed ledger `published_at` raises
+        out of the component (no try/except swallows the
+        `datetime.fromisoformat` ValueError) — the per-item mount boundary
+        contains it; one bad item never silently lands a corrupt timestamp."""
+        flow = _flow_module()
+        _wire(flow, monkeypatch)
+
+        with pytest.raises(ValueError):
+            _ingest(flow, _make_item(published_at="not-a-date"))
+
 
 # ── Idempotency + epoch-keyed update-in-place (BI-2 / D-4) ───────────────────
 
@@ -635,6 +648,32 @@ class TestUnknownXSourceDegrade:
             "pullmd_trafilatura"
         )
         assert flow._pullmd_extraction_method(None) is None
+
+    def test_missing_x_source_header_degrades_silently_without_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A MISSING X-Source header (None) degrades to None SILENTLY — the
+        warning is reserved for a PRESENT-but-unknown value, matching the
+        {75.9}-retired guard's `x_source in set` / else-warn shape."""
+        flow = _flow_module()
+
+        with caplog.at_level(logging.WARNING, logger=flow.__name__):
+            assert flow._pullmd_extraction_method(None) is None
+
+        events = [
+            json.loads(r.message)
+            for r in caplog.records
+            if r.message.startswith("{")
+        ]
+        warn_events = [
+            e
+            for e in events
+            if e.get("event") == "cocoindex.pullmd_unknown_x_source"
+        ]
+        assert warn_events == [], (
+            "a missing X-Source header must degrade to None WITHOUT the "
+            "unknown-X-Source warning"
+        )
 
 
 # ── Module-source guard: 'ci:' is never seeded from a URL (BI-2) ────────────
