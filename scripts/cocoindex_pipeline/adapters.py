@@ -53,8 +53,9 @@ _logger = logging.getLogger(__name__)
 
 
 # Extension → MIME group mapping (lower-case suffix comparison).
-# `_HTML_EXTENSIONS` stays for mime resolution (`_SOURCE_MIME_FALLBACK` in
-# flow.py) — it only exits the CONVERSION routing (ID-75 WP-D).
+# `_HTML_EXTENSIONS` stays for routing `.html`/`.htm` to
+# `LocalfsHtmlRetiredError` in the two retired branches below — it is not
+# referenced by flow.py, which has its own mime-fallback dict.
 _DOCLING_EXTENSIONS = frozenset({".pdf", ".docx", ".xlsx"})
 _HTML_EXTENSIONS = frozenset({".html", ".htm"})
 _TEXT_EXTENSIONS = frozenset({".md", ".markdown", ".txt"})
