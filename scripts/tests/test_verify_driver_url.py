@@ -16,8 +16,10 @@ live worker, no live pullmd — the {62.7}/{62.9} test precedent):
     title NOT NULL, published_at set, external_url normalised);
   - walk-trigger semantics: 202 accepted; 409 retried (walk in flight —
     the hourly Coolify fallback can collide); 401/400/503 fail fast;
-  - the Inv-9 round-trip: 2xx + non-empty body + `X-Share-Id` echo, each
-    failure mode exiting non-zero;
+  - the Inv-9 round-trip: 2xx + a non-empty body (corrected contract, S319
+    B1 probe — `GET /s/:id` serves NO `X-Share-Id` header; that header set
+    is the `GET /api` surface, and identity is proven by path resolution),
+    each failure mode exiting non-zero;
   - the second-walk idempotency leg: re-POST `/walk` in the same
     invocation + `pipeline_runs` terminal-row wait;
   - `run()` exit-code semantics end-to-end over injected deps.
@@ -342,7 +344,9 @@ class TestPollShareId:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# §5 — Inv-9 round-trip (2xx + non-empty + X-Share-Id echo)
+# §5 — Inv-9 round-trip (2xx + non-empty body; corrected contract, S319:
+# GET /s/:id serves NO X-Share-Id header — that set is the GET /api surface,
+# per the live B1 header probe. Identity is proven by path resolution.)
 # ──────────────────────────────────────────────────────────────────────────
 
 
@@ -352,28 +356,40 @@ class TestPullmdRoundTrip:
         http.route("GET", f"/s/{SHARE_ID}", resp)
         return http
 
-    def test_200_non_empty_matching_header_ok(self) -> None:
+    def test_200_non_empty_without_share_id_header_ok(self) -> None:
+        # Probed reality (B1, S319): /s/:id replies with ONLY
+        # X-Powered-By/Content-Type/Content-Length/ETag/Date — a 2xx
+        # non-empty response with NO X-Share-Id header is a PASS.
         http = self._http_with(
-            _response(200, "# markdown", {"X-Share-Id": SHARE_ID})
+            _response(
+                200,
+                "# markdown",
+                {"Content-Type": "text/markdown", "Content-Length": "225"},
+            )
         )
+        ok, detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
+        assert ok
+        # Content-Type is surfaced for operator visibility, not asserted.
+        assert "text/markdown" in detail
+
+    def test_200_non_empty_bare_headers_ok(self) -> None:
+        # Even a headerless 2xx non-empty reply passes — the body check is
+        # the contract; no response-header equality is part of Inv-9.
+        http = self._http_with(_response(200, "# markdown"))
         ok, _detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
         assert ok
 
-    def test_header_mismatch_fails(self) -> None:
-        http = self._http_with(
-            _response(200, "# markdown", {"X-Share-Id": "ffff0000"})
-        )
-        ok, detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
-        assert not ok
-        assert "X-Share-Id" in detail
-
     def test_empty_body_fails(self) -> None:
-        http = self._http_with(_response(200, "", {"X-Share-Id": SHARE_ID}))
+        http = self._http_with(
+            _response(200, "", {"Content-Type": "text/markdown"})
+        )
         ok, detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
         assert not ok
         assert "empty" in detail
 
-    def test_404_fails(self) -> None:
+    def test_404_stale_share_id_fails(self) -> None:
+        # The stale-share-id-after-pullmd-recreate shape hit live: the sd
+        # row's share id no longer resolves → 404 → exit non-zero.
         http = self._http_with(_response(404, "not found"))
         ok, detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
         assert not ok
@@ -448,8 +464,11 @@ class TestRunExitCodes:
                 200, [{"id": SD_ID_FOR_PROOF_URL, "pullmd_share_id": SHARE_ID}]
             ),
         )
+        # Probed /s/:id reply shape (S319): markdown body, NO X-Share-Id.
         http.route(
-            "GET", f"/s/{SHARE_ID}", _response(200, "# md", {"X-Share-Id": SHARE_ID})
+            "GET",
+            f"/s/{SHARE_ID}",
+            _response(200, "# md", {"Content-Type": "text/markdown"}),
         )
         http.route(
             "GET",
@@ -471,7 +490,9 @@ class TestRunExitCodes:
         # so rebuild with the failing handler first).
         failing = FakeHttp()
         failing.route(
-            "GET", f"/s/{SHARE_ID}", _response(200, "", {"X-Share-Id": SHARE_ID})
+            "GET",
+            f"/s/{SHARE_ID}",
+            _response(200, "", {"Content-Type": "text/markdown"}),
         )
         failing.routes.extend(http.routes)
         exit_code = vd.run_with(_config(), _deps(failing))

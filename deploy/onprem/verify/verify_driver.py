@@ -17,9 +17,13 @@ a fork of the file-fixture driver, it is the URL (fixture, assertion) pair):
   - **Assertion surfaced via exit code (Inv-23)** — the Inv-9 round-trip:
     read `pullmd_share_id` off the landed `source_documents` row (id =
     uuid5(NS, "sd:" + normalised URL)) and `GET {PULLMD}/s/<share_id>` over
-    localhost (pullmd sibling, ID-66 §1-b), asserting 2xx + non-empty body +
-    `X-Share-Id` echo — ONE HTTP call within the driver invocation, never
-    attempted off-host.
+    localhost (pullmd sibling, ID-66 §1-b), asserting 2xx + a non-empty
+    body — ONE HTTP call within the driver invocation, never attempted
+    off-host. CORRECTED CONTRACT (B1 live probe, S319): `GET /s/:id`
+    carries NO `X-Share-Id` response header — that header set belongs to
+    pullmd's `GET /api` surface (TECH O1 observation). The share id IS the
+    request path, so identity is proven by resolution; no header equality
+    is asserted.
   - **Second-walk idempotency leg** — re-`POST /walk` in the SAME invocation
     (retry-on-409 doubles as the walk-1-completed signal: the bl-221
     single-flight lock 409s while walk 1 runs), then wait for the walk-2
@@ -60,9 +64,9 @@ Run (from the repo checkout root — PEP 420 namespace import)::
 
 Exit semantics (Inv-23):
   - 0   — seed landed, walk accepted, sd row landed with a share id, the
-          `/s/<id>` round-trip returned 2xx non-empty with a matching
-          `X-Share-Id`, and (unless `--skip-second-walk`) the second walk
-          reached a `completed` pipeline_runs row.
+          `/s/<id>` round-trip returned 2xx with a non-empty body, and
+          (unless `--skip-second-walk`) the second walk reached a
+          `completed` pipeline_runs row.
   - 1   — any step failed (the failing step + diagnostic is printed).
   - 2   — configuration error (missing env), printed by name.
 
@@ -421,7 +425,18 @@ def poll_pullmd_share_id(config: DriverConfig, deps: Deps) -> str | None:
 def pullmd_round_trip(
     config: DriverConfig, deps: Deps, share_id: str
 ) -> tuple[bool, str]:
-    """GET {PULLMD}/s/<share_id>: 2xx + non-empty body + X-Share-Id echo."""
+    """GET {PULLMD}/s/<share_id>: 2xx + a non-empty body.
+
+    CORRECTED CONTRACT (B1 live probe, S319): `GET /s/:id` serves NO
+    `X-Share-Id` response header — observed headers are only
+    X-Powered-By / Content-Type / Content-Length / ETag / Date; the
+    X-Share-Id header set belongs to pullmd's `GET /api` surface (TECH O1
+    observation). The share id is the request path, so identity is already
+    proven by resolution: a stale share id (e.g. after a pullmd recreate)
+    resolves 404 and exits non-zero. The observed Content-Type is reported
+    in the success detail for operator visibility (text/markdown live) but
+    deliberately NOT asserted — 2xx + non-empty body is the contract.
+    """
     url = f"{config.pullmd_url.rstrip('/')}/s/{share_id}"
     try:
         resp = deps.http_get(url, timeout=config.timeout)
@@ -434,13 +449,11 @@ def pullmd_round_trip(
         )
     if not resp.text:
         return False, f"round-trip returned an empty body (GET {url})"
-    echoed = resp.headers.get("X-Share-Id")
-    if echoed != share_id:
-        return (
-            False,
-            f"X-Share-Id mismatch: expected {share_id!r}, got {echoed!r}",
-        )
-    return True, f"round-trip OK ({len(resp.text)} bytes, X-Share-Id echoed)"
+    content_type = resp.headers.get("Content-Type", "<unset>")
+    return (
+        True,
+        f"round-trip OK ({len(resp.text)} bytes, Content-Type {content_type})",
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────
