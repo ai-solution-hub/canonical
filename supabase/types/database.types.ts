@@ -557,13 +557,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "content_chunks_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "content_chunks_parent_chunk_id_fkey"
             columns: ["parent_chunk_id"]
             isOneToOne: false
@@ -960,10 +953,38 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "content_items_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_content_owner_id_fkey"
+            columns: ["content_owner_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "content_items_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_governance_reviewer_id_fkey"
+            columns: ["governance_reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
           {
@@ -983,6 +1004,13 @@ export type Database = {
           {
             foreignKeyName: "content_items_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_verified_by_fkey"
+            columns: ["verified_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
@@ -1176,15 +1204,7 @@ export type Database = {
           normalisation_version?: number | null
           op_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "entity_mentions_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       entity_pair_resolutions: {
         Row: {
@@ -1270,6 +1290,7 @@ export type Database = {
           prompt_version_id: string | null
           published_at: string | null
           raw_content: string | null
+          reference_item_id: string | null
           relevance_category: string | null
           relevance_reasoning: string | null
           relevance_score: number | null
@@ -1292,6 +1313,7 @@ export type Database = {
           prompt_version_id?: string | null
           published_at?: string | null
           raw_content?: string | null
+          reference_item_id?: string | null
           relevance_category?: string | null
           relevance_reasoning?: string | null
           relevance_score?: number | null
@@ -1314,6 +1336,7 @@ export type Database = {
           prompt_version_id?: string | null
           published_at?: string | null
           raw_content?: string | null
+          reference_item_id?: string | null
           relevance_category?: string | null
           relevance_reasoning?: string | null
           relevance_score?: number | null
@@ -1341,6 +1364,13 @@ export type Database = {
             columns: ["prompt_version_id"]
             isOneToOne: false
             referencedRelation: "feed_prompts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_articles_reference_item_id_fkey"
+            columns: ["reference_item_id"]
+            isOneToOne: false
+            referencedRelation: "reference_items"
             referencedColumns: ["id"]
           },
           {
@@ -1627,13 +1657,6 @@ export type Database = {
             referencedRelation: "bid_questions"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "form_template_fields_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "form_templates"
-            referencedColumns: ["id"]
-          },
         ]
       }
       form_template_requirements: {
@@ -1743,6 +1766,7 @@ export type Database = {
           mime_type: string
           name: string
           status: string
+          status_reason: string | null
           storage_path: string
           structure_path: string | null
           updated_at: string | null
@@ -1765,6 +1789,7 @@ export type Database = {
           mime_type: string
           name: string
           status?: string
+          status_reason?: string | null
           storage_path: string
           structure_path?: string | null
           updated_at?: string | null
@@ -1787,6 +1812,7 @@ export type Database = {
           mime_type?: string
           name?: string
           status?: string
+          status_reason?: string | null
           storage_path?: string
           structure_path?: string | null
           updated_at?: string | null
@@ -2518,13 +2544,6 @@ export type Database = {
             referencedRelation: "q_a_pairs"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "q_a_extractions_source_content_item_id_fkey"
-            columns: ["source_content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
         ]
       }
       q_a_pair_history: {
@@ -2689,6 +2708,68 @@ export type Database = {
             columns: ["content_item_id"]
             isOneToOne: false
             referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reference_items: {
+        Row: {
+          body: string
+          created_at: string
+          embedding: string | null
+          id: string
+          ingestion_source: string
+          layer: string | null
+          op_id: string | null
+          primary_domain: string | null
+          primary_subtopic: string | null
+          published_at: string | null
+          source_document_id: string
+          source_url: string
+          summary: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          embedding?: string | null
+          id: string
+          ingestion_source: string
+          layer?: string | null
+          op_id?: string | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          published_at?: string | null
+          source_document_id: string
+          source_url: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          ingestion_source?: string
+          layer?: string | null
+          op_id?: string | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          published_at?: string | null
+          source_document_id?: string
+          source_url?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reference_items_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -2967,10 +3048,11 @@ export type Database = {
           id: string
           mime_type: string
           op_id: string | null
-          original_filename: string
+          original_filename: string | null
           parent_id: string | null
           pipeline_run_id: string | null
           pullmd_share_id: string | null
+          source_url: string | null
           status: string
           storage_path: string
           uploaded_by: string | null
@@ -2990,10 +3072,11 @@ export type Database = {
           id?: string
           mime_type: string
           op_id?: string | null
-          original_filename: string
+          original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
           pullmd_share_id?: string | null
+          source_url?: string | null
           status?: string
           storage_path: string
           uploaded_by?: string | null
@@ -3013,10 +3096,11 @@ export type Database = {
           id?: string
           mime_type?: string
           op_id?: string | null
-          original_filename?: string
+          original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
           pullmd_share_id?: string | null
+          source_url?: string | null
           status?: string
           storage_path?: string
           uploaded_by?: string | null
@@ -4249,6 +4333,10 @@ export type Database = {
       grant_standard_public_table_access: {
         Args: { target_table: unknown }
         Returns: undefined
+      }
+      hook_restrict_signup_to_allowed_domain: {
+        Args: { event: Json }
+        Returns: Json
       }
       hook_restrict_signup_to_example-client_domain: {
         Args: { event: Json }
