@@ -1,0 +1,110 @@
+{
+  "_comment": "D-8 (ID-75.7) — URL-normalisation parity fixture. Single source of truth consumed by BOTH scripts/tests/test_url_normalise.py (pytest) and __tests__/validation/url-normalisation-parity.test.ts (Vitest). Expected values are the verbatim output of normaliseUrl in lib/intelligence/content-extractor.ts (WHATWG URL semantics). Every case must also be idempotent: normalise(expected) === expected. Drift on either side must break tests on both sides — update BOTH implementations before touching this file.",
+  "cases": [
+    {
+      "name": "tracking param utm_source removed",
+      "input": "https://example.com/article?utm_source=newsletter",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "tracking param utm_medium removed",
+      "input": "https://example.com/article?utm_medium=email",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "tracking param utm_campaign removed",
+      "input": "https://example.com/article?utm_campaign=spring",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "tracking param utm_term removed",
+      "input": "https://example.com/article?utm_term=procurement",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "tracking param utm_content removed",
+      "input": "https://example.com/article?utm_content=cta",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "tracking param ref removed",
+      "input": "https://example.com/article?ref=homepage",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "tracking param source removed",
+      "input": "https://example.com/article?source=rss",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "multiple tracking params removed, non-tracking param kept",
+      "input": "https://example.com/news?id=42&utm_source=twitter&utm_medium=social&ref=home",
+      "expected": "https://example.com/news?id=42"
+    },
+    {
+      "name": "two tracking params removed leaving empty query",
+      "input": "https://example.com/article?utm_source=a&utm_campaign=b",
+      "expected": "https://example.com/article"
+    },
+    {
+      "name": "trailing slash stripped from non-root path",
+      "input": "https://example.com/path/",
+      "expected": "https://example.com/path"
+    },
+    {
+      "name": "trailing slash stripped from deep non-root path with tracking param",
+      "input": "https://example.com/a/b/c/?ref=nav",
+      "expected": "https://example.com/a/b/c"
+    },
+    {
+      "name": "root path trailing slash preserved",
+      "input": "https://example.com/",
+      "expected": "https://example.com/"
+    },
+    {
+      "name": "bare host gains root slash (WHATWG serialisation)",
+      "input": "https://example.com",
+      "expected": "https://example.com/"
+    },
+    {
+      "name": "hostname lowercased, path case preserved",
+      "input": "https://EXAMPLE.com/Path",
+      "expected": "https://example.com/Path"
+    },
+    {
+      "name": "mixed-case hostname plus tracking param plus trailing slash",
+      "input": "https://Example.COM/blog/?utm_source=x&page=2",
+      "expected": "https://example.com/blog?page=2"
+    },
+    {
+      "name": "untouched path with query and fragment passes through",
+      "input": "https://example.com/blog/post-1?id=7#section",
+      "expected": "https://example.com/blog/post-1?id=7#section"
+    },
+    {
+      "name": "default https port stripped (WHATWG serialisation)",
+      "input": "https://example.com:443/path/",
+      "expected": "https://example.com/path"
+    },
+    {
+      "name": "non-default port preserved",
+      "input": "http://example.com:8080/path/?utm_source=z",
+      "expected": "http://example.com:8080/path"
+    },
+    {
+      "name": "scheme lowercased (WHATWG serialisation)",
+      "input": "HTTPS://example.com/a?ref=x",
+      "expected": "https://example.com/a"
+    },
+    {
+      "name": "parse failure returns input unchanged",
+      "input": "not a url",
+      "expected": "not a url"
+    },
+    {
+      "name": "empty string returns input unchanged",
+      "input": "",
+      "expected": ""
+    }
+  ]
+}
