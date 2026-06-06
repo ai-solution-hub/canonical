@@ -83,6 +83,11 @@ class TestEnumerationPredicate:
         pool = FakePool([])
         _collect(FeedUrlSource(pool))
 
+        # Guard BOTH shapes: a JOIN embedded in the primary SELECT string
+        # itself, and any separate feed_sources query.
+        assert "feed_sources" not in pool.queries[0], (
+            "BI-18: the primary SELECT must not join or reference feed_sources"
+        )
         assert not any("feed_sources" in q for q in pool.queries), (
             "BI-18: the URL source must not read feed_sources (no scoring logic)"
         )
@@ -172,6 +177,18 @@ class TestCrossWorkspaceCollapse:
         [(_, item)] = _collect(FeedUrlSource(pool))
 
         assert item.summary == "Older summary."
+
+    def test_all_null_summaries_yield_none(self):
+        # D-10: summary is 'latest NON-NULL ai_summary' and NULLABLE — when
+        # EVERY ledger row's ai_summary is None, the item's summary is None
+        # (a spec-valid output, not an error).
+        rows = self._two_workspace_rows()
+        for row in rows:
+            row["ai_summary"] = None
+        pool = FakePool(rows)
+        [(_, item)] = _collect(FeedUrlSource(pool))
+
+        assert item.summary is None
 
     def test_title_and_ingestion_source_from_ledger(self):
         pool = FakePool(self._two_workspace_rows())
