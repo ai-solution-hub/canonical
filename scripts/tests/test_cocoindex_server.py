@@ -1080,14 +1080,21 @@ async def _exercise_walk(
     *,
     bearer: str | None = _WALK_CRON_SECRET,
     body: dict | None = None,
+    raw_body: bytes | None = None,
+    content_type: str = "application/json",
 ) -> tuple[int, dict]:
     """Invoke the /walk handler in-process (route resolve + direct await).
 
     Mirrors `_exercise_health` / `_exercise_stage` — no TCP socket. Sends an
     optional JSON body and an optional `Authorization: Bearer <bearer>` header
-    (omit the header entirely by passing `bearer=None`). Returns
+    (omit the header entirely by passing `bearer=None`). Pass `raw_body` to
+    send NON-JSON bytes verbatim (bl-225 — the malformed-body regression
+    path); `body` and `raw_body` are mutually exclusive. Returns
     `(status, parsed_json_body)`.
     """
+    assert body is None or raw_body is None, (
+        "pass either `body` (JSON dict) or `raw_body` (verbatim bytes), not both"
+    )
     headers: dict[str, str] = {}
     if bearer is not None:
         headers["Authorization"] = f"Bearer {bearer}"
@@ -1095,6 +1102,9 @@ async def _exercise_walk(
     if body is not None:
         payload = json.dumps(body).encode()
         headers["Content-Type"] = "application/json"
+    elif raw_body is not None:
+        payload = raw_body
+        headers["Content-Type"] = content_type
     loop = asyncio.get_running_loop()
     stream = StreamReader(Mock(), limit=2**16, loop=loop)
     stream.feed_data(payload)
@@ -1350,6 +1360,105 @@ class TestWalkHappyPath:
         mock_update.assert_called_once_with(live=False, full_reprocess=True)
         _wait_for_lock_release(server_mod)
         assert not server_mod.walk_in_progress()
+
+
+class TestWalkNonJsonBody:
+    """bl-225 — a POST /walk with a NON-JSON body is handled gracefully: the
+    `full_reprocess` flag falls back to the incremental default (False) and the
+    walk is accepted 202, exactly as the handler docstring promises ("a
+    non-JSON body … yield[s] the incremental default").
+
+    Regression context: `_read_full_reprocess_flag`'s except clause names
+    `json.JSONDecodeError`, but server.py lacked `import json` until c66382c6
+    ({62.6}) — so a non-JSON body raised `NameError` while EVALUATING the
+    except tuple, crashing the handler instead of falling back. The defect was
+    never observable because the suite previously mocked aiohttp before this
+    path. These cases drive the REAL parse-failure path through the route
+    handler: were the `import json` reverted, both fail with NameError instead
+    of returning 202.
+    """
+
+    def _assert_graceful_incremental_walk(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        raw_body: bytes,
+        content_type: str,
+    ) -> None:
+        """Drive /walk with a verbatim non-JSON body; assert the graceful
+        incremental-default contract (202 + fullReprocess False + walk runs
+        with full_reprocess=False + lock released)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        walk_ran = threading.Event()
+
+        def _record_update(**_kwargs: object) -> None:
+            walk_ran.set()
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP,
+            "update_blocking",
+            side_effect=_record_update,
+        ) as mock_update:
+            # Pre-fix this await raised NameError (json undefined in the
+            # except tuple) — the request crashed instead of degrading to an
+            # incremental walk.
+            status, body = asyncio.run(
+                _exercise_walk(
+                    aiohttp_app, raw_body=raw_body, content_type=content_type
+                )
+            )
+            assert walk_ran.wait(timeout=2.0), (
+                "a non-JSON body must still trigger the incremental walk"
+            )
+
+        assert status == 202
+        assert body["status"] == "accepted"
+        assert body["fullReprocess"] is False
+        mock_update.assert_called_once_with(live=False, full_reprocess=False)
+        _wait_for_lock_release(server_mod)
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_202_incremental_on_non_json_body(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Plain-text garbage body (e.g. a mis-fired `curl --data`) → graceful
+        incremental walk, no NameError."""
+        self._assert_graceful_incremental_walk(
+            aiohttp_app,
+            tmp_path,
+            monkeypatch,
+            raw_body=b"this is not json {{{",
+            content_type="text/plain",
+        )
+
+    def test_walk_202_incremental_on_truncated_json_body(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A truncated JSON body declared as application/json (json.loads
+        raises JSONDecodeError) → graceful incremental walk, no NameError."""
+        self._assert_graceful_incremental_walk(
+            aiohttp_app,
+            tmp_path,
+            monkeypatch,
+            raw_body=b'{"full_reprocess":',
+            content_type="application/json",
+        )
 
 
 class TestWalkSingleFlight:
