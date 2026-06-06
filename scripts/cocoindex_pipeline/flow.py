@@ -43,18 +43,22 @@ References:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import mimetypes
 import os
 import re
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import aiohttp
 import asyncpg
 import cocoindex as coco
+import httpx
 
 # Off-surface cocoindex symbols resolve through the {67.4} insulation façade
 # (`_coco_api`) so a version bump is a one-file fix. These are eager top-level
@@ -70,6 +74,9 @@ from scripts.cocoindex_pipeline._coco_api import (
     mount_table_target,
 )
 from scripts.cocoindex_pipeline.adapters import (
+    _PULLMD_X_SOURCE_METHODS,  # CHECK-enum-safe X-Source mapping (75.10 step 2)
+    _docling_to_markdown,  # PDF-route inner tier for URL items (75.10 / D-12)
+    _pullmd_fetch,  # epoch-keyed PullMD fetch (75.9 / D-4)
     convert_binary_to_markdown,  # P-3 outer-tier adapter (28.7 — LANDED)
     extract_source_provenance,  # Stage-6 pullmd provenance fan-out (42.9 §WP-E)
 )
@@ -132,6 +139,12 @@ from scripts.cocoindex_pipeline.form_extractors.orchestrator import (
     coerce_extracted_form,
 )
 from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionError
+
+# ID-75 WP-C — URL-source substrate ({75.7}/{75.8} leaf modules). `UrlItem` is
+# the frozen memo-keyed component argument (EXECUTOR-VERIFY-1); `validate_url`
+# is the verbatim SSRF port gating every fetch (BI-21).
+from scripts.cocoindex_pipeline.url_source import UrlItem
+from scripts.cocoindex_pipeline.url_validation import validate_url
 from scripts.cocoindex_pipeline.workspace_resolver import (
     ManifestLoadError,
     Resolution,
@@ -1183,6 +1196,52 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
         # 20260526074944_id42_pullmd_provenance.sql.
         "extraction_method": ColumnDef(type="text", nullable=True),
         "pullmd_share_id": ColumnDef(type="text", nullable=True),
+        # URL provenance (ID-75 BI-4; M1 §3 — 20260606121451_id75_reference_
+        # items_layer.sql). URL-sourced documents write the normalised URL
+        # (= storage_path, RESEARCH constraint 2); the localfs branch writes an
+        # explicit None.
+        "source_url": ColumnDef(type="text", nullable=True),
+    },
+    primary_key=("id",),
+)
+
+# ID-75 (O4/D4) — the reference layer (TECH §WP-A / §WP-C). Columns the
+# pipeline writes ONLY: created_at / updated_at are PG-defaulted and OMITTED
+# per the existing convention (explicit writes would duplicate the default /
+# fight the updated_at trigger). `id` is PIPELINE-MINTED
+# uuid5(_KH_PIPELINE_DOC_NS, "ri:"+normalised URL) — deliberately no DB
+# default (BI-2 idempotency under a stable PK). `embedding` reuses the
+# pgvector text-literal encoder. UNIQUE(source_url) in M1 enforces one
+# reference per URL (BI-2/BI-8); NO workspace column exists (BI-7
+# RATIFIED-DO-NOT-BUILD).
+REFERENCE_ITEMS_SCHEMA = TableSchema(
+    columns={
+        "id": ColumnDef(type="uuid", nullable=False),
+        "title": ColumnDef(type="text", nullable=False),
+        # PullMD/Docling markdown — the canonical body of record (BI-3).
+        "body": ColumnDef(type="text", nullable=False),
+        "summary": ColumnDef(type="text", nullable=True),
+        # Canonical normalised URL — the join contract (BI-4).
+        "source_url": ColumnDef(type="text", nullable=False),
+        # Original publication time from the ledger; never ingest time (BI-3).
+        "published_at": ColumnDef(type="timestamptz", nullable=True),
+        "primary_domain": ColumnDef(type="text", nullable=True),
+        "primary_subtopic": ColumnDef(type="text", nullable=True),
+        # v1 constant 'research' (D-10) — trigger-validated against
+        # layer_vocabulary in M1.
+        "layer": ColumnDef(type="text", nullable=True),
+        # Whole-record embedding — NO chunk table (BI-17, OQ-75-4 ratified).
+        "embedding": ColumnDef(
+            type="vector(1024)",
+            nullable=True,
+            encoder=_encode_pgvector,
+        ),
+        # Provenance chain integrity (BI-15) — RESTRICT FK in M1.
+        "source_document_id": ColumnDef(type="uuid", nullable=False),
+        # Acquisition route — CV 13 semantics (BI-9 / D-11): 'rss_feed' v1.
+        "ingestion_source": ColumnDef(type="text", nullable=False),
+        "op_id": ColumnDef(type="uuid", nullable=True),
+        # created_at / updated_at PG-defaulted — OMITTED per convention
     },
     primary_key=("id",),
 )
@@ -1918,6 +1977,9 @@ async def _ingest_content_branch(
             # Docling paths populate them (passthrough leaves both None).
             "extraction_method": provenance.extraction_method,
             "pullmd_share_id": provenance.pullmd_share_id,
+            # ID-75 BI-4: a localfs file has NO source URL — explicit None so
+            # the localfs/URL provenance split is visible at the write site.
+            "source_url": None,
         }
     )
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
@@ -2111,6 +2173,355 @@ async def _ingest_content_branch(
             }
         )
         _bump("postgres_upsert")  # Inv-17: one entity_mentions row upsert
+
+
+# ── ID-75 WP-C — URL-source per-item component (`ingest_url`) ────────────────
+# Lives beside `ingest_file` per D-6 (a separate flow_url.py would risk a
+# circular import against the schemas/extractors/counters this module owns).
+# The component declares the sd+ri EVIDENCE PAIR only — it has NO ci/qa/em/cc
+# target in its signature, making a `content_items` write structurally
+# impossible (BI-1). A content_items uuid5 seed is NEVER minted from a URL
+# (BI-2/BI-13) — the only seeds below are the sd/ri pair.
+
+
+def _url_filename(url: str) -> str:
+    """Derive `source_documents.filename` from a URL (BI-4 / WP-C step 5).
+
+    The last URL path segment when one exists, else the hostname (a root URL
+    like `https://example.com/` has no segment). Falls back to the raw URL if
+    even the hostname is unparsable — `filename` is NOT NULL.
+    """
+    parts = urlsplit(url)
+    segment = parts.path.rstrip("/").rsplit("/", 1)[-1]
+    return segment or (parts.hostname or url)
+
+
+async def _url_is_pdf(url: str) -> bool:
+    """D-12 PDF route detection (WP-C step 2).
+
+    `.pdf` path-suffix check first (cheap, deterministic); otherwise an httpx
+    HEAD content-type sniff for `application/pdf`. HEAD failure ⇒ assume HTML
+    and let PullMD try — its failure is contained per-item (BI-19).
+    """
+    if urlsplit(url).path.lower().endswith(".pdf"):
+        return True
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0), follow_redirects=True
+        ) as client:
+            resp = await client.head(url)
+        content_type = resp.headers.get("Content-Type", "")
+        return content_type.split(";")[0].strip().lower() == "application/pdf"
+    except httpx.HTTPError:
+        return False
+
+
+async def _fetch_url_bytes(url: str) -> bytes:
+    """Fetch PDF bytes for the Docling route (BI-20 / D-12).
+
+    The URL has already passed `validate_url` (step 1 — the SSRF gate runs
+    before ANY fetch). Raises on HTTP failure — contained per-item at the
+    mount boundary (BI-19), so a dead PDF link never aborts the walk.
+    """
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(60.0), follow_redirects=True
+    ) as client:
+        resp = await client.get(url)
+    resp.raise_for_status()
+    return resp.content
+
+
+def _pullmd_extraction_method(x_source: str | None) -> str | None:
+    """Map a PullMD X-Source onto `source_documents.extraction_method`.
+
+    Re-implements the {75.9}-retired localfs guard at the URL write site
+    (WP-C step 2): only the five known X-Source values map to
+    `pullmd_<x_source>`; an unrecognised / missing X-Source DEGRADES to None
+    with a structured warning — `pullmd_<unknown>` would violate the
+    CHECK enum on `source_documents.extraction_method`
+    (20260526074944_id42_pullmd_provenance.sql) at insert time.
+    """
+    if x_source in _PULLMD_X_SOURCE_METHODS:
+        return f"pullmd_{x_source}"
+    if x_source is not None:
+        _logger.warning(
+            json.dumps(
+                {
+                    "event": "cocoindex.pullmd_unknown_x_source",
+                    "x_source": x_source,
+                }
+            )
+        )
+    return None
+
+
+async def _log_ssrf_rejection(
+    *,
+    source_url: str,
+    reason: str,
+    op_id: "uuid.UUID",
+    ledger_urls: tuple[str, ...],
+) -> None:
+    """Write the BI-21/D-9 operator surface: one `ingestion_quality_log` row.
+
+    Contract (D-9): `flag_type='ssrf_rejected'` (CHECK extended by M1),
+    `severity='error'`, `content_item_id=NULL`,
+    `details={source_url, reason, op_id, feed_article_ids}`. The feed-article
+    ids are resolved from the raw ledger URLs at rejection time — `UrlItem`
+    deliberately does not carry them. Uses the same env-scope `DB_CTX` pool as
+    the Stage-5 / `_trim_stale_form_fields` precedents; module-level seam so
+    unit tests can observe the contract without a live pool.
+    """
+    pool = coco.use_context(DB_CTX)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id FROM public.feed_articles "
+            "WHERE external_url = ANY($1::text[]) AND passed",
+            list(ledger_urls),
+        )
+        feed_article_ids = [str(row["id"]) for row in rows]
+        await conn.execute(
+            "INSERT INTO public.ingestion_quality_log "
+            "(flag_type, severity, content_item_id, details) "
+            "VALUES ($1, $2, NULL, $3::jsonb)",
+            "ssrf_rejected",
+            "error",
+            json.dumps(
+                {
+                    "source_url": source_url,
+                    "reason": reason,
+                    "op_id": str(op_id),
+                    "feed_article_ids": feed_article_ids,
+                }
+            ),
+        )
+
+
+async def _backlink_feed_articles(
+    reference_item_id: "uuid.UUID", ledger_urls: tuple[str, ...]
+) -> None:
+    """D-7 backlink (WP-C step 7): point ALL ledger rows at the reference.
+
+    Raw-pool UPDATE keyed on the RAW stored `external_url` values captured at
+    enumeration (precise even if normalisation rules ever drift from stored
+    values). All N workspace rows for the URL backlink the ONE reference row
+    (BI-8/BI-10). Module-level seam, mirroring `_trim_stale_form_fields`.
+    """
+    pool = coco.use_context(DB_CTX)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE public.feed_articles SET reference_item_id = $1 "
+            "WHERE external_url = ANY($2::text[]) AND passed",
+            reference_item_id,
+            list(ledger_urls),
+        )
+
+
+@coco.fn(memo=True)
+async def ingest_url(
+    item: UrlItem,
+    ri_target: Any,
+    sd_target: Any,
+    *,
+    flow_op_id: "uuid.UUID | None" = None,
+    flow_stage_counter: Any = None,
+    flow_retry_counter: Any = None,
+    flow_taxonomy_miss_counter: Any = None,
+) -> None:
+    """Ingest ONE passed URL: fetch → extract → declare the sd+ri pair.
+
+    Mounted once per source item by `coco.mount_each` over
+    `FeedUrlSource.items()` ({75.11} wiring) — cocoindex 1.0.3 calls it as
+    `ingest_url(UrlItem, ri_target, sd_target)`; the (key,value) key (the
+    normalised URL) is consumed by `mount_each` for subpath routing and never
+    reaches `fn` (the `ingest_file` precedent).
+
+    `@coco.fn(memo=True)` memo-keys over the FROZEN `UrlItem` directly —
+    EXECUTOR-VERIFY-1 ({75.8}, SUPPORTED) verified empirically that the engine
+    fingerprints a frozen dataclass on module, qualname and field VALUES, so
+    the scalar-positional fallback is not needed. `content_epoch` rides the
+    item (D-4): a bumped epoch re-executes the component and re-fetches; an
+    unchanged item memo-hits and declares nothing (op_id retained, the
+    `ingest_file` Inv-11 refinement).
+
+    Run-context resolution mirrors `ingest_file` (ID-66.19): PREFER the
+    explicit `flow_*` kwargs threaded via the named closure in `app_main`
+    (which survive the daemon-thread dispatch), FALL BACK to the ContextVars
+    for in-task unit-test callers under `bind_flow_meta`. The re-bind makes
+    `extraction.py`'s in-task reads (retry / taxonomy recorders) see the run
+    context on THIS daemon thread.
+    """
+    import contextlib
+
+    from scripts.cocoindex_pipeline import flow_context as flow_context_module
+
+    op_id = flow_op_id
+    if op_id is None:
+        meta = flow_context_module.current_flow_meta()
+        op_id = None if meta is None else meta.op_id
+    if op_id is None:
+        raise RuntimeError(
+            "ingest_url invoked without a run op_id — app_main must pass "
+            "`flow_op_id=` (via the named closure) or wrap the in-task caller "
+            "in `async with bind_flow_meta(op_id=...)`."
+        )
+
+    stage_counter = flow_stage_counter
+    if stage_counter is None:
+        stage_counter = flow_context_module.current_stage_counter()
+
+    rebind_meta: Any = contextlib.nullcontext()
+    if flow_op_id is not None:
+        rebind_meta = flow_context_module.bind_flow_meta(op_id=flow_op_id)
+    rebind_retry: Any = contextlib.nullcontext()
+    if flow_retry_counter is not None:
+        rebind_retry = flow_context_module.bind_retry_counter(flow_retry_counter)
+    rebind_taxonomy: Any = contextlib.nullcontext()
+    if flow_taxonomy_miss_counter is not None:
+        rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
+            flow_taxonomy_miss_counter
+        )
+
+    async with rebind_meta, rebind_retry, rebind_taxonomy:
+        await _ingest_url_body(
+            item,
+            ri_target,
+            sd_target,
+            op_id=op_id,
+            stage_counter=stage_counter,
+        )
+
+
+async def _ingest_url_body(
+    item: UrlItem,
+    ri_target: Any,
+    sd_target: Any,
+    *,
+    op_id: "uuid.UUID",
+    stage_counter: Any,
+) -> None:
+    """The WP-C steps 1-8 per-URL body of `ingest_url` (ID-75.10).
+
+    ORDERING (BI-19): `declare_row` runs only AFTER fetch + extraction
+    succeed — a failed item lands NO partial rows, and because nothing was
+    declared the next walk re-runs it (memo miss on a failure-aborted run).
+    """
+
+    def _bump(stage: str, times: int = 1) -> None:
+        if stage_counter is not None:
+            for _ in range(times):
+                stage_counter.increment(stage)
+
+    # Inv-17: one source item enumerated + handed to this component.
+    _bump("source_walk")
+
+    # ── Step 1: SSRF gate (BI-21 / D-9) — BEFORE any fetch ──────────────────
+    ok, reason = validate_url(item.url)
+    if not ok:
+        _logger.error(
+            json.dumps(
+                {
+                    "event": "cocoindex.url_ssrf_rejected",
+                    "op_id": str(op_id),
+                    "source_url": item.url,
+                    "reason": reason,
+                }
+            )
+        )
+        await _log_ssrf_rejection(
+            source_url=item.url,
+            reason=reason or "",
+            op_id=op_id,
+            ledger_urls=item.ledger_urls,
+        )
+        return  # ZERO rows — siblings unaffected (BI-21)
+
+    # ── Step 2: PDF sniff (D-12) + fetch ─────────────────────────────────────
+    pullmd_share_id: str | None = None
+    if await _url_is_pdf(item.url):
+        # PDF route (BI-20): SSRF-validated GET → Docling. Never PullMD.
+        pdf_bytes = await _fetch_url_bytes(item.url)
+        markdown = await _docling_to_markdown(pdf_bytes, _url_filename(item.url))
+        extraction_method: str | None = "docling"
+        mime_type = "application/pdf"
+        file_size = len(pdf_bytes)
+        content_hash = hashlib.sha256(pdf_bytes).hexdigest()
+    else:
+        # HTML route: epoch-keyed PullMD fetch (D-4 / {75.9}).
+        result = await _pullmd_fetch(item.url, item.content_epoch)
+        markdown = result.markdown
+        extraction_method = _pullmd_extraction_method(result.x_source)
+        pullmd_share_id = result.share_id
+        mime_type = "text/html"
+        encoded = markdown.encode()
+        file_size = len(encoded)
+        content_hash = hashlib.sha256(encoded).hexdigest()
+    # Inv-17: one binary→markdown conversion completed for this item.
+    _bump("binary_conversion")
+
+    # ── Step 3: classification + embedding ───────────────────────────────────
+    # content_type output is DISCARDED (D-10 — references carry no
+    # content_type; the closed enum is preserved, BI-22 corollary 1).
+    classification = await extract_classification(markdown)
+    _bump("llm_extraction")
+    embedding = await embed_content_text(markdown)
+    _bump("embedding")
+
+    # ── Step 4: deterministic PKs — a content_items seed is NEVER minted from
+    # a URL (BI-1/BI-2: re-landing the same URL UPSERTs the same sd+ri pair).
+    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{item.url}")
+    reference_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ri:{item.url}")
+
+    # ── Step 5: source_documents row (BI-4) ──────────────────────────────────
+    sd_target.declare_row(
+        row={
+            "id": source_document_id,
+            # storage_path = source_url = normalised URL (RESEARCH constraint 2)
+            "storage_path": item.url,
+            "source_url": item.url,
+            "filename": _url_filename(item.url),
+            "mime_type": mime_type,
+            "file_size": file_size,
+            "content_hash": content_hash,
+            "op_id": op_id,
+            "extraction_method": extraction_method,
+            "pullmd_share_id": pullmd_share_id,
+        }
+    )
+    _bump("postgres_upsert")  # Inv-17: source_documents row upsert
+
+    # ── Step 6: reference_items row (the full BI-3 contract) ─────────────────
+    ri_target.declare_row(
+        row={
+            "id": reference_item_id,
+            # Ledger title (feed-declared) with classifier suggested_title
+            # fallback if ever empty (D-10).
+            "title": item.title or _field(classification, "suggested_title"),
+            "body": markdown,
+            "summary": item.summary,
+            "source_url": item.url,
+            # Original publication time, never ingest time (BI-3). asyncpg
+            # needs a datetime for timestamptz; the item carries ISO 8601.
+            "published_at": (
+                datetime.fromisoformat(item.published_at)
+                if item.published_at
+                else None
+            ),
+            "primary_domain": _field(classification, "primary_domain"),
+            "primary_subtopic": _field(classification, "primary_subtopic"),
+            "layer": "research",  # v1 constant (D-10)
+            "embedding": embedding,
+            "source_document_id": source_document_id,
+            "ingestion_source": item.ingestion_source,
+            "op_id": op_id,
+            # workspace_ids NEVER written (BI-7); created_at/updated_at
+            # PG-defaulted — omitted per convention.
+        }
+    )
+    _bump("postgres_upsert")  # Inv-17: reference_items row upsert
+
+    # ── Step 7: D-7 backlink — all N ledger rows → the one reference ─────────
+    await _backlink_feed_articles(reference_item_id, item.ledger_urls)
 
 
 async def _ingest_form_branch(

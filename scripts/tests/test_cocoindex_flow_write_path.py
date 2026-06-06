@@ -252,6 +252,12 @@ class TestIngestFileWritePath:
         assert "content_fingerprint" not in sd.rows[0], (
             "content_fingerprint does not exist in prod — must be content_hash"
         )
+        # ID-75 BI-4: the localfs branch writes an EXPLICIT source_url None —
+        # only URL-sourced documents populate it (the provenance split is
+        # visible at the write site).
+        assert sd.rows[0]["source_url"] is None, (
+            "localfs files have no source URL — explicit None (ID-75 BI-4)"
+        )
 
         # content_items: exactly one row, content present, op_id stamped,
         # embedding a length-1024 vector (Stage-4 ID-49.2; the dimension contract
