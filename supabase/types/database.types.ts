@@ -4435,6 +4435,43 @@ export type Database = {
           total_count: number
         }[]
       }
+      reference_get_verbatim: {
+        Args: { p_reference_id: string }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          ingestion_source: string
+          layer: string
+          op_id: string
+          primary_domain: string
+          primary_subtopic: string
+          published_at: string
+          source_document_id: string
+          source_url: string
+          summary: string
+          title: string
+          updated_at: string
+        }[]
+      }
+      reference_search: {
+        Args: { p_limit?: number; p_query: string; p_query_embedding: string }
+        Returns: {
+          body_preview: string
+          embedding_score: number
+          fulltext_score: number
+          ingestion_source: string
+          layer: string
+          primary_domain: string
+          primary_subtopic: string
+          published_at: string
+          reference_id: string
+          source_document_id: string
+          source_url: string
+          summary_preview: string
+          title: string
+        }[]
+      }
       rename_tag: {
         Args: { p_new: string; p_old: string; p_type: string }
         Returns: number
