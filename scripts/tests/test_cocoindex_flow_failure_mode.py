@@ -179,10 +179,13 @@ class _FkViolation(_PostgresError):
     """Stand-in for asyncpg.ForeignKeyViolationError ({75.17}).
 
     Carries the `.constraint_name` surface the step-8 backlink tolerance in
-    `_ingest_url_body` narrows on. Subclasses `_PostgresError` so an escaping
-    (non-tolerated) violation still classifies `postgres_write_failed` — the
-    REAL asyncpg shape (ForeignKeyViolationError < PostgresError, with a
-    `constraint_name` attribute) is pinned in a fresh interpreter by
+    `_ingest_url_body` narrows on — by STRING COMPARE of `constraint_name`
+    alone (Checker fix: never by asyncpg class identity, which is
+    import-order-dependent under this suite's MagicMock asyncpg stubs).
+    Subclasses `_PostgresError` so an escaping (non-tolerated) violation
+    still classifies `postgres_write_failed` — the REAL asyncpg shape
+    (ForeignKeyViolationError < PostgresError, with a `constraint_name`
+    attribute) is pinned in a fresh interpreter by
     `TestUrlPerItemFailureIsolation.
     test_real_asyncpg_fk_violation_exposes_constraint_name`.
     """
@@ -1864,18 +1867,18 @@ class TestUrlPerItemFailureIsolation:
         harness["backlinks"] = backlinks
         harness["backlink_exc"] = backlink_exc
 
-        # {75.17}: the step-8 FK tolerance in `_ingest_url_body` narrows on
-        # `asyncpg.ForeignKeyViolationError` read off flow's captured asyncpg
-        # module — which, depending on suite import ordering, is either the
-        # resident MagicMock stub (no real exception classes) or the real
-        # package. Pin BOTH classes on whatever module flow sees so the
-        # narrowing and the classifier behave deterministically here
-        # (monkeypatch restores the attributes after each test).
+        # {75.17} (Checker fix): the step-8 tolerance in `_ingest_url_body`
+        # narrows by `constraint_name` STRING COMPARE only — it never reads
+        # an asyncpg exception class, so NO ForeignKeyViolationError pin is
+        # needed (a class-identity pin proved run-order-flaky under the
+        # suite's resident MagicMock asyncpg). Pin only `PostgresError` —
+        # `_classify_stage_exception` still isinstance-checks it for the
+        # ESCAPING (non-tolerated) errors these tests assert on — on
+        # whatever module object flow captured, so the classifier behaves
+        # deterministically across import orderings (monkeypatch restores
+        # the attribute after each test).
         monkeypatch.setattr(
             flow.asyncpg, "PostgresError", _PostgresError, raising=False
-        )
-        monkeypatch.setattr(
-            flow.asyncpg, "ForeignKeyViolationError", _FkViolation, raising=False
         )
 
         # ── Recording targets. ──
@@ -2017,8 +2020,9 @@ class TestUrlPerItemFailureIsolation:
         declared at step 6 only AFTER the component returns
         (cocoindex-write-model.md §1 — no per-row UPSERT completion
         callback), so on a clean walk 1 the backlink write ALWAYS hits the
-        `feed_articles_reference_item_id_fkey` violation. EXACTLY that FK
-        class is tolerated: the item COMPLETES (sd/ri stay declared → the
+        `feed_articles_reference_item_id_fkey` violation. EXACTLY that
+        constraint name is tolerated (string compare — never asyncpg class
+        identity): the item COMPLETES (sd/ri stay declared → the
         engine flushes them), one structured
         `cocoindex.url_backlink_deferred` line is logged per deferred URL,
         the url tally is NOT incremented, and walk 2's re-enumeration (the
@@ -2186,13 +2190,15 @@ class TestUrlPerItemFailureIsolation:
         assert harness["backlinks"] == []
 
     def test_real_asyncpg_fk_violation_exposes_constraint_name(self):
-        """Pin the REAL asyncpg seam the {75.17} narrowing depends on, in a
-        fresh interpreter (this suite's process may hold the MagicMock
-        asyncpg stub): `ForeignKeyViolationError` carries `.constraint_name`
-        and subclasses `PostgresError` — were either to drift, the tolerance
-        would silently never defer (getattr → None → re-raise → the S319
-        no-convergence defect returns) or an escaping violation would stop
-        classifying `postgres_write_failed`.
+        """THE load-bearing seam proof for the {75.17} tolerance, pinned
+        against the REAL installed asyncpg in a fresh interpreter (this
+        suite's process may hold the MagicMock asyncpg stub). The production
+        narrowing is a `constraint_name` string compare with NO asyncpg
+        class dependency, so this pin carries the whole contract:
+        `ForeignKeyViolationError` exposes `.constraint_name` (were it to
+        drift, getattr → None → re-raise → the S319 no-convergence defect
+        returns) and subclasses `PostgresError` (were that to drift, an
+        escaping violation would stop classifying `postgres_write_failed`).
         """
         src = (
             "import asyncpg, asyncpg.exceptions as ex\n"

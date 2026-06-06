@@ -2321,8 +2321,9 @@ async def _backlink_feed_articles(
     (BI-8/BI-10). Module-level seam, mirroring `_trim_stale_form_fields`.
 
     {75.17}: raises like any raw pool write — the walk-1 FK-deferral
-    tolerance (the `_FEED_ARTICLES_RI_FKEY` ForeignKeyViolation ONLY) lives
-    at the `_ingest_url_body` call site, not here.
+    tolerance (an exception whose `constraint_name` string-compares equal to
+    `_FEED_ARTICLES_RI_FKEY`, and ONLY that) lives at the `_ingest_url_body`
+    call site, not here.
     """
     pool = coco.use_context(DB_CTX)
     async with pool.acquire() as conn:
@@ -2431,9 +2432,10 @@ async def _ingest_url_body(
     BACKLINK DEFERRAL ({75.17}): the step-7/8 backlink write races the
     engine's post-return target flush, so its
     `feed_articles_reference_item_id_fkey` violation on walk 1 is tolerated
-    (structured `cocoindex.url_backlink_deferred` log, item completes,
-    sd/ri flush) and the backlink converges on walk 2's re-run. Every OTHER
-    error in that write still raises into the BI-19 containment.
+    — narrowed by a `constraint_name` STRING COMPARE, never by asyncpg
+    exception class (structured `cocoindex.url_backlink_deferred` log, item
+    completes, sd/ri flush) — and the backlink converges on walk 2's re-run.
+    Every OTHER error in that write still raises into the BI-19 containment.
     """
 
     def _bump(stage: str, times: int = 1) -> None:
@@ -2569,14 +2571,15 @@ async def _ingest_url_body(
     try:
         await _backlink_feed_articles(reference_item_id, item.ledger_urls)
     except Exception as exc:  # noqa: BLE001 — narrowed immediately below
-        # `getattr` + type-guard mirrors `_classify_stage_exception`'s
-        # defence: unit suites import flow under a MagicMock asyncpg.
-        _fk_cls = getattr(asyncpg, "ForeignKeyViolationError", None)
-        if not (
-            isinstance(_fk_cls, type)
-            and isinstance(exc, _fk_cls)
-            and getattr(exc, "constraint_name", None) == _FEED_ARTICLES_RI_FKEY
-        ):
+        # Narrow on the postgres constraint NAME alone ({75.17} Checker fix):
+        # only postgres FK violations carry a `constraint_name` attribute
+        # (asyncpg surfaces the server diag field — the real-asyncpg seam is
+        # pinned by test_real_asyncpg_fk_violation_exposes_constraint_name),
+        # so the string compare preserves the semantic narrowing WITHOUT
+        # depending on the asyncpg exception-class OBJECT — whose identity is
+        # import-order-dependent under the unit suites' MagicMock asyncpg
+        # stubs (a class-based isinstance narrowing proved run-order-flaky).
+        if getattr(exc, "constraint_name", None) != _FEED_ARTICLES_RI_FKEY:
             raise
         _logger.info(
             json.dumps(
