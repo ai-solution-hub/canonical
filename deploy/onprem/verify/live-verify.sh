@@ -52,6 +52,16 @@
 # USAGE:
 #   KH_REPO_DIR=/opt/knowledge-hub deploy/onprem/verify/live-verify.sh
 #
+# URL-MODE LEG (ID-62 {62.10} — NOT part of this script's sequence): the URL
+# landing-set proof is the SIBLING host-side driver
+# deploy/onprem/verify/verify_driver.py (seed gate-passed feed_articles row →
+# POST {worker}/walk → pullmd /s/<id> round-trip → second-walk idempotency
+# leg), followed by the Vitest landing-set file
+# __tests__/integration/cocoindex/url-landing-set.integration.test.ts. It
+# targets the STAGING worker (COCOINDEX_WORKER_URL) + staging Supabase — not
+# this script's in-container stack. Operator command: see that driver's
+# module docstring.
+#
 # Tunables (env):
 #   KH_REPO_DIR              repo checkout the Vitest step runs from (REQUIRED)
 #   VERIFY_ENV_FILE          host secrets env file (default /root/.kh-live-verify.env)
