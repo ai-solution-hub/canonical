@@ -176,6 +176,13 @@ services:
       PULLMD_ADMIN_EMAIL: ${PULLMD_ADMIN_EMAIL}
       PULLMD_ADMIN_PASSWORD: ${PULLMD_ADMIN_PASSWORD}
       PULLMD_API_TOKEN: ${PULLMD_API_TOKEN}
+      # S319 {62.10}: pullmd 2.x never reads PULLMD_API_TOKEN — minted pmd_ tokens
+      # live in an EPHEMERAL store (wiped on every recreate), so the worker's static
+      # bearer 401s. PULLMD_AUTH_TOKEN is the upstream-documented static-bearer path
+      # ("legacy bearer token compat, single-admin mode only, removed in v3.0" —
+      # maps to the admin user). Same secret value; survives restarts. Mirror this
+      # line into the prod compose at {75.15} cutover.
+      PULLMD_AUTH_TOKEN: ${PULLMD_API_TOKEN}
 
       # Sidecar wiring — compose-alias form. Distinct staging aliases for the render +
       # extract sidecars so the staging stack co-resides cleanly with prod.
