@@ -1008,8 +1008,8 @@ class TestStageMultipartContract:
             )
         )
         assert status == 200
-        # Bytes landed at corpus_root/destPath — the watcher's next cycle
-        # picks them up.
+        # Bytes landed at corpus_root/destPath — ingested by the next
+        # explicit POST /walk (ID-83: staging alone never ingests).
         written = corpus / "forms" / "P-123-form.xlsx"
         assert written.exists()
         assert written.read_bytes() == payload

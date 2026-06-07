@@ -359,7 +359,6 @@ def walk_until_accepted(config: DriverConfig, deps: Deps) -> tuple[bool, str]:
     """
     walk_url = f"{config.worker_url.rstrip('/')}/walk"
     deadline = deps.monotonic() + config.walk_retry_deadline
-    last_status: int | None = None
     while True:
         try:
             resp = deps.http_post(
@@ -369,7 +368,6 @@ def walk_until_accepted(config: DriverConfig, deps: Deps) -> tuple[bool, str]:
             )
         except requests.RequestException as exc:
             return False, f"transport error POSTing {walk_url}: {exc!r}"
-        last_status = resp.status_code
         if resp.status_code == 202:
             return True, f"walk accepted: {resp.text[:200]}"
         if resp.status_code != 409:
@@ -381,7 +379,7 @@ def walk_until_accepted(config: DriverConfig, deps: Deps) -> tuple[bool, str]:
             return (
                 False,
                 f"/walk still 409 (walk in flight) after "
-                f"{config.walk_retry_deadline}s — last HTTP {last_status}",
+                f"{config.walk_retry_deadline}s",
             )
         deps.sleep(config.walk_retry_interval)
 
