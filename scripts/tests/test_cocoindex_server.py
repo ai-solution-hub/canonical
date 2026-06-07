@@ -888,6 +888,32 @@ async def _exercise_stage(
     return resp.status, json.loads(resp.body)
 
 
+async def _exercise_stage_raw(
+    aiohttp_app: web.Application,
+    *,
+    raw_body: bytes,
+    content_type: str,
+) -> tuple[int, dict]:
+    """Invoke the /stage handler in-process with a NON-multipart body.
+
+    Mirrors `_exercise_stage` (route resolve + direct handler await, no TCP
+    socket) but sends `raw_body` verbatim under an arbitrary `content_type` —
+    the mis-wired-client path: a POST that never went through multipart
+    encoding (e.g. a JSON body). Returns `(status, parsed_json_body)`.
+    """
+    loop = asyncio.get_running_loop()
+    stream = StreamReader(Mock(), limit=2**16, loop=loop)
+    stream.feed_data(raw_body)
+    stream.feed_eof()
+    headers = {"Content-Type": content_type}
+    request = make_mocked_request(
+        "POST", "/stage", headers=headers, payload=stream, app=aiohttp_app
+    )
+    match_info = await aiohttp_app.router.resolve(request)
+    resp = await match_info.handler(request)
+    return resp.status, json.loads(resp.body)
+
+
 class TestStageRouteTable:
     """Inv-1 — `POST /stage` is registered on the same `build_app()` app."""
 
@@ -1065,6 +1091,79 @@ class TestStagePathEscape:
         assert status == 400
         assert "error" in body
         assert not abs_target.exists()
+
+
+class TestStageContentTypeGuard:
+    """Inv-5 — a non-multipart POST /stage is a NAMED 400, never a 5xx.
+
+    Without a content-type guard, `await request.multipart()` raises an
+    internal AssertionError on a non-multipart body (aiohttp's
+    `MultipartReader` asserts `multipart/*`), surfacing as an unhandled 500.
+    A client posting JSON to /stage is a client-correctable mis-wire and must
+    learn so from a named 400 error body (ID-62 quality-review Nit 1).
+    """
+
+    def test_stage_400_on_json_content_type(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, body = asyncio.run(
+            _exercise_stage_raw(
+                aiohttp_app,
+                raw_body=json.dumps(
+                    {"destPath": "f.bin", "titlePrefix": "P-"}
+                ).encode(),
+                content_type="application/json",
+            )
+        )
+        assert status == 400
+        # The error names the multipart requirement so the mis-wire is
+        # client-diagnosable (Inv-5).
+        assert "multipart" in body["error"]
+
+    def test_stage_400_on_json_content_type_writes_nothing(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, _ = asyncio.run(
+            _exercise_stage_raw(
+                aiohttp_app,
+                raw_body=json.dumps({"destPath": "f.bin"}).encode(),
+                content_type="application/json",
+            )
+        )
+        assert status == 400
+        # Rejection writes nothing into the corpus dir.
+        assert list(corpus.iterdir()) == []
+
+
+class TestClientMaxSize:
+    """build_app() must override aiohttp's invisible 1 MB `client_max_size`
+    default (ID-62 quality-review Nit 2).
+
+    Contract documentation, not behaviour simulation: the limit is enforced
+    inside aiohttp's request-payload machinery, which this file's in-process
+    `make_mocked_request` harness does not drive, and a real >limit round-trip
+    would need a 50 MB socket body (wasteful). The one-line config assertion
+    pins the contract — large staged fixtures (multi-MB PDF/DOCX) must not be
+    rejected by a default nobody chose. 50 MB rationale lives in the
+    `build_app()` docstring.
+    """
+
+    def test_build_app_sets_50mb_client_max_size(
+        self, aiohttp_app: web.Application
+    ) -> None:
+        assert aiohttp_app._client_max_size == 50 * 1024 * 1024
 
 
 # ──────────────────────────────────────────────────────────────────────────

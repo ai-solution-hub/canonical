@@ -243,6 +243,21 @@ async def _stage_handler(request: web.Request) -> web.Response:
         )
 
     # (2) Read the multipart body; capture the file bytes + the text parts [Inv-2].
+    #     Guard the content type FIRST: `request.multipart()` raises an internal
+    #     AssertionError on a non-multipart body (aiohttp's MultipartReader
+    #     asserts `multipart/*`), which would surface as an unhandled 500. A
+    #     client posting JSON here is a client-correctable mis-wire → named 400,
+    #     never a 5xx [Inv-5].
+    if "multipart" not in request.content_type:
+        return web.json_response(
+            {
+                "error": (
+                    "/stage requires a multipart/form-data body, got "
+                    f"Content-Type: {request.content_type}"
+                )
+            },
+            status=400,
+        )
     file_bytes: bytes | None = None
     dest_path: str | None = None
     title_prefix: str | None = None
@@ -486,8 +501,15 @@ def build_app() -> web.Application:
       - POST /walk   — bearer-gated on-demand corpus walk trigger (ID-83 /
         bl-221). Adding /walk does NOT touch /health — a walk request cannot
         flip the liveness probe.
+
+    `client_max_size` is set EXPLICITLY to 50 MB: aiohttp's invisible default
+    is 1 MB, which a future large /stage fixture (multi-MB PDF/DOCX — the
+    largest current fixture is already 510 KB) would silently trip. 50 MB is
+    deliberate headroom, and the size cap is not a public-exposure concern:
+    the route is compose-internal only — never published outside the Docker
+    network (Inv-13).
     """
-    app = web.Application()
+    app = web.Application(client_max_size=50 * 1024 * 1024)
     app.router.add_get("/health", _health_handler)
     app.router.add_post("/stage", _stage_handler)
     app.router.add_post("/walk", _walk_handler)
@@ -672,6 +694,10 @@ def main() -> None:
     start_cocoindex_thread()
 
     app = build_app()
+    # Inv-13: the public-exposure guard is the Compose topology — the cocoindex
+    # service publishes NO `ports:` mapping, so this bind is reachable only on
+    # the internal Docker bridge network. The container MUST bind 0.0.0.0 for
+    # that bridge reachability; a loopback bind would break compose-internal calls.
     web.run_app(app, host="0.0.0.0", port=port, print=None)  # noqa: S104 — bind all interfaces for Docker-network reachability
 
 
