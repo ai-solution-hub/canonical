@@ -497,6 +497,131 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  detect-changes:
+    # ─────────────────────────────────────────────────────────────────────────
+    # CHANGE DETECTION for the real-API lanes — ID-91 ({91.1}, bl-246).
+    # Every push to main/staging previously ran `integration`, `mcp-eval-seed`
+    # and the `mcp-eval` L1/L3/L4 matrix in full mode — burning real Anthropic
+    # (Sonnet + Haiku) + OpenAI embedding tokens even when nothing those suites
+    # exercise had changed (an align-class docs push burned the lanes twice:
+    # once on main, once on staging). This job replicates the ID-86 pattern
+    # from onprem-deploy.yml (commits ccc66f48/bd5f0359): a FULL `before..sha`
+    # `git diff --name-only` compare — NOT the GitHub compare API / push-event
+    # `paths:` filter, both of which inspect only the first 300 changed files
+    # and silently skip on align-class pushes — matched against the path set
+    # the real-API lanes actually exercise, gating those jobs on
+    # `outputs.relevant` for PUSH events only.
+    #
+    # PR runs are untouched: on any non-push event this job short-circuits to
+    # relevant=true without checking out, so the gated jobs' `if:` conditions
+    # are always satisfied and the existing PR skip-flag policy inside
+    # `mcp-eval` (paths-filter → --skip-ai / --skip-search) keeps sole control
+    # of PR cost.
+    #
+    # Path-set rationale (verified against imports, S323 — err toward
+    # over-inclusion: a false re-burn is cheaper than a silent skip of a real
+    # regression):
+    #   __tests__/integration/**          — the integration suite itself
+    #   __tests__/helpers/**              — shared helpers the suite imports
+    #                                       (mock-supabase, supabase-client, …)
+    #   __tests__/setup.ts                — vitest setupFiles for the suite
+    #   lib/**                            — suite imports 12+ lib subdirs
+    #                                       (ai, auth, intelligence, queue,
+    #                                       supabase, entities, pipeline, …);
+    #                                       mcp-eval exercises lib/mcp +
+    #                                       lib/ai + lib/validation; the
+    #                                       booted server validates lib/env*
+    #   app/api/**                        — suite dynamically imports route
+    #                                       handlers (items, admin, cron,
+    #                                       ingest, governance, review, …);
+    #                                       mcp-eval hits app/api/mcp/**
+    #   types/**                          — domain types the suite imports
+    #   supabase/**                       — generated types + migrations
+    #                                       (trigger tests exercise live DB
+    #                                       schema: publication-status,
+    #                                       archive-coverage, review-cadence)
+    #   scripts/mcp-eval/**               — eval harness + corpus seeder
+    #   scripts/cleanup-orphaned-content-history.ts — job cleanup step
+    #   proxy.ts                          — middleware on the booted server
+    #   next.config.ts                    — server build/runtime behaviour
+    #   vitest.integration.config.ts      — integration runner config
+    #   tsconfig.json                     — path-alias resolution
+    #   package.json / bun.lock           — dependency manifests
+    #   .github/workflows/ci.yml          — this workflow itself
+    #   .node-version                     — runtime version the jobs pin
+    #
+    # FAILURE MODES — no silent failure-by-skip: edge cases (all-zeros
+    # `before` on branch create / force-push, unreachable `before` after a
+    # history rewrite) fail OPEN to relevant=true; the verdict + compared
+    # range + matched files are always logged; and `ci-summary` includes this
+    # job in its needs, so an outright detection failure turns CI red instead
+    # of quietly skipping the lanes.
+    # ─────────────────────────────────────────────────────────────────────────
+    name: Detect real-API-relevant changes (full compare)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      relevant: ${{ steps.diff.outputs.relevant }}
+    steps:
+      - name: Checkout (full history — the before..sha diff needs both ends)
+        # Push events only — non-push events short-circuit to relevant=true
+        # in the step below without needing the repo, keeping PR-lane latency
+        # at effectively zero.
+        if: github.event_name == 'push'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Diff before..sha and match the real-API path set
+        id: diff
+        env:
+          # Map dynamic values into the shell env (never interpolate ${{ }}
+          # directly inside run: — injection-safe, mirroring onprem-deploy).
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          emit() {
+            echo "relevant=$1" >> "$GITHUB_OUTPUT"
+            echo "detect-changes verdict: relevant=$1 ($2)"
+          }
+          # Gate applies to push events ONLY. PR runs keep their existing
+          # behaviour (mcp-eval's in-job paths-filter skip-flag policy).
+          if [ "${EVENT_NAME}" != "push" ]; then
+            emit true "non-push event (${EVENT_NAME}) — gate is push-only; PR lanes keep their own skip-flag policy"
+            exit 0
+          fi
+          # Branch create / force-push: GitHub sends an all-zeros `before` SHA
+          # (or none). No comparable base — fail open to relevant=true.
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ -z "${BEFORE_SHA}" ] || [ "${BEFORE_SHA}" = "${ZERO_SHA}" ]; then
+            emit true "before SHA empty/all-zeros (branch create or force-push)"
+            exit 0
+          fi
+          # History rewrite can leave `before` unreachable even at
+          # fetch-depth 0 — fail open rather than erroring the gate.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            emit true "before SHA ${BEFORE_SHA} not found locally (history rewrite)"
+            exit 0
+          fi
+          # FULL compare — git diff has no 300-file ceiling. Capture first,
+          # then grep WITHOUT -q (avoids the SIGPIPE/pipefail early-exit
+          # footgun), so the matched files are also logged for the operator.
+          CHANGED="$(git diff --name-only "${BEFORE_SHA}" "${AFTER_SHA}")"
+          TOTAL="$(printf '%s\n' "${CHANGED}" | grep -c . || true)"
+          echo "Full compare ${BEFORE_SHA}..${AFTER_SHA}: ${TOTAL} changed file(s)."
+          MATCHES="$(printf '%s\n' "${CHANGED}" | grep -E '^(__tests__/integration/.*|__tests__/helpers/.*|__tests__/setup\.ts|lib/.*|app/api/.*|types/.*|supabase/.*|scripts/mcp-eval/.*|scripts/cleanup-orphaned-content-history\.ts|proxy\.ts|next\.config\.ts|vitest\.integration\.config\.ts|tsconfig\.json|package\.json|bun\.lock|\.github/workflows/ci\.yml|\.node-version)$' || true)"
+          if [ -n "${MATCHES}" ]; then
+            echo "Real-API-relevant changes:"
+            printf '%s\n' "${MATCHES}"
+            emit true "real-API path(s) changed"
+          else
+            emit false "no real-API-relevant paths in the compare — integration + mcp-eval-seed + mcp-eval (l1/l3/l4) will SKIP on this push"
+          fi
+
   mcp-eval-seed:
     # Seed the shared deterministic Q&A corpus once before the L1/L3/L4 eval
     # matrix fans out. Rows are persistent staging fixtures identified by
@@ -511,7 +636,16 @@ jobs:
       cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
-    needs: mcp-build
+    needs: [mcp-build, detect-changes]
+    # Real-API gate (ID-91 / bl-246) — push events only: a push that touches
+    # no real-API-relevant path skips the seed (and, via needs, the eval
+    # matrix). PR runs always pass this condition (detect-changes emits
+    # relevant=true on non-push events). No status function in the
+    # expression, so the implicit success() keeps the existing
+    # mcp-build-failure → skip semantics intact.
+    if:
+      github.event_name != 'push' || needs.detect-changes.outputs.relevant ==
+      'true'
     timeout-minutes: 10
     permissions:
       contents: read
@@ -560,13 +694,15 @@ jobs:
     # seeded Q&A corpus produced by `mcp-eval-seed`.
     #
     # Skip-flag policy (per spec §3.2):
-    #   - push to main/staging → full mode (no skip flags)
+    #   - push to main/staging → full mode (no skip flags) — but only when the
+    #     `detect-changes` gate (ID-91 / bl-246) found a real-API-relevant
+    #     change in the push; otherwise the whole matrix skips
     #   - PR touching MCP paths (paths-filter) → full mode
     #   - other PRs → --skip-ai (L1, L4) / --skip-search (L3) for cost-zero runs
     #
     # Independent of `quality-precheck`/`quality-test`; depends only on
-    # `mcp-build` + `mcp-eval-seed` so eval results appear regardless of
-    # quality-job state.
+    # `mcp-build` + `mcp-eval-seed` (+ the `detect-changes` gate) so eval
+    # results appear regardless of quality-job state.
     name: MCP eval (${{ matrix.layer }})
     # Dependabot-skip: matrix expansion is gated upstream by mcp-build +
     # mcp-eval-seed (both also skipped on Dependabot). Adding the explicit
@@ -582,7 +718,14 @@ jobs:
     # (per docs/runbooks/github-environments.md §3.1). Eval scripts authenticate
     # as TEST_USER_1 to obtain a Bearer token for the MCP server endpoint.
     environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
-    needs: [mcp-build, mcp-eval-seed]
+    needs: [mcp-build, mcp-eval-seed, detect-changes]
+    # Real-API gate (ID-91 / bl-246) — push events only; see `mcp-eval-seed`.
+    # Belt-and-braces: a skipped `mcp-eval-seed` already skips this matrix via
+    # the implicit success() over needs, but the explicit condition keeps the
+    # policy self-documenting.
+    if:
+      github.event_name != 'push' || needs.detect-changes.outputs.relevant ==
+      'true'
     timeout-minutes: 15
     permissions:
       contents: read
@@ -765,9 +908,9 @@ jobs:
     #   - e2e-smoke `continue-on-error: true` (line 235)
     #   - MCP eval graceful-skip in `scripts/mcp-eval/fixtures.ts`
     #
-    # Independent of the `quality` / `e2e-smoke` / `mcp-eval` jobs (no
-    # `needs:` chain) so total CI wall-clock = max(quality, e2e-smoke,
-    # mcp-eval, integration).
+    # Independent of the `quality` / `e2e-smoke` / `mcp-eval` jobs — the only
+    # `needs:` is the lightweight `detect-changes` gate (seconds), so total CI
+    # wall-clock stays ≈ max(quality, e2e-smoke, mcp-eval, integration).
     # Dependabot-skip: hits real Supabase + Anthropic + OpenAI; all of these
     # come from `secrets.*` which are blocked for Dependabot PRs.
     name: Integration tests
@@ -775,6 +918,14 @@ jobs:
     concurrency:
       group: integration-staging-integration
       cancel-in-progress: false
+    needs: detect-changes
+    # Real-API gate (ID-91 / bl-246) — push events only: a push that touches
+    # no real-API-relevant path skips the suite (real Anthropic + OpenAI
+    # burn). PR runs always pass this condition (detect-changes emits
+    # relevant=true on non-push events).
+    if:
+      github.event_name != 'push' || needs.detect-changes.outputs.relevant ==
+      'true'
     runs-on: ubuntu-latest
     # Staging-scoped: TEST_USER_{1,2,3}_* + staging Supabase secrets only
     # exist on Staging env scope (per docs/runbooks/github-environments.md
@@ -1181,9 +1332,15 @@ jobs:
     # Security note: every `${{ needs.<job>.result }}` is routed through
     # an env: var (no direct interpolation in run:). Per
     # https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/.
+    # `detect-changes` is in the needs list (ID-91 / bl-246) so an outright
+    # failure of the real-API gate turns ci-summary red — the gated jobs
+    # would show `skipped` (treated as pass), so without this entry a broken
+    # gate could silently skip the real-API lanes forever. Skips of the gated
+    # jobs themselves stay green by the existing skipped-is-pass semantics.
     name: ci-summary
     if: always()
     needs:
+      - detect-changes
       - quality-precheck
       - quality-test
       - e2e-smoke
@@ -1208,6 +1365,7 @@ jobs:
     steps:
       - name: Aggregate upstream job results
         env:
+          DETECT_CHANGES: ${{ needs.detect-changes.result }}
           QUALITY_PRECHECK: ${{ needs.quality-precheck.result }}
           QUALITY_TEST: ${{ needs.quality-test.result }}
           E2E_SMOKE: ${{ needs.e2e-smoke.result }}
@@ -1223,6 +1381,7 @@ jobs:
           set -euo pipefail
           fail=0
           for entry in \
+            "detect-changes=$DETECT_CHANGES" \
             "quality-precheck=$QUALITY_PRECHECK" \
             "quality-test=$QUALITY_TEST" \
             "e2e-smoke=$E2E_SMOKE" \
@@ -1266,7 +1425,18 @@ jobs:
     # Direct-commit per OQ-6 Option A, with side-PR fallback (Option B) when
     # branch protection blocks the github-actions[bot] push.
     name: Regenerate generated docs (stats + MCP inventory)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # `!cancelled()` (a status function) replaces the implicit success() over
+    # needs — required since ID-91 / bl-246: the real-API lanes
+    # (mcp-eval-seed, mcp-eval, integration) in the needs list may now be
+    # SKIPPED on a push that touched no real-API path, and implicit success()
+    # treats a skipped need as not-success, which would have silently stopped
+    # stats regen on docs-only pushes to main. `needs.ci-summary.result ==
+    # 'success'` preserves the real guarantee — ci-summary fails if ANY
+    # upstream job failed (skips pass), and every job in this needs list is
+    # also in ci-summary's needs.
+    if:
+      "!cancelled() && github.event_name == 'push' && github.ref ==
+      'refs/heads/main' && needs.ci-summary.result == 'success'"
     needs:
       - quality-precheck
       - quality-test
