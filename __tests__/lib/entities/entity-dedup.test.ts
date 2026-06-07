@@ -295,7 +295,7 @@ describe('batch_reclassify helpers', () => {
     });
 
     it('passes through normal names unchanged', () => {
-      expect(canonicalise('example-client Design')).toBe('example-client Design');
+      expect(canonicalise('Examplia Design')).toBe('Examplia Design');
     });
   });
 });

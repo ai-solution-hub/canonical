@@ -578,7 +578,7 @@ describe('get_certification_status — holder coverage (48)', () => {
           entity_type_override: null,
           metadata: {
             holder: 'supplier',
-            supplier_name: 'example-datacentre london docklands',
+            supplier_name: 'example datacentre london',
             version: '2015',
           },
           content_item_id: UUID_CONTENT_1,
@@ -609,7 +609,7 @@ describe('get_certification_status — holder coverage (48)', () => {
     );
     expect(
       resultWithSuppliers.structuredContent.certifications[0].supplier_name,
-    ).toBe('example-datacentre london docklands');
+    ).toBe('example datacentre london');
 
     // Reset chain mock indices for second call
     vi.clearAllMocks();
@@ -630,7 +630,7 @@ describe('get_certification_status — holder coverage (48)', () => {
           entity_type_override: null,
           metadata: {
             holder: 'supplier',
-            supplier_name: 'example-datacentre london docklands',
+            supplier_name: 'example datacentre london',
             version: '2015',
           },
           content_item_id: UUID_CONTENT_1,

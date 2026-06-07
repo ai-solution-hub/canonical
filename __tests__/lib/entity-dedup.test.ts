@@ -77,12 +77,16 @@ describe('canonicalise', () => {
   });
 
   describe('company suffix normalisation', () => {
-    it('example-client Design Ltd → Example Client Ltd', () => {
-      expect(canonicalise('example-client Design Ltd')).toBe('Example Client Ltd');
+    it('Examplia Design Ltd → Examplia Design Limited', () => {
+      expect(canonicalise('Examplia Design Ltd')).toBe(
+        'Examplia Design Limited',
+      );
     });
 
-    it('example-client Design Ltd. → Example Client Ltd', () => {
-      expect(canonicalise('example-client Design Ltd.')).toBe('Example Client Ltd');
+    it('Examplia Design Ltd. → Examplia Design Limited', () => {
+      expect(canonicalise('Examplia Design Ltd.')).toBe(
+        'Examplia Design Limited',
+      );
     });
 
     it('some company plc → Some Company PLC', () => {
@@ -95,12 +99,14 @@ describe('canonicalise', () => {
   });
 
   describe('multi-word title case', () => {
-    it('Example Client Ltd → Example Client Ltd', () => {
-      expect(canonicalise('Example Client Ltd')).toBe('Example Client Ltd');
+    it('examplia design limited → Examplia Design Limited', () => {
+      expect(canonicalise('examplia design limited')).toBe(
+        'Examplia Design Limited',
+      );
     });
 
-    it('example-client → example-client (single non-abbreviation word)', () => {
-      expect(canonicalise('example-client')).toBe('example-client');
+    it('examplia → Examplia (single non-abbreviation word)', () => {
+      expect(canonicalise('examplia')).toBe('Examplia');
     });
 
     it('gdpr stays GDPR (single-word abbreviation)', () => {
@@ -108,7 +114,9 @@ describe('canonicalise', () => {
     });
 
     it('preserves already-correct names', () => {
-      expect(canonicalise('Example Client Ltd')).toBe('Example Client Ltd');
+      expect(canonicalise('Examplia Design Limited')).toBe(
+        'Examplia Design Limited',
+      );
     });
   });
 
@@ -232,7 +240,9 @@ describe('canonicalise', () => {
 
   describe('trailing period stripping', () => {
     it('strips trailing period', () => {
-      expect(canonicalise('Example Client Ltd.')).toBe('Example Client Ltd');
+      expect(canonicalise('Examplia Design Limited.')).toBe(
+        'Examplia Design Limited',
+      );
     });
 
     it('strips a trailing period from "BSI."', () => {

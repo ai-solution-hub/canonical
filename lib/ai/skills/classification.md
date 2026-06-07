@@ -763,14 +763,14 @@ to ISO 9001"), extract the relationship normally with the author organisation as
 
 **Example (supplier attribution):**
 
-Content: "Note: Certifications and security measures below are held by example-datacentre, not
-{CLIENT_ORGANISATION_NAME}. ISO 27001, ISO 14001, Cyber Essentials Plus."
+Content: "Note: Certifications and security measures below are held by Example Datacentre,
+not {CLIENT_ORGANISATION_NAME}. ISO 27001, ISO 14001, Cyber Essentials Plus."
 
 Correct extraction:
 
-- source: "example-datacentre", relationship: "holds", target: "ISO 27001"
-- source: "example-datacentre", relationship: "holds", target: "ISO 14001"
-- source: "example-datacentre", relationship: "holds", target: "Cyber Essentials Plus"
+- source: "Example Datacentre", relationship: "holds", target: "ISO 27001"
+- source: "Example Datacentre", relationship: "holds", target: "ISO 14001"
+- source: "Example Datacentre", relationship: "holds", target: "Cyber Essentials Plus"
 
 Incorrect extraction (what happens without this rule):
 

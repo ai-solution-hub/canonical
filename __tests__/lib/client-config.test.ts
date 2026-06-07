@@ -97,7 +97,7 @@ describe('CLIENT_CONFIG', () => {
     it('rules use {CLIENT_*} placeholders rather than hardcoded client values', () => {
       // At least one rule must contain the product-name placeholder; this
       // guards against a regression where a rule is hardcoded with
-      // "example-client Audit System" (or similar) instead of the placeholder that
+      // a client-specific product name instead of the placeholder that
       // the .replaceAll chain can resolve per-client.
       const hasProductPlaceholder =
         CLIENT_CONFIG.classification_disambiguation_rules.some((rule) =>

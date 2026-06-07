@@ -23,9 +23,9 @@ import {
 // ── Fixtures ──
 
 const CHANNEL: RssChannelConfig = {
-  title: 'example-client Design — Sector Intelligence',
+  title: 'Example Client — Sector Intelligence',
   link: 'https://example.com/intelligence/ws-1',
-  description: 'Sector intelligence for example-client Design',
+  description: 'Sector intelligence for Example Client',
   language: 'en-GB',
   lastBuildDate: 'Wed, 02 Apr 2025 12:00:00 GMT',
   ttl: 15,
@@ -59,10 +59,12 @@ describe('generateRss', () => {
 
   it('renders channel metadata correctly', () => {
     const xml = generateRss(CHANNEL, []);
-    expect(xml).toContain('<title>example-client Design — Sector Intelligence</title>');
+    expect(xml).toContain(
+      '<title>Example Client — Sector Intelligence</title>',
+    );
     expect(xml).toContain('<link>https://example.com/intelligence/ws-1</link>');
     expect(xml).toContain(
-      '<description>Sector intelligence for example-client Design</description>',
+      '<description>Sector intelligence for Example Client</description>',
     );
     expect(xml).toContain('<language>en-GB</language>');
     expect(xml).toContain('<ttl>15</ttl>');
@@ -164,11 +166,11 @@ describe('generateRss', () => {
   it('escapes special characters in channel title', () => {
     const specialChannel: RssChannelConfig = {
       ...CHANNEL,
-      title: 'example-client & Co — "Intelligence"',
+      title: 'Example & Co — "Intelligence"',
     };
     const xml = generateRss(specialChannel, []);
     expect(xml).toContain(
-      '<title>example-client &amp; Co — &quot;Intelligence&quot;</title>',
+      '<title>Example &amp; Co — &quot;Intelligence&quot;</title>',
     );
   });
 

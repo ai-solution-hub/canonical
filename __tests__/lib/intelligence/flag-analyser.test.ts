@@ -45,7 +45,7 @@ vi.mock('@/lib/anthropic', () => ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const mockCompany: CompanyContext = {
-  name: 'example-client Design',
+  name: 'Example Client',
   sectors: ['education', 'safeguarding'],
   services: ['consultancy', 'training'],
   keyTopics: ['KCSIE', 'MAT governance'],
@@ -188,7 +188,7 @@ describe('analyseFeedFlags', () => {
 
     // System prompt should embed the company name and the flagged articles.
     const callArgs = mocks.createMessage.mock.calls[0][0];
-    expect(callArgs.system).toContain('example-client Design');
+    expect(callArgs.system).toContain('Example Client');
     expect(callArgs.system).toContain('Article 1');
     expect(callArgs.temperature).toBe(0);
     expect(callArgs.max_tokens).toBeGreaterThanOrEqual(2048);
@@ -338,7 +338,7 @@ describe('buildAnalysisSystemPrompt', () => {
       flags,
     );
 
-    expect(prompt).toContain('example-client Design');
+    expect(prompt).toContain('Example Client');
     expect(prompt).toContain('Score education-related articles.');
     expect(prompt).toContain('[false_positive] "KCSIE Update"');
     expect(prompt).toContain('Source: Gov.uk');

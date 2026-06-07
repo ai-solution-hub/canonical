@@ -39,8 +39,8 @@ import {
 
 describe('CompanyProfileCreateSchema', () => {
   const VALID_INPUT = {
-    name: 'example-client Design',
-    slug: 'example-client-design',
+    name: 'Example Client',
+    slug: 'example-client',
     sectors: ['education'],
     key_topics: ['KCSIE'],
   };

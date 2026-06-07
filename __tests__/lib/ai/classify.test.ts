@@ -57,7 +57,7 @@ describe('deriveHolderMetadata', () => {
     const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
       {
-        source: 'example-datacentre Europe',
+        source: 'Example Datacentre Europe',
         relationship: 'holds',
         target: 'ISO 27001',
       },
@@ -68,7 +68,7 @@ describe('deriveHolderMetadata', () => {
     expect(count).toBe(1);
     expect(rows[0].metadata).toEqual({
       holder: 'supplier',
-      supplier_name: 'example-datacentre europe',
+      supplier_name: 'example datacentre europe',
     });
   });
 
@@ -106,7 +106,11 @@ describe('deriveHolderMetadata', () => {
     ];
     const rels: ExtractedRelationship[] = [
       { source: selfOrgName, relationship: 'holds', target: 'ISO 27001' },
-      { source: 'example-datacentre Europe', relationship: 'holds', target: 'ISO 9001' },
+      {
+        source: 'Example Datacentre Europe',
+        relationship: 'holds',
+        target: 'ISO 9001',
+      },
       // No holds for ISO 14001
     ];
 
@@ -116,7 +120,7 @@ describe('deriveHolderMetadata', () => {
     expect(rows[0].metadata).toEqual({ holder: 'self' });
     expect(rows[1].metadata).toEqual({
       holder: 'supplier',
-      supplier_name: 'example-datacentre europe',
+      supplier_name: 'example datacentre europe',
     });
     expect(rows[2].metadata).toBeUndefined();
   });
@@ -190,11 +194,14 @@ describe('deriveHolderMetadata', () => {
     // deriving cert-held-by-cert metadata.
     const rows: EntityMentionRow[] = [
       row({ canonical_name: 'iso 27001' }),
-      row({ entity_type: 'organisation', canonical_name: 'example-datacentre europe' }),
+      row({
+        entity_type: 'organisation',
+        canonical_name: 'example datacentre europe',
+      }),
     ];
     const rels: ExtractedRelationship[] = [
       {
-        source: 'example-datacentre Europe',
+        source: 'Example Datacentre Europe',
         relationship: 'complies_with',
         target: 'ISO 27001',
       },
@@ -205,7 +212,7 @@ describe('deriveHolderMetadata', () => {
     expect(count).toBe(1);
     expect(rows[0].metadata).toEqual({
       holder: 'supplier',
-      supplier_name: 'example-datacentre europe',
+      supplier_name: 'example datacentre europe',
     });
   });
 
@@ -337,7 +344,7 @@ describe('dedupeEntityMentionRows — metadata merge', () => {
       }),
       row({
         canonical_name: 'iso 27001',
-        metadata: { holder: 'supplier', supplier_name: 'example-datacentre' },
+        metadata: { holder: 'supplier', supplier_name: 'example datacentre' },
       }),
     ];
 
@@ -346,7 +353,7 @@ describe('dedupeEntityMentionRows — metadata merge', () => {
     expect(result).toHaveLength(1);
     expect(result[0].metadata).toEqual({
       holder: 'supplier',
-      supplier_name: 'example-datacentre',
+      supplier_name: 'example datacentre',
     });
   });
 
@@ -395,7 +402,7 @@ describe('dedupeEntityMentionRows — metadata merge', () => {
       }),
       row({
         canonical_name: 'iso 27001',
-        metadata: { holder: 'supplier', supplier_name: 'example-datacentre' },
+        metadata: { holder: 'supplier', supplier_name: 'example datacentre' },
       }),
     ];
 
@@ -404,7 +411,7 @@ describe('dedupeEntityMentionRows — metadata merge', () => {
     expect(result).toHaveLength(1);
     expect(result[0].metadata).toEqual({
       holder: 'supplier',
-      supplier_name: 'example-datacentre',
+      supplier_name: 'example datacentre',
       version: '2013',
     });
   });

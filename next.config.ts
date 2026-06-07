@@ -53,7 +53,7 @@ export default withBundleAnalyzer(
     // locally so dev builds aren't spammed with telemetry. Vercel sets CI=1
     // automatically. The previous `silent: true` made it impossible to
     // diagnose the S7/S9 prod symbolication regression (probe events
-    // example-client-DESIGN-1/3 had release/env tags but unsymbolicated frames;
+    // had release/env tags but unsymbolicated frames;
     // Sentry-CLI errors via SDK errorHandler are non-fatal so the build
     // exits 0 either way — the only signal is in stderr, which silent: true
     // suppressed for ~36h on prod).

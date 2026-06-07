@@ -44,8 +44,8 @@ for (const [k, v] of Object.entries(TEST_ENV_DEFAULTS)) {
 }
 
 // NEXT_PUBLIC_CLIENT_ID is FORCE-SET (not guarded by `if (!process.env[k])`)
-// because CI's Production GH environment injects the live client ID (e.g.
-// 'example-client'), which would make branding-dependent unit tests non-deterministic.
+// because CI's Production GH environment injects the live client ID, which
+// would make branding-dependent unit tests non-deterministic.
 // Unit tests must always resolve to the 'default' branding config so
 // assertions on product name, alt text, and ARIA labels are stable.
 // Integration / E2E tests that need the real client ID use their own env

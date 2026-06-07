@@ -24,7 +24,7 @@ function buildMember(
     primary_domain: 'access-control',
     content_type: 'q_a_pair',
     content_owner_id: null,
-    ingest_source: 'example-client-reingest-2026-v2',
+    ingest_source: 'example-reingest-2026-v2',
     superseded_by: null,
     archived_at: null,
     publication_status: 'published',
@@ -43,7 +43,7 @@ describe('NearDuplicatesPairRowCard', () => {
       screen.getByText('How are elevated access rights reviewed?'),
     ).toBeInTheDocument();
     expect(screen.getByText('21/04/2026')).toBeInTheDocument();
-    expect(screen.getByText('example-client-reingest-2026-v2')).toBeInTheDocument();
+    expect(screen.getByText('example-reingest-2026-v2')).toBeInTheDocument();
     expect(screen.getByText('access-control')).toBeInTheDocument();
     expect(screen.getByText('q_a_pair')).toBeInTheDocument();
     expect(screen.getByText(/21 chars/)).toBeInTheDocument();

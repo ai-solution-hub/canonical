@@ -83,7 +83,7 @@ const MOCK_WORKSPACE = {
 
 const MOCK_PROFILE = {
   id: PROFILE_UUID,
-  name: 'example-client Design',
+  name: 'Example Client',
   sectors: ['education'],
   services: ['curriculum design'],
   key_topics: ['KCSIE'],
@@ -149,7 +149,7 @@ describe('Intelligence Workspaces API', () => {
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) =>
           resolve({
-            data: [{ id: PROFILE_UUID, name: 'example-client Design' }],
+            data: [{ id: PROFILE_UUID, name: 'Example Client' }],
             error: null,
           }),
       );
@@ -168,7 +168,7 @@ describe('Intelligence Workspaces API', () => {
       expect(response.status).toBe(200);
       expect(body).toHaveLength(1);
       expect(body[0].name).toBe('Education Watch');
-      expect(body[0].company_profile_name).toBe('example-client Design');
+      expect(body[0].company_profile_name).toBe('Example Client');
     });
 
     it('returns empty array when no workspaces', async () => {
@@ -376,7 +376,7 @@ describe('Intelligence Workspaces API', () => {
       });
       // Profile name query (now uses maybeSingle())
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-        data: { name: 'example-client Design' },
+        data: { name: 'Example Client' },
         error: null,
       });
 
@@ -389,7 +389,7 @@ describe('Intelligence Workspaces API', () => {
 
       expect(response.status).toBe(200);
       expect(body.name).toBe('Education Watch');
-      expect(body.company_profile_name).toBe('example-client Design');
+      expect(body.company_profile_name).toBe('Example Client');
     });
 
     it('returns 404 for non-existent workspace', async () => {

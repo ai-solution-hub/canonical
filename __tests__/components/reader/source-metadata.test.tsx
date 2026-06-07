@@ -171,7 +171,7 @@ describe('SourceMetadata — Markdown article', () => {
         platform={null}
         metadata={{
           ingestion_source: 'markdown_file',
-          source_folder: 'example-client-markdown-reingest',
+          source_folder: 'example-markdown-reingest',
         }}
         sourceFile="04-named-clients-and-case-studies.md"
         createdAt="2026-04-20T10:00:00Z"
@@ -183,7 +183,7 @@ describe('SourceMetadata — Markdown article', () => {
       screen.getByText('04-named-clients-and-case-studies.md'),
     ).toBeInTheDocument();
     expect(screen.getByText('Source folder')).toBeInTheDocument();
-    expect(screen.getByText('example-client-markdown-reingest')).toBeInTheDocument();
+    expect(screen.getByText('example-markdown-reingest')).toBeInTheDocument();
     expect(screen.getByText('Ingestion source')).toBeInTheDocument();
     expect(screen.getByText('Markdown upload')).toBeInTheDocument();
     expect(screen.queryByText('markdown_file')).toBeNull();

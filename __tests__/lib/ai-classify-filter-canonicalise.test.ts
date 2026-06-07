@@ -189,23 +189,23 @@ describe('S157 WP2 — post-canonicalise filter application point fix', () => {
       ).toBe(false);
     });
 
-    it('"Example Client Ltd" with type "organisation" passes both filters', () => {
+    it('"Example Client Limited" with type "organisation" passes both filters', () => {
       const rawEntity: ExtractedEntity = {
-        name: 'Example Client Ltd',
+        name: 'Example Client Limited',
         type: 'organisation',
-        canonical_name: 'Example Client Ltd',
+        canonical_name: 'Example Client Limited',
       };
       expect(shouldExcludeEntity(rawEntity)).toBe(false);
 
       // organisation is NOT in DEPLURAL_TYPES, so no plural stripping.
       const canonical = canonicaliseAsStored(
-        'Example Client Ltd',
+        'Example Client Limited',
         'organisation',
       );
-      expect(canonical).toBe('Example Client Ltd');
+      expect(canonical).toBe('example client limited');
       expect(
         shouldExcludeEntity({
-          name: 'Example Client Ltd',
+          name: 'Example Client Limited',
           type: 'organisation',
           canonical_name: canonical,
         }),

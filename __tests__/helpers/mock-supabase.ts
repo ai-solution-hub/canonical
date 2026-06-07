@@ -258,7 +258,7 @@ export interface MockTableResolution<TData = any> {
  * @example Simple terminal `eq` resolution
  * ```ts
  * const supabase = createMockSupabaseTable({
- *   data: [{ alias: 'example-client', canonical: 'Example Client Ltd' }],
+ *   data: [{ alias: 'Examplia', canonical: 'Example Client Limited' }],
  *   error: null,
  * });
  * await loadAliases(supabase);

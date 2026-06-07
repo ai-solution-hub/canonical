@@ -55,16 +55,16 @@ import {
 const VALID_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 const VALID_PROFILE_INPUT = {
-  name: 'example-client Design',
-  slug: 'example-client-design',
+  name: 'Example Client',
+  slug: 'example-client',
   sectors: ['education', 'safeguarding'],
   key_topics: ['KCSIE', 'MAT governance'],
 };
 
 const MOCK_PROFILE = {
   id: VALID_UUID,
-  name: 'example-client Design',
-  slug: 'example-client-design',
+  name: 'Example Client',
+  slug: 'example-client',
   description: null,
   website_url: null,
   sectors: ['education', 'safeguarding'],
@@ -120,7 +120,7 @@ describe('Intelligence Profiles API', () => {
 
       expect(response.status).toBe(200);
       expect(body).toHaveLength(1);
-      expect(body[0].name).toBe('example-client Design');
+      expect(body[0].name).toBe('Example Client');
     });
 
     it('returns profiles list for editor', async () => {
@@ -168,7 +168,7 @@ describe('Intelligence Profiles API', () => {
       const body = await response.json();
 
       expect(response.status).toBe(201);
-      expect(body.name).toBe('example-client Design');
+      expect(body.name).toBe('Example Client');
     });
 
     it('rejects missing required fields', async () => {
@@ -269,7 +269,7 @@ describe('Intelligence Profiles API', () => {
       const body = await response.json();
 
       expect(response.status).toBe(200);
-      expect(body.name).toBe('example-client Design');
+      expect(body.name).toBe('Example Client');
     });
 
     it('returns 404 for non-existent profile', async () => {

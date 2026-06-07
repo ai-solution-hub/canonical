@@ -244,7 +244,7 @@ function CertificationMetadataForm({
             </Label>
             <Input
               id="cert-supplier"
-              placeholder="e.g. example-datacentre"
+              placeholder="e.g. Example Datacentre Ltd"
               value={metadata.supplier_name ?? ''}
               onChange={(e) =>
                 onChange({ supplier_name: e.target.value || undefined })

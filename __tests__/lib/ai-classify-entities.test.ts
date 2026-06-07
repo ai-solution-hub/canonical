@@ -1128,9 +1128,9 @@ describe('entity quality filters', () => {
 
   describe('person descriptive string stripping', () => {
     it('strips parenthetical role/company from person names', () => {
-      expect(stripPersonDescriptors('Matthew (MD, Example Client Ltd)')).toBe(
-        'Matthew',
-      );
+      expect(
+        stripPersonDescriptors('Matthew (MD, Example Client Limited)'),
+      ).toBe('Matthew');
     });
 
     it('strips parenthetical role only', () => {

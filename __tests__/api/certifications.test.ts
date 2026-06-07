@@ -29,7 +29,7 @@ vi.mock('@/lib/client-config', async (importOriginal) => {
     ...actual,
     BRANDING: {
       ...(actual.BRANDING as Record<string, unknown>),
-      organisationName: 'Example Client Ltd',
+      organisationName: 'Example Client Limited',
     },
   };
 });
@@ -140,7 +140,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
       // Relationship: org holds ISO 27001
       [
         {
-          source_entity: 'Example Client Ltd',
+          source_entity: 'example client limited',
           target_entity: 'iso 27001',
           source_item_id: UUID_1,
         },
@@ -175,13 +175,13 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
       // Relationship: a DIFFERENT org holds ISO 27001
       [
         {
-          source_entity: 'example-datacentre europe',
+          source_entity: 'example datacentre europe',
           target_entity: 'iso 27001',
           source_item_id: UUID_1,
         },
       ],
       // Mention: certification with holder='self', but the relationship
-      // source_entity is 'example-datacentre europe', not 'Example Client Ltd'
+      // source_entity is 'example datacentre europe', not 'example client limited'
       [
         {
           canonical_name: 'iso 27001',
@@ -191,7 +191,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           metadata: { holder: 'self' },
         },
       ],
-      [{ id: UUID_2, title: 'example-datacentre Cert Doc' }],
+      [{ id: UUID_2, title: 'Example Datacentre Cert Doc' }],
     );
 
     const response = await GET();
@@ -207,7 +207,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
       // Relationship: our org holds ISO 9001
       [
         {
-          source_entity: 'Example Client Ltd',
+          source_entity: 'example client limited',
           target_entity: 'iso 9001',
           source_item_id: UUID_1,
         },
@@ -240,17 +240,17 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
   it('(d) includes mentions where metadata.holder === "supplier" in supplierCertifications', async () => {
     configureQueries(
       // Both relationships from our org — the classifier extracted them
-      // as "Example Client Ltd holds cyber essentials" even though the
+      // as "example client limited holds cyber essentials" even though the
       // cert is actually held by a supplier (the mention metadata carries
       // that distinction, not the relationship source_entity)
       [
         {
-          source_entity: 'Example Client Ltd',
+          source_entity: 'example client limited',
           target_entity: 'cyber essentials',
           source_item_id: UUID_1,
         },
         {
-          source_entity: 'Example Client Ltd',
+          source_entity: 'example client limited',
           target_entity: 'iso 9001',
           source_item_id: UUID_3,
         },
@@ -262,7 +262,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           entity_type: 'certification',
           entity_type_override: null,
           content_item_id: UUID_2,
-          metadata: { holder: 'supplier', supplier_name: 'example-datacentre' },
+          metadata: { holder: 'supplier', supplier_name: 'Example Datacentre' },
         },
         {
           canonical_name: 'iso 9001',
@@ -288,7 +288,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
     expect(supplierCerts).toHaveLength(1);
     expect(supplierCerts[0].canonical_name).toBe('cyber essentials');
     expect(supplierCerts[0].holder).toBe('supplier');
-    expect(supplierCerts[0].supplier_name).toBe('example-datacentre');
+    expect(supplierCerts[0].supplier_name).toBe('Example Datacentre');
 
     // Self cert should also be present
     const selfCerts = body.certifications.filter(

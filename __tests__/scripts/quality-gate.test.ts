@@ -332,7 +332,7 @@ describe('matchFileGroup', () => {
   it('matches exact filenames from audit-content spec §2.1', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 Tender and Procurement Library Template for example-client - FAQs - Copy (1).docx',
+        'DRAFT 2026 Tender and Procurement Library Template for Example Client - FAQs - Copy (1).docx',
         GROUPS,
       ),
     ).toBe('faqs');
@@ -347,7 +347,7 @@ describe('matchFileGroup', () => {
   it('matches Security and Compliance via both needles', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 Tender and Procurement Library Template for example-client - Security and Compliance  - Copy.docx',
+        'DRAFT 2026 Tender and Procurement Library Template for Example Client - Security and Compliance  - Copy.docx',
         GROUPS,
       ),
     ).toBe('security_compliance');
@@ -362,7 +362,7 @@ describe('matchFileGroup', () => {
   it('matches Implementation & Support', () => {
     expect(
       matchFileGroup(
-        'DRAFT 2026 example-client - Tender and Procurement Library - Implementation & Support .docx',
+        'DRAFT 2026 Example Client - Tender and Procurement Library - Implementation & Support .docx',
         GROUPS,
       ),
     ).toBe('implementation_support');

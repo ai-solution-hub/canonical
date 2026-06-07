@@ -50,11 +50,11 @@ describe('BASELINE_ALIASES', () => {
     expect(BASELINE_ALIASES['Wcag 2 1 Aa']).toBe('WCAG 2.1 AA');
   });
 
-  it('does NOT contain client-specific aliases (example-client)', () => {
-    expect(BASELINE_ALIASES['example-client']).toBeUndefined();
-    expect(BASELINE_ALIASES['example-client Design Ltd']).toBeUndefined();
-    expect(BASELINE_ALIASES['example-client Audit']).toBeUndefined();
-    expect(BASELINE_ALIASES['example-client Lms']).toBeUndefined();
+  it('does NOT contain client-specific aliases (Examplia)', () => {
+    expect(BASELINE_ALIASES['Examplia']).toBeUndefined();
+    expect(BASELINE_ALIASES['Examplia Design Ltd']).toBeUndefined();
+    expect(BASELINE_ALIASES['Examplia Audit']).toBeUndefined();
+    expect(BASELINE_ALIASES['Examplia Lms']).toBeUndefined();
   });
 
   it('exports a non-empty alias map', () => {
@@ -89,9 +89,9 @@ describe('resolveAlias (baseline fallback)', () => {
   });
 
   it('does NOT resolve client-specific aliases without cache', () => {
-    // example-client aliases are not in the baseline
-    expect(resolveAlias('example-client')).toBe('example-client');
-    expect(resolveAlias('example-client Design Ltd')).toBe('example-client Design Ltd');
+    // Examplia aliases are not in the baseline
+    expect(resolveAlias('Examplia')).toBe('Examplia');
+    expect(resolveAlias('Examplia Design Ltd')).toBe('Examplia Design Ltd');
   });
 });
 
@@ -102,12 +102,12 @@ describe('resolveAlias (baseline fallback)', () => {
 describe('setAliasCache', () => {
   it('injects client aliases and resolveAlias uses them', () => {
     setAliasCache({
-      example-client: 'Example Client Ltd',
-      'example-client Design Ltd': 'Example Client Ltd',
+      Examplia: 'Examplia Design Limited',
+      'Examplia Design Ltd': 'Examplia Design Limited',
     });
 
-    expect(resolveAlias('example-client')).toBe('Example Client Ltd');
-    expect(resolveAlias('example-client Design Ltd')).toBe('Example Client Ltd');
+    expect(resolveAlias('Examplia')).toBe('Examplia Design Limited');
+    expect(resolveAlias('Examplia Design Ltd')).toBe('Examplia Design Limited');
     // Baseline aliases still available
     expect(resolveAlias('wordpress')).toBe('WordPress');
   });
@@ -115,12 +115,12 @@ describe('setAliasCache', () => {
 
 describe('clearAliasCache', () => {
   it('resets to baseline behaviour', () => {
-    setAliasCache({ example-client: 'Example Client Ltd' });
-    expect(resolveAlias('example-client')).toBe('Example Client Ltd');
+    setAliasCache({ Examplia: 'Examplia Design Limited' });
+    expect(resolveAlias('Examplia')).toBe('Examplia Design Limited');
 
     clearAliasCache();
     // Now client alias no longer works
-    expect(resolveAlias('example-client')).toBe('example-client');
+    expect(resolveAlias('Examplia')).toBe('Examplia');
     // But baseline still does
     expect(resolveAlias('wordpress')).toBe('WordPress');
   });
@@ -147,15 +147,15 @@ describe('loadAliases', () => {
 
   it('merges DB data with baseline', async () => {
     const mockSb = createMockSupabase([
-      { alias: 'example-client', canonical: 'Example Client Ltd' },
-      { alias: 'example-client Audit', canonical: 'example-client Audit System' },
+      { alias: 'Examplia', canonical: 'Examplia Design Limited' },
+      { alias: 'Examplia Audit', canonical: 'Examplia Audit System' },
     ]);
 
     const result = await loadAliases(mockSb);
 
     // Client alias from DB
-    expect(result['example-client']).toBe('Example Client Ltd');
-    expect(result['example-client Audit']).toBe('example-client Audit System');
+    expect(result['Examplia']).toBe('Examplia Design Limited');
+    expect(result['Examplia Audit']).toBe('Examplia Audit System');
     // Baseline alias still present
     expect(result['wordpress']).toBe('WordPress');
     expect(result['ISO Certification']).toBe('ISO 27001');
@@ -203,7 +203,7 @@ describe('loadAliases', () => {
 
   it('returns cached result on subsequent calls within TTL', async () => {
     const mockSb = createMockSupabase([
-      { alias: 'example-client', canonical: 'Example Client Ltd' },
+      { alias: 'Examplia', canonical: 'Examplia Design Limited' },
     ]);
 
     await loadAliases(mockSb);
@@ -224,32 +224,32 @@ describe('canonicalise -> resolveAlias (chained with client aliases)', () => {
   beforeEach(() => {
     // Simulate DB-loaded client aliases
     setAliasCache({
-      example-client: 'Example Client Ltd',
-      'example-client Design Ltd': 'Example Client Ltd',
-      'example-client Audit': 'example-client Audit System',
-      'example-client Audit Platform': 'example-client Audit System',
-      'example-client Lms': 'example-client LMS',
-      'Learning Management System': 'example-client LMS',
-      'example-client Pdms': 'example-client PDMS',
+      Examplia: 'Examplia Design Limited',
+      'Examplia Design Ltd': 'Examplia Design Limited',
+      'Examplia Audit': 'Examplia Audit System',
+      'Examplia Audit Platform': 'Examplia Audit System',
+      'Examplia Lms': 'Examplia LMS',
+      'Learning Management System': 'Examplia LMS',
+      'Examplia Pdms': 'Examplia PDMS',
     });
   });
 
   const normalise = (name: string) => resolveAlias(canonicalise(name));
 
-  it('example-client -> Example Client Ltd (canonicalise + alias)', () => {
-    expect(normalise('example-client')).toBe('Example Client Ltd');
+  it('examplia -> Examplia Design Limited (canonicalise + alias)', () => {
+    expect(normalise('examplia')).toBe('Examplia Design Limited');
   });
 
-  it('example-client design ltd -> Example Client Ltd', () => {
-    expect(normalise('example-client design ltd')).toBe('Example Client Ltd');
+  it('examplia design ltd -> Examplia Design Limited', () => {
+    expect(normalise('examplia design ltd')).toBe('Examplia Design Limited');
   });
 
-  it('example-client Audit Platform -> example-client Audit System', () => {
-    expect(normalise('example-client Audit Platform')).toBe('example-client Audit System');
+  it('Examplia Audit Platform -> Examplia Audit System', () => {
+    expect(normalise('Examplia Audit Platform')).toBe('Examplia Audit System');
   });
 
-  it('example-client audit -> example-client Audit System', () => {
-    expect(normalise('example-client audit')).toBe('example-client Audit System');
+  it('examplia audit -> Examplia Audit System', () => {
+    expect(normalise('examplia audit')).toBe('Examplia Audit System');
   });
 
   it('ISO/IEC 27001 -> ISO 27001 (canonicalise handles it)', () => {

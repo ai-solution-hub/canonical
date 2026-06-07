@@ -10,10 +10,16 @@
  * cross-contaminating self-held vs supplier-held certifications.
  *
  * Holder logic:
- *   - example-datacentre content items → supplier certifications (holder: "supplier")
+ *   - Content items whose title mentions the supplier entity
+ *     (CERT_SUPPLIER_NAME env var) → supplier certifications
+ *     (holder: "supplier")
  *   - All other content items → self-held certifications (holder: "self")
  *   - Supplier mentions only receive: holder, supplier_name
  *   - Self-held mentions receive full metadata from the self-held source
+ *
+ * The supplier entity is deploy-specific, so it is resolved from the
+ * CERT_SUPPLIER_NAME env var (set it in .env.local) rather than hardcoded.
+ * When unset, all content items are treated as self-held.
  *
  * Usage:
  *   bun run scripts/propagate-cert-metadata.ts                # propagate all
@@ -145,6 +151,14 @@ const SELF_HELD_FIELDS = [
 /** Metadata fields that can be propagated to supplier-held mentions. */
 const SUPPLIER_FIELDS = ['holder', 'supplier_name'] as const;
 
+/**
+ * Supplier (positive-control) entity used for holder attribution.
+ * Deploy-specific — resolved from env so no client identity is hardcoded.
+ * When unset, supplier-context detection is disabled and every content
+ * item is treated as self-held.
+ */
+const SUPPLIER_NAME = process.env.CERT_SUPPLIER_NAME ?? '';
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface EntityMention {
@@ -176,10 +190,11 @@ function isMetadataEmpty(metadata: Record<string, unknown> | null): boolean {
   return metadataRichness(metadata) === 0;
 }
 
-/** Check if a content item title indicates example-datacentre (supplier) context. */
-function isexample-datacentreContent(title: string | null): boolean {
+/** Check if a content item title indicates supplier context. */
+function isSupplierContent(title: string | null): boolean {
+  if (!SUPPLIER_NAME) return false;
   if (!title) return false;
-  return title.toLowerCase().includes('example-datacentre');
+  return title.toLowerCase().includes(SUPPLIER_NAME.toLowerCase());
 }
 
 /** Pick only specified fields from an object. */
@@ -280,12 +295,13 @@ async function main() {
       continue;
     }
 
-    // Separate mentions by holder context (example-datacentre = supplier, other = self)
+    // Separate mentions by holder context (supplier-entity title = supplier,
+    // other = self)
     const selfHeldMentions = mentions.filter(
-      (m) => !isexample-datacentreContent(titleMap.get(m.content_item_id) ?? null),
+      (m) => !isSupplierContent(titleMap.get(m.content_item_id) ?? null),
     );
     const supplierMentions = mentions.filter((m) =>
-      isexample-datacentreContent(titleMap.get(m.content_item_id) ?? null),
+      isSupplierContent(titleMap.get(m.content_item_id) ?? null),
     );
 
     // Find richest source for each holder type
@@ -377,17 +393,17 @@ async function main() {
 
       if (!richestSupplier) {
         // No supplier source — infer minimal supplier metadata
-        // from example-datacentre context
+        // from the supplier-entity context
         const supplierMetadata: Record<string, unknown> = {
           holder: 'supplier',
-          supplier_name: 'example-datacentre',
+          supplier_name: SUPPLIER_NAME,
         };
 
         console.log(
           `        ${DRY_RUN ? 'WOULD SET' : 'SETTING'} supplier defaults → ${title}`,
         );
         console.log(
-          `          Fields: holder, supplier_name (inferred from example-datacentre context)`,
+          `          Fields: holder, supplier_name (inferred from supplier-entity context)`,
         );
 
         details.push(

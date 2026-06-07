@@ -38,7 +38,7 @@ vi.mock('@/lib/anthropic', () => ({
 }));
 
 const mockCompany: CompanyContext = {
-  name: 'example-client Design',
+  name: 'Example Client',
   sectors: ['education', 'safeguarding', 'health-audits'],
   services: ['consultancy', 'training', 'software'],
   keyTopics: ['KCSIE', 'MAT governance', 'safeguarding audits'],
@@ -50,7 +50,7 @@ const mockCompany: CompanyContext = {
 describe('buildScoringPrompt', () => {
   it('includes company context in the prompt', () => {
     const prompt = buildScoringPrompt(mockCompany);
-    expect(prompt).toContain('example-client Design');
+    expect(prompt).toContain('Example Client');
     expect(prompt).toContain('KCSIE');
     expect(prompt).toContain('education');
   });

@@ -140,7 +140,7 @@ const USER_ID = 'c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f';
 
 const FULL_PROFILE: CompanyProfile = {
   id: 'd1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a',
-  name: 'example-client Design',
+  name: 'Example Client',
   sectors: ['Education', 'Health & Social Care'],
   services: ['Curriculum Design', 'Safeguarding Training'],
   key_topics: ['KCSIE', 'Ofsted'],
@@ -298,7 +298,7 @@ describe('createIntelligenceGuide', () => {
     );
 
     const insertCall = mock.guidesChain.insert.mock.calls[0][0];
-    expect(insertCall.description).toContain('example-client Design');
+    expect(insertCall.description).toContain('Example Client');
   });
 
   // -----------------------------------------------------------------------
