@@ -55,8 +55,11 @@ describe('docubot prompt.txt shape (ID-9.11 / TECH §3.3)', () => {
     expect(prompt.toLowerCase()).not.toContain('gitbook');
   });
 
-  it('uses Vercel-default-subdomain framing (no prescriptive docs.kh.client.example)', () => {
-    expect(prompt).not.toContain('docs.kh.client.example');
+  it('uses Vercel-default-subdomain framing (no prescriptive custom docs domain)', () => {
+    // Guard: the prompt must not hardcode a deploy-specific docs domain
+    // (docs.<production-domain>). The production domain is per-deploy
+    // config (APP_URL), never prompt source.
+    expect(prompt).not.toMatch(/docs\.kh\./);
   });
 
   it('enumerates umbrellas.json as the 4th canonical ledger (amendment 1)', () => {

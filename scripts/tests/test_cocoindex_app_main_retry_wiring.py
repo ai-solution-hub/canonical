@@ -650,7 +650,7 @@ class TestRetryBumpFiresInsideAppMainBindingScope:
         ]
         mock_client = _make_mock_client_with_side_effects(side_effects)
 
-        url = "https://kh.client.example/api/internal/pipeline-runs/record"
+        url = "https://kh.example.org/api/internal/pipeline-runs/record"
         secret = "test-cron-secret"
 
         async def _exercise() -> None:
@@ -712,7 +712,7 @@ class TestNoRetryHappyPathPreserved:
         side_effects = [_MockMessageResponse(_classification_json())]
         mock_client = _make_mock_client_with_side_effects(side_effects)
 
-        url = "https://kh.client.example/api/internal/pipeline-runs/record"
+        url = "https://kh.example.org/api/internal/pipeline-runs/record"
         secret = "test-cron-secret"
 
         async def _exercise() -> None:

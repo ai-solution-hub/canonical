@@ -685,7 +685,7 @@ class TestPerRowUpsertAtomicity:
 class TestFailedRunWebhookEmitsClassifiedErrorClass:
     """The webhook emitter accepts every member of the 6-class vocabulary."""
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):
@@ -841,7 +841,7 @@ class TestRetryCountWebhookEmission:
     optional()` per Slice 1 of this fix-pack.
     """
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):
@@ -968,7 +968,7 @@ class TestTransient503RetryScenario:
     the retry succeeds and the flow completes WITHOUT an errorClass.
     """
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):
@@ -1138,7 +1138,7 @@ class TestErrorDetailWebhookEmission:
     `pipeline_runs.result.error_detail` (ID-61.4).
     """
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):
@@ -1358,7 +1358,7 @@ class TestItemFailuresWebhookEmission:
     (coordinate, don't clobber — 80.2 §B.4 ratification note).
     """
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):

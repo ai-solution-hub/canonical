@@ -91,7 +91,7 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 
 - **Platform:** Vercel (Next.js app). Ingestion pipeline runs on-prem (IONOS VPS +
   Coolify).
-- **Production URL:** https://kh.client.example
+- **Production URL:** per-deploy `APP_URL`; see `.env.local`
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
 - **Pipeline deploy:** Cloud Run is fully retired (S298) — the ingestion pipeline now
   deploys to an IONOS VPS via Coolify (`.github/workflows/onprem-deploy.yml`). Runbook:

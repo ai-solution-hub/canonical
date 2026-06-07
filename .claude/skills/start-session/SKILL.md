@@ -58,6 +58,8 @@ Notes:
 
 ## Step 2: Read Critical Documents (parallel with Step 1)
 
+Surface the current live production domain (per-deploy config, never tracked in source): `grep '^APP_URL' .env.local`
+
 Read these documents in parallel to load context:
 
 ### 2a: Memory recall

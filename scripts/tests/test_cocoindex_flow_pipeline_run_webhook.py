@@ -278,7 +278,7 @@ class TestEmitPipelineRunWebhookConfiguration:
 class TestEmitPipelineRunWebhookPayload:
     """Payload contract: URL, headers, JSON body match TECH.md §P-7."""
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):
@@ -412,7 +412,7 @@ class TestEmitPipelineRunWebhookPayload:
 class TestEmitPipelineRunWebhookErrorHandling:
     """4xx/5xx responses + transport exceptions must NOT raise."""
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):
@@ -479,7 +479,7 @@ class TestEmitPipelineRunWebhookItemFailures:
     errorDetail / taxonomyMisses (coordinate, don't clobber).
     """
 
-    URL = "https://kh.client.example/api/internal/pipeline-runs/record"
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
 
     def setup_method(self):

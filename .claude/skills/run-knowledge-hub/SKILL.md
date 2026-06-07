@@ -57,14 +57,14 @@ POSTGRES_PASSWORD=<staging DB password>
 
 # App URL + client (must be set or BRANDING falls back and corrupts holder derivation)
 NEXT_PUBLIC_APP_URL=https://knowledge-hub-git-staging-tw-group.vercel.app
-NEXT_PUBLIC_CLIENT_ID=example-client
+NEXT_PUBLIC_CLIENT_ID=<client-id>   # use the value from .env.local
 
 # Upstream APIs (same values either env)
 ANTHROPIC_API_KEY=<key>
 OPENAI_API_KEY=<key>
 ```
 
-`NEXT_PUBLIC_CLIENT_ID=example-client` is load-bearing: if it is missing, branding falls
+`NEXT_PUBLIC_CLIENT_ID=<client-id>` (use the value recorded in `.env.local`) is load-bearing: if it is missing, branding falls
 back to "Knowledge Hub" and downstream holder derivation breaks. Full variable
 matrix + how to source each staging value:
 [`local-development.md` §2](../../../docs/runbooks/local-development.md).
