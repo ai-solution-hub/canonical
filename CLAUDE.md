@@ -102,9 +102,10 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 
 ## CI/CD
 
-PR-blocking CI (`ci.yml`) runs 7 jobs in parallel: `quality-precheck`, `quality-test`
+PR-blocking CI (`ci.yml`) runs 8 jobs in parallel: `quality-precheck`, `quality-test`
 (4-shard Vitest matrix), `e2e-smoke`, `mcp-build`, `mcp-eval-seed`, `mcp-eval` (L1/L3/L4
-matrix), `integration`. Triggers: PR (any base) + push on `main`/`staging`. Draft PRs skip
+matrix), `integration`, plus the ID-91 detect-changes push-gate (real-API lanes skip when
+nothing relevant changed). Triggers: PR (any base) + push on `main`/`staging`. Draft PRs skip
 CI. Full topology + per-step failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
 
 Side workflows: `onprem-deploy.yml` (B1 pipeline image build + Coolify deploy — always

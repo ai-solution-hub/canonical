@@ -19,7 +19,7 @@
 6. `docs/testing/test-data/templates/` — Liam-provided corpus: `sq/`,
    `itt-services-charnwood/`, `itt-services-efa/`, `csp-checklist/`,
    `rfp-british-council/` (NEW — 4 files: 2 RFPs `.doc` + supplier-response `.docx` +
-   pricing `.xlsx`). example-client q_a_form corpus lives alongside `csp-checklist/`.
+   pricing `.xlsx`). The first client's q_a_form corpus lives alongside `csp-checklist/`.
 7. `.claude/skills/implement-subtask/SKILL.md`.
 
 ## Scope — ID-49.10 single Subtask (S275 priority — blocks ID-53.14)
@@ -56,8 +56,8 @@ BOTH workstreams atomically:
   staged on disk: `rfp_-_learning_partners_osch.doc`, `rfp_onlinetdcops.doc`,
   `annex_2_supplier_response.docx`, `annex_3_pricing_approach.xlsx`). Form-type enum
   already includes `rfp`.
-- example-client q_a_form (under `csp-checklist/` neighbour dir) — confirm registered if applicable;
-  example-client is current client priority per Liam.
+- First-client q_a_form (under `csp-checklist/` neighbour dir) — confirm registered if
+  applicable; that client is current priority per Liam.
 
 Both workstreams MUST land in a single coherent Subtask (per S271 §13.7
 single-Executor-per-file discipline — file ownership disjoint between workstreams).
