@@ -1,0 +1,461 @@
+# ID-68.15 — identity-guard (PC-37 / Inv 37; PRODUCT Inv 31 + AC-E6).
+#
+# Required branch-protection status check on `main` from Phase 0 (paid org
+# plan ratified S317 — no advisory window). Rejects re-introduction of the
+# Inv 31 genuine-client identity set at HEAD:
+#
+#   1. Identity grep — case-insensitive (per-token flag) `git grep -F` of the
+#      FULL TRACKED TREE (not the diff — catches re-introduction via any
+#      path) against the PC-31 denylist held in the KH_CLIENT_NAME_DENYLIST
+#      repository secret. ZERO token values are hardcoded in this file.
+#   2. PC-2 assertion — no LICENSE/LICENCE/COPYING file tracked at the repo
+#      root (public means source-visible, not open-source).
+#   3. PC-20 assertion — no CONTRIBUTING.md tracked (no external
+#      contribution surface).
+#   4. PC-26 assertion — the retired bridge-knob name (composed at runtime
+#      in the script so this file never carries the literal) must not
+#      return outside docs/.
+#
+# Denylist secret (PC-31, ratified S317 — E1 unified):
+#   KH_CLIENT_NAME_DENYLIST holds the FULL canonical denylist JSON
+#   (tokens[].{value,class,case_insensitive} + exclusion_patterns[]).
+#   The canonical copy lives in the PRIVATE docs-site repo at
+#   ops/identity-denylist.json; the secret is synced manually from it on
+#   change (one rotation point; the ledger client-name guard consumes the
+#   same secret). Never echo or commit token values; this workflow prints
+#   class labels, counts, and path:line locations only — match content and
+#   pattern text are withheld from logs.
+#
+# DAY-ONE EXCLUSION SEED + SHRINK PROTOCOL (PLAN record 15):
+#   HEAD still carries identity matches until the de-ID records land
+#   (records 19/21/22/23/27). The PENDING_DEID exclusion list below is
+#   seeded from the record-14 sweep inventory
+#   (docs/audits/id68-pc40-sweep-report.md §2 per-file carrier tables,
+#   sweep HEAD 02bc7032), so the guard enforces "no NEW identity sites"
+#   immediately — a match in any file NOT listed below is a violation.
+#   Protocol:
+#     - Each de-ID record REMOVES the paths it cleans from PENDING_DEID
+#       in the same commit that cleans them (the guard then enforces those
+#       paths forever after).
+#     - Never ADD a path here to silence a red run — that is the exact
+#       re-introduction this guard exists to reject. New entries require an
+#       ID-68 spec amendment.
+#     - Record 30 verifies at Gate 4 that this list has shrunk to
+#       carve-out-only before the visibility flip (AC-E6 / Inv 38 Gate 4).
+#   Entries are PATHS only (paths are permitted to appear here; identity
+#   token VALUES are not). Two entries are self-exclusions: this workflow
+#   (its exclusion entries cite token-bearing file names) and the sweep
+#   report (its inventory cites the same).
+
+name: identity-guard
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group:
+    identity-guard-${{ github.event_name }}-${{ github.event.pull_request.number
+    || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  identity-guard:
+    name: identity-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Identity grep + re-introduction assertions
+        # Workflow-injection + leak mitigation: the denylist arrives via
+        # env (never inline ${{ }} in run:); the script never prints token
+        # values, exclusion-pattern text, or matched line content.
+        env:
+          KH_CLIENT_NAME_DENYLIST: ${{ secrets.KH_CLIENT_NAME_DENYLIST }}
+        run: |
+          set -euo pipefail
+
+          # ---- 0. Denylist availability — fail loud, never silently pass.
+          if [ -z "${KH_CLIENT_NAME_DENYLIST:-}" ]; then
+            echo "FATAL: KH_CLIENT_NAME_DENYLIST secret is empty or unavailable."
+            echo "The identity guard cannot run without the PC-31 denylist."
+            echo "Sync the secret from the canonical copy in the private docs-site repo (ops/identity-denylist.json)."
+            exit 1
+          fi
+          if ! jq -e '(.tokens | type == "array") and (.tokens | length > 0)' >/dev/null 2>&1 <<<"$KH_CLIENT_NAME_DENYLIST"; then
+            echo "FATAL: KH_CLIENT_NAME_DENYLIST is not valid denylist JSON (expected a non-empty tokens[] array)."
+            exit 1
+          fi
+
+          # ---- 1. Pending-de-ID path exclusions (see header for protocol).
+          PENDING_DEID=(
+            # Self-exclusions (live while these artefacts exist):
+            ':(exclude,literal).github/workflows/identity-guard.yml'
+            ':(exclude,literal)docs/audits/id68-pc40-sweep-report.md'
+            # Post-sweep wave-1 carrier (ID-68.20 codegen output, 0b1ed290 —
+            # postdates the record-14 sweep; record 22's untrack shrinks it
+            # together with lib/branding/clients/ below):
+            ':(exclude,literal)lib/branding/client-branding-map.generated.ts'
+            # Record-14 seed (sweep report §2, HEAD 02bc7032) — SHRINK ONLY:
+          ':(exclude,literal)__tests__/actions/docubot-prompt-shape.test.ts'
+          ':(exclude,literal)__tests__/api/admin/content-dedup/near-duplicates/[pairId].test.ts'
+          ':(exclude,literal)__tests__/api/certifications.test.ts'
+          ':(exclude,literal)__tests__/api/intelligence/profiles.test.ts'
+          ':(exclude,literal)__tests__/api/intelligence/workspaces.test.ts'
+          ':(exclude,literal)__tests__/components/admin/content-dedup/near-duplicates/near-duplicates-action-buttons.test.tsx'
+          ':(exclude,literal)__tests__/components/admin/content-dedup/near-duplicates/near-duplicates-merge-direction-dialog.test.tsx'
+          ':(exclude,literal)__tests__/components/admin/content-dedup/near-duplicates/near-duplicates-pair-detail.test.tsx'
+          ':(exclude,literal)__tests__/components/admin/content-dedup/near-duplicates/near-duplicates-pair-row-card.test.tsx'
+          ':(exclude,literal)__tests__/components/reader/source-metadata.test.tsx'
+          ':(exclude,literal)__tests__/eval/entity-classification-eval.test.ts'
+          ':(exclude,literal)__tests__/fixtures/classification-eval-gold-standard.json'
+          ':(exclude,literal)__tests__/fixtures/entity-eval-gold-standard.json'
+          ':(exclude,literal)__tests__/fixtures/procurement-drafting-eval-gold-standard.json'
+          ':(exclude,literal)__tests__/fixtures/summarisation-eval-gold-standard.json'
+          ':(exclude,literal)__tests__/helpers/mock-supabase.ts'
+          ':(exclude,literal)__tests__/lib/ai-classify-entities.test.ts'
+          ':(exclude,literal)__tests__/lib/ai-classify-filter-canonicalise.test.ts'
+          ':(exclude,literal)__tests__/lib/ai/classify.test.ts'
+          ':(exclude,literal)__tests__/lib/client-config.loader.test.ts'
+          ':(exclude,literal)__tests__/lib/client-config.test.ts'
+          ':(exclude,literal)__tests__/lib/entities/entity-dedup.test.ts'
+          ':(exclude,literal)__tests__/lib/entity-aliases.test.ts'
+          ':(exclude,literal)__tests__/lib/entity-dedup.test.ts'
+          ':(exclude,literal)__tests__/lib/env.test.ts'
+          ':(exclude,literal)__tests__/lib/intelligence/flag-analyser.test.ts'
+          ':(exclude,literal)__tests__/lib/intelligence/guide-generator.test.ts'
+          ':(exclude,literal)__tests__/lib/intelligence/relevance-scorer.test.ts'
+          ':(exclude,literal)__tests__/lib/intelligence/rss-generator.test.ts'
+          ':(exclude,literal)__tests__/mcp/certification-status-tool.test.ts'
+          ':(exclude,literal)__tests__/scripts/quality-gate.test.ts'
+          ':(exclude,literal)__tests__/setup.ts'
+          ':(exclude,literal)__tests__/validation/intelligence-schemas.test.ts'
+          ':(exclude,literal).claude/skills/run-knowledge-hub/SKILL.md'
+          ':(exclude,literal)CLAUDE.md'
+          ':(exclude,literal)components/entity-management/entity-detail-panel.tsx'
+          ':(exclude,literal)deploy/coolify/docker-compose.production.yaml'
+          ':(exclude,literal)docs/audits/cert-card-and-mcp-plugin-findings-2026-04-23.md'
+          ':(exclude,literal)docs/audits/cert-classifier-eval-s193-report-v2.json'
+          ':(exclude,literal)docs/audits/cert-classifier-eval-s193-report.json'
+          ':(exclude,literal)docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md'
+          ':(exclude,literal)docs/audits/human-validation-auto-metadata-research.md'
+          ':(exclude,literal)docs/audits/kh-production-readiness-phase-1/DECISIONS.md'
+          ':(exclude,literal)docs/audits/kh-production-readiness-phase-1/PLAN.md'
+          ':(exclude,literal)docs/audits/kh-production-readiness-phase-1/STATUS-change-log.md'
+          ':(exclude,literal)docs/audits/ledger-field-sweep-s269.md'
+          ':(exclude,literal)docs/audits/s154-entity-classification-iteration-log.md'
+          ':(exclude,literal)docs/audits/ts-eval-preflight-2026-04-25.json'
+          ':(exclude,literal)docs/audits/ts-eval-run-2026-04-24.json'
+          ':(exclude,literal)docs/audits/two-pass-cost-quality-measurement.md'
+          ':(exclude,literal)docs/audits/user-feedback-re-ingestion-gap-analysis-s188.md'
+          ':(exclude,literal)docs/continuation-prompts/cmux-brief-s275-id49-10-fixture-staging.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s261-main-id42-research-next.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s262-main-cmux-terminal-deploy.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s267-parallel-cmux-phase.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s275-id53-wave-a-id49-10-fixture-staging.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s276-id48-wave-id52-id53-wave-2-id56-content-model.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s279-spec-fix-pipeline-pre-reingest-readiness.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s282-cmux-impl-fleet.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s290-id66-datapath-client-corpus-id68-product.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s291-id66-livemode-fix-id68-spec-id69-product.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s292-id62-live-verify-id68-flip-id69-impl.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s293-rebaseline-modes-id64-reingest-path.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s294-focus-66.16-closeout-docubot-teardown.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s299-coolify-staging-standup-pipeline-smoke-next.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s301a-id68-operator-move-flip-purge.md'
+          ':(exclude,literal)docs/continuation-prompts/continuation-prompt-kh-s306-task82-branch-migration-fix-v1-carry.md'
+          ':(exclude,literal)docs/continuation-prompts/s265-worker-reports/events.jsonl'
+          ':(exclude,literal)docs/continuation-prompts/s265-worker-reports/subo-id42-final-report.yaml'
+          ':(exclude,literal)docs/continuation-prompts/s271-worker-reports/briefs/cmux-brief-id-49.md'
+          ':(exclude,literal)docs/continuation-prompts/s271-worker-reports/subo-id-49-final.yaml'
+          ':(exclude,literal)docs/ontology/01-taxonomy-domains.md'
+          ':(exclude,literal)docs/ontology/18-entity-aliases.md'
+          ':(exclude,literal)docs/ontology/23-extractor-kind.md'
+          ':(exclude,literal)docs/ontology/32-q-a-pair.md'
+          ':(exclude,literal)docs/operations/blank-db-restore-matrix.md'
+          ':(exclude,literal)docs/operations/content-readiness-tracker.md'
+          ':(exclude,literal)docs/operations/cutover-report-s182.md'
+          ':(exclude,literal)docs/operations/guide-regeneration-prompts.md'
+          ':(exclude,literal)docs/operations/re-ingestion-quality-protocol.md'
+          ':(exclude,literal)docs/operations/re-ingestion-skill-notes.md'
+          ':(exclude,literal)docs/operations/re-ingestion-status-review-2026-04-21.md'
+          ':(exclude,literal)docs/operations/si-feed-onboarding-strategy.md'
+          ':(exclude,literal)docs/product-functionality/administration/technical.md'
+          ':(exclude,literal)docs/product-functionality/administration/user-journeys.md'
+          ':(exclude,literal)docs/reference/auth-hooks.md'
+          ':(exclude,literal)docs/reference/backlog/223.md'
+          ':(exclude,literal)docs/reference/backlog/33.md'
+          ':(exclude,literal)docs/reference/backlog/47.md'
+          ':(exclude,literal)docs/reference/backlog/74.md'
+          ':(exclude,literal)docs/reference/backlog/75.md'
+          ':(exclude,literal)docs/reference/classification-prompt.md'
+          ':(exclude,literal)docs/reference/documentation-inventory.md'
+          ':(exclude,literal)docs/reference/entity-type-taxonomy-spec.md'
+          ':(exclude,literal)docs/reference/field-consumer-dependency-map.md'
+          ':(exclude,literal)docs/reference/product-backlog.json'
+          ':(exclude,literal)docs/reference/product-differentiation-audit.md'
+          ':(exclude,literal)docs/reference/product-roadmap.json'
+          ':(exclude,literal)docs/reference/product-roadmap.md'
+          ':(exclude,literal)docs/reference/roadmap/11.md'
+          ':(exclude,literal)docs/reference/roadmap/3.md'
+          ':(exclude,literal)docs/reference/sector-intelligence-pathway.md'
+          ':(exclude,literal)docs/reference/state-of-the-product.md'
+          ':(exclude,literal)docs/reference/task-list.json'
+          ':(exclude,literal)docs/reference/tasks/ID-28.md'
+          ':(exclude,literal)docs/reference/tasks/ID-42.md'
+          ':(exclude,literal)docs/reference/tasks/ID-45.md'
+          ':(exclude,literal)docs/reference/tasks/ID-49.md'
+          ':(exclude,literal)docs/reference/tasks/ID-61.md'
+          ':(exclude,literal)docs/reference/tasks/ID-62.md'
+          ':(exclude,literal)docs/reference/tasks/ID-64.md'
+          ':(exclude,literal)docs/reference/tasks/ID-66.md'
+          ':(exclude,literal)docs/reference/tasks/ID-68.md'
+          ':(exclude,literal)docs/reference/tasks/ID-69.md'
+          ':(exclude,literal)docs/reference/tasks/ID-75.md'
+          ':(exclude,literal)docs/reference/tasks/ID-82.md'
+          ':(exclude,literal)docs/reference/two-pass-validation-results.md'
+          ':(exclude,literal)docs/research/coolify-prod-staging-topology.md'
+          ':(exclude,literal)docs/research/db-retain-investigation.md'
+          ':(exclude,literal)docs/research/s273-canonical-pipeline-finals/id49-final.yaml'
+          ':(exclude,literal)docs/research/s281-cloud-run-vs-onprem-implications.md'
+          ':(exclude,literal)docs/research/s286-bl196-classify-py-retirement.md'
+          ':(exclude,literal)docs/research/s314-id75-feed-current-state.md'
+          ':(exclude,literal)docs/runbooks/bid-library-import-guide.md'
+          ':(exclude,literal)docs/runbooks/cloud-run-phase-1.md'
+          ':(exclude,literal)docs/runbooks/cocoindex-deploy.md'
+          ':(exclude,literal)docs/runbooks/database-rebuild-runbook.md'
+          ':(exclude,literal)docs/runbooks/github-environments.md'
+          ':(exclude,literal)docs/runbooks/local-development.md'
+          ':(exclude,literal)docs/runbooks/onprem-b1-deploy.md'
+          ':(exclude,literal)docs/runbooks/pullmd-deploy.md'
+          ':(exclude,literal)docs/runbooks/staging-refresh.md'
+          ':(exclude,literal)docs/runbooks/two-stage-re-ingestion-runbook.md'
+          ':(exclude,literal)docs/specs/bid-testing-strategy-spec.md'
+          ':(exclude,literal)docs/specs/core-docs-pathway-assessment/architecture-sub-doc-readiness-audit.md'
+          ':(exclude,literal)docs/specs/core-docs-pathway-assessment/canonical-pipeline-drift-audit-s240.md'
+          ':(exclude,literal)docs/specs/core-docs-pathway-assessment/INV-architecture-split-readiness.md'
+          ':(exclude,literal)docs/specs/core-docs-pathway-assessment/theme-f-mempalace-investigation.md'
+          ':(exclude,literal)docs/specs/demo-bootstrap-spec.md'
+          ':(exclude,literal)docs/specs/id-20-per-task-mirror/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-28-cocoindex-flow-scaffolding/PLAN.md'
+          ':(exclude,literal)docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md'
+          ':(exclude,literal)docs/specs/id-28-cocoindex-flow-scaffolding/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md'
+          ':(exclude,literal)docs/specs/id-31-0.9-canonical-pipeline/PRODUCT.md'
+          ':(exclude,literal)docs/specs/id-31-0.9-canonical-pipeline/TECH.md'
+          ':(exclude,literal)docs/specs/id-31-canonical-pipeline-implementation-plan/PLAN.md'
+          ':(exclude,literal)docs/specs/id-31-canonical-pipeline-task-list-migration/PRODUCT.md'
+          ':(exclude,literal)docs/specs/id-31-canonical-pipeline-task-list-migration/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-36-cocoindex-extraction-contract/PRODUCT.md'
+          ':(exclude,literal)docs/specs/id-36-cocoindex-extraction-contract/TECH.md'
+          ':(exclude,literal)docs/specs/id-36-cocoindex-extraction-contract/verifier-reports/cocoindex-extraction-contract-verifier.md'
+          ':(exclude,literal)docs/specs/id-42-pullmd-deploy/PRODUCT.md'
+          ':(exclude,literal)docs/specs/id-42-pullmd-deploy/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-42-pullmd-deploy/TECH.md'
+          ':(exclude,literal)docs/specs/id-46-cocoindex-absorption-cleanup/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-47-db-layer-type-source-of-truth/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-50-ast-dataflow-tool/investigations/R-WP12-opaque-json-rpcs.md'
+          ':(exclude,literal)docs/specs/id-50-ast-dataflow-tool/ROADMAP.md'
+          ':(exclude,literal)docs/specs/id-52-form-extraction/PLAN.md'
+          ':(exclude,literal)docs/specs/id-52-form-extraction/TECH.md'
+          ':(exclude,literal)docs/specs/id-56-content-model-invariants/PRODUCT.md'
+          ':(exclude,literal)docs/specs/id-62-fixture-staging-infra/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-64-pre-reingest-readiness/RESEARCH.md'
+          ':(exclude,literal)docs/specs/ID-66-onprem-pivot/OQ-CLOSURE.md'
+          ':(exclude,literal)docs/specs/ID-66-onprem-pivot/PLAN.md'
+          ':(exclude,literal)docs/specs/ID-66-onprem-pivot/PRODUCT.md'
+          ':(exclude,literal)docs/specs/ID-66-onprem-pivot/RESEARCH.md'
+          ':(exclude,literal)docs/specs/ID-66-onprem-pivot/TECH.md'
+          ':(exclude,literal)docs/specs/ID-68-repo-visibility-ip-separation/DEPLOY-OVERLAY-DESIGN.md'
+          ':(exclude,literal)docs/specs/ID-68-repo-visibility-ip-separation/PLAN.md'
+          ':(exclude,literal)docs/specs/ID-68-repo-visibility-ip-separation/PRE-FLIP-DEID-PLAN.md'
+          ':(exclude,literal)docs/specs/ID-68-repo-visibility-ip-separation/PRODUCT.md'
+          ':(exclude,literal)docs/specs/ID-68-repo-visibility-ip-separation/RESEARCH.md'
+          ':(exclude,literal)docs/specs/ID-68-repo-visibility-ip-separation/TARGET-STATE-ARCHITECTURE.md'
+          ':(exclude,literal)docs/specs/ID-68-repo-visibility-ip-separation/TECH.md'
+          ':(exclude,literal)docs/specs/ID-69-client-corpus-onboarding/PRODUCT.md'
+          ':(exclude,literal)docs/specs/ID-69-client-corpus-onboarding/RESEARCH.md'
+          ':(exclude,literal)docs/specs/ID-75-pullmd-cocoindex/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-9-astro-starlight-docs-foundation/PLAN.md'
+          ':(exclude,literal)docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md'
+          ':(exclude,literal)docs/specs/id-9-astro-starlight-docs-foundation/RESEARCH.md'
+          ':(exclude,literal)docs/specs/id-9-astro-starlight-docs-foundation/TECH.md'
+          ':(exclude,literal)docs/specs/intelligence-workspaces/TECH.md'
+          ':(exclude,literal)docs/specs/procurement-workspaces/PRODUCT.md'
+          ':(exclude,literal)docs/specs/product-guide-workspaces/PRODUCT.md'
+          ':(exclude,literal)docs/specs/product-guide-workspaces/TECH.md'
+          ':(exclude,literal)docs/specs/wp6-ontology-harness/investigations/INV-1-layer-vocabulary.md'
+          ':(exclude,literal)docs/specs/wp6-ontology-harness/investigations/INV-2-content-type-semantics.md'
+          ':(exclude,literal)docs/specs/wp6-ontology-harness/verifier-reports/B1-md-vs-db-drift.md'
+          ':(exclude,literal)docs/testing/e2e/e2e-test-setup.md'
+          ':(exclude,literal)docs/testing/e2e/prod-e2e-readonly.md'
+          ':(exclude,literal)docs/testing/uat/s77-uat-research-synthesis.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/intended-architecture/02-data-flow.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/intended-architecture/03-tech-stack.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/intended-architecture/04-workspace-types.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/intended-architecture/05-qa-flow.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/intended-architecture/06-mcp-tooling.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/intended-architecture/07-collapse-list.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/intended-architecture/09-diagrams.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.2.5-build-not-wired.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.2a-content-items-column-audit.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.8.5-skill-seekers-evaluation.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.8.7-mempalace-evaluation.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.9-context.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.9-edit-flow-investigation.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.9-synthesis-verification.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/0.9-synthesis.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/00-synthesis-v2.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/00-synthesis.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/05-q38-bid-response-feedback-loop.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/feedback-findings-review.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-1-data-inventory-RAW.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-1-onthology-pipeline-feedback-investigation.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-1-onthology-pipeline.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-1-verification.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-2-cocoindex-deep-dive.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-2-verification.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-2a-cocoindex-examples.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/phase-0-investigation/phase-b-prerequisite-2c-cocoindex-doc-handling.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/canonical-pipeline-sequencing.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/decision-graph.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/deferral-register.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/id66-close-out-specs-draft.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/project-plan.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/pullmd-cocoindex-intent-s299.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/pullmd-wiring-design-s300.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/s312-id61-bl45-reconcile.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/v1-completion-sequence.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/reference/v1-sequence-s308-carry.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/spike-findings/0.9-spike-plan.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/spike-findings/0.9-spike-S10-dedup-substrate.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/spike-findings/0.9-spike-S16-qa-schema-design.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/spike-findings/0.9-spike-S16-verification.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/spike-findings/0.9-spike-S2-cocoindex-folder-binding.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/spike-findings/0.9-spike-S3-mempalace-observe.md'
+          ':(exclude,literal)docs/themes/canonical-pipeline/spike-findings/0.9-spike-S4-pullmd-bakeoff.md'
+          ':(exclude,literal)docs/themes/workspaces/sales-proposals/sales-proposals-reuse-audit-arm-a.md'
+          ':(exclude,literal)docs/themes/workspaces/sales-proposals/sales-proposals-reuse-audit-arm-b.md'
+          ':(exclude,literal)docs/workflow-evaluation/sessions/session-1ed1a529-1102-4274-afe5-eec4d33fe474/t3-cloudrun/events.jsonl'
+          ':(exclude,literal)docs/workflow-evaluation/sessions/session-1ed1a529-1102-4274-afe5-eec4d33fe474/t3-cloudrun/final_report.yaml'
+          ':(exclude,literal)docs/workflow-evaluation/sessions/session-4098ff8f-2b02-4629-845e-ec255d3e2d04/subo-id-66/events.jsonl'
+          ':(exclude,literal)docs/workflow-evaluation/sessions/session-e4241f4c-c08d-4656-9ec7-1275665a58ca/t5-docs/events.jsonl'
+          ':(exclude,literal)lib/ai/skills/classification.md'
+          ':(exclude,literal)lib/branding/clients/example-client.json'
+          ':(exclude,literal)lib/client-config.ts'
+          ':(exclude,literal)next.config.ts'
+          ':(exclude,literal)scripts/audit-opaque-json-rpcs.ts'
+          ':(exclude,literal)scripts/eval-holder-rule-ts.ts'
+          ':(exclude,literal)scripts/export-example-client-articles.ts'
+          ':(exclude,literal)scripts/kb_pipeline/eval_holder_rule.py'
+          ':(exclude,literal)scripts/propagate-cert-metadata.ts'
+          ':(exclude,literal)scripts/seed-example-client-guides.ts'
+          ':(exclude,literal)scripts/split_example-client_site_content.py'
+          ':(exclude,literal)scripts/tests/test_classify_store_entities.py'
+          ':(exclude,literal)scripts/tests/test_cocoindex_app_main_retry_wiring.py'
+          ':(exclude,literal)scripts/tests/test_cocoindex_flow_failure_mode.py'
+          ':(exclude,literal)scripts/tests/test_cocoindex_flow_fork_routing.py'
+          ':(exclude,literal)scripts/tests/test_cocoindex_flow_pipeline_run_webhook.py'
+          ':(exclude,literal)scripts/tests/test_docx_tracked_changes_regression.py'
+          ':(exclude,literal)scripts/tests/test_eval_holder_rule.py'
+          ':(exclude,literal)scripts/tests/test_workspace_resolver.py'
+          ':(exclude,literal)supabase/config.toml'
+          ':(exclude,literal)supabase/migrations/20260419212103_cutover_fix_guide_domain_and_restore_mat_auditing.sql'
+          ':(exclude,literal)supabase/migrations/20260424202806_capture_signup_domain_hook.sql'
+          ':(exclude,literal)supabase/migrations/20260428122626_user_profiles_mirror.sql'
+          ':(exclude,literal)supabase/types/database.types.ts'
+          )
+
+          # ---- 2. Identity grep: every denylist token, full tracked tree.
+          fail=0
+          token_count=$(jq -r '.tokens | length' <<<"$KH_CLIENT_NAME_DENYLIST")
+          # Carve-out content patterns (PC-31 exclusion_patterns[]) — held in
+          # memory only; never printed. (while-read, not mapfile, so the
+          # script also runs under bash 3.2 for local rehearsal.)
+          CARVEOUT_PATTERNS=()
+          while IFS= read -r _pat; do
+            [ -n "$_pat" ] && CARVEOUT_PATTERNS+=("$_pat")
+          done < <(jq -r '.exclusion_patterns[]?.pattern' <<<"$KH_CLIENT_NAME_DENYLIST" | tr '[:upper:]' '[:lower:]')
+
+          for ((i = 0; i < token_count; i++)); do
+            value=$(jq -r ".tokens[$i].value" <<<"$KH_CLIENT_NAME_DENYLIST")
+            ci=$(jq -r ".tokens[$i].case_insensitive" <<<"$KH_CLIENT_NAME_DENYLIST")
+            class=$(jq -r ".tokens[$i].class" <<<"$KH_CLIENT_NAME_DENYLIST")
+            flags=(-I -n -F)
+            if [ "$ci" = "true" ]; then flags+=(-i); fi
+            matches=$(git grep "${flags[@]}" -e "$value" -- . "${PENDING_DEID[@]}" || true)
+
+            net=0
+            net_sites=""
+            while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              content=${line#*:}
+              content=${content#*:}
+              lower=$(printf '%s' "$content" | tr '[:upper:]' '[:lower:]')
+              excluded=0
+              for pat in "${CARVEOUT_PATTERNS[@]+"${CARVEOUT_PATTERNS[@]}"}"; do
+                case "$lower" in
+                  *"$pat"*)
+                    excluded=1
+                    break
+                    ;;
+                esac
+              done
+              if [ "$excluded" -eq 0 ]; then
+                net=$((net + 1))
+                net_sites+="  - $(printf '%s' "$line" | cut -d: -f1,2)"$'\n'
+              fi
+            done <<<"$matches"
+
+            echo "identity class '$class': $net new identity site(s)"
+            if [ "$net" -gt 0 ]; then
+              fail=1
+              echo "VIOLATION (PC-37 / Inv 37) — new identity-set site(s) for the class above (match content withheld):"
+              printf '%s' "$net_sites"
+            fi
+          done
+
+          # ---- 3. PC-2: no OSI licence file at the repo root.
+          # (Capture-to-variable, not `grep -q` pipelines: under pipefail,
+          # grep -q's early exit can SIGPIPE the producer and silently flip
+          # the assertion.)
+          lic_files=$(git ls-files | grep -iE '^(LICENSE|LICENCE|COPYING)' || true)
+          if [ -n "$lic_files" ]; then
+            echo "VIOLATION (PC-2 / Inv 2): a licence file is tracked at the repo root — public means source-visible, NOT open-source:"
+            printf '%s\n' "$lic_files"
+            fail=1
+          else
+            echo "PC-2 licence-file assertion: pass"
+          fi
+
+          # ---- 4. PC-20: no CONTRIBUTING.md.
+          contrib_files=$(git ls-files | grep -iE '^CONTRIBUTING\.md$' || true)
+          if [ -n "$contrib_files" ]; then
+            echo "VIOLATION (PC-20 / Inv 20): CONTRIBUTING.md is tracked — no external contribution surface."
+            fail=1
+          else
+            echo "PC-20 CONTRIBUTING.md assertion: pass"
+          fi
+
+          # ---- 5. PC-26: retired bridge-knob name must not return outside
+          # docs/ (composed at runtime so this file never carries it).
+          old_knob='KH_DOCS'
+          old_knob="${old_knob}_DIR"
+          knob_sites=$(git grep -I -n -F "$old_knob" -- . ':(exclude)docs/' || true)
+          if [ -n "$knob_sites" ]; then
+            echo "VIOLATION (PC-26 / Inv 26): the retired bridge-knob name has returned outside docs/:"
+            printf '%s\n' "$knob_sites" | cut -d: -f1,2
+            fail=1
+          else
+            echo "PC-26 retired-knob assertion: pass (zero outside docs/)"
+          fi
+
+          if [ "$fail" -ne 0 ]; then
+            echo "identity-guard: FAIL"
+            exit 1
+          fi
+          echo "identity-guard: PASS"
