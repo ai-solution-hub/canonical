@@ -268,7 +268,7 @@ def run_evaluation(limit=None, dry_run=True):
     per_item_diffs = []
     metadata_mismatches = []
 
-    # Known positive controls (example-datacentre false positives from spec section 4.3)
+    # Known positive controls (supplier false positives from spec section 4.3)
     positive_control_targets = frozenset([
         "iso 27001", "iso 9001", "iso 14001",
     ])
@@ -421,7 +421,7 @@ def run_evaluation(limit=None, dry_run=True):
             len(item_metadata_mismatches),
         )
 
-    # Precision regressions exclude the known example-datacentre positive controls
+    # Precision regressions exclude the known supplier positive controls
     # (spec ss4.3 lists iso 27001, iso 9001, iso 14001 as EXPECTED flips).
     # gross = raw count of client_org -> non_client_org source changes.
     # net   = gross minus positive-control flips = TRUE precision regressions

@@ -41,7 +41,7 @@ from scripts.cocoindex_pipeline.workspace_resolver import (
 # Canonical UUIDs (v4-compliant) used across the suite.
 # ──────────────────────────────────────────────────────────────────────────
 
-example-client_UUID = UUID("11111111-1111-4111-8111-111111111111")
+EXAMPLE_UUID = UUID("11111111-1111-4111-8111-111111111111")
 ACME_UUID = UUID("22222222-2222-4222-8222-222222222222")
 ACME_2026_UUID = UUID("33333333-3333-4333-8333-333333333333")
 OTHER_UUID = UUID("44444444-4444-4444-8444-444444444444")
@@ -68,7 +68,7 @@ def test_schema_rejects_missing_schema_version(tmp_path: Path) -> None:
         tmp_path,
         {
             "mappings": [
-                {"path_prefix": "example-client-procurement/", "workspace_id": str(example-client_UUID)},
+                {"path_prefix": "example-procurement/", "workspace_id": str(EXAMPLE_UUID)},
             ],
         },
     )
@@ -121,27 +121,27 @@ def test_resolve_returns_mapped_uuid_for_known_prefix() -> None:
     """Inv-4: known prefix → mapped workspace UUID."""
     manifest = _build_manifest(
         [
-            ("example-client-procurement/", example-client_UUID),
+            ("example-procurement/", EXAMPLE_UUID),
             ("acme-bids/", ACME_UUID),
         ]
     )
-    result = resolve_workspace(manifest, "example-client-procurement/SQ.pdf")
-    assert result == example-client_UUID
+    result = resolve_workspace(manifest, "example-procurement/SQ.pdf")
+    assert result == EXAMPLE_UUID
 
 
 def test_resolve_is_deterministic_on_repeat() -> None:
     """Inv-4: same `(manifest, rel_path)` yields same UUID across calls."""
     manifest = _build_manifest(
         [
-            ("example-client-procurement/", example-client_UUID),
+            ("example-procurement/", EXAMPLE_UUID),
             ("acme-bids/", ACME_UUID),
         ]
     )
-    rel_path = "example-client-procurement/sub/dir/SQ.pdf"
+    rel_path = "example-procurement/sub/dir/SQ.pdf"
     first = resolve_workspace(manifest, rel_path)
     second = resolve_workspace(manifest, rel_path)
     third = resolve_workspace(manifest, rel_path)
-    assert first == second == third == example-client_UUID
+    assert first == second == third == EXAMPLE_UUID
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ def test_resolve_unmapped_path_raises_unmapped_path() -> None:
     """Inv-5/bl-219: an unmapped path raises the `UnmappedPath` subclass — never
     a silent default. `UnmappedPath` IS-A `ResolutionFailure`, so existing
     base-class handlers still catch it (catchability preserved)."""
-    manifest = _build_manifest([("example-client-procurement/", example-client_UUID)])
+    manifest = _build_manifest([("example-procurement/", EXAMPLE_UUID)])
     with pytest.raises(UnmappedPath) as exc_info:
         resolve_workspace(manifest, "unmapped/X.pdf")
     # Base-class catchability is intact: the subclass IS-A ResolutionFailure.
@@ -289,7 +289,7 @@ def test_load_and_resolve_round_trip(tmp_path: Path) -> None:
         {
             "schema_version": 1,
             "mappings": [
-                {"path_prefix": "example-client-procurement/", "workspace_id": str(example-client_UUID)},
+                {"path_prefix": "example-procurement/", "workspace_id": str(EXAMPLE_UUID)},
                 {"path_prefix": "acme-bids/", "workspace_id": str(ACME_UUID)},
                 {
                     "path_prefix": "acme-bids/2026/",
@@ -299,7 +299,7 @@ def test_load_and_resolve_round_trip(tmp_path: Path) -> None:
         },
     )
     manifest = load_workspace_manifest(manifest_path)
-    assert resolve_workspace(manifest, "example-client-procurement/SQ.pdf") == example-client_UUID
+    assert resolve_workspace(manifest, "example-procurement/SQ.pdf") == EXAMPLE_UUID
     assert resolve_workspace(manifest, "acme-bids/foo.pdf") == ACME_UUID
     assert resolve_workspace(manifest, "acme-bids/2026/foo.pdf") == ACME_2026_UUID
     with pytest.raises(ResolutionFailure):
@@ -322,15 +322,15 @@ def test_manifest_without_route_resolves_route_content(tmp_path: Path) -> None:
         {
             "schema_version": 1,
             "mappings": [
-                {"path_prefix": "example-client-procurement/", "workspace_id": str(example-client_UUID)},
+                {"path_prefix": "example-procurement/", "workspace_id": str(EXAMPLE_UUID)},
                 {"path_prefix": "acme-bids/", "workspace_id": str(ACME_UUID)},
             ],
         },
     )
     manifest = load_workspace_manifest(manifest_path)
-    example-client = resolve_route(manifest, "example-client-procurement/SQ.pdf")
+    example = resolve_route(manifest, "example-procurement/SQ.pdf")
     acme = resolve_route(manifest, "acme-bids/foo.pdf")
-    assert example-client == Resolution(workspace_id=example-client_UUID, route="content")
+    assert example == Resolution(workspace_id=EXAMPLE_UUID, route="content")
     assert acme == Resolution(workspace_id=ACME_UUID, route="content")
 
 
@@ -341,7 +341,7 @@ def test_route_forms_prefix_resolves_forms(tmp_path: Path) -> None:
         {
             "schema_version": 1,
             "mappings": [
-                {"path_prefix": "example-client-procurement/", "workspace_id": str(example-client_UUID)},
+                {"path_prefix": "example-procurement/", "workspace_id": str(EXAMPLE_UUID)},
                 {
                     "path_prefix": "acme-forms/",
                     "workspace_id": str(ACME_UUID),
@@ -354,7 +354,7 @@ def test_route_forms_prefix_resolves_forms(tmp_path: Path) -> None:
     result = resolve_route(manifest, "acme-forms/SQ-blank.pdf")
     assert result == Resolution(workspace_id=ACME_UUID, route="forms")
     # The untagged sibling prefix stays on the content route.
-    assert resolve_route(manifest, "example-client-procurement/SQ.pdf").route == "content"
+    assert resolve_route(manifest, "example-procurement/SQ.pdf").route == "content"
 
 
 def test_invalid_route_value_rejected_at_load_time(tmp_path: Path) -> None:
@@ -410,13 +410,13 @@ def test_resolve_workspace_shim_equivalence() -> None:
     unchanged (same UnmappedPath / AmbiguousResolution subclasses)."""
     manifest = _build_manifest(
         [
-            ("example-client-procurement/", example-client_UUID),
+            ("example-procurement/", EXAMPLE_UUID),
             ("acme-bids/", ACME_UUID),
             ("acme-bids/2026/", ACME_2026_UUID),
         ]
     )
     for rel_path in (
-        "example-client-procurement/SQ.pdf",
+        "example-procurement/SQ.pdf",
         "acme-bids/foo.pdf",
         "acme-bids/2026/foo.pdf",
     ):

@@ -66,7 +66,7 @@ services:
       PULLMD_API_TOKEN: ${PULLMD_API_TOKEN}
 
       # --- Boot-required vars (must be present before /health serves) ---
-      # Carry-over from cloudrun/services/staging-example-client-cocoindex.yaml:45-71.
+      # Carry-over from the retired Cloud Run staging cocoindex service config.
       # COCOINDEX_DB_DSN is the asyncpg Supabase pooler string (NOT the LMDB path).
       # It is boot-required: flow.py:_build_dsn() needs it during @coco.lifespan
       # asyncpg pool creation, before /health can serve (ID-49.8 precedent).

@@ -29,21 +29,21 @@ class TestNormaliseRel:
     def test_normalises_classification_output_format(self):
         """Classification output with source, relationship_type, target."""
         rel = {
-            "source": "example-datacentre",
+            "source": "Example Datacentre",
             "relationship_type": "holds",
             "target": "ISO 27001",
         }
         result = normalise_rel(rel)
-        assert result == ("example-datacentre", "holds", "iso 27001")
+        assert result == ("example datacentre", "holds", "iso 27001")
 
     def test_strips_whitespace(self):
         rel = {
-            "source": "  example-datacentre  ",
+            "source": "  Example Datacentre  ",
             "relationship_type": "  holds  ",
             "target": "  ISO 27001  ",
         }
         result = normalise_rel(rel)
-        assert result == ("example-datacentre", "holds", "iso 27001")
+        assert result == ("example datacentre", "holds", "iso 27001")
 
     def test_handles_missing_keys(self):
         rel = {}
@@ -89,7 +89,7 @@ class TestComputeDiff:
         assert len(diff["precision_regressions"]) == 0
 
     def test_supplier_attribution_change(self):
-        """example-datacentre false positive case -- source changes from client to supplier."""
+        """Supplier false positive case -- source changes from client to supplier."""
         existing = [
             {
                 "source_entity": "example client limited",
@@ -99,7 +99,7 @@ class TestComputeDiff:
         ]
         new = [
             {
-                "source": "example-datacentre",
+                "source": "example datacentre",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
@@ -109,14 +109,14 @@ class TestComputeDiff:
         assert len(diff["unchanged"]) == 0
         assert len(diff["changed_holder"]) == 1
         assert diff["changed_holder"][0]["before_source"] == CLIENT_ORG
-        assert diff["changed_holder"][0]["after_source"] == "example-datacentre"
+        assert diff["changed_holder"][0]["after_source"] == "example datacentre"
         assert diff["changed_holder"][0]["target"] == "iso 27001"
         # This is a correct supplier attribution, but compute_diff flags it
         # as a precision regression (the caller determines correctness)
         assert len(diff["precision_regressions"]) == 1
 
-    def test_three_example-datacentre_positive_controls(self):
-        """All 3 known example-datacentre false positives change -- spec section 4.3."""
+    def test_three_supplier_positive_controls(self):
+        """All 3 known supplier false positives change -- spec section 4.3."""
         existing = [
             {
                 "source_entity": "example client limited",
@@ -142,17 +142,17 @@ class TestComputeDiff:
         ]
         new = [
             {
-                "source": "example-datacentre",
+                "source": "example datacentre",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
             {
-                "source": "example-datacentre",
+                "source": "example datacentre",
                 "relationship_type": "holds",
                 "target": "iso 9001",
             },
             {
-                "source": "example-datacentre",
+                "source": "example datacentre",
                 "relationship_type": "holds",
                 "target": "iso 14001",
             },
@@ -166,10 +166,10 @@ class TestComputeDiff:
 
         assert len(diff["unchanged"]) == 1  # cyber essentials plus
         assert len(diff["changed_holder"]) == 3
-        # All 3 are holder changes from client to example-datacentre
+        # All 3 are holder changes from client to the supplier
         for change in diff["changed_holder"]:
             assert change["before_source"] == CLIENT_ORG
-            assert change["after_source"] == "example-datacentre"
+            assert change["after_source"] == "example datacentre"
 
     def test_removed_relationship(self):
         """A relationship in existing but not in new is 'removed'."""
@@ -269,7 +269,7 @@ class TestComputeDiff:
         ]
         new = [
             {
-                "source": "example-datacentre",
+                "source": "example datacentre",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
@@ -289,7 +289,7 @@ class TestComputeDiff:
                 "relationship_type": "holds",
                 "target_entity": "cyber essentials plus",
             },
-            # Should change to example-datacentre (positive control)
+            # Should change to the supplier (positive control)
             {
                 "source_entity": "example client limited",
                 "relationship_type": "holds",
@@ -311,7 +311,7 @@ class TestComputeDiff:
             },
             # Changed holder
             {
-                "source": "example-datacentre",
+                "source": "example datacentre",
                 "relationship_type": "holds",
                 "target": "iso 27001",
             },
@@ -330,4 +330,4 @@ class TestComputeDiff:
         # added includes both the new iso 27001 (source changed) and iso 22301
         assert len(diff["added"]) == 2
         assert len(diff["changed_holder"]) == 1
-        assert diff["changed_holder"][0]["after_source"] == "example-datacentre"
+        assert diff["changed_holder"][0]["after_source"] == "example datacentre"

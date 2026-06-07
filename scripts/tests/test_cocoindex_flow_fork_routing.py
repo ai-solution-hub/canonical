@@ -625,7 +625,7 @@ class TestRouteLessManifestBackwardCompat:
                     "schema_version": 1,
                     "mappings": [
                         {
-                            "path_prefix": "example-client-procurement/",
+                            "path_prefix": "example-procurement/",
                             "workspace_id": (
                                 "11111111-1111-4111-8111-111111111111"
                             ),
@@ -645,7 +645,7 @@ class TestRouteLessManifestBackwardCompat:
         manifest = load_workspace_manifest(manifest_path)
         assert manifest.schema_version == 1
         # Every prefix resolves the content default at the fork's resolver.
-        for rel in ("example-client-procurement/SQ.pdf", "acme-bids/notes.md"):
+        for rel in ("example-procurement/SQ.pdf", "acme-bids/notes.md"):
             assert resolve_route(manifest, rel).route == "content"
 
         flow = _flow_module()

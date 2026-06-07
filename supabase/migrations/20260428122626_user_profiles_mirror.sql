@@ -44,7 +44,7 @@
 -- -----------------------------------------------------------------------
 --
 -- email is NULLABLE (D-G3.4-4): GoTrue supports phone-only signup; Knowledge
--- Hub uses email-only auth via the example-client domain hook today but the schema
+-- Hub uses email-only auth via the allowed-domain signup hook today but the schema
 -- must not bake that assumption in.
 --
 -- full_name comes from auth.users.raw_user_meta_data ->> 'full_name'
@@ -67,7 +67,7 @@ COMMENT ON TABLE public.user_profiles IS
   'Mirror of auth.users for app-side reads (no PostgREST exposure on auth schema). Populated by handle_new_user trigger AFTER INSERT on auth.users; updated by handle_user_update AFTER UPDATE. Backfill of pre-existing users at migration apply time. WP-G3.4 (kh-prod-readiness-S8). Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g3.4-user-profiles-spec-v1.md.';
 
 COMMENT ON COLUMN public.user_profiles.email IS
-  'Mirror of auth.users.email. Nullable to support phone-only GoTrue signups; Knowledge Hub uses email-only auth via the example-client domain hook today but schema must not bake that in.';
+  'Mirror of auth.users.email. Nullable to support phone-only GoTrue signups; Knowledge Hub uses email-only auth via the allowed-domain signup hook today but schema must not bake that in.';
 
 -- -----------------------------------------------------------------------
 -- §4.2 RLS policies + REVOKE

@@ -62,7 +62,7 @@ class TestDeriveHolderMetadata:
         ]
         relationships = [
             {
-                "source": "example-datacentre",
+                "source": "Example Datacentre",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },
@@ -70,7 +70,7 @@ class TestDeriveHolderMetadata:
         result = derive_holder_metadata(entities, relationships)
         assert "iso 27001" in result
         assert result["iso 27001"]["holder"] == "supplier"
-        assert result["iso 27001"]["supplier_name"] == "example-datacentre"
+        assert result["iso 27001"]["supplier_name"] == "example datacentre"
 
     def test_no_holds_relationship(self):
         """No holds relationship yields empty metadata map."""
@@ -135,7 +135,7 @@ class TestDeriveHolderMetadata:
                 "target": "Cyber Essentials Plus",
             },
             {
-                "source": "example-datacentre",
+                "source": "Example Datacentre",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },
@@ -143,7 +143,7 @@ class TestDeriveHolderMetadata:
         result = derive_holder_metadata(entities, relationships)
         assert result["cyber essentials plus"] == {"holder": "self"}
         assert result["iso 27001"]["holder"] == "supplier"
-        assert result["iso 27001"]["supplier_name"] == "example-datacentre"
+        assert result["iso 27001"]["supplier_name"] == "example datacentre"
 
     def test_empty_relationships(self):
         """Empty relationships list yields empty metadata map."""
@@ -265,7 +265,7 @@ class TestStoreEntitiesWithRelationships:
         ]
         relationships = [
             {
-                "source": "example-datacentre",
+                "source": "Example Datacentre",
                 "relationship_type": "holds",
                 "target": "ISO 27001",
             },
@@ -279,7 +279,7 @@ class TestStoreEntitiesWithRelationships:
         posted_data = call_args[0][2]
         assert posted_data["metadata"] == {
             "holder": "supplier",
-            "supplier_name": "example-datacentre",
+            "supplier_name": "example datacentre",
         }
 
     @patch("kb_pipeline.store._request")

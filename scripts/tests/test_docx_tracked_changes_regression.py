@@ -1,6 +1,6 @@
 """Tracked-changes DOCX regression — ID-61.2.
 
-Pre-reingest correctness gate for T7: the example-client corpus is .docx, and a
+Pre-reingest correctness gate for T7: the client corpus is .docx, and a
 tracked-changes leak would corrupt extracted content on the headline
 re-ingest run. ``scripts/docx_utils.py`` already resolves revisions
 (``open_document_safe`` → pandoc ``--track-changes=accept``) and the
