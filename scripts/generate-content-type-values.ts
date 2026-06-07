@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Codegen: read docs/ontology/04-content-type.md and write
+ * Codegen: read the frozen ontology CV baseline fixture
+ * (__tests__/fixtures/ontology/ontology-cv-baselines.json) and write
  * lib/ontology/content-type-values.generated.ts exporting the closed
  * content_type enum as a static readonly tuple.
  *
@@ -14,17 +15,31 @@
  * leaving the loader available for server-only consumers (tests,
  * parity guard).
  *
+ * Source history: this script originally parsed the
+ * docs/ontology/04-content-type.md frontmatter. The public
+ * docs/ontology/ register went fully private at the ID-68.27 OQ-E
+ * branch-(b) cutover (live home: the private docs-site repo via
+ * KH_PRIVATE_DOCS_DIR), so the script now reads the frozen public
+ * parity fixture instead — the same source
+ * `countContentTypeBaselineValues()` in scripts/generate-codebase-stats.ts
+ * uses. The fixture is kept in lockstep with the live register + DB
+ * CHECK constraint by `__tests__/lib/ontology/markdown-parity.test.ts`
+ * (update protocol: the fixture's `_meta.update_protocol`).
+ *
  * Run via `bun run generate:content-type-values`. Wired as `prebuild`
- * + `predev` so the generated file is always fresh. The
- * markdown-parity test continues to assert the markdown register and
- * the live DB CHECK constraint remain in lockstep.
+ * + `predev` so the generated file is always fresh.
  */
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
-import matter from 'gray-matter';
 
 const ROOT = process.cwd();
-const SOURCE = join(ROOT, 'docs', 'ontology', '04-content-type.md');
+const SOURCE = join(
+  ROOT,
+  '__tests__',
+  'fixtures',
+  'ontology',
+  'ontology-cv-baselines.json',
+);
 const OUTPUT = join(
   ROOT,
   'lib',
@@ -38,25 +53,30 @@ interface BaselineValue {
   provenance: string;
 }
 
-interface ContentTypeFrontmatter {
-  cv_name?: string;
-  baseline_values?: BaselineValue[];
+interface BaselineFixture {
+  cvs?: Array<{
+    cv_name: string;
+    baseline_values?: BaselineValue[];
+  }>;
 }
 
 async function main(): Promise<void> {
   const raw = await readFile(SOURCE, 'utf-8');
-  const fm = matter(raw).data as ContentTypeFrontmatter;
+  const fixture = JSON.parse(raw) as BaselineFixture;
 
-  if (fm.cv_name !== 'content_type') {
+  const contentType = (fixture.cvs ?? []).find(
+    (cv) => cv.cv_name === 'content_type',
+  );
+  if (!contentType) {
     throw new Error(
-      `[generate-content-type-values] ${SOURCE} must declare cv_name: content_type (got ${String(fm.cv_name)})`,
+      `[generate-content-type-values] ${SOURCE} has no cv with cv_name: content_type`,
     );
   }
 
-  const values = fm.baseline_values;
+  const values = contentType.baseline_values;
   if (!Array.isArray(values) || values.length === 0) {
     throw new Error(
-      `[generate-content-type-values] ${SOURCE} has no baseline_values`,
+      `[generate-content-type-values] ${SOURCE} content_type cv has no baseline_values`,
     );
   }
 
