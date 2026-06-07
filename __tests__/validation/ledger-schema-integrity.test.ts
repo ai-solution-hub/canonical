@@ -13,7 +13,7 @@
  * fixtures. This guard closes that gap.
  *
  * This rides the existing always-run guard-test pattern (CLAUDE.md "Guard tests
- * break on structural changes" — alongside `doc-freshness.test.ts`,
+ * break on structural changes" — alongside `reference-doc-paths.test.ts`,
  * `pipeline-parity.test.ts`, `mcp-fixture-sync.test.ts`). Each ledger is parsed
  * with its strict (`.strict()`) root schema; the task-list also goes through
  * `parseTaskListWithWarnings` to mirror the CLI's loader exactly.
