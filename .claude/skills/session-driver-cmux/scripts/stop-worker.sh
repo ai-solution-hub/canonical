@@ -341,7 +341,7 @@ fi
 # We derive a sensible default so a bare `stop-worker.sh <name> <sid>` still
 # preserves the corpus, rather than silently dropping it (the S274 footgun).
 #
-# ID-68 PC-25 (re-authored from the never-landed Phase-0a KH_DOCS_DIR knob):
+# ID-68 PC-25 (re-authored from the never-landed Phase-0a predecessor knob):
 # the session corpus lives in the PRIVATE docs-site repo. The default base
 # resolves via the one standing bridge knob KH_PRIVATE_DOCS_DIR and FAILS
 # LOUDLY when unset (Inv 29 — no silent fallback to the in-repo docs/ tree).
