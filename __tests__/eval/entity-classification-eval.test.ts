@@ -319,9 +319,9 @@ describe('Entity Classification Eval — Unit Tests', () => {
         content_type: 'q_a_pair',
         expected_entities: [
           {
-            name: 'example-client Design Ltd',
+            name: 'Example Client Ltd',
             type: 'organisation',
-            canonical_name: 'Example Client Ltd',
+            canonical_name: 'example client limited',
           },
         ],
         excluded_entities: [],
@@ -330,8 +330,8 @@ describe('Entity Classification Eval — Unit Tests', () => {
       const extracted: DbEntity[] = [
         {
           entity_type: 'organisation',
-          entity_name: 'example-client Design Ltd.',
-          canonical_name: 'Example Client Ltd',
+          entity_name: 'Example Client Ltd.',
+          canonical_name: 'example client limited',
         },
       ];
 
