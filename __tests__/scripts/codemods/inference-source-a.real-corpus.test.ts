@@ -27,7 +27,7 @@
  *       docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/TECH.md §3.A.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   routePathToCandidateUrl,
   inferSchemaSourceA,
@@ -37,6 +37,11 @@ import {
   enumerateRouteFiles,
   inferSchema,
 } from '@/scripts/codemods/wrap-define-route';
+
+// bl-245 (S321): the real-corpus suites load the full ts-morph project per test —
+// the 5000ms Vitest default false-reds under parallel-wave machine load AND on
+// loaded CI runners (S321 align, shard 2/4). File-level headroom, not per-test.
+vi.setConfig({ testTimeout: 15_000 });
 
 // ── routePathToCandidateUrl — absolute path handling ───────────────────────
 
