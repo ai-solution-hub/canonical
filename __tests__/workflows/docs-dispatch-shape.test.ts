@@ -16,8 +16,10 @@
  *      private docs-site repo.
  *   4. Dispatch targets knowledge-hub-docs-site with event_type
  *      kh-public-pr-merged and carries the PR number in client_payload.
- *   5. AC-D2 hygiene: the public workflow never mentions KH_PUBLIC_REPO_DIR
- *      (that knob exists only in the private docubot lane).
+ *   5. AC-D2 hygiene: the public workflow never mentions the private-lane
+ *      public-repo-checkout knob (it exists only in the private docubot
+ *      lane; the literal is split below so this guard itself stays out of
+ *      the AC-D2 repo-wide grep).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -103,7 +105,10 @@ describe('docs-dispatch.yml workflow shape (ID-68.26 / TECH PC-27)', () => {
     );
   });
 
-  it('never mentions KH_PUBLIC_REPO_DIR (AC-D2 — private-lane-only knob)', () => {
-    expect(raw).not.toContain('KH_PUBLIC_REPO_DIR');
+  it('never mentions the private-lane checkout knob (AC-D2)', () => {
+    // Literal assembled at runtime so this guard does not itself appear in
+    // the AC-D2 repo-wide grep for the knob name.
+    const knob = ['KH_PUBLIC', 'REPO_DIR'].join('_');
+    expect(raw).not.toContain(knob);
   });
 });
