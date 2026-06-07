@@ -35,8 +35,8 @@ bridge helpers only.
 - name: Resolve private docs
   uses: ./.github/actions/resolve-private-docs
   with:
-    app-id: ${{ secrets.DOCS_SITE_APP_ID }}
-    private-key: ${{ secrets.DOCS_SITE_APP_PRIVATE_KEY }}
+    app-id: ${{ secrets.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
 # Subsequent steps read $KH_PRIVATE_DOCS_DIR from the job env.
 ```
 
