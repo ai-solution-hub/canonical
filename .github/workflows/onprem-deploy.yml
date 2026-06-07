@@ -40,6 +40,19 @@
 # the file + Cloud Run manifests stay in git for reversibility, inv 24). WIF /
 # deploy-SA are DROPPED, not migrated — no gcloud credential lands on the host.
 #
+# CHANGE DETECTION (ID-86 / bl-236, S321): the workflow-level `paths:` filter is
+# GONE. GitHub's push-event paths filter inspects only the FIRST 300 changed
+# files of a compare, so align-class pushes (S319: 1,522 files, first scripts/
+# hit at position 1,467) silently skipped this workflow on main AND staging — no
+# error, no run. The workflow now ALWAYS starts on a main/staging push and the
+# `detect-changes` first job diffs the FULL before..sha compare (no 300-file
+# limit), gating the heavy build/deploy jobs on `outputs.relevant`. The match
+# set preserves the retired filter's semantics exactly: scripts/**/*.py,
+# requirements.txt, deploy/coolify/**. workflow_dispatch stays as the
+# belt-and-braces fallback and is always treated as relevant. None of the
+# burn-prevention guarantees above change — the detection job runs no deploys
+# and touches no Coolify state.
+#
 # ─────────────────────────────────────────────────────────────────────────────
 # Activation review items (resolved S288 — ID-66.7; staging arm added S309 / bl-222):
 #   1. ✅ DEPLOY BRANCHES = `main` (prod) + `staging` (staging mirror, added S309).
@@ -78,10 +91,10 @@ on:
         default: true
   push:
     branches: [main, staging] # main → prod deploy; staging → staging deploy (bl-222, S309). Branch-guarded per job below.
-    paths:
-      - "scripts/**/*.py"
-      - "requirements.txt"
-      - "deploy/coolify/**"
+    # NO paths: filter (ID-86 / bl-236) — GitHub inspects only the first 300
+    # changed files of a push compare, silently skipping the workflow on
+    # align-class pushes. Path relevance is now decided by the `detect-changes`
+    # job below over the FULL compare.
 
 permissions:
   contents: read
@@ -95,8 +108,85 @@ env:
   TAG: sha-${{ github.sha }}
 
 jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # CHANGE DETECTION — ID-86 / bl-236: replaces the workflow-level `paths:`
+  # filter (which GitHub evaluates over only the FIRST 300 changed files of a
+  # push compare — align-class pushes silently skipped the whole workflow).
+  # Diffs the FULL before..sha compare via plain `git diff --name-only` (no
+  # 300-file limit, no marketplace actions — pure git + shell, matching this
+  # workflow's pinned-deps discipline) and matches against the EXACT path set
+  # the retired filter carried: scripts/**/*.py, requirements.txt,
+  # deploy/coolify/**. Edge cases: all-zeros `before` (branch create /
+  # force-push) and workflow_dispatch are both treated as relevant=true.
+  # ───────────────────────────────────────────────────────────────────────────
+  detect-changes:
+    name: Detect pipeline-relevant changes (full compare)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      relevant: ${{ steps.diff.outputs.relevant }}
+    steps:
+      - name: Checkout (full history — the before..sha diff needs both ends)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4 (pinned 2026-05-31)
+        with:
+          fetch-depth: 0
+
+      - name: Diff before..sha and match the pipeline path set
+        id: diff
+        env:
+          # Map dynamic values into the shell env (never interpolate ${{ }}
+          # directly inside run: — injection-safe, mirroring the deploy jobs).
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          emit() {
+            echo "relevant=$1" >> "$GITHUB_OUTPUT"
+            echo "detect-changes verdict: relevant=$1 ($2)"
+          }
+          # workflow_dispatch: operator-triggered — always relevant (the
+          # belt-and-braces fallback stays unconditionally live).
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            emit true "workflow_dispatch is always relevant"
+            exit 0
+          fi
+          # Branch create / force-push: GitHub sends an all-zeros `before` SHA
+          # (or none). No comparable base — fail open to relevant=true.
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ -z "${BEFORE_SHA}" ] || [ "${BEFORE_SHA}" = "${ZERO_SHA}" ]; then
+            emit true "before SHA empty/all-zeros (branch create or force-push)"
+            exit 0
+          fi
+          # History rewrite can leave `before` unreachable even at
+          # fetch-depth 0 — fail open rather than erroring the gate.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            emit true "before SHA ${BEFORE_SHA} not found locally (history rewrite)"
+            exit 0
+          fi
+          # FULL compare — git diff has no 300-file ceiling. Capture first,
+          # then grep WITHOUT -q (avoids the SIGPIPE/pipefail early-exit
+          # footgun), so the matched files are also logged for the operator.
+          CHANGED="$(git diff --name-only "${BEFORE_SHA}" "${AFTER_SHA}")"
+          TOTAL="$(printf '%s\n' "${CHANGED}" | grep -c . || true)"
+          echo "Full compare ${BEFORE_SHA}..${AFTER_SHA}: ${TOTAL} changed file(s)."
+          # Match set == the retired workflow-level paths: filter, verbatim
+          # semantics: scripts/**/*.py | requirements.txt | deploy/coolify/**
+          MATCHES="$(printf '%s\n' "${CHANGED}" | grep -E '^(scripts/.*\.py|requirements\.txt|deploy/coolify/.*)$' || true)"
+          if [ -n "${MATCHES}" ]; then
+            echo "Pipeline-relevant changes:"
+            printf '%s\n' "${MATCHES}"
+            emit true "pipeline path(s) changed"
+          else
+            emit false "no pipeline-relevant paths in the compare"
+          fi
+
   build-and-push-cocoindex:
     name: Build + push cocoindex image (off-host)
+    needs: detect-changes
+    # Heavy-job gate (ID-86): only build when the detection job found a
+    # pipeline-relevant change (workflow_dispatch is always relevant).
+    if: needs.detect-changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 75 # Docling install + cocoindex Rust wheel + model layer (cloudbuild budgets 60m)
     steps:
@@ -226,7 +316,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   deploy-cocoindex:
     name: Bump Coolify tag + deploy (on-host pull)
-    needs: build-and-push-cocoindex
+    needs: [detect-changes, build-and-push-cocoindex]
     runs-on: ubuntu-latest
     # `Production` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN
     # (added S294) + COOLIFY_BASE_URL (operator must create = http://77.68.122.71:8000).
@@ -239,8 +329,11 @@ jobs:
     # `staging`. The `refs/heads/main` guard keeps this PROD deploy job firing ONLY
     # in the prod (main) context — a push to `staging` deploys via the
     # `deploy-cocoindex-staging` job below, never here.
+    # CHANGE-DETECTION GATE (ID-86 / bl-236): composed with the relevance output
+    # — a docs-only push to main skips the deploy (and the build it needs:).
     if:
-      github.ref == 'refs/heads/main' && (github.event_name == 'push' ||
+      needs.detect-changes.outputs.relevant == 'true' && github.ref ==
+      'refs/heads/main' && (github.event_name == 'push' ||
       github.event.inputs.deploy == 'true')
     env:
       # NON-secret Coolify app uuid (git-sourced Docker Compose app
@@ -330,7 +423,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   deploy-cocoindex-staging:
     name: Bump Coolify tag + deploy — STAGING (on-host pull)
-    needs: build-and-push-cocoindex
+    needs: [detect-changes, build-and-push-cocoindex]
     runs-on: ubuntu-latest
     # `Staging` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN
     # (added S309 — the bl-222 unblocker) + COOLIFY_BASE_URL (already on Staging).
@@ -341,8 +434,11 @@ jobs:
     # set deploy=false. The `refs/heads/staging` guard keeps this STAGING deploy
     # job firing ONLY in the staging context (a push to `main` deploys via the
     # prod `deploy-cocoindex` job above, never here).
+    # CHANGE-DETECTION GATE (ID-86 / bl-236): composed with the relevance output
+    # — a docs-only push to staging skips the deploy (and the build it needs:).
     if:
-      github.ref == 'refs/heads/staging' && (github.event_name == 'push' ||
+      needs.detect-changes.outputs.relevant == 'true' && github.ref ==
+      'refs/heads/staging' && (github.event_name == 'push' ||
       github.event.inputs.deploy == 'true')
     env:
       # NON-secret Coolify app uuid (staging git-sourced Docker Compose app).
