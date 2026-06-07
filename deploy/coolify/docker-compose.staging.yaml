@@ -71,6 +71,36 @@ services:
     # for this single-tenant backend pipeline sidecar (no untrusted code exec). Verbatim
     # from the prod compose — the staging permission model is identical.
     user: "0:0"
+
+    # --------------------------------------------------------------------------
+    # HTTPS ingress (ID-88.1) — Traefik path-scoped routing via the coolify-proxy.
+    #
+    # Inv-13: /stage is deliberately NOT routed — it stays compose-internal only.
+    # This path scope (exactly /walk + /health) IS the public-exposure guard now
+    # that an FQDN exists: /walk is bearer-gated by the app itself (the route
+    # validates `Authorization: Bearer ${CRON_SECRET}`), and /health is
+    # intentionally public-readable (liveness only — no data). Any other path
+    # (incl. /stage) gets no router and Traefik 404s it at the edge.
+    #
+    # The coolify-proxy (Traefik) is already attached to this app's compose
+    # network, so labels alone route — NO compose `networks:` change is needed.
+    # Labels-only routing: the Coolify app FQDN ("Domains") field stays UNSET —
+    # see docs/runbooks/onprem-b1-deploy.md §"Pipeline HTTPS ingress (ID-88.1)".
+    # The distinct router/service name (kh-cocoindex-staging-walk) avoids
+    # collision with Coolify-generated router labels if an FQDN is ever set;
+    # the explicit router→service binding keeps this router unambiguous in that
+    # merged-labels scenario. certresolver `letsencrypt` is the Coolify v4
+    # default ACME resolver name in the coolify-proxy Traefik config.
+    # --------------------------------------------------------------------------
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kh-cocoindex-staging-walk.rule=Host(`kh-pipeline-staging.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`))
+      - traefik.http.routers.kh-cocoindex-staging-walk.entrypoints=https
+      - traefik.http.routers.kh-cocoindex-staging-walk.tls=true
+      - traefik.http.routers.kh-cocoindex-staging-walk.tls.certresolver=letsencrypt
+      - traefik.http.routers.kh-cocoindex-staging-walk.service=kh-cocoindex-staging-walk
+      - traefik.http.services.kh-cocoindex-staging-walk.loadbalancer.server.port=8080
+
     environment:
       # --- Compose-alias repoint (env-only, NO source change to adapters.py) ---
       # http://pullmd-staging:3000 is the host-local compose service alias for the
