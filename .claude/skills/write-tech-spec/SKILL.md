@@ -17,10 +17,10 @@ The tech spec should translate product intent into an implementation plan that
 fits the existing codebase, documents architectural choices, and makes the work
 easier for agents to execute and reviewers to evaluate.
 
-Write specs to `docs/specs/ID-N-<slug>/TECH.md`, where:
+Write specs to `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/TECH.md`, where:
 
 - `N` is the Task ID from `docs/reference/task-list.json` (e.g.
-  `docs/specs/ID-9-astro-starlight-docs-foundation/TECH.md`).
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-9-astro-starlight-docs-foundation/TECH.md`).
 - `<slug>` is a short kebab-case feature name matching the sibling
   `RESEARCH.md` / `PRODUCT.md` / `PLAN.md`.
 
@@ -30,7 +30,7 @@ artefact MUST be named `RESEARCH.md` (not `research.md`,
 `<feature>-research.md`, or similar variants). Pre-existing spec dirs without
 the `ID-N-` prefix are not migrated.
 
-Match the dir used by the sibling `PRODUCT.md` when one exists. `docs/specs/`
+Match the dir used by the sibling `PRODUCT.md` when one exists. `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/`
 should contain only id-named directories as direct children.
 
 Ticket / issue references are optional. If Liam has a GitHub issue or Linear
@@ -95,9 +95,9 @@ not reproduce their contents in the spec.
 
 Knowledge Hub conventions to ground the plan in:
 
-- **Architecture map:** `.planning/codebase/STRUCTURE.md` is the authoritative
-  directory layout. `docs/generated/codebase-stats.md` +
-  `docs/generated/mcp-inventory.md` are auto-generated current counts.
+- **Architecture map:** the CLAUDE.md Architecture table is the authoritative
+  directory layout; GitNexus cluster/process maps give current structure
+  (`.planning/codebase/` and the generated stats/inventory files are retired).
 - **Schema:** `supabase/types/database.types.ts` (auto-generated; never
   hand-edit) + `supabase/types/database-overrides.ts` for JSONB domain types —
   consume via `Tables<'x'>` / `Enums<'x'>`. New DDL: `supabase migration new` +
@@ -115,8 +115,8 @@ Knowledge Hub conventions to ground the plan in:
   `lib/query/query-keys.ts`.
 - **Auth:** `getAuthorisedClient()` discriminated union; route failures via
   `authFailureResponse(auth)`.
-- **MCP tools / resources / prompts:** see `lib/mcp/` +
-  `docs/generated/mcp-inventory.md`.
+- **MCP tools / resources / prompts:** see `lib/mcp/` (tools, resources,
+  prompts subdirs).
 - **Taxonomy:** DB-driven via `contexts/taxonomy-context.tsx`; Python pipeline
   reads `scripts/tests/fixtures/taxonomy_snapshot.json`. Run
   `bun run sync:taxonomy` after taxonomy changes.
@@ -216,7 +216,7 @@ remains the canonical source of truth; Gitbook is the publishing surface.
 trade-offs, and design rationale live here in `TECH.md`. When the work is
 tracked by a task-list Task, the Task's `description` points at this spec via
 `cross_doc_links` — it does not inline the rationale (that is the drift ID-34
-corrects). See [`docs/reference/task-list-discipline.md`](../../../docs/reference/task-list-discipline.md).
+corrects). See `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`.
 
 ## Related Skills
 

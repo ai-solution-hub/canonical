@@ -17,9 +17,9 @@ build the feature described by the specs while keeping the checked-in specs and
 the implementation aligned as the work evolves.
 
 Approved specs should live directly under an id-named directory in
-`docs/specs/`, for example `docs/specs/gh-4567/PRODUCT.md`,
-`docs/specs/APP-1234/PRODUCT.md`, or
-`docs/specs/q-a-workspace-scoping/PRODUCT.md` (and the matching `TECH.md`
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/`, for example `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/gh-4567/PRODUCT.md`,
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/APP-1234/PRODUCT.md`, or
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/q-a-workspace-scoping/PRODUCT.md` (and the matching `TECH.md`
 alongside). This matches the conventions used by `write-product-spec` /
 `write-tech-spec` / `spec-driven-implementation`.
 
@@ -51,7 +51,7 @@ Make sure you understand the expected behavior, constraints, risks, and
 validation plan before writing code. Also read the Knowledge Hub conventions the
 tech spec is grounded in:
 
-- `.planning/codebase/STRUCTURE.md` — authoritative directory layout
+- The CLAUDE.md Architecture table — authoritative directory layout (`.planning/codebase/` is retired)
 - `supabase/types/database.types.ts` (+ `supabase/types/database-overrides.ts`
   for JSONB domain types) — current schema; consume via `Tables<'x'>` /
   `Enums<'x'>` (never hand-edit the generated types file)
@@ -124,7 +124,7 @@ Prefer:
 - `bun lint`, `bun run format:check`, and `bun run knip` before merge for
   deterministic quality gates
 
-See `docs/reference/test-philosophy.md` for the testing audit criteria and
+See `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` for the testing audit criteria and
 antipatterns to avoid.
 
 ## Best Practices

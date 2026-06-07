@@ -10,7 +10,7 @@ set -euo pipefail
 #
 # Hard-forked from superpowers/claude-session-driver 1.0.1 (cmux transport,
 # per-worktree event paths, git-worktree-per-worker). No longer tracks
-# upstream — see docs/plans/phase-0-investigation/session-driver-cmux-divergence.md.
+# upstream — see knowledge-hub-archive (sibling checkout) plans/phase-0-investigation/session-driver-cmux-divergence.md.
 #
 # Usage:
 #   launch-worker.sh <worker-name> <base-dir> [--branch <ref>] [--brief <file>] [--symlink-deps] [extra claude args...]

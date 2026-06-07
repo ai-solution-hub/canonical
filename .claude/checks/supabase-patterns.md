@@ -86,7 +86,8 @@ request validation, error handling, and migrations.
     `supabase/migrations/20260406180000_create_pipeline_service_account.sql`. There is a
     vitest guard at `__tests__/migrations/auth-users-insert-guard.test.ts` that fails CI
     if any migration violates this. The S156 incident
-    (`docs/audits/s156-auth-admin-sweep.md`) is the cautionary tale.
+    (`knowledge-hub-archive (sibling checkout) audits/s156-auth-admin-sweep.md`) is the
+    cautionary tale.
 
     **For E2E test users**, use `bun run seed:e2e-users` (which calls
     `auth.admin.createUser()` internally) — never raw SQL.

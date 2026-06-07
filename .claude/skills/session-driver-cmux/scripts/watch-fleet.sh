@@ -89,9 +89,10 @@ while [ "$poll" -lt "$MAX_POLLS" ]; do
   $name ($sid): FINAL_REPORT in events dir"
     fi
     # OQ-pending.md at worktree ROOT (per S267 brief contract) + events dir only.
-    # Root-only by design: a recursive find catches the committed historical
-    # docs/workflow-evaluation/sessions/S265/subo-ast/OQ-pending.md in every checkout
-    # (143 lines) -> false trips on every worker. Workers are briefed to write at root.
+    # Root-only by design: a recursive find catches committed historical corpus
+    # copies (e.g. the S265 subo-ast OQ-pending.md, 143 lines — session corpus
+    # now lives in the private docs-site repo per ID-68 PC-25) in every
+    # checkout -> false trips on every worker. Workers are briefed to write at root.
     # Count distinct OQ headings (^## OQ), NOT line count: workers elaborate an
     # already-handled OQ's prose after the parent reads it -> line growth = false
     # trips. A new "## OQ" heading = a genuinely new question. SEEN_OQ holds

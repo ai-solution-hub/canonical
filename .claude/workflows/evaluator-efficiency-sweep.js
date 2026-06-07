@@ -20,7 +20,7 @@
 //   - PILOT scope — ONE workflow only. This does NOT migrate the SDLC lifecycle to /workflows.
 //
 // CORPUS shape (read by the spawned agents, per `evaluate-workflow` SKILL.md + RESEARCH §7):
-//   docs/workflow-evaluation/sessions/S<NNN>/<worker>/{events.jsonl, oq-pending.md,
+//   ${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/S<NNN>/<worker>/{events.jsonl, oq-pending.md,
 //   final_report.yaml, meta.json}  (archived BY DEFAULT at teardown per {48.17}).
 //   - final_report.yaml carries `token_usage_by_role` (per-role {input, output,
 //     cache_creation, cache_read, total, turn_count}; primary unit = sub_orchestrator)
@@ -126,10 +126,21 @@ const metricSliceSchema = {
 };
 
 export default async function evaluatorEfficiencySweep() {
-  // `args` is the corpus root. Default to the canonical archive location.
+  // `args` is the corpus root. Default to the canonical archive location in
+  // the PRIVATE docs-site checkout, resolved via the one standing bridge knob
+  // KH_PRIVATE_DOCS_DIR (ID-68 PC-25). FAIL LOUDLY when unset (Inv 29) — no
+  // silent fallback to the in-repo docs/ tree.
+  const explicitRoot = typeof args === 'string' && args.trim();
+  const privateDocsDir = process.env.KH_PRIVATE_DOCS_DIR?.trim();
+  if (!explicitRoot && !privateDocsDir) {
+    throw new Error(
+      'KH_PRIVATE_DOCS_DIR not set — point it at the knowledge-hub-docs-site checkout ' +
+        '(sibling clone locally; GitHub-App token checkout in CI), or pass an explicit corpus root as args.',
+    );
+  }
   const corpusRoot =
-    (typeof args === 'string' && args.trim()) ||
-    'docs/workflow-evaluation/sessions/';
+    explicitRoot ||
+    `${privateDocsDir.replace(/\/+$/, '')}/workflow-evaluation/sessions/`;
 
   log(`Evaluator efficiency sweep (read-only) over corpus root: ${corpusRoot}`);
 

@@ -3,7 +3,7 @@
 > Parents append this section to a sub-orchestrator's `--brief` (mirrors the
 > `final_report.yaml` convention). It tells the worker how to surface an Open
 > Question (OQ) to you and how to receive your decision. Full protocol:
-> `docs/specs/id-43-oq-escalation/PRODUCT.md`; helper scripts:
+> `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-43-oq-escalation/PRODUCT.md`; helper scripts:
 > `.claude/skills/session-driver-cmux/scripts/oq-{core,worker,parent}.sh`.
 
 ## When to use the channel
@@ -42,7 +42,7 @@ NOW() { python3 -c "from datetime import datetime,timezone; print(datetime.now(t
 oq_id=$(oq_emit "$WORKER_ID" 43 plan \
   "PRODUCT.md §3.2 and TECH.md §4 disagree on the decision schema — which governs?" \
   high true \
-  '{"file":"docs/specs/id-43-oq-escalation/TECH.md","subtask_id":"43.7","phase":"plan"}' \
+  '{"file":"${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-43-oq-escalation/TECH.md","subtask_id":"43.7","phase":"plan"}' \
   "$OQ_ROOT" "$(NOW)" \
   '{"phase":"plan","note":"resume at TECH §4 reconciliation"}')
 ```

@@ -59,10 +59,11 @@ scheduled sweep, or O-of-O `handoff` flag):
 - **Session range** — explicit session-number range (e.g. `S270..S276`) or
   candidate-finding set (for the `findings` lane). The evaluator does **not** default to
   "the current session" — it operates on a backlog.
-- **Archived worker corpus path** — `docs/workflow-evaluation/sessions/S<NNN>/<worker>/`
-  per Subtask {48.15} (archived by DEFAULT at teardown per Subtask {48.17}). Each archived
-  worker has `{events.jsonl, oq-pending.md, final_report.yaml, meta.json}` preserved
-  before the teardown `rm -rf` runs.
+- **Archived worker corpus path** —
+  `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/S<NNN>/<worker>/` per Subtask
+  {48.15} (archived by DEFAULT at teardown per Subtask {48.17}). Each archived worker has
+  `{events.jsonl, oq-pending.md, final_report.yaml, meta.json}` preserved before the
+  teardown `rm -rf` runs.
 - **Token usage (canonical source)** — `token_usage_by_role` + `token_usage_total` in the
   archived `final_report.yaml`, **computed at archive time from `message.usage` in the
   worker session transcript** (`~/.claude/projects/<encoded-cwd>/<session_id>.jsonl`,
@@ -82,8 +83,8 @@ scheduled sweep, or O-of-O `handoff` flag):
   entries) from `docs/reference/product-retros.json` with
   `deprecated = false AND last_conflict_check` unset.
 - **Reporting destination** — where to land the report (a file path under
-  `docs/workflow-evaluation/reports/` and/or a Mempalace diary write target). **NEVER**
-  the retro ledger directly — that is owned by the O-of-O.
+  `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/` and/or a Mempalace diary write
+  target). **NEVER** the retro ledger directly — that is owned by the O-of-O.
 
 ## Operating principles
 
@@ -152,12 +153,12 @@ informs which efficiency fixes are worth a follow-up Subtask.
 ### Step 4 — Land the report (NOT the retro)
 
 Write the report to the reporting destination specified in the brief
-(`docs/workflow-evaluation/reports/<trigger>-<timestamp>.md` and/or a Mempalace diary
-write). For the `findings` lane, also apply the staged soft-delete / supersede stamps to
-`docs/reference/product-retros.json` per the skill's output. **NEVER** author a new retro
-record yourself — that is the O-of-O's `handoff` job. If the report uncovers a finding
-that should land in a new retro record, surface it as a recommendation for the next O-of-O
-`handoff`, not as a direct write.
+(`${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/<trigger>-<timestamp>.md` and/or a
+Mempalace diary write). For the `findings` lane, also apply the staged soft-delete /
+supersede stamps to `docs/reference/product-retros.json` per the skill's output. **NEVER**
+author a new retro record yourself — that is the O-of-O's `handoff` job. If the report
+uncovers a finding that should land in a new retro record, surface it as a recommendation
+for the next O-of-O `handoff`, not as a direct write.
 
 ### Step 5 — Report back to the trigger source
 
@@ -167,7 +168,7 @@ Return a structured summary to the trigger source (operator, scheduler, or O-of-
 WORKFLOW-EVALUATOR REPORT — trigger={source}, lanes=[{efficiency|findings|both}]
 
 SESSION RANGE: {S270..S276}
-ARCHIVED CORPUS: docs/workflow-evaluation/sessions/{range}/
+ARCHIVED CORPUS: ${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/{range}/
 COMPANION SKILL(S) INVOKED:
   - evaluate-workflow (efficiency) — see report path
   - evaluate-findings (findings)   — see report path
@@ -187,7 +188,7 @@ ADJUDICATION ACTIONS (if requested):
   - records soft-deleted: {ids}
   - records superseded: {old_id → new_id}
   - last_conflict_check stamped on: {count} survivors
-REPORT PATH: docs/workflow-evaluation/reports/{filename}.md
+REPORT PATH: ${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/{filename}.md
 MEMPALACE DIARY: {wing/room} (if applicable)
 RECOMMENDATIONS FOR NEXT O-OF-O HANDOFF:
   - {recommendation 1 — feeds the retro, not authored here}

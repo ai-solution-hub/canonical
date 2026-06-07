@@ -323,9 +323,9 @@ These signals indicate the skill is working correctly end-to-end:
 
 - `gitnexus-refactoring` skill — upstream step: runs `gitnexus_rename` dry-run
   and applies graph edits.
-- `docs/specs/id-16-ast-dataflow-tool/TECH.md` §Cross-tool patterns — Pattern 4
+- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/TECH.md` §Cross-tool patterns — Pattern 4
   (Rename-sweep verifier) with the full worked-example summary.
-- `docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
+- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
   §Pattern 4 — original investigation brief with rationale.
 - R-WP7 (Wave 6) — skill-efficacy evaluation framework that reuses the
   self-evaluation pattern from this skill.

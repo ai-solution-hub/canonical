@@ -208,7 +208,8 @@ implementation loop, and orchestrates the support skills.
 Every change must respect these (the Checker will FAIL you if any are violated):
 
 - **Semantic tokens only** — no raw Tailwind colours in components; new tokens added in
-  `app/globals.css` per `docs/design/warm-meridian-implementation-spec.md`.
+  `app/globals.css` per
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md`.
 - **UK English** — "colour", "organisation", "behaviour", DD/MM/YYYY dates.
 - **Auth patterns** — `getAuthorisedClient()` returns `{ success }` (not
   `{ authorised }`); always use `authFailureResponse(auth)` helper to route failure
@@ -224,7 +225,8 @@ Every change must respect these (the Checker will FAIL you if any are violated):
   redirect to `/login` if not added (CLAUDE.md "Proxy blocks non-API public routes").
 - **`bun run test`** not `bun test` — the latter runs Bun's built-in runner, not Vitest.
 - **Test philosophy** — tests must verify real behaviour, never just the implementation.
-  Read `docs/reference/test-philosophy.md` if writing or modifying tests.
+  Read `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` if
+  writing or modifying tests.
 
 ### Step 6 — Verify locally (scoped, not full regression)
 

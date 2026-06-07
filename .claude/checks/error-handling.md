@@ -90,8 +90,10 @@ Silent `.catch(() => ...)` handlers (zero-parameter arrow or function expression
 rejected by the `local/no-silent-promise-catch` ESLint rule. If the swallow is genuinely
 intentional, use `(_err) => ...` to make the intent explicit.
 
-**Full architecture:** `docs/specs/silent-failure-prevention-spec.md`. **ESLint rules:**
-`eslint-rules/no-unchecked-supabase-error.js`, `eslint-rules/no-silent-promise-catch.js`.
+**Full architecture:**
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/silent-failure-prevention-spec.md`.
+**ESLint rules:** `eslint-rules/no-unchecked-supabase-error.js`,
+`eslint-rules/no-silent-promise-catch.js`.
 
 ## Examples
 

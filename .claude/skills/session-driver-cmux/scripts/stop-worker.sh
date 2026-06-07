@@ -42,7 +42,8 @@ set -euo pipefail
 #                    Required by the workflow-evaluator data layer ({48.5} /
 #                    {48.14}) so historical session corpus survives teardown.
 #                    Callers typically point <dir> at
-#                    docs/workflow-evaluation/sessions/S<NNN>/.
+#                    ${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/S<NNN>/
+#                    (the private docs-site checkout — ID-68 PC-25).
 #
 #                    ARCHIVE IS THE DEFAULT (ID-48.17, fixes S280 B1/B2 — the
 #                    S274 fleet was lost + manifest tombstones because archive
@@ -333,17 +334,23 @@ fi
 # archive what they did produce). RESEARCH §13.2 + §13.5; PLAN §S271 ADDENDUM.
 #
 # Default dir derivation (when no explicit --archive <dir> is given):
-#   base    = <project-root>/docs/workflow-evaluation/sessions/   (range-complete corpus)
+#   base    = ${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/   (range-complete corpus)
 #   segment = meta.json.session_number (e.g. "S282") if present,
 #             else "S<session_number>" stripped of any leading S,
 #             else a "session-<SESSION_ID>" fallback so the corpus is never lost.
 # We derive a sensible default so a bare `stop-worker.sh <name> <sid>` still
 # preserves the corpus, rather than silently dropping it (the S274 footgun).
+#
+# ID-68 PC-25 (re-authored from the never-landed Phase-0a KH_DOCS_DIR knob):
+# the session corpus lives in the PRIVATE docs-site repo. The default base
+# resolves via the one standing bridge knob KH_PRIVATE_DOCS_DIR and FAILS
+# LOUDLY when unset (Inv 29 — no silent fallback to the in-repo docs/ tree).
+# Pass --archive <dir> to override, or --no-archive to skip archiving.
 
 if [ "$ARCHIVE" -eq 1 ] && [ -d "$EVENTS_DIR" ]; then
   # Resolve the archive base/segment when --archive <dir> was not supplied.
   if [ -z "$ARCHIVE_DIR" ]; then
-    ARCHIVE_BASE="${PROJECT_ROOT}/docs/workflow-evaluation/sessions"
+    ARCHIVE_BASE="${KH_PRIVATE_DOCS_DIR:?KH_PRIVATE_DOCS_DIR not set — point it at the knowledge-hub-docs-site checkout (sibling clone locally; GitHub-App token checkout in CI)}/workflow-evaluation/sessions"
     SESSION_SEGMENT=""
     if [ -f "$META_FILE" ]; then
       # Prefer an explicit session-number field; tolerate either a bare number

@@ -85,12 +85,13 @@ parent-Task-AC predicate) in `triage-finding`; omitting them causes the curator 
 vacuously fail Branch A and false-negative-route wave-close findings to backlog (per
 S62F-WP3 audit).
 
-Field-budget reference: `docs/reference/task-list-discipline.md` §2/§3 is the canonical
-"how to write each field" doc (`Task.description ≤1500`, `Subtask.description ≤250`,
-`Subtask.testStrategy ≤300`, `Subtask.details` unbudgeted append-only). Any payload you
-compose for `update-roadmap-backlog` (subtask_spec, backlog_slot, roadmap entry) MUST
-honour these budgets — the CLI hard-rejects over-budget writes unless `--force` is
-explicitly passed.
+Field-budget reference:
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`
+§2/§3 is the canonical "how to write each field" doc (`Task.description ≤1500`,
+`Subtask.description ≤250`, `Subtask.testStrategy ≤300`, `Subtask.details` unbudgeted
+append-only). Any payload you compose for `update-roadmap-backlog` (subtask_spec,
+backlog_slot, roadmap entry) MUST honour these budgets — the CLI hard-rejects over-budget
+writes unless `--force` is explicitly passed.
 
 ## Operating principles
 
@@ -333,8 +334,8 @@ that command's flags + its target record's schema slice ({35.22}).
   {35.16}). NEVER bypass with `--force` unless a budget-exceeded override is genuinely
   justified AND the override is logged in your report-back block (`Warnings (if any):`).
   The default discipline is to right-size the field within budget per
-  `docs/reference/task-list-discipline.md` §2/§3 (the canonical "how to write each field"
-  reference).
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`
+  §2/§3 (the canonical "how to write each field" reference).
 - Every `no-action` decision has a justification a reader can audit.
 - Every `subtask` decision returns a concrete, dispatchable spec — not a vague intent.
 - You never decide twice on the same finding; one dispatch, one decision.

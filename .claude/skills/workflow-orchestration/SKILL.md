@@ -130,7 +130,7 @@ The Orchestrator's baseline skill catalogue: `start-session`, `context-engineeri
 `session-driver-cmux`, `spec-driven-implementation`,
 `diagnose-ci-failures`, `handoff`.
 
-Task-specific skills are added on demand — consult `docs/reference/skill-routing-map.md` to look up
+Task-specific skills are added on demand — consult `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/skill-routing-map.md` to look up
 which skills fit the Task's tilt (AI, CI, Supabase, Frontend,
 Data-pipeline, etc.). The Orchestrator names skills in the dispatch brief;
 sub-agents do not auto-discover skills.
@@ -389,7 +389,7 @@ The Orchestrator does not declare a Task `done` without:
 
 The Orchestrator owns ledger writes for status transitions, journal-block
 appends, Subtask additions, and Task opens. Per-field discipline - **Canonical
-reference:** [`docs/reference/task-list-discipline.md`](../../../docs/reference/task-list-discipline.md)
+reference:** `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`
 
 | Field | Shape | Load-bearing for |
 |---|---|---|
@@ -401,7 +401,7 @@ reference:** [`docs/reference/task-list-discipline.md`](../../../docs/reference/
 | `testStrategy` (Subtask) | One-line acceptance criterion the Checker verifies against | Checker contract. |
 | `cross_doc_links` | Repo-relative path + anchor + raw text per `DocLinkSchema` | Doc-graph traversal. |
 | Commit messages | Body + bullets per `commit-commands` convention | Per-commit immutable audit. |
-| Continuation prompts (`docs/continuation-prompts/`) | Multi-section session handoff | Session-to-session context transfer. |
+| Continuation prompts (`docs/continuation-prompts/` — Class 3 interim home, stays in-repo until the scripted handoff model lands; ID-68 PC-12) | Multi-section session handoff | Session-to-session context transfer. |
 | Mempalace diary (`mempalace_diary_write`) | AAAK pipe-delimited per-WP segments | Cross-session recall. |
 
 **Budget gate is HARD for Subtask `description` (≤250) and `testStrategy` (≤300):** Records MUST be authored within budget on the first pass; relocate any overflow into the unbudgeted `details` field.

@@ -6,7 +6,7 @@ description: |
   <example>
   Context: The orchestrator has just opened a new Task ID-N in `docs/reference/task-list.json` and needs the PRODUCT spec authored before any implementation Subtasks can be dispatched.
   user: "Task ID-18 is ready — author the {18.2} PRODUCT.md for the source-document ownership feature."
-  assistant: "I'll dispatch the task-planner agent to invoke `write-product-spec` directly and produce PRODUCT.md with numbered, testable Behavior invariants at `docs/specs/source-document-ownership/PRODUCT.md`."
+  assistant: "I'll dispatch the task-planner agent to invoke `write-product-spec` directly and produce PRODUCT.md with numbered, testable Behavior invariants at `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/source-document-ownership/PRODUCT.md`."
   <commentary>
   This is the canonical `{N.2}` PRODUCT.md authoring trigger on a new Task. The Planner invokes `write-product-spec` directly (not via `spec-driven-implementation`, which is the Orchestrator-level trigger) and returns the spec path with invariants the Checker can verify against acceptance criteria.
   </commentary>
@@ -56,7 +56,8 @@ A **Spec-authoring Subtask dispatch brief**:
 - **Relevant CLAUDE.md gotchas** — the bullets that apply to this Subtask kind,
   pre-extracted.
 - **Output location** — where the spec artefact lands (typically
-  `docs/specs/<feature-slug>/PRODUCT.md` or `docs/specs/<feature-slug>/TECH.md`).
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/PRODUCT.md` or
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/TECH.md`).
 - **Reporting format** — what to return after authoring (or escalation).
 
 ## Operating principles
@@ -147,7 +148,7 @@ If the brief doesn't list a domain skill, ask the Orchestrator before improvisin
 **Also invoke** `documentation-and-adrs` for any decision-recording side-output.
 
 **Output:** A research doc the subsequent spec Subtasks can reference (typically
-`docs/specs/<feature-slug>/RESEARCH.md` or `docs/plans/<feature-slug>-research.md`).
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/RESEARCH.md`).
 Returns the path; the Orchestrator decides whether to ratify before `{N.2}` begins.
 
 ### `{N.2}` PRODUCT (always, after RESEARCH if it ran)
@@ -158,8 +159,9 @@ user-facing surface).
 **Skill invocation:** `write-product-spec` DIRECTLY. NOT via `spec-driven-implementation`
 — that's the Orchestrator-level trigger.
 
-**Output:** PRODUCT.md at `docs/specs/<feature-slug>/PRODUCT.md`. Per the
-`write-product-spec` skill's mandated structure: numbered, testable **Behavior
+**Output:** PRODUCT.md at
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/PRODUCT.md`. Per
+the `write-product-spec` skill's mandated structure: numbered, testable **Behavior
 invariants** that the Checker can verify against acceptance criteria. UK English
 throughout. Reference any predecessor RESEARCH.md as needed.
 
@@ -175,11 +177,12 @@ context-carry from a prior dispatch.
 
 **Skill invocation:** `write-tech-spec` DIRECTLY.
 
-**Output:** TECH.md at `docs/specs/<feature-slug>/TECH.md`. Per the `write-tech-spec`
-skill's mandated structure: migration plan + **Proposed changes per invariant**
-(one-to-one mapping against PRODUCT.md's numbered invariants — the Checker uses this
-mapping to verify spec compliance per-invariant). KH-specific quality bars baked in
-(semantic tokens, auth helper pattern, `sb()` / `tryQuery()`, no barrel re-exports,
+**Output:** TECH.md at
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/TECH.md`. Per the
+`write-tech-spec` skill's mandated structure: migration plan + **Proposed changes per
+invariant** (one-to-one mapping against PRODUCT.md's numbered invariants — the Checker
+uses this mapping to verify spec compliance per-invariant). KH-specific quality bars baked
+in (semantic tokens, auth helper pattern, `sb()` / `tryQuery()`, no barrel re-exports,
 TanStack Query, `bun run test`).
 
 Returns the path; the Orchestrator ratifies before `{N.4}` begins (if needed) or before
@@ -269,7 +272,8 @@ Every spec you author must reflect these (Executors will be held to them, so spe
 surface them):
 
 - **Semantic tokens only** — no raw Tailwind colours; new tokens added in
-  `app/globals.css` per `docs/design/warm-meridian-implementation-spec.md`.
+  `app/globals.css` per
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md`.
 - **UK English** — "colour", "organisation", "behaviour", DD/MM/YYYY dates.
 - **Auth patterns** — `getAuthorisedClient()` returns `{ success }` (not
   `{ authorised }`); `authFailureResponse(auth)` for failure routing.
@@ -279,8 +283,8 @@ surface them):
 - **TanStack Query** for data fetching; no SWR / raw fetch in hooks.
 - **`bun run test`** not `bun test`.
 - **Test philosophy** — tests verify real behaviour, not implementation. Reference
-  `docs/reference/test-philosophy.md` in `testStrategy` lines for behaviour-change
-  Subtasks.
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` in
+  `testStrategy` lines for behaviour-change Subtasks.
 
 ## Pre-ratification empirical verification (OQ-3 — Q-EX2 forcing function)
 
@@ -299,7 +303,7 @@ restructure removed those symbols, but no one re-verified against the installed 
 drift propagated unchecked from S242 RESEARCH → S252 TECH → S253 PLAN → S256 Executor
 escalation. The fix (Path A) cost two sessions; an empirical check at spec-ratification
 time would have caught it on day one. Canonical record:
-`docs/research/cocoindex-1.0.3-extractbyllm-spec-reality-investigation.md`.
+`knowledge-hub-archive (sibling checkout) audits/cocoindex-1.0.3-extractbyllm-spec-reality-investigation.md`.
 
 **What to verify:**
 
@@ -380,7 +384,7 @@ Return the spec artefact (or populated Subtask list) to the Orchestrator:
 ```
 RESEARCH COMPLETE — ID-N.1
 
-OUTPUT: docs/specs/<feature-slug>/RESEARCH.md (or docs/plans/<feature-slug>-research.md)
+OUTPUT: ${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/RESEARCH.md
 DOMAIN SKILLS INVOKED:
   - [skill-name-1]
   - [skill-name-2]
@@ -396,7 +400,7 @@ RECOMMENDATIONS FOR {N.2} PRODUCT:
 ```
 PRODUCT SPEC COMPLETE — ID-N.2
 
-OUTPUT: docs/specs/<feature-slug>/PRODUCT.md
+OUTPUT: ${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/PRODUCT.md
 INVARIANTS COUNT: {N}
 ACCEPTANCE-VERIFIABLE: Yes — every invariant is testable.
 PRECEDENT SKILLS INVOKED:
@@ -411,7 +415,7 @@ NOTES FOR {N.3} TECH (fresh Planner):
 ```
 TECH SPEC COMPLETE — ID-N.3
 
-OUTPUT: docs/specs/<feature-slug>/TECH.md
+OUTPUT: ${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<feature-slug>/TECH.md
 PROPOSED-CHANGES COUNT: {N} (one per PRODUCT invariant — verified one-to-one mapping)
 MIGRATION PLAN: included / not-applicable
 PRECEDENT SKILLS INVOKED:

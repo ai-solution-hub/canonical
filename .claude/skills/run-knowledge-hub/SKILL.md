@@ -11,7 +11,7 @@ sequence to bring the Knowledge Hub Next.js app up locally so that `/run` and
 invocation. Keep it tight: install → environment → launch → observe.
 
 Canonical sources cross-checked: the CLAUDE.md Commands table and
-[`docs/runbooks/local-development.md`](../../../docs/runbooks/local-development.md).
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/local-development.md`.
 If either diverges from this recipe, those are authoritative — update this file.
 
 ## What launches
@@ -67,7 +67,7 @@ OPENAI_API_KEY=<key>
 `NEXT_PUBLIC_CLIENT_ID=<client-id>` (use the value recorded in `.env.local`) is load-bearing: if it is missing, branding falls
 back to "Knowledge Hub" and downstream holder derivation breaks. Full variable
 matrix + how to source each staging value:
-[`local-development.md` §2](../../../docs/runbooks/local-development.md).
+`local-development.md` §2 (`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/local-development.md`).
 
 ## Step 3 — Link the Supabase CLI to staging
 
@@ -111,7 +111,7 @@ check that complements (does not replace) the spec Checker.
 Staging is the safe default. Targeting prod is deliberate and per-invocation —
 never a global flip. Use a script's `--env=prod` flag (top-10 scripts) or an
 explicit env override at invocation, per
-[`local-development.md` §3](../../../docs/runbooks/local-development.md). Do not
+`local-development.md` §3 (`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/local-development.md`). Do not
 edit `.env.local` to prod for a routine local launch.
 
 ## One-shot launch sequence

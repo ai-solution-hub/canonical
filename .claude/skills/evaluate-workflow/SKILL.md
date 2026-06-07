@@ -27,13 +27,13 @@ This skill is **NOT** for per-session retro authoring — that is the
 orchestrator-of-orchestrators' `handoff` habit. It is **NOT** for
 findings adjudication — that is `evaluate-findings`. It is **NOT** a
 session-end hook — the evaluator is triggered + async per
-`docs/specs/id-48-workflow-evaluation/RESEARCH.md` §13.1–§13.2, and any
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-48-workflow-evaluation/RESEARCH.md` §13.1–§13.2, and any
 work that would block teardown belongs elsewhere.
 
 ## What this skill does
 
 The Knowledge Hub SDLC produces a durable per-worker corpus under
-`docs/workflow-evaluation/sessions/S<NNN>/<worker>/` (Subtask {48.15}
+`${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/S<NNN>/<worker>/` (Subtask {48.15}
 archives `events.jsonl`, `oq-pending.md`, `final_report.yaml`,
 `meta.json` before the teardown `rm -rf`). This skill reads that corpus
 programmatically and produces a structured efficiency report.
@@ -65,7 +65,7 @@ Stated explicitly so the boundary is unambiguous:
   and recommendations; it never adds a new record to the ledger.
 - **Does not dual-write to Mempalace.** Mempalace is diary-only per
   S274. Structured retro feedback lives in the retro ledger; this skill
-  writes one report file under `docs/workflow-evaluation/reports/` and
+  writes one report file under `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/` and
   stops there.
 - **Does not adjudicate findings.** Conflict resolution between a new
   candidate finding and the existing retro corpus is the sibling skill
@@ -91,9 +91,9 @@ carries:
 |---|---|
 | **Trigger source** | `operator-command` / `scheduled-sweep` / `handoff-flagged-pending` — cadence context only. |
 | **Session range** | Explicit range, e.g. `S270..S276`. The skill never defaults to "the current session" — it operates on a backlog of archived sessions. |
-| **Archived corpus path** | `docs/workflow-evaluation/sessions/S<NNN>/<worker>/` per session in the range, populated by Subtask {48.15}. |
+| **Archived corpus path** | `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/S<NNN>/<worker>/` per session in the range, populated by Subtask {48.15}. |
 | **Checker verdicts + worker reports** | The JSON verdicts left by `task-checker` in subtask `<info added on …>` journals plus per-worker `final_report.yaml` files (which carry `token_usage_by_role` + `token_usage_total`, computed at archive time from the worker transcript's `message.usage` per ID-48.17 — the canonical token source). |
-| **Reporting destination** | A file path under `docs/workflow-evaluation/reports/`. Never the retro ledger. |
+| **Reporting destination** | A file path under `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/`. Never the retro ledger. |
 
 If any of these is missing, escalate to the agent. Do not default. Do
 not guess. If the archived corpus path does not exist for a requested
@@ -225,7 +225,7 @@ contributes durably. This skill never authors the candidate itself.
 ## What you produce
 
 A single report file at the destination path the agent passed in
-(`docs/workflow-evaluation/reports/<trigger>-<timestamp>.md`). The
+(`${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/<trigger>-<timestamp>.md`). The
 report is markdown for human review and Mempalace diary referencing;
 it is not a structured ledger record.
 
@@ -286,7 +286,7 @@ are the load-bearing part.
 
 Confirm: trigger source, session range, archived-corpus paths exist
 for every session in the range, reporting destination is under
-`docs/workflow-evaluation/reports/`. Missing any of these → escalate
+`${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/`. Missing any of these → escalate
 to the agent. Do not default to "current session"; this skill operates
 on a backlog.
 

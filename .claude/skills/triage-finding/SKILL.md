@@ -23,7 +23,7 @@ This skill is the decision half of the curator's job. The write half is `update-
 
 **Ledger CLI (v3) — read-only affordance:** This skill is decision-only and does not write. For targeted reads of a single ledger record (e.g. inspecting a candidate-duplicate's `linked_backlog[]`, `track`, or `priority`), prefer `bun scripts/ledger-cli.ts get <ledger> <id> [field]` or `bun scripts/ledger-cli.ts show <ledger> <id>` (the `Bash` allowed-tool is the channel) over loading the full backlog or full roadmap via `Read` + `Grep`. The CLI command surface is documented in `lib/ledger/README.md`; `bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type + budget so curator decisions (which carry into `update-roadmap-backlog` writes) can be authored against the explicit schema rather than guessed. Subtask subcommands accept a unified dotted id-form `<taskId.subId>` (`update-subtask`, `flip-subtask`, `append-journal`, `delete-subtask`; legacy space-separated `<taskId> <subId>` still works) — see `bun scripts/ledger-cli.ts --help` when handing off to a write-mode skill.
 
-**Field budgets:** Decision payloads carrying free-text fields (`subtask_spec.scope`, `backlog_slot.description`, `roadmap_proposed_theme.description`) are subject to the write-time budgets enforced downstream by `scripts/ledger-cli.ts`. The canonical budgets live in `docs/reference/task-list-discipline.md` §2/§3 (Task.description ≤1500, Subtask.description ≤250, Subtask.testStrategy ≤300, Subtask.details unbudgeted append-only) — cite that doc when sizing decision output.
+**Field budgets:** Decision payloads carrying free-text fields (`subtask_spec.scope`, `backlog_slot.description`, `roadmap_proposed_theme.description`) are subject to the write-time budgets enforced downstream by `scripts/ledger-cli.ts`. The canonical budgets live in `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md` §2/§3 (Task.description ≤1500, Subtask.description ≤250, Subtask.testStrategy ≤300, Subtask.details unbudgeted append-only) — cite that doc when sizing decision output.
 
 ---
 
@@ -107,9 +107,9 @@ This ensures the routing rationale is visible in the ledger and the curator can 
 
 Walk the decision tree in order. Stop at the first match.
 
-**Green-baseline rule — NEVER backlog a CI-red regression (top-of-tree gate):** A CI-red / failing-CI-job / baseline-guard breach (knip, agents-md-shape, doc-freshness) / build-break (`tsc`) regression is **never** routed to the backlog. It is an in-scope Subtask of the active Task (or of a dedicated baseline-health Task) and MUST be held open until the baseline is green again. The backlog is only for tactical future improvements that do NOT block the current green baseline. *Rationale: bl-197/198/193/195/200 (S283) were CI-red/guard breaches wrongly parked in backlog, and a `tsc` build-break then hid on `main` for ~4 sessions inside known-red CI.*
+**Green-baseline rule — NEVER backlog a CI-red regression (top-of-tree gate):** A CI-red / failing-CI-job / baseline-guard breach (knip, agents-md-shape, reference-doc-paths) / build-break (`tsc`) regression is **never** routed to the backlog. It is an in-scope Subtask of the active Task (or of a dedicated baseline-health Task) and MUST be held open until the baseline is green again. The backlog is only for tactical future improvements that do NOT block the current green baseline. *Rationale: bl-197/198/193/195/200 (S283) were CI-red/guard breaches wrongly parked in backlog, and a `tsc` build-break then hid on `main` for ~4 sessions inside known-red CI.*
 
-**Committed-work rule — concrete defects go to the Task List, not the backlog (per `docs/reference/task-list-discipline.md` §0):** A finding that is *committed* work — a discovered defect/regression we will fix, or a scoped fix on a committed path (e.g. the critical path) — routes to the **Task List** (a new Task, or a Subtask if in-scope per Branch A), NOT the backlog. Branch C (backlog) is for *uncommitted candidates* only: items that still need a product/prioritisation decision before they would be worked. The commitment test: *have we committed to doing this?* Yes → Task List; not yet → Backlog. *Rationale: bl-216–221 (S300) were concrete critical-path defects mis-filed to the backlog when they were committed work.*
+**Committed-work rule — concrete defects go to the Task List, not the backlog (per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md` §0):** A finding that is *committed* work — a discovered defect/regression we will fix, or a scoped fix on a committed path (e.g. the critical path) — routes to the **Task List** (a new Task, or a Subtask if in-scope per Branch A), NOT the backlog. Branch C (backlog) is for *uncommitted candidates* only: items that still need a product/prioritisation decision before they would be worked. The commitment test: *have we committed to doing this?* Yes → Task List; not yet → Backlog. *Rationale: bl-216–221 (S300) were concrete critical-path defects mis-filed to the backlog when they were committed work.*
 
 **Liam-driven promote (no finding source) — short-circuit at the top of the tree (per S62E sub-o 2 §2 carry-forward):**
 
@@ -167,7 +167,7 @@ The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it
 
 Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
-Under Shape A (per `docs/specs/id-30-roadmap-backlog-consolidation/PRODUCT.md` inv 13 a + TECH §4.1), the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
+Under Shape A (per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-30-roadmap-backlog-consolidation/PRODUCT.md` inv 13 a + TECH §4.1), the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
 
 A finding routes to Branch B when **both** of these hold:
 
@@ -243,7 +243,7 @@ Possible reasons:
 
 ## Step 3: Output the decision
 
-> **Write-time gates (downstream — informational):** The decision payload's downstream consumer (`update-roadmap-backlog` → `scripts/ledger-cli.ts`) enforces field budgets per {35.17} and the record-set delta per {35.16}; over-budget fields hard-reject unless `--force` is explicitly passed. Compose `subtask_spec.scope`, `backlog_slot.description`, and `roadmap_proposed_theme.description` within budget so the write succeeds first-try. Field budgets and write semantics live in `docs/reference/task-list-discipline.md` §2/§3.
+> **Write-time gates (downstream — informational):** The decision payload's downstream consumer (`update-roadmap-backlog` → `scripts/ledger-cli.ts`) enforces field budgets per {35.17} and the record-set delta per {35.16}; over-budget fields hard-reject unless `--force` is explicitly passed. Compose `subtask_spec.scope`, `backlog_slot.description`, and `roadmap_proposed_theme.description` within budget so the write succeeds first-try. Field budgets and write semantics live in `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md` §2/§3.
 
 Return to the curator agent:
 

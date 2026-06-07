@@ -43,7 +43,7 @@ agent commits the staged batch; this skill produces the staged actions).
 
 The playbook is modelled directly on the offline-maintenance
 conflict-resolution sweep in
-`docs/themes/workflow-orchestration/memory-transcript.md`, KH-adapted
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/themes/workflow-orchestration/memory-transcript.md`, KH-adapted
 for an MD/JSON corpus rather than a vector store (the transcript itself
 flags this mechanism swap is needed).
 
@@ -104,7 +104,7 @@ carries:
 | **Candidate set** | The un-checked subset of `product-retros.json` records (or per-finding entries) — those with `deprecated = false AND last_conflict_check` unset. The candidate set is named explicitly in the brief; this skill never defaults to "everything in the file". |
 | **Corpus state** | The current `product-retros.json` snapshot — the existing non-deprecated records the candidate set is adjudicated against. Per §13.4 the records carry `deprecated`, `deprecation_reason`, `superseding_record_id`, `last_conflict_check`. |
 | **Similarity surface (optional)** | Mempalace semantic surface (`mempalace_search`, `mempalace_kg_query`) as a similarity analogue for vector lookup — OQ-S271-4. Default mechanism is category-scoped keyword overlap within the JSON corpus; the Mempalace surface is a supplement, not a replacement. |
-| **Reporting destination** | A file path under `docs/workflow-evaluation/reports/` for the verdict list + recency-guard trace, plus the staged-writes payload returned to the agent for transactional application. Never a direct hand-off to the retro ledger by this skill. |
+| **Reporting destination** | A file path under `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/` for the verdict list + recency-guard trace, plus the staged-writes payload returned to the agent for transactional application. Never a direct hand-off to the retro ledger by this skill. |
 
 If any required field (trigger source, candidate set, corpus state,
 reporting destination) is missing, escalate to the agent. Do not
@@ -317,7 +317,7 @@ the *next* sweep).
 ## What you produce
 
 A single adjudication report at the destination path the agent passed
-in (`docs/workflow-evaluation/reports/<trigger>-<timestamp>-findings.md`),
+in (`${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/<trigger>-<timestamp>-findings.md`),
 plus a structured staged-writes payload returned to the agent for
 transactional application. The report is markdown for human review;
 the staged-writes payload is the patch the agent applies to
@@ -390,7 +390,7 @@ are the load-bearing part.
 
 Confirm: trigger source, candidate set (non-empty; ids resolvable
 against the corpus), corpus state path (resolvable; readable),
-reporting destination is under `docs/workflow-evaluation/reports/`.
+reporting destination is under `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/reports/`.
 Missing any of these → escalate to the agent. Do not default. Do not
 guess.
 
