@@ -1,30 +1,46 @@
 /**
- * Markdown ontology parity guard.
+ * Ontology baseline parity guard (formerly the live-markdown ontology parity
+ * guard; repointed at ID-68.27 OQ-E branch (b)).
  *
- * Real-behaviour: no mocks. Loads the actual 29 `docs/ontology/*.md` files,
- * parses with real `gray-matter`, validates against the real Zod schema, and
- * compares the markdown-declared `content_type` enum against the live DB
- * CHECK constraint via `scripts/tests/fixtures/taxonomy_snapshot.json`.
+ * Real-behaviour: no mocks. Loads the frozen parity baselines from
+ * `__tests__/fixtures/ontology/ontology-cv-baselines.json` (the CVs with
+ * lib-/snapshot-side counterparts: content_type, platform, requirement_type,
+ * form_type), validates them against the real Zod schema, and compares the
+ * declared enums against the live DB CHECK via
+ * `scripts/tests/fixtures/taxonomy_snapshot.json`.
  *
- * Each `it()` title reads as a product spec per `docs/reference/test-philosophy.md`
- * §1 criterion 5. Mirrors the accumulate-and-report pattern of
- * `__tests__/validation/schema-db-consistency.test.ts:72-88`.
+ * History: this guard originally loaded the live `docs/ontology/*.md`
+ * register. That register went fully private at the ID-68.27 OQ-E branch-(b)
+ * cutover (live home: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ontology/`).
+ * The full-corpus frontmatter validation + prose parity moved conceptually
+ * to the private docs-site repo (the "parity-guard twin" follow-up recorded
+ * in the ID-68.27 journal). What stays public is exactly the protective
+ * intent with public counterparts:
+ *   - the ontology Zod schema contract (`lib/ontology/schemas.ts`)
+ *   - the content-type registry (`lib/ontology/content-type-registry.ts`)
+ *   - the DB-derived taxonomy snapshot parity
+ *   - the loader's fail-loud contract now that the public register is gone
+ *     (PC-25 Inv 29 — no silent fallback)
  *
- * Spec: `docs/specs/wp6-ontology-harness/TECH.md` §5.4 + §7.
+ * Spec: `wp6-ontology-harness/TECH.md` §5.4 + §7; ID-68.27 record holdback
+ * (b), branch (b) ratified S324.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import matter from 'gray-matter';
 import { describe, it, expect } from 'vitest';
 
 import { loadOntologyCVs, ONTOLOGY_DIR } from '@/lib/ontology/loader';
-import { OntologyCVSchema } from '@/lib/ontology/schemas';
+import { OntologyCVSchema, type OntologyCV } from '@/lib/ontology/schemas';
 import { CONTENT_TYPE_VALUES } from '@/lib/ontology/content-type-registry';
 
 const PROJECT_ROOT = join(__dirname, '../../..');
 const SNAPSHOT_PATH = join(
   PROJECT_ROOT,
   'scripts/tests/fixtures/taxonomy_snapshot.json',
+);
+const BASELINES_PATH = join(
+  PROJECT_ROOT,
+  '__tests__/fixtures/ontology/ontology-cv-baselines.json',
 );
 
 interface TaxonomySnapshot {
@@ -38,23 +54,21 @@ const snapshot: TaxonomySnapshot | null = SNAPSHOT_EXISTS
   ? (JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8')) as TaxonomySnapshot)
   : null;
 
-const cvs = loadOntologyCVs();
+const cvs = (
+  JSON.parse(readFileSync(BASELINES_PATH, 'utf8')) as { cvs: unknown[] }
+).cvs as OntologyCV[];
 
 // Map of cv_name → snapshot key for the parity case (§5.4 case 2).
-// When new `database_migration` CVs are added without a snapshot entry here,
-// the loop below `it.skip`s with an explicit todo-shape message rather than
-// failing silently.
 const SNAPSHOT_KEY_BY_CV_NAME: Record<string, keyof TaxonomySnapshot> = {
   content_type: 'content_types',
   platform: 'platforms',
 };
 
-describe('Markdown Ontology Parity', () => {
-  it('every CV file parses and validates against the ontology schema', () => {
-    // loadOntologyCVs() already throws on the first failure, but re-validate
-    // per-file so a developer running this test sees ALL failing files in
-    // one run rather than one-at-a-time across N reruns (per
-    // `__tests__/validation/schema-db-consistency.test.ts:72-88` pattern).
+describe('Ontology Baseline Parity', () => {
+  it('every frozen baseline CV parses and validates against the ontology schema', () => {
+    // Accumulate-and-report so a developer sees ALL failing CVs in one run
+    // (per `__tests__/validation/schema-db-consistency.test.ts:72-88`
+    // pattern).
     const failures: string[] = [];
     for (const cv of cvs) {
       const result = OntologyCVSchema.safeParse(cv);
@@ -71,6 +85,24 @@ describe('Markdown Ontology Parity', () => {
     ).toHaveLength(0);
   });
 
+  it('the fixture freezes exactly the four parity-relevant CVs', () => {
+    expect(cvs.map((cv) => cv.cv_name).sort()).toEqual([
+      'content_type',
+      'form_type',
+      'platform',
+      'requirement_type',
+    ]);
+  });
+
+  it('CONTENT_TYPE_VALUES (lib registry) matches the frozen content_type baseline both ways', () => {
+    const contentTypeCV = cvs.find((cv) => cv.cv_name === 'content_type');
+    expect(contentTypeCV).toBeDefined();
+    const fixtureKeys = (contentTypeCV!.baseline_values ?? [])
+      .map((bv) => bv.key)
+      .sort();
+    expect([...CONTENT_TYPE_VALUES].sort()).toEqual(fixtureKeys);
+  });
+
   describe.skipIf(!snapshot)(
     'live DB CHECK parity (via taxonomy_snapshot.json)',
     () => {
@@ -81,7 +113,7 @@ describe('Markdown Ontology Parity', () => {
         expect(CONTENT_TYPE_VALUES).toHaveLength(15);
       });
 
-      it('every CV with editable_via=database_migration matches the live DB CHECK both ways', () => {
+      it('every frozen CV with editable_via=database_migration matches the live DB CHECK both ways', () => {
         const databaseMigrationCVs = cvs.filter(
           (cv) => cv.editable_via === 'database_migration',
         );
@@ -114,33 +146,33 @@ describe('Markdown Ontology Parity', () => {
           const missingFromDB = mdKeys.filter((k) => !dbSet.has(k));
           if (missingFromMD.length > 0) {
             errors.push(
-              `${cv.cv_name}: values in DB CHECK but missing from markdown: ${missingFromMD.join(', ')}`,
+              `${cv.cv_name}: values in DB CHECK but missing from frozen baseline: ${missingFromMD.join(', ')}`,
             );
           }
           if (missingFromDB.length > 0) {
             errors.push(
-              `${cv.cv_name}: values in markdown but missing from DB CHECK: ${missingFromDB.join(', ')}`,
+              `${cv.cv_name}: values in frozen baseline but missing from DB CHECK: ${missingFromDB.join(', ')}`,
             );
           }
         }
         expect(
           errors,
-          `Markdown ↔ DB CHECK drift:\n${errors.join('\n')}`,
+          `Frozen baseline ↔ DB CHECK drift (update the fixture per its _meta.update_protocol):\n${errors.join('\n')}`,
         ).toHaveLength(0);
       });
 
       // Standalone parity case for `requirement_type` (ID-63.9 — PRODUCT
-      // Inv-9; TECH §3.9 + §5.2). The `12-requirement-type.md` CV is
+      // Inv-9; TECH §3.9 + §5.2). The requirement_type CV is
       // `editable_via: admin_ui`, so the `database_migration` loop above
       // skips it entirely — this case is NOT gated on `editable_via` and
-      // asserts the markdown baseline_values match the snapshot
+      // asserts the frozen baseline_values match the snapshot
       // `requirement_type` set both ways. The snapshot is DB-derived, so
-      // markdown == snapshot == live DB CHECK holds transitively.
-      it('requirement_type markdown baseline_values match the snapshot requirement_type set and the live DB CHECK both ways', () => {
+      // fixture == snapshot == live DB CHECK holds transitively.
+      it('requirement_type frozen baseline_values match the snapshot requirement_type set and the live DB CHECK both ways', () => {
         const reqCV = cvs.find((cv) => cv.cv_name === 'requirement_type');
         expect(
           reqCV,
-          'requirement_type CV not found among loaded ontology files',
+          'requirement_type CV not found in ontology-cv-baselines.json',
         ).toBeDefined();
 
         const dbValues = snapshot!.requirement_type;
@@ -154,21 +186,21 @@ describe('Markdown Ontology Parity', () => {
         const db = [...(dbValues ?? [])].sort();
 
         const mdSet = new Set(mdKeys);
-        const dbSet = new Set(dbValues ?? []);
         const missingFromMD = (dbValues ?? []).filter((v) => !mdSet.has(v));
+        const dbSet = new Set(dbValues ?? []);
         const missingFromDB = mdKeys.filter((k) => !dbSet.has(k));
 
         expect(
           md,
-          `requirement_type Markdown ↔ snapshot/DB CHECK drift:\n` +
-            `  in DB CHECK but missing from markdown: ${missingFromMD.join(', ') || '(none)'}\n` +
-            `  in markdown but missing from DB CHECK: ${missingFromDB.join(', ') || '(none)'}`,
+          `requirement_type frozen baseline ↔ snapshot/DB CHECK drift:\n` +
+            `  in DB CHECK but missing from fixture: ${missingFromMD.join(', ') || '(none)'}\n` +
+            `  in fixture but missing from DB CHECK: ${missingFromDB.join(', ') || '(none)'}`,
         ).toEqual(db);
       });
     },
   );
 
-  it('each cv_name appears in only one ontology file', () => {
+  it('each cv_name appears in only one frozen baseline entry', () => {
     const names = cvs.map((cv) => cv.cv_name);
     const seen = new Set<string>();
     const duplicates: string[] = [];
@@ -186,10 +218,9 @@ describe('Markdown Ontology Parity', () => {
   it('each baseline_values key appears once within its CV', () => {
     const errors: string[] = [];
     for (const cv of cvs) {
-      // Layer-5 KG-entity CVs (e.g. `q_a_pair`) have no `baseline_values`
-      // — schema admits absence (form-extraction TECH §2.6c). The
-      // duplicate-key check is meaningful only for CVs with baseline_values
-      // populated; `?? []` makes Layer-5 a no-op rather than a TypeError.
+      // Layer-5 KG-entity CVs have no `baseline_values` — schema admits
+      // absence (form-extraction TECH §2.6c). `?? []` keeps that shape a
+      // no-op rather than a TypeError.
       const keys = (cv.baseline_values ?? []).map((bv) => bv.key);
       const seen = new Set<string>();
       const duplicates: string[] = [];
@@ -209,26 +240,21 @@ describe('Markdown Ontology Parity', () => {
     ).toHaveLength(0);
   });
 
-  it('reads markdown files from the real `docs/ontology/` directory', () => {
-    // Belt-and-braces: assert the loader actually crossed the fs boundary
-    // and parsed real markdown (no fixture stub leaked in). If this fails,
-    // either ONTOLOGY_DIR was misresolved or the Drafter wave's output is
-    // missing.
-    const samplePath = join(ONTOLOGY_DIR, '04-content-type.md');
-    expect(existsSync(samplePath)).toBe(true);
-    const raw = readFileSync(samplePath, 'utf8');
-    const fm = matter(raw);
-    expect(fm.data.cv_name).toBe('content_type');
-    expect(cvs.length).toBeGreaterThanOrEqual(29);
+  it('the public docs/ontology/ register is gone and the loader fails loudly (ID-68.27 OQ-E branch (b) / PC-25 Inv 29)', () => {
+    // Branch-(b) privacy tripwire: the CV register is fully private. If
+    // this case fails because the directory exists, someone has re-added
+    // ontology markdown to the PUBLIC repo — that is a privacy regression,
+    // not a fixture problem. If it fails because the loader stopped
+    // throwing, the fail-loud contract (no silent fallback) has been
+    // weakened.
+    expect(existsSync(ONTOLOGY_DIR)).toBe(false);
+    expect(() => loadOntologyCVs()).toThrowError(/ONTOLOGY_DIR does not exist/);
   });
 
   // Per-layer relaxation cases (form-extraction TECH §2.6c — Layer-5
   // KG-entity admits no `baseline_values` + three optional declarative keys;
   // Layer-1..4 + 6 retain the wp6 D1 R-A invariant). Cases (a)/(b)/(c) use
-  // constructed fixtures so they pass standalone — the full integrated
-  // parity over the live `32-q-a-pair.md` requires the sibling {52.5}
-  // status-flip and is exercised by the existing `every CV file parses`
-  // case once both Subtasks land.
+  // constructed fixtures so they pass standalone.
   describe('per-layer relaxation (Layer-5 KG-entity)', () => {
     it('(a) accepts a Layer-5 fixture with no baseline_values and the three optional declarative keys', () => {
       const layer5Fixture = {

@@ -155,6 +155,26 @@ export function collectFileStats(): Record<string, number> {
 // Code-parsable stats (spec section 3.2)
 // ---------------------------------------------------------------------------
 
+/**
+ * Count the frozen content_type baseline values in the public ontology
+ * parity fixture. The live CV register is private (ID-68.27 OQ-E branch
+ * (b)); the fixture is the public-side ratified baseline.
+ */
+function countContentTypeBaselineValues(): number {
+  const fixturePath = path.join(
+    ROOT,
+    '__tests__/fixtures/ontology/ontology-cv-baselines.json',
+  );
+  if (!fs.existsSync(fixturePath)) return 0;
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8')) as {
+    cvs?: Array<{ cv_name: string; baseline_values?: unknown[] }>;
+  };
+  const contentType = (fixture.cvs ?? []).find(
+    (cv) => cv.cv_name === 'content_type',
+  );
+  return contentType?.baseline_values?.length ?? 0;
+}
+
 export function collectCodeStats(): Record<string, number> {
   return {
     mcp_tools: countPatternsInFiles('lib/mcp/tools/*.ts', [
@@ -168,9 +188,11 @@ export function collectCodeStats(): Record<string, number> {
     mcp_prompts: countPatternsInFiles('lib/mcp/resources.ts', [
       'registerPrompt(',
     ]),
-    content_types: countPatternsInFiles('docs/ontology/04-content-type.md', [
-      '- key:',
-    ]),
+    // `docs/ontology/` went fully private at the ID-68.27 OQ-E branch-(b)
+    // cutover — count the frozen content_type baseline in the public parity
+    // fixture instead (kept in lockstep with the live register + DB CHECK by
+    // `__tests__/lib/ontology/markdown-parity.test.ts`).
+    content_types: countContentTypeBaselineValues(),
   };
 }
 

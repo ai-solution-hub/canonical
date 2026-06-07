@@ -1,0 +1,246 @@
+{
+  "_meta": {
+    "extracted_from": "docs/ontology/*.md frontmatter at public commit 96bdc1fa (ID-68.27 OQ-E branch (b) cutover)",
+    "live_source": "${KH_PRIVATE_DOCS_DIR}/src/content/docs/ontology/ (private docs-site repo, canonical home)",
+    "purpose": "Frozen parity baselines for the CVs with lib-/snapshot-side counterparts: content_type, platform, requirement_type, form_type.",
+    "update_protocol": "When a baseline changes in the private CV register, update the matching frontmatter block here in the same change that regenerates scripts/tests/fixtures/taxonomy_snapshot.json (bun run sync:taxonomy)."
+  },
+  "cvs": [
+    {
+      "cv_name": "content_type",
+      "layer": 1,
+      "provenance_model": "core",
+      "client_extensible": false,
+      "editable_via": "database_migration",
+      "core_seed_path": null,
+      "related_layers": [2, 5],
+      "status": "active",
+      "baseline_values": [
+        {
+          "key": "article",
+          "label": "Article",
+          "provenance": "core"
+        },
+        {
+          "key": "blog",
+          "label": "Blog",
+          "provenance": "core"
+        },
+        {
+          "key": "pdf",
+          "label": "PDF",
+          "provenance": "core"
+        },
+        {
+          "key": "note",
+          "label": "Note",
+          "provenance": "core"
+        },
+        {
+          "key": "research",
+          "label": "Research",
+          "provenance": "core"
+        },
+        {
+          "key": "other",
+          "label": "Other",
+          "provenance": "core"
+        },
+        {
+          "key": "q_a_pair",
+          "label": "Q&A Pair",
+          "provenance": "core"
+        },
+        {
+          "key": "case_study",
+          "label": "Case Study",
+          "provenance": "core"
+        },
+        {
+          "key": "policy",
+          "label": "Policy",
+          "provenance": "core"
+        },
+        {
+          "key": "certification",
+          "label": "Certification",
+          "provenance": "core"
+        },
+        {
+          "key": "compliance",
+          "label": "Compliance",
+          "provenance": "core"
+        },
+        {
+          "key": "methodology",
+          "label": "Methodology",
+          "provenance": "core"
+        },
+        {
+          "key": "capability",
+          "label": "Capability",
+          "provenance": "core"
+        },
+        {
+          "key": "product_description",
+          "label": "Product Description",
+          "provenance": "core"
+        },
+        {
+          "key": "document",
+          "label": "Document",
+          "provenance": "core"
+        }
+      ]
+    },
+    {
+      "cv_name": "platform",
+      "layer": 1,
+      "provenance_model": "core",
+      "client_extensible": false,
+      "editable_via": "database_migration",
+      "core_seed_path": null,
+      "related_layers": [2],
+      "status": "active",
+      "baseline_values": [
+        {
+          "key": "web",
+          "label": "Web",
+          "provenance": "core"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "provenance": "core"
+        },
+        {
+          "key": "manual",
+          "label": "Manual",
+          "provenance": "core"
+        },
+        {
+          "key": "upload",
+          "label": "Upload",
+          "provenance": "core"
+        },
+        {
+          "key": "extraction",
+          "label": "Extraction",
+          "provenance": "core"
+        },
+        {
+          "key": "other",
+          "label": "Other",
+          "provenance": "core"
+        }
+      ]
+    },
+    {
+      "cv_name": "requirement_type",
+      "layer": 1,
+      "provenance_model": "hybrid",
+      "client_extensible": true,
+      "editable_via": "admin_ui",
+      "core_seed_path": "scripts/seed/baseline-requirement-types.sql",
+      "related_layers": [2, 5],
+      "status": "active",
+      "baseline_values": [
+        {
+          "key": "policy",
+          "label": "Policy",
+          "provenance": "core"
+        },
+        {
+          "key": "statement",
+          "label": "Statement",
+          "provenance": "core"
+        },
+        {
+          "key": "evidence",
+          "label": "Evidence",
+          "provenance": "core"
+        },
+        {
+          "key": "data",
+          "label": "Data",
+          "provenance": "core"
+        },
+        {
+          "key": "narrative",
+          "label": "Narrative",
+          "provenance": "core"
+        },
+        {
+          "key": "declaration",
+          "label": "Declaration",
+          "provenance": "core"
+        },
+        {
+          "key": "reference",
+          "label": "Reference",
+          "provenance": "core"
+        }
+      ]
+    },
+    {
+      "cv_name": "form_type",
+      "layer": 1,
+      "provenance_model": "hybrid",
+      "client_extensible": true,
+      "editable_via": "admin_ui",
+      "core_seed_path": "supabase/migrations/20260520120828_t2_combined_pr_intel_shape_b_form_type_split.sql",
+      "related_layers": [2, 3, 5],
+      "status": "active",
+      "baseline_values": [
+        {
+          "key": "bid",
+          "label": "Bid",
+          "provenance": "core",
+          "applicable_application_types": ["procurement"]
+        },
+        {
+          "key": "rfp",
+          "label": "RFP (Request For Proposal)",
+          "provenance": "core",
+          "applicable_application_types": ["procurement"]
+        },
+        {
+          "key": "pqq",
+          "label": "PQQ (Pre-Qualification Questionnaire)",
+          "provenance": "core",
+          "applicable_application_types": ["procurement"]
+        },
+        {
+          "key": "itt",
+          "label": "ITT (Invitation To Tender)",
+          "provenance": "core",
+          "applicable_application_types": ["procurement"]
+        },
+        {
+          "key": "tender",
+          "label": "Tender",
+          "provenance": "core",
+          "applicable_application_types": ["procurement"]
+        },
+        {
+          "key": "checklist",
+          "label": "Checklist",
+          "provenance": "core",
+          "applicable_application_types": ["procurement", "sales_proposal", "product_guide"]
+        },
+        {
+          "key": "questionnaire",
+          "label": "Questionnaire",
+          "provenance": "core",
+          "applicable_application_types": ["procurement", "competitor_research"]
+        },
+        {
+          "key": "sales_proposal_template",
+          "label": "Sales Proposal Template",
+          "provenance": "core",
+          "applicable_application_types": ["sales_proposal"]
+        }
+      ]
+    }
+  ]
+}
