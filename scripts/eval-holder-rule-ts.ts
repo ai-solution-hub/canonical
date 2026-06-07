@@ -535,39 +535,59 @@ async function resolveResidualItemIds(
 }
 
 /**
+ * Positive-control supplier entity (lowercased) for the spec §12.3 recall
+ * check. Env-driven so the supplier organisation's identity is never
+ * hardcoded in this repo (ID-68.17 / TECH PC-7 step 5) — the same
+ * fail-fast pattern as the `NEXT_PUBLIC_CLIENT_ID` guard in
+ * `runEvaluation()`.
+ */
+function resolvePositiveControlEntityLower(): string {
+  const value = process.env.EVAL_POSITIVE_CONTROL_ENTITY?.trim();
+  if (!value) {
+    logError(
+      `EVAL_POSITIVE_CONTROL_ENTITY is not set. The positive-control recall ` +
+        `check (spec §12.3) selects items whose holds relationships ` +
+        `attribute certs to the known supplier organisation rather than ` +
+        `the client org. Set EVAL_POSITIVE_CONTROL_ENTITY to that ` +
+        `supplier's name in your shell or .env.local and retry.`,
+    );
+    process.exit(2);
+  }
+  return value.toLowerCase();
+}
+
+/**
  * Identify positive-control items — those where source_entity matches
  * client org and the target is a certification that should be self-held.
  *
- * Per spec §4.3 and §12.3, the 3 positive controls are the example-datacentre
+ * Per spec §4.3 and §12.3, the 3 positive controls are the known
  * false-positive cases (iso 27001, iso 9001, iso 14001) that were
  * incorrectly attributed to the client. After S192 SQL backfill these
  * were corrected.
  *
- * We identify positive-control source_item_ids by finding items where
- * source_entity matches the client org AND target_entity is one of the
- * 3 known example-datacentre-attributed certs AND the item is known to contain
- * SUPPLIER-held false-positive items that the skill-port must flip from
- * self -> supplier.  Per spec §12.3: "Positive control recall | 3/3 | all
- * 3 known false positives must flip."  The three known false positives
- * are the example-datacentre disclaimer items documented in spec §1.1 (the procurement
- * library source §1349: "Note: Certifications and security measures below are
- * held by example-datacentre, not [the client org]").
+ * We identify positive-control source_item_ids by finding items whose
+ * current `holds` relationships attribute a cert to the positive-control
+ * supplier (post-S192 SQL backfill) — the supplier-disclaimer items
+ * documented in spec §1.1, where the certs are held by the supplier
+ * organisation, not the client org. Per spec §12.3: "Positive control
+ * recall | 3/3 | all 3 known false positives must flip."
  *
- * Selection logic: items whose current `holds` relationships attribute a
- * cert to example-datacentre (post-S192 SQL backfill).  Re-classification under
+ * The supplier identity is env-driven via `EVAL_POSITIVE_CONTROL_ENTITY`
+ * (see `resolvePositiveControlEntityLower()`). Re-classification under
  * the new skill port must continue producing supplier attribution.
  * Returns up to 3 distinct source_item_ids.
  */
 function identifyPositiveControlItems(
   holdsByItem: Map<string, HoldsRelationship[]>,
+  positiveControlEntityLower: string,
 ): string[] {
   const supplierHeldItemIds = new Set<string>();
 
   for (const [itemId, rels] of holdsByItem) {
-    const hasexample-datacentre = rels.some((r) =>
-      r.source_entity.toLowerCase().includes('example-datacentre'),
+    const hasPositiveControlSupplier = rels.some((r) =>
+      r.source_entity.toLowerCase().includes(positiveControlEntityLower),
     );
-    if (hasexample-datacentre) {
+    if (hasPositiveControlSupplier) {
       supplierHeldItemIds.add(itemId);
     }
   }
@@ -712,8 +732,13 @@ async function runEvaluation(
     }
   }
 
-  // Identify positive control items
-  const positiveControlIds = identifyPositiveControlItems(holdsByItem);
+  // Identify positive control items. The supplier identity is env-driven
+  // (ID-68.17 / TECH PC-7 step 5) — fails fast when the knob is unset.
+  const positiveControlEntityLower = resolvePositiveControlEntityLower();
+  const positiveControlIds = identifyPositiveControlItems(
+    holdsByItem,
+    positiveControlEntityLower,
+  );
   log(`Identified ${positiveControlIds.length} positive-control items.`);
 
   log(`Total items to evaluate: ${targetItemIds.length}`);
@@ -897,28 +922,34 @@ async function runEvaluation(
         }
       }
 
-      // Positive control check: example-datacentre false-positive items must
-      // produce holder='supplier' with supplier_name containing 'example-datacentre'
-      // after re-classification (spec §12.3 row 2).
+      // Positive control check: known supplier false-positive items must
+      // produce holder='supplier' with supplier_name containing the
+      // positive-control entity after re-classification (spec §12.3 row 2).
       if (isPositiveControl) {
-        const allSupplierexample-datacentre = certMentionsLinkedToHolds.every((m) => {
-          const md = m.metadata as Record<string, unknown> | null;
-          const supplierName =
-            typeof md?.supplier_name === 'string'
-              ? md.supplier_name.toLowerCase()
-              : '';
-          return (
-            md?.holder === 'supplier' && supplierName.includes('example-datacentre')
-          );
-        });
-        if (allSupplierexample-datacentre && certMentionsLinkedToHolds.length > 0) {
+        const allSupplierPositiveControl = certMentionsLinkedToHolds.every(
+          (m) => {
+            const md = m.metadata as Record<string, unknown> | null;
+            const supplierName =
+              typeof md?.supplier_name === 'string'
+                ? md.supplier_name.toLowerCase()
+                : '';
+            return (
+              md?.holder === 'supplier' &&
+              supplierName.includes(positiveControlEntityLower)
+            );
+          },
+        );
+        if (
+          allSupplierPositiveControl &&
+          certMentionsLinkedToHolds.length > 0
+        ) {
           positiveControlsPassed++;
           log(
-            `  Positive control ${itemId}: all certs holder='supplier'+example-datacentre (PASS)`,
+            `  Positive control ${itemId}: all certs holder='supplier'+'${positiveControlEntityLower}' (PASS)`,
           );
         } else {
           log(
-            `  Positive control ${itemId}: NOT all certs attributed to example-datacentre supplier (FAIL)`,
+            `  Positive control ${itemId}: NOT all certs attributed to the positive-control supplier (FAIL)`,
           );
         }
       }
