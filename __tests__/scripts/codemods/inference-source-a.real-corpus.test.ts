@@ -38,10 +38,12 @@ import {
   inferSchema,
 } from '@/scripts/codemods/wrap-define-route';
 
-// bl-245 (S321): the real-corpus suites load the full ts-morph project per test —
-// the 5000ms Vitest default false-reds under parallel-wave machine load AND on
-// loaded CI runners (S321 align, shard 2/4). File-level headroom, not per-test.
-vi.setConfig({ testTimeout: 15_000 });
+// bl-245 (S321): the real-corpus suites resolve types across the full ts-morph
+// project — the 5000ms Vitest default false-reds under parallel-wave machine load
+// AND on loaded CI shard runners. 15s ALSO proved insufficient on the S321
+// mini-align (2-vCPU runner, 4 parallel files: the heavy tail tests exceeded it).
+// 60s matches the local evidence envelope (full file ≈60s/29 tests, tail-heavy).
+vi.setConfig({ testTimeout: 60_000 });
 
 // ── routePathToCandidateUrl — absolute path handling ───────────────────────
 
