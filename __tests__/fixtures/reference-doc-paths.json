@@ -1,9 +1,9 @@
 {
-  "_comment": "ID-68 {68.12} 0g freshness path-manifest. Replaces doc-freshness.test.ts prose reads. The 3 source docs (docs/reference/data-entry-points.md, docs/reference/classification-architecture.md, docs/runbooks/taxonomy-change-runbook.md) relocate to knowledge-hub-internal; reference-doc-paths.test.ts reads THIS manifest (code paths) instead of their prose. Regenerate by re-running the 0g extractor against the in-tree docs. Lists are sorted + deduped.",
+  "_comment": "ID-68 {68.12} 0g freshness path-manifest. Replaces doc-freshness.test.ts prose reads. The 3 source docs relocated to the private docs-site repo at ID-68 {68.27} cutover (resolve via KH_PRIVATE_DOCS_DIR); reference-doc-paths.test.ts reads THIS manifest (code paths) instead of their prose. Regenerate by re-running the 0g extractor against the private docs-site copies. Lists are sorted + deduped.",
   "sourceDocs": [
-    "docs/reference/data-entry-points.md",
-    "docs/reference/classification-architecture.md",
-    "docs/runbooks/taxonomy-change-runbook.md"
+    "${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/data-entry-points.md",
+    "${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/classification-architecture.md",
+    "${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/taxonomy-change-runbook.md"
   ],
   "requiredPaths": [
     "app/api/ingest/markdown/route.ts",
