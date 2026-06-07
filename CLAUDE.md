@@ -107,7 +107,9 @@ PR-blocking CI (`ci.yml`) runs 7 jobs in parallel: `quality-precheck`, `quality-
 matrix), `integration`. Triggers: PR (any base) + push on `main`/`staging`. Draft PRs skip
 CI. Full topology + per-step failure-mode table: `docs/runbooks/ci.md`.
 
-Side workflows: `migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml`
+Side workflows: `onprem-deploy.yml` (B1 pipeline image build + Coolify deploy — always
+runs on `main`/`staging` push with in-job change detection, ID-86),
+`migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml`
 (prod ↔ staging diff), `staging-reference-refresh.yml`, `supabase-advisors.yml`,
 `taxonomy-sync.yml`, `task-view-vendor-drift.yml` (non-blocking re-vendor reminder when
 `lib/validation/{task-list,roadmap,backlog}-schema.ts` or `work-status.ts` change).
