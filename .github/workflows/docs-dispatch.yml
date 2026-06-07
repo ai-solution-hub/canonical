@@ -1,0 +1,47 @@
+# Thin dispatch bridge (ID-68 PC-27 / PRODUCT Inv 27 / AC-D2).
+#
+# The docs operators (docubot + the five docs skills + their drivers and shape
+# tests) live in the PRIVATE knowledge-hub-docs-site repo. This workflow is the
+# ONLY public-side remnant of that lane: on every merged PR to main it mints a
+# GitHub App installation token (knowledge-hub-integration — installed on both
+# repos with repo-level APP_ID / APP_PRIVATE_KEY secrets) and fires a
+# repository_dispatch into the private repo, where docubot.yml consumes the
+# kh-public-pr-merged event and opens the follow-up docs PR.
+#
+# NOTE: issue_comment + pull_request_review_comment triggers DELIBERATELY
+# OMITTED per the Inv-25 lesson (org-wide noise). pull_request.types: [closed]
+# requires the merged==true filter in the job-level if: — closed-without-merge
+# must not dispatch.
+name: docs dispatch — notify the docs-site repo on PR merge
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Mint GitHub App token (docs-site repo dispatch)
+        id: docs-site-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ai-solution-hub
+          repositories: knowledge-hub-docs-site
+      - name: Send repository_dispatch (kh-public-pr-merged)
+        # The PR number is routed through an env var (never interpolated
+        # directly into the run body) per the GitHub Actions injection
+        # guidance — mirrors the retired docubot.yml Resolve step.
+        env:
+          GH_TOKEN: ${{ steps.docs-site-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api repos/ai-solution-hub/knowledge-hub-docs-site/dispatches \
+            -f event_type=kh-public-pr-merged \
+            -F "client_payload[pr_number]=$PR_NUMBER"
