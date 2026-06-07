@@ -1,0 +1,68 @@
+name: "Resolve private docs (KH_PRIVATE_DOCS_DIR)"
+description:
+  "Mints a GitHub-App installation token, checks out knowledge-hub-docs-site
+  into ${{ runner.temp }}/kh-private-docs, and exports KH_PRIVATE_DOCS_DIR for
+  downstream steps. The single CI resolution route for the private-docs bridge
+  knob (ID-68 TECH PC-28) — consumers never implement their own resolution (Inv
+  28). Opt-in lanes only: no PR-blocking CI job may use this action (Inv 30)."
+
+inputs:
+  app-id:
+    description: "GitHub App ID with read access to knowledge-hub-docs-site."
+    required: true
+  private-key:
+    description: "GitHub App private key (PEM) for the App above."
+    required: true
+  owner:
+    description: "Owner of the private docs repository."
+    required: false
+    default: "ai-solution-hub"
+  repository:
+    description: "Private docs repository name."
+    required: false
+    default: "knowledge-hub-docs-site"
+  ref:
+    description: "Ref of the private docs repository to check out."
+    required: false
+    default: "main"
+
+outputs:
+  private-docs-dir:
+    description:
+      "Absolute path of the private docs checkout (also exported as
+      KH_PRIVATE_DOCS_DIR)."
+    value: ${{ steps.clone.outputs.private-docs-dir }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Mint GitHub-App installation token
+      id: app-token
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ inputs.owner }}
+        repositories: ${{ inputs.repository }}
+
+    # actions/checkout cannot place a repository outside $GITHUB_WORKSPACE,
+    # so the PC-28-mandated ${{ runner.temp }}/kh-private-docs target is
+    # materialised with a token-authenticated clone instead.
+    - name: Check out private docs into runner temp
+      id: clone
+      shell: bash
+      env:
+        APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        OWNER: ${{ inputs.owner }}
+        REPOSITORY: ${{ inputs.repository }}
+        CHECKOUT_REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        target="${RUNNER_TEMP}/kh-private-docs"
+        rm -rf "${target}"
+        git clone --depth 1 --branch "${CHECKOUT_REF}" \
+          "https://x-access-token:${APP_TOKEN}@github.com/${OWNER}/${REPOSITORY}.git" \
+          "${target}"
+        echo "KH_PRIVATE_DOCS_DIR=${target}" >> "${GITHUB_ENV}"
+        echo "private-docs-dir=${target}" >> "${GITHUB_OUTPUT}"
+        echo "Resolved KH_PRIVATE_DOCS_DIR=${target}"
