@@ -25,8 +25,15 @@
  * Gotchas — Testing.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+// bl-245 (S321/S323): the CLI-scaffold tests spawnSync the codemod, which
+// cold-starts a ts-morph Project over the full route corpus per invocation —
+// the 5000ms Vitest default false-reds on loaded 2-vCPU CI shard runners
+// (S323: shard 2/4 on the 80a778d6 main push). Same class as the
+// inference-source-a 60s bump (a47d256e); file-level headroom, not per-test.
+vi.setConfig({ testTimeout: 60_000 });
 import {
   cpSync,
   existsSync,

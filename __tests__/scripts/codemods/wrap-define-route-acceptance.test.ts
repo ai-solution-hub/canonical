@@ -55,7 +55,13 @@
  * Test invocation: `bun run test` (Vitest) — NOT `bun test`.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// bl-245 (S323): AC-2/3/5/6/7 are bare `it()`s riding the 5000ms default —
+// they re-walk the live corpus project and false-red on loaded 2-vCPU CI
+// shard runners (shard 2/4, 80a778d6 main push). File-level 60s headroom;
+// the explicit CORPUS_TIMEOUT_MS (120s) per-test args still override it.
+vi.setConfig({ testTimeout: 60_000 });
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
