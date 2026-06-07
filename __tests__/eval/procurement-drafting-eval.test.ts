@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import { rougeL } from '@/lib/eval/metrics';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -63,11 +63,10 @@ describe.skipIf(!isEvalEnabled)(
     let evaluated: GoldItem[];
 
     beforeAll(async () => {
-      // Load gold standard fixture
-      const fixturePath = resolve(
-        __dirname,
-        '../fixtures/bid-drafting-eval-gold-standard.json',
-      );
+      // Load gold standard fixture. Private — docs-site repo via
+      // KH_PRIVATE_DOCS_DIR (ID-68.17 / TECH PC-7); canonical name
+      // reconciled from the legacy bid-drafting filename (Checker S317).
+      const fixturePath = resolveEvalFixture('procurement-drafting');
       goldStandard = JSON.parse(readFileSync(fixturePath, 'utf-8'));
 
       // Load bid responses from DB using service client

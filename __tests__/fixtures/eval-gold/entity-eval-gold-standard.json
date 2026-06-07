@@ -1,0 +1,3180 @@
+[
+  {
+    "content_item_id": "375f6679-6744-4918-9d07-9f6c5afdc420",
+    "title": "Example Client Ltd -- GDPR and Data Protection Compliance Overview",
+    "domain": "security",
+    "content_type": "compliance",
+    "expected_entities": [
+      {
+        "name": "Example Client Ltd",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "UK GDPR",
+        "type": "regulation",
+        "canonical_name": "uk gdpr"
+      },
+      {
+        "name": "Data Protection Act 2018",
+        "type": "regulation",
+        "canonical_name": "data protection act 2018"
+      },
+      {
+        "name": "GDPR Article 30",
+        "type": "regulation",
+        "canonical_name": "gdpr article 30"
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Data Protection Officer",
+        "reason": "job title, not a named entity"
+      },
+      {
+        "name": "Data Processing Agreement",
+        "reason": "contract type, not a named entity"
+      },
+      {
+        "name": "Records of Processing Activities",
+        "reason": "GDPR-mandated internal document"
+      },
+      {
+        "name": "Data Protection Impact Assessment",
+        "reason": "GDPR process, not a named entity"
+      },
+      {
+        "name": "privacy by design",
+        "reason": "GDPR principle, not a named entity"
+      },
+      {
+        "name": "SSL encryption",
+        "reason": "protocol, not a named product or platform"
+      }
+    ]
+  },
+  {
+    "content_item_id": "8c01e620-1761-483b-ad03-9550bdb03568",
+    "title": "ICO Guide to Data Security -- UK GDPR Technical and Organisational Measures",
+    "domain": "security",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Information Commissioner's Office",
+        "type": "organisation",
+        "canonical_name": "information commissioner's office"
+      },
+      {
+        "name": "UK GDPR",
+        "type": "regulation",
+        "canonical_name": "uk gdpr"
+      },
+      {
+        "name": "UK GDPR Article 32",
+        "type": "regulation",
+        "canonical_name": "uk gdpr article 32"
+      },
+      {
+        "name": "UK GDPR Article 5(1)(f)",
+        "type": "regulation",
+        "canonical_name": "uk gdpr article 5(1)(f)"
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "Cyber Essentials",
+        "type": "certification",
+        "canonical_name": "cyber essentials"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "encryption",
+        "reason": "generic security concept"
+      },
+      {
+        "name": "pseudonymisation",
+        "reason": "generic security concept"
+      },
+      {
+        "name": "vulnerability scanning",
+        "reason": "generic security activity"
+      },
+      {
+        "name": "information security policy",
+        "reason": "internal policy document"
+      },
+      {
+        "name": "CIA Triad",
+        "reason": "generic security concept, not a named framework"
+      },
+      {
+        "name": "penetration testing",
+        "reason": "generic security activity"
+      },
+      {
+        "name": "least privilege",
+        "reason": "generic security principle"
+      }
+    ]
+  },
+  {
+    "content_item_id": "48b3e226-2d32-4670-b426-49f00c673efb",
+    "title": "NCSC 10 Steps to Cyber Security -- Framework for Organisational Security",
+    "domain": "security",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "National Cyber Security Centre",
+        "type": "organisation",
+        "canonical_name": "national cyber security centre"
+      },
+      {
+        "name": "NCSC 10 Steps to Cyber Security",
+        "type": "framework",
+        "canonical_name": "ncsc 10 steps to cyber security"
+      },
+      {
+        "name": "Cyber Essentials",
+        "type": "certification",
+        "canonical_name": "cyber essentials"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Asset Management",
+        "reason": "generic security domain, not a named entity"
+      },
+      {
+        "name": "Data Security",
+        "reason": "generic security domain, not a named entity"
+      },
+      {
+        "name": "Identity and Access Management",
+        "reason": "generic security domain, not a named entity"
+      },
+      {
+        "name": "Incident Management",
+        "reason": "generic security domain, not a named entity"
+      },
+      {
+        "name": "Logging and Monitoring",
+        "reason": "generic security domain, not a named entity"
+      },
+      {
+        "name": "Risk Management",
+        "reason": "generic security domain, not a named entity"
+      },
+      {
+        "name": "Supply Chain Security",
+        "reason": "generic security domain, not a named entity"
+      },
+      {
+        "name": "Vulnerability Management",
+        "reason": "generic security domain, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "0efd19a0-259e-429e-888c-9f545782aff0",
+    "title": "Data Protection Impact Assessments (DPIAs) -- ICO Guidance on When and How",
+    "domain": "security",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Information Commissioner's Office",
+        "type": "organisation",
+        "canonical_name": "information commissioner's office"
+      },
+      {
+        "name": "UK GDPR",
+        "type": "regulation",
+        "canonical_name": "uk gdpr"
+      },
+      {
+        "name": "Data Protection Act 2018",
+        "type": "regulation",
+        "canonical_name": "data protection act 2018"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Data Protection Officer",
+        "reason": "job title, not a named entity"
+      },
+      {
+        "name": "Data Protection Impact Assessment",
+        "reason": "GDPR process described in the article, not a standalone named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "3b80e08d-08f2-485b-98b4-5140644476f5",
+    "title": "Example Client Ltd -- Certifications and Accreditations Overview",
+    "domain": "security",
+    "content_type": "certification",
+    "expected_entities": [
+      {
+        "name": "Example Client Ltd",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "ISO 9001",
+        "type": "certification",
+        "canonical_name": "iso 9001"
+      },
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      },
+      {
+        "name": "CREST",
+        "type": "organisation",
+        "canonical_name": "crest",
+        "alternate_types": ["certification"]
+      },
+      {
+        "name": "Information Commissioner's Office",
+        "type": "organisation",
+        "canonical_name": "information commissioner's office"
+      },
+      {
+        "name": "Public Contracts Regulations 2015",
+        "type": "regulation",
+        "canonical_name": "public contracts regulations 2015"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Information Security Management System",
+        "reason": "management system acronym, not a standalone entity in certification context"
+      },
+      {
+        "name": "Quality Management System",
+        "reason": "management system acronym, not a standalone entity in certification context"
+      },
+      {
+        "name": "penetration testing",
+        "reason": "generic security activity"
+      },
+      {
+        "name": "data protection audit",
+        "reason": "generic audit activity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "9d149777-f3cf-4343-ada6-cca72656a35e",
+    "title": "Example Client Ltd -- Business Continuity and Service Levels",
+    "domain": "security",
+    "content_type": "policy",
+    "expected_entities": [
+      {
+        "name": "Example Client Ltd",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      },
+      {
+        "name": "Example Client LMS",
+        "type": "product",
+        "canonical_name": "example client lms"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Recovery Point Objective",
+        "reason": "generic technical metric, not a named entity"
+      },
+      {
+        "name": "Recovery Time Objective",
+        "reason": "generic technical metric, not a named entity"
+      },
+      {
+        "name": "Business Continuity and Disaster Recovery",
+        "reason": "internal plan/policy document"
+      }
+    ]
+  },
+  {
+    "content_item_id": "3248a73b-1f24-419b-a763-9787fdf36e62",
+    "title": "Example Client Ltd -- Information Security Controls Reference",
+    "domain": "security",
+    "content_type": "policy",
+    "expected_entities": [
+      {
+        "name": "Example Client Ltd",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      },
+      {
+        "name": "CREST",
+        "type": "organisation",
+        "canonical_name": "crest",
+        "alternate_types": ["certification"]
+      },
+      {
+        "name": "GDPR",
+        "type": "regulation",
+        "canonical_name": "gdpr"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Multi-Factor Authentication",
+        "reason": "generic security mechanism"
+      },
+      {
+        "name": "Example Client Information Management System",
+        "reason": "internal company system"
+      },
+      {
+        "name": "principle of least privilege",
+        "reason": "generic security principle"
+      },
+      {
+        "name": "clear desk policy",
+        "reason": "internal policy document"
+      },
+      {
+        "name": "clear screen policy",
+        "reason": "internal policy document"
+      },
+      {
+        "name": "SSL",
+        "reason": "protocol, not a named product or platform"
+      }
+    ]
+  },
+  {
+    "content_item_id": "b2fb4b72-c2f1-4171-905c-af65208fa4cc",
+    "title": "What data protection training do employees undergo?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "Cyber Security Awareness",
+        "reason": "generic training topic, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "0a0f16e5-005b-4d47-aabc-7e062cbf58b9",
+    "title": "Is completion of security awareness training logged and monitored?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "security awareness training",
+        "reason": "generic training topic, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "3ce0a25f-cda1-44bd-8883-d4bb0dec9839",
+    "title": "Describe your Data Retention Schedule and capabilities as it relates to customer Personal Information",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "ISO 9001",
+        "type": "certification",
+        "canonical_name": "iso 9001"
+      },
+      {
+        "name": "GDPR",
+        "type": "regulation",
+        "canonical_name": "gdpr"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "business continuity",
+        "reason": "generic concept"
+      },
+      {
+        "name": "data retention schedule",
+        "reason": "internal document type"
+      }
+    ]
+  },
+  {
+    "content_item_id": "2b5d1210-073e-4a63-8896-b8e969d83f6a",
+    "title": "Describe the purposes for data collection and processing in your projects.",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "data collection",
+        "reason": "generic activity"
+      },
+      {
+        "name": "data processing",
+        "reason": "generic activity"
+      },
+      {
+        "name": "regulatory compliance",
+        "reason": "generic concept"
+      },
+      {
+        "name": "HR",
+        "reason": "generic department, not a named entity"
+      },
+      {
+        "name": "marketing",
+        "reason": "generic department, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "fc752000-d12f-4d75-b9e0-00b27702597a",
+    "title": "Do you use a separate backup datacenter which is located off site?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "offsite backup datacentre",
+        "reason": "generic infrastructure concept"
+      },
+      {
+        "name": "rolling 30 day backup system",
+        "reason": "generic backup policy description"
+      }
+    ]
+  },
+  {
+    "content_item_id": "f60a3630-cb22-4a24-8915-4249a524e8b4",
+    "title": "Are access levels granted according to principle of least privilege?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "principle of least privilege",
+        "reason": "generic security principle"
+      }
+    ]
+  },
+  {
+    "content_item_id": "98ce5440-323b-417d-99d9-2de09abcea07",
+    "title": "Does the training cover how to identify and report security incidents?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "security incident reporting",
+        "reason": "generic security activity"
+      },
+      {
+        "name": "security awareness training",
+        "reason": "generic training topic"
+      }
+    ]
+  },
+  {
+    "content_item_id": "f75a3507-fd48-4100-8155-cbcdffacc76f",
+    "title": "Where applicable, does your product support Single-Sign-On (eg SAML)?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "SAML",
+        "type": "standard",
+        "canonical_name": "saml"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Single Sign-On",
+        "reason": "generic authentication mechanism"
+      }
+    ]
+  },
+  {
+    "content_item_id": "c671abef-63c6-4fca-ba98-4812045b5b35",
+    "title": "Do you have the capability to anonymise production data in live environments?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "encryption at rest",
+        "reason": "generic security mechanism"
+      },
+      {
+        "name": "in-application anonymisation",
+        "reason": "generic capability description"
+      },
+      {
+        "name": "advanced audit",
+        "reason": "product feature, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "16b8f44e-7d19-4270-8498-7da73caf2217",
+    "title": "Do you have an independent function that has reviewed your security processes?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      },
+      {
+        "name": "CREST",
+        "type": "organisation",
+        "canonical_name": "crest",
+        "alternate_types": ["certification"]
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "7df2f56a-4e54-412d-a33a-9bffd5f926f6",
+    "title": "Does the training cover the protection of customer data both offsite and onsite?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "customer data protection",
+        "reason": "generic security concept"
+      }
+    ]
+  },
+  {
+    "content_item_id": "4e01c121-6210-4b78-85ce-bf17ed5135eb",
+    "title": "Do you undertake any additional training for system administrators and developers?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "developers",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "system administrators",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "information governance",
+        "reason": "generic concept"
+      },
+      {
+        "name": "Information Security",
+        "reason": "generic concept"
+      },
+      {
+        "name": "Data Protection",
+        "reason": "generic concept"
+      }
+    ]
+  },
+  {
+    "content_item_id": "138c8bd9-3b49-4ac2-8e38-e2497b4dc8e7",
+    "title": "Do you carry out regular vulnerability and penetration testing?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      },
+      {
+        "name": "CREST",
+        "type": "organisation",
+        "canonical_name": "crest",
+        "alternate_types": ["certification"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "penetration testing",
+        "reason": "generic security activity"
+      },
+      {
+        "name": "vulnerability testing",
+        "reason": "generic security activity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "4e0e89b2-48a0-4cc6-af6e-d4249560fc38",
+    "title": "Are employee laptops encrypted?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Bitdefender",
+        "type": "product",
+        "canonical_name": "bitdefender"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "hashing",
+        "reason": "generic cryptographic technique"
+      }
+    ]
+  },
+  {
+    "content_item_id": "1644c117-c29a-4a72-904f-9aff3ba5f37a",
+    "title": "Do you maintain an inventory of all important information assets?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "ISMS",
+        "reason": "management system acronym in certification context; the certification (ISO 27001) is the entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "39482f91-6b04-4fe2-b581-cfdb3a407dd9",
+    "title": "ISO 9001 Quality Management Systems",
+    "domain": "compliance",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "ISO 9001",
+        "type": "standard",
+        "canonical_name": "iso 9001",
+        "alternate_types": ["certification"]
+      },
+      {
+        "name": "ISO/TC 176",
+        "type": "organisation",
+        "canonical_name": "iso/tc 176"
+      },
+      {
+        "name": "ISO 13485",
+        "type": "standard",
+        "canonical_name": "iso 13485"
+      },
+      {
+        "name": "ISO 18091",
+        "type": "standard",
+        "canonical_name": "iso 18091"
+      },
+      {
+        "name": "ISO 22163",
+        "type": "standard",
+        "canonical_name": "iso 22163"
+      },
+      {
+        "name": "ISO 29001",
+        "type": "standard",
+        "canonical_name": "iso 29001"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "c7fc5f57-3a0b-4ec9-b4ed-b7ab404471d6",
+    "title": "Example Client Ltd -- Social Value Statement",
+    "domain": "compliance",
+    "content_type": "policy",
+    "expected_entities": [
+      {
+        "name": "Example Client Ltd",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Electric Car Scheme",
+        "reason": "employee benefit, not a named entity"
+      },
+      {
+        "name": "Healthcare Coverage",
+        "reason": "employee benefit, not a named entity"
+      },
+      {
+        "name": "Life Assurance",
+        "reason": "employee benefit, not a named entity"
+      },
+      {
+        "name": "Equal Opportunity Policy",
+        "reason": "internal policy document"
+      },
+      {
+        "name": "Remote and Flexible Working Policy",
+        "reason": "internal policy document"
+      },
+      {
+        "name": "Social Value Statement",
+        "reason": "internal company document"
+      }
+    ]
+  },
+  {
+    "content_item_id": "50ff278d-f4c3-471a-b845-2982f70a209d",
+    "title": "Is additional screening performed for staff in privileged roles (EDBS)?",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "Enhanced DBS",
+        "reason": "generic screening process, not a certification held by the company"
+      }
+    ]
+  },
+  {
+    "content_item_id": "ba14e54a-38b4-4a81-822d-d965930fa34c",
+    "title": "What is the scope of your data protection and security audits?",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "data protection audit",
+        "reason": "generic audit activity"
+      },
+      {
+        "name": "security audit",
+        "reason": "generic audit activity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "8bea7d5d-7257-4684-94b5-06dff35f962c",
+    "title": "Example Client -- Compliance, Governance, and Certifications",
+    "domain": "compliance",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Example Client Limited",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "ISO 9001",
+        "type": "certification",
+        "canonical_name": "iso 9001"
+      },
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "cd304416-0f62-4246-96fb-e2247178ca3c",
+    "title": "Have you run the HMRC CEST assessment?",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "HMRC",
+        "type": "organisation",
+        "canonical_name": "hm revenue and customs"
+      },
+      {
+        "name": "IR35",
+        "type": "regulation",
+        "canonical_name": "ir35"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "CEST",
+        "reason": "HMRC online tool, not a technology product in the general sense"
+      }
+    ]
+  },
+  {
+    "content_item_id": "65f9895f-1cf9-4aa3-8715-1bbea04cce45",
+    "title": "What is your organisation doing regarding Social Value -- Fighting Climate Change",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "EV car scheme",
+        "reason": "employee benefit, not a named entity"
+      },
+      {
+        "name": "renewable energy",
+        "reason": "generic concept"
+      },
+      {
+        "name": "carbon neutral",
+        "reason": "generic certification concept without specific body"
+      },
+      {
+        "name": "social value",
+        "reason": "generic concept"
+      },
+      {
+        "name": "cloud-based systems",
+        "reason": "generic technology category"
+      },
+      {
+        "name": "electric vehicles",
+        "reason": "generic technology category"
+      }
+    ]
+  },
+  {
+    "content_item_id": "37e48833-90c0-492c-ba02-11d9b0b50de1",
+    "title": "ICO Guide to Accountability and Governance under UK GDPR",
+    "domain": "compliance",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Information Commissioner's Office",
+        "type": "organisation",
+        "canonical_name": "information commissioner's office"
+      },
+      {
+        "name": "UK GDPR",
+        "type": "regulation",
+        "canonical_name": "uk gdpr"
+      },
+      {
+        "name": "Data Protection Act 2018",
+        "type": "regulation",
+        "canonical_name": "data protection act 2018"
+      },
+      {
+        "name": "Data (Use and Access) Act 2025",
+        "type": "regulation",
+        "canonical_name": "data (use and access) act 2025"
+      },
+      {
+        "name": "Article 30",
+        "type": "regulation",
+        "canonical_name": "uk gdpr article 30"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Data Protection Officer",
+        "reason": "job title, not a named entity"
+      },
+      {
+        "name": "ICO compliance certification",
+        "reason": "no such certification exists; fabricated entity"
+      },
+      {
+        "name": "Data Protection by Design and Default",
+        "reason": "GDPR principle, not a named entity"
+      },
+      {
+        "name": "privacy management framework",
+        "reason": "generic concept in this context"
+      },
+      {
+        "name": "Data Protection Impact Assessment",
+        "reason": "GDPR process, not a standalone named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "3ebf26a8-fa09-4e5f-b3c9-1fd1fc9a565b",
+    "title": "What is your organisation doing regarding Social value -- tackling economic inequality",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "charities",
+        "reason": "generic category, not a named organisation"
+      },
+      {
+        "name": "local businesses",
+        "reason": "generic category, not a named sector"
+      }
+    ]
+  },
+  {
+    "content_item_id": "f18212f0-8907-4057-97eb-ca8e52d15a1a",
+    "title": "Do staff with access to organisation data undergo background screening (DBS)?",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Disclosure and Barring Service",
+        "type": "organisation",
+        "canonical_name": "disclosure and barring service"
+      },
+      {
+        "name": "DBS Basic Disclosure",
+        "type": "certification",
+        "canonical_name": "dbs basic disclosure"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "ISO 27001",
+        "reason": "wrong type: listed as standard in DB but should be certification; however in this context it is mentioned tangentially and the certification is the correct type"
+      }
+    ]
+  },
+  {
+    "content_item_id": "5c19b0d0-93f9-4034-9615-00eaaa1c9286",
+    "title": "What parts of the service are sub-contracted?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "World Host Group",
+        "type": "organisation",
+        "canonical_name": "world host group"
+      },
+      {
+        "name": "WorldPay",
+        "type": "organisation",
+        "canonical_name": "worldpay"
+      },
+      {
+        "name": "Nimbus",
+        "type": "organisation",
+        "canonical_name": "nimbus"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      },
+      {
+        "name": "Access PaySuite",
+        "type": "product",
+        "canonical_name": "access paysuite"
+      },
+      {
+        "name": "Adalante Smartpay",
+        "type": "product",
+        "canonical_name": "adalante smartpay"
+      },
+      {
+        "name": "Opayo",
+        "type": "product",
+        "canonical_name": "opayo"
+      },
+      {
+        "name": "Pay360",
+        "type": "product",
+        "canonical_name": "pay360"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "3bba2ed4-fc1e-4f7b-8d87-764dfedcc8b7",
+    "title": "What is your organisation doing regarding Social value -- wellbeing",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "1109c632-9ff4-4651-9517-eb2560475555",
+    "title": "Do you use sub-contractors?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "49804dc1-1862-49cb-a23f-d350139e88b4",
+    "title": "Does your organisation have current business insurance covering public and product liability?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Public & Products Liability Insurance",
+        "reason": "insurance product category, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "edd144fd-cdeb-4ae9-ab0e-1395e5cfc31b",
+    "title": "How does the pricing work?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "3358c7f4-dcff-4f1b-8421-4bf42f17a0c6",
+    "title": "Website",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Limited",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "a27d686b-4e5c-4e09-baa1-fd62bad7a4ce",
+    "title": "Contact Name",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Matthew Burgess",
+        "type": "person",
+        "canonical_name": "matthew burgess"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "6f1ea649-daa6-441d-9ae9-6c407545fe25",
+    "title": "In accordance with the Public Contracts Regulations 2015",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Public Contracts Regulations 2015",
+        "type": "regulation",
+        "canonical_name": "public contracts regulations 2015"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "s113",
+        "reason": "section reference within a regulation, not a standalone entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "3cc67880-858c-4931-a1ff-afa3625cbba1",
+    "title": "What is your organisation SIC code",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "Business and domestic software development",
+        "reason": "SIC code description, not a named sector"
+      },
+      {
+        "name": "Web portals",
+        "reason": "SIC code description, not a named sector"
+      }
+    ]
+  },
+  {
+    "content_item_id": "4ec0c099-6e3d-4cb5-8ede-5d94f4ed4816",
+    "title": "What are the main benefits and value propositions that you provide?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "healthcare",
+        "type": "sector",
+        "canonical_name": "healthcare"
+      },
+      {
+        "name": "public sector",
+        "type": "sector",
+        "canonical_name": "public sector"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "09fac297-d6fa-44a9-a28f-fda6327694b1",
+    "title": "Key Success Factors",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "a6808615-67c9-4cb2-97fb-3cfbc90bb062",
+    "title": "What is the typical timeline for Audit implementation?",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "dc27eadf-8de1-45e6-9580-8ed91afebddf",
+    "title": "How long does it take to implement?",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "implementation",
+        "reason": "generic activity, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "613702eb-d293-4e90-b991-558c5a72524b",
+    "title": "Resource Commitments",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client LMS",
+        "type": "product",
+        "canonical_name": "example client lms"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Data Migration Specialists",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "Project Lead",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "Project Manager",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "Project Sponsor",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "QA/Testing Team",
+        "reason": "team name, not a named entity"
+      },
+      {
+        "name": "Support Team",
+        "reason": "team name, not a named entity"
+      },
+      {
+        "name": "Technical Configuration Team",
+        "reason": "team name, not a named entity"
+      },
+      {
+        "name": "Training Specialist",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "UAT",
+        "reason": "generic testing process"
+      }
+    ]
+  },
+  {
+    "content_item_id": "de18b0c6-51a3-4a20-afe9-139ca8198669",
+    "title": "What does your timeline look like for implementation?",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      },
+      {
+        "name": "Example Client Knowledge Base",
+        "type": "product",
+        "canonical_name": "example client knowledge base"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Example Client Project Manager",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "User Acceptance Testing",
+        "reason": "generic testing process"
+      }
+    ]
+  },
+  {
+    "content_item_id": "f314d09e-b80d-463c-81c7-32824b734f73",
+    "title": "What kind of training is provided?",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      },
+      {
+        "name": "Example Client Knowledge Academy",
+        "type": "product",
+        "canonical_name": "example client knowledge academy"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Lunchtime Learning",
+        "reason": "internal training format, not a named entity"
+      },
+      {
+        "name": "Virtual Clinics",
+        "reason": "internal training format, not a named entity"
+      },
+      {
+        "name": "Example Client training programme",
+        "reason": "generic internal process"
+      }
+    ]
+  },
+  {
+    "content_item_id": "d42ccbca-942c-4b7a-b302-55d1ae6ad870",
+    "title": "What kind of training is provided for the Audit system?",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      },
+      {
+        "name": "Example Client Knowledge Academy",
+        "type": "product",
+        "canonical_name": "example client knowledge academy"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Lunchtime Learning",
+        "reason": "internal training format, not a named entity"
+      },
+      {
+        "name": "Virtual Clinics",
+        "reason": "internal training format, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "c9ed2c7f-b473-40f7-80d6-099558b82073",
+    "title": "What is the typical timeline for implementation?",
+    "domain": "methodology",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "client acceptance",
+        "reason": "generic process step, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "11653860-0e23-46e9-a2e6-834a1d6e8cb4",
+    "title": "What is your approach to implementing a new system",
+    "domain": "methodology",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "project management",
+        "reason": "generic capability"
+      },
+      {
+        "name": "phased implementation",
+        "reason": "generic delivery approach"
+      }
+    ]
+  },
+  {
+    "content_item_id": "e729e486-bbf1-425b-8388-efc704390604",
+    "title": "Please detail your implementation Plan including key milestones",
+    "domain": "methodology",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Project Initiation Document",
+        "reason": "generic project artefact, not a named entity"
+      },
+      {
+        "name": "Quality Assurance",
+        "reason": "generic process"
+      },
+      {
+        "name": "User Acceptance Testing",
+        "reason": "generic testing process"
+      }
+    ]
+  },
+  {
+    "content_item_id": "e0a87af5-4134-4297-b0a3-ab40f0659e32",
+    "title": "Risk Mitigation",
+    "domain": "methodology",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "early life support",
+        "reason": "generic project phase"
+      },
+      {
+        "name": "Project Manager",
+        "reason": "job role, not a named entity"
+      },
+      {
+        "name": "rollback capability",
+        "reason": "generic technical capability"
+      },
+      {
+        "name": "escalation procedures",
+        "reason": "generic process"
+      },
+      {
+        "name": "phased approach",
+        "reason": "generic delivery methodology"
+      },
+      {
+        "name": "UAT",
+        "reason": "generic testing process"
+      }
+    ]
+  },
+  {
+    "content_item_id": "db263f97-4cfd-4e41-a748-f5820970e8b5",
+    "title": "Does it create a Multi-Academy Trust (MAT) Action Plan?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      },
+      {
+        "name": "Multi-Academy Trust",
+        "type": "organisation",
+        "canonical_name": "multi-academy trust"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "c8d0f04f-1961-419c-92e1-1043dc37b019",
+    "title": "What is the Example Client Audit system?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "13485e92-a8b3-473f-bfbb-b2594879f69b",
+    "title": "Do you have Self-registration for audits?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "76ecbd73-bee4-40bc-ae74-283dd6873799",
+    "title": "Is it possible to change or amend questions?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "b147a3f3-ea04-4c91-8873-14e31e7a3600",
+    "title": "Can Multiple Departments use the same platform?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Advanced Audits",
+        "reason": "product feature tier, not a named entity"
+      },
+      {
+        "name": "Standard Audits",
+        "reason": "product feature tier, not a named entity"
+      },
+      {
+        "name": "Super Administrator",
+        "reason": "role within product, not a named entity"
+      },
+      {
+        "name": "data sharing agreement",
+        "reason": "contract type, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "973727f0-cf14-4e0c-9490-900f14beadcf",
+    "title": "Example Datacentre South Data Centre -- Fact Sheet 2025",
+    "domain": "product-feature",
+    "content_type": "capability",
+    "expected_entities": [
+      {
+        "name": "Example Datacentre South",
+        "type": "product",
+        "canonical_name": "example datacentre south"
+      },
+      {
+        "name": "Example Datacentre London Docklands",
+        "type": "organisation",
+        "canonical_name": "example datacentre london docklands",
+        "alternate_names": ["example datacentre"]
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "ISO 9001",
+        "type": "certification",
+        "canonical_name": "iso 9001"
+      },
+      {
+        "name": "ISO 14001",
+        "type": "certification",
+        "canonical_name": "iso 14001"
+      },
+      {
+        "name": "ISO 22301",
+        "type": "certification",
+        "canonical_name": "iso 22301"
+      },
+      {
+        "name": "ISO 45001",
+        "type": "certification",
+        "canonical_name": "iso 45001"
+      },
+      {
+        "name": "ISO 50001",
+        "type": "certification",
+        "canonical_name": "iso 50001"
+      },
+      {
+        "name": "PCI-DSS",
+        "type": "certification",
+        "canonical_name": "pci-dss"
+      },
+      {
+        "name": "BS 3115",
+        "type": "standard",
+        "canonical_name": "bs 3115"
+      },
+      {
+        "name": "BS 5306",
+        "type": "standard",
+        "canonical_name": "bs 5306"
+      },
+      {
+        "name": "BS 5445",
+        "type": "standard",
+        "canonical_name": "bs 5445"
+      },
+      {
+        "name": "BS 5588",
+        "type": "standard",
+        "canonical_name": "bs 5588"
+      },
+      {
+        "name": "BS 5839",
+        "type": "standard",
+        "canonical_name": "bs 5839"
+      },
+      {
+        "name": "BS 6266",
+        "type": "standard",
+        "canonical_name": "bs 6266"
+      },
+      {
+        "name": "LFEPA",
+        "type": "organisation",
+        "canonical_name": "london fire and emergency planning authority"
+      },
+      {
+        "name": "Climate Neutral Data Centre Certification",
+        "type": "certification",
+        "canonical_name": "climate neutral data centre certification"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "dark fibre network",
+        "reason": "generic infrastructure technology"
+      },
+      {
+        "name": "free-cooling air-cooled chillers",
+        "reason": "generic cooling technology"
+      },
+      {
+        "name": "VESDA",
+        "reason": "product (Very Early Smoke Detection Apparatus) -- borderline, could be product"
+      }
+    ]
+  },
+  {
+    "content_item_id": "0b7ed589-6cac-4337-86d9-1a032e65652c",
+    "title": "Does the Audit system offer reports?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "action plan reporting",
+        "reason": "product feature, not a named entity"
+      },
+      {
+        "name": "reporting suite",
+        "reason": "product feature, not a named entity"
+      },
+      {
+        "name": "chronology reporting",
+        "reason": "product feature, not a named entity"
+      },
+      {
+        "name": "export functionality",
+        "reason": "product feature, not a named entity"
+      },
+      {
+        "name": "thematic based reports",
+        "reason": "product feature, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "2a8ded23-90b7-443e-a96f-34012da5650e",
+    "title": "Does the Audit system allow you to print and send via email?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "multi factor authentication",
+        "reason": "generic security mechanism"
+      },
+      {
+        "name": "PDF",
+        "reason": "file format, not a named product or platform"
+      }
+    ]
+  },
+  {
+    "content_item_id": "fae87e25-9680-49cb-bc34-84632af9c368",
+    "title": "Can the Audit system be used to comply with the latest Keeping Children Safe in Education (KCSIE) guidance?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      },
+      {
+        "name": "Keeping Children Safe in Education",
+        "type": "regulation",
+        "canonical_name": "kcsie"
+      },
+      {
+        "name": "Section 175",
+        "type": "regulation",
+        "canonical_name": "section 175"
+      },
+      {
+        "name": "Section 11",
+        "type": "regulation",
+        "canonical_name": "section 11"
+      }
+    ],
+    "excluded_entities": []
+  },
+  {
+    "content_item_id": "3f571ce4-d5c1-4baf-85c3-7241122be9b4",
+    "title": "Issue Management",
+    "domain": "support",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "specialist teams",
+        "reason": "generic team description, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "2b91d5cf-73e0-4c3a-abda-d3eae0b80aa5",
+    "title": "Explain how support is provided to local administrators",
+    "domain": "support",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system",
+        "alternate_names": ["example client platform"]
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "knowledge academy",
+        "reason": "should be product (Example Client Knowledge Academy) if referenced by name, but too vague here"
+      }
+    ]
+  },
+  {
+    "content_item_id": "88c5bdf6-ddac-458e-989f-d31e0555a604",
+    "title": "Do you have a documented disaster recovery plan?",
+    "domain": "support",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "disaster recovery plan",
+        "reason": "internal policy document"
+      }
+    ]
+  },
+  {
+    "content_item_id": "ad5aede8-e358-4235-b5aa-03a6151c5060",
+    "title": "What is the response time for support issues?",
+    "domain": "support",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "four-hour response time",
+        "reason": "SLA metric, not a named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "4cc188d4-4253-472a-bbb4-58f5f58cd1c2",
+    "title": "Performance Measures",
+    "domain": "support",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "99.9% uptime",
+        "reason": "SLA metric, not a named entity"
+      },
+      {
+        "name": "automated 24/7 monitoring",
+        "reason": "generic capability description"
+      },
+      {
+        "name": "continuous improvement",
+        "reason": "generic process concept"
+      },
+      {
+        "name": "post-resolution satisfaction surveys",
+        "reason": "generic process"
+      },
+      {
+        "name": "ticketing system",
+        "reason": "generic technology category"
+      }
+    ]
+  },
+  {
+    "content_item_id": "b464405b-ce10-492d-b976-f93a4cd9bb0a",
+    "title": "NCSC Cyber Essentials Certification — Requirements, Levels, and Benefits",
+    "domain": "compliance",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "National Cyber Security Centre",
+        "type": "organisation",
+        "canonical_name": "national cyber security centre"
+      },
+      {
+        "name": "NCSC",
+        "type": "organisation",
+        "canonical_name": "national cyber security centre"
+      },
+      {
+        "name": "Cyber Essentials",
+        "type": "certification",
+        "canonical_name": "cyber essentials"
+      },
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      },
+      {
+        "name": "IASME",
+        "type": "organisation",
+        "canonical_name": "iasme"
+      },
+      {
+        "name": "Firewalls",
+        "type": "capability",
+        "canonical_name": "firewalls"
+      },
+      {
+        "name": "Secure Configuration",
+        "type": "capability",
+        "canonical_name": "secure configuration"
+      },
+      {
+        "name": "User Access Control",
+        "type": "capability",
+        "canonical_name": "user access control"
+      },
+      {
+        "name": "Malware Protection",
+        "type": "capability",
+        "canonical_name": "malware protection"
+      },
+      {
+        "name": "Security Update Management",
+        "type": "capability",
+        "canonical_name": "security update management"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Cyber Liability Insurance",
+        "reason": "insurance product, not a named entity"
+      },
+      {
+        "name": "NCSC Cyber Advisors",
+        "reason": "service role, not a named entity"
+      },
+      {
+        "name": "UK Government",
+        "reason": "too generic"
+      },
+      {
+        "name": "application whitelisting",
+        "reason": "generic security technique"
+      },
+      {
+        "name": "sandboxing",
+        "reason": "generic security technique"
+      },
+      {
+        "name": "anti-malware software",
+        "reason": "generic tool category"
+      }
+    ]
+  },
+  {
+    "content_item_id": "cfea98a1-8d12-4e9a-bfbc-bbcaa9f15952",
+    "title": "Describe your access control policy which ensures information is only available to system users who have a legitimate need",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system"
+      },
+      {
+        "name": "SMS two-factor authentication",
+        "type": "capability",
+        "canonical_name": "sms two-factor authentication"
+      },
+      {
+        "name": "Brute force lockout",
+        "type": "capability",
+        "canonical_name": "brute force lockout"
+      },
+      {
+        "name": "Password strength checker",
+        "type": "capability",
+        "canonical_name": "password strength checker"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "staging and pre-production environment",
+        "reason": "environment name, not capability entity"
+      },
+      {
+        "name": "time-limited token password reset",
+        "reason": "mechanism description, not named capability"
+      },
+      {
+        "name": "username and password authentication",
+        "reason": "generic authentication method"
+      },
+      {
+        "name": "pattern matching",
+        "reason": "generic algorithm"
+      },
+      {
+        "name": "entropy calculation",
+        "reason": "generic algorithm"
+      }
+    ]
+  },
+  {
+    "content_item_id": "b290b62e-8f32-4cb8-b945-27087fecb611",
+    "title": "Safeguarding Children and Young People — Duties, Policies, and Best Practice",
+    "domain": "compliance",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Disclosure and Barring Service",
+        "type": "organisation",
+        "canonical_name": "disclosure and barring service"
+      },
+      {
+        "name": "Working Together to Safeguard Children",
+        "type": "regulation",
+        "canonical_name": "working together to safeguard children"
+      },
+      {
+        "name": "Wales Safeguarding Procedures",
+        "type": "framework",
+        "canonical_name": "wales safeguarding procedure"
+      },
+      {
+        "name": "DBS checks",
+        "type": "certification",
+        "canonical_name": "dbs check"
+      },
+      {
+        "name": "Child protection training",
+        "type": "capability",
+        "canonical_name": "child protection training"
+      },
+      {
+        "name": "Online safety",
+        "type": "capability",
+        "canonical_name": "online safety"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "county lines",
+        "reason": "crime type, not organisational capability"
+      },
+      {
+        "name": "designated safeguarding lead",
+        "reason": "role title, not named entity"
+      },
+      {
+        "name": "female genital mutilation",
+        "reason": "harm type, not capability"
+      },
+      {
+        "name": "modern slavery",
+        "reason": "generic concept, not a named regulation"
+      },
+      {
+        "name": "safeguarding policy",
+        "reason": "generic policy type"
+      },
+      {
+        "name": "single central record",
+        "reason": "record-keeping practice, not named entity"
+      },
+      {
+        "name": "GDPR",
+        "reason": "mentioned generically, not the focus"
+      },
+      {
+        "name": "local authority safeguarding children boards",
+        "reason": "generic body category"
+      }
+    ]
+  },
+  {
+    "content_item_id": "7232aecc-8569-4b1a-9f53-69954a38de50",
+    "title": "Social Value in Crown Commercial Service Procurement",
+    "domain": "compliance",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Crown Commercial Service",
+        "type": "organisation",
+        "canonical_name": "crown commercial service"
+      },
+      {
+        "name": "Public Services (Social Value) Act 2012",
+        "type": "regulation",
+        "canonical_name": "public services (social value) act 2012"
+      },
+      {
+        "name": "Procurement Policy Note 06/20",
+        "type": "regulation",
+        "canonical_name": "ppn 06/20"
+      },
+      {
+        "name": "Social Value Model",
+        "type": "framework",
+        "canonical_name": "social value model"
+      },
+      {
+        "name": "Supply Chain Diversification",
+        "type": "capability",
+        "canonical_name": "supply chain diversification"
+      },
+      {
+        "name": "Modern Slavery Prevention",
+        "type": "capability",
+        "canonical_name": "modern slavery prevention"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Carbon Net Zero",
+        "reason": "policy target/goal, not organisational capability"
+      },
+      {
+        "name": "Equality and Diversity Promotion",
+        "reason": "policy goal, not specific named capability"
+      },
+      {
+        "name": "Sustainable Procurement",
+        "reason": "generic procurement approach"
+      },
+      {
+        "name": "Themes, Outcomes, and Measures",
+        "reason": "component of Social Value Model, not separate entity"
+      },
+      {
+        "name": "SMB",
+        "reason": "generic business category, not sector entity"
+      },
+      {
+        "name": "COVID-19 recovery",
+        "reason": "policy theme, not named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "9450432c-87ba-48c5-83d0-8658c996096b",
+    "title": "Sector Intelligence Feed — AI-Powered News Ingestion Brief",
+    "domain": "market-intelligence",
+    "content_type": "research",
+    "expected_entities": [
+      {
+        "name": "Example Client Limited",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Matthew Burgess",
+        "type": "person",
+        "canonical_name": "matthew burgess"
+      },
+      {
+        "name": "Liam",
+        "type": "person",
+        "canonical_name": "liam"
+      },
+      {
+        "name": "Sector Intelligence Feed",
+        "type": "project",
+        "canonical_name": "sector intelligence feed"
+      },
+      {
+        "name": "TES",
+        "type": "organisation",
+        "canonical_name": "tes"
+      },
+      {
+        "name": "Ofsted",
+        "type": "organisation",
+        "canonical_name": "ofsted"
+      },
+      {
+        "name": "NSPCC",
+        "type": "organisation",
+        "canonical_name": "nspcc"
+      },
+      {
+        "name": "Community Care",
+        "type": "organisation",
+        "canonical_name": "community care"
+      },
+      {
+        "name": "Local Government Chronicle",
+        "type": "organisation",
+        "canonical_name": "local government chronicle"
+      },
+      {
+        "name": "Department for Education",
+        "type": "organisation",
+        "canonical_name": "department for education"
+      },
+      {
+        "name": "RSS",
+        "type": "technology",
+        "canonical_name": "rss"
+      },
+      {
+        "name": "LinkedIn",
+        "type": "technology",
+        "canonical_name": "linkedin"
+      },
+      {
+        "name": "Digital Marketplace",
+        "type": "product",
+        "canonical_name": "digital marketplace"
+      },
+      {
+        "name": "G-Cloud",
+        "type": "framework",
+        "canonical_name": "g-cloud"
+      },
+      {
+        "name": "AI-Filtered News Ingestion",
+        "type": "capability",
+        "canonical_name": "ai-filtered news ingestion"
+      },
+      {
+        "name": "Sector Intelligence stream",
+        "type": "capability",
+        "canonical_name": "sector intelligence stream"
+      },
+      {
+        "name": "Competitor Intelligence stream",
+        "type": "capability",
+        "canonical_name": "competitor intelligence stream"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "product knowledge base",
+        "reason": "generic concept, not a named project"
+      },
+      {
+        "name": "Google News",
+        "reason": "generic service mentioned as future source"
+      },
+      {
+        "name": "email digest",
+        "reason": "generic feature concept"
+      },
+      {
+        "name": "trend analysis",
+        "reason": "generic analytical concept"
+      },
+      {
+        "name": "MAT restructuring",
+        "reason": "sector activity, not named entity"
+      }
+    ]
+  },
+  {
+    "content_item_id": "90904dd6-aac6-46f0-9d5d-5dd3786739d4",
+    "title": "Added Value Services (Included at No Extra Cost)",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client LMS",
+        "type": "product",
+        "canonical_name": "example client lms"
+      },
+      {
+        "name": "ISO 27001:2022",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "Cyber Essentials Plus",
+        "type": "certification",
+        "canonical_name": "cyber essentials plus"
+      },
+      {
+        "name": "UK GDPR",
+        "type": "regulation",
+        "canonical_name": "uk gdpr"
+      },
+      {
+        "name": "CREST",
+        "type": "organisation",
+        "canonical_name": "crest"
+      },
+      {
+        "name": "Lunchtime Learning",
+        "type": "capability",
+        "canonical_name": "lunchtime learning"
+      },
+      {
+        "name": "Virtual Clinic",
+        "type": "capability",
+        "canonical_name": "virtual clinic"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "Community Content Hub",
+        "reason": "feature description, not named entity"
+      },
+      {
+        "name": "Example Client LMS user community",
+        "reason": "community group, not project"
+      },
+      {
+        "name": "Focus Groups",
+        "reason": "generic activity type"
+      },
+      {
+        "name": "Account Manager",
+        "reason": "role title, not named entity"
+      },
+      {
+        "name": "disaster recovery",
+        "reason": "generic concept"
+      },
+      {
+        "name": "Knowledge Base",
+        "reason": "generic product feature"
+      }
+    ]
+  },
+  {
+    "content_item_id": "9d0d05a7-f710-49aa-9540-e6dfbee47291",
+    "title": "Describe any business continuity and disaster recovery plans you have in place",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Nimbus Hosting",
+        "type": "organisation",
+        "canonical_name": "nimbus hosting"
+      },
+      {
+        "name": "GIT",
+        "type": "technology",
+        "canonical_name": "git"
+      },
+      {
+        "name": "SSH",
+        "type": "technology",
+        "canonical_name": "ssh"
+      },
+      {
+        "name": "Business continuity",
+        "type": "capability",
+        "canonical_name": "business continuity"
+      },
+      {
+        "name": "Disaster recovery",
+        "type": "capability",
+        "canonical_name": "disaster recovery"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "two-factor authentication",
+        "reason": "generic security method"
+      },
+      {
+        "name": "IP address restriction",
+        "reason": "generic security mechanism"
+      },
+      {
+        "name": "bespoke control panel",
+        "reason": "unnamed tool"
+      }
+    ]
+  },
+  {
+    "content_item_id": "0edb6a7a-e5e2-4d32-879b-58536dcf0d81",
+    "title": "Working Together to Safeguard Children 2026 — Multi-Agency Statutory Guidance",
+    "domain": "compliance",
+    "content_type": "policy",
+    "expected_entities": [
+      {
+        "name": "Working Together to Safeguard Children 2026",
+        "type": "regulation",
+        "canonical_name": "working together to safeguard children 2026"
+      },
+      {
+        "name": "Department for Education",
+        "type": "organisation",
+        "canonical_name": "department for education"
+      },
+      {
+        "name": "National Children's Bureau",
+        "type": "organisation",
+        "canonical_name": "national children's bureau"
+      },
+      {
+        "name": "Child Safeguarding Practice Review Panel",
+        "type": "organisation",
+        "canonical_name": "child safeguarding practice review panel"
+      },
+      {
+        "name": "Cafcass",
+        "type": "organisation",
+        "canonical_name": "cafcass"
+      },
+      {
+        "name": "Department for Education Social Care Advisory Board",
+        "type": "organisation",
+        "canonical_name": "department for education social care advisory board"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "designated safeguarding lead",
+        "reason": "role title, not named entity"
+      },
+      {
+        "name": "early help",
+        "reason": "generic concept, not named capability"
+      },
+      {
+        "name": "local safeguarding partnerships",
+        "reason": "generic body type, not specific org"
+      },
+      {
+        "name": "multi-agency safeguarding",
+        "reason": "generic approach, not named framework"
+      },
+      {
+        "name": "child protection conference",
+        "reason": "meeting type, not named methodology"
+      },
+      {
+        "name": "integrated care boards",
+        "reason": "generic body type"
+      },
+      {
+        "name": "local authority children's social care",
+        "reason": "generic service type"
+      },
+      {
+        "name": "Channel panels",
+        "reason": "generic body type"
+      },
+      {
+        "name": "statutory safeguarding partners",
+        "reason": "generic category"
+      }
+    ]
+  },
+  {
+    "content_item_id": "b300e67d-51fa-4fca-873b-9b29dd6a9782",
+    "title": "How do you prevent your users from installing potentially malicious software?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Penetration testing",
+        "type": "capability",
+        "canonical_name": "penetration testing"
+      },
+      {
+        "name": "Vulnerability testing",
+        "type": "capability",
+        "canonical_name": "vulnerability testing"
+      },
+      {
+        "name": "Malware prevention",
+        "type": "capability",
+        "canonical_name": "malware prevention"
+      },
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "code review",
+        "reason": "generic development practice"
+      },
+      {
+        "name": "file upload",
+        "reason": "generic feature"
+      }
+    ]
+  },
+  {
+    "content_item_id": "25f1ef6c-58a6-49e5-a76d-072bbbb6e67e",
+    "title": "Example Client -- Technology and Tools",
+    "domain": "product-feature",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Example Client Limited",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "WordPress",
+        "type": "technology",
+        "canonical_name": "wordpress"
+      },
+      {
+        "name": "ASP.NET",
+        "type": "technology",
+        "canonical_name": "asp.net"
+      },
+      {
+        "name": "C#",
+        "type": "technology",
+        "canonical_name": "c#"
+      },
+      {
+        "name": "HTML",
+        "type": "technology",
+        "canonical_name": "html"
+      },
+      {
+        "name": "CSS",
+        "type": "technology",
+        "canonical_name": "css"
+      },
+      {
+        "name": "JavaScript",
+        "type": "technology",
+        "canonical_name": "javascript"
+      },
+      {
+        "name": "AMP",
+        "type": "technology",
+        "canonical_name": "amp"
+      },
+      {
+        "name": "SSL/TLS",
+        "type": "technology",
+        "canonical_name": "ssl/tls"
+      },
+      {
+        "name": "SHREWD",
+        "type": "technology",
+        "canonical_name": "shrewd"
+      },
+      {
+        "name": "SCORM",
+        "type": "standard",
+        "canonical_name": "scorm"
+      },
+      {
+        "name": "HL7",
+        "type": "standard",
+        "canonical_name": "hl7"
+      },
+      {
+        "name": "WCAG 2.1 AA",
+        "type": "standard",
+        "canonical_name": "wcag 2.1 aa"
+      },
+      {
+        "name": "Example Client LMS",
+        "type": "product",
+        "canonical_name": "example client lms"
+      },
+      {
+        "name": "Example Client Website Framework",
+        "type": "product",
+        "canonical_name": "example client website framework"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "two-factor authentication",
+        "reason": "generic security method"
+      },
+      {
+        "name": "Agile",
+        "reason": "generic methodology, not named entity in context"
+      },
+      {
+        "name": "RocketReach",
+        "reason": "third-party data source mentioned, not Example Client technology"
+      },
+      {
+        "name": "UK-based cloud infrastructure",
+        "reason": "generic unnamed infrastructure"
+      },
+      {
+        "name": "dedicated hosting",
+        "reason": "generic service type"
+      }
+    ]
+  },
+  {
+    "content_item_id": "86bcac23-d426-44d5-b177-92b801e0e195",
+    "title": "Example Client -- Research Notes and Gaps",
+    "domain": "market-intelligence",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Example Client Limited",
+        "type": "organisation",
+        "canonical_name": "example client limited"
+      },
+      {
+        "name": "Companies House",
+        "type": "organisation",
+        "canonical_name": "companies house"
+      },
+      {
+        "name": "WordPress",
+        "type": "technology",
+        "canonical_name": "wordpress"
+      },
+      {
+        "name": "ASP.NET",
+        "type": "technology",
+        "canonical_name": "asp.net"
+      },
+      {
+        "name": "C#",
+        "type": "technology",
+        "canonical_name": "c#"
+      },
+      {
+        "name": "HL7",
+        "type": "standard",
+        "canonical_name": "hl7"
+      },
+      {
+        "name": "RocketReach",
+        "type": "product",
+        "canonical_name": "rocketreach"
+      },
+      {
+        "name": "Digital Marketplace",
+        "type": "product",
+        "canonical_name": "digital marketplace"
+      },
+      {
+        "name": "G-Cloud",
+        "type": "framework",
+        "canonical_name": "g-cloud"
+      },
+      {
+        "name": "Matthew",
+        "type": "person",
+        "canonical_name": "matthew (md, example client limited)"
+      },
+      {
+        "name": "Salma",
+        "type": "person",
+        "canonical_name": "salma (business support manager, example client limited)"
+      },
+      {
+        "name": "Andrew",
+        "type": "person",
+        "canonical_name": "andrew (developer, example client limited)"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "eLearning",
+        "reason": "generic concept, not named capability"
+      },
+      {
+        "name": "Example Client Audit System",
+        "reason": "implied but not explicitly named in content"
+      },
+      {
+        "name": "IMPACT values",
+        "reason": "company values acronym, not entity"
+      },
+      {
+        "name": "safeguarding",
+        "reason": "generic concept"
+      }
+    ]
+  },
+  {
+    "content_item_id": "7e3baab1-f836-40ca-a74e-64b73bed6a2c",
+    "title": "What encryption measures are used to protect personal/sensitive data whilst in transit?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [],
+    "excluded_entities": [
+      {
+        "name": "TLS",
+        "reason": "protocol — not a meaningful entity in bid documents per taxonomy spec §3.11"
+      },
+      {
+        "name": "HTTPS",
+        "reason": "protocol — not a meaningful entity in bid documents per taxonomy spec §3.11"
+      },
+      {
+        "name": "RSA",
+        "reason": "cryptographic primitive — not a deployable technology per taxonomy spec §3.11"
+      },
+      {
+        "name": "Elliptic Curve Cryptography",
+        "reason": "cryptographic primitive — not a deployable technology per taxonomy spec §3.11"
+      },
+      {
+        "name": "SSL/TLS 1.2",
+        "reason": "protocol version specification — not a meaningful entity per taxonomy spec §3.11"
+      },
+      {
+        "name": "SSL/TLS 1.3",
+        "reason": "protocol version specification — not a meaningful entity per taxonomy spec §3.11"
+      },
+      {
+        "name": "asymmetric encryption",
+        "reason": "generic encryption category"
+      },
+      {
+        "name": "digital authentication",
+        "reason": "generic concept"
+      },
+      {
+        "name": "secure key exchange",
+        "reason": "generic cryptographic concept"
+      }
+    ]
+  },
+  {
+    "content_item_id": "d65235bf-58cd-4cb2-a7bb-0e48bd5780e0",
+    "title": "How do you protect your systems from environmental hazards such as fire, smoke, water etc.?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Datacentre South",
+        "type": "organisation",
+        "canonical_name": "example datacentre south"
+      },
+      {
+        "name": "Example Datacentre London Docklands",
+        "type": "organisation",
+        "canonical_name": "example datacentre london docklands"
+      },
+      {
+        "name": "ISO 27001",
+        "type": "certification",
+        "canonical_name": "iso 27001"
+      },
+      {
+        "name": "ISO 22301",
+        "type": "certification",
+        "canonical_name": "iso 22301"
+      },
+      {
+        "name": "PCI-DSS",
+        "type": "certification",
+        "canonical_name": "pci-dss"
+      },
+      {
+        "name": "CCTV",
+        "type": "technology",
+        "canonical_name": "cctv"
+      },
+      {
+        "name": "Dark fibre connectivity",
+        "type": "technology",
+        "canonical_name": "dark fibre connectivity"
+      },
+      {
+        "name": "Uninterruptible Power Supply",
+        "type": "technology",
+        "canonical_name": "uninterruptible power supply"
+      },
+      {
+        "name": "Virtualised infrastructure",
+        "type": "technology",
+        "canonical_name": "virtualised infrastructure"
+      },
+      {
+        "name": "Biometric access control",
+        "type": "capability",
+        "canonical_name": "biometric access control"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "perimeter intrusion detection",
+        "reason": "generic security concept"
+      },
+      {
+        "name": "dual-redundant power feeds",
+        "reason": "infrastructure description, not named technology"
+      },
+      {
+        "name": "2N UPS configuration",
+        "reason": "configuration detail"
+      },
+      {
+        "name": "N+1 generator resilience",
+        "reason": "redundancy description"
+      },
+      {
+        "name": "24/7 guarding",
+        "reason": "service description, not named capability"
+      }
+    ]
+  },
+  {
+    "content_item_id": "a075a90f-74ef-4f8a-b277-a95ba33c1810",
+    "title": "Through what interfaces does the audit system transfer data? How are these adequately secured?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      {
+        "name": "Example Client Audit System",
+        "type": "product",
+        "canonical_name": "example client audit system"
+      },
+      {
+        "name": "World Host Group",
+        "type": "organisation",
+        "canonical_name": "world host group"
+      },
+      {
+        "name": "MySQL",
+        "type": "technology",
+        "canonical_name": "mysql"
+      }
+    ],
+    "excluded_entities": [
+      {
+        "name": "HTTPS",
+        "reason": "protocol — not a meaningful entity in bid documents per taxonomy spec §3.11"
+      },
+      {
+        "name": "TLS 1.2",
+        "reason": "protocol version specification — not a meaningful entity per taxonomy spec §3.11"
+      },
+      {
+        "name": "TLS 1.3",
+        "reason": "protocol version specification — not a meaningful entity per taxonomy spec §3.11"
+      },
+      {
+        "name": "in-application encryption",
+        "reason": "encryption approach, not named capability"
+      },
+      {
+        "name": "IP whitelisting",
+        "reason": "security mechanism, not named capability"
+      },
+      {
+        "name": "API",
+        "reason": "generic technology concept"
+      },
+      {
+        "name": "web interface",
+        "reason": "generic interface type"
+      }
+    ]
+  },
+  {
+    "content_item_id": "9b53f658-acd6-42f3-8745-5e2c3b04133a",
+    "title": "UK GDPR Data Protection Principles — The Seven Foundational Requirements",
+    "domain": "legislation-policy",
+    "content_type": "article",
+    "expected_entities": [
+      { "name": "UK GDPR", "type": "regulation", "canonical_name": "uk gdpr" },
+      {
+        "name": "Data Protection Impact Assessment",
+        "type": "methodology",
+        "canonical_name": "data protection impact assessment"
+      },
+      { "name": "privacy by design", "type": "methodology", "canonical_name": "privacy by design" }
+    ],
+    "excluded_entities": [
+      { "name": "Data Protection Officer", "reason": "role title, not named entity" },
+      { "name": "records of processing activities", "reason": "GDPR artefact, not entity" },
+      { "name": "encryption", "reason": "generic security technique" },
+      { "name": "pseudonymisation", "reason": "generic security technique" },
+      { "name": "consent", "reason": "generic legal concept" },
+      { "name": "privacy notices", "reason": "generic document type" }
+    ]
+  },
+  {
+    "content_item_id": "b8394481-b0d2-4904-85d6-4e679e30a9c3",
+    "title": "Describe how processing takes places from hardware and software which has a documented secure baseline and...",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [{ "name": "OWASP", "type": "organisation", "canonical_name": "owasp" }],
+    "excluded_entities": [
+      { "name": "HTTPS", "reason": "protocol, not meaningful entity per taxonomy spec" },
+      { "name": "secure development policy", "reason": "internal policy document, not named methodology" },
+      { "name": "configuration management", "reason": "generic IT practice" },
+      { "name": "penetration testing", "reason": "generic security practice" },
+      { "name": "secure coding practices", "reason": "generic practice" },
+      { "name": "security patches", "reason": "generic concept" },
+      { "name": "server infrastructure", "reason": "generic term" }
+    ]
+  },
+  {
+    "content_item_id": "a3adb4ae-a389-44da-bdc3-539f2d1db7ce",
+    "title": "Keeping Children Safe in Education 2025 — DfE Statutory Guidance",
+    "domain": "legislation-policy",
+    "content_type": "policy",
+    "expected_entities": [
+      {
+        "name": "Keeping Children Safe in Education",
+        "type": "regulation",
+        "canonical_name": "keeping children safe in education"
+      },
+      { "name": "KCSIE", "type": "regulation", "canonical_name": "keeping children safe in education" },
+      { "name": "Department for Education", "type": "organisation", "canonical_name": "department for education" },
+      { "name": "DfE", "type": "organisation", "canonical_name": "department for education" },
+      {
+        "name": "Disclosure and Barring Service",
+        "type": "organisation",
+        "canonical_name": "disclosure and barring service"
+      },
+      { "name": "DBS", "type": "organisation", "canonical_name": "disclosure and barring service" },
+      {
+        "name": "Children's Wellbeing and Schools Bill",
+        "type": "regulation",
+        "canonical_name": "children's wellbeing and schools bill"
+      },
+      { "name": "DBS checks", "type": "certification", "canonical_name": "dbs check" },
+      { "name": "safer recruitment training", "type": "methodology", "canonical_name": "safer recruitment training" },
+      {
+        "name": "National Audit on Group-based Child Sexual Exploitation and Abuse",
+        "type": "project",
+        "canonical_name": "national audit on group-based child sexual exploitation and abuse"
+      }
+    ],
+    "excluded_entities": [
+      { "name": "designated safeguarding lead", "reason": "role title, not named entity" },
+      { "name": "DSL", "reason": "role acronym, not named entity" },
+      { "name": "child protection policy", "reason": "generic internal policy" },
+      { "name": "safeguarding", "reason": "generic concept" },
+      { "name": "online safety", "reason": "generic concept" },
+      { "name": "regulated activity", "reason": "legal concept, not entity" },
+      { "name": "designated officer", "reason": "role title, not entity" },
+      {
+        "name": "single central record",
+        "reason": "statutory record-keeping requirement within KCSiE, not a published standard"
+      }
+    ]
+  },
+  {
+    "content_item_id": "4425d08f-4b18-4041-aaf1-482fae18427f",
+    "title": "Example Client -- Team Structure and Key People",
+    "domain": "corporate",
+    "content_type": "article",
+    "expected_entities": [
+      { "name": "Example Client Limited", "type": "organisation", "canonical_name": "example client limited" },
+      { "name": "Matthew", "type": "person", "canonical_name": "matthew" },
+      { "name": "Salma Miah", "type": "person", "canonical_name": "salma miah" },
+      { "name": "Andrew Tate", "type": "person", "canonical_name": "andrew tate" },
+      { "name": "Companies House", "type": "organisation", "canonical_name": "companies house" },
+      { "name": "WordPress", "type": "technology", "canonical_name": "wordpress" }
+    ],
+    "excluded_entities": [
+      { "name": "agile", "reason": "lowercase generic adjective, not named Agile methodology" },
+      { "name": "Bedford Technology Park", "reason": "location, not valid entity type" },
+      { "name": "Managing Director", "reason": "job title, not entity" },
+      { "name": "Business Support Manager", "reason": "job title, not entity" },
+      { "name": "Full Stack Developer", "reason": "job title, not entity" },
+      { "name": "SaaS", "reason": "generic business model term" },
+      { "name": "accessibility-by-design", "reason": "generic design principle" }
+    ]
+  },
+  {
+    "content_item_id": "a3e1d3b7-610d-4b65-8fd8-9942cb6d14eb",
+    "title": "Ofsted Education Inspection Framework — Overview and Key Judgements",
+    "domain": "sector-news",
+    "content_type": "article",
+    "expected_entities": [
+      { "name": "Ofsted", "type": "organisation", "canonical_name": "ofsted" },
+      {
+        "name": "Education Inspection Framework",
+        "type": "framework",
+        "canonical_name": "education inspection framework"
+      },
+      { "name": "EIF", "type": "framework", "canonical_name": "education inspection framework" },
+      { "name": "Section 5 inspection", "type": "methodology", "canonical_name": "section 5 inspection" },
+      { "name": "Section 8 inspection", "type": "methodology", "canonical_name": "section 8 inspection" }
+    ],
+    "excluded_entities": [
+      { "name": "SEND", "reason": "category of needs, not named entity" },
+      { "name": "fundamental British values", "reason": "concept, not entity" },
+      { "name": "safeguarding", "reason": "generic concept" },
+      { "name": "curriculum", "reason": "generic concept" },
+      { "name": "careers guidance", "reason": "generic service" },
+      { "name": "online bullying", "reason": "generic concept" },
+      {
+        "name": "single central record",
+        "reason": "statutory record-keeping requirement within KCSiE, not a published standard"
+      }
+    ]
+  },
+  {
+    "content_item_id": "cb7bae97-653a-4557-b6b2-782d4c5e29ff",
+    "title": "Children's Wellbeing and Schools Bill: introduction of multi-academy trust inspections",
+    "domain": "sector-news",
+    "content_type": "article",
+    "expected_entities": [
+      {
+        "name": "Children's Wellbeing and Schools Bill",
+        "type": "regulation",
+        "canonical_name": "children's wellbeing and schools bill"
+      },
+      { "name": "House of Lords", "type": "organisation", "canonical_name": "house of lords" },
+      { "name": "House of Commons", "type": "organisation", "canonical_name": "house of commons" },
+      { "name": "Baroness Spielman", "type": "person", "canonical_name": "baroness spielman" },
+      { "name": "Labour", "type": "organisation", "canonical_name": "labour" }
+    ],
+    "excluded_entities": [
+      { "name": "multi-academy trust", "reason": "generic institution type" },
+      { "name": "SEND", "reason": "category of needs, not entity" },
+      { "name": "alternative provision", "reason": "generic education type" },
+      { "name": "academies", "reason": "generic institution type" },
+      { "name": "mainstream schools", "reason": "generic institution type" }
+    ]
+  },
+  {
+    "content_item_id": "2fad077d-df22-4c2f-8245-eade1d1511b3",
+    "title": "Example Client -- Industry Positioning and Target Markets",
+    "domain": "market-intelligence",
+    "content_type": "article",
+    "expected_entities": [
+      { "name": "Example Client Limited", "type": "organisation", "canonical_name": "example client limited" },
+      { "name": "G-Cloud 14", "type": "framework", "canonical_name": "g-cloud 14" },
+      { "name": "Digital Marketplace", "type": "product", "canonical_name": "digital marketplace" },
+      { "name": "NHS", "type": "organisation", "canonical_name": "nhs" },
+      { "name": "ISO 9001", "type": "certification", "canonical_name": "iso 9001" },
+      { "name": "ISO 27001", "type": "certification", "canonical_name": "iso 27001" },
+      { "name": "ISO 14001", "type": "certification", "canonical_name": "iso 14001" },
+      { "name": "Cyber Essentials Plus", "type": "certification", "canonical_name": "cyber essentials plus" },
+      { "name": "Example Client LMS", "type": "product", "canonical_name": "example client lms" },
+      { "name": "Example Client Audit System", "type": "product", "canonical_name": "example client audit system" }
+    ],
+    "excluded_entities": [
+      { "name": "safeguarding", "reason": "generic sector concept" },
+      { "name": "public sector", "reason": "generic sector reference" },
+      { "name": "education", "reason": "generic sector reference" },
+      { "name": "healthcare", "reason": "generic sector reference" }
+    ]
+  },
+  {
+    "content_item_id": "e48b762c-6c1d-4517-98db-0aa95285f5bf",
+    "title": "How do you manage staff security clearance checks?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      { "name": "Example Client", "type": "organisation", "canonical_name": "example client limited" },
+      { "name": "BS 7858:2019", "type": "standard", "canonical_name": "bs 7858:2019" },
+      { "name": "DBS", "type": "organisation", "canonical_name": "disclosure and barring service" },
+      { "name": "Basic DBS checks", "type": "certification", "canonical_name": "dbs check" },
+      { "name": "ISO 27001:2022", "type": "certification", "canonical_name": "iso 27001" }
+    ],
+    "excluded_entities": [
+      { "name": "identity verification", "reason": "generic screening practice" },
+      { "name": "right to work checks", "reason": "generic employment check" },
+      { "name": "criminal record checks", "reason": "generic screening practice" },
+      { "name": "regulated activity", "reason": "legal concept, not entity" },
+      {
+        "name": "Information Security Management System",
+        "reason": "descriptive subtitle of ISO 27001, not separate entity"
+      },
+      { "name": "ISO 27001 Control 6.1", "reason": "sub-section reference within a standard, not separate entity" }
+    ]
+  },
+  {
+    "content_item_id": "d2f72f9f-03ea-45f3-b0ae-affdae0fd847",
+    "title": "Is customer data encrypted at REST? (Servers, Databases, Backups etc)\nIf so, what encryption algorithms are in use",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "expected_entities": [
+      { "name": "Encrypt-then-MAC", "type": "methodology", "canonical_name": "encrypt-then-mac" },
+      { "name": "OWASP", "type": "organisation", "canonical_name": "owasp" },
+      { "name": "CREST", "type": "organisation", "canonical_name": "crest" },
+      { "name": "HCaptcha", "type": "product", "canonical_name": "hcaptcha" }
+    ],
+    "excluded_entities": [
+      { "name": "AES-256", "reason": "cryptographic algorithm specification, not entity per taxonomy spec" },
+      { "name": "AES-256-CBC", "reason": "cryptographic algorithm specification, not entity per taxonomy spec" },
+      { "name": "HMAC-SHA256", "reason": "cryptographic algorithm specification, not entity per taxonomy spec" },
+      { "name": "PBKDF2-HMAC-SHA256", "reason": "cryptographic algorithm specification, not entity per taxonomy spec" },
+      { "name": "HTTPS", "reason": "protocol, not meaningful entity per taxonomy spec" },
+      { "name": "secure development policy", "reason": "internal policy document" },
+      { "name": "SQL injection protection", "reason": "generic security measure" },
+      { "name": "XSS measures", "reason": "generic security measure" },
+      { "name": "brute force prevention", "reason": "generic security measure" },
+      { "name": "cross-site request forgery protection", "reason": "generic security measure" },
+      { "name": "encryption at rest", "reason": "generic security concept" },
+      { "name": "ISO", "reason": "too vague, no specific ISO number referenced" }
+    ]
+  },
+  {
+    "content_item_id": "ab13b6f0-6a18-4e51-89a5-282598e68417",
+    "title": "Example Client Ltd – Corporate Identity Reference Sheet",
+    "domain": "corporate",
+    "content_type": "policy",
+    "expected_entities": [
+      { "name": "Example Client Ltd", "type": "organisation", "canonical_name": "example client limited" },
+      { "name": "Matthew Burgess", "type": "person", "canonical_name": "matthew burgess" },
+      { "name": "Companies House", "type": "organisation", "canonical_name": "companies house" },
+      { "name": "Metro Bank", "type": "organisation", "canonical_name": "metro bank" }
+    ],
+    "excluded_entities": [
+      { "name": "Managing Director", "reason": "job title, not named entity" },
+      { "name": "software development", "reason": "generic activity, not sector entity" },
+      { "name": "web portals", "reason": "generic activity, not sector entity" },
+      { "name": "Small/Medium Enterprise", "reason": "generic business classification" }
+    ]
+  },
+  {
+    "content_item_id": "8336239e-7bf6-4886-b7f6-68821ae8950b",
+    "title": "Example Client -- Notable Blog Posts (for reference)",
+    "domain": "corporate",
+    "content_type": "article",
+    "expected_entities": [
+      { "name": "Example Client Limited", "type": "organisation", "canonical_name": "example client limited" },
+      { "name": "hospital journey tracker", "type": "project", "canonical_name": "hospital journey tracker" },
+      { "name": "Alzheimer's Society", "type": "organisation", "canonical_name": "alzheimer's society" },
+      { "name": "G-Cloud 14", "type": "framework", "canonical_name": "g-cloud 14" },
+      { "name": "ISO 14001", "type": "certification", "canonical_name": "iso 14001" },
+      { "name": "Example Client LMS", "type": "product", "canonical_name": "example client lms" }
+    ],
+    "excluded_entities": [
+      { "name": "public sector", "reason": "generic sector reference" },
+      { "name": "safeguarding", "reason": "generic concept" },
+      { "name": "website accessibility", "reason": "generic concept" }
+    ]
+  },
+  {
+    "content_item_id": "0190b303-7f7b-4e9b-b168-ce42803e8ae6",
+    "title": "Example Client Ltd – Company Profile and Capabilities Overview",
+    "domain": "corporate",
+    "content_type": "capability",
+    "expected_entities": [
+      { "name": "Example Client Ltd", "type": "organisation", "canonical_name": "example client limited" },
+      { "name": "Example Client Audit System", "type": "product", "canonical_name": "example client audit system" },
+      { "name": "Example Client LMS", "type": "product", "canonical_name": "example client lms" },
+      { "name": "DBS checks", "type": "certification", "canonical_name": "dbs check" }
+    ],
+    "excluded_entities": [
+      { "name": "education", "reason": "generic sector reference, not named sector entity" },
+      { "name": "safeguarding", "reason": "generic sector reference, not named sector entity" },
+      { "name": "healthcare", "reason": "generic sector reference, not named sector entity" },
+      { "name": "public sector", "reason": "generic sector reference, not named sector entity" },
+      { "name": "Small/Medium Enterprise", "reason": "generic business classification" },
+      { "name": "software company", "reason": "generic descriptor" },
+      { "name": "project managers", "reason": "job title, not named entity" },
+      { "name": "operations managers", "reason": "job title, not named entity" },
+      { "name": "account managers", "reason": "job title, not named entity" }
+    ]
+  }
+]

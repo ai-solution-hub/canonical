@@ -28,7 +28,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
+import { resolveEvalFixture } from '../lib/eval/fixtures';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createInterface } from 'readline';
 import { accuracy } from '../lib/eval/metrics';
@@ -703,11 +703,8 @@ async function main() {
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   assertEnvFlag(env, envUrl);
 
-  // Load gold standard
-  const fixturePath = resolve(
-    PROJECT_ROOT,
-    '__tests__/fixtures/classification-eval-gold-standard.json',
-  );
+  // Load gold standard (public name-swapped fixture — ID-68.17 / TECH PC-7)
+  const fixturePath = resolveEvalFixture('classification');
   if (!existsSync(fixturePath)) {
     console.error(`Gold standard fixture not found at: ${fixturePath}`);
     process.exit(1);

@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import { rougeL } from '@/lib/eval/metrics';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -64,11 +64,9 @@ describe.skipIf(!isEvalEnabled)('Summarisation Eval (gold standard)', () => {
   let dbMap: Map<string, DbRow>;
 
   beforeAll(async () => {
-    // Load gold standard fixture (filter out metadata entry)
-    const fixturePath = resolve(
-      __dirname,
-      '../fixtures/summarisation-eval-gold-standard.json',
-    );
+    // Load gold standard fixture (filter out metadata entry). Private —
+    // docs-site repo via KH_PRIVATE_DOCS_DIR (ID-68.17 / TECH PC-7).
+    const fixturePath = resolveEvalFixture('summarisation');
     const rawData: Array<Record<string, unknown>> = JSON.parse(
       readFileSync(fixturePath, 'utf-8'),
     );

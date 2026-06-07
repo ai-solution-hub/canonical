@@ -21,7 +21,7 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import {
   parseArgs,
   estimateItemCost,
@@ -240,10 +240,7 @@ describe('Classification Eval — Unit Tests', () => {
     let goldStandard: GoldItem[];
 
     beforeAll(() => {
-      const fixturePath = resolve(
-        __dirname,
-        '../fixtures/classification-eval-gold-standard.json',
-      );
+      const fixturePath = resolveEvalFixture('classification');
       goldStandard = JSON.parse(readFileSync(fixturePath, 'utf-8'));
     });
 
@@ -312,11 +309,8 @@ describe.skipIf(!isEvalEnabled)('Classification Eval (gold standard)', () => {
   let dbMap: Map<string, DbRow>;
 
   beforeAll(async () => {
-    // Load gold standard fixture
-    const fixturePath = resolve(
-      __dirname,
-      '../fixtures/classification-eval-gold-standard.json',
-    );
+    // Load gold standard fixture (public name-swapped — ID-68.17 / TECH PC-7)
+    const fixturePath = resolveEvalFixture('classification');
     goldStandard = JSON.parse(readFileSync(fixturePath, 'utf-8'));
 
     // Load classifications from DB using service client

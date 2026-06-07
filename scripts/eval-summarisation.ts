@@ -27,6 +27,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { resolveEvalFixture } from '../lib/eval/fixtures';
 import { rougeL, rouge1 } from '../lib/eval/metrics';
 import type { Database } from '@/supabase/types/database.types';
 import {
@@ -423,11 +424,9 @@ async function main() {
   const runBERTScore = args.includes('--bertscore');
   const envFlag = parseEnvFlag(args);
 
-  // Load gold standard
-  const fixturePath = resolve(
-    PROJECT_ROOT,
-    '__tests__/fixtures/summarisation-eval-gold-standard.json',
-  );
+  // Load gold standard. Private fixture — lives in the docs-site repo,
+  // reached via KH_PRIVATE_DOCS_DIR (ID-68.17 / TECH PC-7).
+  const fixturePath = resolveEvalFixture('summarisation');
   if (!existsSync(fixturePath)) {
     console.error(`Gold standard fixture not found at: ${fixturePath}`);
     process.exit(1);

@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync, existsSync, unlinkSync } from 'fs';
 import { resolve, join } from 'path';
+import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import {
   loadBaseline,
   saveBaseline,
@@ -519,11 +520,8 @@ describe.skipIf(!isEvalEnabled)(
     let entityMap: Map<string, DbEntity[]>;
 
     beforeAll(async () => {
-      // Load gold standard fixture
-      const fixturePath = resolve(
-        __dirname,
-        '../fixtures/entity-eval-gold-standard.json',
-      );
+      // Load gold standard fixture (public name-swapped — ID-68.17 / TECH PC-7)
+      const fixturePath = resolveEvalFixture('entity');
       goldStandard = JSON.parse(readFileSync(fixturePath, 'utf-8'));
 
       // Load entities from DB using service client

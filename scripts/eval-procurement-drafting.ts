@@ -20,7 +20,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
+import { resolveEvalFixture } from '../lib/eval/fixtures';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { rougeL } from '../lib/eval/metrics';
 import type { Database } from '@/supabase/types/database.types';
@@ -300,11 +300,11 @@ async function main() {
     process.exit(0);
   }
 
-  // Load gold standard
-  const fixturePath = resolve(
-    PROJECT_ROOT,
-    '__tests__/fixtures/bid-drafting-eval-gold-standard.json',
-  );
+  // Load gold standard. Private fixture — lives in the docs-site repo,
+  // reached via KH_PRIVATE_DOCS_DIR (ID-68.17 / TECH PC-7). Canonical name
+  // reconciled to procurement-drafting (Checker S317: the legacy hardcoded
+  // bid-drafting filename never matched the tracked artefact).
+  const fixturePath = resolveEvalFixture('procurement-drafting');
   if (!existsSync(fixturePath)) {
     console.error(`Gold standard fixture not found at: ${fixturePath}`);
     process.exit(1);

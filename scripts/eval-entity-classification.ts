@@ -28,6 +28,7 @@ import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createInterface } from 'readline';
 import type { Database } from '@/supabase/types/database.types';
+import { resolveEvalFixture } from '../lib/eval/fixtures';
 import { precision, recall, f1Score, accuracy } from '../lib/eval/metrics';
 import {
   loadBaseline,
@@ -731,11 +732,8 @@ async function main() {
     process.exit(1);
   }
 
-  // Load gold standard
-  const fixturePath = resolve(
-    PROJECT_ROOT,
-    '__tests__/fixtures/entity-eval-gold-standard.json',
-  );
+  // Load gold standard (public name-swapped fixture — ID-68.17 / TECH PC-7)
+  const fixturePath = resolveEvalFixture('entity');
   if (!existsSync(fixturePath)) {
     console.error(`Gold standard fixture not found at: ${fixturePath}`);
     process.exit(1);
