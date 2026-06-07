@@ -514,9 +514,18 @@ function nudgeCocoindexWalk(articlesPassed: number): void {
     return;
   }
 
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    logger.warn(
+      { articlesPassed },
+      '[Pipeline] CRON_SECRET unset — skipping walk nudge; passed articles will be picked up by the next scheduled walk',
+    );
+    return;
+  }
+
   void fetch(`${workerUrl}/walk`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    headers: { Authorization: `Bearer ${cronSecret}` },
     signal: AbortSignal.timeout(COCOINDEX_NUDGE_TIMEOUT_MS),
   })
     .then((res) => {

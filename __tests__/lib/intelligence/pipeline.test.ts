@@ -1579,6 +1579,24 @@ describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
     );
   });
 
+  it('skips the nudge with a structured log when CRON_SECRET is unset and the worker URL is set', async () => {
+    vi.stubEnv('CRON_SECRET', '');
+    loggerMocks.warn.mockClear();
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    const result = await runPipeline(supabase);
+
+    // The run itself is unaffected — the article still passed. The nudge
+    // must NOT fire with a literal `Bearer undefined` header.
+    expect(result.totalArticlesPassed).toBe(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ articlesPassed: 1 }),
+      expect.stringContaining('CRON_SECRET unset'),
+    );
+  });
+
   it('logs and absorbs a failed nudge — a failed nudge is a delay, not a loss', async () => {
     fetchMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
     loggerMocks.warn.mockClear();
