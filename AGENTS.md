@@ -3,8 +3,11 @@
 This file is the docs-corpus style guide for the Knowledge Hub. It is loaded by every
 docs-authoring agent — docubot, the five ported skills (`review-docs-pr`,
 `sync-source-docs`, `missing-docs`, `check-for-broken-links`, `docs-seo-audit`), and by
-any human contributor reviewing or amending content under `docs/` or
-`docs-site/src/content/`.
+any human contributor reviewing or amending the docs corpus. The corpus's tracked
+canonical source lives in the PRIVATE `knowledge-hub-docs-site` repo at
+`docs-site/src/content/docs/` (resolve the checkout via the `KH_PRIVATE_DOCS_DIR`
+bridge knob — sibling clone locally, GitHub-App token checkout in CI). Interim
+residual copies under the public repo's `docs/` tree are being removed under ID-68.
 
 For project-wide conventions, see CLAUDE.md. This file adds docs-corpus-specific
 conventions on top. The two files are complementary: CLAUDE.md governs the codebase
@@ -14,8 +17,8 @@ corpus (voice, terminology, frontmatter, content-type style, AI-invisibility).
 For code-intelligence workflow (gitnexus + ast-dataflow), see `.gitnexus/CLAUDE.md` and
 `.ast-dataflow/CLAUDE.md` — imported by root CLAUDE.md.
 
-Spec source: `docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md` Inv-51,
-`docs/specs/id-9-astro-starlight-docs-foundation/TECH.md` §6.1 + §6.3.
+Spec source: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-9-astro-starlight-docs-foundation/PRODUCT.md` Inv-51,
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-9-astro-starlight-docs-foundation/TECH.md` §6.1 + §6.3.
 
 ---
 
@@ -38,7 +41,7 @@ A non-duplication).
   8601 is permitted only inside code blocks, log examples, or YAML frontmatter values
   where the surrounding tool requires it (e.g. `lastUpdated:` in Starlight frontmatter
   accepts ISO; the `kh_last_verified` field requires DD/MM/YYYY per the Zod regex in
-  `docs-site/src/content.config.ts`).
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content.config.ts`).
 - Quote with double-quotes for prose and single-quotes only inside code-fenced examples
   where the language convention requires it.
 - Single space between sentences. No Oxford comma unless its absence would create
@@ -62,14 +65,15 @@ The docs corpus describes how the platform works. It does not sell the platform.
   invariant.
 - Avoid value claims unmoored from behaviour ("delights users", "saves time", "unlocks
   insights"). Document the mechanism, not the promise.
-- The platform's design philosophy lives in `docs/reference/state-of-the-product.md` and
+- The platform's design philosophy lives in `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/state-of-the-product.md` and
   adjacent canon. Doc pages reference that philosophy by link; they do not paraphrase it.
 
 ### 1.4 No emoji
 
 Markdown bodies contain no emoji. This rule applies to:
 
-- Docs pages under `docs/` and `docs-site/src/content/docs/`.
+- Docs pages under the private repo's `docs-site/src/content/docs/` tree (and any
+  interim residual copies under the public `docs/` tree).
 - Generated content written by docubot or any of the five ported skills.
 - Commit messages produced by docs-authoring workflows.
 
@@ -102,14 +106,14 @@ a historical artefact.
 | Workspace        | **Workspace** (capitalised when referring to the entity)                                              | The post-S247-W1 successor to "project". Schema: `workspaces` table. Historical "bid" and "project" tables/types renamed under the procurement umbrella per S248 T4.                                                                                                                                                                                             |
 | Bid              | **Procurement** (umbrella term)                                                                       | Renamed from "Bid" / "Bids" umbrella per S248 T4 — API paths `app/api/bids/* → app/api/procurement/*`. Schema retains `bid_*` table names where the unit-of-work is a question or response within a workspace; surface naming uses Procurement.                                                                                                                  |
 | Content Items    | **Content Items** (capitalised when referring to the type)                                            | The atomic record in the knowledge base. Schema: `content_items` table.                                                                                                                                                                                                                                                                                          |
-| Quality score    | **Quality score** (lowercase "score")                                                                 | Per `docs/reference/ai-visibility-policy.md` Rule 2: "Quality: 78", not "AI Quality Score".                                                                                                                                                                                                                                                                      |
+| Quality score    | **Quality score** (lowercase "score")                                                                 | Per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/ai-visibility-policy.md` Rule 2: "Quality: 78", not "AI Quality Score".                                                                                                                                                                                                                                                                      |
 | Summary / digest | **Summary** (singular) or **Change Reports** (the surface).                                           | Rule 2 again — never "AI-generated summary".                                                                                                                                                                                                                                                                                                                     |
-| Domain           | **Domain** (the taxonomy axis)                                                                        | Distinct from "Sector". Domain is the platform's primary classification axis; Sector is a secondary descriptor on some content. Source: `docs/reference/entity-type-taxonomy-spec.md`.                                                                                                                                                                           |
+| Domain           | **Domain** (the taxonomy axis)                                                                        | Distinct from "Sector". Domain is the platform's primary classification axis; Sector is a secondary descriptor on some content. Source: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/entity-type-taxonomy-spec.md`.                                                                                                                                                                           |
 | Layer            | **Layer** (the vocabulary axis)                                                                       | The five-layer vocabulary scheme (`contexts/layer-vocabulary.tsx`). Capitalise when referencing a specific Layer (e.g. "Layer 3"); lowercase as the abstract noun ("the layer system").                                                                                                                                                                          |
 | Sector           | **Sector** (the secondary descriptor)                                                                 | UK SMB sector classification. Lowercase as the abstract noun unless titlecased in a heading.                                                                                                                                                                                                                                                                     |
-| Reference doc    | **Reference doc** / **Reference document**                                                            | Pages under `docs/reference/`. They are canonical, point-in-time-stable, and bear a `<!-- Last verified: DD/MM/YYYY -->` header.                                                                                                                                                                                                                                 |
-| Runbook          | **Runbook**                                                                                           | Pages under `docs/runbooks/`. Operational procedures with explicit step ordering and rollback advice.                                                                                                                                                                                                                                                            |
-| Spec             | **Spec** (a `{N.x}` ratified PRODUCT.md / TECH.md pair) or **research spec** (a `{N.1}` RESEARCH.md). | Pages under `docs/specs/<task-slug>/`. The `{N.1}` RESEARCH → `{N.2}` PRODUCT → `{N.3}` TECH → `{N.4}` PLAN chain is canonical per `docs/plans/phase-0-investigation/kh-sdlc-workflow.md`.                                                                                                                                                                       |
+| Reference doc    | **Reference doc** / **Reference document**                                                            | Pages under the `reference/` docs-site space (${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/). They are canonical, point-in-time-stable, and bear a `<!-- Last verified: DD/MM/YYYY -->` header.                                                                                                                                                                                                                                 |
+| Runbook          | **Runbook**                                                                                           | Pages under the `runbooks/` docs-site space (${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/). Operational procedures with explicit step ordering and rollback advice.                                                                                                                                                                                                                                                            |
+| Spec             | **Spec** (a `{N.x}` ratified PRODUCT.md / TECH.md pair) or **research spec** (a `{N.1}` RESEARCH.md). | Pages under the `specs/` docs-site space (${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<task-slug>/). The `{N.1}` RESEARCH → `{N.2}` PRODUCT → `{N.3}` TECH → `{N.4}` PLAN chain is canonical per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/themes/workflow-orchestration/kh-sdlc-workflow.md`.                                                                                                                                                                       |
 | Subtask          | **Subtask** (one `ID-N.M` unit of work)                                                               | Capitalised when referring to a specific Subtask; lowercase as the abstract noun.                                                                                                                                                                                                                                                                                |
 | Wave             | **Wave** (a Subtask group dispatched in parallel)                                                     | Capitalised when numbered (e.g. "Wave 2"); lowercase as the abstract noun.                                                                                                                                                                                                                                                                                       |
 | MCP              | **MCP** (Model Context Protocol)                                                                      | Acronym uppercase. Spell out on first mention in a long-form doc; acronym thereafter.                                                                                                                                                                                                                                                                            |
@@ -117,11 +121,11 @@ a historical artefact.
 
 ### 2.1 Where to find more canonical terms
 
-- Taxonomy: `docs/reference/entity-type-taxonomy-spec.md`.
+- Taxonomy: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/entity-type-taxonomy-spec.md`.
 - Schema entity names: the generated types in `supabase/types/database.types.ts` (consume
   via `Tables<'x'>` / `Enums<'x'>`; see CLAUDE.md "TypeScript conventions").
-- State-of-the-product nouns: `docs/reference/state-of-the-product.md`.
-- AI-visibility resolutions: `docs/reference/ai-visibility-policy.md`.
+- State-of-the-product nouns: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/state-of-the-product.md`.
+- AI-visibility resolutions: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/ai-visibility-policy.md`.
 
 When adding a new canonical term to the corpus, update this table in the same commit that
 introduces the term to a published doc.
@@ -131,7 +135,7 @@ introduces the term to a published doc.
 ## 3. Frontmatter contract
 
 Every markdown file published through the docs site MUST validate against the Zod schema
-in `docs-site/src/content.config.ts`. The schema is reproduced here as the authoritative
+in `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content.config.ts`. The schema is reproduced here as the authoritative
 author-facing contract; the file remains the runtime source of truth.
 
 ### 3.1 Required field
@@ -139,14 +143,10 @@ author-facing contract; the file remains the runtime source of truth.
 - `title` — string, required. Comes from Starlight's base `docsSchema()`. The page H1 is
   rendered from this; do not also write an H1 in the body.
 
-  Source files under `docs/` SHOULD declare an explicit `title:`. As a safety net,
-  `docs-site/scripts/sync-content.ts` derives a fallback title at build time for any
-  source missing one — first from the document's first H1 heading (`# …`), otherwise from
-  the filename converted to Title Case — so `astro check` is not blocked by an omitted
-  title. This derivation is a backstop, not the primary mechanism: it lives in the sync
-  layer and never mutates the source file, and it emits a
-  `[sync-content] derived title for …` log line for traceability. Always prefer an
-  explicit `title:` over relying on the fallback.
+  Source files MUST declare an explicit `title:`. The historical sync-layer
+  title-derivation backstop is gone — the sync model was retired (`1ad3e1cf`); the
+  tracked source under the private repo's `docs-site/src/content/docs/` is canonical
+  and builds directly, so an omitted `title:` fails `astro check` with no fallback.
 
 ### 3.2 Optional author-facing fields
 
@@ -157,14 +157,16 @@ author-facing contract; the file remains the runtime source of truth.
   git-derived last-updated timestamp. The site renders the value as DD/MM/YYYY in the
   `en-GB` locale per the S62F-ID-9.5 Inv-14 fix.
 
-### 3.3 Sync-managed fields — do NOT hand-edit
+### 3.3 Legacy sync-managed fields
 
-These three fields are managed by `docs-site/scripts/sync-content.ts` at build time.
-Hand-edits are overwritten on the next sync run unless `kh_docubot_owned: true` is set.
+The copy-sync model was retired (`1ad3e1cf`) — the tracked source under the private
+repo's `docs-site/src/content/docs/` is canonical and no sync script manages these
+fields any more. They remain valid frontmatter (the Zod schema still accepts them);
+treat existing values as historical provenance and maintain them by hand only when
+meaningful.
 
-- `kh_source` — repo-relative path of the source markdown under `docs/`. Written by the
-  sync script when it copies the source into
-  `docs-site/src/content/docs/<space>/<file>.md`. Optional.
+- `kh_source` — repo-relative path of the markdown source that was copied in under
+  the retired sync model. Historical provenance. Optional.
 - `kh_last_verified` — DD/MM/YYYY string. Enforced by the Zod regex
   `/^\d{2}\/\d{2}\/\d{4}$/`. A malformed value (ISO 8601, US-style, hyphen separator)
   fails the build at `astro check` time per Inv-16.
@@ -177,7 +179,7 @@ Hand-edits are overwritten on the next sync run unless `kh_docubot_owned: true` 
 
 The schema rejects unknown fields where Starlight's intersection shape allows the
 rejection to be expressed. See the in-file comment block in
-`docs-site/src/content.config.ts` for the current carve-out on `docsSchema({ extend })` —
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content.config.ts` for the current carve-out on `docsSchema({ extend })` —
 the gap is documented and surfaced to the ID-9 Checker rather than papered over.
 
 ### 3.5 Example
@@ -190,7 +192,7 @@ description:
   act on them.
 sidebar:
   order: 3
-kh_source: docs/runbooks/review-docs-pr.md
+kh_source: docs/runbooks/review-docs-pr.md # historical provenance (retired sync model)
 kh_last_verified: 21/05/2026
 ---
 
@@ -222,7 +224,7 @@ Structural shape:
 Voice rules: present-tense, declarative. No second-person. Avoid "we recommend" — state
 the invariant.
 
-Example: `docs/reference/ai-visibility-policy.md` (rules-as-invariants shape).
+Example: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/ai-visibility-policy.md` (rules-as-invariants shape).
 
 ### 4.2 Procedural docs
 
@@ -241,7 +243,7 @@ Structural shape:
 Voice rules: second-person imperative ("Run the migration", "Verify the count"). Avoid
 passive constructions ("the migration is run").
 
-Example: `docs/runbooks/staging-refresh.md`.
+Example: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/staging-refresh.md`.
 
 ### 4.3 Reference docs
 
@@ -260,8 +262,8 @@ Structural shape:
 Voice rules: no prose for prose's sake. A reference doc reads like a data sheet. Headings
 and table cells; sentences only where definition requires.
 
-Examples: `docs/reference/state-of-the-product.md`,
-`docs/reference/entity-type-taxonomy-spec.md`.
+Examples: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/state-of-the-product.md`,
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/entity-type-taxonomy-spec.md`.
 
 ### 4.4 Troubleshooting docs
 
@@ -286,7 +288,7 @@ the symptom as a heading the reader can find by searching for the literal error 
 The Knowledge Hub treats AI as invisible infrastructure, not a visible product feature.
 This rule is canonical to this file — `keep-docs-in-sync` references this section rather
 than restating it (per OQ-PLAN-3 Option A non-duplication). The full policy lives at
-`docs/reference/ai-visibility-policy.md`; this section codifies what authors must do.
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/ai-visibility-policy.md`; this section codifies what authors must do.
 
 ### 5.1 The four rules (per Inv-23)
 
@@ -309,7 +311,7 @@ than restating it (per OQ-PLAN-3 Option A non-duplication). The full policy live
 
 The docs site's CI guard fails the build when any synced page contains text matching the
 regex `AI-powered|Sparkles|powered by (Claude|GPT|Anthropic|OpenAI)`. See TECH §2.10 +
-`docs-site/__tests__/ai-invisibility-guard.test.ts`.
+`${KH_PRIVATE_DOCS_DIR}/docs-site/__tests__/ai-invisibility-guard.test.ts`.
 
 If you must reference the underlying model in engineering-facing material (e.g. a runbook
 explaining which model the pipeline uses for classification), do so without prefixing the
@@ -322,13 +324,13 @@ noun with "AI-powered": write "the classification pipeline uses claude-sonnet-4-
   Domain tag" rather than "AI determines the Domain".
 - Where the user-facing surface presents a derived value, describe the value as a platform
   attribute. The reader does not need to know it was AI-derived.
-- When in doubt, consult `docs/reference/ai-visibility-policy.md` and the worked examples
+- When in doubt, consult `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/ai-visibility-policy.md` and the worked examples
   in §3 of that file.
 
 ### 5.4 Where the rule does not apply
 
-- Internal engineering docs explaining how a classifier works (`docs/specs/`,
-  `docs/plans/`). These may name the model, describe the prompt shape, and discuss tuning.
+- Internal engineering docs explaining how a classifier works (the `specs/` and
+  `themes/` docs-site spaces). These may name the model, describe the prompt shape, and discuss tuning.
   They do not surface to users.
 - Commit messages and PR descriptions. These reference internal tooling without
   constraint.
@@ -343,11 +345,12 @@ Cross-reference CLAUDE.md for project-wide rules; cross-reference `.gitnexus/CLA
 `.ast-dataflow/CLAUDE.md` for code-intelligence workflow._
 
 <!-- gitnexus:start -->
+<!-- gitnexus:keep -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (47894 symbols, 71003 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **knowledge-hub**. Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> If any GitNexus tool warns the index is stale, run `bun run gitnexus:analyze` in terminal first.
 
 ## Always Do
 
