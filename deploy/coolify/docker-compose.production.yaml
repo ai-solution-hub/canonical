@@ -157,6 +157,15 @@ services:
       PULLMD_ADMIN_EMAIL: ${PULLMD_ADMIN_EMAIL}
       PULLMD_ADMIN_PASSWORD: ${PULLMD_ADMIN_PASSWORD}
       PULLMD_API_TOKEN: ${PULLMD_API_TOKEN}
+      # S319 {62.10}: pullmd 2.x never reads PULLMD_API_TOKEN — minted pmd_ tokens
+      # live in an EPHEMERAL store (wiped on every recreate), so the worker's static
+      # bearer 401s. PULLMD_AUTH_TOKEN is the upstream-documented static-bearer path
+      # ("legacy bearer token compat, single-admin mode only, removed in v3.0" —
+      # maps to the admin user). Same secret value; survives restarts. The ${...}
+      # interpolation self-aligns the worker-sent and pullmd-validated values from
+      # ONE Coolify env var (S321 operator-verified on staging). Landed at {75.15}
+      # cutover, mirrored from the staging compose (S319 {62.10} fix).
+      PULLMD_AUTH_TOKEN: ${PULLMD_API_TOKEN}
 
       # Sidecar wiring — compose-alias form of the in-pod localhost wiring from
       # the Cloud Run manifest (cloudrun/services/staging-pullmd.yaml:105-108).
@@ -164,10 +173,27 @@ services:
       PLAYWRIGHT_URL: "http://playwright:8002/render"
       TRAFILATURA_URL: "http://trafilatura:8001/extract"
 
-      # Ephemeral SQLite cache.  /tmp is writable on startup; better-sqlite3 will
-      # not mkdir the parent so the path must exist.  Cache is non-critical:
-      # lost on container restart, rebuilt from live fetches.
-      CACHE_DB: "/tmp/pullmd-cache.db"
+      # S319 {75.18}: PERSISTENT SQLite store — was /tmp/pullmd-cache.db (ephemeral;
+      # wiped on every recreate). This single DB is pullmd's ONLY store: the
+      # `conversions` table holds the 8-hex share ids that `GET /s/:id` serves, and
+      # the auth layer (users, sessions, minted pmd_ tokens) reuses the SAME db
+      # handle (upstream server.js: `createCache(process.env.CACHE_DB || './data/cache.db')`
+      # then `createAuth({ db: cache.db, ... })`). With /tmp, every Coolify
+      # recreate/redeploy 404'd ALL persisted reference_items.pullmd_share_id values
+      # (S319 live-observed). /data is the upstream-blessed store dir: the pullmd
+      # Dockerfile runs `mkdir -p /data && chown -R app:app /app /data` before
+      # `USER app`, so a fresh named volume mounted there inherits app:app ownership
+      # (Docker copies the image mountpoint content + ownership into an empty named
+      # volume) — no user override needed. better-sqlite3 still does not mkdir the
+      # parent; the volume mount guarantees /data exists. Landed at {75.15} cutover,
+      # mirrored from the staging compose.
+      CACHE_DB: "/data/pullmd-cache.db"
+
+    volumes:
+      # {75.18}: share-link store persistence — survives container recreate/redeploy.
+      # Loss of this volume invalidates persisted reference_items.pullmd_share_id
+      # permalinks (they 404) but never KH data (markdown is canonical in Supabase).
+      - pullmd-data-production:/data
 
     depends_on:
       - playwright
@@ -213,7 +239,17 @@ services:
 # /cocoindex-state/lmdb (COCOINDEX_DB); the corpus, once activated, goes in a subdir
 # set via COCOINDEX_SOURCE_PATH (TECH §2 — "the same volume can host the corpus
 # directory"), so no separate corpus volume is needed for B1.
+#
+# pullmd-data-production ({75.18}): pullmd's SQLite store (CACHE_DB=/data/pullmd-cache.db) —
+# share-link ids (`GET /s/:id` permalinks recorded in reference_items.pullmd_share_id),
+# plus users/sessions/minted pmd_ tokens (one DB, shared by cache + auth). Named volume so
+# the store SURVIVES Coolify recreates/redeploys — the S319 defect was this store living
+# in container /tmp, invalidating every persisted share id on recreate. Loss costs
+# share-link 404s only, never KH data (extracted markdown is canonical in Supabase).
+# See docs/runbooks/onprem-b1-deploy.md §"pullmd share-link store persistence".
 # ------------------------------------------------------------------------------
 volumes:
   cocoindex-state:
+    driver: local
+  pullmd-data-production:
     driver: local
