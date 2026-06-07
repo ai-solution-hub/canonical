@@ -44,6 +44,7 @@
     "kb-search": "bun run scripts/kb-search.ts",
     "stats": "bun run scripts/generate-codebase-stats.ts",
     "ast-dataflow": "bun run scripts/ast-dataflow-cli.ts",
+    "gitnexus:analyze": "bun run scripts/gitnexus-analyze.ts",
     "generate:mcp-inventory": "bun run scripts/generate-mcp-inventory.ts",
     "knip": "knip --no-config-hints",
     "knip:files": "knip --no-config-hints --include files",
