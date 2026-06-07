@@ -129,3 +129,4 @@ entities.json
 # Ledger-mirror regen cache (scripts/regen-mirrors.sh — task-view clones)
 /.cache/
 lib/branding/client-branding-map.generated.ts
+.type-drift-report.md
