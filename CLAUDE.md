@@ -58,13 +58,13 @@ Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 | `supabase/`   | Migrations + auto-generated types (`database.types.ts` — never edit manually)                                                                                                                                                                                                                                |
 | `__tests__/`  | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation)                                                                                                                                                                                               |
 | `e2e/`        | Playwright E2E specs. Config: `playwright.config.ts`                                                                                                                                                                                                                                                         |
-| `docs/`       | Reference docs, continuation prompts, design system                                                                                                                                                                                                                                                          |
+| `docs/`       | Interim residual docs tree (relocating to the private docs-site repo under ID-68); continuation prompts + ledger JSONs stay                                                                                                                                                                                                                                                          |
 
 ## Environment
 
 `.env.local` targets persistent staging Supabase branch (`turayklvaunphgbgscat`).
 Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full guidance:
-`docs/runbooks/local-development.md`.
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/local-development.md`.
 
 ## Database
 
@@ -77,10 +77,10 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 
 ## Testing
 
-- **Philosophy:** `docs/reference/test-philosophy.md` — six audit criteria, three observed
+- **Philosophy:** `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` — six audit criteria, three observed
   antipatterns, mock discipline. Read before writing or remediating tests.
 - **Framework:** Vitest (`bun run test`), coverage via `bun run test:coverage`
-- **Location:** `__tests__/` — counts in `docs/generated/codebase-stats.md`
+- **Location:** `__tests__/` — mirrors the source structure
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts`
 - **E2E:** Playwright in `e2e/tests/` — worker-scoped fixtures, multi-role auth
@@ -95,17 +95,17 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
 - **Pipeline deploy:** Cloud Run is fully retired (S298) — the ingestion pipeline now
   deploys to an IONOS VPS via Coolify (`.github/workflows/onprem-deploy.yml`). Runbook:
-  `docs/runbooks/onprem-b1-deploy.md`.
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/onprem-b1-deploy.md`.
 - **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
 - **GitHub Environments:** `Production` + `Staging` (case-sensitive). Setup:
-  `docs/runbooks/github-environments.md`.
+  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/github-environments.md`.
 
 ## CI/CD
 
 PR-blocking CI (`ci.yml`) runs 7 jobs in parallel: `quality-precheck`, `quality-test`
 (4-shard Vitest matrix), `e2e-smoke`, `mcp-build`, `mcp-eval-seed`, `mcp-eval` (L1/L3/L4
 matrix), `integration`. Triggers: PR (any base) + push on `main`/`staging`. Draft PRs skip
-CI. Full topology + per-step failure-mode table: `docs/runbooks/ci.md`.
+CI. Full topology + per-step failure-mode table: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/ci.md`.
 
 Side workflows: `onprem-deploy.yml` (B1 pipeline image build + Coolify deploy — always
 runs on `main`/`staging` push with in-job change detection, ID-86),
@@ -115,26 +115,35 @@ runs on `main`/`staging` push with in-job change detection, ID-86),
 `lib/validation/{task-list,roadmap,backlog}-schema.ts` or `work-status.ts` change).
 
 `staging` branch is deploy-only (no long-lived worktree) — used for staging-mirror sync
-per `docs/runbooks/staging-refresh.md`.
+per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/staging-refresh.md`.
 
 ## Design System: Warm Meridian
 
-Spec: `docs/design/warm-meridian-implementation-spec.md` (tokens in §Semantic Tokens).
-Philosophy: `docs/design/warm-meridian-philosophy.md`. Visual:
-`docs/design/warm-meridian-identity.pdf`. Quality checks: `.claude/checks/`. Consult when
+Spec: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md` (tokens in §Semantic Tokens).
+Philosophy: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-philosophy.md`. Visual:
+`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-identity.pdf`. Quality checks: `.claude/checks/`. Consult when
 adding or modifying UI elements.
 
 ## Key Reference Documents
 
 | Document             | Location                                                                    |
 | -------------------- | --------------------------------------------------------------------------- |
-| State of the Product | `docs/reference/state-of-the-product.md`                                    |
-| Skill routing map    | `docs/reference/skill-routing-map.md`                                       |
-| CI runbook           | `docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
+| State of the Product | `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/state-of-the-product.md`                                    |
+| Skill routing map    | `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/skill-routing-map.md`                                       |
+| CI runbook           | `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
 | Session handoffs     | `docs/continuation-prompts/`                                                |
-| Runbooks             | `docs/runbooks/` — local-development, staging-refresh, github-environments  |
+| Runbooks             | `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/runbooks/` — local-development, staging-refresh, github-environments |
 
-Full inventory of all reference docs: `docs/reference/documentation-inventory.md`
+Full inventory of all reference docs: `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/documentation-inventory.md`
+
+> **Private-docs bridge (ID-68 PC-25).** The docs corpus (reference, runbooks, design,
+> themes, specs, product-functionality, ontology, handover-guides) lives in the PRIVATE
+> `knowledge-hub-docs-site` repo. Resolve the checkout via the ONE standing bridge knob
+> `KH_PRIVATE_DOCS_DIR` (set explicitly: sibling clone locally via `.env.local`/shell;
+> GitHub-App token checkout in CI — `.github/actions/resolve-private-docs/`). Consumers
+> FAIL LOUDLY when the knob is unset — there is NO fallback to the in-repo `docs/` tree
+> (Inv 29). Staying in-repo, no knob: the `docs/reference/*.json` ledgers + their
+> mirrors (ID-20 Gate 2 boundary) and `docs/continuation-prompts/` (Class 3 interim).
 
 Historical planning: relocated to the `knowledge-hub-archive` cold-storage repo (sibling
 checkout; formerly `.planning/.archive/`). Grep there explicitly when researching past
@@ -143,7 +152,8 @@ retired — GitNexus + ast-dataflow supersede it (S294).
 
 ## Spec directory convention (ID-48.4)
 
-New Task spec dirs live under `docs/specs/ID-N-<slug>/` with four canonical uppercase
+New Task spec dirs live under `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/` (the private docs-site
+checkout, resolved via `KH_PRIVATE_DOCS_DIR`) with four canonical uppercase
 artefacts: `RESEARCH.md` ({N.1}), `PRODUCT.md` ({N.2}), `TECH.md` ({N.3}), `PLAN.md`
 ({N.4}). Pre-existing dirs without the `ID-N-` prefix are not mass-migrated. Authoring
 conventions: `.claude/skills/spec-driven-implementation/SKILL.md`,
@@ -215,7 +225,7 @@ Mempalace MCP server is the canonical memory system.
 ### UI / Frontend
 
 - **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
-  `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
+  `app/globals.css`. See `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md`.
 - **React compiler memoisation:** Destructure nested properties before using in
   `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
 - **Stable empty array/object defaults in hook returns:** Inline `data?.foo ?? []` creates
@@ -229,7 +239,7 @@ Mempalace MCP server is the canonical memory system.
 ### Testing
 
 - **Guard tests break on structural changes:** `mcp-fixture-sync.test.ts`,
-  `doc-freshness.test.ts`, and `pipeline-parity.test.ts` run on every test. Update
+  `reference-doc-paths.test.ts`, and `pipeline-parity.test.ts` run on every test. Update
   fixtures when adding tools or changing doc paths.
 - **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions in
   `mockImplementation()` cannot be used with `new` — use `function` keyword.
@@ -264,6 +274,10 @@ Mempalace MCP server is the canonical memory system.
   inherit no `.gitnexus` index ("last indexed: never") — `git diff --name-only` is the
   authoritative scope-containment fallback. `gitnexus_impact` (primary-tree symbol index)
   stays reliable.
+- **`next build` (Turbopack) fails under the default sandbox:** a webpack-loader child
+  process binds a port and dies with `Operation not permitted`. Dispatches that invoke
+  `next build` need `dangerouslyDisableSandbox: true` on that command. Distinct from
+  bl-243 (the `.bin`/`.venv` broken-symlink defect — different fix surface).
 - **Worktree pytest must run from the worktree CWD:** main-repo-CWD invocations resolve
   `scripts.*` to the MAIN tree's modules (namespace-package hazard — spurious
   failures/passes against stale code).
@@ -275,11 +289,12 @@ Mempalace MCP server is the canonical memory system.
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
 
 <!-- gitnexus:start -->
+<!-- gitnexus:keep -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (47894 symbols, 71003 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **knowledge-hub**. Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> If any GitNexus tool warns the index is stale, run `bun run gitnexus:analyze` in terminal first.
 
 ## Always Do
 
