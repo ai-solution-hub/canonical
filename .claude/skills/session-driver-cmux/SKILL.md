@@ -289,9 +289,9 @@ S3=$(echo "$R3" | jq -r '.session_id')
 # this holds for doc-only / spec-only / ASSESS-only Tasks too (spec & plan
 # authoring is the Planner's role). Commit on your worker branch; surface Open
 # Questions via the OQ-escalation channel (see Escalation below)."
-"$SD_SCRIPTS/send-prompt.sh" subo-id-23 "$(cat briefs/id-23.md)"
-"$SD_SCRIPTS/send-prompt.sh" subo-id-24 "$(cat briefs/id-24.md)"
-"$SD_SCRIPTS/send-prompt.sh" subo-id-25 "$(cat briefs/id-25.md)"
+"$SD_SCRIPTS/send-prompt.sh" subo-id-23 "$(cat .claude/cmux-briefs/cmux-brief-id-23.md)"
+"$SD_SCRIPTS/send-prompt.sh" subo-id-24 "$(cat .claude/cmux-briefs/cmux-brief-id-24.md)"
+"$SD_SCRIPTS/send-prompt.sh" subo-id-25 "$(cat .claude/cmux-briefs/cmux-brief-id-25.md)"
 
 # Block until every sub-orchestrator has completed its Task lifecycle
 "$SD_SCRIPTS/wait-for-fleet.sh" --mode all --timeout 7200 "$S1" "$S2" "$S3"

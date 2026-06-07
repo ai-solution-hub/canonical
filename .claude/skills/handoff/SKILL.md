@@ -17,7 +17,7 @@ orchestrator-of-orchestrators**. It is a **routing + deltas** document: it point
 | Content                                                          | Lives in                                                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | Task / Subtask state, `details`, `testStrategy`, what shipped + SHAs | `docs/reference/task-list.json` (`<info added on …>` journals)             |
-| Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`docs/continuation-prompts/cmux-brief-*.md`)      |
+| Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`.claude/cmux-briefs/cmux-brief-*.md` — the ONE cmux-brief home per ID-68 PC-12)      |
 | Recency-weighted multi-session history                           | Mempalace diary (`mempalace_diary_read agent=claude`)                          |
 
 ---
