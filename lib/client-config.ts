@@ -572,19 +572,18 @@ export function derivePrimaryForeground(primary: string): string {
 // Branding loader
 // ---------------------------------------------------------------------------
 
-// Static JSON imports — Next.js / Webpack resolves these at build time.
-// To add a new client: (1) create config/clients/{id}.json, (2) import it
-// here, (3) add the mapping to CLIENT_BRANDING_MAP, (4) set
-// NEXT_PUBLIC_CLIENT_ID in the Vercel project.
-import defaultBranding from '@/lib/branding/clients/default.json';
-import example-clientBranding from '@/lib/branding/clients/example-client.json';
+// The branding map is GENERATED at build time by
+// scripts/generate-client-branding-map.ts (deploy-overlay seam — ID-68
+// PC-33-A / DEPLOY-OVERLAY-DESIGN Option 2). The prestep globs
+// lib/branding/clients/*.json; a client deploy overlays private client
+// JSON + assets into place BEFORE the prestep so the glob picks them up
+// with no source edit. To add a new client: (1) drop
+// lib/branding/clients/{id}.json (tracked or deploy-overlaid),
+// (2) run `bun run generate:branding`, (3) set NEXT_PUBLIC_CLIENT_ID
+// in the deployment environment.
+import { CLIENT_BRANDING_MAP } from '@/lib/branding/client-branding-map.generated';
 import { clientEnv } from '@/lib/env-client';
 import { logger } from '@/lib/logger/client';
-
-const CLIENT_BRANDING_MAP: Record<string, unknown> = {
-  default: defaultBranding,
-  example-client: example-clientBranding,
-};
 
 /**
  * Resolve the active branding config by explicit id OR from

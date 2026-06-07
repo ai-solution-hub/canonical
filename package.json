@@ -9,9 +9,10 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "predev": "bun run generate:skills && bun run generate:content-type-values",
-    "prebuild": "bun run generate:skills && bun run generate:content-type-values",
+    "predev": "bun run generate:skills && bun run generate:content-type-values && bun run generate:branding",
+    "prebuild": "bun run generate:skills && bun run generate:content-type-values && bun run generate:branding",
     "generate:skills": "bun run scripts/generate-skills-inline.ts",
+    "generate:branding": "bun run scripts/generate-client-branding-map.ts",
     "generate:content-type-values": "bun run scripts/generate-content-type-values.ts",
     "start": "next start",
     "lint": "eslint .",
@@ -56,7 +57,7 @@
     "eval:all": "bun run eval:classification && bun run eval:summarisation && bun run eval:search && bun run eval:bid-drafting && bun run eval:entity",
     "dev:clean": "rm -rf .next && next dev --turbopack",
     "analyze": "ANALYZE=true next build",
-    "build:vercel": "bun run generate:skills && bun run generate:content-type-values && bun run build:mcp-apps && next build",
+    "build:vercel": "bun run generate:skills && bun run generate:content-type-values && bun run generate:branding && bun run build:mcp-apps && next build",
     "db:row-count-diff": "bun run scripts/db-row-count-diff.ts",
     "cleanup:orphaned-content-history": "bun run scripts/cleanup-orphaned-content-history.ts",
     "cleanup:stale-test-artifacts": "bun run scripts/cleanup-stale-test-artifacts.ts"
