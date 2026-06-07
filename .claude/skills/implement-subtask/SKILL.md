@@ -23,7 +23,7 @@ dispatch briefs in their `details` field.
 ## Overview
 
 The Knowledge Hub SDLC workflow (see
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/themes/workflow-orchestration/kh-sdlc-workflow.md` §3.4 and §4.2)
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/themes/workflow-orchestration/kh-sdlc-workflow.md` §3.4 and §4.2)
 decomposes any non-trivial Task into discrete Subtasks. Each Subtask
 carries a load-bearing `details` field — the Planner's dispatch brief
 for the Executor — and a `testStrategy` acceptance criterion. The
@@ -48,7 +48,7 @@ wrapper) carries:
 | Subtask id (`ID-N.M`) | Composite-id prose used in the dispatch message. |
 | `task-list.json` path | Defaults to `docs/reference/task-list.json` — repo-relative. |
 | Location of the Subtask `details` field within it | Parent Task id (`N`) + Subtask id (`M`). |
-| Spec-slice path | The `details` field references something like `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<task-slug>/PRODUCT.md#<section>` or `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<task-slug>/TECH.md#<section>`. Read only that slice — not the whole document. |
+| Spec-slice path | The `details` field references something like `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<task-slug>/PRODUCT.md#<section>` or `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<task-slug>/TECH.md#<section>`. Read only that slice — not the whole document. |
 | `testStrategy` | One-line prose acceptance statement (Planner-populated, per PRODUCT inv 9). |
 
 If any of these are missing from the dispatch brief, escalate to the
@@ -238,7 +238,7 @@ Apply these to every change. They are non-negotiable and the Checker
 audits them per Subtask:
 
 - **Semantic design tokens.** No raw Tailwind colours; use the tokens
-  in `app/globals.css` per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md`.
+  in `app/globals.css` per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/design/warm-meridian-implementation-spec.md`.
 - **UK English.** `colour`, `organisation`, DD/MM/YYYY dates.
 - **Auth helper shape.** `getAuthorisedClient()` returns a
   discriminated union — check `auth.success`, not `auth.authorised`.
@@ -278,7 +278,7 @@ audits them per Subtask:
 
 ## References
 
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/themes/workflow-orchestration/kh-sdlc-workflow.md` §3.4
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/themes/workflow-orchestration/kh-sdlc-workflow.md` §3.4
   (Implement phase), §4.2 (Executor skills), §6.3 (state machine).
 - `knowledge-hub-archive (sibling checkout) plans/phase-0-investigation/s49-open-resolutions.md` A1
   (rationale for NEW skill, not adapting `implement-specs`).

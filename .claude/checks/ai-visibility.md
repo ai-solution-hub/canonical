@@ -2,8 +2,8 @@
 
 **Purpose:** Enforce the Knowledge Hub AI Visibility Policy on every user-facing surface.
 AI is invisible infrastructure, not a visible product feature. Source of truth:
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/ai-visibility-policy.md` —
-this check restates the rules so PR reviewers don't need to open two files.
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/ai-visibility-policy.md` — this check
+restates the rules so PR reviewers don't need to open two files.
 
 **Severity:** error (rules 1, 2, 4) / warning (rule 3 label drift)
 

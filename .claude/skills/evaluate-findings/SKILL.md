@@ -43,7 +43,7 @@ agent commits the staged batch; this skill produces the staged actions).
 
 The playbook is modelled directly on the offline-maintenance
 conflict-resolution sweep in
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/themes/workflow-orchestration/memory-transcript.md`, KH-adapted
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/themes/workflow-orchestration/memory-transcript.md`, KH-adapted
 for an MD/JSON corpus rather than a vector store (the transcript itself
 flags this mechanism swap is needed).
 

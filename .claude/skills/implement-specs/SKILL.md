@@ -17,9 +17,9 @@ build the feature described by the specs while keeping the checked-in specs and
 the implementation aligned as the work evolves.
 
 Approved specs should live directly under an id-named directory in
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/`, for example `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/gh-4567/PRODUCT.md`,
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/APP-1234/PRODUCT.md`, or
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/q-a-workspace-scoping/PRODUCT.md` (and the matching `TECH.md`
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/`, for example `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/gh-4567/PRODUCT.md`,
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/APP-1234/PRODUCT.md`, or
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/q-a-workspace-scoping/PRODUCT.md` (and the matching `TECH.md`
 alongside). This matches the conventions used by `write-product-spec` /
 `write-tech-spec` / `spec-driven-implementation`.
 
@@ -124,7 +124,7 @@ Prefer:
 - `bun lint`, `bun run format:check`, and `bun run knip` before merge for
   deterministic quality gates
 
-See `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` for the testing audit criteria and
+See `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` for the testing audit criteria and
 antipatterns to avoid.
 
 ## Best Practices

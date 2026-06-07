@@ -30,10 +30,10 @@ within an already-spec'd Task.
 
 Specs should usually live in:
 
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/RESEARCH.md` — the `{N.1}` artefact
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/PRODUCT.md` — the `{N.2}` artefact
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/TECH.md` — the `{N.3}` artefact
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/PLAN.md` — the `{N.4}` artefact
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/RESEARCH.md` — the `{N.1}` artefact
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PRODUCT.md` — the `{N.2}` artefact
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/TECH.md` — the `{N.3}` artefact
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PLAN.md` — the `{N.4}` artefact
 
 **Forward naming convention (ID-48.4):** For any **new** Task spec dir
 authored from this point forward, use the prefix `ID-N-<slug>/` where:
@@ -53,10 +53,10 @@ high). Document the dir → Task ID mapping in the ledger `cross_doc_links`
 field instead.
 
 If the feature has no Task ID yet (research before a Task is opened), use a
-short kebab-case feature name interim (e.g. `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/q-a-workspace-scoping/`)
+short kebab-case feature name interim (e.g. `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/q-a-workspace-scoping/`)
 and rename the dir to add the `ID-N-` prefix once the Task is created.
 
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/` should contain only id-named directories as direct children. Do
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/` should contain only id-named directories as direct children. Do
 not create engineer-named subdirectories or feature-slug-plus-suffix variants
 there.
 
@@ -116,7 +116,7 @@ If the feature has UI or interaction design, ask for a Figma mock if one exists.
 If there is no mock, continue but call that out explicitly in the product spec.
 
 Reference the GitHub issue or Linear ticket in the spec when one exists. Because
-specs live under `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/<id>/...`, this should usually be straightforward.
+specs live under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<id>/...`, this should usually be straightforward.
 
 ### 3. Write the tech spec when warranted
 
@@ -201,7 +201,7 @@ specs. Prefer tests and artifacts that validate the product behavior directly:
   (https://knowledge-hub-git-staging-tw-group.vercel.app) when useful for
   UI-heavy work
 
-See `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` before writing or remediating tests.
+See `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` before writing or remediating tests.
 
 ## Best Practices
 

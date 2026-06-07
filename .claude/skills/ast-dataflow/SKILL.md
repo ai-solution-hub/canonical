@@ -257,7 +257,7 @@ fetcher and route definitions.
 
 Nine patterns document high-leverage compositions of ast-dataflow with
 gitnexus, Knip, and ccc. Full write-up:
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
 
 | # | Pattern | Tools | Leverage |
 |---|---------|-------|----------|
@@ -321,7 +321,7 @@ Common error codes:
 
 ## Related
 
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/TECH.md` — full technical specification
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/PRODUCT.md` — invariant test suite
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/ROADMAP.md` — wave plan, WP status
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md` — cross-tool pattern brief
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/TECH.md` — full technical specification
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/PRODUCT.md` — invariant test suite
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/ROADMAP.md` — wave plan, WP status
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md` — cross-tool pattern brief

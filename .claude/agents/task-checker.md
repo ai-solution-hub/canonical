@@ -102,8 +102,8 @@ Your dispatch brief specifies which variant to run:
 - **`test-quality`** — deep test-discipline gating for Subtasks whose primary deliverable
   is tests, OR whose behaviour change shipped with new tests. A focused, single-axis-led
   pass that audits the test suite against the KH-canonical
-  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` (six
-  audit criteria, three antipatterns, mock discipline) — behaviour-not-implementation,
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` (six audit
+  criteria, three antipatterns, mock discipline) — behaviour-not-implementation,
   `bun run test`, shared `createMockSupabaseClient()`. Can set the subtask group's
   subtasks to `done` on PASS.
 
@@ -210,8 +210,8 @@ For each commit, score against:
 
 - Tests verify real behaviour, not implementation. Reject tests that only assert a mocked
   function was called.
-- Read `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md`
-  for the six audit criteria.
+- Read `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` for the six
+  audit criteria.
 - Supabase tests use shared `createMockSupabaseClient()` from
   `__tests__/helpers/mock-supabase.ts`.
 - RFC 4122-compliant v4 UUIDs in tests; `00000000-...-0001` patterns fail Zod validation.
@@ -224,7 +224,7 @@ For each commit, score against:
 - No raw Tailwind colour utilities in components (`text-red-500`, `bg-blue-100`, etc.).
 - Components use semantic tokens (`text-destructive`, `bg-muted`, etc.).
 - New semantic tokens added to `app/globals.css` per
-  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md`.
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/design/warm-meridian-implementation-spec.md`.
 - No removal of `globals.css` Tailwind v4 dark-mode declaration or `border` base rule.
 
 **`silent-failure`** (covers no-barrel-reexports and no-silent-supabase-failures)
@@ -436,15 +436,15 @@ the behaviour change's only proof). Reading order per Operating principles above
 slice first; the test diff last).
 
 > **Canonical authority —
-> `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md`.** This
-> document is the source of truth for every test-discipline decision in Knowledge Hub.
-> Read it in full before auditing. It defines **six audit criteria** (§1), **three
-> observed antipatterns** (§2), and **mock discipline** (§5). The Addy Osmani
-> `test-engineer` persona framing (test value over implementation-coupling,
-> behaviour-over-mock, the "Prove-It" failing test for bugs) is a useful lens, but it is
-> generic and not KH-aware. **Where Addy's generic `testing-patterns`
+> `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md`.** This document
+> is the source of truth for every test-discipline decision in Knowledge Hub. Read it in
+> full before auditing. It defines **six audit criteria** (§1), **three observed
+> antipatterns** (§2), and **mock discipline** (§5). The Addy Osmani `test-engineer`
+> persona framing (test value over implementation-coupling, behaviour-over-mock, the
+> "Prove-It" failing test for bugs) is a useful lens, but it is generic and not KH-aware.
+> **Where Addy's generic `testing-patterns`
 > (`.claude/agents/references/testing-patterns.md`) conflicts with
-> `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md`,
+> `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md`,
 > `test-philosophy.md` WINS** — it is KH-canonical (Vitest + Supabase-mock + UK-English
 > aware). Cite the specific `test-philosophy.md` section in every finding's `description`.
 
@@ -515,17 +515,17 @@ production code the commit touched, but the test surface is the primary subject.
 
 When the Addy generic `testing-patterns` reference (e.g. its Jest-flavoured `jest.fn()` /
 `jest.mock()` examples, or its generic "mock at boundaries" table) conflicts with
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` (Vitest
-`vi.*`, the shared `createMockSupabaseClient()` factory, the §2 antipattern catalogue),
-**resolve in favour of `test-philosophy.md`.** Treat the Addy framing as orientation only;
-the KH-canonical criteria, antipatterns, and mock discipline govern the verdict.
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` (Vitest `vi.*`, the
+shared `createMockSupabaseClient()` factory, the §2 antipattern catalogue), **resolve in
+favour of `test-philosophy.md`.** Treat the Addy framing as orientation only; the
+KH-canonical criteria, antipatterns, and mock discipline govern the verdict.
 
 ### Test-quality workflow
 
 **Step 1 — Read the canonical philosophy and the subtask brief**
 
-Read `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` in
-full. Read the spec section(s) referenced in `details`, the `testStrategy`, and any
+Read `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` in full. Read
+the spec section(s) referenced in `details`, the `testStrategy`, and any
 `<info added on …>` journal blocks.
 
 **Step 2 — Inspect each commit's test surface**

@@ -47,10 +47,10 @@ invoke `write-tech-spec` to produce `TECH.md` for the same feature (or let the
 user know that's the expected next step). The product spec should be written so
 the tech spec can be written directly from it.
 
-Write specs to `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/PRODUCT.md`, where:
+Write specs to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PRODUCT.md`, where:
 
 - `N` is the Task ID from `docs/reference/task-list.json` (e.g.
-  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-9-astro-starlight-docs-foundation/PRODUCT.md`).
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-9-astro-starlight-docs-foundation/PRODUCT.md`).
 - `<slug>` is a short kebab-case feature name matching the sibling
   `RESEARCH.md` / `TECH.md` / `PLAN.md` location.
 
@@ -60,10 +60,10 @@ spec dirs without the `ID-N-` prefix are not migrated; new dirs MUST use the
 prefix.
 
 If the feature has no Task ID yet, use a short kebab-case feature name interim
-(e.g. `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/q-a-workspace-scoping/PRODUCT.md`) and rename to add
+(e.g. `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/q-a-workspace-scoping/PRODUCT.md`) and rename to add
 `ID-N-` once the Task is created.
 
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/` should contain only id-named directories as direct children — no
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/` should contain only id-named directories as direct children — no
 engineer-named subdirectories.
 
 Ticket / issue references are optional. If Liam has a GitHub issue or Linear
@@ -100,7 +100,7 @@ mention at all on features where design would normally be expected.
 ### Knowledge Hub design system
 
 For any UI feature, the Behavior section must reference the **Warm Meridian**
-design system (`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md`) where colour
+design system (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/design/warm-meridian-implementation-spec.md`) where colour
 / spacing / typography decisions matter. Use semantic tokens (never raw Tailwind
 colours). WCAG 2.1 AA: never colour alone for meaning. UK English throughout
 (DD/MM/YYYY, "colour", "organisation"). These are project-wide invariants — call
@@ -207,7 +207,7 @@ For Knowledge Hub specifically, also consider:
   response shape, two-step list/preview → get/verbatim contract, and citation
   requirements.
 - AI-invisible-infrastructure invariants — see
-  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/ai-visibility-policy.md`. AI-driven enrichments should not
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/ai-visibility-policy.md`. AI-driven enrichments should not
   appear as user-facing AI features; the platform behaves as if the data was
   always there.
 
@@ -264,7 +264,7 @@ surface.
 for behaviour rationale. When the spec is tracked by a task-list Task, the
 Task's `description` field carries a compact one-paragraph what+why (≤1500
 chars) plus a `cross_doc_links` pointer to this spec — **never** a copy of the
-rationale. See `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`.
+rationale. See `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`.
 
 ## Related Skills
 

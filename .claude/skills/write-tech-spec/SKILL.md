@@ -17,10 +17,10 @@ The tech spec should translate product intent into an implementation plan that
 fits the existing codebase, documents architectural choices, and makes the work
 easier for agents to execute and reviewers to evaluate.
 
-Write specs to `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-N-<slug>/TECH.md`, where:
+Write specs to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/TECH.md`, where:
 
 - `N` is the Task ID from `docs/reference/task-list.json` (e.g.
-  `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/ID-9-astro-starlight-docs-foundation/TECH.md`).
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-9-astro-starlight-docs-foundation/TECH.md`).
 - `<slug>` is a short kebab-case feature name matching the sibling
   `RESEARCH.md` / `PRODUCT.md` / `PLAN.md`.
 
@@ -30,7 +30,7 @@ artefact MUST be named `RESEARCH.md` (not `research.md`,
 `<feature>-research.md`, or similar variants). Pre-existing spec dirs without
 the `ID-N-` prefix are not migrated.
 
-Match the dir used by the sibling `PRODUCT.md` when one exists. `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/`
+Match the dir used by the sibling `PRODUCT.md` when one exists. `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/`
 should contain only id-named directories as direct children.
 
 Ticket / issue references are optional. If Liam has a GitHub issue or Linear
@@ -216,7 +216,7 @@ remains the canonical source of truth; Gitbook is the publishing surface.
 trade-offs, and design rationale live here in `TECH.md`. When the work is
 tracked by a task-list Task, the Task's `description` points at this spec via
 `cross_doc_links` — it does not inline the rationale (that is the drift ID-34
-corrects). See `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`.
+corrects). See `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`.
 
 ## Related Skills
 

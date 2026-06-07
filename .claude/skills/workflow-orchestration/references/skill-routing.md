@@ -20,7 +20,7 @@ itself, no per-Task selection required:
 - **`handoff`** — end-of-session: continuation-prompt for the next session.
 
 **Task-specific skills:** The Orchestrator does not pre-load every potentially-useful
-skill. Consult `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/skill-routing-map.md` to look up which skills
+skill. Consult `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/skill-routing-map.md` to look up which skills
 fit the Task's tilt (AI, CI, Supabase, Frontend, Data-pipeline, etc.) —
 Required vs Conditional vs Anti-pattern columns tell you what to name in the
 dispatch brief.

@@ -27,7 +27,7 @@ This skill is **NOT** for per-session retro authoring — that is the
 orchestrator-of-orchestrators' `handoff` habit. It is **NOT** for
 findings adjudication — that is `evaluate-findings`. It is **NOT** a
 session-end hook — the evaluator is triggered + async per
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-48-workflow-evaluation/RESEARCH.md` §13.1–§13.2, and any
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-48-workflow-evaluation/RESEARCH.md` §13.1–§13.2, and any
 work that would block teardown belongs elsewhere.
 
 ## What this skill does

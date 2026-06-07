@@ -55,7 +55,7 @@ Working directory: `{cwd}` ({branch}).
 
 ## READ FIRST
 
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/themes/canonical-pipeline/reference/v1-completion-sequence.md` — the forward map (Spine = re-ingest is the cutover gate).
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/themes/canonical-pipeline/reference/v1-completion-sequence.md` — the forward map (Spine = re-ingest is the cutover gate).
 
 ## Next-session focus
 

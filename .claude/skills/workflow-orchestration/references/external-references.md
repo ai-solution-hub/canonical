@@ -6,7 +6,7 @@ skills, and project rules.
 
 ## Canonical SDLC doc
 
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/themes/workflow-orchestration/kh-sdlc-workflow.md` — source of
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/themes/workflow-orchestration/kh-sdlc-workflow.md` — source of
   truth. If this skill body and the canonical doc disagree, the
   canonical doc loses (it documents intent; the skill is operational).
   Specifically: §2 (roles), §3 (lifecycle), §4 (skill routing), §5
@@ -50,7 +50,7 @@ skills, and project rules.
 ## Project rules
 
 - `CLAUDE.md`.
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/test-philosophy.md` — six audit criteria the Checker
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` — six audit criteria the Checker
   applies.
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/design/warm-meridian-implementation-spec.md` — design tokens the
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/design/warm-meridian-implementation-spec.md` — design tokens the
   Checker enforces.

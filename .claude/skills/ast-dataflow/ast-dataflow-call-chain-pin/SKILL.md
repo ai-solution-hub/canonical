@@ -338,7 +338,7 @@ After running this skill, use the following checklist:
   (sibling skill, same family)
 - `.claude/skills/ast-dataflow/SKILL.md` — catalogue of all queries + all
   9 cross-tool patterns
-- `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
   §Pattern 5 — original investigation brief with rationale and open questions
 - `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` — upstream step:
   execution-flow debugging before narrowing to argument inspection

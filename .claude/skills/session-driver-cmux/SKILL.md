@@ -238,7 +238,7 @@ Canonical orchestrator loop:
                                        ->  stop-worker
 
 Cross-reference: the OQ-escalation channel
-(`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-43-oq-escalation/`) shares the events-dir transport but carries
+(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-43-oq-escalation/`) shares the events-dir transport but carries
 worker->parent *decisions* (questions needing a ruling); `watch-fleet.sh` carries
 *lifecycle / attention* signals. Distinct payloads, same directory.
 

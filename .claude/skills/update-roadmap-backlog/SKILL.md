@@ -55,7 +55,7 @@ stdout, etc.) are all done. The CLI surface documented here is the current
 a budget-exceeded escape hatch only, not a defect work-around.
 
 **Field-budget discipline (caller-side):** Every Create/Update payload must
-honour the budgets in `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md` (`Task.
+honour the budgets in `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` (`Task.
 description ≤1500`, `Subtask.description ≤250`, `Subtask.testStrategy ≤300`,
 `Subtask.details` unbudgeted append-only journal). Over-budget writes
 hard-reject at the CLI write boundary with `budget-exceeded`. Compose
@@ -94,7 +94,7 @@ The curator invokes this skill with:
 | `provenance.source_task_id` | Workpackage ID (e.g. `WP1.2`) or null |
 | `provenance.source_commit_sha` | Short SHA from the source commit, or null |
 | `provenance.session_counter` | Session ID (e.g. `kh-prod-readiness-s47`) |
-| `triage_payload` | The full `triage-finding` output (carries section / track / type / priority). Field budgets per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md` §2/§3 apply — payloads over budget will hard-reject at the CLI write boundary. |
+| `triage_payload` | The full `triage-finding` output (carries section / track / type / priority). Field budgets per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3 apply — payloads over budget will hard-reject at the CLI write boundary. |
 | `umbrella_id` | `string` (kebab-case) or `null` (default `null`). Shared on Create + Promote per Subtask 31.9. When non-null AND destination resolves to a top-level Task: triggers Step 8 below (same-commit `umbrellas.json` membership edit — currently caller responsibility; CLI does NOT yet cover `umbrellas.json` writes). When null: no umbrella edit. Ignored when destination is a Subtask. |
 
 ---
@@ -113,7 +113,7 @@ semantic routing; the curator never auto-corrects the destination.
 **`task-list` target (per Subtask 31.9 — T-OQ-2 RATIFIED):** writes a new
 top-level Task into `task-list.json#/tasks` via the CLI's `open-task`
 subcommand. Used by the Orchestrator when opening a forward Task JIT (per
-TECH §6.5 of `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md`).
+TECH §6.5 of `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md`).
 The Promote mode (below) handles backlog → task-list MOVE semantics —
 Create with `target: 'task-list'` is the **new-Task creation** path (no
 backlog source).
@@ -409,7 +409,7 @@ NOT mirrored and has no budgeted fields.) Verify the current surface via
 `bun scripts/ledger-cli.ts update-umbrella --help`.
 
 **Spec reference:** spec slice for this step uses the label `9.` per
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` §6.4 line 627.
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md` §6.4 line 627.
 The label here is `8.` because the post-ID-30 Create-mode flow numbers
 1-7; this step follows immediately.
 
@@ -444,7 +444,7 @@ theme) and `umbrella_id` (drives the `umbrellas.json` membership append)
 are orthogonal — both may be supplied in the same Create or Promote call.
 
 **Forward-Task open pattern (per TECH §6.5 of
-`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md`):**
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/TECH.md`):**
 
 1. Compute fresh resolved id via cross-branch MAX-ID query.
 2. Open the Task with spec-chain Subtasks per
@@ -699,7 +699,7 @@ exclusively via the CLI's `promote` subcommand** — never as a manual
 Delete-then-Create recipe. The `promote` subcommand handles the two-phase
 commit (delete-from-backlog + add-to-task-list + journal-block append +
 validation on both surfaces) as a single atomic operation per `RESEARCH.
-md` §3 (`${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-35-ledger-cli/RESEARCH.md`) and `lib/ledger/README.md`'s
+md` §3 (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-35-ledger-cli/RESEARCH.md`) and `lib/ledger/README.md`'s
 "cross-ledger" group.
 
 **Workflow-orchestration alignment:** per
@@ -805,7 +805,7 @@ already captured as a backlog item that should be promoted.
    (curator-side `umbrellas.json` edit — the CLI does not yet cover this).
    The caller MUST include the resulting `umbrellas.json` edit in the
    same commit as the backlog/task-list edits (PRODUCT inv 17 commit-
-   coupling, per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/
+   coupling, per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-31-canonical-pipeline-task-list-migration/
    PRODUCT.md` Inv 17).
 
 6. **Report back.** YAML packet:
@@ -873,7 +873,7 @@ already captured as a backlog item that should be promoted.
 6. **Never `git commit` from this skill.** The CLI writes the JSON; the
    caller (Orchestrator) commits. Applies to Create, Update, Delete, and
    Promote equally.
-7. **Field budgets per `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`.** The
+7. **Field budgets per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`.** The
    CLI's `LEDGER_BUDGETS` gate enforces these at WRITE TIME. Compose
    payloads within budget; `--force` is not a routine escape.
 8. **Minimal-diff (scoped) is the GLOBAL DEFAULT** for every mutating
@@ -950,9 +950,9 @@ already captured as a backlog item that should be promoted.
   [ledger|recordKind]` prints each field's name + type + budget — so
   `subtask.dependencies:number[]` vs `task.dependencies:string[]` is
   explicit; never guess.
-- **Field budgets:** `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md` §2/§3.
+- **Field budgets:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3.
 - **CLI architecture / primitive provenance:** `lib/ledger/README.md`.
-- **Two-phase Promote semantics:** `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/specs/id-35-ledger-cli/RESEARCH.md`
+- **Two-phase Promote semantics:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-35-ledger-cli/RESEARCH.md`
   §3.
 - **CLI defect history ({35.26}–{35.34} — all resolved):** `docs/reference/
   task-list.json` ID-35 subtasks 26–34.

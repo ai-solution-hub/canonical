@@ -130,7 +130,7 @@ The Orchestrator's baseline skill catalogue: `start-session`, `context-engineeri
 `session-driver-cmux`, `spec-driven-implementation`,
 `diagnose-ci-failures`, `handoff`.
 
-Task-specific skills are added on demand — consult `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/skill-routing-map.md` to look up
+Task-specific skills are added on demand — consult `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/skill-routing-map.md` to look up
 which skills fit the Task's tilt (AI, CI, Supabase, Frontend,
 Data-pipeline, etc.). The Orchestrator names skills in the dispatch brief;
 sub-agents do not auto-discover skills.
@@ -389,7 +389,7 @@ The Orchestrator does not declare a Task `done` without:
 
 The Orchestrator owns ledger writes for status transitions, journal-block
 appends, Subtask additions, and Task opens. Per-field discipline - **Canonical
-reference:** `${KH_PRIVATE_DOCS_DIR}/docs-site/src/content/docs/reference/task-list-discipline.md`
+reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`
 
 | Field | Shape | Load-bearing for |
 |---|---|---|
