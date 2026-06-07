@@ -101,7 +101,6 @@ jobs:
             # together with lib/branding/clients/ below):
             ':(exclude,literal)lib/branding/client-branding-map.generated.ts'
             # Record-14 seed (sweep report §2, HEAD 02bc7032) — SHRINK ONLY:
-          ':(exclude,literal)__tests__/actions/docubot-prompt-shape.test.ts'
           ':(exclude,literal)__tests__/api/admin/content-dedup/near-duplicates/[pairId].test.ts'
           ':(exclude,literal)__tests__/api/certifications.test.ts'
           ':(exclude,literal)__tests__/api/intelligence/profiles.test.ts'

@@ -1,13 +1,14 @@
 # AGENTS.md
 
-This file is the docs-corpus style guide for the Knowledge Hub. It is loaded by every
-docs-authoring agent — docubot, the five ported skills (`review-docs-pr`,
-`sync-source-docs`, `missing-docs`, `check-for-broken-links`, `docs-seo-audit`), and by
-any human contributor reviewing or amending the docs corpus. The corpus's tracked
-canonical source lives in the PRIVATE `knowledge-hub-docs-site` repo at
-`src/content/docs/` (resolve the checkout via the `KH_PRIVATE_DOCS_DIR`
-bridge knob — sibling clone locally, GitHub-App token checkout in CI). Interim
-residual copies under the public repo's `docs/` tree are being removed under ID-68.
+This file is the docs-corpus style guide for the Knowledge Hub, retained in the public
+repo for human contributors and as a gitnexus-harness-guarded file. The docs-authoring
+operators (docubot and the ported docs skills) moved to the PRIVATE
+`knowledge-hub-docs-site` repo under ID-68 PC-27 and load that repo's own root
+`AGENTS.md` — they no longer read this copy. The corpus's tracked canonical source lives
+in the PRIVATE `knowledge-hub-docs-site` repo at `src/content/docs/` (resolve the
+checkout via the `KH_PRIVATE_DOCS_DIR` bridge knob — sibling clone locally, GitHub-App
+token checkout in CI). Interim residual copies under the public repo's `docs/` tree are
+being removed under ID-68.
 
 For project-wide conventions, see CLAUDE.md. This file adds docs-corpus-specific
 conventions on top. The two files are complementary: CLAUDE.md governs the codebase
