@@ -81,6 +81,12 @@ session start — apply any allowlist candidates and be aware of commands that w
 need `dangerouslyDisableSandbox` (e.g. the documented `next build` Turbopack
 sandbox failure).
 
+### 2d: GitHub tooling
+
+Use `gh-axi` (not raw `gh`) for any GitHub operation this session — pre-aggregated
+CI rollups + structured error translation; `gh-axi api` is the raw-API escape hatch
+(ID-92, see CLAUDE.md).
+
 ---
 
 ## Step 3: Review Continuation Prompt and Confirm Session Plan
