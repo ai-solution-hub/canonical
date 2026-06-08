@@ -45,8 +45,13 @@ supabase>=2.0.0
 bert-score>=0.3.13
 
 # Cocoindex pipeline (ID-28 / T8 cocoindex sidecar)
-# cocoindex 1.0.3 requires dangerouslyDisableSandbox in Claude Code dev (CLAUDE.md gotcha).
-cocoindex[postgres]==1.0.3
+# cocoindex requires dangerouslyDisableSandbox in Claude Code dev (CLAUDE.md gotcha).
+# Pin 1.0.7 (bl-252): pulls 1.0.4 SQL-injection hardening + NUL-stripping in text/jsonb
+# ingest; no breaking changes to any USED option across 1.0.4-1.0.7 and the memo-fingerprint
+# scheme is unchanged (ID-89 RESEARCH §3.3, changelog-verified; bl-239 probe
+# scripts/tests/test_file_branch_memo_fingerprint.py stays the executable guard). Bump must
+# precede the ID-45 full-corpus re-ingest so the run lands on 1.0.7.
+cocoindex[postgres]==1.0.7
 # Docling: MIT-licensed document converter + layout-heron model (1.8 GB weights).
 # Pre-warmed into image at Cloud Build time via cloudrun/cocoindex-prewarm.py.
 docling>=2.0.0,<3.0.0
@@ -56,7 +61,7 @@ faiss-cpu==1.14.2
 # litellm: backs the Stage-4 embedding op — cocoindex.ops.litellm.LiteLLMEmbedder
 # ("text-embedding-3-large", dimensions=1024) → vector(1024) (ID-49.2). NOT used
 # for LLM extraction (that path is Anthropic-direct via a custom @coco.fn — there
-# is no ExtractByLlm in cocoindex 1.0.3, per the S256 Path-A amendments).
+# is no ExtractByLlm in cocoindex (absent through 1.0.7), per the S256 Path-A amendments).
 litellm>=1.40.0,<2.0.0
 # aiohttp: HTTP framework for cocoindex sidecar wrapper server (ID-28.15). Transitive via
 # litellm, pinned explicitly because scripts/cocoindex_pipeline/server.py treats it as a
@@ -66,8 +71,9 @@ aiohttp>=3.9.0,<4.0.0
 asyncpg>=0.30.0
 httpx==0.28.1  # explicit pin — adapters.py uses httpx.AsyncClient; transitive via cocoindex today (fragile)
 # tenacity: KH-managed retry wrapper around anthropic.AsyncAnthropic.messages.create
-# (ID-28.17). cocoindex 1.0.3 has no retry primitives around the @coco.fn LLM path
-# (empirically verified in S257 W2a + the _FlowRetryCounter docstring); KH owns the
+# (ID-28.17). cocoindex 1.0.7 has no retry primitives around the @coco.fn LLM path
+# (empirically verified in S257 W2a + the _FlowRetryCounter docstring; unchanged
+# through 1.0.7 per ID-89 RESEARCH §3.3); KH owns the
 # retry surface, decorated via tenacity's @retry with 3 attempts + exponential backoff
 # (P-OQ2: 1 s base / 2x exponent / 30 s cap).
 tenacity==9.1.4
