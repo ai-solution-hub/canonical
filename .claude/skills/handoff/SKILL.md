@@ -39,6 +39,11 @@ Confirm before drafting (ask Liam if unsure):
 3. Which terminals does the next session deploy, and in what sequence/gates?
 4. Decisions made this session not yet in the ledger / specs / memory?
 5. Gotchas not yet in CLAUDE.md or memory?
+6. Allowlist candidates + sandbox bypass notes — any commands that hit sandbox
+   friction this session and should be allowlisted or carried forward (e.g. a
+   zsh word-split quirk; a tool that needed `dangerouslyDisableSandbox` such as
+   the chrome-devtools-axi bridge binding a localhost port; the documented
+   `next build` Turbopack sandbox failure)?
 
 ---
 
@@ -75,6 +80,11 @@ ratifications, schema/process changes, gotchas, strategic options.}
 ## Session Carry
 
 {Anything which was intended for the previous session, but wasn't completed.}
+
+## Sandbox / allowlist carryover
+
+{Commands that hit sandbox friction this session — allowlist candidates and any
+bypass notes (e.g. needs `dangerouslyDisableSandbox`). Omit if none.}
 
 ## Pre-reqs (Liam)
 

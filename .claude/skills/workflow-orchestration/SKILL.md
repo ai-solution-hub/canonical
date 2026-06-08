@@ -14,6 +14,18 @@ Checker, Workflow Curator) via the built-in `Agent` tool or `session-driver-cmux
 
 If the continuation prompt includes usage of cmux terminals, chain from this `workflow-orchestration` to the `session-driver-cmux` skill to prepare and deploy sub-orchestrators.
 
+### Context economics (the *why* behind orchestrate-don't-implement)
+
+Every conversation turn re-sends the entire growing context, so cost scales with turn
+COUNT, not just per-turn work — the axi benchmark records that "the savings from a smaller
+initial context are consumed by accumulation across additional turns." Inline executor-grade
+work on the orchestrator main thread is therefore the single most expensive shape: a
+long-lived 1h-TTL cache-write thread whose context only grows. Corpus evidence (ID-92): all
+24 sessions exceeding 400K peak context were orchestrator mains doing executor-grade work
+inline — zero subagents. Self-diagnosis signature: **peak context > 400K AND sub:main
+flat-token ratio < 0.2** (near-zero spawning). If you see this shape, stop and delegate — a
+dispatched sub-agent pays its own context, not yours.
+
 ---
 
 ## ID-N lifecycle
@@ -28,8 +40,8 @@ SESSION
 │
 ├── TASK ID-N
 │   ├── Subtask {N.1} RESEARCH.md              (Planner; conditional)
-│   ├── Subtask {N.2} PRODUCT.md               (Planner → Checker → fix-Planner loop)
-│   ├── Subtask {N.3} TECH.md                  (Planner → Checker → fix-Planner loop)
+│   ├── Subtask {N.2} PRODUCT.md               (Planner → Checker → fix-Planner loop; conditional)
+│   ├── Subtask {N.3} TECH.md                  (Planner → Checker → fix-Planner loop; conditional)
 │   ├── Subtask {N.4} PLAN.md                  (Planner via planning-and-task-breakdown; conditional)
 │   │                                          ── ratification gate ──
 │   ├── Subtask {N.5+} implementation          (Executor → Checker per subtask group)
@@ -45,9 +57,17 @@ SESSION
 ### Phase summary
 
 - **Spec-authoring ({N.1}–{N.4})** — `spec-driven-implementation` chain:
-  RESEARCH.md (conditional), PRODUCT.md, TECH.md, PLAN.md (conditional). One
+  RESEARCH.md, PRODUCT.md, TECH.md, PLAN.md — **all four conditional**. One
   fresh Planner per subtask, Checker gates each output, Liam ratifies before
-  implementation.
+  implementation. Right-size the spec chain to the task shape — not every Task
+  needs all four artefacts. Heuristic: author {N.2} PRODUCT when the change is
+  user-facing or behaviourally ambiguous; author {N.3} TECH when the technical
+  approach is non-obvious, risky, or spans multiple subsystems; {N.1} RESEARCH
+  and {N.4} PLAN as warranted by uncertainty/decomposition size. The Orchestrator
+  selects the artefact subset at Task open (the Planner may recommend an upgrade
+  mid-{N.1} if research surfaces hidden complexity). ID-92 PRODUCT may later
+  formalise named tiers + the recording location — keep this a heuristic, not a
+  rigid gate.
 - **Implementation ({N.2-5+})** — one Executor per subtask. Parallel when groups touch disjoint file sets;
   sequential when they share files / schema / produced inputs.
 - **Closing** — Executor `code-simplification` pass, then Checker
@@ -426,6 +446,15 @@ bun scripts/ledger-cli.ts promote <backlogId> <taskJson> \
 **Orchestrator-direct:** The curator handles triage and create; the
 Orchestrator handles the backlog → task-list lifecycle transition via the
 CLI above.
+
+### In-flight Subtask carryover (session-close)
+
+In-flight Subtasks survive session boundaries: a started-but-incomplete Subtask
+remains an `in_progress` / `pending` Subtask record across session close — it is
+NOT demoted to the backlog. Session-close triage must not use the backlog as a
+parking lot for work already started; the backlog is for not-yet-committed ideas
+only (consistent with the committed-work rule already in `triage-finding` — *have
+we committed to doing this?* Yes → Task List; not yet → Backlog).
 
 ---
 

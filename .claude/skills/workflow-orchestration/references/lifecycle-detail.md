@@ -7,15 +7,26 @@ planning the Task's subtask structure or briefing a Planner.
 ## Spec-authoring phase
 
 When a Task lands with unspec'd surface area, the Orchestrator invokes
-`spec-driven-implementation` to create the spec-authoring subtask chain:
+`spec-driven-implementation` to create the spec-authoring subtask chain. **All
+four artefacts are conditional** — right-size the chain to the task shape, not
+every Task needs all four. Heuristic: author {N.2} PRODUCT when the change is
+user-facing or behaviourally ambiguous; author {N.3} TECH when the technical
+approach is non-obvious, risky, or spans multiple subsystems; {N.1} RESEARCH and
+{N.4} PLAN as warranted by uncertainty/decomposition size. The Orchestrator
+selects the artefact subset at Task open (the Planner may recommend an upgrade
+mid-{N.1} if research surfaces hidden complexity). ID-92 PRODUCT may later
+formalise named tiers + the recording location — keep this a heuristic, not a
+rigid gate.
 
 - `{N.1}` RESEARCH.md — Planner, when warranted by domain complexity. Domain
   skills (`claude-api`, `supabase-postgres-best-practices`, etc.) are added
   to the Planner's loadout on demand.
-- `{N.2}` PRODUCT.md — Planner invokes `write-product-spec` directly. Output
+- `{N.2}` PRODUCT.md — Conditional (user-facing or behaviourally ambiguous
+  changes). Planner invokes `write-product-spec` directly. Output
   is numbered, testable Behaviour invariants per the skill's mandated
   structure. The Planner cites the gitnexus_impact verdict for any symbol the spec slice mandates be modified — verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller count, and the names of the top-3 affected execution flows. Where no existing symbols match the spec domain, the Planner notes "gitnexus orientation: no existing symbols match — greenfield surface" in the spec's Context section.
-- `{N.3}` TECH.md — A **fresh** Planner instance reviews the ratified
+- `{N.3}` TECH.md — Conditional (non-obvious, risky, or multi-subsystem
+  technical approach). A **fresh** Planner instance reviews the ratified
   PRODUCT.md and writes TECH.md via `write-tech-spec`. One Planner per
   subtask — Planners are not persistent across waves. The Planner cites the gitnexus_impact verdict for any symbol the spec slice mandates be modified — verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller count, and the names of the top-3 affected execution flows. Where no existing symbols match the spec domain, the Planner notes "gitnexus orientation: no existing symbols match — greenfield surface" in the TECH.md Context section.
 - `{N.4}` PLAN.md — Conditional; only when `planning-and-task-breakdown`

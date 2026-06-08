@@ -103,8 +103,8 @@ cd "$path"
 Auto-detect and run appropriate setup:
 
 ```bash
-# Node.js
-if [ -f package.json ]; then npm install; fi
+# Node.js (this repo uses Bun, not npm) — skip if node_modules is already provisioned
+if [ -f package.json ] && [ ! -e node_modules ]; then bun install; fi
 
 # Rust
 if [ -f Cargo.toml ]; then cargo build; fi
@@ -117,13 +117,21 @@ if [ -f pyproject.toml ]; then poetry install; fi
 if [ -f go.mod ]; then go mod download; fi
 ```
 
+**Don't reinstall already-symlinked deps.** When `node_modules`/`.venv`/`.bin`
+are provisioned by the harness's `worktree.symlinkDirectories` (the Agent-tool
+`isolation: "worktree"` path) or by a repo-root `.worktreeinclude`, they are
+shared from the main tree — reinstalling is wasted work that can clobber the
+shared build cache. The `[ ! -e node_modules ]` guard above skips `bun install`
+when the symlink (or directory) is already present; apply the same skip logic to
+`.venv`/`pip`.
+
 ### 4. Verify Clean Baseline
 
 Run tests to ensure worktree starts clean:
 
 ```bash
 # Examples - use project-appropriate command
-npm test
+bun run test
 cargo test
 pytest
 go test ./...

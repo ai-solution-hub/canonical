@@ -43,6 +43,15 @@ prompt. The brief carries:
   behaviour, STOP and escalate. Do not silently work around (CLAUDE.md
   "Agent escalation rule").
 
+### Curator-brief composition
+
+When dispatching the `workflow-curator`, the Orchestrator MUST supply a
+structured **docket** — the session-validated brief shape that eliminated
+curator stalls. The docket = finding packet + task context + the specific
+decision requested + the candidate routes (subtask / roadmap / backlog /
+no-action) + the ledger-write owner. The canonical docket shape is defined in
+`.claude/agents/workflow-curator.md` — author the brief against that section.
+
 ## cmux vs `/workflows` decision boundary
 
 A fourth surface exists alongside the three dispatch primitives above:

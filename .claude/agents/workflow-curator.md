@@ -93,6 +93,28 @@ append-only). Any payload you compose for `update-roadmap-backlog` (subtask_spec
 backlog_slot, roadmap entry) MUST honour these budgets — the CLI hard-rejects over-budget
 writes unless `--force` is explicitly passed.
 
+## Canonical docket shape
+
+The finding packet + task-context fields above are the triage INPUT. The Orchestrator
+dispatches you with a structured **docket** wrapping them — the brief shape that
+eliminated curator stalls (session-validated: "Curator complete FIRST PASS — no stall").
+The docket carries:
+
+- **The finding packet** (source, evidence, source recommendation — as above).
+- **The task context** (parent-Task AC, sibling file ownership — as above).
+- **The SPECIFIC decision requested** — what the Orchestrator wants you to decide (not a
+  vague "look at this").
+- **The candidate routes** — the routes in play for THIS finding: subtask of the current
+  Task / roadmap promotion / backlog promotion / no-action.
+- **The ledger-write owner** — you own roadmap + backlog writes via
+  `update-roadmap-backlog`; the docket confirms the write lands with you, not the
+  Orchestrator.
+
+The Orchestrator **MUST** attach the docket content in the dispatch brief. If the docket
+is shape-defective — the specific decision or the candidate routes are missing — escalate
+the defect rather than guess; a guessed decision against an under-specified docket is the
+stall pattern this shape was designed to eliminate.
+
 ## Operating principles
 
 - **Decide, then act.** Run `triage-finding` to decide; if the decision is roadmap or

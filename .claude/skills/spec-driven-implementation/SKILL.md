@@ -35,6 +35,13 @@ Specs should usually live in:
 - `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/TECH.md` — the `{N.3}` artefact
 - `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PLAN.md` — the `{N.4}` artefact
 
+Research is not codebase-only — `{N.1}` RESEARCH should pull in external sources
+where relevant (online / deep-research via the `deep-research` skill +
+`WebSearch` / `WebFetch`, external-tool / repo surveys, IMS / market docs), not
+just the current codebase, with externally-sourced API / library claims held to
+the same empirical-verification bar (import-and-call verified, never accepted
+from prose).
+
 **Forward naming convention (ID-48.4):** For any **new** Task spec dir
 authored from this point forward, use the prefix `ID-N-<slug>/` where:
 
@@ -89,6 +96,16 @@ Specs are often unnecessary for:
 
 For pure UI changes, the product spec is often useful while the tech spec may be
 unnecessary.
+
+**Right-size the spec chain to the task shape** — not every Task needs all four
+artefacts. Heuristic: author `{N.2}` PRODUCT when the change is user-facing or
+behaviourally ambiguous; author `{N.3}` TECH when the technical approach is
+non-obvious, risky, or spans multiple subsystems; `{N.1}` RESEARCH and `{N.4}`
+PLAN as warranted by uncertainty / decomposition size. The Orchestrator selects
+the artefact subset at Task open (the Planner may recommend an upgrade
+mid-`{N.1}` if research surfaces hidden complexity). ID-92 PRODUCT may later
+formalise named tiers + the recording location — keep this a heuristic, not a
+rigid gate.
 
 ## Workflow
 

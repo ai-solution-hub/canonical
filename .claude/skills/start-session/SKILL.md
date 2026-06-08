@@ -74,6 +74,13 @@ Read `docs/reference/task-list.json` at session start where a task whose `sessio
   in-flight discoveries the previous Executor / Checker left behind that may
   have been omitted from the continuation prompt.
 
+### 2c: Sandbox / allowlist carryover
+
+Read the prior handoff's `Sandbox / allowlist carryover` section and surface it at
+session start — apply any allowlist candidates and be aware of commands that will
+need `dangerouslyDisableSandbox` (e.g. the documented `next build` Turbopack
+sandbox failure).
+
 ---
 
 ## Step 3: Review Continuation Prompt and Confirm Session Plan

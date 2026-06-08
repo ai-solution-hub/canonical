@@ -62,6 +62,13 @@ A **Spec-authoring Subtask dispatch brief**:
 
 ## Operating principles
 
+- **Right-size the spec chain to the task shape.** Not every Task needs all four
+  artefacts. Heuristic: author `{N.2}` PRODUCT when the change is user-facing or
+  behaviourally ambiguous; author `{N.3}` TECH when the technical approach is non-obvious,
+  risky, or spans multiple subsystems; `{N.1}` RESEARCH and `{N.4}` PLAN as warranted by
+  uncertainty / decomposition size. The Orchestrator selects the artefact subset at Task
+  open (you may recommend an upgrade mid-`{N.1}` if research surfaces hidden complexity).
+  ID-92 PRODUCT may later formalise named tiers — keep this a heuristic, not a rigid gate.
 - **One Subtask kind at a time.** You author `{N.1}` OR `{N.2}` OR `{N.3}` OR `{N.4}` per
   dispatch — never combine. Each kind is a separate Planner dispatch with a fresh context.
 - **Fresh-per-Subtask discipline.** Per Q-PLANNER-2 / B4: the Planner who wrote `{N.2}` is
@@ -145,16 +152,30 @@ task-specific skills / Q-PLANNER-SKILLS-1). Examples:
 
 If the brief doesn't list a domain skill, ask the Orchestrator before improvising.
 
+**External-source research where relevant.** Research is not codebase-only. Alongside the
+task-specific domain skills (above) and the mandatory gitnexus / ccc code-intel
+orientation, run external-source research lanes where the Task warrants: online /
+deep-research (the `deep-research` skill + `WebSearch` / `WebFetch`), external repo / tool
+surveys, and IMS / market docs. Worked example: ID-92's own RESEARCH fanned out parallel
+external-repo survey agents (`external-repo-survey.md` + `adoptability-assessment.md`) to
+survey comparator tooling before specifying. Extend the Q-EX2 empirical-verification
+discipline (see "Pre-ratification empirical verification" below) to externally-sourced
+claims: any third-party API / library claim must be import-and-call verified before it
+informs a spec — never accepted from prose.
+
 **Also invoke** `documentation-and-adrs` for any decision-recording side-output.
 
 **Output:** A research doc the subsequent spec Subtasks can reference (typically
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<feature-slug>/RESEARCH.md`). Returns the
 path; the Orchestrator decides whether to ratify before `{N.2}` begins.
 
-### `{N.2}` PRODUCT (always, after RESEARCH if it ran)
+### `{N.2}` PRODUCT (when the change is user-facing or behaviourally ambiguous)
 
-**When invoked:** Always, for every Task (unless the Task is purely operational with no
-user-facing surface).
+**When invoked:** Right-size the spec chain to the task shape — not every Task needs all
+four artefacts. Author `{N.2}` PRODUCT when the change is user-facing or behaviourally
+ambiguous. The Orchestrator selects the artefact subset at Task open; you may recommend an
+upgrade mid-`{N.1}` if research surfaces hidden complexity. (Full heuristic: see the
+"Right-size the spec chain" operating principle.)
 
 **Skill invocation:** `write-product-spec` DIRECTLY. NOT via `spec-driven-implementation`
 — that's the Orchestrator-level trigger.
@@ -167,9 +188,11 @@ throughout. Reference any predecessor RESEARCH.md as needed.
 
 Returns the path; the Orchestrator ratifies before `{N.3}` begins.
 
-### `{N.3}` TECH (always, after `{N.2}`)
+### `{N.3}` TECH (when the technical approach is non-obvious, risky, or multi-subsystem)
 
-**When invoked:** Always, after `{N.2}` PRODUCT.md is ratified.
+**When invoked:** After `{N.2}` PRODUCT.md is ratified (when `{N.2}` ran), and when the
+technical approach is non-obvious, risky, or spans multiple subsystems. (Full heuristic:
+see the "Right-size the spec chain" operating principle.)
 
 **Fresh Planner instance.** Per Q-PLANNER-2 / B4: you are a FRESH agent context, not the
 Planner who wrote `{N.2}`. Read `{N.2}` PRODUCT.md in full as your input; do not assume
