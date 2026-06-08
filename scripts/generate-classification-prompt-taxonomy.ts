@@ -3,7 +3,9 @@
  *
  * Fetches taxonomy domains and subtopics from the database and injects the
  * generated markdown between <!-- TAXONOMY_START --> and <!-- TAXONOMY_END -->
- * markers in docs/reference/classification-prompt.md.
+ * markers in the classification prompt. The prompt was relocated private
+ * ({68.23}); its path resolves via the KH_PRIVATE_DOCS_DIR bridge
+ * (resolvePrivateDocsDir → ops/classification-prompt.md), fail-loud opt-in.
  *
  * Domain descriptions come from the DB `taxonomy_domains.description` column.
  * "Key signal" paragraphs come from the DB `taxonomy_domains.key_signal` column
@@ -240,9 +242,9 @@ async function main() {
   );
 
   if (changed) {
-    console.log('UPDATED docs/reference/classification-prompt.md');
+    console.log(`UPDATED ${PROMPT_PATH}`);
   } else {
-    console.log('SKIPPED docs/reference/classification-prompt.md (no changes)');
+    console.log(`SKIPPED ${PROMPT_PATH} (no changes)`);
   }
 }
 
