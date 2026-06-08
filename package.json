@@ -24,6 +24,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:private-docs": "VITEST_PRIVATE_DOCS=1 vitest run __tests__/mcp/plugin-taxonomy-consistency.test.ts __tests__/validation/taxonomy-consistency.test.ts",
     "test:build": "vitest run __tests__/build",
     "test:e2e:ui": "playwright test --ui",
     "bundle:mcp-apps": "bun run scripts/bundle-mcp-apps.ts",

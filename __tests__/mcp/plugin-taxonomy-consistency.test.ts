@@ -40,18 +40,24 @@ const SEARCH_SKILL_PATH = join(
 const PLUGIN_ROOT = join(PROJECT_ROOT, '.claude/plugins/knowledge-hub/1.0.0');
 const PLUGIN_EXISTS = existsSync(PLUGIN_ROOT);
 
-// skipIf documents WHY it skips: classification-prompt relocated private
-// ({68.23}); plugin↔prompt parity runs locally / in the bridge-opt-in lane
-// where KH_PRIVATE_DOCS_DIR resolves, not in PR-CI (Inv 30 — no PR-blocking
-// Vitest may depend on the bridge knob).
-describe.skipIf(!PLUGIN_EXISTS || !PROMPT_EXISTS)(
-  'Plugin Taxonomy Consistency',
+// Deliberate opt-in lane ({98.1}): this guard depends on the private docs-site
+// checkout (classification-prompt.md relocated private under {68.23}) plus the
+// committed plugin tree. Inv 30 forbids any PR-blocking Vitest from hard-
+// requiring KH_PRIVATE_DOCS_DIR, so the default `bun run test` (env unset) must
+// SKIP — but LOUDLY, not silently. Run the lane with `bun run test:private-docs`
+// (sets VITEST_PRIVATE_DOCS=1) against a resolvable docs-site checkout.
+const PRIVATE_DOCS_LANE = process.env.VITEST_PRIVATE_DOCS === '1';
+const RUN_PARITY = PRIVATE_DOCS_LANE && PLUGIN_EXISTS && PROMPT_EXISTS;
+const describeParity = RUN_PARITY ? describe : describe.skip;
+
+describeParity(
+  'Plugin Taxonomy Consistency (opt-in: VITEST_PRIVATE_DOCS=1 + docs-site checkout)',
   () => {
     let canonicalMap: Map<string, CanonicalSubtopic[]>;
     let canonicalDomains: Set<string>;
 
     beforeAll(() => {
-      // CANONICAL_PATH is non-null here: the skipIf above guarantees
+      // CANONICAL_PATH is non-null here: the RUN_PARITY gate above guarantees
       // PROMPT_EXISTS, which implies CANONICAL_PATH !== null.
       canonicalMap = parseCanonicalTaxonomy(CANONICAL_PATH as string);
       canonicalDomains = new Set(canonicalMap.keys());

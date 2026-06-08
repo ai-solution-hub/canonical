@@ -1,13 +1,22 @@
 /**
  * Taxonomy consistency tests.
  *
- * Verifies that the classification prompt (docs/reference/classification-prompt.md),
- * the DB taxonomy snapshot (scripts/tests/fixtures/taxonomy_snapshot.json), and
- * the code constants (lib/validation/schemas.ts) all agree.
+ * Verifies that the classification prompt (docs-site ops/classification-prompt.md,
+ * resolved via the KH_PRIVATE_DOCS_DIR bridge), the DB taxonomy snapshot
+ * (scripts/tests/fixtures/taxonomy_snapshot.json), and the code constants
+ * (lib/validation/schemas.ts) all agree.
  *
  * The DB is the single source of truth. The classification prompt must reflect
  * the baseline taxonomy. The snapshot is refreshed via:
  *   bun run scripts/generate-taxonomy-snapshot.ts
+ *
+ * The snapshot-only blocks (DB Snapshot Integrity, Snapshot Freshness) run on
+ * the committed fixture and stay live in the default `bun run test`. The
+ * Classification-Prompt-vs-DB-Snapshot block depends on the private docs-site
+ * checkout (classification-prompt.md relocated private under {68.23}); per
+ * Inv 30 it is a deliberate opt-in lane — run with `bun run test:private-docs`
+ * (sets VITEST_PRIVATE_DOCS=1) against a resolvable docs-site checkout. With the
+ * env unset it SKIPS loudly via describe.skip, never silently.
  *
  * Run: bun run test -- __tests__/validation/taxonomy-consistency.test.ts
  */
@@ -15,13 +24,23 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect, beforeAll } from 'vitest';
+import { resolvePrivateDocsDir } from '../../lib/private-docs';
 import { parseCanonicalTaxonomy } from '../../scripts/lib/taxonomy-parser';
 
 const PROJECT_ROOT = join(__dirname, '../..');
-const CANONICAL_PATH = join(
-  PROJECT_ROOT,
-  'docs/reference/classification-prompt.md',
-);
+
+// classification-prompt.md relocated private ({68.23}); resolve via the
+// KH_PRIVATE_DOCS_DIR bridge. resolvePrivateDocsDir() is fail-LOUD (Inv 29):
+// wrap so an unresolvable private-docs dir yields a null path (and
+// PROMPT_EXISTS = false), NOT a thrown error at collection.
+function resolveCanonicalPath(): string | null {
+  try {
+    return join(resolvePrivateDocsDir(), 'ops', 'classification-prompt.md');
+  } catch {
+    return null;
+  }
+}
+const CANONICAL_PATH = resolveCanonicalPath();
 const SNAPSHOT_PATH = join(
   PROJECT_ROOT,
   'scripts/tests/fixtures/taxonomy_snapshot.json',
@@ -55,7 +74,16 @@ interface TaxonomySnapshot {
 }
 
 const SNAPSHOT_EXISTS = existsSync(SNAPSHOT_PATH);
-const PROMPT_EXISTS = existsSync(CANONICAL_PATH);
+const PROMPT_EXISTS = CANONICAL_PATH !== null && existsSync(CANONICAL_PATH);
+
+// Deliberate opt-in lane ({98.1}): the prompt-vs-snapshot parity check needs the
+// private docs-site checkout. Inv 30 forbids any PR-blocking Vitest from hard-
+// requiring KH_PRIVATE_DOCS_DIR, so the default `bun run test` (env unset) must
+// SKIP — but LOUDLY (describe.skip), not silently. Run the lane with
+// `bun run test:private-docs` (sets VITEST_PRIVATE_DOCS=1).
+const PRIVATE_DOCS_LANE = process.env.VITEST_PRIVATE_DOCS === '1';
+const RUN_PROMPT_PARITY = PRIVATE_DOCS_LANE && SNAPSHOT_EXISTS && PROMPT_EXISTS;
+const describePromptParity = RUN_PROMPT_PARITY ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -127,15 +155,17 @@ describe('Taxonomy Consistency', () => {
     });
   });
 
-  describe.skipIf(!SNAPSHOT_EXISTS || !PROMPT_EXISTS)(
-    'Classification Prompt vs DB Snapshot',
+  describePromptParity(
+    'Classification Prompt vs DB Snapshot (opt-in: VITEST_PRIVATE_DOCS=1 + docs-site checkout)',
     () => {
       let snapshot: TaxonomySnapshot;
       let promptMap: Map<string, { slug: string; desc: string }[]>;
 
       beforeAll(() => {
         snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8'));
-        promptMap = parseCanonicalTaxonomy(CANONICAL_PATH);
+        // CANONICAL_PATH is non-null here: the RUN_PROMPT_PARITY gate guarantees
+        // PROMPT_EXISTS, which implies CANONICAL_PATH !== null.
+        promptMap = parseCanonicalTaxonomy(CANONICAL_PATH as string);
       });
 
       it('prompt domains should match all active DB domains (case-insensitive)', () => {
