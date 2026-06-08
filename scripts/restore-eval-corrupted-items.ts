@@ -9,8 +9,18 @@
  * after processing 18 items (items 1-17 complete, item 18 possibly partial).
  *
  * This script restores entity_mentions + holds_relationships for the 18
- * affected items from the pre-eval snapshot at
- * `docs/audits/ts-eval-preflight-2026-04-25.json`.
+ * affected items from a pre-eval snapshot.
+ *
+ * SNAPSHOT LOCATION: the snapshot file (ts-eval-preflight-2026-04-25.json) was
+ * archived OUT of this repo under ID-68.28 and now lives in the
+ * knowledge-hub-archive sibling repo at
+ * `../knowledge-hub-archive/audits/ts-eval-preflight-2026-04-25.json`.
+ * It is therefore a REQUIRED CLI argument — pass it explicitly (see usage
+ * below). There is no hardcoded default (the old `docs/audits/` default is now
+ * dangling).
+ *
+ * Usage:
+ *   bun run scripts/restore-eval-corrupted-items.ts --snapshot <path> [--env=prod]
  *
  * NOTE: Non-holds entity_relationships for the affected items are NOT
  * restored because the snapshot only captured holds rels. This is minor
@@ -63,7 +73,19 @@ loadEnvFile('.env');
 // covers both runs, is idempotent, returns prod to pre-eval baseline.
 const CORRUPTED_ITEM_IDS = 'ALL' as const;
 
-const SNAPSHOT_PATH = 'docs/audits/ts-eval-preflight-2026-04-25.json';
+// The pre-eval snapshot was archived OUT of this repo under ID-68.28; it now
+// lives at ../knowledge-hub-archive/audits/ts-eval-preflight-2026-04-25.json.
+// Resolved from a REQUIRED --snapshot CLI argument — no hardcoded default.
+const ARCHIVE_SNAPSHOT_HINT =
+  '../knowledge-hub-archive/audits/ts-eval-preflight-2026-04-25.json';
+
+function parseSnapshotPath(argv: string[]): string {
+  const eqArg = argv.find((a) => a.startsWith('--snapshot='));
+  if (eqArg) return eqArg.slice('--snapshot='.length);
+  const idx = argv.indexOf('--snapshot');
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1];
+  return '';
+}
 
 interface MentionRow {
   id: string;
@@ -128,13 +150,27 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  assertEnvFlag(parseEnvFlag(process.argv.slice(2)), url);
+  const argv = process.argv.slice(2);
+  assertEnvFlag(parseEnvFlag(argv), url);
+
+  const snapshotPath = parseSnapshotPath(argv);
+  if (!snapshotPath) {
+    console.error(
+      'Missing required --snapshot <path>.\n' +
+        'The pre-eval snapshot was archived out of this repo under ID-68.28; ' +
+        'it now lives in the knowledge-hub-archive sibling repo at\n' +
+        `  ${ARCHIVE_SNAPSHOT_HINT}\n` +
+        'Run: bun run scripts/restore-eval-corrupted-items.ts --snapshot ' +
+        `${ARCHIVE_SNAPSHOT_HINT}`,
+    );
+    process.exit(2);
+  }
 
   const supabase = createClient<Database>(url, key, {
     auth: { persistSession: false },
   });
 
-  const snapshot: Snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf-8'));
+  const snapshot: Snapshot = JSON.parse(readFileSync(snapshotPath, 'utf-8'));
 
   const targetItemIds =
     CORRUPTED_ITEM_IDS === 'ALL'

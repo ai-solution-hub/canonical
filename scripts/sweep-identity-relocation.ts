@@ -39,8 +39,10 @@
  * Usage:
  *   bun scripts/sweep-identity-relocation.ts [--denylist <path>] [--out <path>]
  *
- * Default output: docs/audits/id68-pc40-sweep-report.md (stable path —
- * re-runs overwrite; the report header cites the HEAD SHA of each run).
+ * Default output: id68-pc40-sweep-report.md at the repo root (non-tracked;
+ * re-runs overwrite; the report header cites the HEAD SHA of each run). The
+ * former docs/audits/ default was archived OUT of this repo under ID-68.28 —
+ * defaulting there would resurrect the archived dir. Pass --out to relocate.
  *
  * Outputs feed: record 15 (guard exclusion-list seed), record 19 (categorised
  * de-ID work list), record 27 (OQ-E evidence), record 29 (purge path
@@ -588,7 +590,12 @@ function main(): void {
   const denylist: Denylist = JSON.parse(readFileSync(denylistPath, 'utf8'));
   const exclusions = denylist.exclusion_patterns ?? [];
 
-  const outPath = resolve(args.out ?? 'docs/audits/id68-pc40-sweep-report.md');
+  // Default to a repo-root, non-tracked path. The original default
+  // (docs/audits/id68-pc40-sweep-report.md) was archived OUT of this repo under
+  // ID-68.28 (moved to the knowledge-hub-archive sibling); defaulting there
+  // would resurrect the archived docs/audits/ dir on the next run. Override
+  // with --out as before.
+  const outPath = resolve(args.out ?? 'id68-pc40-sweep-report.md');
   const outRel = outPath.startsWith(repoRoot + '/')
     ? outPath.slice(repoRoot.length + 1)
     : outPath;
