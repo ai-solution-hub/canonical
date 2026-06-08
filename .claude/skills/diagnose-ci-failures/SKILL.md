@@ -11,6 +11,8 @@ Programmatically diagnose CI failures for a PR and generate a plan to fix them.
 
 This skill provides a deterministic workflow to check CI status for a PR, extract failure logs, analyze errors, and create a plan (not code changes) to resolve issues. The output is always a plan document that can be reviewed before execution.
 
+> **Prefer `gh-axi` over raw `gh`.** It returns pre-aggregated CI rollups (`N passed, M failed`) so you don't paginate check rows, truncates logs with a `--full` escape, and translates errors into actionable messages. Fall back to raw `gh` only for subcommands `gh-axi` doesn't wrap; `gh-axi api` is the raw-API escape hatch. Never run `gh-axi setup hooks` — it writes SessionStart hooks into `~/.claude/settings.json`, bypassing our settings governance.
+
 ## Workflow
 
 ### 1. Verify PR exists for current branch
@@ -22,7 +24,7 @@ Get the current branch and check if a PR exists:
 git branch --show-current
 
 # Check for PR
-gh --no-pager pr view <branch-name> --json number,title,url,state
+gh-axi --no-pager pr view <branch-name> --json number,title,url,state
 ```
 
 If no PR exists, inform the user and offer to create one using the `create-pr` skill.
@@ -32,7 +34,7 @@ If no PR exists, inform the user and offer to create one using the `create-pr` s
 Fetch the status of all CI checks:
 
 ```bash
-gh pr view <branch-name> --json statusCheckRollup
+gh-axi pr view <branch-name> --json statusCheckRollup
 ```
 
 Parse the output to identify:
@@ -47,7 +49,7 @@ If CI is still running, inform the user which checks have already failed or pass
 For each failed check, pull the logs using the run ID from the status check:
 
 ```bash
-gh run view <run-id> --log-failed
+gh-axi run view <run-id> --log-failed
 ```
 
 Focus on extracting:
@@ -98,15 +100,15 @@ The plan should reference the `fix-errors` skill for detailed guidance on resolv
 
 **Get PR status with details:**
 ```bash
-gh --no-pager pr view --json number,title,state,statusCheckRollup
+gh-axi --no-pager pr view --json number,title,state,statusCheckRollup
 ```
 
 **Get logs from specific failed run:**
 ```bash
-gh run view 12345678 --log-failed
+gh-axi run view 12345678 --log-failed
 ```
 
 **Check for specific error in logs:**
 ```bash
-gh run view 12345678 --log-failed 2>&1 | grep -A 5 "error:"
+gh-axi run view 12345678 --log-failed 2>&1 | grep -A 5 "error:"
 ```

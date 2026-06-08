@@ -279,6 +279,18 @@ Mempalace MCP server is the canonical memory system.
   process binds a port and dies with `Operation not permitted`. Dispatches that invoke
   `next build` need `dangerouslyDisableSandbox: true` on that command. Distinct from
   bl-243 (the `.bin`/`.venv` broken-symlink defect — different fix surface).
+- **GitHub via `gh-axi` (ID-92):** Prefer `gh-axi` over raw `gh` for GitHub ops —
+  pre-aggregated CI rollups (`N passed, M failed`), log/diff truncation with a `--full`
+  escape, and structured error translation (benchmark-proven vs raw `gh`). Fall back to
+  raw `gh` only for subcommands `gh-axi` doesn't wrap; `gh-axi api` is the raw-API escape
+  hatch. **Never run any AXI-family `setup hooks`** (`gh-axi`/`chrome-devtools-axi`/… ) —
+  they write `SessionStart` hooks into `~/.claude/settings.json`, bypassing settings
+  governance; route ambient context through `update-config` instead.
+- **AXI tool state dirs need sandbox-off (ID-92):** `chrome-devtools-axi`
+  (`~/.chrome-devtools-axi/` + `127.0.0.1:9224` bridge daemon) and `lavish-axi`
+  (`~/.lavish-axi/`) create state dirs / bind ports — run with
+  `dangerouslyDisableSandbox: true` or allowlist those dirs via `/sandbox`. `gh-axi` has
+  no such state dir (it shells out to `gh`).
 - **Worktree pytest must run from the worktree CWD:** main-repo-CWD invocations resolve
   `scripts.*` to the MAIN tree's modules (namespace-package hazard — spurious
   failures/passes against stale code).
