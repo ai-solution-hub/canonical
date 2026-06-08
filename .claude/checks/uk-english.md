@@ -32,8 +32,8 @@ English conventions. The client is also UK-based.
 3. **Use "unauthorised" not "unauthorized".** The project uses `unauthorisedResponse()` in
    `lib/auth.ts`. Follow this convention.
 
-4. **Use "summarise" not "summarize" in new code.** The pipeline module is
-   `scripts/kb_pipeline/summarise.py`.
+4. **Use "summarise" not "summarize" in new code.** Apply the `-ise` spelling consistently
+   across identifiers, comments, and copy.
 
 5. **Error messages and UI copy must use UK English.** For example, "Colour" not "Color"
    in form labels, "Organisation" not "Organization" in UI text.

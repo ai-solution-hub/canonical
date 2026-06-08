@@ -12,7 +12,7 @@ Three parts:
   Stage 2  — prototype mapping: derive heading_text / heading_level /
              heading_path / parent_chunk_id (as parent position) for each
              splitter chunk from offsets + a source-side heading index.
-             Mirrors legacy semantics (scripts/kb_pipeline/chunk.py:78-107).
+             Mirrors legacy chunker semantics.
   Stage 3  — structural proxy eval (substituted for recall@k — justification
              in the spike doc §Stage-3): heading-boundary alignment, section
              purity, and derived-heading truthfulness, budget-split
@@ -127,7 +127,7 @@ class DerivedColumns:
     starts the nearest ancestor heading's section); in flow.py it becomes
     parent_chunk_id = uuid5(_KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{parent_position}")
     — fully deterministic, no second-pass UPDATE needed (unlike the legacy
-    scripts/kb_pipeline/chunk.py:266-281 PATCH pass).
+    chunker's PATCH pass).
     """
 
     heading_text: str | None
@@ -141,7 +141,7 @@ def derive_heading_columns(
 ) -> list[DerivedColumns]:
     """Map each chunk (by start char offset) to the four heading columns.
 
-    Semantics mirror the legacy chunker (scripts/kb_pipeline/chunk.py:78-107):
+    Semantics mirror the legacy chunker:
       - governing heading = deepest heading at-or-before the chunk start
         (the heading "in effect" where the chunk begins);
       - heading_path = ancestor stack from root down to and including it;

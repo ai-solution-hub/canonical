@@ -140,7 +140,7 @@ export function collectFileStats(): Record<string, number> {
     ai_skill_files: countFiles('lib/ai/skills/*.md'),
     validation_files: countFiles('lib/validation/*.ts'),
     extraction_files: countFiles('lib/extraction/*.ts'),
-    pipeline_modules: countFiles('scripts/kb_pipeline/*.py'),
+    pipeline_modules: countFiles('scripts/cocoindex_pipeline/*.py'),
     mcp_tool_category_files:
       countFiles('lib/mcp/tools/*.ts') -
       (fs.existsSync(path.join(ROOT, 'lib/mcp/tools/index.ts')) ? 1 : 0) -

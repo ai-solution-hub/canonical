@@ -66,7 +66,7 @@ from tenacity import (
 
 
 # Production Anthropic model — single source of truth for the 3 extractors
-# below; mirrors lib/anthropic.ts + scripts/kb_pipeline/config.py.
+# below; mirrors lib/anthropic.ts.
 ANTHROPIC_MODEL = "claude-opus-4-6"
 
 
@@ -909,8 +909,7 @@ def _cached_system_block(prompt: str) -> list[dict[str, object]]:
     `content_text` (the uncached user-message suffix) is billed at the full
     input rate on subsequent calls within the cache TTL.
 
-    Prior art: `lib/ai/draft.ts` (cachedBlocks vs uncachedBlocks) and the
-    legacy `kb_pipeline/classify.py` system-block cache_control. Shape
+    Prior art: `lib/ai/draft.ts` (cachedBlocks vs uncachedBlocks). Shape
     verified against the pinned anthropic SDK (0.79.0):
     `TextBlockParam.cache_control: Optional[CacheControlEphemeralParam]`,
     and `messages.stream(...)` accepts

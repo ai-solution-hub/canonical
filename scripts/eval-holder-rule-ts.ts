@@ -2,7 +2,7 @@
 /**
  * eval-holder-rule-ts.ts — TS classifier holder-rule eval (§1.16 / §12).
  *
- * Mirrors scripts/kb_pipeline/eval_holder_rule.py for TS-written metadata.
+ * Holder-rule eval for TS-written metadata.
  * Evaluates the TS classifier's `entity_mentions.metadata.holder` derivation
  * against ground-truth `holds` relationships in `entity_relationships`.
  *

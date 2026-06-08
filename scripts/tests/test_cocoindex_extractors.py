@@ -949,8 +949,7 @@ class TestPromptCachePassthrough:
     `cache_control: {"type": "ephemeral"}` breakpoint, with ONLY the
     per-document `content_text` in the uncached user-message suffix. The
     pattern mirrors the proven prior art (`lib/ai/draft.ts` cachedBlocks vs
-    uncachedBlocks; legacy `kb_pipeline/classify.py` system-block
-    cache_control) and was verified against the pinned anthropic SDK
+    uncachedBlocks) and was verified against the pinned anthropic SDK
     (0.79.0: `TextBlockParam.cache_control: Optional[CacheControlEphemeralParam]`,
     and `messages.stream(...)` accepts `system: Union[str, Iterable[TextBlockParam]]`).
 

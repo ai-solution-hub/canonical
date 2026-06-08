@@ -4,8 +4,7 @@
  * One helper, three callers:
  *   1. UI admin flow (`PATCH /api/items/:id` — see WP-B.5)
  *   2. MCP tool (`supersede_content_item` — see WP-B.4)
- *   3. Python ingest `--auto-supersede` (Python equivalent in
- *      `scripts/kb_pipeline/supersede.py`)
+ *   3. Python ingest `--auto-supersede` (cocoindex pipeline equivalent)
  *
  * Responsibility: validate inputs, write `superseded_by` on the OLD row,
  * flip its `dedup_status` to `'superseded'`, and emit a Sentry breadcrumb

@@ -5,8 +5,8 @@ canonical_name via this function BEFORE Stage-5 runs. The Stage-5
 post-pass (§P-6) UPDATEs the value when cross-document resolution
 maps to a different canonical; Stage-5 NEVER inserts rows.
 
-Algorithm mirrors scripts/kb_pipeline/classify.py canonicalise() so
-pipeline-produced canonicals match the legacy KB-pipeline contract.
+Algorithm mirrors the legacy canonicalise() semantics so
+pipeline-produced canonicals match the established canonicalisation contract.
 """
 
 from __future__ import annotations

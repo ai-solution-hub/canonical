@@ -162,7 +162,7 @@ class TestFlowModuleIdleLoad:
 
     def test_anthropic_model_constant_is_canonical(self) -> None:
         """flow.ANTHROPIC_MODEL == 'claude-opus-4-6' per cocoindex-extraction-
-        contract TECH §3.1 + lib/anthropic.ts:29 + scripts/kb_pipeline/config.py:29,
+        contract TECH §3.1 + lib/anthropic.ts:29,
         AND it is the *same object* re-exported from extraction.py — proving a
         single source of truth (ID-44.3 dedup), not two equal literals that can
         silently drift on a model upgrade."""

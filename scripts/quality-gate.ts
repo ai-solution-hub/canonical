@@ -886,7 +886,7 @@ export async function classified_domains_not_empty(
       threshold: '0 rows with empty-string classification cells',
       observed: `found=${rows.length}`,
       diagnostic: rows.length
-        ? `Empty-string cells: ${sample} — check NULLIF in scripts/kb_pipeline/classify.py`
+        ? `Empty-string cells: ${sample} — check NULLIF handling in the classification pipeline`
         : '',
       duration_ms: now() - t0,
     };

@@ -73,7 +73,7 @@ tests, and test files must follow the established Vitest patterns.
    (`vi.fn()`, `vi.mock()`) for external dependencies.
 
 6. **Python tests follow the same principles.** Python tests live in `scripts/tests/` and
-   use `pytest`. New pipeline functions in `scripts/kb_pipeline/` should have
+   use `pytest`. New pipeline functions in `scripts/cocoindex_pipeline/` should have
    corresponding tests.
 
 ## Examples
