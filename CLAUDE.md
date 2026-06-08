@@ -145,6 +145,15 @@ Full inventory of all reference docs: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/r
 > FAIL LOUDLY when the knob is unset — there is NO fallback to the in-repo `docs/` tree
 > (Inv 29). Staying in-repo, no knob: the `docs/reference/*.json` ledgers + their
 > mirrors (ID-20 Gate 2 boundary) and `docs/continuation-prompts/` (Class 3 interim).
+>
+> **Docs upkeep is automated IN the docs-site repo**, not via any in-repo command. The
+> `knowledge-hub-docs-site` repo carries its own `.claude/`: six docs-maintenance skills
+> (`keep-docs-in-sync`, `sync-source-docs`, `missing-docs`, `check-for-broken-links`,
+> `docs-seo-audit`, `review-docs-pr`), the two workflow-evaluation skills
+> (`evaluate-workflow`, `evaluate-findings`) + the `workflow-evaluator` agent, and the
+> **docubot** lane — a GitHub App + composite action that opens follow-up docs PRs in the
+> docs-site repo reacting to merged public-KH source PRs (`docubot.yml`, dispatched by the
+> public repo's `docs-dispatch.yml`).
 
 Historical planning: relocated to the `knowledge-hub-archive` cold-storage repo (sibling
 checkout; formerly `.planning/.archive/`). Grep there explicitly when researching past
