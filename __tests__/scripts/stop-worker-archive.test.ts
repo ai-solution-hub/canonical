@@ -87,7 +87,7 @@ function runStopWorker(
     ...process.env,
     KH_CMUX_EVENTS_DIR: h.eventsBase,
     // ID-68 PC-25 (64c9d72c): the default ARCHIVE_BASE resolves
-    // ${KH_PRIVATE_DOCS_DIR:?fail-loud}/workflow-evaluation/sessions — pin the
+    // ${KH_PRIVATE_DOCS_DIR:?fail-loud}/src/content/docs/workflow-evaluation/sessions — pin the
     // knob inside the harness tmp tree so default-derivation tests exercise
     // the real contract without touching a live private-docs checkout.
     KH_PRIVATE_DOCS_DIR: join(h.tmp, 'kh-private-docs'),
@@ -171,7 +171,7 @@ describe('stop-worker.sh --archive', () => {
     );
     const derivedDefault = join(
       harness.tmp,
-      'kh-private-docs/workflow-evaluation/sessions',
+      'kh-private-docs/src/content/docs/workflow-evaluation/sessions',
       `session-${harness.sessionId}`,
       harness.workerName,
     );
@@ -190,7 +190,7 @@ describe('stop-worker.sh --archive', () => {
 
     const derived = join(
       harness.tmp,
-      'kh-private-docs/workflow-evaluation/sessions',
+      'kh-private-docs/src/content/docs/workflow-evaluation/sessions',
       `session-${harness.sessionId}`,
       harness.workerName,
     );
@@ -212,7 +212,7 @@ describe('stop-worker.sh --archive', () => {
     expect(r.status, `stderr: ${r.stderr}\nstdout: ${r.stdout}`).toBe(0);
     const derived = join(
       harness.tmp,
-      'kh-private-docs/workflow-evaluation/sessions',
+      'kh-private-docs/src/content/docs/workflow-evaluation/sessions',
       'S282',
       harness.workerName,
     );
