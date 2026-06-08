@@ -330,6 +330,14 @@ class QAPair(BaseModel):
     evaluation_criteria: str | None = None
     evidence_requirements: list[str] = Field(default_factory=list)
     scope_tags: list[str] = Field(default_factory=list)
+    # ID-94.1 (G4, ratified ID-93 register §6.7): 3-5 alternate question
+    # phrasings captured at ingest — the cheapest capture moment — enabling
+    # rephrase-invariant search_qa_library matching without per-query LLM cost.
+    # May be empty (the LLM emits [] when no useful rephrasings apply). Maps to
+    # q_a_extractions.alternate_question_phrasings (text[] NOT NULL DEFAULT '{}',
+    # migration 20260608210723); carried through to
+    # q_a_pairs.alternate_question_phrasings at UC5 promotion (ID-45 spec chain).
+    question_phrasings: list[str] = Field(default_factory=list)
 
 
 class QAFormExtraction(_ExtractionCore):

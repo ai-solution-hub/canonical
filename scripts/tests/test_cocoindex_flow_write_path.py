@@ -186,10 +186,13 @@ class TestIngestFileWritePath:
                         "evaluation_criteria": "scored on completeness",
                         "evidence_requirements": ["certificate"],
                         "scope_tags": ["lot-1"],
+                        # ID-94.1 (G4): alternate phrasings captured at ingest.
+                        "question_phrasings": ["What's X?", "Define X.", "Explain X."],
                     },
                     # Default-fallback pair: omits the optional/list fields so the
                     # write-path must supply the Pydantic-equivalent defaults
-                    # (None for evaluation_criteria, [] for the two list fields).
+                    # (None for evaluation_criteria, [] for the list fields incl.
+                    # alternate_question_phrasings).
                     {
                         "question_text": "What is Z?",
                         "answer_text": "Z is W.",
@@ -317,6 +320,16 @@ class TestIngestFileWritePath:
         assert qa_row["scope_tags"] == ["lot-1"], (
             "scope_tags must reach the q_a_extractions row (OQ-52-LOSSY)"
         )
+        # ID-94.1 (G4): alternate phrasings reach the q_a_extractions row as a
+        # text[] list, mapped from the QAPair.question_phrasings field.
+        assert qa_row["alternate_question_phrasings"] == [
+            "What's X?",
+            "Define X.",
+            "Explain X.",
+        ], (
+            "question_phrasings must reach q_a_extractions."
+            "alternate_question_phrasings (ID-94.1 G4)"
+        )
         # Default-fallback pair: omitted fields take the Pydantic-equivalent
         # defaults — None for the optional scalar, [] for the two list columns.
         qa_row_default = qa.rows[1]
@@ -332,6 +345,11 @@ class TestIngestFileWritePath:
         )
         assert qa_row_default["scope_tags"] == [], (
             "scope_tags defaults to [] when the pair omits it"
+        )
+        # ID-94.1 (G4): omitted phrasings default to [] (mirrors the DB
+        # NOT NULL DEFAULT '{}'), keeping every pair's row insert valid.
+        assert qa_row_default["alternate_question_phrasings"] == [], (
+            "alternate_question_phrasings defaults to [] when the pair omits it"
         )
 
     def test_ingest_file_is_exposed_and_callable(self) -> None:
@@ -812,6 +830,11 @@ class TestInv19QaDeclareSnapshot:
             "evaluation_criteria": "scored on completeness",
             "evidence_requirements": ["certificate"],
             "scope_tags": ["lot-1"],
+            # ID-94.1 (G4): the _fake_qa input omits question_phrasings for both
+            # pairs, so the write-path declares the [] default (mirrors the DB
+            # NOT NULL DEFAULT '{}'). Frozen into the golden so a future drop or
+            # rename of the key fails the Inv-19 snapshot.
+            "alternate_question_phrasings": [],
             "extraction_metadata": {
                 "extraction_kind": "q_a_form",
                 "qa_index": 0,
@@ -829,6 +852,7 @@ class TestInv19QaDeclareSnapshot:
             "evaluation_criteria": None,
             "evidence_requirements": [],
             "scope_tags": [],
+            "alternate_question_phrasings": [],
             "extraction_metadata": {
                 "extraction_kind": "q_a_form",
                 "qa_index": 1,

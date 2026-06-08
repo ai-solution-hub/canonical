@@ -106,7 +106,8 @@ Return ONLY a single JSON object — no markdown fences, no commentary, no pream
         "expected_response_kind": <one of: mandatory, optional>,
         "evaluation_criteria": <description of how the response is evaluated, OR null>,
         "evidence_requirements": [<list of required evidence types>],
-        "scope_tags": [<list of scope identifiers>]
+        "scope_tags": [<list of scope identifiers>],
+        "question_phrasings": [<3-5 alternate ways the SAME question could be asked>]
       },
       ...
     ]
@@ -122,6 +123,7 @@ FIELD CONSTRAINTS
 - qa_pairs[*].expected_response_kind: MUST be EXACTLY ONE of "mandatory" or "optional". NEVER use "info_only" or any other value.
 - qa_pairs[*].evidence_requirements: list of zero or more required-evidence identifiers (e.g. ["iso27001_certificate", "case_study"]). Empty list is acceptable.
 - qa_pairs[*].scope_tags: list of zero or more scope identifiers. Empty list is acceptable.
+- qa_pairs[*].question_phrasings: 3 to 5 alternate phrasings of the SAME question — different wordings a person might use to ask for the same information (e.g. for "Do you hold ISO 27001:2022 certification?": ["Are you ISO 27001:2022 certified?", "Do you have ISO 27001 accreditation?", "Can you evidence ISO 27001:2022 compliance?"]). Preserve the question's meaning exactly — do NOT broaden, narrow, or invent new requirements. Return an empty list ONLY when no faithful rephrasing is possible. List of strings; empty list is acceptable.
 
 GUIDANCE
 

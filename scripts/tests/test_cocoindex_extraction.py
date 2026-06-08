@@ -233,6 +233,11 @@ class TestQAFormVariant:
                     "evaluation_criteria": "Yes / No with evidence",
                     "evidence_requirements": ["iso27001_certificate"],
                     "scope_tags": ["information_security"],
+                    "question_phrasings": [
+                        "Are you ISO 27001:2022 certified?",
+                        "Do you have ISO 27001 accreditation?",
+                        "Can you evidence ISO 27001:2022 compliance?",
+                    ],
                 },
                 {
                     "question_text": "Describe your incident-response process.",
@@ -241,6 +246,7 @@ class TestQAFormVariant:
                     "evaluation_criteria": None,
                     "evidence_requirements": [],
                     "scope_tags": [],
+                    "question_phrasings": [],
                 },
             ],
         }
@@ -251,6 +257,14 @@ class TestQAFormVariant:
         assert len(parsed.qa_pairs) == 2
         assert parsed.qa_pairs[0].expected_response_kind == "mandatory"
         assert parsed.qa_pairs[1].expected_response_kind == "optional"
+        # ID-94.1 (G4): alternate phrasings round-trip as list[str]; an empty
+        # list is valid for a pair with no rephrasings.
+        assert parsed.qa_pairs[0].question_phrasings == [
+            "Are you ISO 27001:2022 certified?",
+            "Do you have ISO 27001 accreditation?",
+            "Can you evidence ISO 27001:2022 compliance?",
+        ]
+        assert parsed.qa_pairs[1].question_phrasings == []
 
     def test_info_only_expected_response_kind_fails(
         self, base_fields: dict
@@ -294,6 +308,52 @@ class TestQAFormVariant:
             qa_pairs=[],
         )
         assert extraction.qa_pairs == []
+
+    def test_question_phrasings_default_empty_list(self) -> None:
+        """ID-94.1 (G4): question_phrasings defaults to [] when the LLM omits
+        it — backward-compatible under ConfigDict(extra='forbid') because it is
+        a declared field, not an extra. Mirrors the DB DEFAULT '{}'."""
+        pair = QAPair(
+            question_text="Q?",
+            expected_response_kind="mandatory",
+        )
+        assert pair.question_phrasings == []
+
+    def test_question_phrasings_accepts_list_of_strings(self) -> None:
+        """ID-94.1 (G4): 3-5 alternate phrasings land as list[str] →
+        q_a_extractions.alternate_question_phrasings text[]."""
+        phrasings = [
+            "Are you ISO 27001 certified?",
+            "Do you hold ISO 27001 accreditation?",
+            "Can you evidence ISO 27001 compliance?",
+        ]
+        pair = QAPair(
+            question_text="Do you hold ISO 27001 certification?",
+            expected_response_kind="mandatory",
+            question_phrasings=phrasings,
+        )
+        assert pair.question_phrasings == phrasings
+        assert all(isinstance(p, str) for p in pair.question_phrasings)
+
+    def test_question_phrasings_empty_list_valid(self) -> None:
+        """ID-94.1 (G4): an explicit empty list is valid (the LLM emits [] for a
+        pair with no useful rephrasings; the DB column is NOT NULL DEFAULT '{}')."""
+        pair = QAPair(
+            question_text="Q?",
+            expected_response_kind="optional",
+            question_phrasings=[],
+        )
+        assert pair.question_phrasings == []
+
+    def test_question_phrasings_rejects_non_string_items(self) -> None:
+        """ID-94.1 (G4): strict model config forbids non-string phrasing items —
+        keeps drift loud rather than silently coercing."""
+        with pytest.raises(ValidationError):
+            QAPair(
+                question_text="Q?",
+                expected_response_kind="mandatory",
+                question_phrasings=[123],  # type: ignore[list-item]
+            )
 
 
 class TestEntityMentionVariant:

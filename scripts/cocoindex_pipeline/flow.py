@@ -1173,6 +1173,10 @@ Q_A_EXTRACTIONS_SCHEMA = TableSchema(
         "evaluation_criteria": ColumnDef(type="text", nullable=True),
         "evidence_requirements": ColumnDef(type="text[]", nullable=False),
         "scope_tags": ColumnDef(type="text[]", nullable=False),
+        # ID-94.1 (G4): 3-5 alternate question phrasings captured at ingest
+        # (migration 20260608210723). text[] NOT NULL DEFAULT '{}' — mirrors the
+        # evidence_requirements/scope_tags precedent; asyncpg maps list[str].
+        "alternate_question_phrasings": ColumnDef(type="text[]", nullable=False),
         "extraction_metadata": ColumnDef(type="jsonb", nullable=False),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
     },
@@ -2110,6 +2114,15 @@ async def _ingest_content_branch(
                 "evaluation_criteria": _field(pair, "evaluation_criteria"),
                 "evidence_requirements": _field(pair, "evidence_requirements", []),
                 "scope_tags": _field(pair, "scope_tags", []),
+                # ID-94.1 (G4): the LLM-emitted alternate question phrasings reach
+                # q_a_extractions.alternate_question_phrasings (text[] NOT NULL
+                # DEFAULT '{}', migration 20260608210723). Defaults to [] when the
+                # pair omits them — matches the QAPair.question_phrasings default
+                # and the DB column default. Carried through to
+                # q_a_pairs.alternate_question_phrasings at UC5 promotion (ID-45).
+                "alternate_question_phrasings": _field(
+                    pair, "question_phrasings", []
+                ),
                 "extraction_metadata": {
                     "extraction_kind": _field(qa_form, "extraction_kind", "q_a_form"),
                     "qa_index": idx,
