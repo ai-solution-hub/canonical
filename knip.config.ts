@@ -54,7 +54,6 @@ const config: KnipConfig = {
     'test-results/**',
     '.claude/**',
     'docs/**',
-    '.planning/**',
     '**/*.d.ts',
   ],
   ignoreDependencies: [
@@ -67,6 +66,19 @@ const config: KnipConfig = {
     '@tailwindcss/postcss',
     'autoprefixer',
     'postcss',
+    // Staged for ID-59 (application write-back / collaborative editing): the
+    // yjs collaboration stack was added (39bd81c4, "unblock S8/S9") ahead of the
+    // editor wiring. ID-59 has not reached spec/implementation yet, so nothing
+    // imports them — knip cannot see a not-yet-authored importer. Kept as direct
+    // deps; revisit when ID-59 wires the Collaboration extension + Y.Doc.
+    '@tiptap/extension-collaboration',
+    'y-prosemirror',
+    'yjs',
+    // Consumed by mcp-apps/reorient-me (declares + imports it in
+    // mcp-apps/reorient-me/{package.json,src/app.ts}); mcp-apps is a separate
+    // Vite build outside knip's project/entry scope, so the root dep reads as
+    // unused. Retained at root rather than removed.
+    'marked',
   ],
   // Exports tagged `@public` in JSDoc are deliberate library/API surface
   // that no current callsite consumes by name. Marking them keeps knip's

@@ -40,6 +40,8 @@ foundation for these and future applications.
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                  |
 | `task-view <ledger.json>`                                                                                                              | Open a workflow ledger in the task-view editor (https://github.com/liam-jons/task-view)       |
 
+- Use `gh-axi` for GitHub and `chrome-devtools-axi` for browser automation.
+
 ## Architecture
 
 Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
@@ -73,7 +75,7 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 - Schema is canonically defined by the generated types in
   `supabase/types/database.types.ts` (+ JSONB domain types in
   `supabase/types/database-overrides.ts`). Consume row/enum shapes via `Tables<'x'>` /
-  `Enums<'x'>` — see the "TypeScript conventions" note under Gotchas below.
+  `Enums<'x'>`
 
 ## Testing
 
@@ -93,7 +95,7 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
   Coolify).
 - **Production URL:** per-deploy `APP_URL`; see `.env.local`
 - **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
-- **Pipeline deploy:** Cloud Run is fully retired (S298) — the ingestion pipeline now
+- **Pipeline deploy:** The ingestion pipeline
   deploys to an IONOS VPS via Coolify (`.github/workflows/onprem-deploy.yml`). Runbook:
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/onprem-b1-deploy.md`.
 - **GitHub:** https://github.com/ai-solution-hub/knowledge-hub (private)
@@ -102,21 +104,18 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 
 ## CI/CD
 
-PR-blocking CI (`ci.yml`) runs 8 jobs in parallel: `quality-precheck`, `quality-test`
-(4-shard Vitest matrix), `e2e-smoke`, `mcp-build`, `mcp-eval-seed`, `mcp-eval` (L1/L3/L4
-matrix), `integration`, plus the ID-91 detect-changes push-gate (real-API lanes skip when
-nothing relevant changed). Triggers: PR (any base) + push on `main`/`staging`. Draft PRs skip
+PR-blocking CI (`ci.yml`) runs 8 jobs in parallel
+Triggers: PR (any base) + push on `main`/`staging`. Draft PRs skip
 CI. Full topology + per-step failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
 
-Side workflows: `onprem-deploy.yml` (B1 pipeline image build + Coolify deploy — always
-runs on `main`/`staging` push with in-job change detection, ID-86),
+Side workflows: `onprem-deploy.yml` (Pipeline image build + Coolify deploy — always
+runs on `main`/`staging` push),
 `migration-revoke-guard.yml` (anon-EXECUTE lint), `schema-parity.yml`
 (prod ↔ staging diff), `staging-reference-refresh.yml`, `supabase-advisors.yml`,
 `taxonomy-sync.yml`, `task-view-vendor-drift.yml` (non-blocking re-vendor reminder when
 `lib/validation/{task-list,roadmap,backlog}-schema.ts` or `work-status.ts` change).
 
-`staging` branch is deploy-only (no long-lived worktree) — used for staging-mirror sync
-per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/staging-refresh.md`.
+`staging` branch is deploy-only
 
 ## Design System: Warm Meridian
 
@@ -137,39 +136,29 @@ adding or modifying UI elements.
 
 Full inventory of all reference docs: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/documentation-inventory.md`
 
-> **Private-docs bridge (ID-68 PC-25).** The docs corpus (reference, runbooks, design,
-> themes, specs, product-functionality, ontology, handover-guides) lives in the PRIVATE
-> `knowledge-hub-docs-site` repo. Resolve the checkout via the ONE standing bridge knob
+> **Private-docs bridge** The docs corpus lives in the PRIVATE
+> `knowledge-hub-docs-site` repo. Resolve the checkout via
 > `KH_PRIVATE_DOCS_DIR` (set explicitly: sibling clone locally via `.env.local`/shell;
-> GitHub-App token checkout in CI — `.github/actions/resolve-private-docs/`). Consumers
-> FAIL LOUDLY when the knob is unset — there is NO fallback to the in-repo `docs/` tree
-> (Inv 29). Staying in-repo, no knob: the `docs/reference/*.json` ledgers + their
-> mirrors (ID-20 Gate 2 boundary) and `docs/continuation-prompts/` (Class 3 interim).
+> GitHub-App token checkout in CI — `.github/actions/resolve-private-docs/`).
 >
 > **Docs upkeep is automated IN the docs-site repo**, not via any in-repo command. The
-> `knowledge-hub-docs-site` repo carries its own `.claude/`: six docs-maintenance skills
+> `knowledge-hub-docs-site` repo carries its own `.claude/`: including six docs-maintenance skills
 > (`keep-docs-in-sync`, `sync-source-docs`, `missing-docs`, `check-for-broken-links`,
-> `docs-seo-audit`, `review-docs-pr`), the two workflow-evaluation skills
-> (`evaluate-workflow`, `evaluate-findings`) + the `workflow-evaluator` agent, and the
+> `docs-seo-audit`, `review-docs-pr`), and the
 > **docubot** lane — a GitHub App + composite action that opens follow-up docs PRs in the
 > docs-site repo reacting to merged public-KH source PRs (`docubot.yml`, dispatched by the
 > public repo's `docs-dispatch.yml`).
 
-Historical planning: relocated to the `knowledge-hub-archive` cold-storage repo (sibling
-checkout; formerly `.planning/.archive/`). Grep there explicitly when researching past
-decisions; treat as point-in-time snapshots. Codebase mapping (`.planning/codebase/`) is
-retired — GitNexus + ast-dataflow supersede it (S294).
+Historical planning: relocated to the `knowledge-hub-archive`. Grep there explicitly when researching past
+decisions; treat as point-in-time snapshots.
 
-## Spec directory convention (ID-48.4)
+## Spec directory convention
 
-New Task spec dirs live under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/` (the private docs-site
-checkout, resolved via `KH_PRIVATE_DOCS_DIR`) with four canonical uppercase
+New Task spec dirs live under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-N-<slug>/` with four canonical
 artefacts: `RESEARCH.md` ({N.1}), `PRODUCT.md` ({N.2}), `TECH.md` ({N.3}), `PLAN.md`
-({N.4}). Pre-existing dirs without the `ID-N-` prefix are not mass-migrated. Authoring
-conventions: `.claude/skills/spec-driven-implementation/SKILL.md`,
-`.claude/skills/write-product-spec/SKILL.md`, `.claude/skills/write-tech-spec/SKILL.md`.
+({N.4}). 
 
-## Key Ledgers
+## Ledgers
 
 Used for managing, tracking, and improving platform development activities.
 
@@ -219,10 +208,7 @@ Mempalace MCP server is the canonical memory system.
 - **TypeScript conventions (canonical type sources):** DB / row shapes come from
   `Tables<'x'>` / `QueryData<>` off `@/supabase/types/database.types` (or
   `supabase/types/database-overrides.ts` for JSONB-typed columns). Composed / API response
-  shapes come from `z.infer<typeof schema>`. `database.types.ts` is generated (never
-  hand-edited) and CI-guarded by `supabase-types-parity`. The structural override at
-  `supabase/types/database-overrides.ts` is where JSONB column domain types live (e.g.
-  `workspaces.domain_metadata` → `ProcurementMetadata`).
+  shapes come from `z.infer<typeof schema>`.
 - **No barrel re-exports:** Always use direct file imports (`@/lib/procurement/helpers`),
   never import from index files.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy (`contexts/taxonomy-context.tsx`);
@@ -249,8 +235,8 @@ Mempalace MCP server is the canonical memory system.
 ### Testing
 
 - **Guard tests break on structural changes:** `mcp-fixture-sync.test.ts`,
-  `reference-doc-paths.test.ts`, and `pipeline-parity.test.ts` run on every test. Update
-  fixtures when adding tools or changing doc paths.
+   and `pipeline-parity.test.ts` run on every test. Update
+  fixtures when adding tools.
 - **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions in
   `mockImplementation()` cannot be used with `new` — use `function` keyword.
 - **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122. Use
@@ -284,22 +270,6 @@ Mempalace MCP server is the canonical memory system.
   inherit no `.gitnexus` index ("last indexed: never") — `git diff --name-only` is the
   authoritative scope-containment fallback. `gitnexus_impact` (primary-tree symbol index)
   stays reliable.
-- **`next build` (Turbopack) fails under the default sandbox:** a webpack-loader child
-  process binds a port and dies with `Operation not permitted`. Dispatches that invoke
-  `next build` need `dangerouslyDisableSandbox: true` on that command. Distinct from
-  bl-243 (the `.bin`/`.venv` broken-symlink defect — different fix surface).
-- **GitHub via `gh-axi` (ID-92):** Prefer `gh-axi` over raw `gh` for GitHub ops —
-  pre-aggregated CI rollups (`N passed, M failed`), log/diff truncation with a `--full`
-  escape, and structured error translation (benchmark-proven vs raw `gh`). Fall back to
-  raw `gh` only for subcommands `gh-axi` doesn't wrap; `gh-axi api` is the raw-API escape
-  hatch. **Never run any AXI-family `setup hooks`** (`gh-axi`/`chrome-devtools-axi`/… ) —
-  they write `SessionStart` hooks into `~/.claude/settings.json`, bypassing settings
-  governance; route ambient context through `update-config` instead.
-- **AXI tool state dirs need sandbox-off (ID-92):** `chrome-devtools-axi`
-  (`~/.chrome-devtools-axi/` + `127.0.0.1:9224` bridge daemon) and `lavish-axi`
-  (`~/.lavish-axi/`) create state dirs / bind ports — run with
-  `dangerouslyDisableSandbox: true` or allowlist those dirs via `/sandbox`. `gh-axi` has
-  no such state dir (it shells out to `gh`).
 - **Worktree pytest must run from the worktree CWD:** main-repo-CWD invocations resolve
   `scripts.*` to the MAIN tree's modules (namespace-package hazard — spurious
   failures/passes against stale code).

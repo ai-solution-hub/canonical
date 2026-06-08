@@ -18,13 +18,6 @@ __pycache__/
 .venv/
 venv/
 
-# Phase 0.9 spike scratch dirs (ephemeral; reports under docs/plans/phase-0-investigation/)
-.spike-s10/
-.spike-s14/
-.spike-s15/
-.venv-spike-s10/
-.venv-spike-s14/
-
 # Project-specific files we want tracked
 !.claude/agents/
 !.claude/checks/
@@ -40,9 +33,7 @@ venv/
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 
-# Worktree symlinkDirectories artefacts — Anthropic's worktree.symlinkDirectories
-# feature creates root-level symlinks (not directories), so trailing-slash
-# patterns above don't match them. Root-anchored, no trailing slash.
+# Worktree symlinkDirectories artefacts
 /node_modules
 /.venv
 /.bin
