@@ -60,10 +60,10 @@ scheduled sweep, or O-of-O `handoff` flag):
   candidate-finding set (for the `findings` lane). The evaluator does **not** default to
   "the current session" — it operates on a backlog.
 - **Archived worker corpus path** —
-  `${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/S<NNN>/<worker>/` per Subtask
-  {48.15} (archived by DEFAULT at teardown per Subtask {48.17}). Each archived worker has
-  `{events.jsonl, oq-pending.md, final_report.yaml, meta.json}` preserved before the
-  teardown `rm -rf` runs.
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/workflow-evaluation/sessions/S<NNN>/<worker>/`
+  per Subtask {48.15} (archived by DEFAULT at teardown per Subtask {48.17}). Each archived
+  worker has `{events.jsonl, oq-pending.md, final_report.yaml, meta.json}` preserved
+  before the teardown `rm -rf` runs.
 - **Token usage (canonical source)** — `token_usage_by_role` + `token_usage_total` in the
   archived `final_report.yaml`, **computed at archive time from `message.usage` in the
   worker session transcript** (`~/.claude/projects/<encoded-cwd>/<session_id>.jsonl`,
@@ -168,7 +168,7 @@ Return a structured summary to the trigger source (operator, scheduler, or O-of-
 WORKFLOW-EVALUATOR REPORT — trigger={source}, lanes=[{efficiency|findings|both}]
 
 SESSION RANGE: {S270..S276}
-ARCHIVED CORPUS: ${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/{range}/
+ARCHIVED CORPUS: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/workflow-evaluation/sessions/{range}/
 COMPANION SKILL(S) INVOKED:
   - evaluate-workflow (efficiency) — see report path
   - evaluate-findings (findings)   — see report path

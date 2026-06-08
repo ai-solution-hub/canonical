@@ -20,7 +20,7 @@
 //   - PILOT scope — ONE workflow only. This does NOT migrate the SDLC lifecycle to /workflows.
 //
 // CORPUS shape (read by the spawned agents, per `evaluate-workflow` SKILL.md + RESEARCH §7):
-//   ${KH_PRIVATE_DOCS_DIR}/workflow-evaluation/sessions/S<NNN>/<worker>/{events.jsonl, oq-pending.md,
+//   ${KH_PRIVATE_DOCS_DIR}/src/content/docs/workflow-evaluation/sessions/S<NNN>/<worker>/{events.jsonl, oq-pending.md,
 //   final_report.yaml, meta.json}  (archived BY DEFAULT at teardown per {48.17}).
 //   - final_report.yaml carries `token_usage_by_role` (per-role {input, output,
 //     cache_creation, cache_read, total, turn_count}; primary unit = sub_orchestrator)
@@ -140,7 +140,7 @@ export default async function evaluatorEfficiencySweep() {
   }
   const corpusRoot =
     explicitRoot ||
-    `${privateDocsDir.replace(/\/+$/, '')}/workflow-evaluation/sessions/`;
+    `${privateDocsDir.replace(/\/+$/, '')}/src/content/docs/workflow-evaluation/sessions/`;
 
   log(`Evaluator efficiency sweep (read-only) over corpus root: ${corpusRoot}`);
 
