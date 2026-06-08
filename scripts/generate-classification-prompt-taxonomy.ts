@@ -15,11 +15,16 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import { resolvePrivateDocsDir } from '../lib/private-docs';
 
 const PROJECT_ROOT = join(__dirname, '..');
+// classification-prompt.md relocated private ({68.23}); both the read (inject
+// source) and write (codegen target) legs resolve via the KH_PRIVATE_DOCS_DIR
+// bridge (fail-loud, opt-in lane — Inv 28/29).
 const PROMPT_PATH = join(
-  PROJECT_ROOT,
-  'docs/reference/classification-prompt.md',
+  resolvePrivateDocsDir(),
+  'ops',
+  'classification-prompt.md',
 );
 
 // ── Env loading ──

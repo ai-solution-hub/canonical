@@ -11,6 +11,7 @@
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { VALID_CONTENT_TYPES } from '../lib/validation/schemas';
+import { resolvePrivateDocsDir } from '../lib/private-docs';
 import {
   parseCanonicalTaxonomy,
   parsePluginTaxonomy,
@@ -169,9 +170,12 @@ function buildZip(
  * Validate taxonomy consistency before bundling.
  */
 function validate(): void {
+  // classification-prompt.md relocated private ({68.23}); resolved via the
+  // KH_PRIVATE_DOCS_DIR bridge (fail-loud, opt-in lane — Inv 28/29).
   const CANONICAL_PATH = join(
-    PROJECT_ROOT,
-    'docs/reference/classification-prompt.md',
+    resolvePrivateDocsDir(),
+    'ops',
+    'classification-prompt.md',
   );
   const CLASSIFICATION_SKILL_PATH = join(
     PLUGIN_DIR,
