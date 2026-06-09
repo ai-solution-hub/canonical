@@ -863,6 +863,142 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
       cited_version: 2,
     });
   });
+
+  // ID-58 {58.6} Checker nit: the writer de-silenced the citations-write
+  // failure path. A `citations` delete/insert error is now non-fatal but
+  // OBSERVABLE — it logs AND emits a `citation_warning` SSE frame, while the
+  // already-saved response still streams `done`. This drives the failure
+  // branch and asserts the observable surface (the warning frame + completion),
+  // not the internal throw.
+  it('emits a non-fatal `citation_warning` SSE frame when the citations write fails, then still completes', async () => {
+    const ITEM_CITED = 'c4444444-4444-4444-8444-444444444444';
+    const RESPONSE_ID = 'd5555555-5555-4555-8555-555555555555';
+
+    configureRole(mockSupabase, 'editor');
+
+    // (1) Procurement lookup — draftable
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      error: null,
+    });
+    // (2) Question lookup — one matched item (enough to drive the writer)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID_2,
+        question_text: 'Describe your approach.',
+        word_limit: 500,
+        section_name: 'Method',
+        confidence_posture: 'balanced',
+        matched_content_ids: [ITEM_CITED],
+      },
+      error: null,
+    });
+
+    // (3) content_items `.in()` then (4) content_history `.in()` — awaited via
+    // the chain `then`. Both succeed so the writer reaches the delete/insert.
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: ITEM_CITED,
+              suggested_title: 'Cited item',
+              content: 'cited body',
+              content_type: 'case_study',
+              summary: 'sum',
+            },
+          ],
+          error: null,
+          count: 1,
+        }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ content_item_id: ITEM_CITED, version: 2 }],
+          error: null,
+          count: 1,
+        }),
+      )
+      // (6) citations `.delete().eq()` — awaited via the chain `then`. Return a
+      // non-null Supabase error so `deleteError` is truthy and the writer
+      // throws into its non-fatal catch (logger.error + citation_warning).
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { code: '23503', message: 'citations delete failed' },
+          count: null,
+        }),
+      );
+
+    // Pipeline mocks
+    mockGetModelForTier.mockReturnValue('claude-sonnet-4-6');
+    mockAnalyseQuestion.mockResolvedValue({
+      analysis: { coverage: 'ok' },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+    mockDraftResponseStreaming.mockResolvedValue({
+      textStream: (async function* () {
+        yield 'Draft ';
+        yield 'text.';
+      })(),
+      finalise: vi.fn().mockResolvedValue({
+        responseText: 'Draft text.',
+        model: 'claude-sonnet-4-6',
+        citations: [
+          {
+            cited_text: 'first span',
+            source_index: 0,
+            source_id: ITEM_CITED,
+            source_title: 'Cited item',
+            source_url: '',
+            start_block_index: 3,
+            end_block_index: 7,
+          },
+        ],
+        tokensUsed: 2,
+        inputTokens: 1,
+        outputTokens: 1,
+        cost: 0,
+      }),
+    });
+    mockCheckResponseQuality.mockResolvedValue({
+      qualityData: { overall_score: 80 },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+
+    // (5) form_responses upsert → returns the new response id (response is
+    // saved BEFORE the citations write, so the failure must remain non-fatal).
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: RESPONSE_ID },
+      error: null,
+    });
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft-stream`,
+      { method: 'POST', body: { question_id: VALID_UUID_2 } },
+    );
+
+    const res = await draftStreamPost(req, { params });
+    expect(res.status).toBe(200);
+
+    // Drain the SSE stream so the writer (which runs after pass3) executes.
+    const sseText = await res.text();
+
+    // Observable de-silenced surface: the non-fatal warning frame is emitted.
+    expect(sseText).toContain('event: citation_warning');
+    expect(sseText).toContain('Citations were not recorded for this response');
+
+    // Non-fatal: the saved response still completes (NOT aborted via `error`).
+    expect(sseText).toContain('event: done');
+    expect(sseText).toContain(RESPONSE_ID);
+    expect(sseText).not.toContain('event: error');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
