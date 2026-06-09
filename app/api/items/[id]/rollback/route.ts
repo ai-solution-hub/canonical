@@ -4,6 +4,7 @@ import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { RollbackBodySchema } from '@/lib/validation/schemas';
+import { rollbackSweep } from '@/lib/edit-intent/sweep';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
@@ -14,9 +15,19 @@ const UUID_RE =
 /**
  * POST /api/items/[id]/rollback
  *
- * Rollback a content item to a specific version.
- * Creates a NEW version snapshot of the current state (non-destructive),
- * then updates the content item with the target version's data.
+ * Two mutually-exclusive rollback modes:
+ *
+ *  - `version_id` (single-item) — roll a content item back to a specific
+ *    history version. Creates a NEW version snapshot of the current state
+ *    (non-destructive), then updates the item with the target version's data.
+ *
+ *  - `sweep_id` (ID-59 {59.13} / PC-6 → INV-6, UC3 whole-sweep rollback) —
+ *    restore EVERY record touched by the sweep to its pre-sweep bytes (or, with
+ *    `content_item_id`, a single match), file leg first via the PC-1 adapter.
+ *    The path id (`[id]`) is the audit anchor; the sweep selector is the
+ *    `sweep_id` body field (a sweep spans many items, so the actual targets are
+ *    resolved by sweep-id, not the path id).
+ *
  * Requires editor+ role.
  */
 export async function POST(
@@ -41,7 +52,62 @@ export async function POST(
     const parsed = parseBody(RollbackBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { version_id } = parsed.data;
+    const { version_id, sweep_id, content_item_id } = parsed.data;
+
+    // Exactly one rollback mode must be present.
+    if ((version_id && sweep_id) || (!version_id && !sweep_id)) {
+      return NextResponse.json(
+        {
+          error:
+            'Provide exactly one of version_id (single-item) or sweep_id (whole-sweep)',
+        },
+        { status: 400 },
+      );
+    }
+
+    // ── UC3 whole-sweep rollback ({59.13} / PC-6 → INV-6) ─────────────────────
+    // Restore every record stamped with this sweep-id (or a single match when
+    // content_item_id is supplied) to its captured pre-sweep bytes. The file leg
+    // is restored first via the PC-1 adapter, mirroring the per-match write
+    // path. No arbitration — a sweep is batched single-actor.
+    if (sweep_id) {
+      try {
+        const result = await rollbackSweep({
+          supabase,
+          sweepId: sweep_id,
+          actorId: user.id,
+          contentItemId: content_item_id,
+        });
+
+        if (result.restoredCount === 0) {
+          return NextResponse.json(
+            { error: 'Sweep not found — no records carry that sweep id' },
+            { status: 404 },
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          sweep_id,
+          restored_count: result.restoredCount,
+          restored: result.restored,
+          ...(result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+        });
+      } catch (sweepErr) {
+        logger.error(
+          { err: sweepErr, op: 'items.rollback.sweep' },
+          'Whole-sweep rollback failed',
+        );
+        return NextResponse.json(
+          { error: 'Failed to roll back sweep' },
+          { status: 500 },
+        );
+      }
+    }
+
+    // Past the guards above, sweep_id is falsy and version_id is guaranteed
+    // present (a body with neither / both was already rejected with 400).
+    const targetVersionId = version_id as string;
 
     // Step 1: Fetch the target version to rollback to
     const { data: targetVersion, error: versionError } = await supabase
@@ -49,7 +115,7 @@ export async function POST(
       .select(
         'id, content_item_id, version, title, content, brief, detail, reference, metadata',
       )
-      .eq('id', version_id)
+      .eq('id', targetVersionId)
       .eq('content_item_id', id)
       .single();
 

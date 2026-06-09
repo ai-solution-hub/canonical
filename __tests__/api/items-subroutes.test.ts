@@ -37,6 +37,18 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
+// ID-59 {59.13}: the rollback route's whole-sweep branch delegates to
+// rollbackSweep (which drives the PC-1 file adapter against real bytes). Mock it
+// so the ROUTE contract (mode dispatch, 400 mutual-exclusion guard, 404 on zero
+// matches, success envelope) is provable in jsdom — the sweep orchestrator's
+// own file-leg + sweep-id behaviour is proven in __tests__/lib/edit-intent/sweep.test.ts.
+const { mockRollbackSweep } = vi.hoisted(() => ({
+  mockRollbackSweep: vi.fn(),
+}));
+vi.mock('@/lib/edit-intent/sweep', () => ({
+  rollbackSweep: mockRollbackSweep,
+}));
+
 vi.mock('@/lib/validation/layer-schemas', async () => {
   const actual = await vi.importActual<
     typeof import('@/lib/validation/layer-schemas')
@@ -675,6 +687,135 @@ describe('POST /api/items/[id]/rollback', () => {
 
     const body = await res.json();
     expect(body.error).toMatch(/snapshot/i);
+  });
+});
+
+// =====================================================================
+// POST /api/items/[id]/rollback — UC3 whole-sweep mode (ID-59 {59.13})
+// Proves the ROUTE dispatch contract for the sweep_id branch. The sweep
+// orchestrator's file-leg + sweep-id provenance behaviour lives in
+// __tests__/lib/edit-intent/sweep.test.ts.
+// =====================================================================
+
+describe('POST /api/items/[id]/rollback — whole-sweep mode', () => {
+  const params = createTestParams({ id: VALID_UUID });
+  // v4-shaped UUIDs (RollbackBodySchema uses strict z.string().uuid()).
+  const SWEEP_ID = 'c3d4e5f6-a7b8-4901-9cde-f12345678901';
+  const ITEM_ID = 'd4e5f6a7-b8c9-4012-8def-123456789012';
+
+  it('returns 400 when BOTH version_id and sweep_id are present', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/rollback`, {
+      method: 'POST',
+      body: { version_id: VALID_UUID_2, sweep_id: SWEEP_ID },
+    });
+
+    const res = await rollbackPost(req, { params });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/exactly one/i);
+    expect(mockRollbackSweep).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when NEITHER mode is present', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/rollback`, {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await rollbackPost(req, { params });
+    expect(res.status).toBe(400);
+    expect(mockRollbackSweep).not.toHaveBeenCalled();
+  });
+
+  it('dispatches a whole-sweep rollback and returns the restored count', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockRollbackSweep.mockResolvedValueOnce({
+      sweepId: SWEEP_ID,
+      restoredCount: 3,
+      restored: [ITEM_ID, VALID_UUID, VALID_UUID_2],
+      warnings: [],
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/rollback`, {
+      method: 'POST',
+      body: { sweep_id: SWEEP_ID },
+    });
+
+    const res = await rollbackPost(req, { params });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.sweep_id).toBe(SWEEP_ID);
+    expect(body.restored_count).toBe(3);
+    // Whole-sweep: no contentItemId scoping passed to the orchestrator.
+    expect(mockRollbackSweep).toHaveBeenCalledTimes(1);
+    expect(mockRollbackSweep.mock.calls[0][0]).toMatchObject({
+      sweepId: SWEEP_ID,
+      contentItemId: undefined,
+    });
+  });
+
+  it('scopes a per-match revert when content_item_id is supplied', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockRollbackSweep.mockResolvedValueOnce({
+      sweepId: SWEEP_ID,
+      restoredCount: 1,
+      restored: [ITEM_ID],
+      warnings: [],
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/rollback`, {
+      method: 'POST',
+      body: { sweep_id: SWEEP_ID, content_item_id: ITEM_ID },
+    });
+
+    const res = await rollbackPost(req, { params });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.restored_count).toBe(1);
+    expect(mockRollbackSweep.mock.calls[0][0]).toMatchObject({
+      sweepId: SWEEP_ID,
+      contentItemId: ITEM_ID,
+    });
+  });
+
+  it('returns 404 when the sweep id matches no records', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockRollbackSweep.mockResolvedValueOnce({
+      sweepId: SWEEP_ID,
+      restoredCount: 0,
+      restored: [],
+      warnings: [],
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/rollback`, {
+      method: 'POST',
+      body: { sweep_id: SWEEP_ID },
+    });
+
+    const res = await rollbackPost(req, { params });
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toMatch(/sweep not found/i);
+  });
+
+  it('returns 500 when the sweep rollback throws', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockRollbackSweep.mockRejectedValueOnce(new Error('file leg degraded'));
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/rollback`, {
+      method: 'POST',
+      body: { sweep_id: SWEEP_ID },
+    });
+
+    const res = await rollbackPost(req, { params });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toMatch(/roll back sweep/i);
   });
 });
 

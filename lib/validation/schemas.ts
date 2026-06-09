@@ -743,10 +743,30 @@ export function validateEditableField(field: string): field is EditableField {
 // Structured Extraction
 // ──────────────────────────────────────────
 
-/** POST /api/items/[id]/rollback */
-export const RollbackBodySchema = z.object({
-  version_id: z.string().uuid('version_id must be a valid UUID'),
-});
+/**
+ * POST /api/items/[id]/rollback
+ *
+ * Two mutually-exclusive rollback modes (ID-59 {59.13} PC-6 / INV-6):
+ *  - `version_id` — the original single-item rollback to a specific history
+ *    version (unchanged contract).
+ *  - `sweep_id` — UC3 whole-sweep rollback: restore EVERY record touched by the
+ *    sweep (or, with `content_item_id`, a single match) to its pre-sweep bytes.
+ *    `content_item_id` scopes a per-match revert; omitted reverts the whole
+ *    sweep as a unit.
+ *
+ * `.strict()` keeps the body shape closed; the route asserts exactly one mode
+ * is present (a body with neither, or both, is rejected at the route boundary).
+ */
+export const RollbackBodySchema = z
+  .object({
+    version_id: z.string().uuid('version_id must be a valid UUID').optional(),
+    sweep_id: z.string().uuid('sweep_id must be a valid UUID').optional(),
+    content_item_id: z
+      .string()
+      .uuid('content_item_id must be a valid UUID')
+      .optional(),
+  })
+  .strict();
 
 /** POST /api/governance (create/update governance config via preset).
  *  `.strict()` rejects old-format bodies that include posture or other fields. */
