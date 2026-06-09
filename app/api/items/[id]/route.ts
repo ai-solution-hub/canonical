@@ -31,6 +31,7 @@ import {
   coerceIntent,
   type EditIntent,
 } from '@/lib/edit-intent/arbitrate';
+import { writeBackFileFirst } from '@/lib/edit-intent/write-back';
 import type { Database } from '@/supabase/types/database.types';
 
 type ContentItemUpdate =
@@ -572,25 +573,76 @@ async function patchHandler(
       }
     }
 
-    // Perform the update
-    const { error } = await supabase
-      .from('content_items')
-      .update(updateData)
-      .eq('id', id);
-
-    if (error) {
-      logger.error(
-        { err: error, op: 'items.patch.update' },
-        'Failed to update content item',
-      );
-      return NextResponse.json(
-        { error: 'Failed to update item' },
-        { status: 500 },
-      );
-    }
-
     // Collect non-fatal warnings to surface in the response
     const warnings = createWarningsCollector();
+
+    // ID-59 {59.9} / PC-1 + PC-2 — file-first write-back with compensating
+    // restore (INV-1 dual-write path-preserved + INV-2 atomic save). When the
+    // edited field changes the item's canonical CONTENT bytes (a direct
+    // `content` edit, or a Q&A answer edit that rebuilt `updateData.content`),
+    // and the item is file-backed (`source_document_id` -> a
+    // `source_documents.storage_path` on the cocoindex source folder), the
+    // file leg MUST land BEFORE the DB leg so a file-write failure leaves the
+    // DB untouched (one failure state) and a DB-write failure restores the
+    // prior bytes (so neither leg is left applied). The canonical
+    // `content_items` UPDATE is injected as `applyDbLeg`, keeping the DB
+    // mutation here while the ordering + restore live in the adapter.
+    // Non-content edits (and non-file-backed items) take the DB-only path —
+    // the adapter no-ops the file leg and just applies the DB write.
+    const newContentBytes =
+      updateData.content !== undefined
+        ? (updateData.content as string)
+        : field === 'content' && typeof effectiveValue === 'string'
+          ? effectiveValue
+          : null;
+
+    const applyContentItemsUpdate = async (): Promise<void> => {
+      const { error } = await supabase
+        .from('content_items')
+        .update(updateData)
+        .eq('id', id);
+      if (error) {
+        throw new SupabaseError(error, 'items.patch.update');
+      }
+    };
+
+    if (newContentBytes !== null) {
+      try {
+        const writeBack = await writeBackFileFirst({
+          supabase,
+          contentItemId: id,
+          newContent: newContentBytes,
+          applyDbLeg: applyContentItemsUpdate,
+          context: 'items.patch.write-back.resolve-storage-path',
+        });
+        // Surface a degraded compensating-restore (rare) as a warning so the
+        // user still sees ONE save outcome.
+        for (const w of writeBack.warnings) warnings.add(w);
+      } catch (writeBackErr) {
+        logger.error(
+          { err: writeBackErr, op: 'items.patch.write-back' },
+          'File-first write-back failed during content update',
+        );
+        return NextResponse.json(
+          { error: 'Failed to update item' },
+          { status: 500 },
+        );
+      }
+    } else {
+      // DB-only path — no file leg for non-content fields.
+      try {
+        await applyContentItemsUpdate();
+      } catch (updateErr) {
+        logger.error(
+          { err: updateErr, op: 'items.patch.update' },
+          'Failed to update content item',
+        );
+        return NextResponse.json(
+          { error: 'Failed to update item' },
+          { status: 500 },
+        );
+      }
+    }
 
     // S183 WP1 G2 — first-time publish for draft-created items needs
     // classification + chunks. Drafts bypass the AI pipeline in POST
