@@ -101,6 +101,12 @@ import {
   abortStagedWrite,
 } from '@/lib/ledger/atomic-write';
 import {
+  transportCommit,
+  type TransportRequest,
+  type MutationOptions as TransportMutationOptions,
+} from '@/scripts/ledger-server-client';
+import { ensureServer } from '@/scripts/ledger-server-lifecycle';
+import {
   parseTaskListWithWarnings,
   SubtaskSchema,
   TaskSchema,
@@ -114,6 +120,58 @@ import {
   type LedgerRecordKind,
 } from '@/lib/validation/ledger-budgets';
 import type { ZodTypeAny } from 'zod';
+
+// ── ID-90.19 server flag + intent ─────────────────────────────────────────────
+
+/**
+ * KH_LEDGER_SERVER === '1' enables the server transport path (Phase 1 = OFF
+ * by default; Phase 2 flips the default ON). Invariant 3: the flag is the ONE
+ * seam — no mixed-path invocation. Invariant 5: flipping OFF instantly
+ * restores the direct path with no migration step.
+ */
+function serverEnabled(): boolean {
+  return process.env.KH_LEDGER_SERVER === '1';
+}
+
+/** Slug used in the server's /api/ledger/:slug/... routes. */
+type LedgerSlug =
+  | 'task-list'
+  | 'product-roadmap'
+  | 'product-backlog'
+  | 'umbrellas';
+
+const LEDGER_NAME_TO_SLUG: Record<LedgerName, LedgerSlug> = {
+  task: 'task-list',
+  roadmap: 'product-roadmap',
+  backlog: 'product-backlog',
+};
+
+function ledgerSlug(name: LedgerName): LedgerSlug {
+  return LEDGER_NAME_TO_SLUG[name];
+}
+
+/**
+ * Discriminated union describing the intended mutation — populated by each
+ * commitMutation call site (K4) and consumed by the server transport path.
+ * The flag-OFF path ignores this entirely (invariant 3).
+ */
+type ServerIntent =
+  | {
+      kind: 'field-patch';
+      slug: LedgerSlug;
+      recordId: string;
+      patches: FieldPatch[];
+    }
+  | { kind: 'record-create'; slug: LedgerSlug; record: unknown }
+  | {
+      kind: 'subtask-create';
+      slug: LedgerSlug;
+      taskId: string;
+      subtasks: unknown[];
+    }
+  | { kind: 'subtask-delete'; slug: LedgerSlug; taskId: string; subId: number }
+  | { kind: 'record-delete'; slug: LedgerSlug; recordId: string }
+  | { kind: 'umbrella-patch'; umbrellaId: string; patches: FieldPatch[] };
 
 // ── ledger resolution ─────────────────────────────────────────────────────────
 
@@ -1891,6 +1949,12 @@ interface CommitMutationOptions {
    * the warnings list; absent for every single-record caller.
    */
   extraWarnings?: string[];
+  /**
+   * ID-90.19 K4: server transport intent. When `serverEnabled()` is true AND
+   * this is set, `commitMutation` delegates to the transport client instead of
+   * the in-process write path. The flag-OFF path ignores this entirely.
+   */
+  serverIntent?: ServerIntent;
 }
 
 /**
@@ -1920,6 +1984,13 @@ interface CommitMutationOptions {
  * `record-set-violation` and nothing is written.
  */
 async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
+  // ── ID-90.19 K4: server transport branch (inv 3 — one seam) ───────────
+  // Flag ON + serverIntent present → delegate to the server transport.
+  // Flag OFF → fall through to the BYTE-UNTOUCHED direct write path below.
+  if (serverEnabled() && opts.serverIntent) {
+    return serverCommitMutation(opts);
+  }
+
   const {
     subcommand,
     path,
@@ -2063,6 +2134,97 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
     mirrorStale: mirrorStatus !== 'fresh',
     mirrorStaleReason: mirrorStatus === 'fresh' ? undefined : mirrorStatus,
   };
+}
+
+// ── ID-90.19 server transport helpers ─────────────────────────────────────────
+
+import { stat } from 'node:fs/promises';
+
+/**
+ * Build the HTTP request for a ServerIntent. Called on each attempt (initial +
+ * retries) so the fresh baseMtime is derived from the file's current state
+ * (inv 43 re-derive).
+ */
+async function buildTransportRequest(
+  baseUrl: string,
+  intent: ServerIntent,
+  filePath: string,
+): Promise<TransportRequest> {
+  const mtime = String((await stat(filePath)).mtimeMs);
+  const base = `${baseUrl}/api/ledger`;
+
+  switch (intent.kind) {
+    case 'field-patch':
+      return {
+        url: `${base}/${intent.slug}/record/${intent.recordId}`,
+        method: 'PATCH',
+        body: { baseMtime: mtime, patches: intent.patches },
+      };
+    case 'record-create':
+      return {
+        url: `${base}/${intent.slug}/record`,
+        method: 'POST',
+        body: { baseMtime: mtime, record: intent.record },
+      };
+    case 'subtask-create':
+      return {
+        url: `${base}/${intent.slug}/record/${intent.taskId}/subtask`,
+        method: 'POST',
+        body: { baseMtime: mtime, subtasks: intent.subtasks },
+      };
+    case 'subtask-delete':
+      return {
+        url: `${base}/${intent.slug}/record/${intent.taskId}/subtask/${intent.subId}`,
+        method: 'DELETE',
+        body: { baseMtime: mtime },
+      };
+    case 'record-delete':
+      return {
+        url: `${base}/${intent.slug}/record/${intent.recordId}`,
+        method: 'DELETE',
+        body: { baseMtime: mtime },
+      };
+    case 'umbrella-patch':
+      return {
+        url: `${base}/umbrellas/record/${intent.umbrellaId}`,
+        method: 'PATCH',
+        body: { baseMtime: mtime, patches: intent.patches },
+      };
+  }
+}
+
+/**
+ * Server transport path for commitMutation (ID-90.19 K4). Delegates to
+ * transportCommit (K2) via ensureServer (K3). The direct-write path below
+ * is BYTE-UNTOUCHED when this runs.
+ */
+async function serverCommitMutation(
+  opts: CommitMutationOptions,
+): Promise<CliResult> {
+  const intent = opts.serverIntent!;
+  const ledgerDir = resolve(opts.path, '..');
+
+  const server = await ensureServer({ ledgerDir });
+  const baseUrl = `http://127.0.0.1:${server.port}`;
+
+  // T-3 flag mapping: CLI flags → per-request body fields.
+  const transportOpts: TransportMutationOptions = {
+    ...(opts.dryRun ? { dryRun: true } : {}),
+    ...(opts.force ? { force: true } : {}),
+    ...(process.env.KH_LEDGER_ALLOW_CLIENT_NAME === '1'
+      ? { allowClientName: true }
+      : {}),
+    ...(!opts.regenMirrors ? { regenMirrors: false } : {}),
+  };
+
+  return transportCommit({
+    deriveRequest: () => buildTransportRequest(baseUrl, intent, opts.path),
+    subcommand: opts.subcommand,
+    options: transportOpts,
+    ensureServer: async () => {
+      await ensureServer({ ledgerDir });
+    },
+  });
 }
 
 // ── subcommand handlers ───────────────────────────────────────────────────────
@@ -2458,6 +2620,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           beforeIds,
           expectedDelta: { kind: 'none' },
         },
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('task'),
+          recordId: taskId,
+          patches: [patch],
+        },
         // ID-35.30: scope discipline warnings to the touched task.
         warningScope: { taskId },
       });
@@ -2543,6 +2711,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         force: flags.force,
         // S299 F5 — surface the flip-task canonical-verb hint (status field only).
         extraWarnings: statusHint,
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('task'),
+          recordId: taskId,
+          patches: [patch],
+        },
         // ID-35.30: scope discipline warnings to the touched task.
         warningScope: { taskId },
       });
@@ -2603,6 +2777,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
+        },
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('task'),
+          recordId: taskId,
+          patches: [patch],
         },
         // ID-35.30: scope discipline warnings to the touched subtask.
         warningScope: { taskId, subId },
@@ -2692,6 +2872,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
             }
           : undefined,
         force: flags.force,
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('task'),
+          recordId: taskId,
+          patches: [patch],
+        },
         // ID-35.30: scope discipline warnings to the touched subtask.
         warningScope: { taskId, subId },
       });
@@ -2764,6 +2950,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           descriptor,
           beforeIds,
           expectedDelta: { kind: 'none' },
+        },
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('task'),
+          recordId: taskId,
+          patches: [patch],
         },
         // ID-35.30: scope discipline warnings to the touched subtask.
         warningScope: { taskId, subId },
@@ -2885,6 +3077,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // this scope the success envelope dumps 34-67 KB of unrelated soft
         // warnings (every over-budget field across the WHOLE ledger), which
         // breaks JSON-stdout-parsing orchestrators.
+        serverIntent: {
+          kind: 'subtask-create',
+          slug: ledgerSlug('task'),
+          taskId,
+          subtasks: [record],
+        },
         warningScope: { taskId, subId: newSubId },
       });
     }
@@ -3039,6 +3237,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // ID-35.30: bound discipline warnings to this task. Per-record budget
         // warnings (incl. forced ones) are surfaced via the success envelope.
         warningScope: { taskId },
+        serverIntent: {
+          kind: 'subtask-create',
+          slug: ledgerSlug('task'),
+          taskId,
+          subtasks: coercedRecords,
+        },
         extraWarnings: budgetWarnings,
       });
     }
@@ -3138,6 +3342,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               mutatedField: field,
             }
           : undefined,
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('backlog'),
+          recordId: itemId,
+          patches: [patch],
+        },
         force: flags.force,
       });
     }
@@ -3227,6 +3437,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               mutatedField: field,
             }
           : undefined,
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('roadmap'),
+          recordId: themeId,
+          patches: [patch],
+        },
         force: flags.force,
       });
     }
@@ -3320,6 +3536,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // ID-35.30: scope discipline warnings to the just-created task. For
         // create-backlog / create-theme this is a no-op (disciplineWarnings
         // returns [] on non-task-list detected anyway).
+        serverIntent: {
+          kind: 'record-create',
+          slug: ledgerSlug(ledger),
+          record,
+        },
         warningScope:
           ledger === 'task' ? { taskId: String(ins.recordId) } : undefined,
       });
@@ -3361,6 +3582,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           ledger: 'backlog',
           descriptor,
           beforeIds,
+          serverIntent: {
+            kind: 'record-delete',
+            slug: ledgerSlug('backlog'),
+            recordId: itemId,
+          },
           expectedDelta: { kind: 'remove', id: rem.recordId },
         },
       });
@@ -3462,6 +3688,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         },
         // ID-35.30: scope discipline-warnings to the addressed task so the
         // success envelope never dumps the whole-ledger soft-warning set.
+        serverIntent: {
+          kind: 'subtask-delete',
+          slug: ledgerSlug('task'),
+          taskId,
+          subId: n,
+        },
         warningScope: { taskId },
       });
     }
