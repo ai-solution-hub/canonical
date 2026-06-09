@@ -2486,6 +2486,7 @@ export type Database = {
       }
       q_a_extractions: {
         Row: {
+          alternate_question_phrasings: string[]
           created_at: string
           evaluation_criteria: string | null
           evidence_requirements: string[]
@@ -2503,6 +2504,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          alternate_question_phrasings?: string[]
           created_at?: string
           evaluation_criteria?: string | null
           evidence_requirements?: string[]
@@ -2520,6 +2522,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          alternate_question_phrasings?: string[]
           created_at?: string
           evaluation_criteria?: string | null
           evidence_requirements?: string[]
