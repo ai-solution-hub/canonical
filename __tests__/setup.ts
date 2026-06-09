@@ -52,6 +52,23 @@ for (const [k, v] of Object.entries(TEST_ENV_DEFAULTS)) {
 // scope (Staging) and do not share this setup file.
 process.env.NEXT_PUBLIC_CLIENT_ID = 'default';
 
+// KH_LEDGER_SERVER is FORCE-SET to '0' for the whole Vitest process (ID-90.21
+// P2-F1). serverEnabled() in scripts/ledger-cli.ts now defaults ON
+// (KH_LEDGER_SERVER !== '0'), so the ~17 legacy ledger-cli-*.test.ts suites —
+// which exercise the DIRECT write path either in-process via `run()` or by
+// spawning `bun scripts/ledger-cli.ts` with the inherited parent env — would
+// otherwise all attempt a real task-view server spawn (ensureServer has no
+// graceful fallback: it spawns or throws). Pinning '0' here keeps every
+// direct-path suite deterministic regardless of ambient KH_LEDGER_SERVER.
+// This is FORCE-SET (not `if (!process.env[k])`) so an ambient '1' cannot leak
+// the in-process suites server-side. Suites that genuinely need flag-ON set
+// KH_LEDGER_SERVER='1' explicitly in their OWN subprocess env AFTER the
+// `...process.env` spread (ledger-server-client.test.ts serverOn arm), which
+// overrides this default for that child only; the differential-parity harness
+// likewise pins both arms explicitly. The server-lifecycle suite does not read
+// the flag at all.
+process.env.KH_LEDGER_SERVER = '0';
+
 // React act() regression guard (S32 audit close-out, S37 W4 IMPL).
 // Any console.error matching the act() warning patterns throws, surfacing
 // the offending test via Vitest's stack trace. Per-test

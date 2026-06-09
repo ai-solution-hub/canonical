@@ -258,7 +258,15 @@ async function main(): Promise<void> {
   // few same-width millisecond bytes → spurious byte-mismatch. This skew is a
   // two-process test artifact, NOT a real flag-ON/flag-OFF divergence.
   const FIXED_NOW = '2026-01-01T00:00:00.000Z';
-  const envOff: Record<string, string> = { KH_LEDGER_NOW: FIXED_NOW };
+  // ID-90.21 P2-F1: serverEnabled() now defaults ON (KH_LEDGER_SERVER !== '0').
+  // The flag-OFF arm must pin '0' EXPLICITLY — relying on the variable being
+  // absent would silently route this arm through the server post-flip, making
+  // the harness compare ON-vs-ON. Pinning '0' also overrides any ambient
+  // KH_LEDGER_SERVER inherited via runCli's `...process.env` spread.
+  const envOff: Record<string, string> = {
+    KH_LEDGER_SERVER: '0',
+    KH_LEDGER_NOW: FIXED_NOW,
+  };
   const envOn: Record<string, string> = {
     KH_LEDGER_SERVER: '1',
     KH_LEDGER_NOW: FIXED_NOW,

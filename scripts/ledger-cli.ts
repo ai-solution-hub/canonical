@@ -124,13 +124,21 @@ import type { ZodTypeAny } from 'zod';
 // ── ID-90.19 server flag + intent ─────────────────────────────────────────────
 
 /**
- * KH_LEDGER_SERVER === '1' enables the server transport path (Phase 1 = OFF
- * by default; Phase 2 flips the default ON). Invariant 3: the flag is the ONE
- * seam — no mixed-path invocation. Invariant 5: flipping OFF instantly
- * restores the direct path with no migration step.
+ * Server transport path toggle. ID-90.21 / TECH §F1 Phase 2: the default is
+ * now ON — the server transport path is taken UNLESS `KH_LEDGER_SERVER=0` is
+ * set explicitly. `KH_LEDGER_SERVER=0` is therefore the explicit ROLLBACK
+ * switch (invariant 5: instant, total, no migration step — flipping to `0`
+ * restores the direct-write path for the very next invocation). Any other
+ * value (absent, `'1'`, etc.) routes through the server.
+ *
+ * Phase 1 history: the default was OFF (`=== '1'` opt-IN) while the server
+ * path was soaked behind the flag; ID-90.21 P2-F1 flips that default once the
+ * AC-P1 parity gate proved byte-identical OFF/ON output.
+ *
+ * Invariant 3: the flag is the ONE seam — no mixed-path invocation.
  */
 function serverEnabled(): boolean {
-  return process.env.KH_LEDGER_SERVER === '1';
+  return process.env.KH_LEDGER_SERVER !== '0';
 }
 
 /**

@@ -809,7 +809,13 @@ function runLedgerCli(
       env: {
         ...process.env,
         KH_LEDGER_NOW: FIXED_NOW,
-        ...(opts.serverOn ? { KH_LEDGER_SERVER: '1' } : {}),
+        // ID-90.21 P2-F1: serverEnabled() now defaults ON. The flag-OFF arm
+        // must pin '0' EXPLICITLY (the absent-variable else-arm `{}` would
+        // route this arm through the server post-flip, breaking the
+        // OFF-vs-ON byte-parity assertions below).
+        ...(opts.serverOn
+          ? { KH_LEDGER_SERVER: '1' }
+          : { KH_LEDGER_SERVER: '0' }),
       },
     },
   );
