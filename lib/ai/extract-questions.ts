@@ -401,7 +401,7 @@ export async function extractTenderMetadata(
   ];
 
   const response = await anthropic.messages.create({
-    model: 'claude-haiku-3-5',
+    model: 'claude-haiku-4-5',
     max_tokens: 1024,
     system: `You are extracting metadata from a UK tender/procurement document.
 Extract the buying organisation name, submission deadline, reference number, estimated contract value, and formal tender title.
