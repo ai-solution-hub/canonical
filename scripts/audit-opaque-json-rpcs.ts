@@ -357,7 +357,7 @@ const VERDICTS: Record<
     return_shape_summary:
       "Supabase Auth Hook. Accepts event jsonb; returns '{}' on allowed domain or jsonb_build_object('error', ...) with http_code on reject. Return shape is conditional (success vs rejection).",
     notes:
-      'This is a Supabase Auth Hook, not an application RPC. The generic, config-driven sign-up domain restriction hook (reads the app.allowed_signup_domain GUC; ID-68.21 cutover superseded the client-named hook captured in migration 20260424202806), registered via pg-functions://postgres/public/hook_restrict_signup_to_allowed_domain. The JSONB input/output contract is defined by the Supabase Auth Hook protocol — converting to RETURNS TABLE would break the hook registration. Zero TS callers by design. Must remain RETURNS JSONB.',
+      'This is a Supabase Auth Hook, not an application RPC. The generic, config-driven sign-up domain restriction hook (reads the allowed domain from the single-row public.signup_policy config table (set per-environment out of band; ID-68.21 GUC->config-table pivot, supersedes the app.allowed_signup_domain GUC mechanism which managed Supabase blocks); ID-68.21 cutover superseded the client-named hook captured in migration 20260424202806), registered via pg-functions://postgres/public/hook_restrict_signup_to_allowed_domain. The JSONB input/output contract is defined by the Supabase Auth Hook protocol — converting to RETURNS TABLE would break the hook registration. Zero TS callers by design. Must remain RETURNS JSONB.',
   },
   merge_entities: {
     verdict: 'convertible',
