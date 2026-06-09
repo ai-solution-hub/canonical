@@ -107,6 +107,89 @@ export type Database = {
         }
         Relationships: []
       }
+      citations: {
+        Row: {
+          citation_type: string
+          cited_content_item_id: string | null
+          cited_end: number | null
+          cited_kind: Database["public"]["Enums"]["cited_target_kind"]
+          cited_location_kind: string | null
+          cited_q_a_pair_id: string | null
+          cited_q_a_pair_version: number | null
+          cited_start: number | null
+          cited_text: string | null
+          cited_version: number | null
+          citing_form_response_id: string | null
+          citing_kind: Database["public"]["Enums"]["citing_entity_kind"]
+          created_at: string
+          created_by: string | null
+          id: string
+        }
+        Insert: {
+          citation_type?: string
+          cited_content_item_id?: string | null
+          cited_end?: number | null
+          cited_kind: Database["public"]["Enums"]["cited_target_kind"]
+          cited_location_kind?: string | null
+          cited_q_a_pair_id?: string | null
+          cited_q_a_pair_version?: number | null
+          cited_start?: number | null
+          cited_text?: string | null
+          cited_version?: number | null
+          citing_form_response_id?: string | null
+          citing_kind?: Database["public"]["Enums"]["citing_entity_kind"]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+        }
+        Update: {
+          citation_type?: string
+          cited_content_item_id?: string | null
+          cited_end?: number | null
+          cited_kind?: Database["public"]["Enums"]["cited_target_kind"]
+          cited_location_kind?: string | null
+          cited_q_a_pair_id?: string | null
+          cited_q_a_pair_version?: number | null
+          cited_start?: number | null
+          cited_text?: string | null
+          cited_version?: number | null
+          citing_form_response_id?: string | null
+          citing_kind?: Database["public"]["Enums"]["citing_entity_kind"]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "citations_cited_content_item_id_fkey"
+            columns: ["cited_content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_cited_q_a_pair_id_fkey"
+            columns: ["cited_q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_citing_form_response_id_fkey"
+            columns: ["citing_form_response_id"]
+            isOneToOne: false
+            referencedRelation: "form_responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classification_disputes: {
         Row: {
           content_item_id: string
@@ -3948,34 +4031,6 @@ export type Database = {
         }[]
       }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
-      get_form_question_stats: {
-        Args: { p_project_id: string }
-        Returns: {
-          complete_count: number
-          drafted_count: number
-          needs_sme_count: number
-          no_content_count: number
-          partial_match_count: number
-          strong_match_count: number
-          total_questions: number
-          unmatched_count: number
-        }[]
-      }
-      get_form_question_stats_batch: {
-        Args: { p_project_ids: string[] }
-        Returns: {
-          complete_count: number
-          drafted_count: number
-          needs_sme_count: number
-          no_content_count: number
-          partial_match_count: number
-          strong_match_count: number
-          total_questions: number
-          unmatched_count: number
-          workspace_id: string
-        }[]
-      }
-      get_form_summary: { Args: { bid_workspace_id: string }; Returns: Json }
       get_capture_activity: {
         Args: { days_back?: number }
         Returns: {
@@ -4154,6 +4209,34 @@ export type Database = {
           total: number
         }[]
       }
+      get_form_question_stats: {
+        Args: { p_project_id: string }
+        Returns: {
+          complete_count: number
+          drafted_count: number
+          needs_sme_count: number
+          no_content_count: number
+          partial_match_count: number
+          strong_match_count: number
+          total_questions: number
+          unmatched_count: number
+        }[]
+      }
+      get_form_question_stats_batch: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          complete_count: number
+          drafted_count: number
+          needs_sme_count: number
+          no_content_count: number
+          partial_match_count: number
+          strong_match_count: number
+          total_questions: number
+          unmatched_count: number
+          workspace_id: string
+        }[]
+      }
+      get_form_summary: { Args: { bid_workspace_id: string }; Returns: Json }
       get_freshness_breakdown: {
         Args: never
         Returns: {
@@ -4636,7 +4719,8 @@ export type Database = {
           }
     }
     Enums: {
-      [_ in never]: never
+      cited_target_kind: "content_item" | "q_a_pair"
+      citing_entity_kind: "form_response"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4763,6 +4847,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      cited_target_kind: ["content_item", "q_a_pair"],
+      citing_entity_kind: ["form_response"],
+    },
   },
 } as const
