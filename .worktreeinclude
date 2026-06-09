@@ -5,10 +5,9 @@
 
 .env.local
 
-# Code-intelligence indexes — copy into agent worktrees so gitnexus_detect_changes
-# + ccc search resolve locally (worktrees otherwise inherit no index).
-# gitnexus_impact already works via the primary-tree index without these.
-# Cost note: ~260MB (.gitnexus) + ~412MB (.cocoindex_code) copied per worktree.
-# (.gitnexus/CLAUDE.md is tracked → comes via git, not copied here.)
+# Code-intelligence
 .gitnexus/**
-.cocoindex_code/**
+
+# Memory
+mempalace.yaml
+entities.json
