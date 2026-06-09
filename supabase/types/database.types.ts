@@ -473,6 +473,7 @@ export type Database = {
       }
       content_history: {
         Row: {
+          arbitration_inputs: Json | null
           brief: string | null
           change_reason: string | null
           change_summary: string | null
@@ -482,6 +483,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           detail: string | null
+          edit_intent: string | null
           id: string
           metadata: Json | null
           reference: string | null
@@ -489,6 +491,7 @@ export type Database = {
           version: number
         }
         Insert: {
+          arbitration_inputs?: Json | null
           brief?: string | null
           change_reason?: string | null
           change_summary?: string | null
@@ -498,6 +501,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           detail?: string | null
+          edit_intent?: string | null
           id?: string
           metadata?: Json | null
           reference?: string | null
@@ -505,6 +509,7 @@ export type Database = {
           version: number
         }
         Update: {
+          arbitration_inputs?: Json | null
           brief?: string | null
           change_reason?: string | null
           change_summary?: string | null
@@ -514,6 +519,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           detail?: string | null
+          edit_intent?: string | null
           id?: string
           metadata?: Json | null
           reference?: string | null
@@ -2640,6 +2646,7 @@ export type Database = {
           anti_scope_tag: string[]
           changed_at: string
           changed_by: string | null
+          edit_intent: string | null
           id: string
           origin_kind: string
           publication_status: string
@@ -2659,6 +2666,7 @@ export type Database = {
           anti_scope_tag: string[]
           changed_at?: string
           changed_by?: string | null
+          edit_intent?: string | null
           id?: string
           origin_kind: string
           publication_status: string
@@ -2678,6 +2686,7 @@ export type Database = {
           anti_scope_tag?: string[]
           changed_at?: string
           changed_by?: string | null
+          edit_intent?: string | null
           id?: string
           origin_kind?: string
           publication_status?: string
@@ -2707,6 +2716,7 @@ export type Database = {
           answer_standard: string
           anti_scope_tag: string[]
           created_at: string
+          edit_intent: string | null
           id: string
           origin_kind: string
           publication_status: string
@@ -2725,6 +2735,7 @@ export type Database = {
           answer_standard: string
           anti_scope_tag?: string[]
           created_at?: string
+          edit_intent?: string | null
           id?: string
           origin_kind?: string
           publication_status?: string
@@ -2743,6 +2754,7 @@ export type Database = {
           answer_standard?: string
           anti_scope_tag?: string[]
           created_at?: string
+          edit_intent?: string | null
           id?: string
           origin_kind?: string
           publication_status?: string
