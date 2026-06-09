@@ -1,0 +1,12 @@
+-- ID-64.14 fix (S330 Checker finding, security/important): migration 20260609145550 created
+-- snapshot_form_response_history() as SECURITY DEFINER but omitted the REVOKE that ops43
+-- (20260502143049:133) had applied to its predecessor snapshot_bid_response_history().
+-- A newly-created Postgres function defaults to EXECUTE TO PUBLIC. Restore the trigger-
+-- function hardening pattern (bl-231 / ops43 spec section 3.5: SECURITY DEFINER trigger
+-- functions REVOKE additionally from PUBLIC and authenticated). Not directly exploitable
+-- (Postgres rejects direct invocation of a trigger function) but check-revoke-guard flags
+-- any unrevoked SECURITY DEFINER function on its live-DB audit run.
+-- NOTE (S330): authored by the orchestrator; STAGING APPLY DEFERRED -- the supabase CLI hung
+-- non-interactively in the main-checkout context. Apply next session via a worktree executor
+-- or `printf 'Y\n' | supabase db push`, then Checker re-verify + flip {64.14} done.
+REVOKE EXECUTE ON FUNCTION public.snapshot_form_response_history() FROM PUBLIC, anon, authenticated;
