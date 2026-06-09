@@ -781,6 +781,35 @@ const CLONE_PRESENT =
   );
 const FIXED_NOW = '2026-01-01T00:00:00.000Z';
 
+// ID-90.21 (live-ledger drift): the parity cases below MUST address records by
+// ids derived from the LIVE ledger content rather than hardcoded literals. The
+// fixtures are a `cpSync` of `docs/reference` at run time (see `fixtureDir()`),
+// so a concurrent session deleting a record (e.g. backlog 270/271/… in
+// d6eb192ac) would otherwise make a hardcoded `'270'` 404 on the flag-OFF arm
+// with `walk-error: Item id "270" not found`. Reading the first record id from
+// each live document once — same content `fixtureDir()` copies — keeps the
+// cases content-independent and drift-proof.
+function firstId(relPath: string, listKey: string): string {
+  const doc = JSON.parse(
+    readFileSync(resolve(REPO_ROOT, relPath), 'utf8'),
+  ) as Record<string, { id: string | number }[]>;
+  const list = doc[listKey];
+  if (!Array.isArray(list) || list.length === 0 || list[0].id == null) {
+    throw new Error(`firstId: no ${listKey}[0].id in ${relPath}`);
+  }
+  return String(list[0].id);
+}
+
+const FIRST_BACKLOG_ID = firstId(
+  'docs/reference/product-backlog.json',
+  'items',
+);
+const FIRST_ROADMAP_THEME_ID = firstId(
+  'docs/reference/product-roadmap.json',
+  'themes',
+);
+const FIRST_TASK_ID = firstId('docs/reference/task-list.json', 'tasks');
+
 interface CliRun {
   exitCode: number;
   envelope: Record<string, unknown> | null;
@@ -851,20 +880,26 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
     fixtureRoots = [];
   });
 
-  // GAP 1 — success-envelope shape parity for a field-patch.
+  // GAP 1 — success-envelope shape parity for a field-patch. The task id is
+  // derived from the live fixture content (ID-90.21), not hardcoded, so a
+  // concurrent task deletion cannot 404 this case on the flag-OFF arm.
   it('flip-task flag-ON returns the flag-OFF `{taskId,status}` envelope, not the server body', () => {
-    const off = runLedgerCli(fixtureDir(), ['flip-task', '90', 'in_progress'], {
-      serverOn: false,
-    });
-    const on = runLedgerCli(fixtureDir(), ['flip-task', '90', 'in_progress'], {
-      serverOn: true,
-    });
+    const off = runLedgerCli(
+      fixtureDir(),
+      ['flip-task', FIRST_TASK_ID, 'in_progress'],
+      { serverOn: false },
+    );
+    const on = runLedgerCli(
+      fixtureDir(),
+      ['flip-task', FIRST_TASK_ID, 'in_progress'],
+      { serverOn: true },
+    );
 
     expect(off.exitCode).toBe(0);
     expect(on.exitCode).toBe(0);
     // flag-ON `result` is the per-subcommand payload, identical to flag-OFF.
     expect(on.envelope?.result).toEqual({
-      taskId: '90',
+      taskId: FIRST_TASK_ID,
       status: 'in_progress',
     });
     expect(on.envelope?.result).toEqual(off.envelope?.result);
@@ -877,15 +912,17 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
   it('flip-task --dry-run flag-ON returns {dryRun:true,...} and writes nothing', () => {
     const dir = fixtureDir();
     const before = readFileSync(join(dir, 'task-list.json'));
-    const on = runLedgerCli(dir, ['flip-task', '90', 'done', '--dry-run'], {
-      serverOn: true,
-    });
+    const on = runLedgerCli(
+      dir,
+      ['flip-task', FIRST_TASK_ID, 'done', '--dry-run'],
+      { serverOn: true },
+    );
     const after = readFileSync(join(dir, 'task-list.json'));
 
     expect(on.exitCode).toBe(0);
     expect(on.envelope?.result).toEqual({
       dryRun: true,
-      taskId: '90',
+      taskId: FIRST_TASK_ID,
       status: 'done',
     });
     // The real server honoured dryRun: the canonical file is byte-unchanged.
@@ -893,16 +930,20 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
   });
 
   // GAP 3 — backlog + roadmap slug addressing resolves after the slug fix
-  // (pre-fix: `product-backlog`/`product-roadmap` 404'd → exit 1).
+  // (pre-fix: `product-backlog`/`product-roadmap` 404'd → exit 1). Record ids
+  // are derived from the live fixture content (ID-90.21) so a concurrent
+  // deletion cannot regress these to a `walk-error: Item id not found`. The
+  // `priority low` field/value is content-independent (a valid write whether or
+  // not the first item already carries that priority).
   it('update-backlog flag-ON resolves the `backlog` slug (200, parity envelope)', () => {
     const off = runLedgerCli(
       fixtureDir(),
-      ['update-backlog', '270', 'status', 'ready'],
+      ['update-backlog', FIRST_BACKLOG_ID, 'priority', 'low'],
       { serverOn: false },
     );
     const on = runLedgerCli(
       fixtureDir(),
-      ['update-backlog', '270', 'status', 'ready'],
+      ['update-backlog', FIRST_BACKLOG_ID, 'priority', 'low'],
       { serverOn: true },
     );
     expect(off.exitCode).toBe(0);
@@ -914,12 +955,12 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
   it('update-roadmap flag-ON resolves the `roadmap` slug (200, parity envelope)', () => {
     const off = runLedgerCli(
       fixtureDir(),
-      ['update-roadmap', '10', 'status', 'in_progress'],
+      ['update-roadmap', FIRST_ROADMAP_THEME_ID, 'status', 'in_progress'],
       { serverOn: false },
     );
     const on = runLedgerCli(
       fixtureDir(),
-      ['update-roadmap', '10', 'status', 'in_progress'],
+      ['update-roadmap', FIRST_ROADMAP_THEME_ID, 'status', 'in_progress'],
       { serverOn: true },
     );
     expect(off.exitCode).toBe(0);
@@ -934,17 +975,17 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
   it('flip-task --whole-file flag-ON takes the local path and equals flag-OFF bytes', () => {
     const dirOff = fixtureDir();
     const dirOn = fixtureDir();
-    const off = runLedgerCli(dirOff, ['flip-task', '90', 'pending'], {
+    const off = runLedgerCli(dirOff, ['flip-task', FIRST_TASK_ID, 'pending'], {
       serverOn: false,
     });
     const on = runLedgerCli(
       dirOn,
-      ['flip-task', '90', 'pending', '--whole-file'],
+      ['flip-task', FIRST_TASK_ID, 'pending', '--whole-file'],
       { serverOn: true },
     );
     const offWhole = runLedgerCli(
       dirOff,
-      ['flip-task', '90', 'pending', '--whole-file'],
+      ['flip-task', FIRST_TASK_ID, 'pending', '--whole-file'],
       { serverOn: false },
     );
 
@@ -977,10 +1018,12 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
   it('delete-backlog flag-ON reaches flag-OFF parity via the server transport', () => {
     const dirOff = fixtureDir();
     const dirOn = fixtureDir();
-    const off = runLedgerCli(dirOff, ['delete-backlog', '270'], {
+    // Record id is derived from the live fixture content (ID-90.21): a hardcoded
+    // backlog id would 404 here once a concurrent session resolves that item.
+    const off = runLedgerCli(dirOff, ['delete-backlog', FIRST_BACKLOG_ID], {
       serverOn: false,
     });
-    const on = runLedgerCli(dirOn, ['delete-backlog', '270'], {
+    const on = runLedgerCli(dirOn, ['delete-backlog', FIRST_BACKLOG_ID], {
       serverOn: true,
     });
 
@@ -999,6 +1042,8 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
     const bytesOn = readFileSync(join(dirOn, 'product-backlog.json'));
     expect(bytesOn.equals(bytesOff)).toBe(true);
     const onDoc = JSON.parse(bytesOn.toString()) as { items: { id: string }[] };
-    expect(onDoc.items.some((i) => String(i.id) === '270')).toBe(false);
+    expect(onDoc.items.some((i) => String(i.id) === FIRST_BACKLOG_ID)).toBe(
+      false,
+    );
   });
 });
