@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   arbitrate,
   arbitrateMany,
+  coerceIntent,
   type EditIntent,
 } from '@/lib/edit-intent/arbitrate';
 
@@ -87,5 +88,101 @@ describe('arbitrateMany', () => {
     expect(arbitrateMany(['data'])).toBe('data');
     // structural alone arbitrates against the cosmetic seed ⇒ 'data'.
     expect(arbitrateMany(['structural'])).toBe('data');
+  });
+});
+
+// {59.7} — coerceIntent null/unknown fallback (PRODUCT PC-12 / INV-12).
+//
+// Mock-free: the real `logBestEffortWarn` runs. Its sanctioned sink is the
+// client logger, which routes `warn` to `console.warn(message, payload)`. We
+// observe the structured fallback log by spying on `console.warn` — a spy on a
+// global method, NOT a module/Supabase mock — so the OBSERVABLE side effect the
+// spec asserts is exercised end-to-end through the production logger.
+describe('coerceIntent — null/unknown fallback + structured log', () => {
+  const ctx = {
+    userId: 'b1111111-1111-4111-8111-111111111111',
+    contentItemId: 'c2222222-2222-4222-8222-222222222222',
+    opId: 'd3333333-3333-4333-8333-333333333333',
+  };
+
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  // The structured fallback line is `console.warn(message, payload)`. Locate
+  // the call whose message is `edit_intent_arbitration_fallback` and return its
+  // structured payload object.
+  function fallbackPayload(): Record<string, unknown> | undefined {
+    const call = warnSpy.mock.calls.find(
+      (args: unknown[]) => args[0] === 'edit_intent_arbitration_fallback',
+    );
+    return call?.[1] as Record<string, unknown> | undefined;
+  }
+
+  it('returns cosmetic for null', () => {
+    expect(coerceIntent(null, ctx)).toBe('cosmetic');
+  });
+
+  it('returns cosmetic for undefined', () => {
+    expect(coerceIntent(undefined, ctx)).toBe('cosmetic');
+  });
+
+  it('returns cosmetic for an out-of-CV string ("foo")', () => {
+    expect(coerceIntent('foo', ctx)).toBe('cosmetic');
+  });
+
+  it('returns the valid value verbatim for "data"', () => {
+    expect(coerceIntent('data', ctx)).toBe('data');
+  });
+
+  it('returns valid CV members verbatim', () => {
+    expect(coerceIntent('cosmetic', ctx)).toBe('cosmetic');
+    expect(coerceIntent('data', ctx)).toBe('data');
+    expect(coerceIntent('structural', ctx)).toBe('structural');
+  });
+
+  it.each([null, undefined, 'foo'])(
+    'emits edit_intent_arbitration_fallback with received + treated_as:cosmetic + ctx ids for %s',
+    (received) => {
+      coerceIntent(received, ctx);
+
+      const payload = fallbackPayload();
+      expect(payload).toBeDefined();
+      expect(payload).toMatchObject({
+        received,
+        treated_as: 'cosmetic',
+        userId: ctx.userId,
+        contentItemId: ctx.contentItemId,
+        opId: ctx.opId,
+      });
+    },
+  );
+
+  it.each<EditIntent>(['cosmetic', 'data', 'structural'])(
+    'does NOT emit edit_intent_arbitration_fallback for the valid value %s',
+    (valid) => {
+      coerceIntent(valid, ctx);
+      expect(fallbackPayload()).toBeUndefined();
+    },
+  );
+
+  it('treats non-string out-of-CV values (number) as cosmetic + logs', () => {
+    expect(coerceIntent(42, ctx)).toBe('cosmetic');
+    expect(fallbackPayload()).toMatchObject({
+      received: 42,
+      treated_as: 'cosmetic',
+    });
+  });
+
+  it('never throws regardless of input shape', () => {
+    expect(() => coerceIntent(Symbol('x'), ctx)).not.toThrow();
+    expect(() => coerceIntent({ nested: true }, ctx)).not.toThrow();
+    expect(() => coerceIntent([], ctx)).not.toThrow();
   });
 });
