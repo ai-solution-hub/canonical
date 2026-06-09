@@ -1,4 +1,7 @@
 {
+  "env": {
+    "KH_PRIVATE_DOCS_DIR": "/Users/liamj/Documents/development/knowledge-hub-docs-site"
+  },
   "enabledPlugins": {
     "firecrawl@claude-plugins-official": false,
     "knowledge-hub@local": false,
@@ -39,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); FP=$(echo \"$INPUT\" | jq -r '.tool_input.file_path' 2>/dev/null); CWD=$(echo \"$INPUT\" | jq -r '.cwd' 2>/dev/null); if echo \"$FP\" | grep -qE '^/Users/liamj/Documents/development/knowledge-hub'; then case \"$FP\" in \"$CWD\"/*|\"$CWD\") exit 0;; esac; echo \"BLOCKED: Write/Edit/MultiEdit to absolute knowledge-hub path '$FP' from CWD '$CWD'. Sub-agents must write only within their worktree (use relative paths or the worktree-absolute prefix). Tier 2.2 hook (ID-19.3) — prevents cross-tree leak when CWD-correct agent emits wrong absolute path.\" >&2; exit 2; fi"
+            "command": "INPUT=$(cat); FP=$(echo \"$INPUT\" | jq -r '.tool_input.file_path' 2>/dev/null); CWD=$(echo \"$INPUT\" | jq -r '.cwd' 2>/dev/null); if echo \"$FP\" | grep -qE '^/Users/liamj/Documents/development/knowledge-hub(/|$)'; then case \"$FP\" in \"$CWD\"/*|\"$CWD\") exit 0;; esac; echo \"BLOCKED: Write/Edit/MultiEdit to absolute knowledge-hub path '$FP' from CWD '$CWD'. Sub-agents must write only within their worktree (use relative paths or the worktree-absolute prefix). Tier 2.2 hook (ID-19.3) — prevents cross-tree leak when CWD-correct agent emits wrong absolute path.\" >&2; exit 2; fi"
           },
           {
             "type": "command",
@@ -48,5 +51,14 @@
         ]
       }
     ]
+  },
+  "sandbox": {
+    "filesystem": {
+      "allowWrite": [
+        "/Users/liamj/Documents/development/knowledge-hub-docs-site",
+        "/Users/liamj/Documents/development/knowledge-hub/.claude",
+        "/Users/liamj/Documents/development/knowledge-hub-docs-site/.claude"
+      ]
+    }
   }
 }
