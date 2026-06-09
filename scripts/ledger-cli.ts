@@ -133,17 +133,20 @@ function serverEnabled(): boolean {
   return process.env.KH_LEDGER_SERVER === '1';
 }
 
-/** Slug used in the server's /api/ledger/:slug/... routes. */
-type LedgerSlug =
-  | 'task-list'
-  | 'product-roadmap'
-  | 'product-backlog'
-  | 'umbrellas';
+/**
+ * Slug used in the server's /api/ledger/:slug/... routes. ID-90.25 GAP 3: the
+ * server's slug vocabulary is `task-list` / `roadmap` / `backlog` / `umbrellas`
+ * (verified: `PATCH /api/ledger/backlog/record/270` -> 200;
+ * `product-backlog` -> 404). This is the FLAG-ON ROUTING vocabulary only — the
+ * flag-OFF write path uses LEDGER_FILES/ledgerPath() and the mirror filenames
+ * stay `product-backlog.json` / `product-roadmap.json` (unchanged).
+ */
+type LedgerSlug = 'task-list' | 'roadmap' | 'backlog' | 'umbrellas';
 
 const LEDGER_NAME_TO_SLUG: Record<LedgerName, LedgerSlug> = {
   task: 'task-list',
-  roadmap: 'product-roadmap',
-  backlog: 'product-backlog',
+  roadmap: 'roadmap',
+  backlog: 'backlog',
 };
 
 function ledgerSlug(name: LedgerName): LedgerSlug {
@@ -1987,7 +1990,16 @@ async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
   // ── ID-90.19 K4: server transport branch (inv 3 — one seam) ───────────
   // Flag ON + serverIntent present → delegate to the server transport.
   // Flag OFF → fall through to the BYTE-UNTOUCHED direct write path below.
-  if (serverEnabled() && opts.serverIntent) {
+  //
+  // ID-90.25 GAP 2a: `--whole-file` is the legacy serialise() escape hatch; the
+  // server has no whole-file mode; it stays on the direct path under flag-ON
+  // (deprecation deferred to ID-90.22/90.23). The whole-file signal is
+  // `opts.scoped === false` (every mutating call site passes
+  // `scoped: !flags.wholeFile`; delete sites omit `scoped` → undefined, so they
+  // stay on the server path). Routing `--whole-file` through the SCOPED server
+  // write produced a ~805KB key-order divergence that also poisoned later
+  // sequential-harness entries — so divert ONLY the explicit whole-file case.
+  if (serverEnabled() && opts.serverIntent && opts.scoped !== false) {
     return serverCommitMutation(opts);
   }
 
@@ -2221,9 +2233,20 @@ async function serverCommitMutation(
     ...(!opts.regenMirrors ? { regenMirrors: false } : {}),
   };
 
+  // ID-90.25 GAP 1/GAP 4: thread the flag-OFF-matching success payload so the
+  // flag-ON success envelope's `result` field is byte-identical to flag-OFF.
+  // Flag-OFF emits `result: resultPayload` for a live write (commitMutation
+  // :2132) and `result: { dryRun:true, ...resultPayload }` for a dry-run
+  // (commitMutation :2047). The server already honours dryRun (writes nothing),
+  // so dry-run parity reduces to matching this envelope shape.
+  const resultPayload = opts.dryRun
+    ? { dryRun: true, ...(opts.resultPayload as object) }
+    : opts.resultPayload;
+
   return transportCommit({
     deriveRequest: () => buildTransportRequest(baseUrl, intent, opts.path),
     subcommand: opts.subcommand,
+    resultPayload,
     options: transportOpts,
     ensureServer: async () => {
       await ensureServer({ ledgerDir });
@@ -2271,8 +2294,21 @@ function fieldPatchMutation(
 // emits the identical `invalid-json-arg` envelope for malformed positional JSON,
 // so back-compat on the error surface is preserved.
 
+/**
+ * ID-90.25 GAP 2b: inv-4-safe clock seam. Every wall-clock timestamp that gets
+ * written INTO a ledger file routes through here so the differential-parity
+ * harness can pin both arms to one instant (the harness runs flag-OFF and
+ * flag-ON as two separate processes at different instants → an unpinned
+ * `new Date()` differs by a few same-width millisecond bytes and fails the
+ * byte-compare). Production leaves `KH_LEDGER_NOW` unset → `new Date()`, so the
+ * flag-OFF path stays byte-identical to pre-change behaviour (inv 4).
+ */
+function ledgerNow(): string {
+  return process.env.KH_LEDGER_NOW ?? new Date().toISOString();
+}
+
 function journalBlock(text: string): string {
-  const ts = new Date().toISOString();
+  const ts = ledgerNow();
   return `<info added on ${ts}>\n${text}\n</info added on ${ts}>`;
 }
 
@@ -2406,7 +2442,11 @@ function withCreateDefaults(
 ): Record<string, unknown> {
   const defaults = { ...CREATE_DEFAULTS[recordKind] };
   if (recordKind === 'task' && record.updatedAt === undefined) {
-    defaults.updatedAt = new Date().toISOString();
+    // ID-90.25 GAP 2b: route through the ledgerNow() clock seam — under flag-ON
+    // the record (with this updatedAt) is built CLI-side then POSTed to the
+    // server, so an unpinned wall-clock here would diverge from the flag-OFF
+    // arm in the parity harness. Prod leaves KH_LEDGER_NOW unset (unchanged).
+    defaults.updatedAt = ledgerNow();
   }
   return { ...defaults, ...record };
 }

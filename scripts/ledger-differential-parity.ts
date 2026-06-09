@@ -251,8 +251,18 @@ async function main(): Promise<void> {
   log(`  dir A (flag-OFF): ${dirA}`);
   log(`  dir B (flag-ON):  ${dirB}`);
 
-  const envOff: Record<string, string> = {};
-  const envOn: Record<string, string> = { KH_LEDGER_SERVER: '1' };
+  // ID-90.25 GAP 2b: pin the ledger clock to a FIXED instant in BOTH arms. The
+  // harness runs flag-OFF and flag-ON as two separate processes at different
+  // wall-clock instants; any timestamp written into a ledger (append-journal's
+  // <info added on …> block, a create's updatedAt) would otherwise differ by a
+  // few same-width millisecond bytes → spurious byte-mismatch. This skew is a
+  // two-process test artifact, NOT a real flag-ON/flag-OFF divergence.
+  const FIXED_NOW = '2026-01-01T00:00:00.000Z';
+  const envOff: Record<string, string> = { KH_LEDGER_NOW: FIXED_NOW };
+  const envOn: Record<string, string> = {
+    KH_LEDGER_SERVER: '1',
+    KH_LEDGER_NOW: FIXED_NOW,
+  };
 
   // In CI, export the synthetic denylist for the guard arm (AC-I).
   if (CI_MODE) {

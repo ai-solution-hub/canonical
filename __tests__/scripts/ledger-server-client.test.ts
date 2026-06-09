@@ -17,6 +17,11 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
+import { mkdtempSync, cpSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import {
   transportCommit,
   jitteredDelay,
@@ -26,6 +31,7 @@ import {
   MAX_RETRIES,
   type TransportRequest,
 } from '@/scripts/ledger-server-client';
+import { resolveTag } from '@/scripts/ledger-server-lifecycle';
 
 // ── test server helper ────────────────────────────────────────────────────────
 
@@ -136,7 +142,11 @@ describe('isConnectionRefused', () => {
 // ── success mapping ───────────────────────────────────────────────────────────
 
 describe('transportCommit success mapping', () => {
-  it('maps a 200 success to CliResult ok:true', async () => {
+  it('maps a 200 success to CliResult ok:true with the threaded resultPayload', async () => {
+    // ID-90.25 GAP 1: mapSuccess returns the caller's per-subcommand
+    // `resultPayload` (the flag-OFF shape, e.g. `{taskId,status}`), NOT the
+    // stripped server body (`{newMtime,recordId}`). The server's newMtime is
+    // intentionally discarded so the flag-ON envelope matches flag-OFF.
     const { url } = await serve(() => ({
       status: 200,
       json: { ok: true, newMtime: '2000', recordId: '42' },
@@ -145,14 +155,18 @@ describe('transportCommit success mapping', () => {
       {
         deriveRequest: () => patchRequest(url),
         subcommand: 'flip-task',
+        resultPayload: { taskId: '42', status: 'done' },
       },
       { sleep: noSleep },
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.subcommand).toBe('flip-task');
-    expect((r.result as { newMtime: string }).newMtime).toBe('2000');
-    expect((r.result as { recordId: string }).recordId).toBe('42');
+    // The flag-OFF-matching payload is returned verbatim …
+    expect(r.result).toEqual({ taskId: '42', status: 'done' });
+    // … and the stripped server body is NOT leaked into `result`.
+    expect((r.result as { newMtime?: string }).newMtime).toBeUndefined();
+    expect((r.result as { recordId?: string }).recordId).toBeUndefined();
   });
 
   it('passes through server warnings', async () => {
@@ -546,6 +560,7 @@ describe('transportCommit connection-refused handling (inv 54)', () => {
           body: {},
         }),
         subcommand: 'flip-task',
+        resultPayload: { taskId: '90', status: 'done' },
         ensureServer: async () => {
           respawnCalls++;
           // Start a real server on respawn.
@@ -562,7 +577,8 @@ describe('transportCommit connection-refused handling (inv 54)', () => {
     expect(respawnCalls).toBe(1);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect((r.result as { newMtime: string }).newMtime).toBe('7000');
+    // ID-90.25 GAP 1: the threaded payload survives the respawn path too.
+    expect(r.result).toEqual({ taskId: '90', status: 'done' });
   });
 
   it('fails loud after respawn also fails', async () => {
@@ -732,5 +748,208 @@ describe('transportCommit edge cases', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.warnings).toBeUndefined();
+  });
+});
+
+// ── ID-90.25 flag-ON parity (REAL ledger server, fetch UNMOCKED) ───────────────
+//
+// These cases drive the REAL `scripts/ledger-cli.ts` end-to-end with
+// `KH_LEDGER_SERVER=1`, so `ensureServer` spawns the REAL task-view patch-server
+// clone (.cache/task-view-<tag>/) and the transport hits it over real HTTP — the
+// server's responses are NEVER mocked (mocking them was the antipattern that
+// masked the GAP-1/3/4 defects: the unit suite above passed against canned JSON
+// while flag-ON diverged from flag-OFF). Each case asserts the flag-ON observable
+// outcome (stdout envelope + on-disk bytes) matches the flag-OFF baseline.
+//
+// Skipped only when the clone is not provisioned (run `scripts/regen-mirrors.sh`
+// or the differential-parity harness once to populate .cache/). CI provisions it.
+
+// __tests__/scripts/ -> repo root (works under both Vitest/Node and Bun;
+// import.meta.dir is a Bun-only field and is undefined under Vitest).
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const CLONE_TAG = (() => {
+  try {
+    return resolveTag(REPO_ROOT);
+  } catch {
+    return null;
+  }
+})();
+const CLONE_PRESENT =
+  CLONE_TAG !== null &&
+  existsSync(
+    resolve(REPO_ROOT, `.cache/task-view-${CLONE_TAG}/apps/server/index.ts`),
+  );
+const FIXED_NOW = '2026-01-01T00:00:00.000Z';
+
+interface CliRun {
+  exitCode: number;
+  envelope: Record<string, unknown> | null;
+  stdout: string;
+}
+
+/** Run the real ledger-cli against a fixture dir. flag-ON sets KH_LEDGER_SERVER. */
+function runLedgerCli(
+  ledgerDir: string,
+  args: string[],
+  opts: { serverOn: boolean },
+): CliRun {
+  const res = spawnSync(
+    'bun',
+    [
+      'scripts/ledger-cli.ts',
+      ...args,
+      '--ledger-dir',
+      ledgerDir,
+      '--no-regen-mirrors',
+    ],
+    {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      timeout: 30_000,
+      env: {
+        ...process.env,
+        KH_LEDGER_NOW: FIXED_NOW,
+        ...(opts.serverOn ? { KH_LEDGER_SERVER: '1' } : {}),
+      },
+    },
+  );
+  const stdout = (res.stdout ?? '').trim();
+  let envelope: Record<string, unknown> | null = null;
+  try {
+    envelope = JSON.parse(stdout) as Record<string, unknown>;
+  } catch {
+    envelope = null;
+  }
+  return { exitCode: res.status ?? 1, envelope, stdout };
+}
+
+describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
+  // Honour $TMPDIR (sandbox-writable); os.tmpdir() can report a blocked path.
+  const TMP_BASE = process.env.TMPDIR ?? tmpdir();
+  // Track the mkdtemp ROOTS so cleanup removes the exact dirs we created
+  // (never a re-derived `..` path that could escape to the tmp base).
+  let fixtureRoots: string[] = [];
+
+  function fixtureDir(): string {
+    const root = mkdtempSync(join(TMP_BASE, 'ledger-9025-'));
+    const refDir = join(root, 'docs', 'reference');
+    cpSync(join(REPO_ROOT, 'docs/reference'), refDir, { recursive: true });
+    fixtureRoots.push(root);
+    return refDir;
+  }
+
+  afterEach(() => {
+    for (const root of fixtureRoots) {
+      rmSync(root, { recursive: true, force: true });
+    }
+    fixtureRoots = [];
+  });
+
+  // GAP 1 — success-envelope shape parity for a field-patch.
+  it('flip-task flag-ON returns the flag-OFF `{taskId,status}` envelope, not the server body', () => {
+    const off = runLedgerCli(fixtureDir(), ['flip-task', '90', 'in_progress'], {
+      serverOn: false,
+    });
+    const on = runLedgerCli(fixtureDir(), ['flip-task', '90', 'in_progress'], {
+      serverOn: true,
+    });
+
+    expect(off.exitCode).toBe(0);
+    expect(on.exitCode).toBe(0);
+    // flag-ON `result` is the per-subcommand payload, identical to flag-OFF.
+    expect(on.envelope?.result).toEqual({
+      taskId: '90',
+      status: 'in_progress',
+    });
+    expect(on.envelope?.result).toEqual(off.envelope?.result);
+    // The stripped server body must NOT leak into `result`.
+    expect(on.envelope?.result).not.toHaveProperty('newMtime');
+    expect(on.envelope?.result).not.toHaveProperty('recordId');
+  });
+
+  // GAP 4 — dry-run returns `{dryRun:true,...}` AND the server writes nothing.
+  it('flip-task --dry-run flag-ON returns {dryRun:true,...} and writes nothing', () => {
+    const dir = fixtureDir();
+    const before = readFileSync(join(dir, 'task-list.json'));
+    const on = runLedgerCli(dir, ['flip-task', '90', 'done', '--dry-run'], {
+      serverOn: true,
+    });
+    const after = readFileSync(join(dir, 'task-list.json'));
+
+    expect(on.exitCode).toBe(0);
+    expect(on.envelope?.result).toEqual({
+      dryRun: true,
+      taskId: '90',
+      status: 'done',
+    });
+    // The real server honoured dryRun: the canonical file is byte-unchanged.
+    expect(after.equals(before)).toBe(true);
+  });
+
+  // GAP 3 — backlog + roadmap slug addressing resolves after the slug fix
+  // (pre-fix: `product-backlog`/`product-roadmap` 404'd → exit 1).
+  it('update-backlog flag-ON resolves the `backlog` slug (200, parity envelope)', () => {
+    const off = runLedgerCli(
+      fixtureDir(),
+      ['update-backlog', '270', 'status', 'ready'],
+      { serverOn: false },
+    );
+    const on = runLedgerCli(
+      fixtureDir(),
+      ['update-backlog', '270', 'status', 'ready'],
+      { serverOn: true },
+    );
+    expect(off.exitCode).toBe(0);
+    expect(on.exitCode).toBe(0);
+    expect(on.envelope?.ok).toBe(true);
+    expect(on.envelope?.result).toEqual(off.envelope?.result);
+  });
+
+  it('update-roadmap flag-ON resolves the `roadmap` slug (200, parity envelope)', () => {
+    const off = runLedgerCli(
+      fixtureDir(),
+      ['update-roadmap', '10', 'status', 'in_progress'],
+      { serverOn: false },
+    );
+    const on = runLedgerCli(
+      fixtureDir(),
+      ['update-roadmap', '10', 'status', 'in_progress'],
+      { serverOn: true },
+    );
+    expect(off.exitCode).toBe(0);
+    expect(on.exitCode).toBe(0);
+    expect(on.envelope?.ok).toBe(true);
+    expect(on.envelope?.result).toEqual(off.envelope?.result);
+  });
+
+  // GAP 2a — `--whole-file` under flag-ON takes the LOCAL path (no server
+  // call) and emits bytes byte-identical to flag-OFF. (Routing whole-file
+  // through the scoped server write produced an ~805KB key-order divergence.)
+  it('flip-task --whole-file flag-ON takes the local path and equals flag-OFF bytes', () => {
+    const dirOff = fixtureDir();
+    const dirOn = fixtureDir();
+    const off = runLedgerCli(dirOff, ['flip-task', '90', 'pending'], {
+      serverOn: false,
+    });
+    const on = runLedgerCli(
+      dirOn,
+      ['flip-task', '90', 'pending', '--whole-file'],
+      { serverOn: true },
+    );
+    const offWhole = runLedgerCli(
+      dirOff,
+      ['flip-task', '90', 'pending', '--whole-file'],
+      { serverOn: false },
+    );
+
+    expect(off.exitCode).toBe(0);
+    expect(on.exitCode).toBe(0);
+    expect(offWhole.exitCode).toBe(0);
+    // Byte-identical whole-file output across the flag boundary.
+    const bytesOff = readFileSync(join(dirOff, 'task-list.json'));
+    const bytesOn = readFileSync(join(dirOn, 'task-list.json'));
+    expect(bytesOn.equals(bytesOff)).toBe(true);
+    // Envelope parity too (the local bypass emits the same success shape).
+    expect(on.envelope?.result).toEqual(offWhole.envelope?.result);
   });
 });

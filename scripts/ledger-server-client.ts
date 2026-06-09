@@ -59,6 +59,16 @@ export interface TransportCommitArgs {
   deriveRequest: () => TransportRequest | Promise<TransportRequest>;
   /** CLI subcommand name for the CliResult envelope. */
   subcommand: string;
+  /**
+   * ID-90.25 GAP 1: the per-subcommand success payload the flag-OFF path emits
+   * (e.g. `{taskId,status}`, `{itemId,field}`). Threaded through to
+   * {@link mapSuccess} so the flag-ON success envelope's `result` field matches
+   * flag-OFF byte-for-byte, instead of the stripped server body
+   * (`{newMtime,recordId}`). The dry-run `{dryRun:true,...}` shaping is applied
+   * by the caller (serverCommitMutation) so this value already carries the
+   * correct shape for both live and dry-run writes.
+   */
+  resultPayload?: unknown;
   /** T-3 mutation options merged into the request body. */
   options?: MutationOptions;
   /**
@@ -140,6 +150,7 @@ function mapSuccess(
   body: ServerSuccessBody,
   retryCount: number,
   regenSuppressed: boolean,
+  resultPayload: unknown,
 ): CliResult {
   const warnings: string[] = [...(body.warnings ?? [])];
   if (retryCount > 0) {
@@ -150,13 +161,15 @@ function mapSuccess(
 
   const isSuppressed = regenSuppressed || body.mirrorRegen === 'suppressed';
 
-  // Strip transport-level keys from the result payload.
-  const { ok: _ok, warnings: _w, mirrorRegen: _mr, ...result } = body;
-
+  // ID-90.25 GAP 1: return the caller's per-subcommand `resultPayload` (the
+  // SAME shape the flag-OFF path emits, e.g. `{taskId,status}`) so flag-ON
+  // success envelopes match flag-OFF byte-for-byte. Previously this stripped
+  // the server body to `{newMtime,recordId}`, which diverged from flag-OFF and
+  // failed the AC-P1 parity gate. The warnings + mirrorStale logic is unchanged.
   return {
     ok: true,
     subcommand,
-    result,
+    result: resultPayload,
     ...(warnings.length > 0 ? { warnings } : {}),
     mirrorStale: isSuppressed,
     ...(isSuppressed
@@ -213,7 +226,13 @@ export async function transportCommit(
   args: TransportCommitArgs,
   config: TransportConfig = {},
 ): Promise<CliResult> {
-  const { deriveRequest, subcommand, options = {}, ensureServer } = args;
+  const {
+    deriveRequest,
+    subcommand,
+    resultPayload,
+    options = {},
+    ensureServer,
+  } = args;
   const sleepFn = config.sleep ?? defaultSleep;
   const regenSuppressed = options.regenMirrors === false;
 
@@ -329,6 +348,7 @@ export async function transportCommit(
       responseBody as ServerSuccessBody,
       retryCount,
       regenSuppressed,
+      resultPayload,
     );
   }
 
