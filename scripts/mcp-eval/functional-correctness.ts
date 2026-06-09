@@ -2034,15 +2034,15 @@ async function runWriteToolChecks(
     );
   }
 
-  // FC-64: cite_content — use real bid response UUID when available, else fake UUID
+  // FC-64: cite_content — use real form response UUID when available, else fake UUID
   {
     if (knownUUIDs.procurementResponseId) {
-      // Real citation test with actual bid response
+      // Real citation test with actual form response
       const result = await callTool(
         'cite_content',
         {
           content_item_id: evalItem.id,
-          bid_response_id: knownUUIDs.procurementResponseId,
+          form_response_id: knownUUIDs.procurementResponseId,
         },
         accessToken,
       );
@@ -2093,7 +2093,7 @@ async function runWriteToolChecks(
         'cite_content',
         {
           content_item_id: evalItem.id,
-          bid_response_id: '00000000-0000-0000-0000-000000000000',
+          form_response_id: '00000000-0000-0000-0000-000000000000',
         },
         accessToken,
       );
@@ -2273,9 +2273,10 @@ async function runWriteToolChecks(
     for (const id of createdItemIds) {
       try {
         await supabase
-          .from('content_citations')
+          .from('citations')
           .delete()
-          .eq('content_item_id', id);
+          .eq('cited_kind', 'content_item')
+          .eq('cited_content_item_id', id);
         await supabase
           .from('content_history')
           .delete()

@@ -475,7 +475,7 @@ export async function deleteEvalItem(
   id: string,
 ): Promise<void> {
   // Delete citations referencing the eval item
-  await supabase.from('content_citations').delete().eq('content_item_id', id);
+  await supabase.from('citations').delete().eq('cited_content_item_id', id);
   // Delete content history
   await supabase.from('content_history').delete().eq('content_item_id', id);
   // Delete the item itself
@@ -635,10 +635,10 @@ export function getMinimalArgs(
         governance_review_status: 'draft',
       };
     case 'cite_content':
-      // Use eval item + a fake bid response UUID — will return a structured error
+      // Use eval item + a fake form response UUID — will return a structured error
       return {
         content_item_id: evalItemId,
-        bid_response_id: '00000000-0000-0000-0000-000000000000',
+        form_response_id: '00000000-0000-0000-0000-000000000000',
       };
     case 'update_content_item':
       return {
