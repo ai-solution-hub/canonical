@@ -3626,12 +3626,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           ledger: 'backlog',
           descriptor,
           beforeIds,
-          serverIntent: {
-            kind: 'record-delete',
-            slug: ledgerSlug('backlog'),
-            recordId: itemId,
-          },
           expectedDelta: { kind: 'remove', id: rem.recordId },
+        },
+        serverIntent: {
+          kind: 'record-delete',
+          slug: ledgerSlug('backlog'),
+          recordId: itemId,
         },
       });
     }

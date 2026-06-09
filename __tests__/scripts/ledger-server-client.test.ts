@@ -952,4 +952,47 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
     // Envelope parity too (the local bypass emits the same success shape).
     expect(on.envelope?.result).toEqual(offWhole.envelope?.result);
   });
+
+  // ID-90.26 — `delete-backlog` flag-ON must reach flag-OFF parity through
+  // the SERVER TRANSPORT. The pre-fix defect nested `serverIntent` inside the
+  // `gate` literal (a RecordSetGate excess property — TS2353), so
+  // `opts.serverIntent` was `undefined` and the flag-ON guard
+  // `serverEnabled() && opts.serverIntent && ...` fell through to the direct
+  // write path (the only OTHER mutating site to mis-route this way).
+  //
+  // Routing is engineered to be observationally transparent (GAP 1/4: the
+  // server envelope is byte-identical to flag-OFF), so the wrong-path bug is
+  // compile-time-detectable (the TS2353 gate) but runtime-invisible at the
+  // envelope level. This case is therefore the slug-addressed parity lock
+  // (sibling of the update-backlog/update-roadmap GAP-3 cases): it pins the
+  // `backlog` slug resolution AND byte-identical output for the server-routed
+  // delete, so a future server-path divergence (slug 404 → non-zero exit, or
+  // serialiser drift → byte mismatch) is caught here.
+  it('delete-backlog flag-ON reaches flag-OFF parity via the server transport', () => {
+    const dirOff = fixtureDir();
+    const dirOn = fixtureDir();
+    const off = runLedgerCli(dirOff, ['delete-backlog', '270'], {
+      serverOn: false,
+    });
+    const on = runLedgerCli(dirOn, ['delete-backlog', '270'], {
+      serverOn: true,
+    });
+
+    expect(off.exitCode).toBe(0);
+    // Server-routed delete must NOT 404 on the `backlog` slug (GAP-3 class).
+    expect(on.exitCode).toBe(0);
+    expect(on.envelope?.ok).toBe(true);
+    // The transport's per-subcommand payload is `{recordId}`, identical to the
+    // flag-OFF direct-write payload — and the stripped server body (newMtime
+    // etc.) must NOT leak into `result`.
+    expect(on.envelope?.result).toEqual(off.envelope?.result);
+    expect(on.envelope?.result).not.toHaveProperty('newMtime');
+    // The record is actually gone from the server-written file, byte-identical
+    // to the flag-OFF write.
+    const bytesOff = readFileSync(join(dirOff, 'product-backlog.json'));
+    const bytesOn = readFileSync(join(dirOn, 'product-backlog.json'));
+    expect(bytesOn.equals(bytesOff)).toBe(true);
+    const onDoc = JSON.parse(bytesOn.toString()) as { items: { id: string }[] };
+    expect(onDoc.items.some((i) => String(i.id) === '270')).toBe(false);
+  });
 });
