@@ -1659,9 +1659,15 @@ async def ingest_file(
     `embed_content_text()` (Stage 4 — ID-49.2); per-row upsert logging (28.25) is
     still deferred and wired in a later subtask.
 
-    @coco.fn(memo=True): the component is skipped on unchanged source bytes, so
-    `declare_row` is not re-invoked and the row's op_id retains the value from the
-    run that last materially changed it (RESEARCH.md §R4 — Inv-11 refinement).
+    @coco.fn(memo=True): {75.17} real-engine probe CORRECTION to the earlier
+    Inv-11 framing (the same correction applied to `ingest_url`) — the memo
+    fingerprint ALSO covers the `flow_op_id` kwarg, and `app_main` mints a fresh
+    op_id per walk, so across walks this component RE-RUNS for every enumerated
+    item (cheaply: the inner conversion/extraction memos — `_docling_to_markdown`,
+    the `embed_content_text` / classification seams — memo-hit on unchanged
+    content). A true memo-hit happens only WITHIN one walk / op_id, never across
+    walks (RESEARCH.md §R4). The inner memos are what protect the LLM seams from
+    re-running on unchanged bytes.
     """
     # {66.23}/BUG-B (S297): the workspace manifest lives at the source root and
     # is loaded once at flow start (app_main), but localfs.walk_dir ALSO

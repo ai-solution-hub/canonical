@@ -63,11 +63,12 @@ from aiohttp.test_utils import make_mocked_request  # noqa: E402
 #
 # `TestIdleModeBoot::test_idle_mode_boot_returns_clean_worker_stays_healthy` is
 # the ONE test in this file that drives the REAL cocoindex Rust engine (it does
-# NOT mock `update_blocking`). Under a sandboxed agent worktree the cocoindex
+# NOT mock the engine boot). Under a sandboxed agent worktree the cocoindex
 # Rust core raises EPERM when `core.Environment(...)` boots
-# (`cocoindex/_internal/environment.py:240`, reached via
-# `KH_PIPELINE_APP.update_blocking(live=True)` inside `start_cocoindex_thread()`'s
-# daemon thread). The EPERM is swallowed by server.py's worker-crash handler, so
+# (`cocoindex/_internal/environment.py:240`, reached via the lifespan-only
+# `coco.start_blocking()` boot — post-ID-83 the worker arms the live fs-watch in
+# the lifespan and NEVER walks the corpus at boot; there is no
+# `update_blocking(live=True)` call). The EPERM is swallowed by server.py's worker-crash handler, so
 # the test sees `lifespan_entered` False + `worker_is_healthy()` False and its
 # assertions FAIL rather than erroring — an in-test try/except cannot catch it.
 # The correct fix is a collection-time `@pytest.mark.skipif` keyed on an

@@ -139,7 +139,7 @@ async function globalSetup(): Promise<void> {
         'Test users must be created before running E2E tests. ' +
         'Run `bun run seed:e2e-users` to provision the three E2E test users ' +
         '(admin/editor/viewer) idempotently. See ' +
-        'docs/operations/e2e-test-setup.md §11 for the rebuild flow.',
+        'the e2e-test-setup runbook (runbooks/e2e-test-setup.md in the private docs-site) §11 for the rebuild flow.',
     );
   }
 
@@ -202,7 +202,7 @@ async function globalSetup(): Promise<void> {
       `E2E setup: test users not found in auth.users:\n` +
         missingUsers.map((u) => `  - ${u}`).join('\n') +
         '\n\nRun `bun run seed:e2e-users` to provision them. ' +
-        'See docs/operations/e2e-test-setup.md §11 for the rebuild flow.',
+        'See the e2e-test-setup runbook (runbooks/e2e-test-setup.md in the private docs-site) §11 for the rebuild flow.',
     );
   }
 

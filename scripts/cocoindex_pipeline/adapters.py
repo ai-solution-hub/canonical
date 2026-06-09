@@ -25,7 +25,8 @@ PullMD.
 HTML/pullmd AGPL boundary (O-Q3): HTML extraction calls pullmd over HTTP
 rather than importing the AGPL package directly — the network-service clause
 means the licence does not propagate. URL via `PULLMD_SERVICE_URL`,
-mounted via Cloud Run Secret Manager (Subtask 28.6).
+injected as a Coolify env var on the IONOS on-prem host (Subtask 28.6;
+Cloud Run retired at S298).
 
 Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3 +
 docs/specs/ID-75-pullmd-cocoindex/TECH.md §3 (D-4 / WP-D).
@@ -180,14 +181,14 @@ async def _pullmd_http_get(url: str) -> PullmdResult:
     pullmd_url = os.environ.get("PULLMD_SERVICE_URL")
     if not pullmd_url:
         raise RuntimeError(
-            "PULLMD_SERVICE_URL env var required — mount via Cloud Run Secret Manager "
-            "per Subtask 28.6 (docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3)"
+            "PULLMD_SERVICE_URL env var required — set it as a Coolify env var on the "
+            "IONOS on-prem host per Subtask 28.6 (docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-3)"
         )
     api_token = os.environ.get("PULLMD_API_TOKEN")
     if not api_token:
         raise RuntimeError(
-            "PULLMD_API_TOKEN env var required — single-admin Bearer token mounted via "
-            "Cloud Run Secret Manager per ID-42 (docs/specs/id-42-pullmd-deploy/TECH.md §WP-A)"
+            "PULLMD_API_TOKEN env var required — single-admin Bearer token set as a "
+            "Coolify env var on the IONOS on-prem host per ID-42 (docs/specs/id-42-pullmd-deploy/TECH.md §WP-A)"
         )
 
     headers = {"Authorization": f"Bearer {api_token}"}

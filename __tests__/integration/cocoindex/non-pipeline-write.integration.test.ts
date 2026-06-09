@@ -79,10 +79,19 @@ describe.skipIf(!ENABLED)(
       // Probe audit_log existence — if absent (v1 environment), the v1
       // substrate is structured-log shipping and this assertion is
       // deferred to v1.1.
+      //
+      // NOTE: a `head: true` probe does NOT surface PostgREST's PGRST205
+      // ("Could not find the table 'public.audit_log'") — it returns a
+      // HEAD response with error=null even when the table is absent, so the
+      // v1 graceful-skip branch below was never reached and the test fell
+      // through into the v1.1 assertion path against a non-existent table.
+      // A real single-row select surfaces the missing-table error, letting
+      // the documented v1 substrate gap be taken correctly. The audit_log
+      // table is v1.1-deferred per P-OQ1 (see docstring); staging is v1.
       const { error: probeError } = await client
         .from('audit_log')
-        .select('id', { count: 'exact', head: true })
-        .limit(0);
+        .select('id')
+        .limit(1);
 
       // Sandbox-aware skip — network-isolated env.
       if (isNetworkIsolationError(probeError)) {
@@ -103,7 +112,15 @@ describe.skipIf(!ENABLED)(
       // governance-cron update / non-cocoindex write path" surface.
       const directInsert = {
         title: `${TEST_PREFIX} non-pipeline write test`,
-        content_type: 'reference',
+        // `content` is NOT NULL on content_items (schema baseline since the
+        // squash) — a direct INSERT omitting it fails with Postgres 23502
+        // before the audit-log surface can be exercised. Supply a minimal
+        // body so the row lands and the Inv-14 assertion below is reachable.
+        content: `${TEST_PREFIX} non-pipeline write body`,
+        // 'reference' is NOT in the content_items_valid_content_type CHECK
+        // set (the 15 ontology baseline values); use a valid neutral type so
+        // the row lands and the Inv-14 audit-log assertion below is reachable.
+        content_type: 'note',
         primary_domain: 'general',
         // op_id intentionally OMITTED — this is the non-pipeline write
         // path; op_id should remain NULL.
