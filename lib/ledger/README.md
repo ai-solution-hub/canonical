@@ -13,7 +13,7 @@ ledgers (`docs/reference/{task-list,product-roadmap,product-backlog}.json`).
 | `patch-apply.ts`   | `patch-apply.ts`                             | `@task-view/schemas/*` → `@/lib/validation/*` |
 | `record-mutate.ts` | `record-mutate.ts`                           | `@task-view/schemas/*` → `@/lib/validation/*` |
 
-**Pinned release:** `v0.2.0-task-view` (the same `TASK_VIEW_TAG` used by
+**Pinned release:** `v0.4.0-task-view` (the same `TASK_VIEW_TAG` used by
 `scripts/regen-mirrors.sh` and the `ledger-mirror-parity` CI job).
 
 The **only** intentional difference from upstream is the schema import specifier (KH
