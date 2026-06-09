@@ -1156,6 +1156,18 @@ jobs:
           git diff --exit-code -- docs/reference/tasks docs/reference/roadmap
           docs/reference/backlog
 
+      - name: Install KH dependencies
+        # The parity harness spawns ledger-cli.ts which imports KH modules.
+        run: bun install --frozen-lockfile
+
+      - name: Differential parity (flag-OFF vs flag-ON, AC-P1 inv 21)
+        # ID-90.20 K5: prove flag-OFF and flag-ON paths produce byte-identical
+        # ledger files across the mutating-subcommand matrix. Reuses the
+        # task-view clone from the Install step above. Exports a SYNTHETIC
+        # denylist so the client-name guard arm is exercised (AC-I: synthetic
+        # only, never real tokens).
+        run: bun scripts/ledger-differential-parity.ts --ci
+
   supabase-types-parity:
     # ID-47.6 (S265 / type-safety-pipeline OQ6) — DB-axis generated-types parity
     # gate. Regenerates `supabase/types/database.types.ts` from the live schema
