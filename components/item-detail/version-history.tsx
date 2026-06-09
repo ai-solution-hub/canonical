@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import {
   History,
   ChevronDown,
@@ -9,14 +10,21 @@ import {
   Loader2,
   Eye,
   FileX,
+  GitCompareArrows,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { VersionDiff } from '@/components/item-detail/version-diff';
+import {
+  RevisionDiffView,
+  type RevisionBlob,
+} from '@/components/item-detail/revision-diff-view';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useUserRole } from '@/hooks/use-user-role';
 import { toast } from 'sonner';
 import { captureClientException } from '@/lib/client-telemetry';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchItemHistoryVersion } from '@/lib/query/fetchers';
 import { cn } from '@/lib/utils';
 
 interface VersionEntry {
@@ -85,6 +93,100 @@ function changeTypeLabel(type: string): string {
   }
 }
 
+/**
+ * CompareVersionsPanel — the v1 MINIMAL user-edit Diff-UI affordance
+ * (ID-59 {59.12}). Fetches the full bodies of two chosen revisions via
+ * TanStack Query and renders the old↔new diff plus each revision's metadata
+ * (including the new `edit_intent`) through RevisionDiffView.
+ *
+ * Reads `content_history` only (via the per-version detail route) — never
+ * `source_document_diffs` (INV-17). The diff itself is computed client-side
+ * inside RevisionDiffView; no diff table is involved.
+ */
+function CompareVersionsPanel({
+  itemId,
+  olderEntry,
+  newerEntry,
+  displayNames,
+}: {
+  itemId: string;
+  olderEntry: VersionEntry;
+  newerEntry: VersionEntry;
+  displayNames: Map<string, string>;
+}) {
+  const results = useQueries({
+    queries: [
+      {
+        queryKey: queryKeys.itemHistory.version(itemId, olderEntry.id),
+        queryFn: () => fetchItemHistoryVersion(itemId, olderEntry.id),
+        staleTime: 5 * 60 * 1000,
+      },
+      {
+        queryKey: queryKeys.itemHistory.version(itemId, newerEntry.id),
+        queryFn: () => fetchItemHistoryVersion(itemId, newerEntry.id),
+        staleTime: 5 * 60 * 1000,
+      },
+    ],
+  });
+
+  const [olderQuery, newerQuery] = results;
+  const isLoading = olderQuery.isLoading || newerQuery.isLoading;
+  const isError = olderQuery.isError || newerQuery.isError;
+  const olderData = olderQuery.data;
+  const newerData = newerQuery.data;
+
+  const labelFor = useCallback(
+    (createdBy: string | null): string =>
+      createdBy ? (displayNames.get(createdBy) ?? 'Unknown') : 'System',
+    [displayNames],
+  );
+
+  const blobs = useMemo<{
+    older: RevisionBlob;
+    newer: RevisionBlob;
+  } | null>(() => {
+    if (!olderData || !newerData) return null;
+    return {
+      older: {
+        version: olderData.version,
+        text: olderData.content,
+        changeType: olderData.change_type,
+        changeSummary: olderData.change_summary,
+        createdAt: olderData.created_at,
+        createdByLabel: labelFor(olderData.created_by),
+        editIntent: olderData.edit_intent,
+      },
+      newer: {
+        version: newerData.version,
+        text: newerData.content,
+        changeType: newerData.change_type,
+        changeSummary: newerData.change_summary,
+        createdAt: newerData.created_at,
+        createdByLabel: labelFor(newerData.created_by),
+        editIntent: newerData.edit_intent,
+      },
+    };
+  }, [olderData, newerData, labelFor]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError || !blobs) {
+    return (
+      <p className="px-1 py-4 text-sm text-muted-foreground">
+        Couldn&apos;t load the selected revisions to compare. Please try again.
+      </p>
+    );
+  }
+
+  return <RevisionDiffView older={blobs.older} newer={blobs.newer} />;
+}
+
 export function VersionHistory({
   itemId,
   currentContent,
@@ -104,6 +206,11 @@ export function VersionHistory({
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
   const [listError, setListError] = useState<Error | null>(null);
+  // Compare-two-versions affordance (ID-59 {59.12}). Defaults to the latest
+  // two revisions; explicit version pickers are deferred to v1.1.
+  const [compareMode, setCompareMode] = useState(false);
+  const [olderVersionId, setOlderVersionId] = useState<string | null>(null);
+  const [newerVersionId, setNewerVersionId] = useState<string | null>(null);
 
   // Collect all created_by UUIDs for display name resolution
   const creatorIds = versions.map((v) => v.created_by);
@@ -141,6 +248,35 @@ export function VersionHistory({
       fetchVersions();
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Whether a meaningful comparison is even possible (need ≥2 revisions).
+  const canCompare = versions.length >= 2;
+
+  // Resolve the two chosen revisions. Falls back to the latest two (the
+  // list is version-descending, so index 1 is older, index 0 is newer).
+  const olderEntry = useMemo(
+    () => versions.find((v) => v.id === olderVersionId) ?? versions[1] ?? null,
+    [versions, olderVersionId],
+  );
+  const newerEntry = useMemo(
+    () => versions.find((v) => v.id === newerVersionId) ?? versions[0] ?? null,
+    [versions, newerVersionId],
+  );
+
+  const handleToggleCompare = useCallback(() => {
+    setCompareMode((prev) => {
+      const next = !prev;
+      if (next) {
+        // Collapse any expanded single-version diff and default the pickers
+        // to the latest two revisions.
+        setExpandedVersion(null);
+        setVersionDetail(null);
+        setNewerVersionId(versions[0]?.id ?? null);
+        setOlderVersionId(versions[1]?.id ?? null);
+      }
+      return next;
+    });
+  }, [versions]);
 
   const handleViewDetail = async (versionId: string) => {
     if (expandedVersion === versionId) {
@@ -247,109 +383,145 @@ export function VersionHistory({
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {versions.map((version) => {
-                const isExpanded = expandedVersion === version.id;
-                const creatorName = version.created_by
-                  ? (displayNames.get(version.created_by) ?? 'Unknown')
-                  : 'System';
+            <div>
+              {/* Compare-two-versions toolbar (ID-59 {59.12}) */}
+              {canCompare && (
+                <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
+                  <span className="text-xs text-muted-foreground">
+                    {compareMode
+                      ? 'Comparing the two latest versions'
+                      : 'Compare two versions'}
+                  </span>
+                  <Button
+                    variant={compareMode ? 'secondary' : 'outline'}
+                    size="sm"
+                    onClick={handleToggleCompare}
+                    className="h-7 gap-1.5 text-xs"
+                    aria-pressed={compareMode}
+                  >
+                    <GitCompareArrows className="size-3.5" aria-hidden="true" />
+                    {compareMode ? 'Close compare' : 'Compare versions'}
+                  </Button>
+                </div>
+              )}
 
-                return (
-                  <div key={version.id} className="px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className="shrink-0 text-[10px]"
-                          >
-                            v{version.version}
-                          </Badge>
-                          <Badge
-                            variant="secondary"
-                            className="shrink-0 text-[10px]"
-                          >
-                            {changeTypeLabel(version.change_type)}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-sm text-foreground">
-                          {version.change_summary ?? 'No description'}
-                          {version.change_reason && (
-                            <span className="ml-1 text-muted-foreground">
-                              — {version.change_reason}
-                            </span>
-                          )}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {creatorName} <span aria-hidden="true">&middot;</span>{' '}
-                          {formatDateTime(version.created_at)}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetail(version.id)}
-                          className="h-7 gap-1 text-xs"
-                        >
-                          <Eye className="size-3" />
-                          {isExpanded ? 'Hide' : 'Diff'}
-                        </Button>
-                        {canEdit && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRollback(version.id)}
-                            disabled={rollingBack}
-                            className="h-7 gap-1 text-xs"
-                          >
-                            {rollingBack ? (
-                              <Loader2 className="size-3 animate-spin" />
-                            ) : (
-                              <RotateCcw className="size-3" />
+              {compareMode && olderEntry && newerEntry ? (
+                <div className="px-4 py-3">
+                  <CompareVersionsPanel
+                    key={`${olderEntry.id}:${newerEntry.id}`}
+                    itemId={itemId}
+                    olderEntry={olderEntry}
+                    newerEntry={newerEntry}
+                    displayNames={displayNames}
+                  />
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {versions.map((version) => {
+                    const isExpanded = expandedVersion === version.id;
+                    const creatorName = version.created_by
+                      ? (displayNames.get(version.created_by) ?? 'Unknown')
+                      : 'System';
+
+                    return (
+                      <div key={version.id} className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="shrink-0 text-[10px]"
+                              >
+                                v{version.version}
+                              </Badge>
+                              <Badge
+                                variant="secondary"
+                                className="shrink-0 text-[10px]"
+                              >
+                                {changeTypeLabel(version.change_type)}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-foreground">
+                              {version.change_summary ?? 'No description'}
+                              {version.change_reason && (
+                                <span className="ml-1 text-muted-foreground">
+                                  — {version.change_reason}
+                                </span>
+                              )}
+                            </p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {creatorName}{' '}
+                              <span aria-hidden="true">&middot;</span>{' '}
+                              {formatDateTime(version.created_at)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewDetail(version.id)}
+                              className="h-7 gap-1 text-xs"
+                            >
+                              <Eye className="size-3" />
+                              {isExpanded ? 'Hide' : 'Diff'}
+                            </Button>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRollback(version.id)}
+                                disabled={rollingBack}
+                                className="h-7 gap-1 text-xs"
+                              >
+                                {rollingBack ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="size-3" />
+                                )}
+                                Restore
+                              </Button>
                             )}
-                            Restore
-                          </Button>
+                          </div>
+                        </div>
+
+                        {/* Diff view */}
+                        {isExpanded && (
+                          <div className="mt-3">
+                            {loadingDetail ? (
+                              <div className="flex items-center justify-center py-4">
+                                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                              </div>
+                            ) : versionDetail ? (
+                              <div className="space-y-3">
+                                {versionDetail.title !== currentTitle && (
+                                  <div>
+                                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                      Title
+                                    </p>
+                                    <VersionDiff
+                                      oldText={versionDetail.title}
+                                      newText={currentTitle}
+                                    />
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                    Content
+                                  </p>
+                                  <VersionDiff
+                                    oldText={versionDetail.content}
+                                    newText={currentContent}
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
                         )}
                       </div>
-                    </div>
-
-                    {/* Diff view */}
-                    {isExpanded && (
-                      <div className="mt-3">
-                        {loadingDetail ? (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                          </div>
-                        ) : versionDetail ? (
-                          <div className="space-y-3">
-                            {versionDetail.title !== currentTitle && (
-                              <div>
-                                <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                  Title
-                                </p>
-                                <VersionDiff
-                                  oldText={versionDetail.title}
-                                  newText={currentTitle}
-                                />
-                              </div>
-                            )}
-                            <div>
-                              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                Content
-                              </p>
-                              <VersionDiff
-                                oldText={versionDetail.content}
-                                newText={currentContent}
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -122,6 +122,18 @@ export const queryKeys = {
     topDomains: ['browse', 'top-domains'] as const,
   },
 
+  // Content-item version history (ID-59 {59.12} user-edit Diff-UI).
+  // Distinct from `sourceDocuments.history` (re-ingest doc diffs, INV-17):
+  // this covers the content_history list + per-revision detail used by the
+  // compare-two-versions affordance.
+  itemHistory: {
+    all: (itemId: string) => ['item-history', itemId] as const,
+    list: (itemId: string, limit: number) =>
+      ['item-history', itemId, 'list', limit] as const,
+    version: (itemId: string, versionId: string) =>
+      ['item-history', itemId, 'version', versionId] as const,
+  },
+
   // Source documents
   sourceDocuments: {
     all: ['source-documents'] as const,

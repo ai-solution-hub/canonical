@@ -34,7 +34,7 @@ export async function GET(
     const { data, error } = await supabase
       .from('content_history')
       .select(
-        'id, content_item_id, version, title, content, brief, detail, reference, metadata, change_summary, change_type, created_by, created_at',
+        'id, content_item_id, version, title, content, brief, detail, reference, metadata, change_summary, change_type, created_by, created_at, edit_intent',
       )
       .eq('id', versionId)
       .eq('content_item_id', id)
