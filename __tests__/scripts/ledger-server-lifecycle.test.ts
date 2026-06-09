@@ -65,6 +65,26 @@ function writeHandle(repoRoot: string, handle: ServerHandle): void {
   writeFileSync(join(dir, 'handle.json'), JSON.stringify(handle));
 }
 
+/** Pre-seed the lifecycle-owned spawn-tag sidecar (inv 48 Layer-2). */
+function writeSpawnTagSidecar(repoRoot: string, spawnTag: string): void {
+  const dir = join(repoRoot, '.cache/ledger-server');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'spawn-tag.json'), JSON.stringify({ spawnTag }));
+}
+
+function readSpawnTagSidecar(repoRoot: string): { spawnTag: string } | null {
+  try {
+    return JSON.parse(
+      readFileSync(
+        join(repoRoot, '.cache/ledger-server/spawn-tag.json'),
+        'utf8',
+      ),
+    ) as { spawnTag: string };
+  } catch {
+    return null;
+  }
+}
+
 /** Start a real ephemeral health server returning the given version. */
 async function startHealthServer(
   version: string,
@@ -205,10 +225,10 @@ describe('resolveExpectedVersion (inv 48)', () => {
 // ── reuse existing server ─────────────────────────────────────────────────────
 
 describe('ensureServer reuses a healthy daemon', () => {
-  it('returns reused:true when handle + health check pass', async () => {
-    // Health server reports the package version (0.2.0), which is what
-    // resolveExpectedVersion derives — NOT the tag. A regression to comparing
-    // the raw tag would fail here (0.2.0 !== v0.4.0-task-view).
+  it('returns reused:true when handle + liveness + matching spawn-tag pass', async () => {
+    // Liveness server is up (body.ok); the spawn-tag sidecar matches the pinned
+    // tag (v0.4.0-task-view). inv 48 Layer-2: reuse gates on the sidecar tag,
+    // not on any server-reported version.
     const { port } = await startHealthServer(PKG_VERSION);
     writeHandle(tmpRoot, {
       port,
@@ -216,6 +236,7 @@ describe('ensureServer reuses a healthy daemon', () => {
       version: PKG_VERSION,
       ledgerDir: 'docs/reference',
     });
+    writeSpawnTagSidecar(tmpRoot, 'v0.4.0-task-view');
     const { seam, spawnCalls } = makeSpawnSeam();
 
     const result = await ensureServer({
@@ -231,16 +252,20 @@ describe('ensureServer reuses a healthy daemon', () => {
 // ── kill + respawn on version mismatch ────────────────────────────────────────
 
 describe('ensureServer kills stale servers (inv 48)', () => {
-  it('kills and respawns when version mismatches', async () => {
-    // Write a handle pointing at a server reporting a DIFFERENT package version
-    // (0.1.0) than the pinned clone (0.2.0) — a stale prior-release daemon.
-    const { port: oldPort } = await startHealthServer('0.1.0');
+  it('kills and respawns when the spawn-tag sidecar is from a DIFFERENT tag (inv 48 Layer-2)', async () => {
+    // The running daemon is LIVE and reports the pinned package version (0.2.0),
+    // so a version comparison would WRONGLY reuse it. But the spawn-tag sidecar
+    // records a different tag (v0.3.1-task-view) — a stale prior-release daemon
+    // that happens to share package 0.2.0. Reuse MUST be rejected on the tag,
+    // never on the (matching) server-reported version.
+    const { port: oldPort } = await startHealthServer(PKG_VERSION);
     writeHandle(tmpRoot, {
       port: oldPort,
       pid: 55555,
-      version: '0.1.0',
+      version: PKG_VERSION,
       ledgerDir: 'docs/reference',
     });
+    writeSpawnTagSidecar(tmpRoot, 'v0.3.1-task-view'); // stale: pinned is v0.4.0
 
     const { seam, spawnCalls, killCalls } = makeSpawnSeam();
     const result = await ensureServer({
@@ -250,6 +275,32 @@ describe('ensureServer kills stale servers (inv 48)', () => {
     });
 
     expect(killCalls).toContain(55555);
+    expect(spawnCalls.length).toBeGreaterThan(0);
+    expect(result.reused).toBe(false);
+    // The respawn rewrote the sidecar to the pinned tag.
+    expect(readSpawnTagSidecar(tmpRoot)?.spawnTag).toBe('v0.4.0-task-view');
+  });
+
+  it('kills and respawns when the spawn-tag sidecar is MISSING (unverifiable daemon)', async () => {
+    // Live daemon + valid handle but NO sidecar (e.g. spawned by an older
+    // lifecycle). Its tag cannot be proven → treat as stale: kill + respawn.
+    const { port: oldPort } = await startHealthServer(PKG_VERSION);
+    writeHandle(tmpRoot, {
+      port: oldPort,
+      pid: 77777,
+      version: PKG_VERSION,
+      ledgerDir: 'docs/reference',
+    });
+    // deliberately NO writeSpawnTagSidecar
+
+    const { seam, spawnCalls, killCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+
+    expect(killCalls).toContain(77777);
     expect(spawnCalls.length).toBeGreaterThan(0);
     expect(result.reused).toBe(false);
   });
@@ -289,6 +340,36 @@ describe('ensureServer spawns on missing handle', () => {
     expect(result.reused).toBe(false);
     expect(result.version).toBe('v0.4.0-task-view');
     expect(spawnCalls.length).toBe(1);
+    // inv 48 Layer-2: the spawn records the tag it spawned with in the sidecar.
+    expect(readSpawnTagSidecar(tmpRoot)?.spawnTag).toBe('v0.4.0-task-view');
+  });
+
+  it('an ABSOLUTE default ledgerDir reaches the PERSISTENT branch (ledgerDir-switch fix)', async () => {
+    // serverCommitMutation passes resolve(path, '..') — an ABSOLUTE
+    // docs/reference. Pre-fix, an absolute path never === the relative literal,
+    // so the default ledger ALWAYS spawned ephemeral and never reused. Post-fix
+    // it normalises: a valid handle + live daemon + matching sidecar reuses.
+    const { port } = await startHealthServer(PKG_VERSION);
+    writeHandle(tmpRoot, {
+      port,
+      pid: 24680,
+      version: PKG_VERSION,
+      ledgerDir: 'docs/reference',
+    });
+    writeSpawnTagSidecar(tmpRoot, 'v0.4.0-task-view');
+    const { seam, spawnCalls } = makeSpawnSeam();
+
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: resolve(tmpRoot, 'docs/reference'), // ABSOLUTE, not the literal
+      spawnSeam: seam,
+    });
+
+    // reused:true proves the absolute path took the persistent (default) branch
+    // — the ephemeral branch would have spawned instead.
+    expect(result.reused).toBe(true);
+    expect(result.port).toBe(port);
+    expect(spawnCalls).toHaveLength(0);
   });
 
   it('passes --require-denylist when CI env is truthy (inv 34)', async () => {

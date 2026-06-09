@@ -27,7 +27,13 @@
  */
 
 import { resolve, dirname } from 'node:path';
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  mkdirSync,
+  renameSync,
+} from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import type { ChildProcess } from 'node:child_process';
 
@@ -86,6 +92,7 @@ export interface EnsureServerResult {
 const DEFAULT_LEDGER_DIR = 'docs/reference';
 const HANDLE_DIR = '.cache/ledger-server';
 const HANDLE_FILENAME = 'handle.json';
+const SPAWN_TAG_FILENAME = 'spawn-tag.json';
 const DEFAULT_DEADLINE_MS = 10_000;
 const IDLE_EXIT_MINUTES = 30;
 const HEALTH_ENDPOINT = '/api/health';
@@ -116,12 +123,15 @@ export function resolveTag(repoRoot: string): string {
 
 /**
  * Resolve the version string the server WILL report at /api/health for the
- * clone pinned by `tag`. The server sources its version from the ROOT
- * package.json of its clone (apps/server/index.ts → formatVersion()), NOT from
- * the git tag — so the health-version gate (inv 48) must compare against this
- * package.json version, not the raw TASK_VIEW_TAG string. Comparing against the
- * tag string can NEVER match (e.g. "0.2.0" !== "v0.4.0-task-view") and was the
- * AC-P1 flag-ON failure (ID-90.20). Exported for testing.
+ * clone pinned by `tag` — the ROOT package.json version of its clone
+ * (apps/server/index.ts → formatVersion()), NOT the git tag.
+ *
+ * NOTE (inv 48 Layer-2): this is NO LONGER the staleness gate. Because distinct
+ * tags share a package version (v0.3.1 and v0.4.0 both report 0.2.0), version
+ * cannot distinguish a stale prior-tag daemon — staleness now gates on the
+ * lifecycle-recorded spawn-tag sidecar (see writeSpawnTag / ensureServer).
+ * Retained as the canonical "what version does this clone report" resolver and
+ * the inv-48 Layer-1 regression guard (ID-90.20). Exported for testing.
  */
 export function resolveExpectedVersion(repoRoot: string, tag: string): string {
   const pkgPath = resolve(repoRoot, `.cache/task-view-${tag}/package.json`);
@@ -181,25 +191,71 @@ function removeHandle(path: string): void {
   }
 }
 
+// ── spawn-tag sidecar (inv 48 Layer-2: tag-level staleness) ────────────────────
+//
+// The handle file's `version` field is the server-reported package version
+// (0.2.0 for EVERY task-view tag — v0.3.1 and v0.4.0 both report 0.2.0), so it
+// cannot distinguish a daemon spawned from a stale tag from the pinned one. The
+// lifecycle records the tag IT spawned with in a sidecar it OWNS; the persistent
+// reuse path gates on this, never on any server-reported value.
+
+interface SpawnTagSidecar {
+  spawnTag: string;
+}
+
+function spawnTagPath(repoRoot: string): string {
+  return resolve(repoRoot, HANDLE_DIR, SPAWN_TAG_FILENAME);
+}
+
+function readSpawnTag(path: string): SpawnTagSidecar | null {
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    if (parsed && typeof parsed.spawnTag === 'string') {
+      return parsed as SpawnTagSidecar;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSpawnTag(path: string, tag: string): void {
+  // Atomic: write a temp sibling + rename, so a concurrent reader never observes
+  // a half-written sidecar (mirrors the server's own --port-file atomicity).
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify({ spawnTag: tag }), 'utf8');
+  renameSync(tmp, path);
+}
+
+function removeSpawnTag(path: string): void {
+  try {
+    unlinkSync(path);
+  } catch {
+    // Already gone — fine.
+  }
+}
+
 // ── health check ──────────────────────────────────────────────────────────────
 
+/**
+ * LIVENESS check (inv 48 Layer-2 demotion). Confirms the daemon is up and
+ * answering /api/health with body.ok. It deliberately does NOT compare the
+ * reported version: distinct task-view tags share a package version (v0.3.1 and
+ * v0.4.0 both report 0.2.0), so version is not a usable staleness signal.
+ * Tag-level staleness is gated by the lifecycle-recorded spawn-tag sidecar
+ * (see ensureServer / writeSpawnTag), never by a server-reported value.
+ */
 async function healthCheck(
   port: number,
-  expectedVersion: string,
 ): Promise<{ ok: boolean; reason?: string }> {
   try {
     const resp = await fetch(`http://127.0.0.1:${port}${HEALTH_ENDPOINT}`, {
       signal: AbortSignal.timeout(2000),
     });
     if (!resp.ok) return { ok: false, reason: `health HTTP ${resp.status}` };
-    const body = (await resp.json()) as { ok?: boolean; version?: string };
+    const body = (await resp.json()) as { ok?: boolean };
     if (!body.ok) return { ok: false, reason: 'health body.ok is false' };
-    if (body.version !== expectedVersion) {
-      return {
-        ok: false,
-        reason: `version mismatch: running ${body.version}, expected ${expectedVersion}`,
-      };
-    }
     return { ok: true };
   } catch {
     return { ok: false, reason: 'health check unreachable' };
@@ -263,13 +319,21 @@ interface SpawnArgs {
   portFilePath: string;
   seam: SpawnSeam;
   deadlineMs: number;
+  /** When set (persistent daemon only), the spawn-tag sidecar to write on a
+   *  successful spawn. Omitted for ephemeral servers (they never reuse). */
+  sidecarPath?: string;
 }
 
 async function spawnAndWait(args: SpawnArgs): Promise<EnsureServerResult> {
-  const { repoRoot, tag, ledgerDir, portFilePath, seam, deadlineMs } = args;
-  // inv 48: the server reports its package.json version at /api/health, not the
-  // git tag — compare against that (ID-90.20 AC-P1 fix).
-  const expectedVersion = resolveExpectedVersion(repoRoot, tag);
+  const {
+    repoRoot,
+    tag,
+    ledgerDir,
+    portFilePath,
+    seam,
+    deadlineMs,
+    sidecarPath,
+  } = args;
 
   const serverEntry = resolve(
     repoRoot,
@@ -332,8 +396,11 @@ async function spawnAndWait(args: SpawnArgs): Promise<EnsureServerResult> {
   while (Date.now() < deadline) {
     const handle = readHandle(portFilePath);
     if (handle) {
-      const health = await healthCheck(handle.port, expectedVersion);
+      const health = await healthCheck(handle.port);
       if (health.ok) {
+        // Record the tag THIS lifecycle spawned with (inv 48 Layer-2): the
+        // persistent reuse path gates on this sidecar, not a server value.
+        if (sidecarPath) writeSpawnTag(sidecarPath, tag);
         return {
           port: handle.port,
           pid: handle.pid,
@@ -373,17 +440,28 @@ export async function ensureServer(
   const deadlineMs = opts.deadlineMs ?? DEFAULT_DEADLINE_MS;
 
   const tag = resolveTag(repoRoot);
-  const isDefault = ledgerDir === DEFAULT_LEDGER_DIR;
+  // ledgerDir-switch fix: callers pass the ledger dir either relative
+  // ('docs/reference') or ABSOLUTE (serverCommitMutation sends
+  // resolve(path, '..')). An absolute path never === the relative literal, so
+  // the unnormalised compare made the DEFAULT ledger ALWAYS take the ephemeral
+  // branch — the persistent reuse path was unreachable in production. Normalise
+  // both sides against repoRoot so the default ledger reliably reuses (inv 48).
+  const isDefault =
+    resolve(repoRoot, ledgerDir) === resolve(repoRoot, DEFAULT_LEDGER_DIR);
 
   if (isDefault) {
     // ── default ledger dir: reuse or spawn a persistent daemon ──────────
     const hPath = handlePath(repoRoot);
+    const sPath = spawnTagPath(repoRoot);
     const existing = readHandle(hPath);
 
     if (existing) {
-      const expectedVersion = resolveExpectedVersion(repoRoot, tag);
-      const health = await healthCheck(existing.port, expectedVersion);
-      if (health.ok) {
+      // Liveness only (inv 48 Layer-2): a stale prior-tag daemon and the pinned
+      // one report the same package version (0.2.0), so version can't gate
+      // reuse. Gate on the lifecycle-recorded spawn-tag sidecar instead.
+      const health = await healthCheck(existing.port);
+      const sidecar = readSpawnTag(sPath);
+      if (health.ok && sidecar?.spawnTag === tag) {
         return {
           port: existing.port,
           pid: existing.pid,
@@ -391,9 +469,11 @@ export async function ensureServer(
           reused: true,
         };
       }
-      // Stale or version-mismatched — kill and respawn.
+      // Dead, or the spawn-tag sidecar is missing / from a different tag — the
+      // daemon is stale or unverifiable. Kill, clear both files, respawn fresh.
       killProcess(existing.pid, seam);
       removeHandle(hPath);
+      removeSpawnTag(sPath);
     }
 
     return spawnAndWait({
@@ -403,6 +483,7 @@ export async function ensureServer(
       portFilePath: hPath,
       seam,
       deadlineMs,
+      sidecarPath: sPath,
     });
   }
 
