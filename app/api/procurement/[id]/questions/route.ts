@@ -153,7 +153,7 @@ export async function GET(
     // NB: RPC signature `p_project_id` retained — RPC is part of an SQL function
     // signature that lives in a migration and is renamed separately (T4 scope).
     const { data: stats, error: statsError } = await supabase.rpc(
-      'get_bid_question_stats',
+      'get_form_question_stats',
       {
         p_project_id: id,
       },

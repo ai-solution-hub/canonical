@@ -4,7 +4,7 @@
  * Used by both lib/dashboard.ts and lib/reorient.ts to avoid duplicating the
  * identical pattern of:
  *   1. Fetch workspaces where type='bid' and is_archived=false
- *   2. Call get_bid_question_stats_batch RPC
+ *   2. Call get_form_question_stats_batch RPC
  *   3. Build a statsMap keyed by workspace ID
  *
  * Each consumer maps the raw data into its own summary type.
@@ -73,7 +73,7 @@ export async function fetchActiveProcurementWithStats(
 
   const procurementIds = workspaces.map((w) => w.id);
   const batchStats = await sb(
-    supabase.rpc('get_bid_question_stats_batch', {
+    supabase.rpc('get_form_question_stats_batch', {
       p_project_ids: procurementIds,
     }),
     'rpc.bid_question_stats_batch',

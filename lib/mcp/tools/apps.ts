@@ -506,7 +506,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
           if (workspace) {
             const stats = await sb(
-              supabase.rpc('get_bid_question_stats', {
+              supabase.rpc('get_form_question_stats', {
                 p_project_id: args.bid_id,
               }),
               'mcp.tools.apps.workspace.stats',

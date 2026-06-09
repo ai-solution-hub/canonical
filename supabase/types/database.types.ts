@@ -3933,7 +3933,7 @@ export type Database = {
         }[]
       }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
-      get_bid_question_stats: {
+      get_form_question_stats: {
         Args: { p_project_id: string }
         Returns: {
           complete_count: number
@@ -3946,7 +3946,7 @@ export type Database = {
           unmatched_count: number
         }[]
       }
-      get_bid_question_stats_batch: {
+      get_form_question_stats_batch: {
         Args: { p_project_ids: string[] }
         Returns: {
           complete_count: number
@@ -3960,7 +3960,7 @@ export type Database = {
           workspace_id: string
         }[]
       }
-      get_bid_summary: { Args: { bid_workspace_id: string }; Returns: Json }
+      get_form_summary: { Args: { bid_workspace_id: string }; Returns: Json }
       get_capture_activity: {
         Args: { days_back?: number }
         Returns: {

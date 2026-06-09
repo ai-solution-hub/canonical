@@ -192,7 +192,7 @@ export async function registerProcurementTools(
 
         // Fetch question stats
         const stats = await sb(
-          supabase.rpc('get_bid_question_stats', {
+          supabase.rpc('get_form_question_stats', {
             p_project_id: args.id,
           }),
           'mcp.bid.question_stats',

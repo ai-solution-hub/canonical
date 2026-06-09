@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     if (procurementIds.length > 0) {
       const { data: batchStats, error: batchError } = await supabase.rpc(
-        'get_bid_question_stats_batch',
+        'get_form_question_stats_batch',
         { p_project_ids: procurementIds },
       );
 
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         const fallbackResults = await Promise.all(
           procurementIds.map(async (procurementId) => {
             const { data: stats, error: statsError } = await supabase.rpc(
-              'get_bid_question_stats',
+              'get_form_question_stats',
               {
                 p_project_id: procurementId,
               },
