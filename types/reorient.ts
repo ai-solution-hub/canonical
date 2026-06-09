@@ -49,7 +49,7 @@ export interface TeamChange {
   action: 'created' | 'updated' | 'reviewed' | 'flagged';
   /**
    * 'content_item' — sourced from `content_history` (tracks content_items edits)
-   * 'bid_response' — sourced from `bid_response_history` (tracks bid response edits)
+   * 'bid_response' — sourced from `form_response_history` (tracks bid response edits)
    * Q&A pair changes go through `content_history` if stored as content_items.
    */
   entity_type: 'content_item' | 'bid_response';

@@ -82,9 +82,9 @@ export async function POST(
     }
 
     // Fetch questions to draft.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     let questionsQuery = supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select(
         'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
       )
@@ -144,7 +144,7 @@ export async function POST(
       if (!force) {
         const existing = await sb(
           supabase
-            .from('bid_responses')
+            .from('form_responses')
             .select('id')
             .eq('question_id', question.id)
             .maybeSingle(),
@@ -213,7 +213,7 @@ export async function POST(
         const overallScore =
           draftResult.metadata.quality_data?.overall_score ?? null;
         const { data: response, error: upsertError } = await supabase
-          .from('bid_responses')
+          .from('form_responses')
           .upsert(
             {
               question_id: question.id,
@@ -244,9 +244,9 @@ export async function POST(
         }
 
         // Update question status.
-        // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+        // Post-T2: `form_questions.workspace_id` → `workspace_id`.
         await supabase
-          .from('bid_questions')
+          .from('form_questions')
           .update({ status: 'ai_drafted' })
           .eq('id', question.id)
           .eq('workspace_id', id);

@@ -164,9 +164,9 @@ async function createTestBid(opts: {
   const questionIds: string[] = [];
   for (let i = 0; i < questionCount; i += 1) {
     const { data: q, error: qErr } = await serviceClient
-      .from('bid_questions')
+      .from('form_questions')
       .insert({
-        // S246 WP2b T2 (P2): bid_questions.workspace_id → workspace_id.
+        // S246 WP2b T2 (P2): form_questions.workspace_id → workspace_id.
         workspace_id: bid.id,
         question_text: `${TEST_PREFIX} question ${i + 1}`,
         word_limit: 200,
@@ -255,24 +255,24 @@ afterAll(async () => {
     seededBidIds.add(row.id);
   }
 
-  // Scrub in dependency-order — bid_responses → bid_questions → workspaces;
+  // Scrub in dependency-order — form_responses → form_questions → workspaces;
   // processing_queue and pipeline_runs are independent.
   if (seededResponseIds.size > 0) {
     await serviceClient
-      .from('bid_responses')
+      .from('form_responses')
       .delete()
       .in('id', Array.from(seededResponseIds));
   }
   // Defence-in-depth — scrub any responses by question_id.
   if (seededQuestionIds.size > 0) {
     await serviceClient
-      .from('bid_responses')
+      .from('form_responses')
       .delete()
       .in('question_id', Array.from(seededQuestionIds));
   }
   if (seededQuestionIds.size > 0) {
     await serviceClient
-      .from('bid_questions')
+      .from('form_questions')
       .delete()
       .in('id', Array.from(seededQuestionIds));
   }

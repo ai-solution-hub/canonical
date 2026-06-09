@@ -37,7 +37,7 @@ export async function POST(
 
     // Validate response belongs to this bid
     const { data: existing, error: existingError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id, question_id')
       .eq('id', rId)
       .single();
@@ -51,7 +51,7 @@ export async function POST(
 
     const question = await sb(
       supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('id')
         .eq('id', existing.question_id)
         .eq('workspace_id', id)
@@ -68,7 +68,7 @@ export async function POST(
 
     // Fetch the history row for the requested version
     const { data: historyRow, error: historyError } = await supabase
-      .from('bid_response_history')
+      .from('form_response_history')
       .select('*')
       .eq('response_id', rId)
       .eq('version', version)
@@ -90,7 +90,7 @@ export async function POST(
 
     // Update the current response (this triggers the snapshot of the current version)
     const { data: updated, error: updateError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .update({
         response_text: historyRow.response_text,
         response_text_advanced: historyRow.response_text_advanced,

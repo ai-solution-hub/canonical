@@ -182,7 +182,7 @@ Check for:
 
 /**
  * Full quality check: deterministic + AI-assisted.
- * Returns QualityData suitable for storing in bid_responses.metadata.
+ * Returns QualityData suitable for storing in form_responses.metadata.
  */
 export async function checkResponseQuality(
   question: QualityCheckQuestion,

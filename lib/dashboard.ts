@@ -330,9 +330,9 @@ export async function fetchUnifiedDashboardData(
 
       // 4: Procurement response changes by others (team changes)
       supabase
-        .from('bid_response_history')
+        .from('form_response_history')
         .select(
-          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(workspace_id, workspaces!inner(name)))',
+          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, workspaces!inner(name)))',
         )
         .gt('created_at', sinceDate)
         .neq('edited_by', userId)
@@ -341,9 +341,9 @@ export async function fetchUnifiedDashboardData(
 
       // 5: User's own bid response edits (recent work)
       supabase
-        .from('bid_response_history')
+        .from('form_response_history')
         .select(
-          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(workspace_id, question_text, workspaces!inner(id, name)))',
+          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, question_text, workspaces!inner(id, name)))',
         )
         .eq('edited_by', userId)
         .order('created_at', { ascending: false })
@@ -528,9 +528,9 @@ export async function fetchUnifiedDashboardData(
       errors.push('bid_response team_changes query failed');
     } else if (data) {
       for (const row of data) {
-        const br = row.bid_responses as unknown as {
+        const br = row.form_responses as unknown as {
           question_id: string;
-          bid_questions: {
+          form_questions: {
             workspace_id: string;
             workspaces: { name: string };
           };
@@ -542,10 +542,10 @@ export async function fetchUnifiedDashboardData(
           entity_type: 'bid_response',
           entity_id: row.response_id,
           entity_title:
-            br?.bid_questions?.workspaces?.name ?? 'Untitled Procurement',
+            br?.form_questions?.workspaces?.name ?? 'Untitled Procurement',
           domain: undefined,
           created_at: row.created_at,
-          workspace_id: br?.bid_questions?.workspace_id,
+          workspace_id: br?.form_questions?.workspace_id,
           question_id: br?.question_id,
         });
       }
@@ -554,7 +554,7 @@ export async function fetchUnifiedDashboardData(
     errors.push('bid_response team_changes query failed');
   }
 
-  // Sort combined team changes by date (content_history + bid_response_history)
+  // Sort combined team changes by date (content_history + form_response_history)
   team_changes.sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -567,17 +567,17 @@ export async function fetchUnifiedDashboardData(
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
       for (const row of data) {
-        const br = row.bid_responses as unknown as {
+        const br = row.form_responses as unknown as {
           question_id: string;
-          bid_questions: {
+          form_questions: {
             workspace_id: string;
             question_text: string;
             workspaces: { id: string; name: string };
           };
         } | null;
         const questionText =
-          br?.bid_questions?.question_text ?? 'Untitled question';
-        const procurementId = br?.bid_questions?.workspaces?.id;
+          br?.form_questions?.question_text ?? 'Untitled question';
+        const procurementId = br?.form_questions?.workspaces?.id;
         my_recent_work.push({
           entity_type: 'bid_response',
           entity_id: row.response_id,

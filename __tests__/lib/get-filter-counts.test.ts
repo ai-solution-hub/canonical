@@ -32,7 +32,7 @@
  *
  * Companion behavioural coverage lives in
  *   __tests__/integration/publication-status-rpc-visibility.integration.test.ts
- * which already exercises hybrid_search / search_for_bid_response /
+ * which already exercises hybrid_search / search_for_form_response /
  *   search_content_chunks. Future S217 work can extend that file with a
  *   `get_filter_counts` block; this guard captures the structural invariant
  *   in the meantime.

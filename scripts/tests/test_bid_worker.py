@@ -151,7 +151,7 @@ class TestExtractDocxQuestions:
 
         mock_sb = _make_mock_supabase()
         _mock_storage_download(mock_sb, "tender-documents", b"fake-docx-bytes")
-        _mock_table_insert(mock_sb, "bid_questions")
+        _mock_table_insert(mock_sb, "form_questions")
         _mock_table_select_single(mock_sb, {"domain_metadata": {"status": "pending"}})
         _mock_table_update(mock_sb)
 

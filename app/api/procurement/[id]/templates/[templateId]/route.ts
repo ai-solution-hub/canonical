@@ -90,7 +90,7 @@ export async function GET(
     if (questionIds.length > 0) {
       // Fetch bid questions
       const { data: questions, error: questionsError } = await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('id, question_text, status')
         .in('id', questionIds);
 
@@ -117,7 +117,7 @@ export async function GET(
 
         // Fetch latest response preview for each question
         const { data: responses, error: responsesError } = await supabase
-          .from('bid_responses')
+          .from('form_responses')
           .select('question_id, response_text, version')
           .in('question_id', questionIds)
           .order('version', { ascending: false });

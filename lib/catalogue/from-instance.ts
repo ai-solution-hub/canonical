@@ -507,7 +507,7 @@ export async function confirmAndWriteCatalogue(
     // UPSERT on the natural key ({52.22}): a re-run over the same instance
     // UPDATEs the existing row in place (zero net new rows) instead of
     // raising 23505. The existing row's `id` is preserved, so the
-    // `bid_questions.template_requirement_id` FK survives re-cataloguing;
+    // `form_questions.template_requirement_id` FK survives re-cataloguing;
     // `created_at` is not in the row, so the DB default only fires on INSERT.
     const upsertResult = await tryQuery(
       supabase.from('form_template_requirements').upsert(row, {

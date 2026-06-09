@@ -65,7 +65,7 @@ export async function fetchProcurementExportData(
 
   // Fetch questions with responses
   const { data: questions, error: questionsError } = await supabase
-    .from('bid_questions')
+    .from('form_questions')
     .select(
       `
       id,
@@ -77,7 +77,7 @@ export async function fetchProcurementExportData(
       evaluation_weight,
       confidence_posture,
       status,
-      bid_responses (
+      form_responses (
         id,
         response_text,
         response_text_advanced,
@@ -123,9 +123,9 @@ export async function fetchProcurementExportData(
   };
 
   const exportQuestions: ExportQuestion[] = questions.map((q) => {
-    const response = Array.isArray(q.bid_responses)
-      ? q.bid_responses[0]
-      : q.bid_responses;
+    const response = Array.isArray(q.form_responses)
+      ? q.form_responses[0]
+      : q.form_responses;
 
     const metadata = response?.metadata as ProcurementResponseMetadata | null;
     const citations: ExportCitation[] = [];

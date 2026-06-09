@@ -255,7 +255,7 @@ describe('Procurement Questions Create API', () => {
     );
 
     // Second .single(): insert result.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: '00000000-0000-4000-8000-000000000099',
@@ -313,7 +313,7 @@ describe('Procurement Questions Create API', () => {
     });
 
     // .then(): batch insert result.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -370,7 +370,7 @@ describe('Procurement Questions Create API', () => {
     });
 
     // .then(): batch insert result.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -399,7 +399,7 @@ describe('Procurement Questions Create API', () => {
     });
 
     // Verify .insert() was called and rows had correct workspace_id.
-    // Post-T2: `bid_questions` keys workspace not legacy project.
+    // Post-T2: `form_questions` keys workspace not legacy project.
     expect(mockSupabase._chain.insert).toHaveBeenCalled();
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     // Could be a single row or array

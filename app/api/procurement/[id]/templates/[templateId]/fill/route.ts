@@ -102,7 +102,7 @@ export async function POST(
 
     // Get latest response for each question, ordered by preference
     const { data: responses, error: responsesError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('question_id, response_text, review_status, version')
       .in('question_id', questionIds)
       .order('version', { ascending: false });

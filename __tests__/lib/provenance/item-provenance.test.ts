@@ -84,7 +84,7 @@ describe('getItemProvenance — Review Schedule projection (T4)', () => {
       error: null,
     });
 
-    // bid_responses + count + workspaces all empty (default mock)
+    // form_responses + count + workspaces all empty (default mock)
     const result = await getItemProvenance(
       // The full SupabaseClient typing is unnecessary for this test surface
       mockSupabase as unknown as Parameters<typeof getItemProvenance>[0],

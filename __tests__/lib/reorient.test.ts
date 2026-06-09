@@ -106,8 +106,8 @@ const TEST_USER_ID = 'user-abc-123';
  *         [3] from('content_items') or Promise.resolve — governance reviews
  *         [4] rpc('get_items_with_quality_flags') or Promise.resolve — quality flags
  *         [5] from('notifications') — unread notifications
- *         [6] from('bid_response_history') — bid response team changes
- *         [7] from('bid_response_history') — bid response recent work
+ *         [6] from('form_response_history') — bid response team changes
+ *         [7] from('form_response_history') — bid response recent work
  *      b) fetchActiveProcurementWithStats (mocked — returns workspaces + statsMap)
  *   Then auth.getUser() for display name
  */
@@ -185,14 +185,14 @@ function setupDefaultMock(
     count: overrides.notificationsCount ?? 0,
   });
 
-  // [6] bid_response_history — team changes
+  // [6] form_response_history — team changes
   fromCalls.push({
     data: overrides.bidResponseTeamChangesData ?? [],
     error: null,
     count: null,
   });
 
-  // [7] bid_response_history — recent work
+  // [7] form_response_history — recent work
   fromCalls.push({
     data: overrides.bidResponseRecentWorkData ?? [],
     error: null,
@@ -1279,9 +1279,9 @@ describe('fetchReorientData', () => {
             response_id: 'resp-1',
             edited_by: 'other-user-2',
             created_at: '2026-03-08T09:30:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-1',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'bid-1',
                 workspaces: { name: 'NHS Digital Procurement' },
               },
@@ -1329,9 +1329,9 @@ describe('fetchReorientData', () => {
             response_id: 'resp-1',
             edited_by: 'other-user-2',
             created_at: '2026-03-08T09:00:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-1',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'bid-1',
                 workspaces: { name: 'Recent Procurement' },
               },
@@ -1367,9 +1367,9 @@ describe('fetchReorientData', () => {
             response_id: 'resp-2',
             edited_by: TEST_USER_ID,
             created_at: '2026-03-08T09:15:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-2',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'bid-2',
                 question_text: 'Describe your security approach',
                 workspaces: { id: 'bid-2', name: 'Security Procurement' },
@@ -1408,9 +1408,9 @@ describe('fetchReorientData', () => {
             response_id: 'resp-3',
             edited_by: TEST_USER_ID,
             created_at: '2026-03-08T09:00:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-3',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'bid-3',
                 question_text: longQuestion,
                 workspaces: { id: 'bid-3', name: 'Long Q Procurement' },
@@ -1475,9 +1475,9 @@ describe('fetchReorientData', () => {
             response_id: 'r-1',
             edited_by: TEST_USER_ID,
             created_at: '2026-03-08T09:45:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-1',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'b-1',
                 question_text: 'Q1',
                 workspaces: { id: 'b-1', name: 'Procurement' },
@@ -1489,9 +1489,9 @@ describe('fetchReorientData', () => {
             response_id: 'r-2',
             edited_by: TEST_USER_ID,
             created_at: '2026-03-08T09:35:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-2',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'b-1',
                 question_text: 'Q2',
                 workspaces: { id: 'b-1', name: 'Procurement' },
@@ -1538,9 +1538,9 @@ describe('fetchReorientData', () => {
             response_id: 'r-dup',
             edited_by: TEST_USER_ID,
             created_at: '2026-03-08T09:45:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-1',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'b-1',
                 question_text: 'Latest response',
                 workspaces: { id: 'b-1', name: 'Procurement' },
@@ -1552,9 +1552,9 @@ describe('fetchReorientData', () => {
             response_id: 'r-dup',
             edited_by: TEST_USER_ID,
             created_at: '2026-03-08T08:45:00Z',
-            bid_responses: {
+            form_responses: {
               question_id: 'q-1',
-              bid_questions: {
+              form_questions: {
                 workspace_id: 'b-1',
                 question_text: 'Older response',
                 workspaces: { id: 'b-1', name: 'Procurement' },

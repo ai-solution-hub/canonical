@@ -183,13 +183,13 @@ export async function getItemProvenance(
   const [recentDraftsResult, countResponse] = await Promise.all([
     sb(
       supabase
-        .from('bid_responses')
+        .from('form_responses')
         .select(
           `id,
           question_id,
           drafted_by,
           updated_at,
-          bid_questions!inner(workspace_id, question_text)`,
+          form_questions!inner(workspace_id, question_text)`,
         )
         .contains('source_content_ids', [itemId])
         .order('updated_at', { ascending: false })
@@ -198,7 +198,7 @@ export async function getItemProvenance(
     ),
     // Count query — use raw response to access .count (sb() returns data, which is null for head:true)
     supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id', { count: 'exact', head: true })
       .contains('source_content_ids', [itemId]),
   ]);
@@ -215,12 +215,12 @@ export async function getItemProvenance(
       ? await resolveUserDisplayNames(supabase, draftUserIds)
       : new Map<string, { display_name: string }>();
 
-  // 7. Resolve bid workspace names (post-T2: bid_questions.workspace_id renamed
+  // 7. Resolve bid workspace names (post-T2: form_questions.workspace_id renamed
   // to workspace_id).
   const workspaceIds = recentDraftsResult
     .map((r) => {
-      const bq = r.bid_questions;
-      // bid_questions is a joined object (inner join, so always present)
+      const bq = r.form_questions;
+      // form_questions is a joined object (inner join, so always present)
       if (Array.isArray(bq)) return bq[0]?.workspace_id as string | undefined;
       return (bq as { workspace_id: string } | null)?.workspace_id;
     })
@@ -242,9 +242,9 @@ export async function getItemProvenance(
 
   // 8. Assemble recent drafts
   const recentDrafts: ProcurementDraftInfo[] = recentDraftsResult.map((r) => {
-    const bq = Array.isArray(r.bid_questions)
-      ? r.bid_questions[0]
-      : (r.bid_questions as {
+    const bq = Array.isArray(r.form_questions)
+      ? r.form_questions[0]
+      : (r.form_questions as {
           workspace_id: string;
           question_text: string;
         } | null);

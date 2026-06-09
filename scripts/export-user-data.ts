@@ -444,7 +444,7 @@ export async function fetchByColumn(
 }
 
 /**
- * For tables with multiple subject columns (e.g. bid_responses with
+ * For tables with multiple subject columns (e.g. form_responses with
  * drafted_by + last_edited_by + approved_by), fetch the union of rows
  * matching ANY of the columns, deduplicated by id.
  */
@@ -489,9 +489,9 @@ export interface ActivityBundle {
 
 export interface AuditTrailBundle {
   content_history: Record<string, unknown>[];
-  bid_response_history: Record<string, unknown>[];
-  bid_responses: Record<string, unknown>[];
-  bid_questions: Record<string, unknown>[];
+  form_response_history: Record<string, unknown>[];
+  form_responses: Record<string, unknown>[];
+  form_questions: Record<string, unknown>[];
   verification_history: Record<string, unknown>[];
   classification_disputes: Record<string, unknown>[];
   feed_flags: Record<string, unknown>[];
@@ -608,16 +608,16 @@ export async function assembleAuditTrailBundle(
     governanceConfig,
   ] = await Promise.all([
     fetchByColumn(client, 'content_history', 'created_by', subjectUuid),
-    fetchByColumn(client, 'bid_response_history', 'edited_by', subjectUuid),
+    fetchByColumn(client, 'form_response_history', 'edited_by', subjectUuid),
     fetchByAnyColumn(
       client,
-      'bid_responses',
+      'form_responses',
       ['drafted_by', 'last_edited_by', 'approved_by'],
       subjectUuid,
     ),
     fetchByAnyColumn(
       client,
-      'bid_questions',
+      'form_questions',
       ['assigned_to', 'created_by'],
       subjectUuid,
     ),
@@ -684,9 +684,9 @@ export async function assembleAuditTrailBundle(
   ]);
   return {
     content_history: contentHistory,
-    bid_response_history: procurementRespHistory,
-    bid_responses: procurementResponses,
-    bid_questions: procurementQuestions,
+    form_response_history: procurementRespHistory,
+    form_responses: procurementResponses,
+    form_questions: procurementQuestions,
     verification_history: verificationHistory,
     classification_disputes: classificationDisputes,
     feed_flags: feedFlags,

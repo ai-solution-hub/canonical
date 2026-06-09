@@ -143,9 +143,9 @@ export async function POST(
     let duplicatesSkipped = 0;
 
     if (extractedQuestions.length > 0) {
-      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
       const { data: existingQuestions, error: existingError } = await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('question_text')
         .eq('workspace_id', id);
 
@@ -189,9 +189,9 @@ export async function POST(
         });
       }
 
-      // Post-T2: `bid_questions.workspace_id` → `workspace_id`. The unique index
+      // Post-T2: `form_questions.workspace_id` → `workspace_id`. The unique index
       // backing this onConflict was renamed in the migration too
-      // (bid_questions_project_question_unique → bid_questions_workspace_question_unique)
+      // (form_questions_project_question_unique → form_questions_workspace_question_unique)
       // but PostgREST resolves `onConflict` by column list, not constraint name.
       const inserts = newQuestions.map((q) => ({
         workspace_id: id,
@@ -208,7 +208,7 @@ export async function POST(
       // Claude may produce slightly different question sets on re-extraction,
       // and partial inserts from a timed-out first attempt may already exist.
       const { error: insertError } = await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .upsert(inserts, {
           onConflict: 'workspace_id,question_text',
           ignoreDuplicates: true,
@@ -272,10 +272,10 @@ export async function POST(
     }
 
     // Fetch the saved questions to return with IDs.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     const savedQuestions = await sb(
       supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select(
           'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
         )

@@ -111,9 +111,9 @@ export async function POST(
 
     if (outcome === 'won' && integrate_to_kb) {
       // Fetch all approved/edited responses for this bid.
-      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
       const { data: questions, error: questionsError } = await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('id, question_text')
         .eq('workspace_id', id);
 
@@ -136,7 +136,7 @@ export async function POST(
       if (questions && questions.length > 0) {
         const questionIds = questions.map((q) => q.id);
         const { data: responses, error: responsesError } = await supabase
-          .from('bid_responses')
+          .from('form_responses')
           .select(
             'question_id, response_text, source_content_ids, review_status',
           )

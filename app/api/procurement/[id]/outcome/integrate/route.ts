@@ -84,10 +84,10 @@ export async function POST(
     }
 
     // Fetch the questions and responses for integration.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     const questionIds = integrations.map((i) => i.question_id);
     const { data: questions, error: questionsError } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id, question_text')
       .eq('workspace_id', id)
       .in('id', questionIds);
@@ -110,7 +110,7 @@ export async function POST(
     );
 
     const { data: responses, error: responsesError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('question_id, response_text')
       .in('question_id', questionIds);
 

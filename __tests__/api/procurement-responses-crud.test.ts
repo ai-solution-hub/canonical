@@ -742,8 +742,8 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
 
     expect(res.status).toBe(200);
 
-    // Verify bid_questions was updated to 'complete'
-    expect(mockSupabase.from).toHaveBeenCalledWith('bid_questions');
+    // Verify form_questions was updated to 'complete'
+    expect(mockSupabase.from).toHaveBeenCalledWith('form_questions');
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'complete' }),
     );

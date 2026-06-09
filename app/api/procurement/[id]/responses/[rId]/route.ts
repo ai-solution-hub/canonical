@@ -18,7 +18,7 @@ import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
 
 type ProcurementResponseUpdate =
-  Database['public']['Tables']['bid_responses']['Update'];
+  Database['public']['Tables']['form_responses']['Update'];
 
 export const maxDuration = 30;
 
@@ -45,7 +45,7 @@ export async function GET(
 
     // Fetch the response
     const { data: response, error: responseError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select(
         'id, question_id, response_text, response_text_advanced, source_content_ids, metadata, review_status, version, drafted_by, last_edited_by, approved_by, created_at, updated_at, overall_score',
       )
@@ -61,7 +61,7 @@ export async function GET(
 
     // Verify the response belongs to a question in this bid
     const { data: question, error: questionError } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id, question_text, word_limit, section_name, confidence_posture')
       .eq('id', response.question_id)
       .eq('workspace_id', id)
@@ -173,7 +173,7 @@ export async function PATCH(
 
     // Verify the response exists and belongs to this bid
     const { data: existing, error: fetchError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id, question_id, metadata')
       .eq('id', rId)
       .single();
@@ -188,7 +188,7 @@ export async function PATCH(
     // Verify the question belongs to this bid
     const question = await sb(
       supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('id, word_limit')
         .eq('id', existing.question_id)
         .eq('workspace_id', id)
@@ -261,7 +261,7 @@ export async function PATCH(
     }
 
     const { data: updated, error: updateError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .update(updates)
       .eq('id', rId)
       .select(
@@ -280,13 +280,13 @@ export async function PATCH(
     // Update question status based on review status
     if (review_status === 'edited' || review_status === 'approved') {
       await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .update({ status: 'complete' })
         .eq('id', existing.question_id)
         .eq('workspace_id', id);
     } else if (review_status === 'needs_review') {
       await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .update({ status: 'needs_review' })
         .eq('id', existing.question_id)
         .eq('workspace_id', id);

@@ -392,7 +392,7 @@ export async function getKnownUUIDs(
   let questionId: string | null = null;
   if (bid) {
     const { data: question } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id')
       .eq('workspace_id', bid.id)
       .limit(1)
@@ -403,7 +403,7 @@ export async function getKnownUUIDs(
   let procurementResponseId: string | null = null;
   if (questionId) {
     const { data: response } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id')
       .eq('question_id', questionId)
       .limit(1)

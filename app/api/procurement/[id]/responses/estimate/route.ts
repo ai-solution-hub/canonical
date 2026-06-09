@@ -74,9 +74,9 @@ export async function POST(
     }
 
     // Fetch all questions for this bid.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id, question_text, confidence_posture, matched_content_ids')
       .eq('workspace_id', id)
       .order('section_sequence', { ascending: true })
@@ -114,7 +114,7 @@ export async function POST(
     if (skip_existing && eligible.length > 0) {
       const eligibleIds = eligible.map((q) => q.id);
       const { data: existingResponses, error: existingError } = await supabase
-        .from('bid_responses')
+        .from('form_responses')
         .select('question_id')
         .in('question_id', eligibleIds);
 

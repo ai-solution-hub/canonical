@@ -93,9 +93,9 @@ export async function POST(
     }
 
     // Fetch bid questions for this workspace.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id, question_text')
       .eq('workspace_id', procurementId);
 

@@ -868,7 +868,7 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: sampleBids,
       });
 
-      // Mock workspace lookup for focused bid — must also handle bid_questions/bid_responses
+      // Mock workspace lookup for focused bid — must also handle form_questions/form_responses
       const mockChain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -1380,7 +1380,7 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'bid_questions') {
+        if (table === 'form_questions') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
@@ -1418,7 +1418,7 @@ describe('MCP App trigger tools #22-23', () => {
               error: null,
             }),
           );
-        } else if (table === 'bid_responses') {
+        } else if (table === 'form_responses') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
@@ -1494,7 +1494,7 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'bid_questions') {
+        if (table === 'form_questions') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
@@ -1522,7 +1522,7 @@ describe('MCP App trigger tools #22-23', () => {
               error: null,
             }),
           );
-        } else if (table === 'bid_responses') {
+        } else if (table === 'form_responses') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
@@ -1597,7 +1597,7 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'bid_questions') {
+        if (table === 'form_questions') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
@@ -1615,7 +1615,7 @@ describe('MCP App trigger tools #22-23', () => {
               error: null,
             }),
           );
-        } else if (table === 'bid_responses') {
+        } else if (table === 'form_responses') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({ data: [], error: null }),
           );
@@ -1726,7 +1726,7 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'bid_questions') {
+        if (table === 'form_questions') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
@@ -1764,7 +1764,7 @@ describe('MCP App trigger tools #22-23', () => {
               error: null,
             }),
           );
-        } else if (table === 'bid_responses') {
+        } else if (table === 'form_responses') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({ data: [], error: null }),
           );

@@ -29,7 +29,7 @@ export async function GET(
 
     // Validate that the response belongs to this bid
     const { data: response, error: responseError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id, version, question_id')
       .eq('id', rId)
       .single();
@@ -44,7 +44,7 @@ export async function GET(
     // Verify the question belongs to this bid
     const question = await sb(
       supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('id')
         .eq('id', response.question_id)
         .eq('workspace_id', id)
@@ -61,7 +61,7 @@ export async function GET(
 
     // Fetch history versions
     const { data: history, error: historyError } = await supabase
-      .from('bid_response_history')
+      .from('form_response_history')
       .select(
         'id, version, response_text, response_text_advanced, review_status, edited_by, change_reason, created_at',
       )

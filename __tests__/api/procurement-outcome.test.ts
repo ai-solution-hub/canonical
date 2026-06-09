@@ -325,7 +325,7 @@ describe('POST /api/bids/:id/outcome', () => {
           return resolve({ data: null, error: null });
         }
         if (thenCallCount === 2) {
-          // bid_questions query
+          // form_questions query
           return resolve({
             data: [
               { id: QUESTION_ID, question_text: 'Describe your approach' },
@@ -334,7 +334,7 @@ describe('POST /api/bids/:id/outcome', () => {
           });
         }
         if (thenCallCount === 3) {
-          // bid_responses query
+          // form_responses query
           return resolve({
             data: [
               {

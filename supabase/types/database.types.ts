@@ -56,232 +56,6 @@ export type Database = {
         }
         Relationships: []
       }
-      bid_questions: {
-        Row: {
-          assigned_to: string | null
-          confidence_posture: string | null
-          created_at: string
-          created_by: string | null
-          evaluation_weight: number | null
-          has_variants: boolean | null
-          id: string
-          matched_content_ids: string[] | null
-          question_sequence: number
-          question_text: string
-          section_name: string | null
-          section_sequence: number
-          status: string
-          template_requirement_id: string | null
-          updated_at: string | null
-          word_limit: number | null
-          workspace_id: string
-        }
-        Insert: {
-          assigned_to?: string | null
-          confidence_posture?: string | null
-          created_at?: string
-          created_by?: string | null
-          evaluation_weight?: number | null
-          has_variants?: boolean | null
-          id?: string
-          matched_content_ids?: string[] | null
-          question_sequence: number
-          question_text: string
-          section_name?: string | null
-          section_sequence: number
-          status?: string
-          template_requirement_id?: string | null
-          updated_at?: string | null
-          word_limit?: number | null
-          workspace_id: string
-        }
-        Update: {
-          assigned_to?: string | null
-          confidence_posture?: string | null
-          created_at?: string
-          created_by?: string | null
-          evaluation_weight?: number | null
-          has_variants?: boolean | null
-          id?: string
-          matched_content_ids?: string[] | null
-          question_sequence?: number
-          question_text?: string
-          section_name?: string | null
-          section_sequence?: number
-          status?: string
-          template_requirement_id?: string | null
-          updated_at?: string | null
-          word_limit?: number | null
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bid_questions_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_questions_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_questions_template_requirement_id_fkey"
-            columns: ["template_requirement_id"]
-            isOneToOne: false
-            referencedRelation: "form_template_requirements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_questions_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bid_response_history: {
-        Row: {
-          change_reason: string | null
-          created_at: string
-          edited_by: string | null
-          id: string
-          metadata: Json | null
-          response_id: string
-          response_text: string | null
-          response_text_advanced: string | null
-          review_status: string
-          source_content_ids: string[] | null
-          version: number
-        }
-        Insert: {
-          change_reason?: string | null
-          created_at?: string
-          edited_by?: string | null
-          id?: string
-          metadata?: Json | null
-          response_id: string
-          response_text?: string | null
-          response_text_advanced?: string | null
-          review_status: string
-          source_content_ids?: string[] | null
-          version: number
-        }
-        Update: {
-          change_reason?: string | null
-          created_at?: string
-          edited_by?: string | null
-          id?: string
-          metadata?: Json | null
-          response_id?: string
-          response_text?: string | null
-          response_text_advanced?: string | null
-          review_status?: string
-          source_content_ids?: string[] | null
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bid_response_history_edited_by_fkey"
-            columns: ["edited_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_response_history_response_id_fkey"
-            columns: ["response_id"]
-            isOneToOne: false
-            referencedRelation: "bid_responses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bid_responses: {
-        Row: {
-          approved_by: string | null
-          created_at: string
-          drafted_by: string | null
-          id: string
-          last_edited_by: string | null
-          metadata: Json | null
-          overall_score: number | null
-          question_id: string
-          response_text: string | null
-          response_text_advanced: string | null
-          review_status: string
-          source_content_ids: string[] | null
-          updated_at: string | null
-          version: number
-        }
-        Insert: {
-          approved_by?: string | null
-          created_at?: string
-          drafted_by?: string | null
-          id?: string
-          last_edited_by?: string | null
-          metadata?: Json | null
-          overall_score?: number | null
-          question_id: string
-          response_text?: string | null
-          response_text_advanced?: string | null
-          review_status?: string
-          source_content_ids?: string[] | null
-          updated_at?: string | null
-          version?: number
-        }
-        Update: {
-          approved_by?: string | null
-          created_at?: string
-          drafted_by?: string | null
-          id?: string
-          last_edited_by?: string | null
-          metadata?: Json | null
-          overall_score?: number | null
-          question_id?: string
-          response_text?: string | null
-          response_text_advanced?: string | null
-          review_status?: string
-          source_content_ids?: string[] | null
-          updated_at?: string | null
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bid_responses_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_responses_drafted_by_fkey"
-            columns: ["drafted_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_responses_last_edited_by_fkey"
-            columns: ["last_edited_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_responses_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "bid_questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       change_reports: {
         Row: {
           created_at: string
@@ -595,7 +369,7 @@ export type Database = {
             foreignKeyName: "content_citations_bid_response_id_fkey"
             columns: ["bid_response_id"]
             isOneToOne: false
-            referencedRelation: "bid_responses"
+            referencedRelation: "form_responses"
             referencedColumns: ["id"]
           },
           {
@@ -1582,6 +1356,232 @@ export type Database = {
           },
         ]
       }
+      form_questions: {
+        Row: {
+          assigned_to: string | null
+          confidence_posture: string | null
+          created_at: string
+          created_by: string | null
+          evaluation_weight: number | null
+          has_variants: boolean | null
+          id: string
+          matched_content_ids: string[] | null
+          question_sequence: number
+          question_text: string
+          section_name: string | null
+          section_sequence: number
+          status: string
+          template_requirement_id: string | null
+          updated_at: string | null
+          word_limit: number | null
+          workspace_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          confidence_posture?: string | null
+          created_at?: string
+          created_by?: string | null
+          evaluation_weight?: number | null
+          has_variants?: boolean | null
+          id?: string
+          matched_content_ids?: string[] | null
+          question_sequence: number
+          question_text: string
+          section_name?: string | null
+          section_sequence: number
+          status?: string
+          template_requirement_id?: string | null
+          updated_at?: string | null
+          word_limit?: number | null
+          workspace_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          confidence_posture?: string | null
+          created_at?: string
+          created_by?: string | null
+          evaluation_weight?: number | null
+          has_variants?: boolean | null
+          id?: string
+          matched_content_ids?: string[] | null
+          question_sequence?: number
+          question_text?: string
+          section_name?: string | null
+          section_sequence?: number
+          status?: string
+          template_requirement_id?: string | null
+          updated_at?: string | null
+          word_limit?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_questions_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_questions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_questions_template_requirement_id_fkey"
+            columns: ["template_requirement_id"]
+            isOneToOne: false
+            referencedRelation: "form_template_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_questions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_response_history: {
+        Row: {
+          change_reason: string | null
+          created_at: string
+          edited_by: string | null
+          id: string
+          metadata: Json | null
+          response_id: string
+          response_text: string | null
+          response_text_advanced: string | null
+          review_status: string
+          source_content_ids: string[] | null
+          version: number
+        }
+        Insert: {
+          change_reason?: string | null
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          metadata?: Json | null
+          response_id: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status: string
+          source_content_ids?: string[] | null
+          version: number
+        }
+        Update: {
+          change_reason?: string | null
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          metadata?: Json | null
+          response_id?: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status?: string
+          source_content_ids?: string[] | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_response_history_edited_by_fkey"
+            columns: ["edited_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_response_history_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "form_responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_responses: {
+        Row: {
+          approved_by: string | null
+          created_at: string
+          drafted_by: string | null
+          id: string
+          last_edited_by: string | null
+          metadata: Json | null
+          overall_score: number | null
+          question_id: string
+          response_text: string | null
+          response_text_advanced: string | null
+          review_status: string
+          source_content_ids: string[] | null
+          updated_at: string | null
+          version: number
+        }
+        Insert: {
+          approved_by?: string | null
+          created_at?: string
+          drafted_by?: string | null
+          id?: string
+          last_edited_by?: string | null
+          metadata?: Json | null
+          overall_score?: number | null
+          question_id: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status?: string
+          source_content_ids?: string[] | null
+          updated_at?: string | null
+          version?: number
+        }
+        Update: {
+          approved_by?: string | null
+          created_at?: string
+          drafted_by?: string | null
+          id?: string
+          last_edited_by?: string | null
+          metadata?: Json | null
+          overall_score?: number | null
+          question_id?: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status?: string
+          source_content_ids?: string[] | null
+          updated_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_responses_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_responses_drafted_by_fkey"
+            columns: ["drafted_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_responses_last_edited_by_fkey"
+            columns: ["last_edited_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_template_fields: {
         Row: {
           col_index: number | null
@@ -1654,7 +1654,7 @@ export type Database = {
             foreignKeyName: "form_template_fields_question_id_fkey"
             columns: ["question_id"]
             isOneToOne: false
-            referencedRelation: "bid_questions"
+            referencedRelation: "form_questions"
             referencedColumns: ["id"]
           },
         ]
@@ -2563,6 +2563,8 @@ export type Database = {
           q_a_pair_id: string
           question_text: string
           scope_tag: string[]
+          source_workspace_id: string | null
+          superseded_by: string | null
           valid_from: string | null
           valid_to: string | null
           version: number
@@ -2580,6 +2582,8 @@ export type Database = {
           q_a_pair_id: string
           question_text: string
           scope_tag: string[]
+          source_workspace_id?: string | null
+          superseded_by?: string | null
           valid_from?: string | null
           valid_to?: string | null
           version: number
@@ -2597,6 +2601,8 @@ export type Database = {
           q_a_pair_id?: string
           question_text?: string
           scope_tag?: string[]
+          source_workspace_id?: string | null
+          superseded_by?: string | null
           valid_from?: string | null
           valid_to?: string | null
           version?: number
@@ -4341,10 +4347,6 @@ export type Database = {
         Args: { event: Json }
         Returns: Json
       }
-      hook_restrict_signup_to_example-client_domain: {
-        Args: { event: Json }
-        Returns: Json
-      }
       hybrid_search: {
         Args: {
           include_superseded?: boolean
@@ -4579,7 +4581,7 @@ export type Database = {
           word_count: number
         }[]
       }
-      search_for_bid_response: {
+      search_for_form_response: {
         Args: {
           include_superseded?: boolean
           limit_count?: number

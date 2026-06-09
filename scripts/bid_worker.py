@@ -58,7 +58,7 @@ def extract_docx_questions(supabase: Client, payload: dict) -> dict:
     """Extract questions from a DOCX tender document.
 
     Downloads the file from Supabase Storage, runs the extraction script,
-    and inserts extracted questions into bid_questions.
+    and inserts extracted questions into form_questions.
 
     Args:
         supabase: Supabase client
@@ -96,8 +96,8 @@ def extract_docx_questions(supabase: Client, payload: dict) -> dict:
 
         extraction = json.loads(result.stdout)
 
-        # Insert questions into bid_questions
-        # S246 WP2b T2 (P2): bid_questions.project_id renamed to workspace_id.
+        # Insert questions into form_questions
+        # S246 WP2b T2 (P2): form_questions.project_id renamed to workspace_id.
         questions_to_insert = []
         for section in extraction["sections"]:
             for question in section["questions"]:
@@ -114,7 +114,7 @@ def extract_docx_questions(supabase: Client, payload: dict) -> dict:
                 )
 
         if questions_to_insert:
-            supabase.from_("bid_questions").insert(questions_to_insert).execute()
+            supabase.from_("form_questions").insert(questions_to_insert).execute()
 
         # Update bid status in domain_metadata
         bid = (

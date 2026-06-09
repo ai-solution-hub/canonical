@@ -28,7 +28,7 @@
  *   - draftableStates = ['drafting', 'in_review', 'ready_for_export']
  *     (spec §4.3 + lib/procurement/procurement-workflow.ts:81-86).
  *   - PermanentJobError messages: `bid_not_found: <id>`, `bid_not_draftable: <state>`,
- *     `bid_questions_fetch_failed: <msg>`, `no_questions_in_bid`.
+ *     `form_questions_fetch_failed: <msg>`, `no_questions_in_bid`.
  *   - Per-question result statuses: 'drafted' | 'skipped' | 'failed'.
  *   - skip reasons: 'no_content', 'already_drafted'.
  */
@@ -147,16 +147,16 @@ const AUTH_CONTEXT = {
 // The handler's call sequence (per lib/queue/handlers/bid-draft-all.ts):
 //   1. workspaces.select(...).eq('id', bid_id).eq('type', 'bid').single()
 //        → { data: bid, error }
-//   2. bid_questions.select(...).eq('workspace_id', bid_id).order(...).order(...)
+//   2. form_questions.select(...).eq('workspace_id', bid_id).order(...).order(...)
 //        → resolves via .then() with { data: questions, error }
-//   3. (if skip_existing) bid_responses.select('question_id').in(...)
+//   3. (if skip_existing) form_responses.select('question_id').in(...)
 //        → resolves via .then() with { data: existing, error }
 //   4. Per question with content matched:
 //        a. content_items.select(...).in('id', matchedIds)
 //           → resolves via .then() with { data, error }
-//        b. bid_responses.upsert(...).select('id').single()
+//        b. form_responses.upsert(...).select('id').single()
 //           → returns { data: { id }, error }
-//        c. bid_questions.update({ status }).eq('id', qId).eq('workspace_id', ...)
+//        c. form_questions.update({ status }).eq('id', qId).eq('workspace_id', ...)
 //           → returns { error: null } (no .single()/then call observed —
 //             update without .select() is fire-and-forget through `sb()`)
 //   5. (if all drafted, no failures, drafting state) workspaces.select count
@@ -178,7 +178,7 @@ interface SupabaseScenario {
     data: ReturnType<typeof makeQuestion>[] | null;
     error: { message: string } | null;
   };
-  /** Existing bid_responses rows with `.in('question_id', ...)` */
+  /** Existing form_responses rows with `.in('question_id', ...)` */
   existing: { question_id: string }[];
   /** Per-content-items batch result. Returned for every question's
    *  matched_content_ids lookup. */
@@ -209,7 +209,7 @@ function configureSupabase(
   // The remaining call sequence depends on whether step 1 succeeded.
   if (scenario.bid.error || !scenario.bid.data) return;
 
-  // 2. bid_questions.select(...).order().order() — resolves via .then()
+  // 2. form_questions.select(...).order().order() — resolves via .then()
   client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
     resolve({
       data: scenario.questions.data,
@@ -231,8 +231,8 @@ function configureSupabase(
   // 4. Per-question fan-out. For each question with matched_content_ids
   //    we need:
   //    a. content_items.select(...).in(...) → .then resolve
-  //    b. bid_responses.upsert(...).select('id').single() → resolve
-  //    c. bid_questions.update(...).eq().eq() — terminal `sb()` await,
+  //    b. form_responses.upsert(...).select('id').single() → resolve
+  //    c. form_questions.update(...).eq().eq() — terminal `sb()` await,
   //       which the mock fulfils via the chainable .eq() returning the
   //       chain (which is awaitable via .then() default impl resolving
   //       to {data: [], error: null}).
@@ -253,7 +253,7 @@ function configureSupabase(
     client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: scenario.contentItems, error: null }),
     );
-    // b. bid_responses.upsert.select.single
+    // b. form_responses.upsert.select.single
     const id = scenario.upsertedIds[upsertIdx];
     upsertIdx += 1;
     if (id) {
@@ -370,7 +370,7 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
       );
 
       // The handler's upsert is the .upsert() chain method on
-      // bid_responses. Inspect the recorded call args.
+      // form_responses. Inspect the recorded call args.
       expect(mockSupabase._chain.upsert).toHaveBeenCalled();
       const upsertCall = mockSupabase._chain.upsert.mock.calls[0];
       const payload = upsertCall[0] as Record<string, unknown>;
@@ -387,7 +387,7 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
       expect(opts.onConflict).toBe('question_id');
     });
 
-    it('bid_questions.update({status:ai_drafted}) called once per drafted question', async () => {
+    it('form_questions.update({status:ai_drafted}) called once per drafted question', async () => {
       const questions = QUESTION_IDS.slice(0, 3).map((id) => makeQuestion(id));
       configureSupabase(mockSupabase, {
         bid: {
@@ -415,10 +415,10 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
         AUTH_CONTEXT,
       );
 
-      // The handler issues bid_questions.update(...) per success.
-      // We inspect update calls — the FIRST update is bid_responses
-      // (no, that's upsert; update is only used for bid_questions and
-      // workspaces). bid_questions update happens 3x for the 3 drafts;
+      // The handler issues form_questions.update(...) per success.
+      // We inspect update calls — the FIRST update is form_responses
+      // (no, that's upsert; update is only used for form_questions and
+      // workspaces). form_questions update happens 3x for the 3 drafts;
       // workspaces update 1x for the in_review transition.
       expect(mockSupabase._chain.update).toHaveBeenCalled();
       const updateCalls = mockSupabase._chain.update.mock.calls;
@@ -638,7 +638,7 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
   // -------------------------------------------------------------------------
 
   describe('AC-7 — empty bid (0 questions)', () => {
-    it('bid_questions returns [] → PermanentJobError("no_questions_in_bid")', async () => {
+    it('form_questions returns [] → PermanentJobError("no_questions_in_bid")', async () => {
       configureSupabase(mockSupabase, {
         bid: {
           data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
@@ -678,7 +678,7 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
       ).rejects.toThrow('no_questions_in_bid');
     });
 
-    it('bid_questions DB error → PermanentJobError("bid_questions_fetch_failed: <msg>")', async () => {
+    it('form_questions DB error → PermanentJobError("form_questions_fetch_failed: <msg>")', async () => {
       configureSupabase(mockSupabase, {
         bid: {
           data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
@@ -696,7 +696,7 @@ describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
           mockSupabase as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
         ),
-      ).rejects.toThrow(/bid_questions_fetch_failed: connection refused/);
+      ).rejects.toThrow(/form_questions_fetch_failed: connection refused/);
     });
   });
 

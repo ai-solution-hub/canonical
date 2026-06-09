@@ -152,7 +152,7 @@ function configureBidWithQuestions(procurementName = 'Test Procurement') {
             evaluation_weight: 30,
             confidence_posture: 'high',
             status: 'complete',
-            bid_responses: {
+            form_responses: {
               id: '00000000-0000-4000-8000-000000000020',
               response_text: '<p>Our approach is...</p>',
               response_text_advanced: null,

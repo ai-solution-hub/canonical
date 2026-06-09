@@ -73,9 +73,9 @@ export async function POST(
     }
 
     // Fetch questions to match.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     let questionsQuery = supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id, question_text, confidence_posture')
       .eq('workspace_id', id);
 
@@ -123,7 +123,7 @@ export async function POST(
         const embedding = await generateEmbedding(query);
 
         const { data: searchResults, error: searchError } = await supabase.rpc(
-          'search_for_bid_response',
+          'search_for_form_response',
           {
             query_embedding: JSON.stringify(embedding),
             query_text: query,
@@ -136,7 +136,7 @@ export async function POST(
           // failure as a "no_content" result rather than silently producing
           // a degraded match set.
           throw new Error(
-            `search_for_bid_response failed for query "${query}": ${searchError.message}`,
+            `search_for_form_response failed for query "${query}": ${searchError.message}`,
           );
         }
 
@@ -161,9 +161,9 @@ export async function POST(
       const matchedIds = topMatches.map((m) => m.id);
 
       // Update the question.
-      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
       await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .update({
           confidence_posture: posture,
           matched_content_ids: matchedIds,
@@ -220,9 +220,9 @@ export async function POST(
       canTransition(currentStatus, 'drafting')
     ) {
       // Check if all questions now have a confidence posture.
-      // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
       const { count: unmatchedCount } = await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('id', { count: 'exact', head: true })
         .eq('workspace_id', id)
         .is('confidence_posture', null);

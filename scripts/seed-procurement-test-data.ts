@@ -293,14 +293,14 @@ async function main() {
         const procurementId = existing[0].id;
 
         const { data: questions } = await supabase
-          .from('bid_questions')
+          .from('form_questions')
           .select('id')
           .eq('workspace_id', procurementId);
 
         if (questions && questions.length > 0) {
           const qIds = questions.map((q: { id: string }) => q.id);
           const { error: respDelErr } = await supabase
-            .from('bid_responses')
+            .from('form_responses')
             .delete()
             .in('question_id', qIds);
           if (respDelErr) {
@@ -312,7 +312,7 @@ async function main() {
         }
 
         const { error: qDelErr } = await supabase
-          .from('bid_questions')
+          .from('form_questions')
           .delete()
           .eq('workspace_id', procurementId);
         if (qDelErr) {
@@ -418,7 +418,7 @@ async function main() {
 
     if (!dryRun && procurementId) {
       const { data: created, error: qError } = await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .insert({
           workspace_id: procurementId,
           section_name: q.section_name,
@@ -455,7 +455,7 @@ async function main() {
     );
 
     if (!dryRun && questionIds[resp.questionIndex]) {
-      const { error: rError } = await supabase.from('bid_responses').insert({
+      const { error: rError } = await supabase.from('form_responses').insert({
         question_id: questionIds[resp.questionIndex],
         response_text: resp.response_text,
         review_status: resp.review_status,

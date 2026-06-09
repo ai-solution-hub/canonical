@@ -2,7 +2,7 @@
  * Procurement Drafting Eval Runner
  *
  * Evaluates bid response quality against a gold standard.
- * Cached mode only (default) — compares existing bid_responses in DB.
+ * Cached mode only (default) — compares existing form_responses in DB.
  * Live mode is stubbed for future implementation.
  *
  * Metrics:
@@ -86,7 +86,7 @@ interface DbResponse {
   id: string;
   question_id: string;
   response_text: string;
-  cited_items: string[] | null;
+  source_content_ids: string[] | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -147,35 +147,27 @@ async function fetchProcurementResponses(
   questionIds: string[],
 ): Promise<Map<string, DbResponse>> {
   // The gold standard uses synthetic question_ids (eval-bid-NNN), not real UUIDs.
-  // Try to fetch by matching question IDs from bid_responses joined with bid_questions.
-  // If the table doesn't exist or returns no data, we handle gracefully.
-  try {
-    const { data, error } = await supabase
-      .from('bid_responses')
-      .select('id, question_id, response_text, cited_items, metadata')
-      .in('question_id', questionIds);
+  // Fetch matching question IDs from form_responses joined with form_questions.
+  // bl-215: the column is `source_content_ids` (not the dropped `cited_items`),
+  // and a real query error MUST surface (no silent `return new Map()` swallow) —
+  // otherwise the eval DB path is dead and citation coverage is computed against
+  // an always-empty set.
+  const { data, error } = await supabase
+    .from('form_responses')
+    .select('id, question_id, response_text, source_content_ids, metadata')
+    .in('question_id', questionIds);
 
-    if (error) {
-      // Table may not exist yet — that's expected
-      return new Map();
-    }
-
-    const map = new Map<string, DbResponse>();
-    // NOTE: the `.select(...)` above names `cited_items`, a column that no
-    // longer exists on `bid_responses` (renamed to `source_content_ids`). With
-    // a typed client that select resolves to a SelectQueryError, so the rows
-    // are bridged to the script's internal DbResponse contract via
-    // `unknown`. Runtime is unchanged: this CLI is best-effort eval code and
-    // the live query error is already swallowed by `if (error) return`. The
-    // column drift is tracked separately, not in scope for the bl-213
-    // type-only widening.
-    for (const row of (data ?? []) as unknown as DbResponse[]) {
-      map.set(row.question_id, row);
-    }
-    return map;
-  } catch {
-    return new Map();
+  if (error) {
+    throw new Error(
+      `fetchProcurementResponses: form_responses query failed: ${error.message}`,
+    );
   }
+
+  const map = new Map<string, DbResponse>();
+  for (const row of (data ?? []) as unknown as DbResponse[]) {
+    map.set(row.question_id, row);
+  }
+  return map;
 }
 
 // ── Scoring ─────────────────────────────────────────────────────────
@@ -240,7 +232,7 @@ function scoreItem(gold: GoldItem, db: DbResponse | undefined): ItemScore {
   }
 
   // Citation coverage: cited items / expected items
-  const citedItems = db.cited_items ?? [];
+  const citedItems = db.source_content_ids ?? [];
   const expectedItems = gold.expected_kb_items_used;
   const citedSet = new Set(citedItems);
   const matchedCitations = expectedItems.filter((id) =>

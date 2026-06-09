@@ -77,9 +77,9 @@ export async function GET(
     }
 
     // Fetch questions ordered by section then question sequence.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     const { data: questions, error: questionsError } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select(
         'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, status, has_variants, assigned_to, created_by, created_at, updated_at',
       )
@@ -105,7 +105,7 @@ export async function GET(
 
     if (questionIds.length > 0) {
       const { data: responses, error: responsesError } = await supabase
-        .from('bid_responses')
+        .from('form_responses')
         .select('id, question_id, review_status, response_text')
         .in('question_id', questionIds);
 
@@ -236,10 +236,10 @@ export async function POST(
     if (!parsed.success) return parsed.response;
 
     // Get the max question_sequence for this bid to assign next sequence number.
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id`.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     const maxSeqResult = await sb(
       supabase
-        .from('bid_questions')
+        .from('form_questions')
         .select('question_sequence')
         .eq('workspace_id', id)
         .order('question_sequence', { ascending: false })
@@ -255,9 +255,9 @@ export async function POST(
     const { section_name, question_text, word_limit, evaluation_weight } =
       parsed.data;
 
-    // Post-T2: `bid_questions.workspace_id` → `workspace_id` on insert + select.
+    // Post-T2: `form_questions.workspace_id` → `workspace_id` on insert + select.
     const { data: created, error: insertError } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .insert({
         workspace_id: id,
         section_name: section_name ?? null,
@@ -297,7 +297,7 @@ async function handleBatchInsert(
   userId: string,
   questions: z.infer<typeof BatchQuestionCreateSchema>['questions'],
 ) {
-  // Post-T2: `bid_questions.workspace_id` → `workspace_id` on batch insert + select.
+  // Post-T2: `form_questions.workspace_id` → `workspace_id` on batch insert + select.
   const rows = questions.map((q) => ({
     workspace_id: procurementId,
     section_name: q.section_name ?? null,
@@ -310,7 +310,7 @@ async function handleBatchInsert(
   }));
 
   const { data: created, error: insertError } = await supabase
-    .from('bid_questions')
+    .from('form_questions')
     .insert(rows)
     .select(
       'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',

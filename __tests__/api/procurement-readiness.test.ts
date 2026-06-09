@@ -167,7 +167,7 @@ function configureBidAndQuestions(
     error: null,
   });
 
-  // Call 3: from('bid_questions').select().eq().order().order() -> questions
+  // Call 3: from('form_questions').select().eq().order().order() -> questions
   // This is awaited directly (not .single()), so we override .then
   mockSupabase._chain.then.mockImplementationOnce(
     (resolve: (v: unknown) => void) =>
@@ -183,7 +183,7 @@ function configureBidAndQuestions(
       }),
   );
 
-  // Call 4: from('bid_responses').select().in() -> responses
+  // Call 4: from('form_responses').select().in() -> responses
   mockSupabase._chain.then.mockImplementationOnce(
     (resolve: (v: unknown) => void) =>
       resolve({

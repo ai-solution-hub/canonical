@@ -38,7 +38,7 @@ interface DbResponse {
   id: string;
   question_id: string;
   response_text: string;
-  cited_items: string[] | null;
+  source_content_ids: string[] | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -90,8 +90,10 @@ describe.skipIf(!isEvalEnabled)(
 
       try {
         const { data, error } = await supabase
-          .from('bid_responses')
-          .select('id, question_id, response_text, cited_items, metadata')
+          .from('form_responses')
+          .select(
+            'id, question_id, response_text, source_content_ids, metadata',
+          )
           .in('question_id', questionIds);
 
         dbMap = new Map();
@@ -142,7 +144,7 @@ describe.skipIf(!isEvalEnabled)(
       let totalCoverage = 0;
       for (const gold of evaluated) {
         const db = dbMap.get(gold.question_id)!;
-        const citedItems = db.cited_items ?? [];
+        const citedItems = db.source_content_ids ?? [];
         const expectedItems = gold.expected_kb_items_used;
         const citedSet = new Set(citedItems);
         const matched = expectedItems.filter((id) => citedSet.has(id)).length;

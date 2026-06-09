@@ -223,7 +223,7 @@ export async function registerResources(server: McpServer): Promise<void> {
 
         const questions = await sb(
           supabase
-            .from('bid_questions')
+            .from('form_questions')
             .select(
               'id, question_text, section_name, status, confidence_posture',
             )

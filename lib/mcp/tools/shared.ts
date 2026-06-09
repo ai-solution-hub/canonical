@@ -268,7 +268,7 @@ export async function fetchProcurementSections(
   // Fetch individual questions with ordering
   const questions = await sb(
     supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select(
         'id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit',
       )
@@ -283,7 +283,7 @@ export async function fetchProcurementSections(
   const { data: responses } =
     questionIds.length > 0
       ? await supabase
-          .from('bid_responses')
+          .from('form_responses')
           .select('question_id, response_text, review_status')
           .in('question_id', questionIds)
       : {

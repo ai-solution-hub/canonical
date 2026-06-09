@@ -35,7 +35,7 @@
  *   - Phase 1 — schema (column + CHECK + indexes + trigger). SHIPPED
  *     (S200/S201).
  *   - Phase 2 — PATCH + MCP write paths. SHIPPED (S202).
- *   - Phase 3 — RPC widening (`hybrid_search`, `search_for_bid_response`,
+ *   - Phase 3 — RPC widening (`hybrid_search`, `search_for_form_response`,
  *     `search_content_chunks`) using a consolidated `visibility_filter`
  *     enum. NOT YET SHIPPED as of S213 W1.
  *

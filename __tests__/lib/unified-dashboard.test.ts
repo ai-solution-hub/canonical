@@ -73,8 +73,8 @@ const TEST_USER_ID = 'user-abc-123';
  *       [1] recent activity — rpc('get_grouped_activity_feed')
  *       [2] team changes (content_history) — from('content_history')
  *       [3] recent work (content_history) — from('content_history')
- *       [4] bid response team changes — from('bid_response_history')
- *       [5] bid response recent work — from('bid_response_history')
+ *       [4] bid response team changes — from('form_response_history')
+ *       [5] bid response recent work — from('form_response_history')
  *       [6] cert expiry — from('entity_mentions') or Promise.resolve
  *     fetchActiveProcurementWithStats (mocked separately)
  *   auth.getUser() for display name
@@ -156,14 +156,14 @@ function setupDefaultMock(
     count: null,
   });
 
-  // [4] bid response team changes — from('bid_response_history')
+  // [4] bid response team changes — from('form_response_history')
   fromCalls.push({
     data: overrides.bidResponseTeamChangesData ?? [],
     error: null,
     count: null,
   });
 
-  // [5] bid response recent work — from('bid_response_history')
+  // [5] bid response recent work — from('form_response_history')
   fromCalls.push({
     data: overrides.bidResponseRecentWorkData ?? [],
     error: null,
@@ -663,9 +663,9 @@ describe('fetchUnifiedDashboardData', () => {
           response_id: 'response-dup',
           edited_by: TEST_USER_ID,
           created_at: '2026-03-08T09:30:00Z',
-          bid_responses: {
+          form_responses: {
             question_id: 'q-1',
-            bid_questions: {
+            form_questions: {
               workspace_id: 'bid-1',
               question_text: 'Latest answer',
               workspaces: { id: 'bid-1', name: 'Procurement' },
@@ -677,9 +677,9 @@ describe('fetchUnifiedDashboardData', () => {
           response_id: 'response-dup',
           edited_by: TEST_USER_ID,
           created_at: '2026-03-08T07:00:00Z',
-          bid_responses: {
+          form_responses: {
             question_id: 'q-1',
-            bid_questions: {
+            form_questions: {
               workspace_id: 'bid-1',
               question_text: 'Older answer',
               workspaces: { id: 'bid-1', name: 'Procurement' },

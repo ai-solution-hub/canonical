@@ -245,7 +245,7 @@ describe('GET /api/items/[id]/effectiveness', () => {
           data: [
             {
               created_at: '2026-01-15T10:00:00Z',
-              bid_responses: {
+              form_responses: {
                 id: 'resp-1',
                 question: {
                   workspace_id: WORKSPACE_ID,
@@ -259,7 +259,7 @@ describe('GET /api/items/[id]/effectiveness', () => {
             },
             {
               created_at: '2026-02-20T14:00:00Z',
-              bid_responses: {
+              form_responses: {
                 id: 'resp-2',
                 question: {
                   workspace_id: '00000000-0000-4000-8000-000000000011',

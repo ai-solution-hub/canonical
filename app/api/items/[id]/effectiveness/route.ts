@@ -94,15 +94,15 @@ export async function GET(
     const pendingCitations = Number(rpcRow?.pending_citations ?? 0);
     const winRate = Number(rpcRow?.win_rate ?? 0);
 
-    // Get bid list: content_citations -> bid_responses -> bid_questions -> workspaces
+    // Get bid list: content_citations -> form_responses -> form_questions -> workspaces
     const { data: citations, error: citationsError } = await supabase
       .from('content_citations')
       .select(
         `
         created_at,
-        bid_responses!inner (
+        form_responses!inner (
           id,
-          question:bid_questions!inner (
+          question:form_questions!inner (
             workspace_id,
             workspace:workspaces!inner (
               id,
@@ -129,7 +129,7 @@ export async function GET(
     const bids: ProcurementCitation[] = [];
 
     for (const citation of citations ?? []) {
-      const response = citation.bid_responses as unknown as {
+      const response = citation.form_responses as unknown as {
         id: string;
         question: {
           workspace_id: string;

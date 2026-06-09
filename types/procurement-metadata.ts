@@ -1,5 +1,5 @@
 /**
- * JSONB structure for bid_responses.metadata column.
+ * JSONB structure for form_responses.metadata column.
  * Stores citation data, quality check results, and AI generation context.
  */
 
@@ -55,7 +55,7 @@ interface AIMetadata {
   regeneration_instructions?: string;
 }
 
-/** Top-level metadata structure stored in bid_responses.metadata JSONB */
+/** Top-level metadata structure stored in form_responses.metadata JSONB */
 export interface ProcurementResponseMetadata {
   citations_data?: CitationsData;
   quality_data?: QualityData;

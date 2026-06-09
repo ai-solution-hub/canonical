@@ -16,7 +16,7 @@
  *   - Per-question `try/catch` aggregation preserved (continue-with-partial,
  *     per spec D-2 ratified at authored default).
  *   - Procurement-level fatal conditions (404 bid, non-draftable state, 0 questions,
- *     workspaces SELECT error, bid_questions SELECT error) throw
+ *     workspaces SELECT error, form_questions SELECT error) throw
  *     `PermanentJobError` so the worker dispatcher classifies them as
  *     permanent-failure (no retry).
  *   - `drafted_response_ids[]` collected as upserts complete so the worker
@@ -54,7 +54,7 @@ export interface ProcurementDraftAllBody extends Record<string, unknown> {
   /** Matches `lib/anthropic.ts` `ModelTier` — controls which model
    *  the drafting Pass 2 runs against. Default: 'drafting'. */
   model_tier: 'analysis' | 'drafting';
-  /** When true, questions that already have a row in `bid_responses`
+  /** When true, questions that already have a row in `form_responses`
    *  are skipped (status='skipped', reason='already_drafted'). Default
    *  true — matches the route's authored default. */
   skip_existing: boolean;
@@ -77,7 +77,7 @@ export interface ProcurementDraftAllQuestionResult {
  * `processing_queue.result` AND to `pipeline_runs.result` (per spec §6.3
  * Pattern 2 finalisation).
  *
- * `drafted_response_ids` is the list of `bid_responses.id` UUIDs the
+ * `drafted_response_ids` is the list of `form_responses.id` UUIDs the
  * handler upserted — passed to `pipeline_runs.items_created` per
  * feedback_record_pipeline_run_signature (`string[]` not `number`).
  */
@@ -99,7 +99,7 @@ export interface ProcurementDraftAllResult extends Record<string, unknown> {
   total_tokens: number;
   /** True when bid was transitioned drafting → in_review at the end. */
   bid_transitioned: boolean;
-  /** UUIDs of `bid_responses` rows upserted during the run. Passed to
+  /** UUIDs of `form_responses` rows upserted during the run. Passed to
    *  `pipeline_runs.items_created` per feedback_record_pipeline_run_signature. */
   drafted_response_ids: string[];
 }
@@ -124,7 +124,7 @@ export interface ProcurementDraftAllAuthContext {
  *   - bid not found in `workspaces` where `type='bid'`
  *   - bid status not in `draftableStates` (`drafting`, `in_review`, `ready_for_export`)
  *   - 0 questions on the bid
- *   - DB error reading `workspaces` or `bid_questions`
+ *   - DB error reading `workspaces` or `form_questions`
  *
  * Per-question failures are caught and recorded as `status: 'failed'` in
  * `results[]` (continue-with-partial, per spec D-2 authored default) — the
@@ -171,7 +171,7 @@ export async function runBidDraftAllJob(
   //    question_sequence) order — mirrors route.ts L80-99.
   // ------------------------------------------------------------------
   const { data: questions, error: questionsError } = await supabase
-    .from('bid_questions')
+    .from('form_questions')
     .select(
       'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
     )
@@ -185,7 +185,7 @@ export async function runBidDraftAllJob(
       'bid_draft_all handler: failed to fetch questions',
     );
     throw new PermanentJobError(
-      `bid_questions_fetch_failed: ${questionsError.message}`,
+      `form_questions_fetch_failed: ${questionsError.message}`,
     );
   }
 
@@ -195,14 +195,14 @@ export async function runBidDraftAllJob(
 
   // ------------------------------------------------------------------
   // 3. If skipping existing, build set of question_ids that already
-  //    have `bid_responses` rows. Mirrors route.ts L113-128.
+  //    have `form_responses` rows. Mirrors route.ts L113-128.
   // ------------------------------------------------------------------
   const existingResponseIds = new Set<string>();
   if (skip_existing) {
     const questionIds = questions.map((q) => q.id);
     const existingResponses = await sb(
       supabase
-        .from('bid_responses')
+        .from('form_responses')
         .select('question_id')
         .in('question_id', questionIds),
       'queue.bid_draft_all.existingResponses',
@@ -295,7 +295,7 @@ export async function runBidDraftAllJob(
         draftResult.metadata.quality_data?.overall_score ?? null;
       const upserted = await sb(
         supabase
-          .from('bid_responses')
+          .from('form_responses')
           .upsert(
             {
               question_id: question.id,
@@ -318,7 +318,7 @@ export async function runBidDraftAllJob(
       // Update question status — mirrors route.ts L236-240.
       await sb(
         supabase
-          .from('bid_questions')
+          .from('form_questions')
           .update({ status: 'ai_drafted' })
           .eq('id', question.id)
           .eq('workspace_id', bid_id),
@@ -362,7 +362,7 @@ export async function runBidDraftAllJob(
   ) {
     // Check if there are any questions still without responses.
     const { count: undraftedCount } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id', { count: 'exact', head: true })
       .eq('workspace_id', bid_id)
       .neq('confidence_posture', 'no_content')

@@ -47,7 +47,7 @@ export async function POST(
 
     // Fetch existing response
     const { data: existing, error: fetchError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id, question_id, source_content_ids')
       .eq('id', rId)
       .single();
@@ -61,7 +61,7 @@ export async function POST(
 
     // Fetch the question and verify it belongs to this bid
     const { data: question, error: questionError } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .select('id, question_text, word_limit, section_name, confidence_posture')
       .eq('id', existing.question_id)
       .eq('workspace_id', id)
@@ -129,7 +129,7 @@ export async function POST(
     const overallScore =
       draftResult.metadata.quality_data?.overall_score ?? null;
     const { data: updated, error: updateError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .update({
         response_text: draftResult.response_text,
         source_content_ids: draftResult.source_content_ids,
@@ -153,7 +153,7 @@ export async function POST(
 
     // Update question status back to ai_drafted
     await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .update({ status: 'ai_drafted' })
       .eq('id', question.id)
       .eq('workspace_id', id);

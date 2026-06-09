@@ -49,7 +49,7 @@ export async function PATCH(
     }
 
     const { data: updated, error } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .update(updates)
       .eq('id', qId)
       .eq('workspace_id', id)
@@ -107,7 +107,7 @@ export async function DELETE(
     }
 
     const { error } = await supabase
-      .from('bid_questions')
+      .from('form_questions')
       .delete()
       .eq('id', qId)
       .eq('workspace_id', id);

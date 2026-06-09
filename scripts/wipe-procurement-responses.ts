@@ -2,7 +2,7 @@
 /**
  * Wipe bid responses — migration helper for P0-BM Phase 2.
  *
- * Deletes all rows from `bid_response_history` and `bid_responses` in FK order.
+ * Deletes all rows from `form_response_history` and `form_responses` in FK order.
  * Used during the wipe-and-regenerate migration (no production bid data exists).
  *
  * Optional `--convert` flag: instead of deleting, converts existing HTML
@@ -190,7 +190,7 @@ async function confirmProdWipe(): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const answer = await new Promise<string>((resolveAnswer) => {
     rl.question(
-      'WARNING: Wiping prod bid_responses. Type "wipe prod" to confirm: ',
+      'WARNING: Wiping prod form_responses. Type "wipe prod" to confirm: ',
       (input) => {
         rl.close();
         resolveAnswer(input);
@@ -226,11 +226,11 @@ async function convertResponses(): Promise<void> {
   const { turndown } = await import('../lib/extraction/turndown');
 
   const { data: responses, error } = await supabase
-    .from('bid_responses')
+    .from('form_responses')
     .select('id, response_text, response_text_advanced');
 
   if (error) {
-    console.error(`ERROR fetching bid_responses: ${error.message}`);
+    console.error(`ERROR fetching form_responses: ${error.message}`);
     process.exit(1);
   }
 
@@ -282,7 +282,7 @@ async function convertResponses(): Promise<void> {
     }
 
     const { error: updateError } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .update(updates)
       .eq('id', row.id)
       .select();
@@ -307,11 +307,11 @@ async function convertResponses(): Promise<void> {
 // ── Delete path ────────────────────────────────────────────────────────────
 
 async function wipeResponses(): Promise<void> {
-  const historyCount = await countRows('bid_response_history');
-  const responseCount = await countRows('bid_responses');
+  const historyCount = await countRows('form_response_history');
+  const responseCount = await countRows('form_responses');
 
-  console.log(`bid_response_history: ${historyCount} rows`);
-  console.log(`bid_responses: ${responseCount} rows`);
+  console.log(`form_response_history: ${historyCount} rows`);
+  console.log(`form_responses: ${responseCount} rows`);
 
   const total = historyCount + responseCount;
 
@@ -335,37 +335,37 @@ async function wipeResponses(): Promise<void> {
     await new Promise((r) => setTimeout(r, 5000));
   }
 
-  // Delete in FK order: bid_response_history first, then bid_responses.
+  // Delete in FK order: form_response_history first, then form_responses.
   // Both FKs are ON DELETE CASCADE, but explicit ordering gives accurate counts
   // and is defensive against schema changes.
 
-  // 1. Delete bid_response_history
+  // 1. Delete form_response_history
   // supabase-js v2 requires a filter on .delete() — use a tautological filter
   const { error: histError } = await supabase
-    .from('bid_response_history')
+    .from('form_response_history')
     .delete()
     .gte('created_at', '1970-01-01')
     .select();
 
   if (histError) {
-    console.error(`ERROR deleting bid_response_history: ${histError.message}`);
+    console.error(`ERROR deleting form_response_history: ${histError.message}`);
     console.error(
-      'bid_responses were NOT deleted. Partial state: history deletion may have partially completed.',
+      'form_responses were NOT deleted. Partial state: history deletion may have partially completed.',
     );
     process.exit(1);
   }
 
-  // 2. Delete bid_responses (cascades content_citations via FK)
+  // 2. Delete form_responses (cascades content_citations via FK)
   const { error: respError } = await supabase
-    .from('bid_responses')
+    .from('form_responses')
     .delete()
     .gte('created_at', '1970-01-01')
     .select();
 
   if (respError) {
-    console.error(`ERROR deleting bid_responses: ${respError.message}`);
+    console.error(`ERROR deleting form_responses: ${respError.message}`);
     console.error(
-      'bid_response_history was already deleted. Manual cleanup may be needed.',
+      'form_response_history was already deleted. Manual cleanup may be needed.',
     );
     process.exit(1);
   }

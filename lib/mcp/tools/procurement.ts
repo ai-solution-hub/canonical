@@ -220,7 +220,7 @@ export async function registerProcurementTools(
         if (allQuestionIds.length > 0) {
           const responses = await sb(
             supabase
-              .from('bid_responses')
+              .from('form_responses')
               .select(
                 'question_id, response_text, review_status, metadata, overall_score',
               )
@@ -347,7 +347,7 @@ export async function registerProcurementTools(
 
         // Fetch question
         const { data: question, error: qError } = await supabase
-          .from('bid_questions')
+          .from('form_questions')
           .select(
             'id, question_text, section_name, word_limit, confidence_posture, status',
           )
@@ -369,7 +369,7 @@ export async function registerProcurementTools(
         // Fetch response if exists
         const response = await sb(
           supabase
-            .from('bid_responses')
+            .from('form_responses')
             .select('response_text, review_status')
             .eq('question_id', args.question_id)
             .maybeSingle(),
