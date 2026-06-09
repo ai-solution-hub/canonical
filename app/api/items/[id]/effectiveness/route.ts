@@ -94,9 +94,9 @@ export async function GET(
     const pendingCitations = Number(rpcRow?.pending_citations ?? 0);
     const winRate = Number(rpcRow?.win_rate ?? 0);
 
-    // Get bid list: content_citations -> form_responses -> form_questions -> workspaces
+    // Get bid list: citations -> form_responses -> form_questions -> workspaces
     const { data: citations, error: citationsError } = await supabase
-      .from('content_citations')
+      .from('citations')
       .select(
         `
         created_at,
@@ -113,7 +113,8 @@ export async function GET(
         )
       `,
       )
-      .eq('content_item_id', id)
+      .eq('cited_content_item_id', id)
+      .eq('cited_kind', 'content_item')
       .order('created_at', { ascending: false });
 
     if (citationsError) {
