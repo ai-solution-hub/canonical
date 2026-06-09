@@ -3963,11 +3963,12 @@ async function promote(
 // backlog only — widening that union ripples into KnownDetected, serialise,
 // disciplineWarnings and the record-set machinery).
 //
-// Byte-format: umbrellas.json is plain `JSON.stringify(v, null, 2) + '\n'`
-// with RAW UTF-8 — it was NOT part of the OQ-LS-2 (S270) `\uXXXX`-escaping
-// normalisation, so the on-disk em-dash in `document_purpose` is raw. We must
-// therefore NOT use `escapeSerialise` (verified byte-identical round-trip with
-// plain stringify; escapeSerialise diverges on the em-dash).
+// Byte-format (ID-90.16, inv 51-52): umbrellas.json is now normalised to the
+// same `\uXXXX`-escaped, 2-space-indent, trailing-newline convention as the
+// three core ledgers (OQ-LS-2 alignment). `serialiseUmbrellas` delegates to
+// `escapeSerialise` (lib/ledger/scoped-serialise.ts) — the SAME serialiser
+// the core ledger paths use. The live file was normalised in the same commit
+// that introduced this flip (pre/post deep-equal verified).
 //
 // Budget gate: N/A. There is no budget config for umbrella fields (LEDGER_BUDGETS
 // covers task/subtask/theme/item only); none is fabricated here.
@@ -3977,10 +3978,11 @@ async function promote(
 
 const UMBRELLAS_FILE = 'umbrellas.json';
 
-/** Serialise an umbrellas document to the on-disk byte format (raw UTF-8,
- * 2-space indent, single trailing newline). NOT escapeSerialise. */
+/** Serialise an umbrellas document to the on-disk byte format (\uXXXX-escaped
+ * non-ASCII, 2-space indent, single trailing newline). Delegates to
+ * `escapeSerialise` — same convention as the three core ledgers (inv 51-52). */
 function serialiseUmbrellas(doc: unknown): string {
-  return JSON.stringify(doc, null, 2) + '\n';
+  return escapeSerialise(doc);
 }
 
 /** Split a comma-separated id list, trim, drop empties. */

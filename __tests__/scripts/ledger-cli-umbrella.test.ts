@@ -16,10 +16,10 @@
  * umbrella's resulting task_ids set equals the pre-write set with the
  * requested delta applied.
  *
- * NOTE on byte-format: umbrellas.json is plain `JSON.stringify(v, null, 2)
- * + '\n'` with RAW UTF-8 (the em-dash in document_purpose is NOT `\uXXXX`-
- * escaped — umbrellas.json was NOT part of the OQ-LS-2 normalisation pass).
- * The handler must NOT use `escapeSerialise` (which would escape non-ASCII).
+ * NOTE on byte-format (post-ID-90.16): umbrellas.json is now normalised to
+ * the same `\uXXXX`-escaped convention as the three core ledgers (inv 51-52).
+ * `serialiseUmbrellas` delegates to `escapeSerialise`; the live file was
+ * normalised in the same commit that introduced this flip.
  *
  * Tests use a CUSTOM TEMP FIXTURE (an umbrella missing the add ids), never the
  * live `docs/reference/umbrellas.json` — the live `canonical-pipeline` umbrella
@@ -32,6 +32,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
+import { escapeSerialise } from '@/lib/ledger/scoped-serialise';
 
 let dir: string;
 
@@ -64,9 +65,10 @@ function fixture(): unknown {
   };
 }
 
-/** Serialise a fixture object exactly as the on-disk umbrellas.json format. */
+/** Serialise a fixture object exactly as the on-disk umbrellas.json format
+ * (post-ID-90.16: \uXXXX-escaped non-ASCII, matching escapeSerialise). */
 function serialiseFixture(obj: unknown): string {
-  return JSON.stringify(obj, null, 2) + '\n';
+  return escapeSerialise(obj);
 }
 
 function writeFixture(obj: unknown = fixture()): string {
@@ -346,13 +348,13 @@ describe('update-umbrella stdout-purity envelope (ID-35.41)', () => {
   });
 });
 
-describe('update-umbrella byte-format fidelity (ID-35.41)', () => {
-  it('preserves raw UTF-8 (em-dash NOT \\uXXXX-escaped)', async () => {
+describe('update-umbrella byte-format fidelity (ID-35.41, inv 51-52)', () => {
+  it('escapes non-ASCII to \\uXXXX (em-dash escaped, not raw)', async () => {
     await run(args(['test-umbrella'], { addTasks: '28' }));
     const raw = rawFile();
-    // em-dash stays raw, never escaped to —
-    expect(raw).toContain('—');
-    expect(raw).not.toContain('\\u2014');
+    // em-dash escaped to \u2014 (inv 51-52 normalisation)
+    expect(raw).toContain('\\u2014');
+    expect(raw).not.toContain('\u2014');
     // 2-space indent + single trailing newline
     expect(raw.endsWith('}\n')).toBe(true);
     expect(raw).toContain('\n  "document_name"');
