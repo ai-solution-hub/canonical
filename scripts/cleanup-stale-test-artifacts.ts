@@ -182,7 +182,7 @@ const workspaceIds = await selectIdsByPrefix(
 
 let relatedRowsDeleted = 0;
 for (const [table, column] of [
-  ['content_citations', 'content_item_id'],
+  ['citations', 'cited_content_item_id'],
   ['content_chunks', 'content_item_id'],
   ['content_history', 'content_item_id'],
   ['content_item_workspaces', 'content_item_id'],

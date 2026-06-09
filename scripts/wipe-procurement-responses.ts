@@ -355,7 +355,7 @@ async function wipeResponses(): Promise<void> {
     process.exit(1);
   }
 
-  // 2. Delete form_responses (cascades content_citations via FK)
+  // 2. Delete form_responses (cascades citations via FK)
   const { error: respError } = await supabase
     .from('form_responses')
     .delete()

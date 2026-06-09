@@ -26,7 +26,7 @@ export interface QualityScoreInput {
   detail?: string | null;
   reference?: string | null;
   summary?: string | null;
-  citation_count?: number; // from content_citations or metadata
+  citation_count?: number; // from citations or metadata
   /** ISO date when the item is next due for review (DATE column). §5.5 Phase 5. */
   next_review_date?: string | null;
   /** Recurring review cadence in days (null = one-off review). §5.5 Phase 5. */

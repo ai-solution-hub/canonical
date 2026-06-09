@@ -511,7 +511,7 @@ export interface AuditTrailBundle {
 
 export interface AttributedContentBundle {
   content_items: Record<string, unknown>[];
-  content_citations: Record<string, unknown>[];
+  citations: Record<string, unknown>[];
   feed_prompts: Record<string, unknown>[];
   feed_sources: Record<string, unknown>[];
   coverage_targets: Record<string, unknown>[];
@@ -712,7 +712,7 @@ export async function assembleAttributedContentBundle(
 ): Promise<AttributedContentBundle> {
   const [
     contentItems,
-    contentCitations,
+    citations,
     feedPrompts,
     feedSources,
     coverageTargets,
@@ -735,7 +735,7 @@ export async function assembleAttributedContentBundle(
       ],
       subjectUuid,
     ),
-    fetchByColumn(client, 'content_citations', 'created_by', subjectUuid),
+    fetchByColumn(client, 'citations', 'created_by', subjectUuid),
     fetchByColumn(client, 'feed_prompts', 'created_by', subjectUuid),
     fetchByColumn(client, 'feed_sources', 'created_by', subjectUuid),
     fetchByAnyColumn(
@@ -757,7 +757,7 @@ export async function assembleAttributedContentBundle(
   ]);
   return {
     content_items: contentItems,
-    content_citations: contentCitations,
+    citations,
     feed_prompts: feedPrompts,
     feed_sources: feedSources,
     coverage_targets: coverageTargets,
