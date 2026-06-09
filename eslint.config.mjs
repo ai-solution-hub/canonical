@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
 import nextTypescript from 'eslint-config-next/typescript';
 import tanstackQuery from '@tanstack/eslint-plugin-query';
+import reactHooks from 'eslint-plugin-react-hooks';
 import localRules from './eslint-rules/index.js';
 
 const eslintConfig = defineConfig([
@@ -15,6 +16,9 @@ const eslintConfig = defineConfig([
     'next-env.d.ts',
     '.claude/**',
     '.planning/**',
+    // Local code-intelligence artefact dir (gitignored, untracked) — not
+    // part of the repo, must never be linted (bl-272).
+    '.gitnexus/**',
     'scripts/**',
     'supabase/**',
     '.cache/**',
@@ -29,6 +33,16 @@ const eslintConfig = defineConfig([
     // These flag pre-existing patterns (setState in useEffect, Math.random
     // in render) that are widespread in the codebase and will be addressed
     // incrementally.
+    //
+    // eslint-plugin-react-hooks@7 (pulled in by eslint-config-next@16) ships
+    // these React-Compiler rules in its `recommended` preset. Under flat
+    // config a rule reference must resolve the plugin from a config object
+    // that registers it; eslint-config-next registers `react-hooks` only on
+    // its own `files`-scoped object, so this unscoped override could not see
+    // the plugin (bl-272). Register it explicitly here.
+    plugins: {
+      'react-hooks': reactHooks,
+    },
     rules: {
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/purity': 'warn',
