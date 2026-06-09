@@ -61,8 +61,11 @@ export async function validateReferenceData(
   const failures: string[] = [];
 
   for (const check of CHECKS) {
-    const { count, error } = await client
-      .from(check.table as keyof Database['public']['Tables'])
+    // `signup_policy` growth pushed the typed `.from(keyof Tables)` overload past
+    // tsc's instantiation-depth budget (TS2589). This validator iterates arbitrary
+    // reference-table names, so an untyped client is the correct shape here.
+    const { count, error } = await (client as SupabaseClient)
+      .from(check.table)
       .select('*', { count: 'exact', head: true });
 
     if (error) {

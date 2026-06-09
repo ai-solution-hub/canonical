@@ -2941,6 +2941,21 @@ export type Database = {
           },
         ]
       }
+      signup_policy: {
+        Row: {
+          allowed_domain: string | null
+          id: boolean
+        }
+        Insert: {
+          allowed_domain?: string | null
+          id?: boolean
+        }
+        Update: {
+          allowed_domain?: string | null
+          id?: boolean
+        }
+        Relationships: []
+      }
       source_document_diffs: {
         Row: {
           affected_content_item_id: string | null
