@@ -12,11 +12,11 @@
  *   - Structure score: presence of headings, paragraphs, lists
  *
  * Usage:
- *   bun run eval:bid-drafting
- *   bun run eval:bid-drafting --cached
- *   bun run eval:bid-drafting --verbose
- *   bun run eval:bid-drafting --json
- *   bun run eval:bid-drafting --save-baseline
+ *   bun run eval:procurement-drafting
+ *   bun run eval:procurement-drafting --cached
+ *   bun run eval:procurement-drafting --verbose
+ *   bun run eval:procurement-drafting --json
+ *   bun run eval:procurement-drafting --save-baseline
  */
 
 import { readFileSync, existsSync } from 'fs';
@@ -118,7 +118,7 @@ function assertEnvFlag(env: string, url: string | undefined): void {
   if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
     console.error(
       `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
-        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/eval-bid-drafting.ts --env=prod`,
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/eval-procurement-drafting.ts --env=prod`,
     );
     process.exit(1);
   }

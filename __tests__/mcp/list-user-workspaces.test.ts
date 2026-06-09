@@ -227,11 +227,9 @@ describe('list_user_workspaces MCP tool', () => {
     expect(eqCalls).toContainEqual(['application_types.key', 'intelligence']);
   });
 
-  it('passes type filter through to DB application_types.key (no remap)', async () => {
-    // S248 WP2 (T4): legacy 'bid' → 'procurement' + 'content' → 'kb_section'
-    // remap removed (dead code per Agent D S246 finding — Zod enum at the
-    // API boundary already excludes 'bid' / 'content'). The MCP tool handler
-    // passes the type value through verbatim to the query layer.
+  it('passes live application-type keys through to DB verbatim', async () => {
+    // ID-71 {71.5}: the Zod enum mirrors the seeded application_types
+    // vocabulary, so live keys pass through to the query layer unchanged.
     const eqCalls: Array<[string, unknown]> = [];
     const chainedQuery = {
       eq: vi.fn((...args: [string, unknown]) => {
@@ -249,6 +247,49 @@ describe('list_user_workspaces MCP tool', () => {
     await tool.handler({ type: 'procurement' }, MOCK_EXTRA);
 
     expect(eqCalls).toContainEqual(['application_types.key', 'procurement']);
+  });
+
+  it("remaps legacy 'bid' filter to 'procurement'", async () => {
+    // ID-71 {71.5}: S248 removed the remap assuming the enum excluded 'bid',
+    // but the enum was never updated — type:'bid' hit application_types.key
+    // verbatim and silently returned zero rows. 'bid' is now an explicit
+    // legacy alias remapped to 'procurement' (Q-OQR1-02).
+    const eqCalls: Array<[string, unknown]> = [];
+    const chainedQuery = {
+      eq: vi.fn((...args: [string, unknown]) => {
+        eqCalls.push(args);
+        return chainedQuery;
+      }),
+      order: vi.fn().mockResolvedValue({
+        data: [WORKSPACE_FIXTURES.bid],
+        error: null,
+      }),
+    };
+    mocks.fromReturn.select.mockReturnValue(chainedQuery);
+
+    const tool = getWorkspaceTool();
+    await tool.handler({ type: 'bid' }, MOCK_EXTRA);
+
+    expect(eqCalls).toContainEqual(['application_types.key', 'procurement']);
+    expect(eqCalls).not.toContainEqual(['application_types.key', 'bid']);
+  });
+
+  it('input schema enum covers the live application_types vocabulary', () => {
+    const tool = getWorkspaceTool();
+    const schema = tool.config.inputSchema as {
+      type: { unwrap: () => { options: string[] } };
+    };
+    const options = schema.type.unwrap().options;
+    expect(options).toEqual([
+      'procurement',
+      'intelligence',
+      'sales_proposal',
+      'product_guide',
+      'competitor_research',
+      'training_onboarding',
+      'bid',
+    ]);
+    expect(options).not.toContain('content');
   });
 
   it('denies access to unauthenticated users', async () => {
