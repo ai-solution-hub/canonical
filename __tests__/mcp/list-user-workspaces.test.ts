@@ -268,10 +268,27 @@ describe('list_user_workspaces MCP tool', () => {
     mocks.fromReturn.select.mockReturnValue(chainedQuery);
 
     const tool = getWorkspaceTool();
-    await tool.handler({ type: 'bid' }, MOCK_EXTRA);
+    const result = (await tool.handler({ type: 'bid' }, MOCK_EXTRA)) as {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        workspaces: Array<{ id: string; name: string; type: string }>;
+      };
+    };
 
+    // Query-layer: legacy 'bid' is remapped to 'procurement', never passed verbatim.
     expect(eqCalls).toContainEqual(['application_types.key', 'procurement']);
     expect(eqCalls).not.toContainEqual(['application_types.key', 'bid']);
+
+    // Consumer-observable: the remapped query returns the procurement workspace
+    // to the caller (the regression was type:'bid' silently yielding zero rows).
+    expect(result.structuredContent.workspaces).toEqual([
+      {
+        id: WORKSPACE_FIXTURES.bid.id,
+        name: WORKSPACE_FIXTURES.bid.name,
+        type: 'procurement',
+      },
+    ]);
+    expect(result.content[0].text).toContain(WORKSPACE_FIXTURES.bid.name);
   });
 
   it('input schema enum covers the live application_types vocabulary', () => {

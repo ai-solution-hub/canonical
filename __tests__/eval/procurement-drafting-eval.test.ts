@@ -5,7 +5,7 @@
  * bid response quality against a hand-labelled gold standard.
  *
  * Run with:
- *   EVAL_BID_DRAFTING=1 bun run test __tests__/eval/bid-drafting-eval.test.ts
+ *   EVAL_BID_DRAFTING=1 bun run test __tests__/eval/procurement-drafting-eval.test.ts
  *
  * Or skip in normal test runs (default behaviour — describe.skipIf).
  */
