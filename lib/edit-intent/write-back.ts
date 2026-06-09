@@ -49,8 +49,7 @@ import { join } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { logger } from '@/lib/logger';
-import { tryQuery, isOk } from '@/lib/supabase/safe';
-import type { PostgrestLike } from '@/lib/supabase/safe';
+import { tryQuery, isOk, type PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 
 /**

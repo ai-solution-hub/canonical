@@ -40,8 +40,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { EditIntent } from '@/lib/edit-intent/arbitrate';
 import { writeBackFileFirst } from '@/lib/edit-intent/write-back';
-import { sb } from '@/lib/supabase/safe';
-import type { PostgrestLike } from '@/lib/supabase/safe';
+import { sb, type PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 
 /**
