@@ -338,9 +338,12 @@ describe('MCP tools #14-16', () => {
         single: vi.fn().mockResolvedValue({
           data: {
             id: 'cit-001',
-            content_item_id: 'item-abc',
-            bid_response_id: 'resp-xyz',
+            cited_kind: 'content_item',
+            cited_content_item_id: 'item-abc',
+            citing_kind: 'form_response',
+            citing_form_response_id: 'resp-xyz',
             citation_type: 'reference',
+            cited_version: null,
           },
           error: null,
         }),
@@ -350,7 +353,7 @@ describe('MCP tools #14-16', () => {
       const result = (await handler(
         {
           content_item_id: 'item-abc',
-          bid_response_id: 'resp-xyz',
+          form_response_id: 'resp-xyz',
         },
         extra,
       )) as {
@@ -358,20 +361,24 @@ describe('MCP tools #14-16', () => {
         structuredContent: Record<string, unknown>;
       };
 
-      expect(supabase.from).toHaveBeenCalledWith('content_citations');
+      expect(supabase.from).toHaveBeenCalledWith('citations');
       expect(mockChain.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          content_item_id: 'item-abc',
-          bid_response_id: 'resp-xyz',
+          citing_kind: 'form_response',
+          citing_form_response_id: 'resp-xyz',
+          cited_kind: 'content_item',
+          cited_content_item_id: 'item-abc',
           citation_type: 'reference',
           created_by: 'user-123',
         }),
-        { onConflict: 'content_item_id,bid_response_id' },
+        { onConflict: 'citing_form_response_id,cited_content_item_id' },
       );
       expect(result.content[0].text).toContain('Citation Recorded');
       expect(result.content[0].text).toContain('item-abc');
       expect(result.content[0].text).toContain('resp-xyz');
       expect(result.structuredContent.id).toBe('cit-001');
+      expect(result.structuredContent.cited_kind).toBe('content_item');
+      expect(result.structuredContent.citing_kind).toBe('form_response');
     });
 
     it('uses custom citation_type when provided', async () => {
@@ -383,9 +390,12 @@ describe('MCP tools #14-16', () => {
         single: vi.fn().mockResolvedValue({
           data: {
             id: 'cit-002',
-            content_item_id: 'item-abc',
-            bid_response_id: 'resp-xyz',
+            cited_kind: 'content_item',
+            cited_content_item_id: 'item-abc',
+            citing_kind: 'form_response',
+            citing_form_response_id: 'resp-xyz',
             citation_type: 'adapted',
+            cited_version: null,
           },
           error: null,
         }),
@@ -395,7 +405,7 @@ describe('MCP tools #14-16', () => {
       const result = (await handler(
         {
           content_item_id: 'item-abc',
-          bid_response_id: 'resp-xyz',
+          form_response_id: 'resp-xyz',
           citation_type: 'adapted',
         },
         extra,
@@ -416,7 +426,7 @@ describe('MCP tools #14-16', () => {
       const result = (await handler(
         {
           content_item_id: 'item-abc',
-          bid_response_id: 'resp-xyz',
+          form_response_id: 'resp-xyz',
         },
         extra,
       )) as { content: Array<{ text: string }>; isError: boolean };
@@ -441,7 +451,7 @@ describe('MCP tools #14-16', () => {
       const result = (await handler(
         {
           content_item_id: 'item-abc',
-          bid_response_id: 'resp-xyz',
+          form_response_id: 'resp-xyz',
         },
         extra,
       )) as { content: Array<{ text: string }>; isError: boolean };

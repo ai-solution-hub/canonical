@@ -416,16 +416,16 @@ export async function registerProcurementTools(
     {
       title: 'Cite Content',
       description:
-        'Record that a knowledge base content item was used when drafting a bid response. This tracks which content contributes to bids and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + bid_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
+        'Record that a knowledge base content item was used when drafting a form response. This tracks which content contributes to responses and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + form_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
       inputSchema: {
         content_item_id: z
           .string()
           .uuid()
           .describe('The UUID of the content item that was used'),
-        bid_response_id: z
+        form_response_id: z
           .string()
           .uuid()
-          .describe('The UUID of the bid response it was used in'),
+          .describe('The UUID of the form response it was used in'),
         citation_type: z
           .enum(['reference', 'copied', 'adapted', 'inspired'])
           .optional()
@@ -451,20 +451,24 @@ export async function registerProcurementTools(
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
-        const insertData: Database['public']['Tables']['content_citations']['Insert'] =
+        const insertData: Database['public']['Tables']['citations']['Insert'] =
           {
-            content_item_id: args.content_item_id,
-            bid_response_id: args.bid_response_id,
+            citing_kind: 'form_response',
+            citing_form_response_id: args.form_response_id,
+            cited_kind: 'content_item',
+            cited_content_item_id: args.content_item_id,
             citation_type: args.citation_type ?? 'reference',
             created_by: userId,
           };
 
         const { data: citation, error } = await supabase
-          .from('content_citations')
+          .from('citations')
           .upsert(insertData, {
-            onConflict: 'content_item_id,bid_response_id',
+            onConflict: 'citing_form_response_id,cited_content_item_id',
           })
-          .select('id, content_item_id, bid_response_id, citation_type')
+          .select(
+            'id, cited_kind, cited_content_item_id, citing_kind, citing_form_response_id, citation_type, cited_version',
+          )
           .single();
 
         if (error || !citation) {
@@ -472,19 +476,21 @@ export async function registerProcurementTools(
             content: [
               {
                 type: 'text' as const,
-                text: `Failed to record citation: ${error?.message ?? 'Unknown error'}. Ensure both the content item and bid response exist.`,
+                text: `Failed to record citation: ${error?.message ?? 'Unknown error'}. Ensure both the content item and form response exist.`,
               },
             ],
             isError: true,
           };
         }
 
-        const citationRow = citation as Record<string, string>;
         const result: CitationResult = {
-          id: citationRow.id,
-          content_item_id: citationRow.content_item_id,
-          bid_response_id: citationRow.bid_response_id,
-          citation_type: citationRow.citation_type,
+          id: citation.id,
+          cited_kind: citation.cited_kind,
+          cited_content_item_id: citation.cited_content_item_id,
+          citing_kind: citation.citing_kind,
+          citing_form_response_id: citation.citing_form_response_id,
+          citation_type: citation.citation_type,
+          cited_version: citation.cited_version,
         };
 
         const markdown = formatCitation(result);

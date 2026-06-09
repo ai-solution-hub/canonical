@@ -169,18 +169,24 @@ export function formatProcurementQuestion(
 
 export interface CitationResult {
   id: string;
-  content_item_id: string;
-  bid_response_id: string;
+  cited_kind: string;
+  cited_content_item_id: string | null;
+  citing_kind: string;
+  citing_form_response_id: string | null;
   citation_type: string;
+  cited_version: number | null;
 }
 
 export function formatCitation(citation: CitationResult): string {
   return [
     '# Citation Recorded',
     '',
-    `**Content item:** ${citation.content_item_id}`,
-    `**Procurement response:** ${citation.bid_response_id}`,
+    `**Cited kind:** ${citation.cited_kind}`,
+    `**Content item:** ${citation.cited_content_item_id ?? '—'}`,
+    `**Citing kind:** ${citation.citing_kind}`,
+    `**Procurement response:** ${citation.citing_form_response_id ?? '—'}`,
     `**Type:** ${citation.citation_type}`,
+    `**Cited version:** ${citation.cited_version ?? '—'}`,
     `**ID:** ${citation.id}`,
     '',
     'The citation has been recorded successfully.',

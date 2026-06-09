@@ -343,18 +343,24 @@ describe('formatEntityOverview', () => {
 describe('formatCitation', () => {
   const sampleCitation: CitationResult = {
     id: 'cit-001',
-    content_item_id: 'item-abc-123',
-    bid_response_id: 'resp-xyz-456',
+    cited_kind: 'content_item',
+    cited_content_item_id: 'item-abc-123',
+    citing_kind: 'form_response',
+    citing_form_response_id: 'resp-xyz-456',
     citation_type: 'reference',
+    cited_version: 3,
   };
 
   it('formats a citation with all fields', () => {
     const result = formatCitation(sampleCitation);
 
     expect(result).toContain('# Citation Recorded');
+    expect(result).toContain('**Cited kind:** content_item');
     expect(result).toContain('**Content item:** item-abc-123');
+    expect(result).toContain('**Citing kind:** form_response');
     expect(result).toContain('**Procurement response:** resp-xyz-456');
     expect(result).toContain('**Type:** reference');
+    expect(result).toContain('**Cited version:** 3');
     expect(result).toContain('**ID:** cit-001');
     expect(result).toContain('The citation has been recorded successfully.');
   });
@@ -362,9 +368,12 @@ describe('formatCitation', () => {
   it('returns item ID and response ID in output', () => {
     const citation: CitationResult = {
       id: 'cit-999',
-      content_item_id: 'content-id-abc',
-      bid_response_id: 'response-id-def',
+      cited_kind: 'content_item',
+      cited_content_item_id: 'content-id-abc',
+      citing_kind: 'form_response',
+      citing_form_response_id: 'response-id-def',
       citation_type: 'adapted',
+      cited_version: null,
     };
 
     const result = formatCitation(citation);
