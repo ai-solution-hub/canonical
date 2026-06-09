@@ -423,6 +423,32 @@ export const ItemUpdateBodySchema = z
     // `lib/governance/publication-transitions.ts` only stamps it on the
     // archive path).
     archive_reason: z.string().max(500).optional(),
+    // ID-59 {59.8} / PC-7 (INV-13) — edit-intent canonical vocabulary (CV).
+    // Stamped onto `content_history.edit_intent` at the write site. The CV
+    // (`cosmetic | data | structural`) is the SINGLE source of truth in
+    // `lib/edit-intent/arbitrate.ts` (`EditIntent`); it is inlined here as a
+    // `z.enum` literal so this schema file stays free of cross-module imports
+    // (mirroring the `publication_status` literal above). INV-13 is enforced
+    // at BOTH this Zod boundary (out-of-CV -> 400) AND the DB CHECK
+    // constraint added in {59.5}. A runtime drift guard between this literal
+    // and `EditIntent` lives in the {59.8} route tests.
+    edit_intent: z.enum(['cosmetic', 'data', 'structural']).optional(),
+    // ID-59 {59.8} — per-actor edit intents for a collaborative (CRDT) save.
+    // When >=2 inputs are present the route arbitrates them (coerce each, then
+    // `arbitrateMany`) and persists the raw inputs to
+    // `content_history.arbitration_inputs` for audit. The per-actor `intent`
+    // is intentionally a free string here: untrusted/skewed client values are
+    // coerced to the unit element `'cosmetic'` by `coerceIntent` at the route,
+    // NOT rejected — so a malicious participant cannot 400 a legitimate merge.
+    arbitration_inputs: z
+      .array(
+        z.object({
+          actor: z.string().max(200),
+          intent: z.string().max(50),
+        }),
+      )
+      .max(100)
+      .optional(),
   })
   .superRefine((data, ctx) => {
     // Reject null for NOT NULL columns

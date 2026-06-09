@@ -26,6 +26,11 @@ import {
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
+import {
+  arbitrateMany,
+  coerceIntent,
+  type EditIntent,
+} from '@/lib/edit-intent/arbitrate';
 import type { Database } from '@/supabase/types/database.types';
 
 type ContentItemUpdate =
@@ -64,8 +69,19 @@ async function patchHandler(
     const parsed = parseBody(ItemUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { field, value, regenerate_embedding, reclassify, change_reason } =
-      parsed.data;
+    const {
+      field,
+      value,
+      regenerate_embedding,
+      reclassify,
+      change_reason,
+      // ID-59 {59.8} — edit-intent stamp inputs. `edit_intent` is the
+      // single-actor intent (already CV-validated by the Zod boundary, INV-13);
+      // `arbitration_inputs` carries per-actor intents for a collaborative
+      // (CRDT) save and is arbitrated below before the content_history write.
+      edit_intent,
+      arbitration_inputs,
+    } = parsed.data;
 
     // --------------------------------------------------------------------
     // Supersession branch (S186 WP-B.5). Admin-only. Detours around the
@@ -743,6 +759,30 @@ async function patchHandler(
 
       const nextVersion = (maxVersionData?.version ?? 0) + 1;
 
+      // ID-59 {59.8} / PC-7 (INV-7 for content_history) — resolve the
+      // edit_intent to stamp. Two legs:
+      //   - CRDT/collab save: >=2 per-actor inputs arrived on the body. Coerce
+      //     each untrusted intent to the CV (skewed values absorbed to the unit
+      //     element 'cosmetic', never rejected), then fold via `arbitrateMany`.
+      //     The raw inputs are persisted to `arbitration_inputs` for audit.
+      //   - Single-actor save: coerce the single `edit_intent` (already
+      //     CV-validated at the Zod boundary; coercion handles the absent case
+      //     -> 'cosmetic'). No arbitration inputs are persisted.
+      // `coerceIntent`'s ctx carries the provenance ids that let an operator
+      // trace a skewed payload back to user/item/op. There is no collaboration
+      // op-id on this REST leg, so `opId` is the synthetic route op tag.
+      const coerceCtx = {
+        userId: user.id,
+        contentItemId: id,
+        opId: `items.patch:${id}`,
+      };
+      const arbitrated = (arbitration_inputs?.length ?? 0) >= 2;
+      const resolvedIntent: EditIntent = arbitrated
+        ? arbitrateMany(
+            arbitration_inputs!.map((p) => coerceIntent(p.intent, coerceCtx)),
+          )
+        : coerceIntent(edit_intent, coerceCtx);
+
       await supabase.from('content_history').insert({
         content_item_id: id,
         version: nextVersion,
@@ -759,7 +799,14 @@ async function patchHandler(
         change_reason: change_reason ?? null,
         change_type: 'edit',
         created_by: user.id,
-      });
+        // ID-59 {59.8} — the arbitrated/coerced intent + (collab only) the raw
+        // per-actor inputs. Cast to the Insert shape (mirroring the
+        // publication_state insert above): the {59.5} columns are present in
+        // the generated types but `arbitration_inputs` is `Json`, so the cast
+        // narrows the typed-array literal to the column shape.
+        edit_intent: resolvedIntent,
+        arbitration_inputs: arbitrated ? arbitration_inputs : null,
+      } as Database['public']['Tables']['content_history']['Insert']);
     } catch (historyErr) {
       // Log but don't fail the update — surface as warning
       logBestEffortWarn(

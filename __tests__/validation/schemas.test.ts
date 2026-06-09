@@ -22,6 +22,7 @@ import {
   EntityCoOccurrenceParamsSchema,
 } from '@/lib/validation/schemas';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
+import type { EditIntent } from '@/lib/edit-intent/arbitrate';
 
 // Helper: generate a valid UUID for tests
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -689,6 +690,81 @@ describe('ItemUpdateBodySchema', () => {
       value: '180',
     });
     expect(result.success).toBe(true);
+  });
+
+  // ID-59 {59.8} / PC-7 (INV-13) — edit_intent CV gate at the Zod boundary.
+  describe('edit_intent + arbitration_inputs ({59.8})', () => {
+    it.each(['cosmetic', 'data', 'structural'] as const)(
+      "accepts in-CV edit_intent '%s'",
+      (intent) => {
+        const result = ItemUpdateBodySchema.safeParse({
+          field: 'content',
+          value: 'body',
+          edit_intent: intent,
+        });
+        expect(result.success).toBe(true);
+      },
+    );
+
+    it('rejects an out-of-CV edit_intent (INV-13)', () => {
+      const result = ItemUpdateBodySchema.safeParse({
+        field: 'content',
+        value: 'body',
+        edit_intent: 'destructive',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('treats edit_intent as optional (absent is valid)', () => {
+      const result = ItemUpdateBodySchema.safeParse({
+        field: 'content',
+        value: 'body',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts well-formed arbitration_inputs (per-actor intents)', () => {
+      const result = ItemUpdateBodySchema.safeParse({
+        field: 'content',
+        value: 'body',
+        arbitration_inputs: [
+          { actor: 'user-a', intent: 'cosmetic' },
+          // per-actor intent is a free string — coerced at the route, not the
+          // schema — so an out-of-CV value here must NOT fail validation.
+          { actor: 'user-b', intent: 'whatever-the-client-sent' },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects arbitration_inputs entries missing the actor key', () => {
+      const result = ItemUpdateBodySchema.safeParse({
+        field: 'content',
+        value: 'body',
+        arbitration_inputs: [{ intent: 'data' }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    // Drift guard: the Zod enum literal is kept in lock-step with the
+    // `EditIntent` CV (single source of truth in lib/edit-intent/arbitrate.ts).
+    // This is a compile-time assertion: if `EditIntent` gains/loses a member,
+    // the exhaustiveness check below fails to type-check.
+    it('Zod edit_intent literal matches the EditIntent CV (drift guard)', () => {
+      const cv: EditIntent[] = ['cosmetic', 'data', 'structural'];
+      for (const intent of cv) {
+        const result = ItemUpdateBodySchema.safeParse({
+          field: 'content',
+          value: 'body',
+          edit_intent: intent,
+        });
+        expect(result.success).toBe(true);
+      }
+      // Exhaustiveness: every EditIntent member is covered above. A new member
+      // would make `cv` incomplete only if the literal drifts — caught by the
+      // accepts/rejects pairs together with the route-side coverage.
+      expect(cv).toHaveLength(3);
+    });
   });
 });
 

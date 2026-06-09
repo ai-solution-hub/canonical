@@ -304,3 +304,150 @@ describe('PATCH /api/items/[id] — ai_keywords normalisation (EP4)', () => {
     expect(updateCall.suggested_title).toBe('Updated Title With Capitals');
   });
 });
+
+// ---------------------------------------------------------------------------
+// {59.8} — edit_intent + arbitration_inputs stamped at the content_history
+// write site (PC-7 / INV-7 for content_history). The content_history INSERT
+// is awaited via the chainable mock, so we assert against
+// `mockSupabase._chain.insert.mock.calls`. The 'edit' row is the LAST insert
+// in the happy-path PATCH flow (the change-summary version-history entry).
+// ---------------------------------------------------------------------------
+
+/** The content_history `change_type:'edit'` insert payload, or undefined. */
+function lastEditHistoryInsert(): Record<string, unknown> | undefined {
+  const calls = mockSupabase._chain.insert.mock.calls as Array<
+    [Record<string, unknown>]
+  >;
+  for (let i = calls.length - 1; i >= 0; i--) {
+    const payload = calls[i]?.[0];
+    if (payload && payload.change_type === 'edit') return payload;
+  }
+  return undefined;
+}
+
+function setupHappyPath(role: 'admin' | 'editor' = 'editor') {
+  // 1. Role lookup
+  mockSupabase._chain.single.mockResolvedValueOnce({
+    data: { role },
+    error: null,
+  });
+  // 2. Fetch current item
+  mockSupabase._chain.single.mockResolvedValueOnce({
+    data: defaultCurrentItem(),
+    error: null,
+  });
+  // Update succeeds (then-resolving chain)
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
+  );
+  // content_history max-version lookup -> no prior rows
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
+}
+
+describe('PATCH /api/items/[id] — edit_intent stamping ({59.8})', () => {
+  it("stamps the single-actor edit_intent='data' onto the content_history edit row", async () => {
+    setupHappyPath('editor');
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: {
+        field: 'content',
+        value: 'New body text',
+        edit_intent: 'data',
+      },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(200);
+
+    const editRow = lastEditHistoryInsert();
+    expect(editRow).toBeDefined();
+    expect(editRow?.edit_intent).toBe('data');
+    // Single-actor save: no arbitration inputs persisted.
+    expect(editRow?.arbitration_inputs).toBeNull();
+  });
+
+  it("coerces an absent single intent to 'cosmetic' (unit element) on the edit row", async () => {
+    setupHappyPath('editor');
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: {
+        field: 'content',
+        value: 'New body text',
+        // edit_intent omitted -> coerceIntent(undefined) -> 'cosmetic'
+      },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(200);
+
+    const editRow = lastEditHistoryInsert();
+    expect(editRow).toBeDefined();
+    expect(editRow?.edit_intent).toBe('cosmetic');
+    expect(editRow?.arbitration_inputs).toBeNull();
+  });
+
+  it("arbitrates a CRDT merge of [cosmetic, data] to 'data' and persists arbitration_inputs", async () => {
+    setupHappyPath('admin');
+
+    const arbitrationInputs = [
+      { actor: 'user-a', intent: 'cosmetic' },
+      { actor: 'user-b', intent: 'data' },
+    ];
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: {
+        field: 'content',
+        value: 'Merged body text',
+        arbitration_inputs: arbitrationInputs,
+      },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(200);
+
+    const editRow = lastEditHistoryInsert();
+    expect(editRow).toBeDefined();
+    // arbitrate(cosmetic, data) -> 'data'
+    expect(editRow?.edit_intent).toBe('data');
+    // The per-actor inputs are persisted verbatim for audit.
+    expect(editRow?.arbitration_inputs).toEqual(arbitrationInputs);
+  });
+
+  it('rejects an out-of-CV edit_intent with 400 at the Zod boundary (INV-13)', async () => {
+    // Auth/role runs before parseBody, so prime an authorised role. The
+    // out-of-CV intent must then 400 at the Zod boundary BEFORE the current
+    // item is fetched or any content_history row is written.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { role: 'editor' },
+      error: null,
+    });
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: {
+        field: 'content',
+        value: 'New body text',
+        edit_intent: 'destructive', // not in {cosmetic,data,structural}
+      },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(400);
+
+    // No content_history edit row should have been written.
+    expect(lastEditHistoryInsert()).toBeUndefined();
+  });
+});
