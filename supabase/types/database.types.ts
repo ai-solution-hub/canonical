@@ -422,55 +422,6 @@ export type Database = {
           },
         ]
       }
-      content_citations: {
-        Row: {
-          bid_response_id: string
-          citation_type: string
-          content_item_id: string
-          created_at: string | null
-          created_by: string | null
-          id: string
-        }
-        Insert: {
-          bid_response_id: string
-          citation_type?: string
-          content_item_id: string
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-        }
-        Update: {
-          bid_response_id?: string
-          citation_type?: string
-          content_item_id?: string
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_citations_bid_response_id_fkey"
-            columns: ["bid_response_id"]
-            isOneToOne: false
-            referencedRelation: "form_responses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_citations_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_citations_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       content_history: {
         Row: {
           arbitration_inputs: Json | null
