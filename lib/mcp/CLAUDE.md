@@ -1,8 +1,8 @@
 # MCP Module
 
-MCP server exposed via Streamable HTTP transport at `/api/mcp/mcp`. Current tool,
-resource, and prompt counts: `docs/generated/mcp-inventory.md` (regenerate with
-`bun run generate:mcp-inventory`).
+MCP server exposed via Streamable HTTP transport at `/api/mcp/mcp`. Canonical tool,
+resource, and prompt lists: `scripts/mcp-eval/fixtures.ts` (drift-guarded by
+`mcp-fixture-sync.test.ts`).
 
 ## Key Files
 
@@ -80,7 +80,7 @@ Dates use `formatDateUK` (DD/MM/YYYY).
 1. Add tool function to the appropriate category file in `tools/`
 2. Add corresponding formatter in `formatters/` (interface + format function)
 3. Register in `tools/index.ts` if new category file
-4. Run `bun run generate:mcp-inventory` to update inventory docs
+4. Update `scripts/mcp-eval/fixtures.ts` (canonical tool/prompt lists — `mcp-fixture-sync.test.ts` guards drift)
 5. Add unit tests in `__tests__/mcp/`
 
 ## MCP Apps
@@ -114,8 +114,6 @@ interfaces — tested by `mcp-app-contracts.test.ts`.
 - **Eval spec:** `docs/specs/mcp-evaluation-spec.md` — layered evaluation design (note:
   tool counts in the spec are stale; `scripts/mcp-eval/fixtures.ts` is the canonical
   source for current tool/prompt lists)
-- **Auto-generated inventory:** `docs/generated/mcp-inventory.md` — current tool,
-  resource, and prompt listings (regenerate with `bun run generate:mcp-inventory`)
 - **Skills:** `mcp-builder` (building MCP servers), `create-mcp-app` (scaffolding MCP
   Apps), `convert-web-app` (converting existing web UIs to MCP Apps)
 
