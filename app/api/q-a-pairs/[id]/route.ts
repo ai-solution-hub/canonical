@@ -31,18 +31,23 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * Per-actor edit intent contributed by one side of a concurrent (CRDT) merge.
- * `intent` is intentionally `unknown` at the boundary — `coerceIntent` is the
- * trust gate that maps any out-of-CV value to the unit element 'cosmetic'.
+ * Surface is identical to `{59.8}`'s `arbitration_inputs` element shape
+ * (`lib/validation/schemas.ts` `ItemUpdateBodySchema`): `actor` is a free
+ * string (max 200, NOT a UUID) and `intent` is a free string (max 50). The
+ * untrusted `intent` is the trust gate's input — `coerceIntent` maps any
+ * out-of-CV value to the unit element 'cosmetic', never rejecting it.
  */
 const ArbitrationInputSchema = z.object({
-  actor: z.string().uuid(),
-  intent: z.unknown(),
+  actor: z.string().max(200),
+  intent: z.string().max(50),
 });
 
 /**
  * Editable fields on the UC6 user-direct Q&A revision surface. All optional —
- * a PATCH may touch any subset. `edit_intent`/`intents` are resolution inputs,
- * not directly-trusted column values (the stamped value is server-resolved).
+ * a PATCH may touch any subset. `edit_intent`/`arbitration_inputs` are
+ * resolution inputs, not directly-trusted column values (the stamped value is
+ * server-resolved). The per-actor CRDT field is named `arbitration_inputs` to
+ * match `{59.8}`'s items route — both routes share one CRDT input surface.
  */
 const QAPairUpdateSchema = z
   .object({
@@ -55,7 +60,8 @@ const QAPairUpdateSchema = z
     // Single-actor intent input (coerced, then folded as a singleton).
     edit_intent: z.unknown().optional(),
     // CRDT merge inputs: per-actor intents arbitrated to one stamped value.
-    intents: z.array(ArbitrationInputSchema).optional(),
+    // Named `arbitration_inputs` to match `{59.8}`'s items route surface.
+    arbitration_inputs: z.array(ArbitrationInputSchema).optional(),
   })
   .strict();
 
@@ -72,9 +78,9 @@ const EDITABLE_COLUMNS = [
 /**
  * Resolve the post-arbitration {@link EditIntent} to stamp on this UPDATE.
  *
- * - CRDT merge path (`intents` present): coerce each per-actor intent through
- *   the trust gate, then `arbitrateMany` to a single intent. An empty array
- *   folds to 'cosmetic' (the unit element).
+ * - CRDT merge path (`arbitration_inputs` present): coerce each per-actor
+ *   intent through the trust gate, then `arbitrateMany` to a single intent. An
+ *   empty array folds to 'cosmetic' (the unit element).
  * - Single-actor path: coerce the lone `edit_intent` and fold it as a
  *   singleton (`arbitrateMany([x])`), so both paths share one resolution rule.
  */
@@ -82,8 +88,8 @@ function resolveEditIntent(
   parsed: z.infer<typeof QAPairUpdateSchema>,
   ctx: { userId: string; contentItemId: string },
 ): EditIntent {
-  if (parsed.intents !== undefined) {
-    const coerced = parsed.intents.map((input) =>
+  if (parsed.arbitration_inputs !== undefined) {
+    const coerced = parsed.arbitration_inputs.map((input) =>
       coerceIntent(input.intent, {
         userId: ctx.userId,
         contentItemId: ctx.contentItemId,

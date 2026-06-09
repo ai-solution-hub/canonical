@@ -10,8 +10,9 @@
  *     `q_a_pairs`, never an `insert` on `q_a_pair_history`).
  *   - edit_intent stamp (single-actor): a single coerced intent is stamped on
  *     the UPDATE payload.
- *   - CRDT merge path: a per-actor `intents` array is coerced + arbitrated
- *     (arbitrateMany) and the resolved intent is stamped.
+ *   - CRDT merge path: a per-actor `arbitration_inputs` array is coerced +
+ *     arbitrated (arbitrateMany) and the resolved intent is stamped. The field
+ *     name matches `{59.8}`'s items route (shared CRDT input surface).
  *   - KH-DB-only: NO file write (the route never imports/calls any fs writer).
  *   - Validation: empty body → 400; unknown edit_intent value is coerced to
  *     'cosmetic' (never rejected, never dilutes), not a 400.
@@ -152,6 +153,38 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       expect(updatePayload.question_text).toBe('New question?');
     });
 
+    it('updates q_a_pairs via the admin role and stamps a single intent', async () => {
+      // The route guard is getAuthorisedClient(['admin', 'editor']) — admin is
+      // an equally-allowed caller, so it must reach the same happy-path save +
+      // edit_intent stamp as the editor case above.
+      configureRole(mockSupabase, 'admin');
+      configureUpdateReturns({
+        id: QA_UUID,
+        question_text: 'Admin-edited question?',
+        edit_intent: 'data',
+      });
+
+      const res = await PATCH(
+        makeRequest({
+          question_text: 'Admin-edited question?',
+          edit_intent: 'data',
+        }),
+        makeContext(),
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.q_a_pair.id).toBe(QA_UUID);
+      expect(body.edit_intent).toBe('data');
+
+      // The UPDATE targets q_a_pairs and carries the stamped edit_intent.
+      expect(mockSupabase.from).toHaveBeenCalledWith('q_a_pairs');
+      expect(mockSupabase._chain.update).toHaveBeenCalledTimes(1);
+      const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
+      expect(updatePayload.edit_intent).toBe('data');
+      expect(updatePayload.question_text).toBe('Admin-edited question?');
+    });
+
     it('performs NO app-side q_a_pair_history insert (trigger owns the snapshot)', async () => {
       configureRole(mockSupabase, 'editor');
       configureUpdateReturns({ id: QA_UUID, edit_intent: 'cosmetic' });
@@ -176,7 +209,7 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       const res = await PATCH(
         makeRequest({
           answer_standard: 'Merged answer.',
-          intents: [
+          arbitration_inputs: [
             { actor: ACTOR_A, intent: 'cosmetic' },
             { actor: ACTOR_B, intent: 'data' },
           ],
@@ -196,7 +229,7 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       const res = await PATCH(
         makeRequest({
           answer_standard: 'Wording only.',
-          intents: [{ actor: ACTOR_A, intent: 'not-a-real-intent' }],
+          arbitration_inputs: [{ actor: ACTOR_A, intent: 'not-a-real-intent' }],
         }),
         makeContext(),
       );
