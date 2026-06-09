@@ -54,6 +54,10 @@ const ENABLED = HAS_LIVE_DB;
 
 // Canonical extractor-identification keys (same vocabulary as Inv-8).
 const EXTRACTOR_ID_KEYS = [
+  // The key the record route actually lands: route.ts maps the webhook's
+  // `extractorVersion` (IMAGE_SHA, bl-271) into `result.extractor_version`.
+  // Without it this cross-ref never matched the real stamped key.
+  'extractor_version',
   'extractor_image_sha',
   'extractor_build_tag',
   'docling_version',

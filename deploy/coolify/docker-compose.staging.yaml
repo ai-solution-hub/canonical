@@ -153,6 +153,14 @@ services:
       PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
       CRON_SECRET: ${CRON_SECRET}
 
+      # --- Image forensic-correlation key (bl-271) ---
+      # flow.py:2923 reads os.environ["IMAGE_SHA"] -> threaded to the webhook ->
+      # stamped onto pipeline_runs.result.extractor_version. IMAGE_SHA died at the
+      # Cloud Run -> Coolify cutover (S298) because no compose env supplied it.
+      # Reuse the already-required sha-pinned image tag so every run records the
+      # exact image it ran on, matching the `image:` line above.
+      IMAGE_SHA: ${COCOINDEX_IMAGE_TAG}
+
       # --- Supabase / API secrets (STAGING values, injected by Coolify) ---
       # SUPABASE_* MUST be the staging-branch (turayklvaunphgbgscat) values, NOT prod.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}

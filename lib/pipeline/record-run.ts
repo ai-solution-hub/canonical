@@ -199,6 +199,21 @@ export async function recordPipelineRun(
     mergedResult = result ?? null;
   }
 
+  // `ended_at` is the canonical run-finished timestamp (mig 20260530121355).
+  // It is the lifecycle terminator — stamped only when the run has actually
+  // finished, i.e. `status` is one of the four terminal states. `in_progress`
+  // (the flow-start emission) leaves it NULL, which is how downstream
+  // observability distinguishes a still-running flow from a finished one.
+  // Note `completed_at` is written unconditionally on every row (including
+  // the `in_progress` start row) — it timestamps the insert, not the run end;
+  // `ended_at` is the run-completion signal it was always meant to pair with.
+  const isTerminal =
+    status === 'completed' ||
+    status === 'completed_with_errors' ||
+    status === 'failed' ||
+    status === 'cancelled';
+  const now = new Date().toISOString();
+
   // Insert the row via `sb()` so any insertion failure throws a
   // SupabaseError. Catch the throw here — this helper is never-throws by
   // contract — and report it through logBestEffortWarn + Sentry.
@@ -207,7 +222,8 @@ export async function recordPipelineRun(
       supabase.from('pipeline_runs').insert({
         pipeline_name: pipelineName,
         status,
-        completed_at: new Date().toISOString(),
+        completed_at: now,
+        ended_at: isTerminal ? now : null,
         items_processed: itemsProcessed ?? null,
         items_created: itemsCreated ?? null,
         workspace_id: workspaceId ?? null,

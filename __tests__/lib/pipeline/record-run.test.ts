@@ -148,6 +148,62 @@ describe('recordPipelineRun', () => {
   });
 
   // -------------------------------------------------------------------------
+  // ended_at terminal-status writer (bl-271)
+  //
+  // `ended_at` (mig 20260530121355) is the run-finished timestamp. It had no
+  // writer anywhere — `recordPipelineRun` only ever wrote `completed_at`.
+  // The writer stamps `ended_at` only on the four terminal statuses and
+  // leaves it NULL for the `in_progress` flow-start emission, so downstream
+  // observability can tell a still-running flow from a finished one.
+  // -------------------------------------------------------------------------
+
+  it.each([
+    'completed',
+    'completed_with_errors',
+    'failed',
+    'cancelled',
+  ] as const)('stamps ended_at on a terminal %s run', async (status) => {
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status,
+      errorMessage: status === 'completed' ? null : 'something to report',
+      skipSentryAlert: true,
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(typeof payload.ended_at).toBe('string');
+    // ended_at and completed_at share the single capture instant for a
+    // terminal row (the run finished as it was recorded).
+    expect(payload.ended_at).toBe(payload.completed_at);
+  });
+
+  it('leaves ended_at NULL on an in_progress (flow-start) run', async () => {
+    const { client, insertSpy } = createMockSupabase({
+      data: null,
+      error: null,
+    });
+
+    await recordPipelineRun({
+      supabase: client,
+      pipelineName: 'kh_canonical_pipeline',
+      status: 'in_progress',
+      progress: { stage: 'started' },
+    });
+
+    const payload = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.ended_at).toBeNull();
+    // completed_at is still stamped on the start row (it timestamps the
+    // insert, not the run end).
+    expect(typeof payload.completed_at).toBe('string');
+  });
+
+  // -------------------------------------------------------------------------
   // stageCounts merge (ID-28.11 — Inv-17 rollup substrate)
   // -------------------------------------------------------------------------
 
