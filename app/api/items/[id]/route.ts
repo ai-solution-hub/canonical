@@ -589,12 +589,14 @@ async function patchHandler(
     // mutation here while the ordering + restore live in the adapter.
     // Non-content edits (and non-file-backed items) take the DB-only path —
     // the adapter no-ops the file leg and just applies the DB write.
+    // A direct `content` edit sets `updateData.content` via the computed-property
+    // assignment above (`{ [field]: effectiveValue }`); the Q&A-answer rebuild
+    // case ALSO sets `updateData.content` (reconstructed from the answer fields).
+    // So `updateData.content !== undefined` is the single source of truth for
+    // "this edit changes the canonical content bytes" — there is no separate
+    // `field === 'content'` branch to fall through to.
     const newContentBytes =
-      updateData.content !== undefined
-        ? (updateData.content as string)
-        : field === 'content' && typeof effectiveValue === 'string'
-          ? effectiveValue
-          : null;
+      updateData.content !== undefined ? (updateData.content as string) : null;
 
     const applyContentItemsUpdate = async (): Promise<void> => {
       const { error } = await supabase

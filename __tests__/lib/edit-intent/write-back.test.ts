@@ -1,5 +1,6 @@
 /**
  * {59.9} — file-first write-back adapter with compensating restore.
+ * {59.10} — source-less content_item GUARD (bl-266).
  *
  * These are file-backed integration tests: the file leg writes to a real
  * temp directory (a stand-in for the COCOINDEX_SOURCE_PATH source-binding
@@ -8,16 +9,45 @@
  * content_items/content_history write) are injected so each failure mode can
  * be forced deterministically.
  *
- * The three testStrategy proofs:
+ * The {59.9} testStrategy proofs:
  *   1. file-backed edit  -> same-path rewrite + DB leg applied;
  *   2. force file-write fail -> DB leg NEVER invoked (one failure state);
  *   3. force DB-write fail AFTER file write -> file RESTORED to prior bytes
  *      (compensating-restore proof).
+ *
+ * The {59.10} testStrategy proof (PC-3 / INV-3):
+ *   source_document_id IS NULL -> NO file write, NO source_document created,
+ *   NO connector='mcp' mint; `source_less_content_item_edit_back` anomaly log
+ *   emitted; the DB leg (content_items + content_history WITH edit_intent)
+ *   STILL runs. Source-backed item -> file written normally (guard passes).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
+
+// {59.10}: the source-less guard emits a structured anomaly log via the
+// `@/lib/logger` singleton. Mock it (hoisted) so the
+// `source_less_content_item_edit_back` event is captured and asserted, and so
+// no real Sentry forwarding fires under test.
+const loggerMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: loggerMocks,
+  getRequestContext: () => undefined,
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T) => fn(),
+  updateRequestContext: vi.fn(),
+  withRequestContext: <T>(handler: T) => handler,
+  withRequestContextBare: <T>(handler: T) => handler,
+  applyRequestContextToSentry: vi.fn(),
+}));
 
 import { writeBackFileFirst } from '@/lib/edit-intent/write-back';
 
@@ -53,6 +83,9 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     const abs = join(sourceRoot, REL_PATH);
     await mkdir(dirname(abs), { recursive: true });
     await writeFile(abs, PRIOR_BYTES, 'utf8');
+    loggerMocks.warn.mockClear();
+    loggerMocks.info.mockClear();
+    loggerMocks.error.mockClear();
   });
 
   afterEach(async () => {
@@ -84,11 +117,71 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     expect(result.applied).toBe(true);
     expect(result.fileBacked).toBe(true);
     expect(result.warnings).toEqual([]);
+    // GUARD: a source-BACKED item is NOT the anomaly — the source-less log
+    // never fires for it ({59.10}).
+    expect(loggerMocks.warn).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'source_less_content_item_edit_back' }),
+      expect.anything(),
+    );
   });
 
-  it('skips the file leg for items that are NOT file-backed (DB leg still runs)', async () => {
+  it('{59.10} GUARD — source-less item (source_document_id IS NULL) writes KH-DB-only, NO file, emits the anomaly log', async () => {
+    // PC-3 / INV-3 (bl-266): a content_item with NO linked source_document is
+    // an anomaly to GUARD, not a write path. The injected DB leg STILL runs
+    // (the {59.8} content_items + content_history WITH edit_intent write), but
+    // the adapter writes NO file, auto-creates NO source_document, and mints
+    // NO connector='mcp' storage path — and emits the structured anomaly log.
     const sb = makeSupabaseStub({
       data: { source_document_id: null, storage_path: null },
+      error: null,
+    });
+    const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+    const result = await writeBackFileFirst({
+      supabase: sb.client,
+      contentItemId: CONTENT_ITEM_ID,
+      newContent: NEW_BYTES,
+      applyDbLeg,
+      context: 'items.patch.write-back.resolve-storage-path',
+    });
+
+    // The DB-only leg applied (the user's save still lands).
+    expect(result.applied).toBe(true);
+    expect(result.fileBacked).toBe(false);
+    expect(applyDbLeg).toHaveBeenCalledTimes(1);
+
+    // NO file was written — the pre-existing on-disk file is untouched and the
+    // adapter created nothing on the source-binding folder.
+    const onDisk = await readFile(join(sourceRoot, REL_PATH), 'utf8');
+    expect(onDisk).toBe(PRIOR_BYTES);
+
+    // NO source_document auto-create + NO connector='mcp' mint: the adapter's
+    // ONLY supabase touch is the single read (`from('content_items')` once);
+    // it never issues an insert/upsert/update of its own. A mint or auto-create
+    // would require a second `from(...)` call — assert there was exactly one.
+    expect(sb.from).toHaveBeenCalledTimes(1);
+    expect(sb.from).toHaveBeenCalledWith('content_items');
+
+    // The structured anomaly log fired with the bl-266-traceable event, the
+    // content-item id, and the caller — so the source-less population is
+    // observable.
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'source_less_content_item_edit_back',
+        contentItemId: CONTENT_ITEM_ID,
+        caller: 'items.patch.write-back.resolve-storage-path',
+      }),
+      expect.any(String),
+    );
+  });
+
+  it('skips the file leg for a source-BACKED item in idle mode (no COCOINDEX_SOURCE_PATH) WITHOUT the source-less log', async () => {
+    // A linked source_document exists but the source-binding folder is unset
+    // (flow idle mode) — there is no on-disk file to rewrite. This is NOT the
+    // source-less anomaly: the DB leg applies and NO anomaly log fires.
+    delete process.env.COCOINDEX_SOURCE_PATH;
+    const sb = makeSupabaseStub({
+      data: { source_document_id: SOURCE_DOCUMENT_ID, storage_path: REL_PATH },
       error: null,
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
@@ -102,8 +195,13 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
     expect(result.fileBacked).toBe(false);
     expect(result.applied).toBe(true);
-    // No file leg, but the DB leg (the canonical {59.8} write) still applies.
+    // The DB leg (the canonical {59.8} write) still applies.
     expect(applyDbLeg).toHaveBeenCalledTimes(1);
+    // Source-BACKED -> the source-less anomaly log must NOT fire.
+    expect(loggerMocks.warn).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'source_less_content_item_edit_back' }),
+      expect.anything(),
+    );
   });
 
   it('PROOF 2 — file-write failure aborts BEFORE the DB write (DB untouched, one failure state)', async () => {

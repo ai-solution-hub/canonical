@@ -46,10 +46,26 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type {
+  PostgrestSingleResponse,
+  SupabaseClient,
+} from '@supabase/supabase-js';
 
+import { logger } from '@/lib/logger';
 import { tryQuery, isOk } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
+
+/**
+ * Awaitable whose resolved shape is a {@link PostgrestSingleResponse} — the
+ * narrow argument type {@link tryQuery} consumes. PostgREST's embedded-select
+ * builder chain (`.select(...).eq(...).maybeSingle()`) resolves to this shape
+ * but its compile-time type does not line up with the flattened
+ * {@link StoragePathRow} (the embedded FK is nested, we flatten below), so the
+ * call site coerces through `unknown` to this alias rather than `as never` —
+ * `never` would silently swallow ANY unrelated type error on the chain, this
+ * narrows the suppression to exactly the embedded-shape mismatch.
+ */
+type PostgrestLike<T> = PromiseLike<PostgrestSingleResponse<T>>;
 
 /**
  * The DB leg of the save — the caller's {59.8} content_items +
@@ -140,7 +156,7 @@ export async function writeBackFileFirst(
       .select('source_document_id, source_documents(storage_path)')
       // The embedded select returns a nested object; we flatten it below.
       .eq('id', contentItemId)
-      .maybeSingle() as never,
+      .maybeSingle() as unknown as PostgrestLike<StoragePathRow>,
     context ?? 'edit-intent.write-back.resolve-storage-path',
   );
   if (!isOk(resolution)) {
@@ -148,12 +164,43 @@ export async function writeBackFileFirst(
   }
 
   const row = flattenStoragePathRow(resolution.data);
+
+  // ── {59.10} / PC-3 (INV-3) — source-less content_item GUARD (bl-266) ─────────
+  // S330 RATIFICATION 2 + Liam steer: a content_item with NO linked
+  // source_document is an ANOMALY TO GUARD, not a first-class write path. We do
+  // NOT write a file, do NOT auto-create a source_document, and do NOT mint a
+  // connector='mcp' storage path (the "opt-in materialise-to-file" affordance is
+  // explicitly NOT built — v1.1 at most, and only if bl-266 enforcement doesn't
+  // first eliminate the population). The KH-DB-only leg (the {59.8} content_items
+  // + content_history write WITH edit_intent) STILL runs so the user's save
+  // applies, but we emit a structured anomaly log so the source-less population
+  // is observable + traceable to bl-266 (a CONSUMED cross_doc_link —
+  // docs/reference/backlog/266.md; bl-266 enforces later, this slice only
+  // surfaces the anomaly NOW). OQ-59-3 prod sweep sizes the population so the
+  // anomaly-log volume is understood (TECH Open-item-2).
+  if (!row.source_document_id) {
+    logger.warn(
+      {
+        event: 'source_less_content_item_edit_back',
+        contentItemId,
+        caller: context ?? 'edit-intent.write-back.resolve-storage-path',
+      },
+      'Edit-back on a source-less content_item — no source_document linked; ' +
+        'wrote KH-DB-only (no file, no auto-created source_document, no mcp ' +
+        'storage-path mint). Tracked to bl-266.',
+    );
+    await applyDbLeg();
+    return { applied: true, fileBacked: false, warnings: [] };
+  }
+
   const absPath = resolveAbsolutePath(row);
 
-  // ── Not file-backed: skip the file leg, still apply the DB leg ──────────────
-  // UC1/UC4 file leg only applies to file-backed items. Non-file-backed items
-  // (manual draft-created content, idle-mode flow) take the DB-only path — the
-  // canonical {59.8} write is still the single source of the save outcome.
+  // ── Source-backed but no file leg to write: idle-mode flow ──────────────────
+  // The item HAS a linked source_document but the source-binding folder is unset
+  // (`COCOINDEX_SOURCE_PATH` absent — flow.py idle mode) or the storage_path is
+  // absent, so there is no on-disk file to rewrite. This is NOT the source-less
+  // anomaly above; the DB-only path applies the canonical {59.8} write as the
+  // single source of the save outcome.
   if (!absPath) {
     await applyDbLeg();
     return { applied: true, fileBacked: false, warnings: [] };
