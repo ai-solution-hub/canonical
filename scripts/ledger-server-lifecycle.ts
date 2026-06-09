@@ -9,8 +9,14 @@
  * ({90.17}) calls this via the `ensureServer` callback on connection-refused.
  *
  * Contract (invariants 13, 34, 48, 54):
- *   - Version check: the running server's version MUST match the pinned
- *     TASK_VIEW_TAG from ci.yml (inv 48). Stale → kill + respawn.
+ *   - Version check: the running server's /api/health version MUST match the
+ *     version of the clone pinned by TASK_VIEW_TAG — i.e. the package.json
+ *     version of .cache/task-view-<tag>/, which is what the server actually
+ *     reports (NOT the tag string itself). Mismatch → kill + respawn (inv 48).
+ *     Layer-2 caveat (ID-90 follow-up): distinct tags can share a package
+ *     version (v0.3.1/v0.4.0-task-view both report 0.2.0), so this gate cannot
+ *     distinguish a stale same-package-version daemon across tags; robust
+ *     tag-level staleness for the persistent daemon is tracked separately.
  *   - Child stdio → façade stderr (inv 13 stdout purity).
  *   - CI env (process.env.CI truthy) adds --require-denylist (inv 34).
  *   - HARD 10s deadline — fail loud, never hang, never fall back to an
@@ -106,6 +112,41 @@ export function resolveTag(repoRoot: string): string {
     throw new Error(`Cannot resolve TASK_VIEW_TAG: no match in ${ciPath}`);
   }
   return match[1];
+}
+
+/**
+ * Resolve the version string the server WILL report at /api/health for the
+ * clone pinned by `tag`. The server sources its version from the ROOT
+ * package.json of its clone (apps/server/index.ts → formatVersion()), NOT from
+ * the git tag — so the health-version gate (inv 48) must compare against this
+ * package.json version, not the raw TASK_VIEW_TAG string. Comparing against the
+ * tag string can NEVER match (e.g. "0.2.0" !== "v0.4.0-task-view") and was the
+ * AC-P1 flag-ON failure (ID-90.20). Exported for testing.
+ */
+export function resolveExpectedVersion(repoRoot: string, tag: string): string {
+  const pkgPath = resolve(repoRoot, `.cache/task-view-${tag}/package.json`);
+  let text: string;
+  try {
+    text = readFileSync(pkgPath, 'utf8');
+  } catch (err) {
+    throw new Error(
+      `Cannot resolve server version: failed to read ${pkgPath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  let version: unknown;
+  try {
+    version = (JSON.parse(text) as { version?: unknown }).version;
+  } catch (err) {
+    throw new Error(
+      `Cannot resolve server version: ${pkgPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (typeof version !== 'string' || version.length === 0) {
+    throw new Error(
+      `Cannot resolve server version: no non-empty string .version in ${pkgPath}`,
+    );
+  }
+  return version;
 }
 
 // ── handle file ───────────────────────────────────────────────────────────────
@@ -226,6 +267,9 @@ interface SpawnArgs {
 
 async function spawnAndWait(args: SpawnArgs): Promise<EnsureServerResult> {
   const { repoRoot, tag, ledgerDir, portFilePath, seam, deadlineMs } = args;
+  // inv 48: the server reports its package.json version at /api/health, not the
+  // git tag — compare against that (ID-90.20 AC-P1 fix).
+  const expectedVersion = resolveExpectedVersion(repoRoot, tag);
 
   const serverEntry = resolve(
     repoRoot,
@@ -288,7 +332,7 @@ async function spawnAndWait(args: SpawnArgs): Promise<EnsureServerResult> {
   while (Date.now() < deadline) {
     const handle = readHandle(portFilePath);
     if (handle) {
-      const health = await healthCheck(handle.port, tag);
+      const health = await healthCheck(handle.port, expectedVersion);
       if (health.ok) {
         return {
           port: handle.port,
@@ -337,7 +381,8 @@ export async function ensureServer(
     const existing = readHandle(hPath);
 
     if (existing) {
-      const health = await healthCheck(existing.port, tag);
+      const expectedVersion = resolveExpectedVersion(repoRoot, tag);
+      const health = await healthCheck(existing.port, expectedVersion);
       if (health.ok) {
         return {
           port: existing.port,

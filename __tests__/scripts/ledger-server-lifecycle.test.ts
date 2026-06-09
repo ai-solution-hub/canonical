@@ -24,6 +24,7 @@ import { createServer, type Server } from 'node:http';
 import {
   ensureServer,
   resolveTag,
+  resolveExpectedVersion,
   type SpawnSeam,
   type ServerHandle,
 } from '@/scripts/ledger-server-lifecycle';
@@ -33,6 +34,14 @@ import {
 let tmpRoot: string;
 const servers: Server[] = [];
 
+// The version the REAL task-view server reports at /api/health is its ROOT
+// package.json version — NOT the git tag (tag v0.4.0-task-view → package
+// 0.2.0). inv 48 compares against this package version. These fixtures mirror
+// that: the fake clone's package.json carries PKG_VERSION, the fake health
+// server echoes it, and the tag stays deliberately DIFFERENT — so a regression
+// to comparing the raw tag would FAIL the reuse test (0.2.0 !== v0.4.0-task-view).
+const PKG_VERSION = '0.2.0';
+
 function makeFakeRepo(tag = 'v0.4.0-task-view'): string {
   const dir = mkdtempSync(join(tmpdir(), 'lifecycle-test-'));
   mkdirSync(join(dir, '.github/workflows'), { recursive: true });
@@ -41,6 +50,12 @@ function makeFakeRepo(tag = 'v0.4.0-task-view'): string {
     `jobs:\n  ledger-mirror-parity:\n    env:\n      TASK_VIEW_TAG: ${tag}\n`,
   );
   mkdirSync(join(dir, '.cache/ledger-server'), { recursive: true });
+  // resolveExpectedVersion reads the pinned clone's package.json version.
+  mkdirSync(join(dir, `.cache/task-view-${tag}`), { recursive: true });
+  writeFileSync(
+    join(dir, `.cache/task-view-${tag}/package.json`),
+    JSON.stringify({ name: 'task-view', version: PKG_VERSION }),
+  );
   return dir;
 }
 
@@ -78,14 +93,16 @@ async function startHealthServer(
  *  and starting a real HTTP health server. */
 function makeSpawnSeam(
   opts: {
-    tag?: string;
+    pkgVersion?: string;
     startupDelayMs?: number;
     failToStart?: boolean;
   } = {},
 ): { seam: SpawnSeam; spawnCalls: string[][]; killCalls: number[] } {
   const spawnCalls: string[][] = [];
   const killCalls: number[] = [];
-  const tag = opts.tag ?? 'v0.4.0-task-view';
+  // The spawned daemon reports its package.json version (what the real server
+  // does), NOT the git tag — mirrors the rootPkg.version the live server emits.
+  const pkgVersion = opts.pkgVersion ?? PKG_VERSION;
   let pidCounter = 90_000;
 
   const seam: SpawnSeam = {
@@ -107,14 +124,14 @@ function makeSpawnSeam(
         // with a real health server behind it.
         const delay = opts.startupDelayMs ?? 50;
         setTimeout(async () => {
-          const { port } = await startHealthServer(tag);
+          const { port } = await startHealthServer(pkgVersion);
           mkdirSync(resolve(portFilePath, '..'), { recursive: true });
           writeFileSync(
             portFilePath,
             JSON.stringify({
               port,
               pid,
-              version: tag,
+              version: pkgVersion,
               ledgerDir: 'docs/reference',
             }),
           );
@@ -164,15 +181,39 @@ describe('resolveTag (inv 48)', () => {
   });
 });
 
+// ── resolveExpectedVersion (inv 48 — compare package version, not the tag) ──────
+
+describe('resolveExpectedVersion (inv 48)', () => {
+  it('returns the clone package.json version, NOT the git tag', () => {
+    // tmpRoot is pinned to v0.4.0-task-view, but its clone package.json is 0.2.0.
+    // Comparing health.version against the tag string was the AC-P1 failure.
+    expect(resolveExpectedVersion(tmpRoot, 'v0.4.0-task-view')).toBe(
+      PKG_VERSION,
+    );
+    expect(resolveExpectedVersion(tmpRoot, 'v0.4.0-task-view')).not.toBe(
+      'v0.4.0-task-view',
+    );
+  });
+
+  it('throws loud when the pinned clone package.json is missing', () => {
+    expect(() => resolveExpectedVersion(tmpRoot, 'v9.9.9-absent')).toThrow(
+      'Cannot resolve server version',
+    );
+  });
+});
+
 // ── reuse existing server ─────────────────────────────────────────────────────
 
 describe('ensureServer reuses a healthy daemon', () => {
   it('returns reused:true when handle + health check pass', async () => {
-    const { port } = await startHealthServer('v0.4.0-task-view');
+    // Health server reports the package version (0.2.0), which is what
+    // resolveExpectedVersion derives — NOT the tag. A regression to comparing
+    // the raw tag would fail here (0.2.0 !== v0.4.0-task-view).
+    const { port } = await startHealthServer(PKG_VERSION);
     writeHandle(tmpRoot, {
       port,
       pid: 12345,
-      version: 'v0.4.0-task-view',
+      version: PKG_VERSION,
       ledgerDir: 'docs/reference',
     });
     const { seam, spawnCalls } = makeSpawnSeam();
@@ -191,12 +232,13 @@ describe('ensureServer reuses a healthy daemon', () => {
 
 describe('ensureServer kills stale servers (inv 48)', () => {
   it('kills and respawns when version mismatches', async () => {
-    // Write a handle pointing at a server with the WRONG version.
-    const { port: oldPort } = await startHealthServer('v0.3.1-task-view');
+    // Write a handle pointing at a server reporting a DIFFERENT package version
+    // (0.1.0) than the pinned clone (0.2.0) — a stale prior-release daemon.
+    const { port: oldPort } = await startHealthServer('0.1.0');
     writeHandle(tmpRoot, {
       port: oldPort,
       pid: 55555,
-      version: 'v0.3.1-task-view',
+      version: '0.1.0',
       ledgerDir: 'docs/reference',
     });
 
@@ -339,11 +381,11 @@ describe('ensureServer ephemeral mode (non-default --ledger-dir)', () => {
 
   it('does not reuse a cached handle for non-default dir', async () => {
     // Write a handle for the default dir — it should be ignored.
-    const { port } = await startHealthServer('v0.4.0-task-view');
+    const { port } = await startHealthServer(PKG_VERSION);
     writeHandle(tmpRoot, {
       port,
       pid: 12345,
-      version: 'v0.4.0-task-view',
+      version: PKG_VERSION,
       ledgerDir: 'docs/reference',
     });
 

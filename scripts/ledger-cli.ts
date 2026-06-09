@@ -2150,7 +2150,11 @@ async function buildTransportRequest(
   intent: ServerIntent,
   filePath: string,
 ): Promise<TransportRequest> {
-  const mtime = String((await stat(filePath)).mtimeMs);
+  // inv 43: the server validates baseMtime via Date.parse (ISO 8601) and emits
+  // mtimeIso — send ISO, not raw epoch-ms. String(mtimeMs) parses to NaN →
+  // invalid-baseMtime (flag-ON-only defect surfaced re-running the AC-P1 gate,
+  // ID-90.20; never caught because flag-ON was not exercised pre-cutover).
+  const mtime = (await stat(filePath)).mtime.toISOString();
   const base = `${baseUrl}/api/ledger`;
 
   switch (intent.kind) {
