@@ -15,7 +15,7 @@ import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
 import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
 import type { ProcurementResponseMetadata } from '@/types/procurement-metadata';
 import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
-import type { Json } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
 
@@ -36,6 +36,7 @@ const UUID_RE =
  *   event: pass2_complete  — drafting finished, data: { citations, tokens, cost }
  *   event: pass3_complete  — quality check finished, data: { quality }
  *   event: done            — all done, data: { response_id, total_cost }
+ *   event: citation_warning — citations write failed (non-fatal), data: { warning }
  *   event: error           — error, data: { error }
  */
 export async function POST(
@@ -117,6 +118,11 @@ export async function POST(
     // Fetch matched content items
     const matchedIds = question.matched_content_ids ?? [];
     let matchedContent: DraftableContent[] = [];
+    // ID-58 R1: `content_items` carries no `version` column, so the cited
+    // version is the highest `version` recorded in `content_history` for each
+    // matched item (0 if the item has no history rows yet). Captured here so
+    // the citations writer can stamp `cited_version` at draft time.
+    const citedVersionById = new Map<string, number>();
     if (matchedIds.length > 0) {
       const { data: contentItems, error: contentError } = await supabase
         .from('content_items')
@@ -143,6 +149,29 @@ export async function POST(
         content_type: item.content_type,
         summary: item.summary,
       }));
+
+      // ID-58 R1/R4: read the per-item MAX(content_history.version). A failure
+      // here must not throw — the version stamp degrades to 0 rather than
+      // blocking the draft (the citations write stays non-fatal, see below).
+      const { data: historyRows, error: historyError } = await supabase
+        .from('content_history')
+        .select('content_item_id, version')
+        .in('content_item_id', matchedIds);
+
+      if (historyError) {
+        logger.warn(
+          { err: historyError },
+          'Failed to read content_history versions; cited_version defaults to 0',
+        );
+      } else {
+        for (const row of historyRows ?? []) {
+          if (!row.content_item_id) continue;
+          const current = citedVersionById.get(row.content_item_id) ?? 0;
+          if (row.version > current) {
+            citedVersionById.set(row.content_item_id, row.version);
+          }
+        }
+      }
     }
 
     const draftableQuestion: DraftableQuestion = {
@@ -280,29 +309,84 @@ export async function POST(
             return;
           }
 
-          // Record content citations for win-rate tracking
+          // Record citations for win-rate tracking (ID-58 polymorphic
+          // `public.citations` table). One row per DISTINCT matched content
+          // item so the win-rate RPC's COUNT(DISTINCT cited_content_item_id)
+          // stays regression-free (Inv-14). Items that yielded an Anthropic
+          // CitationEntry carry the captured span; items that were matched but
+          // never cited still get a citation_type='reference' row with NULL
+          // span columns, preserving coverage cardinality (Inv-10).
           if (response?.id && matchedContent.length > 0) {
             try {
-              const citationRows = matchedContent.map((c) => ({
-                bid_response_id: response.id,
-                content_item_id: c.id,
-                citation_type: 'reference' as const,
-                created_by: user.id,
-              }));
+              const responseId = response.id;
+              type CitationInsert =
+                Database['public']['Tables']['citations']['Insert'];
 
-              // Delete existing citations for this response (in case of re-draft)
-              await supabase
-                .from('content_citations')
+              // Seed one base row per distinct matched item (no span).
+              const rowByItemId = new Map<string, CitationInsert>();
+              for (const item of matchedContent) {
+                if (rowByItemId.has(item.id)) continue;
+                rowByItemId.set(item.id, {
+                  citing_kind: 'form_response',
+                  citing_form_response_id: responseId,
+                  cited_kind: 'content_item',
+                  cited_content_item_id: item.id,
+                  cited_version: citedVersionById.get(item.id) ?? 0,
+                  citation_type: 'reference',
+                  cited_text: null,
+                  cited_location_kind: null,
+                  cited_start: null,
+                  cited_end: null,
+                  created_by: user.id,
+                });
+              }
+
+              // Overlay the FIRST Anthropic CitationEntry span per content
+              // item. Cardinality stays one-row-per-item (partial-unique index
+              // on (citing_form_response_id, cited_content_item_id)); full
+              // multi-span fidelity remains in form_responses.metadata JSONB.
+              const spannedItemIds = new Set<string>();
+              for (const entry of pass2Result.citations) {
+                const citedItemId =
+                  matchedContent[entry.source_index]?.id ?? entry.source_id;
+                if (!citedItemId) continue;
+                if (spannedItemIds.has(citedItemId)) continue;
+                const base = rowByItemId.get(citedItemId);
+                if (!base) continue;
+                base.cited_text = entry.cited_text;
+                base.cited_location_kind = 'block';
+                base.cited_start = entry.start_block_index;
+                base.cited_end = entry.end_block_index;
+                spannedItemIds.add(citedItemId);
+              }
+
+              const citationRows = Array.from(rowByItemId.values());
+
+              // Re-draft idempotency: clear this response's citations, then
+              // insert the freshly resolved one-row-per-item set. Equivalent
+              // to an upsert on (citing_form_response_id, cited_content_item_id)
+              // for the form_response citing kind.
+              const { error: deleteError } = await supabase
+                .from('citations')
                 .delete()
-                .eq('bid_response_id', response.id);
+                .eq('citing_form_response_id', responseId);
+              if (deleteError) throw deleteError;
 
-              await supabase.from('content_citations').insert(citationRows);
+              const { error: insertError } = await supabase
+                .from('citations')
+                .insert(citationRows);
+              if (insertError) throw insertError;
             } catch (citationErr) {
+              // R4: non-fatal — the response is already saved. Surface the
+              // failure to logs AND the client (no silent swallow) so a
+              // citation write regression is observable.
               logger.error(
                 { err: citationErr },
-                'Failed to record content citations',
+                'Failed to record response citations',
               );
-              // Non-fatal — response is already saved
+              send('citation_warning', {
+                warning: 'Citations were not recorded for this response',
+              });
             }
           }
 

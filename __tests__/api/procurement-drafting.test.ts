@@ -682,6 +682,187 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     const body = await res.json();
     expect(body.error).toBe('Question not found in this bid');
   });
+
+  // ID-58 {58.6}: the writer now targets the polymorphic `public.citations`
+  // table. This drives the full happy path and asserts the resolved insert
+  // payload: one row per distinct matched item, citation_type='reference',
+  // cited_version = MAX(content_history.version), and spans overlaid from the
+  // Anthropic CitationEntry list.
+  it('writes per-CitationEntry rows to `citations` with spans + version', async () => {
+    const ITEM_CITED = 'c1111111-1111-4111-8111-111111111111';
+    const ITEM_UNCITED = 'c2222222-2222-4222-8222-222222222222';
+    const RESPONSE_ID = 'd3333333-3333-4333-8333-333333333333';
+
+    configureRole(mockSupabase, 'editor');
+
+    // (1) Procurement lookup
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      error: null,
+    });
+    // (2) Question lookup — two matched items
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID_2,
+        question_text: 'Describe your approach.',
+        word_limit: 500,
+        section_name: 'Method',
+        confidence_posture: 'balanced',
+        matched_content_ids: [ITEM_CITED, ITEM_UNCITED],
+      },
+      error: null,
+    });
+
+    // (3) content_items `.in()` then (4) content_history `.in()` are awaited
+    // via the chain `then`. Queue both result sets in order.
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: ITEM_CITED,
+              suggested_title: 'Cited item',
+              content: 'cited body',
+              content_type: 'case_study',
+              summary: 'sum',
+            },
+            {
+              id: ITEM_UNCITED,
+              suggested_title: 'Uncited item',
+              content: 'uncited body',
+              content_type: 'case_study',
+              summary: 'sum',
+            },
+          ],
+          error: null,
+          count: 2,
+        }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { content_item_id: ITEM_CITED, version: 1 },
+            { content_item_id: ITEM_CITED, version: 4 },
+            { content_item_id: ITEM_UNCITED, version: 2 },
+          ],
+          error: null,
+          count: 3,
+        }),
+      );
+
+    // Pipeline mocks
+    mockGetModelForTier.mockReturnValue('claude-sonnet-4-6');
+    mockAnalyseQuestion.mockResolvedValue({
+      analysis: { coverage: 'ok' },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+    mockDraftResponseStreaming.mockResolvedValue({
+      textStream: (async function* () {
+        yield 'Draft ';
+        yield 'text.';
+      })(),
+      finalise: vi.fn().mockResolvedValue({
+        responseText: 'Draft text.',
+        model: 'claude-sonnet-4-6',
+        // Two CitationEntry rows resolve to the SAME content item (index 0);
+        // first-span-wins keeps cardinality at one row for that item.
+        citations: [
+          {
+            cited_text: 'first span',
+            source_index: 0,
+            source_id: ITEM_CITED,
+            source_title: 'Cited item',
+            source_url: '',
+            start_block_index: 3,
+            end_block_index: 7,
+          },
+          {
+            cited_text: 'second span (dropped at row level)',
+            source_index: 0,
+            source_id: ITEM_CITED,
+            source_title: 'Cited item',
+            source_url: '',
+            start_block_index: 10,
+            end_block_index: 12,
+          },
+        ],
+        tokensUsed: 2,
+        inputTokens: 1,
+        outputTokens: 1,
+        cost: 0,
+      }),
+    });
+    mockCheckResponseQuality.mockResolvedValue({
+      qualityData: { overall_score: 80 },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+
+    // (5) form_responses upsert → returns the new response id
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: RESPONSE_ID },
+      error: null,
+    });
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft-stream`,
+      { method: 'POST', body: { question_id: VALID_UUID_2 } },
+    );
+
+    const res = await draftStreamPost(req, { params });
+    expect(res.status).toBe(200);
+    // Drain the SSE stream so the writer (which runs after pass3) executes.
+    await res.text();
+
+    // Assert the citations writer targeted the new table and deleted-by
+    // citing_form_response_id (re-draft idempotency).
+    expect(mockSupabase.from).toHaveBeenCalledWith('citations');
+    expect(mockSupabase._chain.delete).toHaveBeenCalled();
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+      'citing_form_response_id',
+      RESPONSE_ID,
+    );
+
+    // Inspect the inserted rows.
+    const insertCalls = mockSupabase._chain.insert.mock.calls;
+    expect(insertCalls.length).toBeGreaterThan(0);
+    const rows = insertCalls[insertCalls.length - 1][0] as Array<
+      Record<string, unknown>
+    >;
+    // One row per DISTINCT matched item (not per CitationEntry).
+    expect(rows).toHaveLength(2);
+
+    const cited = rows.find((r) => r.cited_content_item_id === ITEM_CITED);
+    const uncited = rows.find((r) => r.cited_content_item_id === ITEM_UNCITED);
+
+    // Cited row: span overlaid from the FIRST CitationEntry; version = MAX(4).
+    expect(cited).toMatchObject({
+      citing_kind: 'form_response',
+      citing_form_response_id: RESPONSE_ID,
+      cited_kind: 'content_item',
+      citation_type: 'reference',
+      cited_location_kind: 'block',
+      cited_text: 'first span',
+      cited_start: 3,
+      cited_end: 7,
+      cited_version: 4,
+    });
+
+    // Uncited-but-matched row: reference with NULL span, version = MAX(2).
+    expect(uncited).toMatchObject({
+      citation_type: 'reference',
+      cited_location_kind: null,
+      cited_text: null,
+      cited_start: null,
+      cited_end: null,
+      cited_version: 2,
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
