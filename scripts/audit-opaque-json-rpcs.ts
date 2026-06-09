@@ -351,13 +351,13 @@ const VERDICTS: Record<
     notes:
       'Zero TS callers. Converting to RETURNS TABLE is still recommended to prevent future callers inheriting the opaque-Json pattern. Trivial migration (~30 min). Can be combined with get_user_tag_counts in a single sprint.',
   },
-  hook_restrict_signup_to_example-client_domain: {
+  hook_restrict_signup_to_allowed_domain: {
     verdict: 'leave-as-is',
     arguments: 'event jsonb',
     return_shape_summary:
       "Supabase Auth Hook. Accepts event jsonb; returns '{}' on allowed domain or jsonb_build_object('error', ...) with http_code on reject. Return shape is conditional (success vs rejection).",
     notes:
-      'This is a Supabase Auth Hook, not an application RPC. The function is registered as a hook via pg-functions://postgres/public/hook_restrict_signup_to_example-client_domain (see docs/audits/kh-production-readiness-phase-1). The JSONB input/output contract is defined by the Supabase Auth Hook protocol — converting to RETURNS TABLE would break the hook registration. Zero TS callers by design. Must remain RETURNS JSONB.',
+      'This is a Supabase Auth Hook, not an application RPC. The generic, config-driven sign-up domain restriction hook (reads the app.allowed_signup_domain GUC; ID-68.21 cutover superseded the client-named hook captured in migration 20260424202806), registered via pg-functions://postgres/public/hook_restrict_signup_to_allowed_domain. The JSONB input/output contract is defined by the Supabase Auth Hook protocol — converting to RETURNS TABLE would break the hook registration. Zero TS callers by design. Must remain RETURNS JSONB.',
   },
   merge_entities: {
     verdict: 'convertible',
