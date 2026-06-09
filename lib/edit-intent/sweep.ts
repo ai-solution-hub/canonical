@@ -36,14 +36,12 @@
  * if match k fails, matches 0..k-1 already applied stay applied. The sweep-id
  * makes that partial state auditable and (whole-sweep or per-match) revertible.
  */
-import type {
-  PostgrestSingleResponse,
-  SupabaseClient,
-} from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { EditIntent } from '@/lib/edit-intent/arbitrate';
 import { writeBackFileFirst } from '@/lib/edit-intent/write-back';
 import { sb } from '@/lib/supabase/safe';
+import type { PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 
 /**
@@ -263,19 +261,6 @@ interface SweepHistoryRow {
 }
 
 /**
- * Awaitable whose resolved shape is a {@link PostgrestSingleResponse} — the
- * narrow argument type {@link sb} consumes. The PostgREST builder chain
- * (`.from(...).select(...).eq(...)`) resolves to this shape but its
- * compile-time type does not line up with the hand-narrowed
- * {@link SweepHistoryRow}[] (the generated row type widens `metadata` to a bare
- * `Json`), so the rollback fetch coerces through `unknown` to this alias rather
- * than `as never` — `never` would silently swallow ANY unrelated type error on
- * the chain, this narrows the suppression to exactly the metadata-shape
- * mismatch. (Mirrors the `{59.10}` write-back.ts remediation.)
- */
-type PostgrestLike<T> = PromiseLike<PostgrestSingleResponse<T>>;
-
-/**
  * Roll back a sweep — whole-sweep (all N matches) or a single match.
  *
  * Restoration reuses the PC-1 adapter so the file leg is restored FIRST (to the
@@ -302,8 +287,10 @@ export async function rollbackSweep(
       // metadata->>sweep_id is the canonical whole-sweep selector. The select
       // shape (content_item_id + the JSONB metadata) is hand-typed as
       // SweepHistoryRow[] because the generated row type widens metadata to a
-      // bare Json; the cast narrows it to the {sweep_id, prior_content} shape
-      // the sweep writer guarantees.
+      // bare Json; the coercion through PostgrestLike (the shared alias from
+      // @/lib/supabase/safe) narrows it to the {sweep_id, prior_content} shape
+      // the sweep writer guarantees, rather than `as never` which would swallow
+      // any unrelated type error on the chain.
       .eq('metadata->>sweep_id', sweepId) as unknown as PostgrestLike<
       SweepHistoryRow[]
     >,

@@ -40,7 +40,7 @@ export class SupabaseError extends Error {
  * single-branch signature below covers both array selects and single-row
  * queries — there are not two separate response shapes to union over.
  */
-type PostgrestLike<T> = PromiseLike<PostgrestSingleResponse<T>>;
+export type PostgrestLike<T> = PromiseLike<PostgrestSingleResponse<T>>;
 
 /**
  * Fail-fast query wrapper. Resolves to `data` on success (non-null after

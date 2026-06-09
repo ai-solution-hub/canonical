@@ -46,26 +46,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type {
-  PostgrestSingleResponse,
-  SupabaseClient,
-} from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { logger } from '@/lib/logger';
 import { tryQuery, isOk } from '@/lib/supabase/safe';
+import type { PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
-
-/**
- * Awaitable whose resolved shape is a {@link PostgrestSingleResponse} — the
- * narrow argument type {@link tryQuery} consumes. PostgREST's embedded-select
- * builder chain (`.select(...).eq(...).maybeSingle()`) resolves to this shape
- * but its compile-time type does not line up with the flattened
- * {@link StoragePathRow} (the embedded FK is nested, we flatten below), so the
- * call site coerces through `unknown` to this alias rather than `as never` —
- * `never` would silently swallow ANY unrelated type error on the chain, this
- * narrows the suppression to exactly the embedded-shape mismatch.
- */
-type PostgrestLike<T> = PromiseLike<PostgrestSingleResponse<T>>;
 
 /**
  * The DB leg of the save — the caller's {59.8} content_items +
@@ -154,7 +140,11 @@ export async function writeBackFileFirst(
     supabase
       .from('content_items')
       .select('source_document_id, source_documents(storage_path)')
-      // The embedded select returns a nested object; we flatten it below.
+      // The embedded select returns a nested object; we flatten it below. The
+      // coercion through PostgrestLike (the shared alias from
+      // @/lib/supabase/safe) narrows to the resolved-response shape tryQuery
+      // consumes, rather than `as never` which would swallow any unrelated type
+      // error on the chain.
       .eq('id', contentItemId)
       .maybeSingle() as unknown as PostgrestLike<StoragePathRow>,
     context ?? 'edit-intent.write-back.resolve-storage-path',
