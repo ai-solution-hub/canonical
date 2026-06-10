@@ -40,9 +40,18 @@ on:
       - "lib/validation/roadmap-schema.ts"
       - "lib/validation/backlog-schema.ts"
       - "lib/validation/work-status.ts"
+      # ID-90.22 R3: ledger-budgets.ts joins the schema-arm watched paths. It is
+      # the server budget gate's registry and its relocated upstream twin
+      # (packages/schemas/src/ledger-budgets.ts, U0) is canonical — no longer
+      # "KH-only / never-vendor" (PRODUCT inv 59-60). The schema-arm asset diff +
+      # the eventual KH-copy deletion ride {68.30}.
+      - "lib/validation/ledger-budgets.ts"
       # ID-35.10: vendored task-view patch primitives (lib/ledger/) — the
       # task-view→KH direction. Editing one triggers the primitive-drift step.
-      - "lib/ledger/atomic-write.ts"
+      # ID-90.22 R2/R3: atomic-write.ts was DELETED (server owns the atomic
+      # write); its watched path is removed. The three RETAINED oracle modules
+      # (detect-schema / patch-apply / record-mutate) stay watched — they remain
+      # vendored and upstream-drift-relevant until {68.30} re-homes them.
       - "lib/ledger/detect-schema.ts"
       - "lib/ledger/patch-apply.ts"
       - "lib/ledger/record-mutate.ts"
@@ -95,6 +104,11 @@ jobs:
             "roadmap-schema.ts"
             "backlog-schema.ts"
             "work-status.ts"
+            # ID-90.22 R3: the budget registry joins the schema-arm asset diff.
+            # Soft-skips if the upstream twin asset is not yet published on the
+            # tag (the per-file download already notices-and-continues on a
+            # missing asset, so this is safe to land ahead of the U0 publish).
+            "ledger-budgets.ts"
           )
 
           VENDOR_DIR="$(mktemp -d)"
@@ -215,8 +229,10 @@ jobs:
         run: |
           set -uo pipefail
 
+          # ID-90.22 R2/R3: atomic-write.ts was DELETED — dropped from the
+          # primitive-diff list (the workflow must never watch a non-existent
+          # path, PRODUCT inv 59-60). The three RETAINED oracle primitives stay.
           PRIMITIVES=(
-            "atomic-write.ts"
             "detect-schema.ts"
             "patch-apply.ts"
             "record-mutate.ts"
