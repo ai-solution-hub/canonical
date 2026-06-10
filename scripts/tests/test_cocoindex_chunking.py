@@ -49,6 +49,13 @@ import pytest
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
+# ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
+# ingest_file tests make no live Anthropic call (mirrors the
+# extract_entity_mentions stubs alongside).
+async def _fake_relationships_empty(content_text: str) -> list:
+    return []
+
+
 
 # ── Variant-B chunk config (Liam-ratified {56.5}) ─────────────────────────────
 CHUNK_SIZE = 2000
@@ -212,6 +219,7 @@ def _stub_path_a(flow: object, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "extract_classification", _fake_classification)
     monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 
@@ -354,14 +362,19 @@ class TestChunkingStageWritePath:
 
     def test_ingest_file_accepts_defaulted_cc_target(self) -> None:
         """ingest_file takes a defaulted 8th positional `cc_target=None` so the
-        7-arg callers (write-path / embedding suites) keep working untouched."""
+        7-arg callers (write-path / embedding suites) keep working untouched.
+
+        ID-101 §{101.7} (RULING 1) appended a 9th defaulted positional
+        `er_target=None` AFTER cc_target, so cc_target is now the SECOND-to-last
+        positional (er_target is last); both default to None so the 7-arg callers
+        stay valid."""
         import inspect
 
         flow = _flow_module()
         sig = inspect.signature(flow.ingest_file)
         # ID-66.19 appended keyword-only run-context params after a bare `*`; the
-        # cc_target positional contract is the LAST positional, so inspect the
-        # positional slice rather than every parameter.
+        # cc_target/er_target positional contract is the LAST positional pair, so
+        # inspect the positional slice rather than every parameter.
         params = [
             name
             for name, p in sig.parameters.items()
@@ -371,9 +384,12 @@ class TestChunkingStageWritePath:
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             )
         ]
-        assert params[-1] == "cc_target", (
-            f"the 8th positional must be cc_target; got {params}"
+        assert params[-2:] == ["cc_target", "er_target"], (
+            f"the 8th/9th positionals must be cc_target, er_target; got {params}"
         )
         assert sig.parameters["cc_target"].default is None, (
             "cc_target must default to None so 7-arg callers stay valid"
+        )
+        assert sig.parameters["er_target"].default is None, (
+            "er_target must default to None so 7-/8-arg callers stay valid"
         )

@@ -58,6 +58,13 @@ if _REPO_ROOT not in sys.path:
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
+# ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
+# ingest_file tests make no live Anthropic call (mirrors the
+# extract_entity_mentions stubs alongside).
+async def _fake_relationships_empty(content_text: str) -> list:
+    return []
+
+
 
 # ── cocoindex stub install (mirrors test_cocoindex_flow_write_path.py) ────────
 
@@ -223,6 +230,7 @@ def _patch_extractors(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "extract_classification", _fake_classification)
     monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
 
 
 def _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id) -> None:

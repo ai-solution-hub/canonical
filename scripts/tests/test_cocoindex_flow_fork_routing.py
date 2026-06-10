@@ -49,6 +49,13 @@ import pytest
 
 from conftest import fresh_flow_module  # noqa: E402
 
+# ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
+# ingest_file tests make no live Anthropic call (mirrors the
+# extract_entity_mentions stubs alongside).
+async def _fake_relationships_empty(content_text: str) -> list:
+    return []
+
+
 # Real committed corpus fixture (symlinked into the fixture dir) — a genuine
 # blank-instrument DOCX the real docx reader extracts fields from. The same
 # fixture test_form_extractors.py's real-body suite walks.
@@ -160,6 +167,7 @@ def _observe_path_a_seams(flow: object, monkeypatch: pytest.MonkeyPatch) -> dict
     monkeypatch.setattr(flow, "extract_classification", _fake_classification)
     monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
     return calls
 

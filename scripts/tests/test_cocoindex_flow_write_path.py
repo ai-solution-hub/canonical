@@ -144,6 +144,16 @@ class _FakeFile:
         return hashlib.sha256(self._path.read_bytes()).digest()
 
 
+# ID-101 §{101.7}: a default empty-relationships stub. The content branch now
+# awaits `extract_relationships` alongside the other Path-A extractors; every
+# write-path test that stubs `extract_entity_mentions` to avoid a live Anthropic
+# call must likewise stub `extract_relationships`. The relationship-specific
+# write-path proof (`TestIngestFileRelationshipWritePath`) overrides this with a
+# non-empty triple list — these other suites only need the seam neutralised.
+async def _fake_relationships_empty(content_text: str) -> list:
+    return []
+
+
 # ── 28.21 — declare_row write-path shape ──────────────────────────────────────
 
 
@@ -211,6 +221,7 @@ class TestIngestFileWritePath:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         # Stage one real file so file.read_text() works.
@@ -412,6 +423,7 @@ class TestIngestFileStageCounters:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         src = tmp_path / "doc-one.md"
@@ -437,8 +449,9 @@ class TestIngestFileStageCounters:
         # source_walk / binary_conversion: one per item.
         assert counter.get("source_walk") == 1
         assert counter.get("binary_conversion") == 1
-        # llm_extraction: the classification + qa_form + entity_mentions trio.
-        assert counter.get("llm_extraction") == 3
+        # llm_extraction: classification + qa_form + entity_mentions +
+        # relationships (ID-101 §{101.7} added the fourth Path-A pass).
+        assert counter.get("llm_extraction") == 4
         # embedding: unchanged contract (one vector per content row).
         assert counter.get("embedding") == 1
         # postgres_upsert: one per declare_row — sd + ci + one qa_pair row
@@ -474,6 +487,7 @@ class TestIngestFileStageCounters:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         src = tmp_path / "doc.md"
@@ -577,6 +591,7 @@ class TestMountEachArityContract:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         # Stage two real files (so file.read_text() works in the adapter path).
@@ -591,6 +606,7 @@ class TestMountEachArityContract:
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
+        er = _FakeTarget("entity_relationships")
 
         run_op_id = uuid.uuid4()
 
@@ -602,7 +618,14 @@ class TestMountEachArityContract:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await _faithful_mount_each(flow.ingest_file, feed, ci, qa, sd, em, None, None)
+                # ID-101 §{101.7} (RULING 1): er_target is the LAST extra arg in
+                # the mount_each content call — thread it through the faithful
+                # harness so the full positional arity (ci/qa/sd/em/ft/ftf/cc/er)
+                # is exercised end-to-end through the real fn(value, *extra_args)
+                # contract.
+                await _faithful_mount_each(
+                    flow.ingest_file, feed, ci, qa, sd, em, None, None, None, er
+                )
 
         asyncio.run(_exercise())
 
@@ -635,10 +658,10 @@ class TestMountEachArityContract:
         assert len({r["id"] for r in ci.rows}) == 2
 
     def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
-        """``ingest_file`` accepts (file, ci, qa, sd, em, ft, ftf, cc=None).
+        """``ingest_file`` accepts (file, ci, qa, sd, em, ft, ftf, cc=None, er=None).
 
         Inspecting the signature directly pins the arity contract: the leading
-        parameter is the File item value, followed by the seven target extra
+        parameter is the File item value, followed by the eight target extra
         args — and there is NO leading ``rel_path`` parameter (the original
         blocker).
 
@@ -651,6 +674,12 @@ class TestMountEachArityContract:
         chunk-row UPSERT target) is appended as a DEFAULTED 8th positional
         (``cc_target=None``) so the existing 7-arg callers stay valid while
         ``app_main`` always supplies it via ``mount_each``.
+
+        ID-101 §{101.7} (RULING 1) extended it to nine: ``er_target`` (the
+        ``entity_relationships`` UPSERT target) is appended as a DEFAULTED 9th
+        positional (``er_target=None``) AFTER ``cc_target`` (before the
+        keyword-only ``*``) so the existing 7-/8-arg callers stay valid while
+        ``app_main`` always supplies it as the LAST extra arg in ``mount_each``.
 
         ID-66.19 appended KEYWORD-ONLY run-context params (``flow_op_id`` + the
         four counters + ``flow_workspace_manifest``) after a bare ``*`` so
@@ -677,18 +706,28 @@ class TestMountEachArityContract:
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First positional is the File item value; remaining seven are the targets.
-        assert len(positional) == 8, (
+        # First positional is the File item value; remaining eight are the targets.
+        assert len(positional) == 9, (
             f"ingest_file positional params must be exactly "
-            f"(file, ci, qa, sd, em, ft, ftf, cc); got {positional}"
+            f"(file, ci, qa, sd, em, ft, ftf, cc, er); got {positional}"
         )
-        assert positional[-3:] == ["ft_target", "ftf_target", "cc_target"], (
-            "the last three positional extra args must be ft_target, ftf_target, "
-            f"cc_target (positional order); got {positional}"
+        assert positional[-4:] == [
+            "ft_target",
+            "ftf_target",
+            "cc_target",
+            "er_target",
+        ], (
+            "the last four positional extra args must be ft_target, ftf_target, "
+            f"cc_target, er_target (positional order); got {positional}"
         )
         # cc_target is DEFAULTED to None so 7-arg legacy callers stay valid.
         assert sig.parameters["cc_target"].default is None, (
             "cc_target must default to None (the 7-arg callers omit it)"
+        )
+        # er_target is DEFAULTED to None so 7-/8-arg legacy callers stay valid
+        # (ID-101 §{101.7} RULING 1 — defaulted trailing positional).
+        assert sig.parameters["er_target"].default is None, (
+            "er_target must default to None (the 7-/8-arg callers omit it)"
         )
 
 
@@ -736,6 +775,7 @@ class TestStablePrimaryKeysAcrossRuns:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         ci = _FakeTarget("content_items")
@@ -783,6 +823,239 @@ class TestStablePrimaryKeysAcrossRuns:
         assert rows_a["sd"][0]["op_id"] == run_a
         assert rows_b["sd"][0]["op_id"] == run_b
         assert rows_a["sd"][0]["op_id"] != rows_b["sd"][0]["op_id"]
+
+
+# ── ID-101 §{101.7} — entity_relationships declare-row write path ─────────────
+
+
+class TestIngestFileRelationshipWritePath:
+    """``ingest_file`` declares entity_relationships rows from extracted triples.
+
+    Proves the {101.7} write site (PC-3 lane): the content branch awaits
+    ``extract_relationships``, canonicalises both endpoints via
+    ``canonicalise_for_relationship``, and declares ONE
+    ``entity_relationships`` row per distinct canonical triple onto
+    ``er_target`` — with the EXACT legacy TS column set (RULING 2): ``id``,
+    ``source_entity``, ``relationship_type``, ``target_entity``,
+    ``source_item_id``, ``confidence`` — and NO ``op_id`` / ``created_at``
+    (migration-verified absent / PG server default). ``confidence`` is a flat
+    ``1.0`` (Inv-16 parity with the TS writer).
+    """
+
+    @staticmethod
+    def _rel(flow: object, source: str, relationship: str, target: str):
+        # Build a real RelationshipExtraction core (the production write site
+        # reads .source / .relationship / .target attributes — NOTE the field is
+        # `relationship`, NOT `relationship_type`). Using the real Pydantic model
+        # keeps the test faithful to the {101.6} extractor output shape.
+        from scripts.cocoindex_pipeline.extraction import RelationshipExtraction
+
+        return RelationshipExtraction(
+            source=source, relationship=relationship, target=target
+        )
+
+    @classmethod
+    def _ingest_once(
+        cls,
+        flow: object,
+        triples: list,
+        tmp_path: Path,
+        run_op_id: "uuid.UUID",
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        filename: str = "rel-doc.md",
+    ):
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
+
+        markdown = "# Rel\n\nBody for relationship extraction."
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _fake_entities(content_text: str):
+            return []
+
+        async def _fake_relationships(content_text: str):
+            return triples
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+        src = tmp_path / filename
+        src.write_text(markdown)
+        fake_file = _FakeFile(src)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+        er = _FakeTarget("entity_relationships")
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=run_op_id):
+                # er_target is the LAST positional extra arg (RULING 1).
+                await flow.ingest_file(  # type: ignore[attr-defined]
+                    fake_file, ci, qa, sd, em, None, None, None, er
+                )
+
+        asyncio.run(_exercise())
+        return er, ci
+
+    def test_relationship_rows_match_legacy_column_set(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        from scripts.cocoindex_pipeline.canonicalisation import (
+            canonicalise_for_relationship,
+        )
+
+        run_op_id = uuid.uuid4()
+        triples = [
+            self._rel(flow, "ACME Ltd", "holds", "ISO 9001"),
+            self._rel(flow, "ACME Ltd", "complies_with", "GDPR"),
+        ]
+        er, ci = self._ingest_once(
+            flow, triples, tmp_path, run_op_id, monkeypatch
+        )
+
+        assert len(er.rows) == 2, "one entity_relationships row per distinct triple"
+        content_item_id = ci.rows[0]["id"]
+
+        # Endpoints are canonicalised (lowercase resolve-alias chain), payload is
+        # EXACTLY the legacy TS column set — NO op_id, NO created_at (RULING 2).
+        expected_keys = {
+            "id",
+            "source_entity",
+            "relationship_type",
+            "target_entity",
+            "source_item_id",
+            "confidence",
+        }
+        for row in er.rows:
+            assert set(row.keys()) == expected_keys, (
+                "entity_relationships row must carry EXACTLY the legacy TS "
+                f"columns (no op_id / created_at — RULING 2); got {set(row.keys())}"
+            )
+            assert "op_id" not in row, "op_id is absent from entity_relationships (RULING 2)"
+            assert "created_at" not in row, "created_at is a PG server default — omitted"
+            assert row["source_item_id"] == content_item_id, (
+                "source_item_id must FK the content_items row this doc produced"
+            )
+            assert row["confidence"] == 1.0, "confidence is a flat 1.0 (Inv-16 TS parity)"
+
+        first = er.rows[0]
+        assert first["source_entity"] == canonicalise_for_relationship("ACME Ltd")
+        assert first["relationship_type"] == "holds"
+        assert first["target_entity"] == canonicalise_for_relationship("ISO 9001")
+
+    def test_relationship_pk_is_deterministic_on_canonical_triple(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        from scripts.cocoindex_pipeline.canonicalisation import (
+            canonicalise_for_relationship,
+        )
+
+        run_op_id = uuid.uuid4()
+        triples = [self._rel(flow, "ACME Ltd", "holds", "ISO 9001")]
+        er, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
+
+        rel_path = (tmp_path / "rel-doc.md").as_posix()
+        # Endpoints are canonicalised via the SAME chain the write site uses —
+        # do not hardcode the canonical form (the resolve-alias chain is more
+        # than a lowercase).
+        source_c = canonicalise_for_relationship("ACME Ltd")
+        target_c = canonicalise_for_relationship("ISO 9001")
+        expected = uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS,  # type: ignore[attr-defined]
+            f"er:{rel_path}:{source_c}:holds:{target_c}",
+        )
+        assert er.rows[0]["id"] == expected, (
+            "entity_relationships PK must be a deterministic uuid5 on the "
+            "canonical (rel_path, source, predicate, target) natural key"
+        )
+
+    def test_empty_extractor_declares_zero_relationship_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+
+        run_op_id = uuid.uuid4()
+        er, _ = self._ingest_once(flow, [], tmp_path, run_op_id, monkeypatch)
+        assert er.rows == [], "no triples extracted → zero entity_relationships rows"
+
+    def test_duplicate_triples_dedup_per_doc(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+
+        run_op_id = uuid.uuid4()
+        # The LLM may emit the same canonical triple twice (e.g. raw-name
+        # variants that canonicalise to the same endpoints) — the per-doc dedup
+        # collapses them to ONE row keyed on the canonical natural key.
+        triples = [
+            self._rel(flow, "ACME Ltd", "holds", "ISO 9001"),
+            self._rel(flow, "acme ltd", "holds", "iso 9001"),
+        ]
+        er, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
+        assert len(er.rows) == 1, "duplicate canonical triples collapse to one row"
+
+    def test_same_doc_two_runs_yields_identical_relationship_pks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+
+        # Two DISTINCT runs over the SAME document + triples (Inv-4 idempotency):
+        # identical PKs so declare_row UPSERTs the same rows, no duplicate inserts.
+        run_a = uuid.uuid4()
+        run_b = uuid.uuid4()
+        assert run_a != run_b
+        triples_a = [self._rel(flow, "ACME Ltd", "holds", "ISO 9001")]
+        triples_b = [self._rel(flow, "ACME Ltd", "holds", "ISO 9001")]
+        er_a, _ = self._ingest_once(flow, triples_a, tmp_path, run_a, monkeypatch)
+        er_b, _ = self._ingest_once(flow, triples_b, tmp_path, run_b, monkeypatch)
+
+        assert len(er_a.rows) == 1 and len(er_b.rows) == 1
+        assert er_a.rows[0]["id"] == er_b.rows[0]["id"], (
+            "entity_relationships PK must be stable across runs (Inv-4 idempotency)"
+        )
+
+    def test_out_of_set_predicate_is_skipped_not_crashed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+
+        # Inv-4 (never crash): a triple whose predicate falls outside the 10-set
+        # is skipped + logged, the valid triple still lands. The {101.6} Literal
+        # normally forbids this at extraction, but the write site guards
+        # defensively — bypass Pydantic via a plain-attr stand-in to exercise it.
+        class _RawTriple:
+            def __init__(self, source: str, relationship: str, target: str) -> None:
+                self.source = source
+                self.relationship = relationship
+                self.target = target
+
+        triples = [
+            _RawTriple("ACME Ltd", "not_a_real_predicate", "ISO 9001"),
+            _RawTriple("ACME Ltd", "holds", "ISO 9001"),
+        ]
+        run_op_id = uuid.uuid4()
+        er, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
+        assert len(er.rows) == 1, "out-of-set predicate skipped; valid triple kept"
+        assert er.rows[0]["relationship_type"] == "holds"
 
 
 # ── ID-80.10 — Inv-19: Path-A q_a declare payload untouched by form routing ───
@@ -922,6 +1195,7 @@ class TestInv19QaDeclareSnapshot:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         src = tmp_path / "inv19-doc.md"
@@ -1041,6 +1315,7 @@ class TestContentFingerprintAwaited:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         src = tmp_path / "doc-fp.md"
@@ -1112,6 +1387,7 @@ class TestSourceDocumentProvenanceWritePath:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
     @staticmethod
@@ -1398,6 +1674,7 @@ def _stub_path_a(flow: object, monkeypatch: "pytest.MonkeyPatch") -> None:
     monkeypatch.setattr(flow, "extract_classification", _fake_classification)
     monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 
@@ -2354,6 +2631,7 @@ def _stub_canonical_extractors(
     monkeypatch.setattr(flow, "extract_classification", _fake_classification)
     monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 
@@ -2646,6 +2924,7 @@ class TestStampExtractionBaseWiredIntoIngest:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
     @staticmethod
@@ -2780,6 +3059,7 @@ class TestStampExtractionBaseWiredIntoIngest:
         monkeypatch.setattr(flow, "extract_classification", _fake_classification)
         monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
         calls = self._spy_stamp(flow, monkeypatch)
@@ -2888,6 +3168,7 @@ class TestWorkspacePathFixes:
         monkeypatch.setattr(flow, "extract_classification", _cls)
         monkeypatch.setattr(flow, "extract_qa_form", _qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _ent)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _emb)
         monkeypatch.setattr(flow, "extract_form_structure", _form_none)
 
@@ -3079,6 +3360,7 @@ class TestWorkspacePathFixes:
         monkeypatch.setattr(flow, "extract_classification", _cls)
         monkeypatch.setattr(flow, "extract_qa_form", _qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _ent)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _emb)
 
         src = tmp_path / "doc.md"

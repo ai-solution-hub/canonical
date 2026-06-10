@@ -76,6 +76,13 @@ def _stub_module(name: str) -> MagicMock:
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
+# ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
+# ingest_file tests make no live Anthropic call (mirrors the
+# extract_entity_mentions stubs alongside).
+async def _fake_relationships_empty(content_text: str) -> list:
+    return []
+
+
 _coco_stub = _make_coco_stub()
 # Guarantee a working `@coco.fn` so flow.py's `extraction` import keeps
 # `extract_classification` awaitable regardless of import order (ID-44.5).
@@ -1570,6 +1577,7 @@ class TestPerItemFailureIsolation:
         monkeypatch.setattr(flow, "extract_classification", _classification)
         monkeypatch.setattr(flow, "extract_qa_form", _qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _embed)
 
         # ── Recording targets (no real Postgres). ──
@@ -1582,6 +1590,7 @@ class TestPerItemFailureIsolation:
                 "q_a_extractions",
                 "source_documents",
                 "entity_mentions",
+                "entity_relationships",
                 "form_templates",
                 "form_template_fields",
                 "content_chunks",
@@ -1889,6 +1898,7 @@ class TestUrlPerItemFailureIsolation:
                 "q_a_extractions",
                 "source_documents",
                 "entity_mentions",
+                "entity_relationships",
                 "form_templates",
                 "form_template_fields",
                 "content_chunks",

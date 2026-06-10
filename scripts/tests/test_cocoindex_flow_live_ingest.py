@@ -65,6 +65,13 @@ from cocoindex import ComponentSubpath, component_subpath
 # per-file insert only re-enabled the bare `cocoindex_pipeline` alias.
 from conftest import fresh_flow_module  # noqa: E402
 
+# ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
+# ingest_file tests make no live Anthropic call (mirrors the
+# extract_entity_mentions stubs alongside).
+async def _fake_relationships_empty(content_text: str) -> list:
+    return []
+
+
 
 def _flow_module():
     """Load a fresh stubbed ``cocoindex_pipeline.flow`` (ID-55.1 primitive).
@@ -290,6 +297,7 @@ def _run_app_main_over_dir(
     )
     monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
     # ── Spy the ID-80.8 fork's workspace resolution: this .md resolves to a
@@ -440,6 +448,7 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "q_a_extractions": _FakeTarget("q_a_extractions"),
             "source_documents": _FakeTarget("source_documents"),
             "entity_mentions": _FakeTarget("entity_mentions"),
+            "entity_relationships": _FakeTarget("entity_relationships"),
             "form_templates": _FakeTarget("form_templates"),
             "form_template_fields": _FakeTarget("form_template_fields"),
             "content_chunks": _FakeTarget("content_chunks"),
@@ -536,6 +545,7 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "q_a_extractions": _FakeTarget("q_a_extractions"),
             "source_documents": _FakeTarget("source_documents"),
             "entity_mentions": _FakeTarget("entity_mentions"),
+            "entity_relationships": _FakeTarget("entity_relationships"),
             "form_templates": _FakeTarget("form_templates"),
             "form_template_fields": _FakeTarget("form_template_fields"),
             "content_chunks": _FakeTarget("content_chunks"),

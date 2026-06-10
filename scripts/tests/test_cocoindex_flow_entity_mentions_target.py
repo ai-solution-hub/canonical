@@ -178,10 +178,12 @@ class TestIngestFileAcceptsEmTarget:
         # (the form_templates / form_template_fields Path-B write targets) follow
         # em_target positionally. ID-56.8 extended it to eight: cc_target (the
         # content_chunks chunk-row UPSERT target) is appended as a DEFAULTED 8th
-        # positional so the prior 7-arg callers stay valid.
-        assert len(params) == 8, (
+        # positional. ID-101 §{101.7} extended it to nine: er_target (the
+        # entity_relationships UPSERT target) is appended as a DEFAULTED 9th
+        # positional so the prior 7-/8-arg callers stay valid (RULING 1).
+        assert len(params) == 9, (
             "ingest_file positional params must be exactly "
-            "(file, ci, qa, sd, em, ft, ftf, cc); "
+            "(file, ci, qa, sd, em, ft, ftf, cc, er); "
             f"got {params}"
         )
 
@@ -208,9 +210,9 @@ class TestIngestFileAcceptsEmTarget:
             f"the fourth extra arg of ingest_file must be named 'em_target'; "
             f"got params={params}"
         )
-        assert params[5:] == ["ft_target", "ftf_target", "cc_target"], (
-            f"the fifth..seventh extra args must be ft_target, ftf_target, "
-            f"cc_target (positional order); got params={params}"
+        assert params[5:] == ["ft_target", "ftf_target", "cc_target", "er_target"], (
+            f"the fifth..eighth extra args must be ft_target, ftf_target, "
+            f"cc_target, er_target (positional order); got params={params}"
         )
 
 

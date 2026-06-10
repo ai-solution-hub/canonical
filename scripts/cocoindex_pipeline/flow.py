@@ -94,7 +94,10 @@ from scripts.cocoindex_pipeline.adapters import (
 # `LiteLLMEmbedder` import below. Stage 5 (entity_resolution) is still OUT OF
 # SCOPE here (lands in ID-49.5, needs faiss-cpu); its placeholder block is
 # preserved at the Stage-5 marker below.
-from scripts.cocoindex_pipeline.canonicalisation import canonicalise_entity_name
+from scripts.cocoindex_pipeline.canonicalisation import (
+    canonicalise_entity_name,
+    canonicalise_for_relationship,
+)
 from scripts.cocoindex_pipeline.entity_context import extract_entity_context
 from scripts.cocoindex_pipeline.extraction import (
     TruncatedExtractionError,
@@ -102,6 +105,7 @@ from scripts.cocoindex_pipeline.extraction import (
     extract_classification,
     extract_entity_mentions,
     extract_qa_form,
+    extract_relationships,
     stamp_extraction_base,
 )
 
@@ -1279,6 +1283,50 @@ ENTITY_MENTIONS_SCHEMA = TableSchema(
     primary_key=("id",),
 )
 
+# ID-101 §{101.7} (PC-3 lane). Stage-5 relationship-extraction writes
+# entity_relationships rows via `er_target` declared per-doc inside `ingest_file`
+# (mounted at app_main below). Mirrors the legacy TS relationship writer
+# (`lib/ai/classify.ts:1785-1819`, Inv-16 parity): the table is
+# `id, source_entity, relationship_type, target_entity, source_item_id,
+# confidence, created_at` only (migration-verified —
+# `20260416102457_pre_squash_reconciliation.sql:3660-3670`; no `op_id` migration
+# touches this table). `op_id` is therefore OMITTED (RULING 2). `created_at` is a
+# PG server-default column and is OMITTED per the same OMIT mechanism the schemas
+# above use for PG-defaulted / GENERATED columns — declaring it would duplicate
+# the DB default. `confidence` is a flat 1.0 at the write site (the raw extractor
+# triples carry no per-triple confidence — Inv-16 parity with the TS writer).
+ENTITY_RELATIONSHIPS_SCHEMA = TableSchema(
+    columns={
+        "id": ColumnDef(type="uuid", nullable=False),
+        "source_entity": ColumnDef(type="text", nullable=False),
+        "relationship_type": ColumnDef(type="text", nullable=False),
+        "target_entity": ColumnDef(type="text", nullable=False),
+        "source_item_id": ColumnDef(type="uuid", nullable=False),
+        "confidence": ColumnDef(type="numeric", nullable=True),
+    },
+    primary_key=("id",),
+)
+
+# The EXACTLY-10 relationship predicates of the TS `ExtractedRelationship` union
+# (`lib/ai/classify.ts:653-666`) — the Inv-4 parity contract, also the runtime
+# `Literal` constraint on `RelationshipExtraction.relationship`
+# (extraction.py:415-426). The {101.7} declare loop defensively skips+logs any
+# triple whose predicate falls outside this set (Inv-4 — never crash the doc).
+_RELATIONSHIP_PREDICATES: frozenset[str] = frozenset(
+    {
+        "holds",
+        "complies_with",
+        "delivers_to",
+        "uses",
+        "demonstrated_by",
+        "requires",
+        "part_of",
+        "supersedes",
+        "references",
+        "evidences",
+    }
+)
+
 
 # ── ID-56 chunking stage (PRODUCT C-10..C-13, C-21, C-30, C-31) ──────────────
 # Variant-B chunk config, Liam-ratified {56.5} (RecursiveSplitter byte budgets).
@@ -1587,6 +1635,7 @@ async def ingest_file(
     ft_target: Any,
     ftf_target: Any,
     cc_target: Any = None,
+    er_target: Any = None,
     *,
     flow_op_id: "uuid.UUID | None" = None,
     flow_stage_counter: Any = None,
@@ -1620,6 +1669,15 @@ async def ingest_file(
     When supplied, the chunking block runs AFTER the parent `content_items`
     declare (FK safety + memo cascade) and declares one `content_chunks` row per
     RecursiveSplitter chunk (PRODUCT C-10..C-13).
+
+    `er_target` (ID-101 §{101.7}) is the `entity_relationships` row-level UPSERT
+    target. It is a DEFAULTED 9th positional (defaults to None) appended AFTER
+    `cc_target` (RULING 1 — defaulted trailing positional, before the keyword-only
+    `*`) so the existing 7-/8-arg callers stay valid: when None, the relationship
+    declare loop is skipped entirely. When supplied, the loop runs in the content
+    branch AFTER the entity_mentions declares and declares one entity_relationships
+    row per distinct canonicalised triple (Inv-4 / Inv-16 parity with the legacy TS
+    writer at lib/ai/classify.ts:1785-1819).
 
     This is the reactive 1.0.3 write path proven in RESEARCH.md §R2/§R3 — the
     per-MIME conversion (Stage 2, P-3) and Path A extraction (Stage 3) run as
@@ -1747,6 +1805,7 @@ async def ingest_file(
             ft_target,
             ftf_target,
             cc_target,
+            er_target,
             op_id=op_id,
             stage_counter=stage_counter,
             flow_workspace_manifest=flow_workspace_manifest,
@@ -1764,6 +1823,7 @@ async def _ingest_file_body(
     ft_target: Any,
     ftf_target: Any,
     cc_target: Any,
+    er_target: Any = None,
     *,
     op_id: "uuid.UUID",
     stage_counter: Any,
@@ -1787,7 +1847,7 @@ async def _ingest_file_body(
     then runs EXACTLY ONE branch:
 
       - `route == "forms"` → `_ingest_form_branch` (ft/ftf targets ONLY);
-      - otherwise          → `_ingest_content_branch` (ci/qa/sd/em/cc ONLY).
+      - otherwise          → `_ingest_content_branch` (ci/qa/sd/em/cc/er ONLY).
 
     Mutual exclusion is structural — one file, one branch, one write-target
     set. Route defaults to "content" when no manifest is active (Path-A-only
@@ -1893,6 +1953,7 @@ async def _ingest_file_body(
         sd_target,
         em_target,
         cc_target,
+        er_target,
         op_id=op_id,
         _bump=_bump,
     )
@@ -1906,16 +1967,21 @@ async def _ingest_content_branch(
     sd_target: Any,
     em_target: Any,
     cc_target: Any,
+    er_target: Any = None,
     *,
     op_id: "uuid.UUID",
     _bump: Any,
 ) -> None:
     """Path-A content branch — Stage 2→6 (ID-80.7 extraction, 80.2 §B.3).
 
-    Extracted verbatim from `_ingest_file_body`. Touches ONLY the ci/qa/sd/em/cc
-    targets — it NEVER touches `ft_target` / `ftf_target`. `_bump` is the
-    dispatcher's stage-counter closure, threaded through unchanged so the
-    Inv-17 stage-count semantics do not shift.
+    Extracted verbatim from `_ingest_file_body`. Touches ONLY the
+    ci/qa/sd/em/cc/er targets — it NEVER touches `ft_target` / `ftf_target`.
+    `_bump` is the dispatcher's stage-counter closure, threaded through unchanged
+    so the Inv-17 stage-count semantics do not shift.
+
+    `er_target` (ID-101 §{101.7}) is the `entity_relationships` UPSERT target. A
+    DEFAULTED trailing positional (None for the legacy callers that omit it); when
+    supplied, the relationship declare loop runs AFTER the entity_mentions loop.
     """
     # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
     content_text = await convert_binary_to_markdown(file)
@@ -1937,10 +2003,16 @@ async def _ingest_content_branch(
     # mentions are declared into `em_target` in the Stage-6 declare-rows block
     # below (AFTER content_item_id / rel_path are computed) — ID-53.11 §P-3.
     entity_mentions = await extract_entity_mentions(content_text)
-    # Inv-17: three Path-A LLM extraction passes ran for this content row
-    # (classification + qa_form + entity_mentions) — mirrors the per-pass
-    # semantic of `_record_extraction_success` (ID-28.16): +3 per row.
-    _bump("llm_extraction", times=3)
+    # ID-101 §{101.7}: relationship extraction runs here for memo coverage. The
+    # raw triples are consumed directly by the Stage-6 declare loop below (NO
+    # ExtractionOutput-union membership, NO stamped variant — {101.6} returns
+    # stamp-free `RelationshipExtraction` cores, canonicalisation + persistence
+    # happen at THIS write site, mirroring extract_entity_mentions usage).
+    relationships = await extract_relationships(content_text)
+    # Inv-17: four Path-A LLM extraction passes ran for this content row
+    # (classification + qa_form + entity_mentions + relationships) — mirrors the
+    # per-pass semantic of `_record_extraction_success` (ID-28.16): +1 per pass.
+    _bump("llm_extraction", times=4)
 
     # ── Stage 6: declare rows (managed_by=USER row-level upserts) ───────────
     # Deterministic per-DOCUMENT UUIDs seeded on the FIXED namespace + rel_path
@@ -2198,6 +2270,82 @@ async def _ingest_content_branch(
             }
         )
         _bump("postgres_upsert")  # Inv-17: one entity_mentions row upsert
+
+    # ── Stage 5 substrate: entity_relationships rows (ID-101 §{101.7}) ────────
+    # Each distinct canonicalised (source, predicate, target) triple the LLM
+    # returned becomes ONE entity_relationships row for this document. The raw
+    # `RelationshipExtraction` cores (source / relationship / target str fields —
+    # NOTE the Pydantic field is `relationship`, NOT `relationship_type`) are
+    # consumed directly; both endpoints are canonicalised via
+    # `canonicalise_for_relationship` so pipeline-produced endpoints match the
+    # legacy TS writer byte-for-byte (lib/ai/classify.ts:1788, Inv-16 parity).
+    #
+    # Inv-4 (never crash): the {101.6} extractor's `Literal` already constrains
+    # the predicate to the 10-set, but the write site defensively skips+logs any
+    # out-of-set predicate rather than declaring an invalid relationship_type.
+    #
+    # Per-doc DEDUP on the canonical (source_c, relationship_type, target_c)
+    # natural key keeps re-ingest idempotent AND collapses LLM-emitted duplicates;
+    # the deterministic uuid5 PK is seeded on that same natural key (NOT op_id —
+    # Inv-4 idempotency: the same triple re-ingests to the same row).
+    #
+    # `confidence` is a flat 1.0 — the raw extractor triples carry no per-triple
+    # confidence (Inv-16 parity with the legacy TS writer, which inserts a flat
+    # confidence). `op_id` / `created_at` are NOT declared (RULING 2 — the table
+    # has no op_id column per the migration, and created_at is a PG server
+    # default).
+    #
+    # Best-effort parity with the em handling (Inv-7 / Inv-15): a relationship
+    # write fault is logged and never aborts the doc's other declares or the
+    # batch — the per-item containment at the mount_each boundary (bound_ingest_file)
+    # is the outer guard; this inner try/except keeps a single bad triple from
+    # short-circuiting the remaining relationship declares for this doc.
+    if er_target is not None and relationships:
+        try:
+            _er_dedup: dict[tuple[str, str, str], dict[str, Any]] = {}
+            for rel in relationships:
+                predicate = rel.relationship
+                if predicate not in _RELATIONSHIP_PREDICATES:
+                    # Inv-4: out-of-10-set predicate — skip + log, never crash.
+                    _logger.warning(
+                        json.dumps(
+                            {
+                                "event": "cocoindex.ingest.relationship_predicate_skipped",
+                                "rel_path": rel_path,
+                                "predicate": predicate,
+                            }
+                        )
+                    )
+                    continue
+                source_c = canonicalise_for_relationship(rel.source)
+                target_c = canonicalise_for_relationship(rel.target)
+                key = (source_c, predicate, target_c)
+                if key in _er_dedup:
+                    continue
+                _er_dedup[key] = {
+                    "id": uuid.uuid5(
+                        _KH_PIPELINE_DOC_NS,
+                        f"er:{rel_path}:{source_c}:{predicate}:{target_c}",
+                    ),
+                    "source_entity": source_c,
+                    "relationship_type": predicate,
+                    "target_entity": target_c,
+                    "source_item_id": content_item_id,
+                    "confidence": 1.0,
+                }
+            for row in _er_dedup.values():
+                er_target.declare_row(row=row)
+                _bump("postgres_upsert")  # Inv-17: one entity_relationships upsert
+        except Exception as exc:  # noqa: BLE001 — Inv-7/Inv-15 best-effort parity
+            _logger.warning(
+                json.dumps(
+                    {
+                        "event": "cocoindex.ingest.relationship_declare_failed",
+                        "rel_path": rel_path,
+                        "error": _redact_error_message(str(exc)),
+                    }
+                )
+            )
 
 
 # ── ID-75 WP-C — URL-source per-item component (`ingest_url`) ────────────────
@@ -3029,6 +3177,17 @@ async def app_main() -> None:
             ENTITY_MENTIONS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
+        # ID-101 §{101.7} (Inv-6, PC-3 lane). Stage-5 relationship writes land
+        # here; the per-doc declare loop that consumes `er_target` runs inside
+        # `_ingest_content_branch` (the {101.7} write site). managed_by=USER:
+        # cocoindex UPSERTs rows only — the entity_relationships table already
+        # exists on staging; NO DDL here (RULING 2 — no op_id migration).
+        er_target = await mount_table_target(
+            DB_CTX,
+            "entity_relationships",
+            ENTITY_RELATIONSHIPS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
         # ID-52.12 (Inv-6). Path-B pipeline-owned form-template write targets.
         # managed_by=ManagedBy.USER: cocoindex UPSERTs rows only — the tables +
         # all columns already exist on staging (Migrations M1/M1b); NO DDL here.
@@ -3162,6 +3321,7 @@ async def app_main() -> None:
             ft_target,
             ftf_target,
             cc_target,
+            er_target,
         )
         # Wait until every per-item component has processed (cold run) so the
         # rollup webhook below reflects a settled state.
