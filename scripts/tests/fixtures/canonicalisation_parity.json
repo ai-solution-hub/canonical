@@ -1,0 +1,178 @@
+[
+  {
+    "raw": "penetration-testing",
+    "expected": "penetration testing"
+  },
+  {
+    "raw": "uk-gdpr",
+    "expected": "uk gdpr"
+  },
+  {
+    "raw": "web_application_firewall",
+    "expected": "web application firewall"
+  },
+  {
+    "raw": "api-gateway",
+    "expected": "api gateway"
+  },
+  {
+    "raw": "ISO27001",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "ISO/IEC 27001",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "Iso Iec 27001",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "ISO-27001",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "ISO 27001:2022",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "ISO 27001 2013",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "iso 9001",
+    "expected": "iso 9001"
+  },
+  {
+    "raw": "cyber essentials",
+    "expected": "cyber essentials"
+  },
+  {
+    "raw": "cyberessentials",
+    "expected": "cyber essentials"
+  },
+  {
+    "raw": "Cyber Essentials Plus",
+    "expected": "cyber essentials plus"
+  },
+  {
+    "raw": "cyber essentials plus",
+    "expected": "cyber essentials plus"
+  },
+  {
+    "raw": "Wcag 2 1 Aa",
+    "expected": "wcag 2.1 aa"
+  },
+  {
+    "raw": "wcag 2 1 a",
+    "expected": "wcag 2.1 a"
+  },
+  {
+    "raw": "wcag",
+    "expected": "wcag"
+  },
+  {
+    "raw": "Acme Ltd",
+    "expected": "acme limited"
+  },
+  {
+    "raw": "Acme Ltd.",
+    "expected": "acme limited"
+  },
+  {
+    "raw": "Globex PLC",
+    "expected": "globex plc"
+  },
+  {
+    "raw": "Initech Inc",
+    "expected": "initech inc"
+  },
+  {
+    "raw": "Initech Inc.",
+    "expected": "initech inc"
+  },
+  {
+    "raw": "gdpr",
+    "expected": "gdpr"
+  },
+  {
+    "raw": "owasp",
+    "expected": "owasp"
+  },
+  {
+    "raw": "nhs",
+    "expected": "nhs"
+  },
+  {
+    "raw": "saas",
+    "expected": "saas"
+  },
+  {
+    "raw": "crest",
+    "expected": "crest"
+  },
+  {
+    "raw": "data protection officer",
+    "expected": "data protection officer"
+  },
+  {
+    "raw": "information security management system",
+    "expected": "information security management system"
+  },
+  {
+    "raw": "security policy",
+    "expected": "security policy"
+  },
+  {
+    "raw": "Penetration Testing",
+    "expected": "penetration testing"
+  },
+  {
+    "raw": "Acme Corp.",
+    "expected": "acme corp"
+  },
+  {
+    "raw": "ISO Certification",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "Iso Certifications",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "ISO 27000",
+    "expected": "iso 27001"
+  },
+  {
+    "raw": "ISO 9001 2015",
+    "expected": "iso 9001"
+  },
+  {
+    "raw": "wordpress",
+    "expected": "wordpress"
+  },
+  {
+    "raw": "Wordpress",
+    "expected": "wordpress"
+  },
+  {
+    "raw": "csharp",
+    "expected": "c#"
+  },
+  {
+    "raw": "Csharp",
+    "expected": "c#"
+  },
+  {
+    "raw": "Asp Net",
+    "expected": "asp.net"
+  },
+  {
+    "raw": "agile",
+    "expected": "agile"
+  },
+  {
+    "raw": "Hcaptcha",
+    "expected": "hcaptcha"
+  }
+]
