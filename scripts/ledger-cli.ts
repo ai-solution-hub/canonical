@@ -200,6 +200,133 @@ function ledgerPath(dir: string, name: LedgerName): string {
 
 type ZodIssueLike = ZodError['issues'][number];
 
+// ── RC-2 better-errors companion (ID-102.5 P9, TECH §P9, PRODUCT inv 16, D3) ──
+//
+// `describeExpectedShape` is a pure helper that translates a ZodError into
+// human-readable "this is the shape we expected" lines, echoed alongside the raw
+// `issues` array on every `schema-error` / `ledger-schema-invalid` envelope. It
+// closes the S334 datapoint: `flip-subtask 90.26 in-progress` (hyphen instead of
+// underscore) returned a raw issues array with no hint of the accepted values.
+//
+// CRITICAL DESIGN CONSTRAINT (D3): labels are DERIVED from the ZodError itself
+// (issue `code`, `path`, and the code-specific payload) — never hardcoded per
+// command. This keeps the helper working unchanged when ID-102's flag-day flips
+// subtask ids from numbers to digit-strings: a post-flag-day id regex failure
+// surfaces as an `invalid_format` (format 'regex', pattern `/^\d+$/`) issue,
+// which this helper renders as `string of digits` with no edit required.
+//
+// Issue shapes verified empirically against the pinned `zod@4.4.3` (NOT zod 3 —
+// the codes differ: enum-mismatch is `invalid_value` carrying `values[]` (zod 3
+// used `invalid_enum_value`/`options`), and a regex failure is `invalid_format`
+// with `format: 'regex'` (zod 3 used `invalid_string`)). See TECH §Verification.
+
+/** A digit-string regex (`/^\d+$/` or equivalent) — the post-flag-day id shape. */
+function isDigitStringPattern(pattern: string | undefined): boolean {
+  if (!pattern) return false;
+  // zod serialises the source as e.g. "/^\\d+$/". Normalise away the slashes,
+  // anchors, and quantifier so both `\d+` and `[0-9]+` digit patterns match.
+  const core = pattern.replace(/^\/|\/$/g, '').replace(/^\^|\$$/g, '');
+  return core === '\\d+' || core === '[0-9]+';
+}
+
+/** Render the dotted field path (e.g. `subtasks.0.status`) or '' for the root. */
+function issuePathLabel(path: ReadonlyArray<PropertyKey>): string {
+  return path.map((seg) => String(seg)).join('.');
+}
+
+/**
+ * Map a ZodError to human-readable expected-shape lines — one line per issue.
+ *
+ * - enum-mismatch (`invalid_value` with `values[]`) → the accepted options,
+ *   pipe-joined (e.g. `done | pending | in_progress | blocked | …`).
+ * - regex/format failure (`invalid_format`) → `string of digits` for the
+ *   digit-string id pattern, otherwise the named format / pattern.
+ * - wrong type (`invalid_type`) → the expected type label (path-qualified).
+ * - bounds (`too_small` / `too_big`) → the min/max constraint (path-qualified).
+ * - any other code → a path-qualified fallback drawn from the issue message.
+ *
+ * Additive: callers append the returned array as an `expected` field on the
+ * error envelope; the raw `issues` array is never removed or altered.
+ */
+export function describeExpectedShape(err: ZodError): string[] {
+  const lines: string[] = [];
+  for (const issue of err.issues) {
+    const where = issuePathLabel(issue.path);
+    const at = where ? `${where}: ` : '';
+    switch (issue.code) {
+      case 'invalid_value': {
+        // Enum / literal mismatch — echo the accepted options verbatim.
+        const values = (issue as { values?: ReadonlyArray<unknown> }).values;
+        if (Array.isArray(values) && values.length > 0) {
+          lines.push(`${at}${values.map((v) => String(v)).join(' | ')}`);
+        } else {
+          lines.push(`${at}${issue.message}`);
+        }
+        break;
+      }
+      case 'invalid_format': {
+        const fmt = issue as {
+          format?: string;
+          pattern?: string;
+        };
+        if (fmt.format === 'regex' && isDigitStringPattern(fmt.pattern)) {
+          // The post-flag-day id shape (ID-102): a bare digit-string.
+          lines.push(`${at}string of digits`);
+        } else if (fmt.pattern) {
+          lines.push(`${at}string matching ${fmt.pattern}`);
+        } else if (fmt.format) {
+          lines.push(`${at}${fmt.format} string`);
+        } else {
+          lines.push(`${at}${issue.message}`);
+        }
+        break;
+      }
+      case 'invalid_type': {
+        const expected = (issue as { expected?: string }).expected;
+        lines.push(
+          expected ? `${at}expected ${expected}` : `${at}${issue.message}`,
+        );
+        break;
+      }
+      case 'too_small': {
+        const small = issue as { minimum?: number | bigint; origin?: string };
+        const origin = small.origin ?? 'value';
+        if (small.minimum !== undefined) {
+          lines.push(`${at}${origin} of at least ${small.minimum}`);
+        } else {
+          lines.push(`${at}${issue.message}`);
+        }
+        break;
+      }
+      case 'too_big': {
+        const big = issue as { maximum?: number | bigint; origin?: string };
+        const origin = big.origin ?? 'value';
+        if (big.maximum !== undefined) {
+          lines.push(`${at}${origin} of at most ${big.maximum}`);
+        } else {
+          lines.push(`${at}${issue.message}`);
+        }
+        break;
+      }
+      case 'unrecognized_keys': {
+        const keys = (issue as { keys?: ReadonlyArray<string> }).keys;
+        if (Array.isArray(keys) && keys.length > 0) {
+          lines.push(`${at}no extra keys (got: ${keys.join(', ')})`);
+        } else {
+          lines.push(`${at}${issue.message}`);
+        }
+        break;
+      }
+      default: {
+        // Unknown / custom codes: fall back to the issue's own message, still
+        // path-qualified so a multi-field record points at the offender.
+        lines.push(`${at}${issue.message}`);
+      }
+    }
+  }
+  return lines;
+}
+
 /**
  * ID-35.32: discriminant for `mirrorStale`. When set on a success envelope,
  * `mirrorStaleReason` names WHY the mirrors are stale, so `emit()` can pick a
@@ -229,6 +356,12 @@ type CliResult =
       error: string;
       detail?: string;
       issues?: ZodIssueLike[];
+      /**
+       * RC-2 (ID-102.5 P9): additive human-readable expected-shape lines derived
+       * from the ZodError that produced `issues`. Present on `schema-error` and
+       * `ledger-schema-invalid` envelopes; never replaces `issues`.
+       */
+      expected?: string[];
     };
 
 interface ParsedArgs {
@@ -1297,6 +1430,7 @@ async function loadLedger(
           error: 'ledger-schema-invalid',
           detail: path,
           issues: err.issues,
+          expected: describeExpectedShape(err),
         },
       };
     }
@@ -1589,6 +1723,7 @@ function fieldPatchMutation(
           subcommand,
           error: 'schema-error',
           issues: applied.zodError.issues,
+          expected: describeExpectedShape(applied.zodError),
         },
       };
     }
@@ -2590,6 +2725,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
             subcommand,
             error: 'schema-error',
             issues: ins.zodError.issues,
+            expected: describeExpectedShape(ins.zodError),
           };
         if (ins.kind === 'duplicate-id')
           return cliErr(subcommand, 'duplicate-id', ins.recordId);
@@ -2636,6 +2772,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
             subcommand: 'delete-backlog',
             error: 'schema-error',
             issues: rem.zodError.issues,
+            expected: describeExpectedShape(rem.zodError),
           };
         if (rem.kind === 'record-not-found')
           return cliErr('delete-backlog', 'record-not-found', rem.recordId);
@@ -2940,6 +3077,7 @@ async function promote(
         subcommand: 'promote',
         error: 'schema-error',
         issues: ins.zodError.issues,
+        expected: describeExpectedShape(ins.zodError),
       };
     if (ins.kind === 'duplicate-id')
       return cliErr('promote', 'duplicate-id', ins.recordId);
@@ -2957,6 +3095,7 @@ async function promote(
         subcommand: 'promote',
         error: 'schema-error',
         issues: rem.zodError.issues,
+        expected: describeExpectedShape(rem.zodError),
       };
     if (rem.kind === 'record-not-found')
       return cliErr('promote', 'backlog-item-not-found', backlogId);
@@ -3128,6 +3267,7 @@ async function updateUmbrella(
       error: 'ledger-schema-invalid',
       detail: path,
       issues: parsed.error.issues,
+      expected: describeExpectedShape(parsed.error),
     };
   }
   const doc = parsed.data;
