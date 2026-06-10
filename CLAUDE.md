@@ -263,6 +263,9 @@ Mempalace MCP server is the canonical memory system.
 ### General
 
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
+- **Bash-tool heredocs mangle `!=`** (history-expansion escaping turns it into `\!=`,
+  a Python SyntaxError). Write python conditions `==`-shaped, or write the script to a
+  temp file with the Write tool and run it. (Bit S336, S337, and the evaluator agent.)
 - **Worktree isolation:** Use `isolation: "worktree"` on parallel Agent dispatch.
   Cherry-pick (not merge) parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
