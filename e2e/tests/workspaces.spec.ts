@@ -62,10 +62,13 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
     // Card has href="/procurement"
     await expect(bidsCard).toHaveAttribute('href', '/procurement');
 
-    // Hard-expect the active bids count renders. The worker-scoped fixture
-    // (workerData.procurementId) seeds at least one active bid, so the count text
-    // must be visible; missing fixtures fail honestly.
-    const countText = bidsCard.getByText(/\d+ active bids?/);
+    // Hard-expect the active procurements count renders. The worker-scoped
+    // fixture (workerData.procurementId) seeds at least one active procurement,
+    // so the count text must be visible; missing fixtures fail honestly.
+    // Copy is driven by formatTypeCount() in hooks/workspaces/use-application-types.ts
+    // -> `${count} active ${labelPlural.toLowerCase()}` and the procurement
+    // application_type's labelPlural renders as "Procurements" (S248 rename).
+    const countText = bidsCard.getByText(/\d+ active procurements?/);
     await expect(countText).toBeVisible({ timeout: 2000 });
   });
 

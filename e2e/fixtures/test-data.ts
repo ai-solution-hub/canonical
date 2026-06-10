@@ -254,7 +254,21 @@ export function buildCoreContentItems(timestamps: {
 export interface WorkspaceShape {
   name: string;
   description: string;
-  type: string;
+  /**
+   * `application_types.key` for this workspace.
+   *
+   * S246 WP2b T2 (migration 20260520120828) DROPPED the `workspaces.type` text
+   * column and replaced it with a NOT-NULL `application_type_id` FK to
+   * `application_types(id)`. The seed logic resolves this key to the FK id at
+   * insert time (`application_types.id` is gen_random_uuid() — NOT stable across
+   * Supabase branches, so a literal UUID would break on a fresh branch).
+   *
+   * Migration 1.4 mapping: old `'bid'` -> `'procurement'`; `'kb_section'` was
+   * retired (0 prod rows). The kb-section content-grouping workspace has no
+   * dedicated application_type post-T2, so it reuses `'procurement'` — the
+   * junction-assignment logic that consumes it is type-agnostic.
+   */
+  applicationTypeKey: string;
   domain_metadata?: Record<string, unknown>;
 }
 
@@ -266,12 +280,12 @@ export function buildCoreWorkspaces(bidDeadline: string): WorkspaceShape[] {
     {
       name: 'Test KB Section',
       description: 'E2E worker-scoped KB section workspace.',
-      type: 'kb_section',
+      applicationTypeKey: 'procurement',
     },
     {
       name: 'IT Support Services',
       description: 'E2E worker-scoped bid.',
-      type: 'bid',
+      applicationTypeKey: 'procurement',
       domain_metadata: {
         buyer: 'E2E Test Corp',
         status: 'draft',
@@ -289,7 +303,7 @@ export function buildCoreWorkspaces(bidDeadline: string): WorkspaceShape[] {
     {
       name: 'Cloud Migration RFP',
       description: 'E2E worker-scoped second bid workspace.',
-      type: 'bid',
+      applicationTypeKey: 'procurement',
       domain_metadata: {
         buyer: 'E2E Cloud Corp',
         status: 'draft',
