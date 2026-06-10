@@ -34,7 +34,6 @@ import {
   mkdirSync,
   renameSync,
 } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import type { ChildProcess } from 'node:child_process';
 
 // ── types ─────────────────────────────────────────────────────────────────────

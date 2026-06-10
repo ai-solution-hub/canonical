@@ -102,11 +102,7 @@ import {
   type MutationOptions as TransportMutationOptions,
 } from '@/scripts/ledger-server-client';
 import { ensureServer } from '@/scripts/ledger-server-lifecycle';
-import {
-  parseTaskListWithWarnings,
-  SubtaskSchema,
-  TaskSchema,
-} from '@/lib/validation/task-list-schema';
+import { SubtaskSchema, TaskSchema } from '@/lib/validation/task-list-schema';
 import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
 import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema';
@@ -1525,8 +1521,9 @@ async function buildTransportRequest(
 
 /**
  * Server transport path for commitMutation (ID-90.19 K4). Delegates to
- * transportCommit (K2) via ensureServer (K3). The direct-write path below
- * is BYTE-UNTOUCHED when this runs.
+ * transportCommit (K2) via ensureServer (K3). Since the R1b cutover this is
+ * the ONLY write path — the in-process direct-write path it once sat beside
+ * was removed (server owns serialisation, gates and mirror regen).
  */
 async function serverCommitMutation(
   opts: CommitMutationOptions,
