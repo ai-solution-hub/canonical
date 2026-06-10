@@ -229,11 +229,9 @@ export function VersionHistory({
     enabled: isOpen,
   });
 
-  const versions = useMemo(
-    () => listData?.versions ?? EMPTY_VERSIONS,
-    [listData?.versions],
-  );
-  const total = listData?.total ?? 0;
+  const { versions: rawVersions, total: rawTotal } = listData ?? {};
+  const versions = useMemo(() => rawVersions ?? EMPTY_VERSIONS, [rawVersions]);
+  const total = rawTotal ?? 0;
 
   // Collect all created_by UUIDs for display name resolution
   const creatorIds = useMemo(
@@ -241,10 +239,6 @@ export function VersionHistory({
     [versions],
   );
   const displayNames = useDisplayNames(creatorIds);
-
-  const fetchVersions = useCallback(() => {
-    refetchVersions();
-  }, [refetchVersions]);
 
   // Whether a meaningful comparison is even possible (need ≥2 revisions).
   const canCompare = versions.length >= 2;
@@ -314,7 +308,7 @@ export function VersionHistory({
         throw new Error(data.error || 'Rollback failed');
       }
       toast.success('Content rolled back successfully');
-      fetchVersions();
+      refetchVersions();
       onRollback?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to rollback');
@@ -362,7 +356,7 @@ export function VersionHistory({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchVersions}
+                onClick={() => refetchVersions()}
                 className="gap-1.5"
               >
                 <RotateCcw className="size-3.5" aria-hidden="true" />

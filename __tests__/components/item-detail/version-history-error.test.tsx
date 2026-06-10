@@ -42,7 +42,6 @@ const SAMPLE_VERSION = {
   id: 'version-1',
   content_item_id: ITEM_ID,
   version: 2,
-  title: 'Sample item',
   change_summary: 'Updated detail',
   change_reason: null,
   change_type: 'edit',
