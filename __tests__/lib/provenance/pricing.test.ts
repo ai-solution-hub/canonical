@@ -37,8 +37,8 @@ describe('estimateClassifyCost', () => {
     expect(cost).toBe(0);
   });
 
-  it('returns correct cost for claude-haiku-3-5', () => {
-    const cost = estimateClassifyCost(1000, 500, 0, 0, 'claude-haiku-3-5');
+  it('returns correct cost for claude-haiku-4-5', () => {
+    const cost = estimateClassifyCost(1000, 500, 0, 0, 'claude-haiku-4-5');
     expect(cost).not.toBeNull();
     // 1000 * 0.8/1M + 500 * 4/1M = 0.0008 + 0.002 = 0.0028
     expect(cost).toBeCloseTo(0.0028, 6);

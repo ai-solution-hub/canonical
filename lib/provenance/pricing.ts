@@ -36,7 +36,7 @@ const CLASSIFICATION_PRICING: Record<
     cacheCreation: 3.75 / 1_000_000,
     cacheRead: 0.3 / 1_000_000,
   },
-  'claude-haiku-3-5': {
+  'claude-haiku-4-5': {
     input: 0.8 / 1_000_000,
     output: 4 / 1_000_000,
     cacheCreation: 1 / 1_000_000,
