@@ -969,9 +969,12 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
     expect(on.envelope?.result).toEqual(off.envelope?.result);
   });
 
-  // GAP 2a — `--whole-file` under flag-ON takes the LOCAL path (no server
-  // call) and emits bytes byte-identical to flag-OFF. (Routing whole-file
-  // through the scoped server write produced an ~805KB key-order divergence.)
+  // ID-90.22 R1b — `--whole-file` STILL PARSES (invariant 8 — argv stability)
+  // but is a write-path NO-OP post-R1b: it no longer routes to a LOCAL path.
+  // The patch-server substrate is the unconditional write enforcement point,
+  // so flag-ON `--whole-file` and flag-OFF emit byte-identical minimal-diff
+  // bytes (post-OQ-LS-2 the two shapes already converged). This asserts that
+  // NO-OP equivalence — the flag does not change where or how bytes are written.
   it('flip-task --whole-file flag-ON takes the local path and equals flag-OFF bytes', () => {
     const dirOff = fixtureDir();
     const dirOn = fixtureDir();
@@ -996,7 +999,7 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
     const bytesOff = readFileSync(join(dirOff, 'task-list.json'));
     const bytesOn = readFileSync(join(dirOn, 'task-list.json'));
     expect(bytesOn.equals(bytesOff)).toBe(true);
-    // Envelope parity too (the local bypass emits the same success shape).
+    // Envelope parity too (the NO-OP flag emits the same success shape).
     expect(on.envelope?.result).toEqual(offWhole.envelope?.result);
   });
 

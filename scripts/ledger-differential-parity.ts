@@ -2,10 +2,15 @@
 /**
  * ledger-differential-parity.ts — AC-P1 proof harness (ID-90.20, inv 4/21).
  *
- * Proves that the flag-ON server transport path and the flag-OFF direct-write
- * path produce BYTE-IDENTICAL ledger files, deep-equal envelopes (modulo
- * absolute paths and retry warnings), and equal exit codes across a matrix of
- * mutating subcommands.
+ * ID-90.22 R1b — TRANSPORT-ONLY mode. The OFF-vs-ON differential is gone (the
+ * direct-write path was removed; `serverEnabled()` deleted), so the harness no
+ * longer compares two arms. It runs each matrix entry through the server
+ * transport and asserts, per entry, ONLY: (a) success exit code 0, and (b) every
+ * touched ledger file is OQ-LS-2-conforming (parses as JSON AND ends with exactly
+ * one trailing newline). It does NOT assert byte-identity-across-arms or
+ * deep-equal envelopes — there is no OFF arm. (Advisory-warnings envelope
+ * coverage — e.g. the F5 flip-task `extraWarnings` threading — lives in
+ * __tests__/scripts/ledger-cli-friction-s299.test.ts, not here.)
  *
  * Usage:
  *   LOCAL: bun scripts/ledger-differential-parity.ts [--verbose]

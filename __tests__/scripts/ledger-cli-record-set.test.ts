@@ -133,8 +133,10 @@ describe('record-set gate — integration through the write gate (ID-35.16)', ()
     // NO serialiser stub and NO malformed fixture: the backlog schema enforces
     // unique, present ids on LOAD, so a violation can only be induced by a
     // mutation that is legitimate-on-load but whose WRITE diverges — exactly an
-    // id-field edit. `--whole-file` keeps the write on the LOCAL path (GAP-2a),
-    // which reaches the in-process gate under flag-ON.
+    // id-field edit. `--whole-file` STILL PARSES but is a write-path NO-OP
+    // post-R1b; the record-set gate runs authoritatively on the patch-server
+    // substrate (the unconditional write enforcement point), which rejects the
+    // divergent id-set under flag-ON regardless of the flag.
     const itemId = read('product-backlog').items[0].id;
     const before = readFileSync(join(dir, 'product-backlog.json'), 'utf8');
     const r = await run(

@@ -92,15 +92,15 @@ function firstTaskWithSubtask(): { taskId: string; subId: number } {
 describe('S299 F5 — status-setting disambiguation (flip-task canonical)', () => {
   it('update-task <id> status <value> emits a non-fatal hint pointing at flip-task', async () => {
     const taskId = firstTaskId();
-    // ID-90.22 R1a: the flip-task canonical-verb HINT is a CLI-side advisory
-    // computed in run() and threaded as commitMutation `extraWarnings`. It is
-    // surfaced on the LOCAL write path; the SCOPED→server path's success
-    // envelope threads only `resultPayload` (the K5 deep-equal parity contract
-    // covers files + result + exit code "modulo retry warnings", NOT advisory
-    // warnings — re-homing advisory warnings to the server is downstream of this
-    // cutover). `--whole-file` keeps the write LOCAL under flag-ON (GAP-2a, a
-    // path R1a deliberately does not migrate), so the still-live hint behaviour
-    // is asserted there — the canonical in-repo observable for this advisory.
+    // ID-90.22 R1b: the flip-task canonical-verb HINT is a CLI-side advisory
+    // computed in run() and threaded as commitMutation `extraWarnings`. Post-R1b
+    // the CLI no longer owns a write path — the patch-server substrate is the
+    // unconditional write enforcement point, so `extraWarnings` is now threaded
+    // onto the SERVER success envelope (AC-H1: the deleted LOCAL path was the
+    // sole threader pre-R1b). `--whole-file` STILL PARSES (invariant 8 — argv
+    // stability) but is a write-path NO-OP: it no longer routes to a LOCAL path,
+    // so the advisory surfaces identically with or without it. The flag is left
+    // on here only to exercise that NO-OP equivalence alongside the hint.
     const r = await run(
       args('update-task', [taskId, 'status', 'in_progress'], {
         dryRun: true,
@@ -121,8 +121,9 @@ describe('S299 F5 — status-setting disambiguation (flip-task canonical)', () =
 
   it('update-task on a NON-status field emits no flip-task hint', async () => {
     const taskId = firstTaskId();
-    // Asserted on the LOCAL `--whole-file` path (GAP-2a) where advisory warnings
-    // ARE threaded — so the ABSENCE of the hint proves the field-discriminating
+    // Asserted over the server-transport path (`--whole-file` parses but is a
+    // write-path NO-OP post-R1b) where advisory warnings ARE threaded via
+    // `extraWarnings` — so the ABSENCE of the hint proves the field-discriminating
     // logic (status-only), not that the write path silently drops all warnings.
     const r = await run(
       args('update-task', [taskId, 'status_note', 'Edited.'], {

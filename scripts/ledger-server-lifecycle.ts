@@ -16,7 +16,9 @@
  *     Layer-2 caveat (ID-90 follow-up): distinct tags can share a package
  *     version (v0.3.1/v0.4.0-task-view both report 0.2.0), so this gate cannot
  *     distinguish a stale same-package-version daemon across tags; robust
- *     tag-level staleness for the persistent daemon is tracked separately.
+ *     tag-level staleness for the persistent daemon is accepted as-is — the
+ *     spawn-tag sidecar (writeSpawnTag/readSpawnTag) mitigates at runtime;
+ *     simplification deferred until a tag ships with a bumped package version.
  *   - Child stdio → façade stderr (inv 13 stdout purity).
  *   - CI env (process.env.CI truthy) adds --require-denylist (inv 34).
  *   - HARD 10s deadline — fail loud, never hang, never fall back to an
