@@ -4,6 +4,12 @@
  * `@task-view/schemas/*` → `@/lib/validation/*`. Re-vendor per
  * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
  *
+ * ROLE (ID-90.22 R1b/R2): CLI-side validation oracle. `scripts/ledger-cli.ts`'s
+ * create / delete / promote handlers call `insertRecord` / `removeRecord` as
+ * the duplicate-id + record-not-found + schema oracle, surfacing those local
+ * envelopes before the server-routed write. RETAINED (esc-4) when R2 deleted
+ * the write-side primitives; DISPOSITION rides {68.30}.
+ *
  * ── original header ──────────────────────────────────────────────────────────
  * record-mutate.ts — ID-20.15 record-level CREATE / DELETE primitives.
  *

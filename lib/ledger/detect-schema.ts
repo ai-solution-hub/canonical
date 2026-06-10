@@ -4,6 +4,14 @@
  * `@task-view/schemas/*` → KH's vendored `@/lib/validation/*`. Re-vendor per
  * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
  *
+ * ROLE (ID-90.22 R1b/R2): CLI-side validation oracle. `scripts/ledger-cli.ts`'s
+ * `loadLedger` calls `detectSchema` to parse + document-kind-detect the on-disk
+ * ledger before every server-routed mutation, surfacing the local
+ * `ledger-schema-invalid` / `unknown-document-name` envelope client-side. The
+ * server re-validates authoritatively. RETAINED (esc-4) when R2 deleted the
+ * write-side primitives; DISPOSITION rides {68.30} (re-homed upstream when the
+ * schemas migrate, PRODUCT inv 62).
+ *
  * ── original header ──────────────────────────────────────────────────────────
  * detect-schema.ts — three-way schema discriminator. Routes a parsed-JSON
  * value to one of the three ledger kinds by matching the canonical

@@ -4,6 +4,13 @@
  * `@task-view/schemas/*` → `@/lib/validation/*`. Re-vendor per
  * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
  *
+ * ROLE (ID-90.22 R1b/R2): CLI-side validation oracle. `scripts/ledger-cli.ts`'s
+ * `fieldPatchMutation` calls `applyPatches` to re-validate a field edit (the
+ * `FieldPatch` schema oracle), surfacing the local schema-error/walk-error
+ * envelope before the server-routed PATCH; the `FieldPatch` type is also the
+ * `ServerIntent.patches` shape. RETAINED (esc-4) when R2 deleted the write-side
+ * primitives; DISPOSITION rides {68.30}.
+ *
  * ── original header ──────────────────────────────────────────────────────────
  * patch-apply.ts — patch application algorithm. Walks a FieldPath through the
  * canonical structure, replaces the leaf value, re-parses via the matching Zod

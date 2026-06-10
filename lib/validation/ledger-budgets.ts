@@ -19,9 +19,14 @@
  *   (b) diverge the vendored `lib/validation/*-schema.ts` from task-view's
  *       source (watched by `task-view-vendor-drift.yml`).
  * So the schema stays cap-free and parseable; budgets are enforced ONLY at the
- * CLI write gate (prevent-at-source) and surfaced as soft parse warnings. This
- * module is KH-authored and is NOT in the vendor-drift watched-paths list, so
- * it carries no vendor-drift weight.
+ * server write gate (the ID-90 cutover moved enforcement server-side; the CLI
+ * routes mutations through the transport) and surfaced as soft parse warnings.
+ *
+ * ID-90.22 R3: this registry is the server gate's budget source and its
+ * relocated upstream twin (`packages/schemas/src/ledger-budgets.ts`, U0) is the
+ * canonical copy. It is NO LONGER "KH-only / never-vendor" — R3 adds it to the
+ * `task-view-vendor-drift.yml` SCHEMA-arm watched paths + asset diff (PRODUCT
+ * inv 59-60). The schema-arm + the KH-copy deletion ride {68.30}.
  *
  * `subtask.details` is intentionally NOT budgeted — it is the append-only
  * dispatch-brief + journal home; length there is legitimate (RESEARCH §2.3).

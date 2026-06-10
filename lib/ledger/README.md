@@ -1,157 +1,72 @@
-# `lib/ledger/` — vendored task-view patch primitives
+# `lib/ledger/` — CLI-side validation oracle (post ID-90.22 R1b/R2)
 
-These modules are **vendored copies** of task-view's `packages/server/*` mutation
-primitives, used by `scripts/ledger-cli.ts` (ID-35) to mutate the three KH workflow
-ledgers (`docs/reference/{task-list,product-roadmap,product-backlog}.json`).
+These modules are the **CLI-side validation oracle** for `scripts/ledger-cli.ts` (the
+deterministic mutation CLI over the three KH workflow ledgers
+`docs/reference/{task-list,product-roadmap,product-backlog}.json`).
 
-## Provenance
+**ID-90.22 cutover (R1b/R2).** The server-ledger cutover (ID-90) moved the authoritative
+write path — serialisation, the record-set + budget gates, the discipline sweep and mirror
+regen — to the task-view patch-server. The CLI now routes every mutation through the
+server transport (`scripts/ledger-cli.ts` → `scripts/ledger-server-client.ts`); the
+in-process direct-write path was removed in **R1b**. In **R2** the two write-side
+primitives were **deleted** (tombstones below); the three SCHEMA-VALIDATION primitives
+below were **retained** as the CLI-side validation oracle — they produce the local
+`schema-error` / `walk-error` / `duplicate-id` / `record-not-found` envelopes BEFORE the
+server call, so a malformed mutation fails fast client-side and the server re-validates
+authoritatively (esc-4, S335).
 
-| File               | Vendored from (task-view `packages/server/`) | Rewire                                        |
-| ------------------ | -------------------------------------------- | --------------------------------------------- |
-| `atomic-write.ts`  | `atomic-write.ts`                            | none (schema-free — byte-faithful)            |
-| `detect-schema.ts` | `detect-schema.ts`                           | `@task-view/schemas/*` → `@/lib/validation/*` |
-| `patch-apply.ts`   | `patch-apply.ts`                             | `@task-view/schemas/*` → `@/lib/validation/*` |
-| `record-mutate.ts` | `record-mutate.ts`                           | `@task-view/schemas/*` → `@/lib/validation/*` |
+## Retained — CLI-side validation oracle
+
+| File               | Role (post-R1b)                                                                    | Vendored from (task-view `packages/server/`) |
+| ------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------- |
+| `detect-schema.ts` | `loadLedger` parses + document-kind-detects the on-disk ledger before any mutation | `detect-schema.ts`                           |
+| `patch-apply.ts`   | `fieldPatchMutation` re-validates field edits (the `FieldPatch` schema oracle)     | `patch-apply.ts`                             |
+| `record-mutate.ts` | `insertRecord` / `removeRecord` — the create/delete/promote duplicate-id oracle    | `record-mutate.ts`                           |
+
+These remain **vendored copies** of task-view's `packages/server/*` primitives; the only
+intentional difference from upstream is the schema import specifier
+(`@task-view/schemas/*` → `@/lib/validation/{task-list,roadmap,backlog}-schema.ts`, which
+export the identical symbols). The bodies are byte-faithful.
 
 **Pinned release:** `v0.4.0-task-view` (the same `TASK_VIEW_TAG` used by
 `scripts/regen-mirrors.sh` and the `ledger-mirror-parity` CI job).
 
-The **only** intentional difference from upstream is the schema import specifier (KH
-already vendors the schemas at `@/lib/validation/{task-list,roadmap,backlog}-schema.ts`,
-which export the identical symbols). The bodies are byte-faithful.
+**Disposition.** These three modules ride **{68.30}**: when the schemas migrate upstream
+(PRODUCT inv 62), the oracle is re-homed and the KH copies retire with them. Until then
+they stay on the `task-view-vendor-drift.yml` primitive-diff watch list (R3 keeps their
+watched paths). They are NOT deleted here.
 
-## Why vendor (not a workspace dep)
+## Tombstoned — deleted in ID-90.22 R2
 
-KH CI clones only `knowledge-hub`; a `file:../task-view` dependency would fail
-`bun install` / `tsc` / lint / tests in every CI job. KH already vendors the _schemas_
-(under the same drift-guard rationale), and the primitives import those — so vendoring is
-the consistent, CI-safe choice. See `docs/specs/id-35-ledger-cli/RESEARCH.md` §3.
+- **`atomic-write.ts`** — DELETED. The CLI no longer writes ledger bytes in-process (the
+  server's atomic write owns the canonical rename). Its sole consumers were the deleted
+  direct-write path (`commitMutation`) and the `promote` staged-write, both removed in
+  R1b. Zero importers remained at deletion (ast-dataflow pre-deletion gate: empty).
+- **`scoped-serialise.ts`** — DELETED. The KH-authored minimal-diff write primitive
+  (`escapeSerialise` / `scopedSerialise` / `scopedSpliceSerialise`). The server now emits
+  the OQ-LS-2-conforming minimal-diff bytes; the CLI no longer serialises. Its surviving
+  importers at R1b-time were all retired in the same R2 commit (`ledger-renormalise.ts`,
+  `ledger-normalise-oqls2.ts`, `ledger-sweep-s269.ts` + their tests). Its upstream twin
+  carries the byte-shape coverage (U11).
 
-## Not vendored
-
-- `mirror-generator.ts` — per-record `.md` mirrors are regenerated by the pinned
-  `scripts/regen-mirrors.sh` (CI `ledger-mirror-parity` gates on parity). Duplicating it
-  here would risk byte-divergence from the pinned release. The CLI mutates canonical JSON
-  only and reminds the operator to run `regen-mirrors.sh`.
-- `ledger-transaction.ts` (`promoteTransaction`) — its 2-file orchestration is thin CLI
-  glue in `scripts/ledger-cli.ts` (reusing
-  `insertRecord`/`removeRecord`/`stageAtomicWrite`/ `commitStagedWrite`) so every vendored
-  file stays byte-faithful for drift-checking. The CLI glue cites `ledger-transaction.ts`
-  as the algorithm of record.
-
-## KH-authored (NOT vendored)
-
-- `scoped-serialise.ts` (ID-35.11) — KH-specific minimal-diff write primitive. It is
-  **not** a task-view vendor and must **never** be added to the
-  `task-view-vendor-drift.yml` primitive-diff list. Exports `escapeNonAscii(s)`,
-  `escapeSerialise(parsedValue)`, and `scopedSerialise(originalText, patch)`.
-
-  **Why it exists.** The whole-file `serialise()` in `scripts/ledger-cli.ts`
-  (`JSON.stringify(detected.data, null, 2)`) is non-conforming on two axes vs the on-disk
-  ledger convention: (1) it emits the Zod-reparsed document, so every record's keys are
-  reordered into schema-declared order; and (2) it emits raw UTF-8 whereas the on-disk
-  ledgers escape all non-ASCII to `\uXXXX`. Either defect alone turns a single-field edit
-  into a ~1600-line diff (verified: ~1417 lines on the live `task-list.json`), which
-  collides with sibling cmux terminals editing the same shared file.
-
-  **Contract.** `scopedSerialise` mutates the `JSON.parse` of the **original on-disk
-  text** in place (preserving every record's on-disk key order) and escape-serialises it,
-  so a one-field edit touches only the mutated record's lines (verified: 1 line on the
-  live ledger) and every untouched record stays byte-for-byte identical. A no-op
-  `escapeSerialise(JSON.parse(text))` round-trip is byte-identical to the source file. Zod
-  still validates (via `detectSchema`) before any byte is emitted. Wired into the CLI
-  behind `--scoped` for `flip-task` / `flip-subtask` / `append-journal`.
-
-  **RESOLVED (OQ-LS-2, S270).** The one-time whole-file key-order + escaping normalisation
-  pass is now complete: `scripts/ledger-cli.ts`'s `serialise()` was fixed to delegate to
-  `escapeSerialise()` (escaped non-ASCII + Zod-canonical key order), and
-  `scripts/ledger-normalise-oqls2.ts` normalised all three on-disk ledgers to the same
-  format. Both the whole-file path and the scoped path now emit the same escaping
-  convention and are byte-compatible for ongoing writes.
-
-## Re-normalise tool — `scripts/ledger-renormalise.ts` (ID-65.5)
-
-**What it does.** A reproducible, idempotent one-shot that rewrites all three ledgers via
-`escapeSerialise(detectSchema(text).data)` — the same Zod-canonical key order + escaped
-non-ASCII (`\uXXXX`) format `serialise()` and the scoped path emit. It clears the residual
-drift: a no-op `escapeSerialise(detectSchema(text).data)` round-trip still diverges by ~7
-lines on the live ledgers (RESEARCH §8), because the files were last normalised by an
-earlier pass with a slightly different key order/escaping. After the one-shot, the
-round-trip is byte-identical (re-running is a no-op).
-
-**When to run it.** A DELIBERATE operational step — NOT part of the per-mutation write
-path (the CLI writes minimal diffs by default already). Run it ONCE before a
-`--whole-file` write (or before an always-whole-file `delete-subtask` / `delete-backlog`)
-so that wide write is ALSO minimal-diff: once every record is already Zod-canonical, a
-whole-file re-emit only changes the bytes that actually changed (e.g. the removed record's
-lines), not ~7 incidental key-order/escaping lines scattered across the file.
-
-**Safety.** It asserts an order-insensitive deep-equal of the parse before/after and
-THROWS (writing nothing) on any structural diff — only key order + escaping bytes ever
-change. Run against the real ledgers with `bun scripts/ledger-renormalise.ts` (add
-`--check` for a dry report). Tests target a temp dir via `--ledger-dir <path>` or by
-calling the exported `renormaliseLedgers(dir, checkOnly)` directly — NEVER against the
-real `docs/reference/*.json`.
-
-## CLI command surface (v2)
-
-`scripts/ledger-cli.ts` is the deterministic mutation CLI built on these primitives
-(ID-35). The v2 surface (its in-file `USAGE` block is the authoritative reference):
-
-| Group         | Commands                                                                                                           |
-| ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| read          | `show`, `get <ledger> <id> [field]` (single-field read), `schema [ledger\|recordKind]`                             |
-| status / edit | `flip-task`, `flip-subtask`, `update-task`, `update-subtask`, `update-roadmap`, `update-backlog`, `append-journal` |
-| create        | `add-subtask`, `open-task`, `create-theme`, `create-backlog`                                                       |
-| delete        | `delete-backlog`                                                                                                   |
-| cross-ledger  | `promote`                                                                                                          |
-
-**Two write gates (prevent-at-source — both reject at WRITE TIME, exit 1, nothing
-written):**
-
-- **record-set** ({35.16}) — the post-write id-set must equal the pre-write set under the
-  intended delta (∅ / +1 / −1). Catches a silently dropped or duplicated record on
-  **both** the scoped and whole-file write paths, by parsing the bytes about to be
-  written.
-- **budget** ({35.17}) — the changed record's budgeted fields are checked against
-  `LEDGER_BUDGETS` (`lib/validation/ledger-budgets.ts`) before any byte is written;
-  over-budget → `budget-exceeded`. **`--force`** downgrades it to the existing soft
-  warning and writes anyway. `subtask.details` is intentionally unbudgeted (the
-  append-only journal).
-
-**Input modes (record-creating commands):** positional JSON | `--file <path>` (`-` reads
-stdin) | named flags (`--title --description --status --depends 1,2 …`). Absent `--id`
-(and no id in the body) → auto-id `max(existingIds)+1`: a STRING for task/theme/backlog
-ids, a NUMBER for subtask ids.
-
-**Mirror regen ({35.18})** runs by DEFAULT after every write; `--no-regen-mirrors` opts
-out (batch edits run `bash scripts/regen-mirrors.sh` once at the end). `--regen-mirrors`
-is a deprecated no-op alias.
-
-**Scoped is the global default ({65.5}, ratified default #4):** every mutating command
-(field edits, creates, bulk `add-subtasks`, `promote`) writes a minimal/scoped diff with
-NO flag — untouched records keep their exact on-disk bytes. `--whole-file` is the escape
-hatch: it routes the command through the legacy whole-file `serialise()` path (a full
-Zod-canonical re-emit). `--scoped` is now a deprecated no-op alias (scoped is already on
-unless `--whole-file` is set); kept for back-compat. The always-whole-file deletes
-(`delete-subtask` / `delete-backlog`) have no scoped path and ignore `--whole-file`.
-
-**Discoverability ({35.22}):** `schema [ledger|recordKind]` prints each field's name +
-type + budget — so `subtask.dependencies:number[]` vs `task.dependencies:string[]` is
-explicit; `<command> --help` prints that command's flags + its target record's schema
-slice.
-
-## Re-vendor procedure
+## Re-vendor procedure (retained modules only)
 
 When task-view cuts a new schema- or primitive-bearing release:
 
 1. Bump `TASK_VIEW_TAG` in `.github/workflows/{ci.yml,task-view-vendor-drift.yml}` and
    `scripts/regen-mirrors.sh`.
-2. Copy the four files above from the new task-view release, re-applying only the
-   `@task-view/schemas/*` → `@/lib/validation/*` import rewire.
+2. Copy the three RETAINED files above from the new task-view release, re-applying only
+   the `@task-view/schemas/*` → `@/lib/validation/*` import rewire.
 3. Re-vendor the schemas (`lib/validation/*`) per the existing schema re-vendor flow.
-4. Run `bun run test __tests__/scripts/ledger-cli*` to confirm the primitives still wire.
+4. Run `bun run test __tests__/scripts/ledger-cli*` to confirm the oracle still wires.
 
-The non-blocking `task-view-vendor-drift.yml` reminder surfaces a `::warning::` when these
-files drift from upstream (it diffs through a `normalise()` that strips the
-import-rewire).
+The non-blocking `task-view-vendor-drift.yml` reminder surfaces a `::warning::` when the
+three retained files (or the `ledger-budgets.ts` schema asset) drift from upstream.
+
+## CLI command surface
+
+`scripts/ledger-cli.ts` is the deterministic mutation CLI; its in-file `USAGE` block is
+the authoritative reference. All mutations route through the server transport (R1b); the
+record-set + budget gates and serialisation run server-side. `--whole-file` / `--scoped`
+remain parseable argv (inv 8) but no longer change the write path (there is no in-process
+serialise path to opt between).
