@@ -43,6 +43,31 @@ prompt. The brief carries:
   behaviour, STOP and escalate. Do not silently work around (CLAUDE.md
   "Agent escalation rule").
 
+### Friction-guard convention lines (carry into EVERY brief)
+
+The friction register (`knowledge-hub-docs-site/src/content/docs/workflow-evaluation/friction-register.md`)
+tracks recurring operational friction across the archived corpus. The following
+convention lines are register-mandated brief content — include them verbatim in
+every worker / sub-orchestrator dispatch brief:
+
+- **FR-001 (cd-to-repo-root hook-block):** "NEVER prefix a Bash command with
+  `cd /Users/.../knowledge-hub` (or any absolute cd into the repo root). You are
+  already in your worktree CWD. Use paths relative to CWD, or `git -C <path>`
+  flags. A PreToolUse guard hard-blocks `cd <repo-root>` to stop wrong-branch
+  commit leakage; the block costs a full retry round-trip."
+- **FR-002 (Edit/Write before Read):** "Before any Edit/Write/MultiEdit to a
+  file you have not Read this session, Read it first (the harness hard-errors
+  'File has not been read yet' otherwise, costing a retry). Batch the Read with
+  sibling Reads in the same turn to avoid serial round-trips."
+- **FR-004 (`.git/index.lock`):** "If a git command fails with
+  `.git/index.lock: File exists`, do NOT blindly `rm` the lock — first confirm
+  no sibling git process is running, then `rm -f .git/index.lock` and retry
+  once. Prefer per-worktree git roots so the fleet never shares one index."
+- **FR-005 (MCP `-32000`):** "An MCP call returning `-32000 Internal tool
+  error` is usually transient; retry once. If it persists for a given MCP tool,
+  fall back to the non-MCP equivalent (e.g. raw CLI) and note the tool name for
+  the friction register."
+
 ### Curator-brief composition
 
 When dispatching the `workflow-curator`, the Orchestrator MUST supply a

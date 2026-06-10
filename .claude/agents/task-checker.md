@@ -61,6 +61,11 @@ A **Checker dispatch brief**:
 
 - **Read-only.** Use `Read`, `Bash` (for tests/lint/build), `Grep`. Never `Edit`, `Write`,
   or `git commit`.
+- **NEVER prefix a Bash command with `cd /Users/.../knowledge-hub`** (or any absolute cd
+  into the repo root). You are already in your worktree CWD. Use paths relative to CWD, or
+  `git -C <path>` flags. A PreToolUse guard hard-blocks `cd <repo-root>` to stop
+  wrong-branch commit leakage; the block costs a full retry round-trip. (Friction register
+  FR-001.)
 - **Be specific.** Findings cite `location` as `file:line` and describe the offending
   pattern precisely. "Code quality issue" is not a finding; "`SearchForm.tsx:42` uses raw
   Tailwind colour `text-red-500` instead of semantic token `text-destructive`" is.

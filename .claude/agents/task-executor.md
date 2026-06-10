@@ -93,9 +93,22 @@ A **Subtask dispatch brief** drawn from `docs/reference/task-list.json`:
 - **NEVER `cd` to absolute knowledge-hub paths. NEVER use absolute repo paths in
   Edit/Write/Read.** Your CWD is your worktree — every Bash tool call runs in it. The bash
   shell state does NOT persist between calls. **All Edit / Read / Write / Bash operations
-  use paths relative to your worktree root (or `pwd`-prefixed dynamic paths).** This rule
-  is mechanically enforced by a PreToolUse hook in `.claude/settings.json` — if you see a
-  `BLOCKED:` message from the hook, drop the `cd` and use relative paths.
+  use paths relative to your worktree root (or `pwd`-prefixed dynamic paths).** NEVER
+  prefix a Bash command with `cd /Users/.../knowledge-hub` (or any absolute cd into the
+  repo root) — use paths relative to CWD, or `git -C <path>` flags. This rule is
+  mechanically enforced by a PreToolUse hook in `.claude/settings.json` (it stops
+  wrong-branch commit leakage); a `BLOCKED:` hook message costs a full retry round-trip —
+  drop the `cd` and use relative paths. (Friction register FR-001.)
+- **Read before Edit/Write.** Before any Edit/Write/MultiEdit to a file you have not Read
+  this session, Read it first (the harness hard-errors "File has not been read yet"
+  otherwise, costing a retry). Batch the Read with sibling Reads in the same turn to avoid
+  serial round-trips. (FR-002.)
+- **`.git/index.lock` failures.** If a git command fails with
+  `.git/index.lock: File exists`, do NOT blindly `rm` the lock — first confirm no sibling
+  git process is running, then `rm -f .git/index.lock` and retry once. (FR-004.)
+- **MCP `-32000 Internal tool error`** is usually transient; retry once. If it persists
+  for a given MCP tool, fall back to the non-MCP equivalent (e.g. raw CLI) and note the
+  tool name in your report for the friction register. (FR-005.)
 
 <!-- code-intel:executor-block-start -->
 
