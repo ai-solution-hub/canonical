@@ -1160,6 +1160,25 @@ jobs:
         # The parity harness spawns ledger-cli.ts which imports KH modules.
         run: bun install --frozen-lockfile
 
+      - name: Provision .cache/task-view-<tag> (explicit, for ensureServer)
+        # ID-90.22 PRE-CONDITION (P3 retirement): the flag-ON parity arm spawns
+        # the ledger server via `ensureServer`, which resolves the server entry
+        # at `.cache/task-view-<TASK_VIEW_TAG>/apps/server/index.ts`
+        # (ledger-server-lifecycle.ts:340). Nothing in this job previously
+        # provisioned that path — the flag-ON arm survived on implicit ordering
+        # (a flag-OFF post-write regen-mirrors.sh clone-if-missing). Symlinking
+        # the tag-keyed cache to the already-cloned-and-installed
+        # `$RUNNER_TEMP/task-view` (Install step above) makes provisioning
+        # EXPLICIT and arm-order-independent: re-ordering the parity arms or
+        # passing `--no-regen-mirrors` can no longer break `ensureServer`.
+        # TASK_VIEW_TAG mirrors the Install step's literal (static, not external
+        # context — safe in run:).
+        env:
+          TASK_VIEW_TAG: v0.4.0-task-view
+        run: |
+          mkdir -p .cache
+          ln -sfn "$RUNNER_TEMP/task-view" ".cache/task-view-$TASK_VIEW_TAG"
+
       - name: Differential parity (flag-OFF vs flag-ON, AC-P1 inv 21)
         # ID-90.20 K5: prove flag-OFF and flag-ON paths produce byte-identical
         # ledger files across the mutating-subcommand matrix. Reuses the
