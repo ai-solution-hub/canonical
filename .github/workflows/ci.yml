@@ -261,6 +261,29 @@ jobs:
             bun install --frozen-lockfile
           fi
 
+      - name: Install task-view (clone @ tag)
+        # ID-90.22: the Vitest shards run the ledger WRITE suites
+        # (__tests__/scripts/ledger-*.test.ts) which default to the server
+        # transport (KH_LEDGER_SERVER unset → ON). ensureServer spawns
+        # `.cache/task-view-<TASK_VIEW_TAG>/apps/server/index.ts`
+        # (ledger-server-lifecycle.ts:340); /.cache/ is gitignored, so this job
+        # must provision it too — parity with the ledger-mirror-parity job, which
+        # is the only job that previously cloned task-view. TASK_VIEW_TAG is a
+        # static literal (not external context) — safe in run:.
+        env:
+          TASK_VIEW_TAG: v0.4.0-task-view
+        run: |
+          git clone --depth 1 --branch "$TASK_VIEW_TAG" \
+            https://github.com/liam-jons/task-view.git "$RUNNER_TEMP/task-view"
+          (cd "$RUNNER_TEMP/task-view" && bun install)
+
+      - name: Provision .cache/task-view-<tag> (for ensureServer)
+        env:
+          TASK_VIEW_TAG: v0.4.0-task-view
+        run: |
+          mkdir -p .cache
+          ln -sfn "$RUNNER_TEMP/task-view" ".cache/task-view-$TASK_VIEW_TAG"
+
       - name: Test (Vitest, shard ${{ matrix.shard }}/4)
         env:
           # Vitest setup imports validated env modules; mirror the build step.

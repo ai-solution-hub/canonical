@@ -36,6 +36,12 @@
     }
   },
   {
+    "interface": "ItemHistoryListResponse",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
     "interface": "DedupQueueResponse",
     "declaredAt": {
       "file": "lib/query/fetchers.ts"
@@ -114,18 +120,6 @@
     }
   },
   {
-    "interface": "ReadinessData",
-    "declaredAt": {
-      "file": "hooks/procurement/use-procurement-readiness.ts"
-    }
-  },
-  {
-    "interface": "ProcurementResponse",
-    "declaredAt": {
-      "file": "hooks/streaming/use-stream-coordination.ts"
-    }
-  },
-  {
     "interface": "CompanyProfile",
     "declaredAt": {
       "file": "hooks/intelligence/use-company-profiles.ts"
@@ -198,9 +192,27 @@
     }
   },
   {
+    "interface": "ReadinessData",
+    "declaredAt": {
+      "file": "hooks/procurement/use-procurement-readiness.ts"
+    }
+  },
+  {
+    "interface": "ProcurementResponse",
+    "declaredAt": {
+      "file": "hooks/streaming/use-stream-coordination.ts"
+    }
+  },
+  {
     "interface": "AssignmentsResponse",
     "declaredAt": {
       "file": "hooks/review/use-review-queue-data.ts"
+    }
+  },
+  {
+    "interface": "ItemHistoryVersionDetail",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
     }
   },
   {
