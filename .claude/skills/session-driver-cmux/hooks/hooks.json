@@ -8,6 +8,13 @@
         "timeout": 120
       }]
     }],
+    "PostToolUse": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/emit-event.sh"
+      }]
+    }],
     "SessionStart": [{
       "matcher": "*",
       "hooks": [{
