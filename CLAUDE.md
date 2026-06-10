@@ -60,7 +60,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 | `supabase/`   | Migrations + auto-generated types (`database.types.ts` — never edit manually)                                                                                                                                                                                                                                |
 | `__tests__/`  | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation)                                                                                                                                                                                               |
 | `e2e/`        | Playwright E2E specs. Config: `playwright.config.ts`                                                                                                                                                                                                                                                         |
-| `docs/`       | Interim residual docs tree (relocating to the private docs-site repo under ID-68); continuation prompts + ledger JSONs stay                                                                                                                                                                                                                                                          |
+| `docs/`       | Interim residual docs tree (relocating to the private docs-site repo under ID-68)                                                                                                                                                                                                                                                         |
 
 ## Environment
 
@@ -86,7 +86,7 @@ Prod-targeted CLI work opts in via `--env=prod` or explicit env override. Full g
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts`
 - **E2E:** Playwright in `e2e/tests/` — worker-scoped fixtures, multi-role auth
-- **Quality gate:** Stop hook runs `vitest --changed` (scoped). Use `bun run test`
+- **Quality gate:** Use `bun run test`
   explicitly for full regression checks after merges.
 
 ## Deployment
@@ -263,16 +263,9 @@ Mempalace MCP server is the canonical memory system.
 ### General
 
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
-- **Bash-tool heredocs mangle `!=`** (history-expansion escaping turns it into `\!=`,
-  a Python SyntaxError). Write python conditions `==`-shaped, or write the script to a
-  temp file with the Write tool and run it. (Bit S336, S337, and the evaluator agent.)
 - **Worktree isolation:** Use `isolation: "worktree"` on parallel Agent dispatch.
   Cherry-pick (not merge) parallel branches; agents start stale, so first action is
   `git fetch origin {branch} && git reset --hard origin/{branch}`.
-- **`gitnexus_detect_changes()` is unrunnable in worktree dispatches:** agent worktrees
-  inherit no `.gitnexus` index ("last indexed: never") — `git diff --name-only` is the
-  authoritative scope-containment fallback. `gitnexus_impact` (primary-tree symbol index)
-  stays reliable.
 - **Worktree pytest must run from the worktree CWD:** main-repo-CWD invocations resolve
   `scripts.*` to the MAIN tree's modules (namespace-package hazard — spurious
   failures/passes against stale code).

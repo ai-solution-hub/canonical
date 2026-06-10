@@ -56,8 +56,10 @@
     "filesystem": {
       "allowWrite": [
         "/Users/liamj/Documents/development/knowledge-hub-docs-site",
-        "/Users/liamj/Documents/development/knowledge-hub/.claude",
-        "/Users/liamj/Documents/development/knowledge-hub-docs-site/.claude"
+        "/Users/liamj/Documents/development/knowledge-hub-docs-site/.claude",
+        ".claude",
+        "lib/mcp/plugin-bundle.ts",
+        "supabase/types/database.types.ts"
       ]
     }
   }
