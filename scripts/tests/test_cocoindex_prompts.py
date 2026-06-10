@@ -17,6 +17,7 @@ from scripts.cocoindex_pipeline.prompts import (
     CLASSIFICATION_PROMPT,
     ENTITY_MENTION_PROMPT,
     Q_A_FORM_PROMPT,
+    RELATIONSHIP_PROMPT,
 )
 
 
@@ -65,6 +66,7 @@ _ALL_PROMPTS = {
     "CLASSIFICATION_PROMPT": CLASSIFICATION_PROMPT,
     "Q_A_FORM_PROMPT": Q_A_FORM_PROMPT,
     "ENTITY_MENTION_PROMPT": ENTITY_MENTION_PROMPT,
+    "RELATIONSHIP_PROMPT": RELATIONSHIP_PROMPT,
 }
 
 
@@ -251,3 +253,84 @@ class TestPromptsEnumeratesEnums:
         assert not missing, (
             f"ENTITY_MENTION_PROMPT missing entity_type values: {missing}"
         )
+
+    def test_relationship_enumerates_10_relationship_types(self) -> None:
+        """RELATIONSHIP_PROMPT must list all 10 canonical relationship types
+        ({101.6} Inv-4 parity with the TS ExtractedRelationship union)."""
+        relationship_types = {
+            "holds",
+            "complies_with",
+            "delivers_to",
+            "uses",
+            "demonstrated_by",
+            "requires",
+            "part_of",
+            "supersedes",
+            "references",
+            "evidences",
+        }
+        missing = [v for v in relationship_types if v not in RELATIONSHIP_PROMPT]
+        assert not missing, (
+            f"RELATIONSHIP_PROMPT missing relationship_type values: {missing}"
+        )
+
+
+class TestRelationshipPromptHolderRules:
+    """{101.6} — the ported §Holder Disambiguation rules must survive verbatim.
+
+    Port-fidelity guards (R5: port once, verbatim, freeze) — these phrasings come
+    straight from `lib/ai/skills/classification.md` §Relationship Extraction +
+    §Holder Disambiguation and must not silently drift.
+    """
+
+    def test_contains_verbatim_trigger_phrase_rules(self) -> None:
+        """The sentence-level trigger-phrase rule + its phrase list survive."""
+        # The rule's framing sentence.
+        assert (
+            "attribute the `holds` relationship to the named third party, "
+            "not the author organisation" in RELATIONSHIP_PROMPT
+        )
+        # The verbatim trigger phrases (a representative, load-bearing subset).
+        for phrase in (
+            '"held by [party]"',
+            '"managed by [party]"',
+            '"maintained by [party]"',
+            '"via supplier [party]" / "via [party]"',
+            '"delivered through [party]"',
+            '"outsourced to [party]"',
+            '"provided by [party]" (when [party] is not the document author)',
+            '"operated by [party]"',
+        ):
+            assert phrase in RELATIONSHIP_PROMPT, (
+                f"RELATIONSHIP_PROMPT missing verbatim trigger phrase: {phrase}"
+            )
+
+    def test_contains_verbatim_disclaimer_paragraph_rule(self) -> None:
+        """The content-level disclaimer-paragraph rule survives verbatim."""
+        assert (
+            "then ALL certification `holds` relationships following the "
+            "disclaimer (or within its stated scope) must use [party] as the "
+            "`source` entity, not the author organisation" in RELATIONSHIP_PROMPT
+        )
+        # The disclaimer exemplars.
+        for phrase in (
+            '"Note: Certifications ... are held by [party], not [author]"',
+            '"The following certifications are held by [party]"',
+            '"Certifications listed ... belong to [party]"',
+            '"These accreditations are maintained by [party]"',
+        ):
+            assert phrase in RELATIONSHIP_PROMPT, (
+                f"RELATIONSHIP_PROMPT missing verbatim disclaimer exemplar: {phrase}"
+            )
+
+    def test_contains_supplier_attribution_example(self) -> None:
+        """The supplier-attribution worked example survives verbatim."""
+        assert "Example Datacentre" in RELATIONSHIP_PROMPT
+        assert (
+            'source: "Example Datacentre", relationship: "holds", '
+            'target: "ISO 27001"' in RELATIONSHIP_PROMPT
+        )
+
+    def test_instructs_empty_list_when_none_found(self) -> None:
+        """Inv-8: 'if none are found, return an empty list `[]`'."""
+        assert "return an empty list `[]`" in RELATIONSHIP_PROMPT

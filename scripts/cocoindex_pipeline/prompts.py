@@ -189,3 +189,92 @@ Markdown tables and source-index lists are systematically under-extracted by pat
 
 Now extract entity mentions from the following document:
 """
+
+
+RELATIONSHIP_PROMPT = """You are extracting relationships between named entities from a document for an enterprise knowledge base. When entities are identified, also extract relationships between them where clearly stated or strongly implied. Read the document content carefully and produce a JSON list, where each item describes one relationship between a source entity and a target entity.
+
+OUTPUT FORMAT
+Return ONLY a single JSON array — no markdown fences, no commentary, no preamble. The array MAY be empty if the document contains no extractable relationships. Each item in the array MUST have exactly these fields:
+
+  {
+    "source": <verbatim or canonicalised source-entity name>,
+    "relationship": <one of the canonical relationship-type values listed below>,
+    "target": <verbatim or canonicalised target-entity name>
+  }
+
+FIELD CONSTRAINTS
+
+- source: non-empty string naming the source entity of the relationship.
+- target: non-empty string naming the target entity of the relationship.
+- relationship: MUST be ONE of the following canonical relationship-type values. Use these relationship types:
+
+| Relationship      | Meaning                                    | Example                                                 |
+| ----------------- | ------------------------------------------ | ------------------------------------------------------- |
+| `holds`           | Organisation holds a certification         | Acme Ltd holds ISO 27001                                |
+| `complies_with`   | Entity complies with a regulation/standard | Acme Ltd complies_with GDPR                             |
+| `delivers_to`     | Organisation delivers to a sector          | Acme Ltd delivers_to Public Sector                      |
+| `uses`            | Entity uses a technology/product           | Acme Ltd uses Microsoft Azure                           |
+| `demonstrated_by` | Capability demonstrated by a project       | Penetration Testing demonstrated_by NHS Trust Programme |
+| `requires`        | Entity requires another entity             | ISO 27001 requires risk assessment                      |
+| `part_of`         | Entity is part of another                  | Data Protection part_of GDPR                            |
+| `supersedes`      | Entity supersedes another                  | ISO 27001:2022 supersedes ISO 27001:2013                |
+| `references`      | Entity references another                  | Data Protection Policy references GDPR                  |
+| `evidences`       | Entity provides evidence for another       | Audit Report evidences ISO 27001                        |
+
+Only include relationships that are clearly stated or strongly implied in the content. If none are found, return an empty list `[]`.
+
+HOLDER DISAMBIGUATION FOR `holds` RELATIONSHIPS
+
+When extracting `holds` relationships for certifications, you MUST check whether the content attributes the certification to the document's author organisation or to a third party (supplier, partner, landlord, data centre operator).
+
+Trigger phrases (sentence-level): If the certification mention appears in the same sentence or immediately adjacent paragraph as any of these phrases, attribute the `holds` relationship to the named third party, not the author organisation:
+
+- "held by [party]"
+- "managed by [party]"
+- "maintained by [party]"
+- "via supplier [party]" / "via [party]"
+- "delivered through [party]"
+- "outsourced to [party]"
+- "provided by [party]" (when [party] is not the document author)
+- "operated by [party]"
+
+Disclaimer paragraphs (content-level): If the content contains an explicit disclaimer such as:
+
+- "Note: Certifications ... are held by [party], not [author]"
+- "The following certifications are held by [party]"
+- "Certifications listed ... belong to [party]"
+- "These accreditations are maintained by [party]"
+
+then ALL certification `holds` relationships following the disclaimer (or within its stated scope) must use [party] as the `source` entity, not the author organisation.
+
+When a supplier/third-party holder is detected:
+
+1. Set `source` to the third-party organisation name (canonicalised).
+2. Set `target` to the certification name.
+3. Set `relationship` to `holds`.
+
+The downstream system will infer holder attribution from `source_entity` vs the configured client organisation name. Do NOT fabricate a `holds` relationship with the author organisation as source when the content explicitly attributes the certification to another party.
+
+When no supplier signal is present and the author organisation is clearly described as holding the certification ("We hold ISO 27001", "{CLIENT_ORGANISATION_NAME} is certified to ISO 9001"), extract the relationship normally with the author organisation as `source`.
+
+Example (supplier attribution):
+
+Content: "Note: Certifications and security measures below are held by Example Datacentre, not {CLIENT_ORGANISATION_NAME}. ISO 27001, ISO 14001, Cyber Essentials Plus."
+
+Correct extraction:
+
+- source: "Example Datacentre", relationship: "holds", target: "ISO 27001"
+- source: "Example Datacentre", relationship: "holds", target: "ISO 14001"
+- source: "Example Datacentre", relationship: "holds", target: "Cyber Essentials Plus"
+
+Incorrect extraction (what happens without this rule):
+
+- source: "{CLIENT_ORGANISATION_NAME}", relationship: "holds", target: "ISO 27001"
+
+GUIDANCE
+
+- Only include relationships that are clearly stated or strongly implied in the content. If none are found, return an empty list `[]` — do NOT invent relationships.
+- Use UK English (organise, behaviour, colour) — but do NOT alter the verbatim entity names in source / target where they appear in the document.
+
+Now extract relationships from the following document:
+"""

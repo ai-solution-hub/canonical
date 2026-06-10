@@ -1256,6 +1256,30 @@ class TestNoFictionalApiSurvives:
             "app_main must drive the reactive mount_each path"
         )
 
+    def test_no_extract_by_llm_or_llm_spec_anywhere(self) -> None:
+        """{101.6} Inv-1 — `cocoindex.ExtractByLlm` / `cocoindex.LlmSpec` are
+        ABSENT in cocoindex[postgres]==1.0.7; no extractor (including the new
+        `extract_relationships`) may reference them. Survey the whole extraction
+        + prompts module source — Path A drives the SDK directly, not the
+        fictional ExtractByLlm op.
+        """
+        from scripts.cocoindex_pipeline import extraction as extraction_mod
+        from scripts.cocoindex_pipeline import prompts as prompts_mod
+
+        for module in (extraction_mod, prompts_mod):
+            src = inspect.getsource(module)
+            for forbidden in ("ExtractByLlm", "LlmSpec"):
+                assert forbidden not in src, (
+                    f"{module.__name__} still references the fictional "
+                    f"cocoindex API {forbidden!r} (absent in 1.0.7; Inv-1)"
+                )
+
+        # Belt-and-braces: the new extractor's own source is clean.
+        rel_src = inspect.getsource(extraction_mod.extract_relationships)
+        assert "ExtractByLlm" not in rel_src and "LlmSpec" not in rel_src, (
+            "extract_relationships must not reference ExtractByLlm / LlmSpec"
+        )
+
 
 # ── 28.22 — env-scope DB pool provisioning via @coco.lifespan ─────────────────
 

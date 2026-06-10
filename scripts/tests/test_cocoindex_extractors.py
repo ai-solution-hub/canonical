@@ -67,11 +67,13 @@ from scripts.cocoindex_pipeline.extraction import (  # noqa: E402
     ClassificationExtraction,
     EntityMentionExtraction,
     QAFormExtraction,
+    RelationshipExtraction,
     _strip_code_fence,
     classify_pydantic_error,
     extract_classification,
     extract_entity_mentions,
     extract_qa_form,
+    extract_relationships,
 )
 
 
@@ -246,6 +248,24 @@ def _entity_mentions_json() -> str:
                 "source_span_start": 20,
                 "source_span_end": 44,
                 "mention_confidence": 0.88,
+            },
+        ]
+    )
+
+
+def _relationships_json() -> str:
+    """Return a well-formed list of relationship JSON payloads ({101.6})."""
+    return json.dumps(
+        [
+            {
+                "source": "Acme Ltd",
+                "relationship": "holds",
+                "target": "ISO 27001:2022",
+            },
+            {
+                "source": "Acme Ltd",
+                "relationship": "complies_with",
+                "target": "GDPR",
             },
         ]
     )
@@ -514,6 +534,77 @@ class TestExtractEntityMentions:
 
 
 # ============================================================================
+# RELATIONSHIP EXTRACTOR ({101.6})
+# ============================================================================
+
+
+class TestExtractRelationships:
+    """Verify extract_relationships() behaviour with mocked anthropic SDK."""
+
+    def test_happy_path_returns_list_of_relationships(self):
+        """Well-formed JSON array response → list[RelationshipExtraction]."""
+        mock_client = _make_mock_client(_relationships_json())
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            result = asyncio.run(extract_relationships("doc with relationships"))
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(r, RelationshipExtraction) for r in result)
+        assert result[0].source == "Acme Ltd"
+        assert result[0].relationship == "holds"
+        assert result[0].target == "ISO 27001:2022"
+        assert result[1].relationship == "complies_with"
+        # bl-220 stamp-free: no stamp / discriminator fields cross the boundary.
+        assert not hasattr(result[0], "op_id")
+        assert not hasattr(result[0], "extraction_kind")
+
+    def test_empty_list_is_valid_response(self):
+        """LLM returns empty list `[]` → valid empty list[RelationshipExtraction].
+
+        Per the ported prompt (Inv-8): when the document contains no
+        relationships, the LLM MUST return an empty list (not invent triples).
+        """
+        mock_client = _make_mock_client("[]")
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            result = asyncio.run(
+                extract_relationships("doc with no relationships")
+            )
+        assert result == []
+        assert isinstance(result, list)
+
+    def test_invalid_predicate_raises_validation_error(self):
+        """LLM returns relationship='owns' (not in the 10-type set) →
+        ValidationError (Inv-4 parity contract guard)."""
+        payload = json.loads(_relationships_json())
+        payload[0]["relationship"] = "owns"  # not in canonical 10-value list
+        mock_client = _make_mock_client(json.dumps(payload))
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            with pytest.raises(ValidationError) as exc_info:
+                asyncio.run(extract_relationships("doc text"))
+        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+    def test_empty_source_raises_validation_error(self):
+        """RelationshipExtraction.source MUST be non-empty (min_length=1)."""
+        payload = json.loads(_relationships_json())
+        payload[0]["source"] = ""  # violates Field(min_length=1)
+        mock_client = _make_mock_client(json.dumps(payload))
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            with pytest.raises(ValidationError):
+                asyncio.run(extract_relationships("doc text"))
+
+
+# ============================================================================
 # DECORATOR / MEMOISATION DISCIPLINE
 # ============================================================================
 
@@ -574,6 +665,20 @@ class TestExtractorDecoration:
         try:
             assert inspect.isawaitable(coro), (
                 f"extract_entity_mentions call must return an awaitable; "
+                f"got type {type(coro).__name__!r}"
+            )
+        finally:
+            if hasattr(coro, "close"):
+                coro.close()
+
+    def test_extract_relationships_call_returns_awaitable(self):
+        """extract_relationships(content) returns an awaitable ({101.6})."""
+        import inspect
+
+        coro = extract_relationships("hi")
+        try:
+            assert inspect.isawaitable(coro), (
+                f"extract_relationships call must return an awaitable; "
                 f"got type {type(coro).__name__!r}"
             )
         finally:
