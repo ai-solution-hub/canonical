@@ -206,8 +206,10 @@ export interface TaskListWarning {
  *
  * As of {35.13} the canonical budget numbers live in the unified 3-ledger
  * registry `lib/validation/ledger-budgets.ts`; `FIELD_BUDGETS` is re-exported
- * here so the existing named import (`parseTaskListWithWarnings`,
- * `scripts/ledger-sweep-s269.ts`) keeps working unchanged.
+ * here so the existing named import (`parseTaskListWithWarnings`) keeps working
+ * unchanged. (The one-off `scripts/ledger-sweep-s269.ts` sweep that also imported
+ * it was retired in ID-90.22 R2; the sweep was a point-in-time migration already
+ * applied.)
  */
 export { FIELD_BUDGETS } from '@/lib/validation/ledger-budgets';
 

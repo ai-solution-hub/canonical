@@ -408,7 +408,12 @@ The Orchestrator does not declare a Task `done` without:
 ## Ledger field-discipline
 
 The Orchestrator owns ledger writes for status transitions, journal-block
-appends, Subtask additions, and Task opens. Per-field discipline - **Canonical
+appends, Subtask additions, and Task opens. All writes route through the
+`bun scripts/ledger-cli.ts` façade — never raw `Edit` on the JSON ledgers. As of
+ID-90.22 the CLI is server-unconditional: the **enforcement point** (serialisation,
+record-set + budget gates, mirror regen) lives in the task-view patch-server
+substrate, while the CLI is the **operator surface**; its invocation shapes are
+unchanged (invariant 57). Per-field discipline - **Canonical
 reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`
 
 | Field | Shape | Load-bearing for |

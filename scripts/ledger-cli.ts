@@ -66,14 +66,18 @@
  * vs task.dependencies:string[]) is explicit; `<command> --help` prints that
  * command's flags + its target record's schema slice.
  *
- * `--scoped` (ID-35.11): minimal-diff write for the field-edit subcommands
- * (flip-task | flip-subtask | append-journal). Scoped mode mutates the
- * JSON.parse of the ORIGINAL on-disk text in place and escape-serialises it
- * (lib/ledger/scoped-serialise.ts) — every untouched record stays byte-for-byte
- * identical, on-disk \\uXXXX escaping preserved. Zod still validates the mutated
- * document before any byte is written. After the OQ-LS-2 (S270) normalisation,
- * both the scoped path and the whole-file path emit the same escaped format, so
- * they are byte-compatible for ongoing single-field edits.
+ * `--scoped` (ID-35.11): historically selected the minimal-diff write for the
+ * field-edit subcommands (flip-task | flip-subtask | append-journal). As of
+ * ID-90.22 R1b the CLI no longer owns the write path — the patch-server
+ * substrate is the unconditional write enforcement point (it owns serialisation,
+ * the gates and mirror regen). `--scoped` / `--whole-file` STILL PARSE on the
+ * argv surface (invariant 8 — argv/envelope/exit-code stability) but are now a
+ * NO-OP: they no longer change where or how bytes are written. The server emits
+ * the same minimal-diff escaped bytes either way. The original scoped serialiser
+ * (lib/ledger/scoped-serialise.ts) was deleted in R2; byte-shape coverage lives
+ * upstream (task-view U11). After the OQ-LS-2 (S270) normalisation both shapes
+ * already emitted the same escaped format, so the merge into a single server
+ * write path is byte-compatible for ongoing single-field edits.
  */
 
 import { resolve } from 'node:path';

@@ -123,10 +123,12 @@ stall pattern this shape was designed to eliminate.
 - **Never edit production code; never raw-`Edit` the JSON ledgers.** You write to the
   three workflow ledgers only (`product-roadmap.json`, `product-backlog.json`,
   `task-list.json`) and ALWAYS via `bun scripts/ledger-cli.ts` (through the
-  `update-roadmap-backlog` skill) — never direct `Edit` against the JSON. The CLI provides
-  atomic-write, default-on mirror regen ({35.18}), write-time budget gate ({35.17}), and
-  record-set gate ({35.16}). Code-change suggestions belong in the subtask spec, not your
-  edits.
+  `update-roadmap-backlog` skill) — never direct `Edit` against the JSON. The CLI surface
+  provides atomic-write, default-on mirror regen ({35.18}), write-time budget gate
+  ({35.17}), and record-set gate ({35.16}); as of ID-90.22 these are enforced server-side
+  in the task-view patch-server substrate (the CLI is the operator surface — invariant
+  57), with the invocation shapes and reject behaviour unchanged. Code-change suggestions
+  belong in the subtask spec, not your edits.
 - **Always cite provenance.** Every new ledger entry carries enough information to trace
   back to the source: source task / source commit / session counter. The schemas have
   specific fields for this (see the `update-roadmap-backlog` skill); use them.
@@ -156,10 +158,10 @@ stall pattern this shape was designed to eliminate.
 
 ## Skills you invoke
 
-| Phase                      | Skill                    | Why                                                                                                                                                                                                    |
-| -------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Triage                     | `triage-finding`         | Decision logic: subtask vs roadmap vs backlog vs no-action                                                                                                                                             |
-| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts` (v3): atomic write, default-on mirror regen ({35.18}), write-time budget ({35.17}) + record-set ({35.16}) gates, provenance via `session_refs` / `commit_refs`. |
+| Phase                      | Skill                    | Why                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Triage                     | `triage-finding`         | Decision logic: subtask vs roadmap vs backlog vs no-action                                                                                                                                                                                                                                                                                                    |
+| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts` (v3): atomic write, default-on mirror regen ({35.18}), write-time budget ({35.17}) + record-set ({35.16}) gates, provenance via `session_refs` / `commit_refs`. As of ID-90.22 these gates are enforced server-side in the patch-server substrate (CLI = operator surface, invariant 57); invocation shapes unchanged. |
 
 You do NOT invoke executor- or checker-side skills (`test-driven-development`,
 `code-review-and-quality`, etc.) — those are for code work, not for triage.

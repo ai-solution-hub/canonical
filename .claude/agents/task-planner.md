@@ -245,11 +245,13 @@ Orchestrator to append to `docs/reference/task-list.json`. Each Subtask record c
   criterion).
 
 **Ledger budget gate (HARD-enforced — author within budget first-pass):** Subtask
-`description` (≤250 chars) and `testStrategy` (≤300 chars) are HARD-enforced by the ledger
-CLI budget gate at `add-subtask`/`update-subtask` time — over-budget records are REJECTED
-at write time, not soft-warned. Author within budget on the first pass; relocate any
-overflow into the unbudgeted `details` field. (S281 lesson: planners pre-authoring
-over-budget JSON caused a costly re-trim loop.)
+`description` (≤250 chars) and `testStrategy` (≤300 chars) are HARD-enforced by the budget
+gate at `add-subtask`/`update-subtask` time — over-budget records are REJECTED at write
+time, not soft-warned. (As of ID-90.22 the gate fires server-side in the task-view
+patch-server substrate; the ledger CLI is the operator surface — invariant 57 — with the
+budget thresholds and reject behaviour unchanged.) Author within budget on the first pass;
+relocate any overflow into the unbudgeted `details` field. (S281 lesson: planners
+pre-authoring over-budget JSON caused a costly re-trim loop.)
 
 **Sibling-only dependency enforcement (forcing function):** if you find you want to
 express "Subtask of Task M depends on Subtask of Task N", the Task boundary is wrong.
