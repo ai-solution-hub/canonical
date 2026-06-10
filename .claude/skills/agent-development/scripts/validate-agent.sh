@@ -135,11 +135,11 @@ else
   echo "✅ model: $MODEL"
 
   case "$MODEL" in
-    inherit|sonnet|opus|haiku)
+    inherit|sonnet|opus|haiku|fable)
       # Valid model
       ;;
     *)
-      echo "⚠️  Unknown model: $MODEL (valid: inherit, sonnet, opus, haiku)"
+      echo "⚠️  Unknown model: $MODEL (valid: inherit, sonnet, opus, haiku, fable)"
       ((warning_count++))
       ;;
   esac

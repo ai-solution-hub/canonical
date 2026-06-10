@@ -134,8 +134,9 @@ Which model the agent should use.
 
 **Options:**
 - `inherit` - Use same model as parent (recommended)
+- `fable` - Claude Fable (latest frontier model)
 - `sonnet` - Claude Sonnet (balanced)
-- `opus` - Claude Opus (most capable, expensive)
+- `opus` - Claude Opus (most capable of the 4.x family)
 - `haiku` - Claude Haiku (fast, cheap)
 
 **Recommendation:** Use `inherit` unless agent needs specific model capabilities.
@@ -368,7 +369,7 @@ Output: [What to provide]
 |-------|----------|--------|---------|
 | name | Yes | lowercase-hyphens | code-reviewer |
 | description | Yes | Text + examples | Use when... <example>... |
-| model | Yes | inherit/sonnet/opus/haiku | inherit |
+| model | Yes | inherit/fable/sonnet/opus/haiku | inherit |
 | color | Yes | Color name | blue |
 | tools | No | Array of tool names | ["Read", "Grep"] |
 
