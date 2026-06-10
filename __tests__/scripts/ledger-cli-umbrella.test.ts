@@ -32,7 +32,23 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
-import { escapeSerialise } from '@/lib/ledger/scoped-serialise';
+// ID-90.22 R1a: `escapeSerialise` (@/lib/ledger/scoped-serialise) is dropped
+// here — R2 deletes that module. It is used only to build the on-disk
+// umbrellas.json fixture in the byte-faithful format the CLI expects (2-space
+// pretty JSON, non-ASCII \uXXXX-escaped, trailing newline). That format is a
+// stable, trivially reproducible contract, so we inline it as a local fixture
+// serialiser rather than depend on the to-be-deleted module. (updateUmbrella
+// runs the DIRECT path in R1a — no server branch until R1b — so this fixture
+// must remain byte-conforming for the on-disk read/write the CLI performs.)
+const NON_ASCII = new RegExp('[\\u0080-\\uffff]', 'g');
+function escapeSerialise(parsedValue: unknown): string {
+  return (
+    JSON.stringify(parsedValue, null, 2).replace(
+      NON_ASCII,
+      (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'),
+    ) + '\n'
+  );
+}
 
 let dir: string;
 

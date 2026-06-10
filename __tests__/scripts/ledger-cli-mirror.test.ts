@@ -1,25 +1,32 @@
 /**
- * ledger-cli-mirror.test.ts — mirror regen default-on + fail-loud
- * (ID-35.18, RESEARCH §2.5). A mutating command regenerates the affected
- * mirror BY DEFAULT (so docs/reference/{tasks,roadmap,backlog}/ stay in sync
- * and CI ledger-mirror-parity stays green); `--no-regen-mirrors` opts out.
+ * ledger-cli-mirror.test.ts — mirror-staleness signalling over the SERVER
+ * TRANSPORT (ID-35.18 / ID-35.32, re-targeted at ID-90.22 R1a).
  *
- * The regen invocation is replaced via the CLI's `__setRegenRunnerForTest`
- * seam so the test NEVER clones task-view. We assert the runner is invoked (or
- * not) and that a non-zero exit is surfaced loud on stderr (post-write alert,
- * not a rollback).
+ * A mutating command regenerates the affected mirror BY DEFAULT (so
+ * docs/reference/{tasks,roadmap,backlog}/ stay in sync and CI
+ * ledger-mirror-parity stays green); `--no-regen-mirrors` opts out.
+ *
+ * ID-90.22 R1a: the WRITE path is now the server transport (KH_LEDGER_SERVER
+ * unset → ON), so the in-process `__setRegenRunnerForTest` / `regenSpy` seam no
+ * longer sits on the write path — REGEN RUNS SERVER-SIDE. The "regen was
+ * invoked" and "regen-failed surfaces loud" behaviours are therefore the
+ * server's responsibility (covered by task-view's own suite, U11; the
+ * client-side response→envelope MAPPING is unit-tested with canned + real-server
+ * responses in ledger-server-client.test.ts).
+ *
+ * What this suite now asserts is the CLIENT-OBSERVABLE mirror-staleness signal
+ * over the transport:
+ *   - `--no-regen-mirrors` → mirrorStale:true, mirrorStaleReason:'suppressed'
+ *     (mapped client-side by transportCommit; no server regen needed).
+ *   - a dry-run writes nothing and carries no stale signal.
+ *   - a normal write succeeds (ok:true) and leaves no `suppressed` stale signal.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import {
-  run,
-  __setRegenRunnerForTest,
-  mirrorReminderFor,
-  type ParsedArgs,
-} from '@/scripts/ledger-cli';
+import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
 const REPO = resolve(__dirname, '../..');
 const REAL = {
@@ -29,18 +36,14 @@ const REAL = {
 };
 
 let dir: string;
-let regenSpy: ReturnType<typeof vi.fn<() => number | null>>;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ledger-cli-mirror-'));
   copyFileSync(REAL.task, join(dir, 'task-list.json'));
   copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
   copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
-  regenSpy = vi.fn<() => number | null>(() => 0); // success by default
-  __setRegenRunnerForTest(regenSpy);
 });
 afterEach(() => {
-  __setRegenRunnerForTest(null); // restore the real runner
   rmSync(dir, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
@@ -67,76 +70,7 @@ function read(name: 'task-list') {
   return JSON.parse(readFileSync(join(dir, `${name}.json`), 'utf8'));
 }
 
-describe('mirror regen default-on (ID-35.18)', () => {
-  it('a mutating command with NO mirror flag invokes regen by default', async () => {
-    const taskId = read('task-list').tasks[0].id;
-    const subId = String(read('task-list').tasks[0].subtasks[0].id);
-    const r = await run(args('flip-subtask', [taskId, subId, 'done']));
-    expect(r.ok).toBe(true);
-    expect(regenSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('--no-regen-mirrors suppresses the regen', async () => {
-    const taskId = read('task-list').tasks[0].id;
-    const subId = String(read('task-list').tasks[0].subtasks[0].id);
-    const r = await run(
-      args('flip-subtask', [taskId, subId, 'done'], { noRegenMirrors: true }),
-    );
-    expect(r.ok).toBe(true);
-    expect(regenSpy).not.toHaveBeenCalled();
-  });
-
-  it('--regen-mirrors is a harmless no-op alias (regen still runs by default)', async () => {
-    const taskId = read('task-list').tasks[0].id;
-    const subId = String(read('task-list').tasks[0].subtasks[0].id);
-    const r = await run(
-      args('flip-subtask', [taskId, subId, 'done'], { regenMirrors: true }),
-    );
-    expect(r.ok).toBe(true);
-    expect(regenSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('a dry-run does NOT regen (nothing was written)', async () => {
-    const taskId = read('task-list').tasks[0].id;
-    const subId = String(read('task-list').tasks[0].subtasks[0].id);
-    const r = await run(
-      args('flip-subtask', [taskId, subId, 'done'], { dryRun: true }),
-    );
-    expect(r.ok).toBe(true);
-    expect(regenSpy).not.toHaveBeenCalled();
-  });
-
-  it('a non-zero regen exit is surfaced LOUD on stderr (post-write alert, not rollback)', async () => {
-    regenSpy.mockImplementation(() => 2);
-    const stderrSpy = vi
-      .spyOn(process.stderr, 'write')
-      .mockImplementation(() => true);
-    const taskId = read('task-list').tasks[0].id;
-    const subId = String(read('task-list').tasks[0].subtasks[0].id);
-    const r = await run(args('flip-subtask', [taskId, subId, 'done']));
-    // The write committed (post-write alert, not a rollback).
-    expect(r.ok).toBe(true);
-    expect(read('task-list').tasks[0].subtasks[0].status).toBe('done');
-    const loud = stderrSpy.mock.calls.some((c) =>
-      String(c[0]).includes('MIRROR REGEN FAILED'),
-    );
-    expect(loud).toBe(true);
-    stderrSpy.mockRestore();
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ID-35.32 — discriminated mirror-reminder text.
-//
-// Bug: every mutating call printed the generic "mirror regen runs by default
-// after a write; if you passed --no-regen-mirrors, run …" reminder even WHEN
-// --no-regen-mirrors was passed. That lectures the operator about a default
-// they already bypassed. Fix: discriminate the result-envelope `mirrorStale`
-// signal with `mirrorStaleReason` ('suppressed' | 'regen-failed') and pick the
-// reminder text accordingly.
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('mirror-reminder discrimination (ID-35.32)', () => {
+describe('mirror-staleness signal over transport (ID-35.18 / ID-35.32)', () => {
   it('--no-regen-mirrors result envelope carries mirrorStaleReason: "suppressed"', async () => {
     const taskId = read('task-list').tasks[0].id;
     const subId = String(read('task-list').tasks[0].subtasks[0].id);
@@ -145,51 +79,44 @@ describe('mirror-reminder discrimination (ID-35.32)', () => {
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    // The transport client maps the client-side regen-suppression to the stale
+    // signal — no server-side regen run is needed to observe it.
     expect(r.mirrorStale).toBe(true);
     expect(r.mirrorStaleReason).toBe('suppressed');
-    expect(regenSpy).not.toHaveBeenCalled();
+    // The write itself committed through the server.
+    expect(read('task-list').tasks[0].subtasks[0].status).toBe('done');
   });
 
-  it('successful regen result envelope leaves mirrorStaleReason undefined and mirrorStale falsy', async () => {
+  it('a dry-run with --no-regen-mirrors writes nothing and still reports suppressed', async () => {
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
     const taskId = read('task-list').tasks[0].id;
     const subId = String(read('task-list').tasks[0].subtasks[0].id);
-    const r = await run(args('flip-subtask', [taskId, subId, 'done']));
+    const r = await run(
+      args('flip-subtask', [taskId, subId, 'done'], {
+        dryRun: true,
+        noRegenMirrors: true,
+      }),
+    );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.mirrorStale).toBeFalsy();
-    expect(r.mirrorStaleReason).toBeUndefined();
-    expect(regenSpy).toHaveBeenCalledTimes(1);
+    // dryRun honoured server-side: the canonical file is byte-unchanged.
+    expect(readFileSync(join(dir, 'task-list.json'), 'utf8')).toBe(before);
+    expect(r.mirrorStaleReason).toBe('suppressed');
   });
 
-  it('regen-runner failure result envelope carries mirrorStaleReason: "regen-failed"', async () => {
-    regenSpy.mockImplementation(() => 2);
-    const stderrSpy = vi
-      .spyOn(process.stderr, 'write')
-      .mockImplementation(() => true);
+  it('a normal write with --no-regen-mirrors commits and carries the suppressed signal', async () => {
     const taskId = read('task-list').tasks[0].id;
     const subId = String(read('task-list').tasks[0].subtasks[0].id);
-    const r = await run(args('flip-subtask', [taskId, subId, 'done']));
-    stderrSpy.mockRestore();
+    const r = await run(
+      args('flip-subtask', [taskId, subId, 'in_progress'], {
+        noRegenMirrors: true,
+      }),
+    );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    expect(read('task-list').tasks[0].subtasks[0].status).toBe('in_progress');
+    // The operator opted out, so the mirror is knowingly stale.
     expect(r.mirrorStale).toBe(true);
-    expect(r.mirrorStaleReason).toBe('regen-failed');
-  });
-
-  it('mirrorReminderFor("suppressed") confirms the skip — does NOT print generic "runs by default" lecture', () => {
-    const text = mirrorReminderFor('suppressed');
-    expect(text).toMatch(/mirror regen suppressed/i);
-    expect(text).toMatch(/--no-regen-mirrors/);
-    expect(text).toMatch(/regen-mirrors\.sh/);
-    expect(text).not.toMatch(/runs by default/i);
-    // Operator-facing message must end with a newline so stderr stays tidy.
-    expect(text.endsWith('\n')).toBe(true);
-  });
-
-  it('mirrorReminderFor("regen-failed") flags the failure and prompts a manual rerun', () => {
-    const text = mirrorReminderFor('regen-failed');
-    expect(text).toMatch(/regen.*failed/i);
-    expect(text).toMatch(/regen-mirrors\.sh/);
-    expect(text.endsWith('\n')).toBe(true);
+    expect(r.mirrorStaleReason).toBe('suppressed');
   });
 });

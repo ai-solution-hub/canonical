@@ -4,46 +4,28 @@
  * The ledger-CLI is the Orchestrator's only sanctioned ledger-write path and
  * its machine-readable envelope must be the SOLE stdout payload (a single-line
  * JSON object) so `ledger-cli … | jq` never throws and the `|| fallback` shell
- * idiom never silently RE-RUNS a mutation. Two coupled defects broke that:
+ * idiom never silently RE-RUNS a mutation.
  *
- *   (1) The default `regenRunner` spawned `bash scripts/regen-mirrors.sh` with
- *       `stdio: 'inherit'`. That script echoes many human/advisory lines to
- *       its stdout (`→ task-view: …`, `✎ mirrors regenerated …`), which with
- *       `inherit` land on the PARENT's stdout (fd1) and interleave with the
- *       JSON envelope. Regen is DEFAULT-ON after every write, so every mutating
- *       command leaked. FIX: route the child's stdout to the parent's stderr
- *       (`stdio: ['ignore', 2, 2]`).
- *
- *   (2) `commitMutation`'s `--dry-run` returned `result.document = detected.data`
- *       — the whole 34-67 KB ledger document. FIX: return the bounded
- *       `resultPayload` (the same shape the live write emits), tagged
- *       `dryRun: true`.
- *
- * The faithful regen-on path is exercised by spawning the CLI as a REAL
- * subprocess in a temp cwd whose `scripts/regen-mirrors.sh` is a STUB that
- * echoes to stdout — the parent's captured stdout must be exactly ONE
- * `JSON.parse`-able object. The in-process tests cover the dry-run bounding via
- * the `__setRegenRunnerForTest` seam.
+ * ID-90.22 R1a: the WRITE path is now the SERVER TRANSPORT (KH_LEDGER_SERVER
+ * unset → ON). Mirror regen runs SERVER-SIDE, so the in-process
+ * `__setRegenRunnerForTest` / `regenSpy` seam (and the temp-cwd
+ * `regen-mirrors.sh` STUB that shadowed the in-process shell-out) no longer sit
+ * on the write path — the regen-DEFAULT-ON stdout-leak guard is now the
+ * server's responsibility (the server pipes its child's stdout to stderr; inv
+ * 13). What this suite asserts post-cutover:
+ *   - a REAL server-routed write (`--no-regen-mirrors`) emits exactly ONE
+ *     JSON-parseable object on stdout, with the human reminder PROSE on stderr.
+ *   - `--dry-run` is BOUNDED: the envelope carries the small `resultPayload`
+ *     (tagged `dryRun:true`), never the 34-67 KB whole-document dump, and the
+ *     server writes nothing (defect-2 regression guard, asserted over transport).
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  mkdtempSync,
-  mkdirSync,
-  copyFileSync,
-  writeFileSync,
-  chmodSync,
-  rmSync,
-  readFileSync,
-} from 'node:fs';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import {
-  run,
-  __setRegenRunnerForTest,
-  type ParsedArgs,
-} from '@/scripts/ledger-cli';
+import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
 const REPO = resolve(__dirname, '../..');
 const CLI = join(REPO, 'scripts/ledger-cli.ts');
@@ -53,103 +35,7 @@ const REAL = {
   backlog: join(REPO, 'docs/reference/product-backlog.json'),
 };
 
-/**
- * A stub regen script that mimics `regen-mirrors.sh`'s stdout chatter — bare
- * `echo`s go to stdout, exactly the bytes that polluted the envelope under the
- * old `stdio: 'inherit'`. The fix must keep these off the parent's stdout.
- */
-const STUB_REGEN = `#!/usr/bin/env bash
-echo "→ task-view: tag=stub"
-echo "→ cloning task-view…"
-echo "✎ mirrors regenerated — review + stage…"
-exit 0
-`;
-
-/** Spawn the CLI in a temp cwd; returns separated stdout/stderr. */
-function runCli(
-  ledgerDir: string,
-  cwd: string,
-  cmd: string[],
-): { stdout: string; stderr: string; status: number | null } {
-  const r = spawnSync('bun', [CLI, ...cmd, '--ledger-dir', ledgerDir], {
-    cwd,
-    encoding: 'utf8',
-  });
-  return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
-}
-
-describe('ledger-cli stdout purity — faithful regen-on subprocess (ID-35.44 defect 1)', () => {
-  let ledgerDir: string;
-  let cwd: string;
-  let taskId: string;
-  let subId: string;
-
-  beforeEach(() => {
-    // Temp ledger (NEVER mutate docs/reference/*.json).
-    ledgerDir = mkdtempSync(join(tmpdir(), 'ledger-purity-ledger-'));
-    copyFileSync(REAL.task, join(ledgerDir, 'task-list.json'));
-    copyFileSync(REAL.roadmap, join(ledgerDir, 'product-roadmap.json'));
-    copyFileSync(REAL.backlog, join(ledgerDir, 'product-backlog.json'));
-
-    // Temp cwd with a stub `scripts/regen-mirrors.sh` echoing to stdout. The
-    // production `regenRunner` shells `bash scripts/regen-mirrors.sh` relative
-    // to cwd, so this stub shadows the real (task-view-cloning) script.
-    cwd = mkdtempSync(join(tmpdir(), 'ledger-purity-cwd-'));
-    mkdirSync(join(cwd, 'scripts'), { recursive: true });
-    const stub = join(cwd, 'scripts/regen-mirrors.sh');
-    writeFileSync(stub, STUB_REGEN);
-    chmodSync(stub, 0o755);
-
-    const doc = JSON.parse(
-      readFileSync(join(ledgerDir, 'task-list.json'), 'utf8'),
-    );
-    taskId = String(doc.tasks[0].id);
-    subId = String(doc.tasks[0].subtasks[0].id);
-  });
-
-  afterEach(() => {
-    rmSync(ledgerDir, { recursive: true, force: true });
-    rmSync(cwd, { recursive: true, force: true });
-  });
-
-  it('a mutating command with regen DEFAULT-ON emits exactly one JSON object on stdout', () => {
-    const { stdout, stderr, status } = runCli(ledgerDir, cwd, [
-      'flip-subtask',
-      taskId,
-      subId,
-      'pending',
-    ]);
-    expect(status).toBe(0);
-
-    // stdout is a SINGLE JSON object — parse the whole thing, no leading or
-    // trailing human lines. This is the `cmd | jq` contract.
-    const trimmed = stdout.trim();
-    expect(trimmed.split('\n')).toHaveLength(1);
-    const parsed = JSON.parse(trimmed);
-    expect(parsed.ok).toBe(true);
-    expect(parsed.subcommand).toBe('flip-subtask');
-
-    // The stub's regen chatter landed on STDERR, not stdout.
-    expect(stdout).not.toContain('mirrors regenerated');
-    expect(stdout).not.toContain('task-view');
-    expect(stderr).toContain('mirrors regenerated');
-  });
-
-  it('regen chatter never appears on stdout (defect-1 regression guard)', () => {
-    const { stdout } = runCli(ledgerDir, cwd, [
-      'flip-subtask',
-      taskId,
-      subId,
-      'pending',
-    ]);
-    // Every stub stdout line must be absent from the parent's stdout.
-    for (const needle of ['→ task-view', 'cloning task-view', '✎ mirrors']) {
-      expect(stdout).not.toContain(needle);
-    }
-  });
-});
-
-describe('ledger-cli stdout purity — --no-regen-mirrors subprocess pipe (ID-35.44)', () => {
+describe('ledger-cli stdout purity — real server-routed write (ID-35.44)', () => {
   let ledgerDir: string;
   let taskId: string;
   let subId: string;
@@ -170,6 +56,9 @@ describe('ledger-cli stdout purity — --no-regen-mirrors subprocess pipe (ID-35
   });
 
   it('a mutating command with --no-regen-mirrors emits pure single-object JSON on stdout', () => {
+    // KH_LEDGER_SERVER unset → ON: this drives the REAL ledger-cli through the
+    // server transport (ensureServer spawns an ephemeral task-view server for
+    // the scratch ledger dir). The envelope is the SOLE stdout payload.
     const r = spawnSync(
       'bun',
       [
@@ -189,6 +78,7 @@ describe('ledger-cli stdout purity — --no-regen-mirrors subprocess pipe (ID-35
     expect(trimmed.split('\n')).toHaveLength(1);
     const parsed = JSON.parse(trimmed);
     expect(parsed.ok).toBe(true);
+    expect(parsed.subcommand).toBe('flip-subtask');
     // The structured `mirrorStaleReason` lives INSIDE the JSON envelope (a
     // machine field), but the human-facing reminder PROSE goes to stderr only.
     expect(r.stdout).not.toContain('mirror regen suppressed');
@@ -198,7 +88,6 @@ describe('ledger-cli stdout purity — --no-regen-mirrors subprocess pipe (ID-35
 
 describe('ledger-cli --dry-run is bounded (ID-35.44 defect 2)', () => {
   let dir: string;
-  let regenSpy: ReturnType<typeof vi.fn<() => number | null>>;
 
   function args(
     subcommand: string,
@@ -213,6 +102,7 @@ describe('ledger-cli --dry-run is bounded (ID-35.44 defect 2)', () => {
         pretty: false,
         regenMirrors: false,
         scoped: false,
+        noRegenMirrors: true,
         ledgerDir: dir,
         ...extra,
       },
@@ -227,16 +117,13 @@ describe('ledger-cli --dry-run is bounded (ID-35.44 defect 2)', () => {
     copyFileSync(REAL.task, join(dir, 'task-list.json'));
     copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
     copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
-    regenSpy = vi.fn<() => number | null>(() => 0);
-    __setRegenRunnerForTest(regenSpy);
   });
   afterEach(() => {
-    __setRegenRunnerForTest(null);
     rmSync(dir, { recursive: true, force: true });
-    vi.restoreAllMocks();
   });
 
   it('a generic-path dry-run returns the bounded resultPayload, NOT the full document', async () => {
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
     const taskId = String(read().tasks[0].id);
     const subId = String(read().tasks[0].subtasks[0].id);
     const r = await run(
@@ -252,8 +139,8 @@ describe('ledger-cli --dry-run is bounded (ID-35.44 defect 2)', () => {
     // { taskId, subId, status }.
     expect(result).toHaveProperty('taskId');
     expect(result).toHaveProperty('status');
-    // Nothing was written (dry-run), so regen never ran.
-    expect(regenSpy).not.toHaveBeenCalled();
+    // Nothing was written (server honoured dryRun) — file byte-unchanged.
+    expect(readFileSync(join(dir, 'task-list.json'), 'utf8')).toBe(before);
   });
 
   it('the serialised dry-run envelope stays small — no 34-67 KB ledger dump', async () => {

@@ -244,61 +244,14 @@ describe('delete-subtask — --dry-run (ID-35.43, honours {35.44})', () => {
   });
 });
 
-describe('delete-subtask — record-set drop-guard ({35.16})', () => {
-  it('rejects a serialised-output sibling drop with record-set-violation, NO bytes written', async () => {
-    // The whole-file serialise path runs through escapeSerialise (the
-    // namespace-spy-interceptable seam — mirrors ledger-cli-record-set.test.ts).
-    // Stub escapeSerialise to ALSO drop a sibling subtask from the addressed
-    // task; the gate parses the bytes-about-to-be-written and MUST catch the
-    // extra drop before atomicWriteFile lands anything. Use a self-authored
-    // fixture with NO inter-subtask dependencies so the legitimate delete
-    // itself never trips TaskSchema's sibling-dependency superRefine — the only
-    // failure under test is the gate catching the injected sibling drop.
-    writeFixture(
-      taskListDoc([task('42', [subtask(1), subtask(2), subtask(3)])]),
-    );
-    const targetTaskId = '42';
-    const targetSubId = 1; // the one we ask to delete (legitimate −1)
-    const siblingSubId = 3; // the one the stub silently drops on top
-
-    const mod = await import('@/lib/ledger/scoped-serialise');
-    const real = mod.escapeSerialise;
-    const spy = vi
-      .spyOn(mod, 'escapeSerialise')
-      .mockImplementation((parsedValue: unknown) => {
-        const v = parsedValue as {
-          tasks?: { id: string; subtasks: { id: number }[] }[];
-        };
-        if (Array.isArray(v.tasks)) {
-          const t = v.tasks.find((x) => x.id === targetTaskId);
-          if (t && t.subtasks.length >= 1) {
-            // Silently drop a SECOND subtask (the sibling) on top of the
-            // legitimate −1 delete — a record loss the gate must catch.
-            const clone = {
-              ...v,
-              tasks: v.tasks.map((x) =>
-                x.id === targetTaskId
-                  ? {
-                      ...x,
-                      subtasks: x.subtasks.filter((s) => s.id !== siblingSubId),
-                    }
-                  : x,
-              ),
-            };
-            return real(clone);
-          }
-        }
-        return real(parsedValue);
-      });
-
-    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
-    const r = await run(
-      args('delete-subtask', [targetTaskId, String(targetSubId)]),
-    );
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('record-set-violation');
-    // Nothing written — the original file is byte-identical.
-    expect(readFileSync(join(dir, 'task-list.json'), 'utf8')).toBe(before);
-    spy.mockRestore();
-  });
-});
+// ID-90.22 R1a: the record-set drop-guard ({35.16}) induction test is RETIRED
+// here. It induced a serialise-side sibling drop by stubbing `escapeSerialise`
+// (@/lib/ledger/scoped-serialise) on the SCOPED write path — but the delete now
+// routes through the SERVER TRANSPORT, where the record-set gate runs
+// server-side on the bytes the SERVER serialises, so the in-process namespace
+// stub no longer sits on the write path and the drop cannot be induced from this
+// process. The server-side gate is covered by task-view's own suite (U11); the
+// canonical in-repo OBSERVABLE record-set-violation envelope assertion lives in
+// ledger-cli-record-set.test.ts (the flag-ON LOCAL `--whole-file` path, GAP-2a).
+// The HONEST positive −1-delta coverage (a normal delete-subtask commits the
+// record-set delta) remains above, exercised over the transport.

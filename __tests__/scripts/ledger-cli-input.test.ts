@@ -15,8 +15,27 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs, readRecordInput, nextId } from '@/scripts/ledger-cli';
-import { detectSchema } from '@/lib/ledger/detect-schema';
+import { TaskListSchema } from '@/lib/validation/task-list-schema';
+import { RoadmapSchema } from '@/lib/validation/roadmap-schema';
+import { BacklogSchema } from '@/lib/validation/backlog-schema';
 import { readFileSync } from 'node:fs';
+
+// ID-90.22 R1a: `detectSchema` (@/lib/ledger/detect-schema) is dropped here —
+// R2 deletes that module and this suite tests parseArgs / readRecordInput /
+// nextId, not the document-kind detector. `nextId` only needs a
+// `{ kind, data }` KnownDetected value, so we build it directly from the
+// canonical Zod schemas in `@/lib/validation/*` (the permanent source of truth,
+// never vendored/deleted). Parsing through the real schema keeps full type
+// fidelity and asserts the live ledger conforms — a structural assertion that
+// no longer depends on the to-be-deleted lib/ledger detector.
+const SCHEMA_BY_NAME = {
+  'task-list': (raw: unknown) =>
+    ({ kind: 'task-list', data: TaskListSchema.parse(raw) }) as const,
+  'product-roadmap': (raw: unknown) =>
+    ({ kind: 'roadmap', data: RoadmapSchema.parse(raw) }) as const,
+  'product-backlog': (raw: unknown) =>
+    ({ kind: 'backlog', data: BacklogSchema.parse(raw) }) as const,
+} satisfies Record<string, (raw: unknown) => { kind: string; data: unknown }>;
 
 const REPO = resolve(__dirname, '../..');
 
@@ -215,9 +234,7 @@ describe('nextId — max+1 with correct primitive type (ID-35.15)', () => {
       join(REPO, `docs/reference/${name}.json`),
       'utf8',
     );
-    const d = detectSchema(JSON.parse(text));
-    if (d.kind === 'unknown') throw new Error('unexpected unknown');
-    return d;
+    return SCHEMA_BY_NAME[name](JSON.parse(text));
   }
 
   it('returns a string for backlog items (max+1)', () => {

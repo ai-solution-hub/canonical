@@ -318,38 +318,17 @@ describe('open-task / create-theme / create-backlog — scoped splice (ID-65.3)'
     expect(readText('product-backlog')).toBe(before);
   });
 
-  it('still enforces the {35.16} record-set gate on the scoped create path', async () => {
-    // Stub scopedSpliceSerialise so the create path emits a document that ALSO
-    // drops a pre-existing item — the {35.16} gate parses the bytes-about-to-be-
-    // written and MUST catch the unexpected loss (id-set short by one) before
-    // atomicWriteFile lands anything.
-    const mod = await import('@/lib/ledger/scoped-serialise');
-    const real = mod.scopedSpliceSerialise;
-    const spy = vi
-      .spyOn(mod, 'scopedSpliceSerialise')
-      .mockImplementation((originalText, op) => {
-        const r = real(originalText, op);
-        if (!r.ok) return r;
-        const doc = JSON.parse(r.text) as { items?: { id: string }[] };
-        if (Array.isArray(doc.items) && doc.items.length > 1) {
-          // Drop the first pre-existing item — a silent record loss alongside
-          // the legitimate insert.
-          doc.items = doc.items.slice(1);
-          return { ...r, text: mod.escapeSerialise(doc) };
-        }
-        return r;
-      });
-    const before = readText('product-backlog');
-    const body = {
-      id: '9943',
-      title: 'Gate-trip item',
-      description: 'Insert is legit but the stub also drops an item.',
-      priority: 'could',
-    };
-    const r = await run(args('create-backlog', [JSON.stringify(body)]));
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('record-set-violation');
-    expect(readText('product-backlog')).toBe(before);
-    spy.mockRestore();
-  });
+  // ID-90.22 R1a: the {35.16} record-set gate induction test on the scoped
+  // create path is RETIRED. It stubbed `scopedSpliceSerialise`
+  // (@/lib/ledger/scoped-serialise) to drop a pre-existing item alongside the
+  // legitimate insert — but the create now routes through the SERVER TRANSPORT,
+  // where the record-set gate runs server-side on the bytes the SERVER
+  // serialises, so the in-process namespace stub no longer sits on the write
+  // path and the drop cannot be induced from this process. The server-side gate
+  // is covered by task-view's own suite (U11); the canonical in-repo OBSERVABLE
+  // record-set-violation envelope assertion lives in
+  // ledger-cli-record-set.test.ts (the flag-ON LOCAL `--whole-file` path,
+  // GAP-2a). The HONEST positive coverage — a legitimate scoped create commits
+  // the +1 record-set delta, and the duplicate-id oracle still rejects — remains
+  // above, exercised over the transport.
 });

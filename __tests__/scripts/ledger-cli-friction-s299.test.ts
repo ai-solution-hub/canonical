@@ -30,12 +30,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import {
-  run,
-  subcommandHelp,
-  mirrorReminderFor,
-  type ParsedArgs,
-} from '@/scripts/ledger-cli';
+import { run, subcommandHelp, type ParsedArgs } from '@/scripts/ledger-cli';
 
 const REPO = resolve(__dirname, '../..');
 const REAL = {
@@ -97,8 +92,20 @@ function firstTaskWithSubtask(): { taskId: string; subId: number } {
 describe('S299 F5 — status-setting disambiguation (flip-task canonical)', () => {
   it('update-task <id> status <value> emits a non-fatal hint pointing at flip-task', async () => {
     const taskId = firstTaskId();
+    // ID-90.22 R1a: the flip-task canonical-verb HINT is a CLI-side advisory
+    // computed in run() and threaded as commitMutation `extraWarnings`. It is
+    // surfaced on the LOCAL write path; the SCOPED→server path's success
+    // envelope threads only `resultPayload` (the K5 deep-equal parity contract
+    // covers files + result + exit code "modulo retry warnings", NOT advisory
+    // warnings — re-homing advisory warnings to the server is downstream of this
+    // cutover). `--whole-file` keeps the write LOCAL under flag-ON (GAP-2a, a
+    // path R1a deliberately does not migrate), so the still-live hint behaviour
+    // is asserted there — the canonical in-repo observable for this advisory.
     const r = await run(
-      args('update-task', [taskId, 'status', 'in_progress'], { dryRun: true }),
+      args('update-task', [taskId, 'status', 'in_progress'], {
+        dryRun: true,
+        wholeFile: true,
+      }),
     );
     // The edit still SUCCEEDS — the hint is advisory, never a rejection.
     expect(r.ok).toBe(true);
@@ -114,9 +121,13 @@ describe('S299 F5 — status-setting disambiguation (flip-task canonical)', () =
 
   it('update-task on a NON-status field emits no flip-task hint', async () => {
     const taskId = firstTaskId();
+    // Asserted on the LOCAL `--whole-file` path (GAP-2a) where advisory warnings
+    // ARE threaded — so the ABSENCE of the hint proves the field-discriminating
+    // logic (status-only), not that the write path silently drops all warnings.
     const r = await run(
       args('update-task', [taskId, 'status_note', 'Edited.'], {
         dryRun: true,
+        wholeFile: true,
       }),
     );
     expect(r.ok).toBe(true);
@@ -150,20 +161,46 @@ describe('S299 F5 — status-setting disambiguation (flip-task canonical)', () =
 });
 
 // ── F6 — collapsed single-line suppressed-mirror reminder ─────────────────────
+//
+// ID-90.22 R1a: the `mirrorReminderFor` unit tests are RETIRED (R2 deletes the
+// symbol; reminder PROSE composition moved upstream with server-side regen).
+// The OPERATOR-FACING contract — a single concise stderr line carrying the
+// actionable info when regen is suppressed — is now asserted END-TO-END over a
+// REAL server-routed write (KH_LEDGER_SERVER unset → ON, ephemeral server for
+// the scratch ledger dir): the prose goes to STDERR only (never stdout, inv 13)
+// and stays one line.
 
-describe('S299 F6 — suppressed-mirror reminder is one concise line', () => {
-  it('mirrorReminderFor("suppressed") is a single line (one trailing newline only)', () => {
-    const text = mirrorReminderFor('suppressed');
-    // Exactly one newline — the trailing one. No multi-line banner.
-    expect((text.match(/\n/g) ?? []).length).toBe(1);
-    expect(text.endsWith('\n')).toBe(true);
-  });
-
-  it('the one line still carries the actionable info (run regen-mirrors.sh + the flag)', () => {
-    const text = mirrorReminderFor('suppressed');
-    expect(text).toMatch(/regen-mirrors\.sh/);
-    expect(text).toMatch(/--no-regen-mirrors/);
-    expect(text).toMatch(/before committing/i);
+describe('S299 F6 — suppressed-mirror reminder is one concise stderr line', () => {
+  it('a --no-regen-mirrors write emits the one-line suppressed reminder on stderr only', () => {
+    const taskId = firstTaskId();
+    const cliPath = resolve(REPO, 'scripts/ledger-cli.ts');
+    const proc = spawnSync(
+      'bun',
+      [
+        cliPath,
+        'flip-task',
+        taskId,
+        'in_progress',
+        '--no-regen-mirrors',
+        '--ledger-dir',
+        dir,
+      ],
+      { encoding: 'utf8', cwd: REPO },
+    );
+    expect(proc.status).toBe(0);
+    const stderr = proc.stderr ?? '';
+    // The reminder line is present on stderr and carries the actionable info.
+    const reminderLines = stderr
+      .split('\n')
+      .filter((l) => /mirror regen suppressed/i.test(l));
+    expect(reminderLines).toHaveLength(1);
+    const line = reminderLines[0];
+    expect(line).toMatch(/regen-mirrors\.sh/);
+    expect(line).toMatch(/--no-regen-mirrors/);
+    // The machine-readable envelope is the SOLE stdout payload (no prose leak).
+    expect(proc.stdout ?? '').not.toMatch(/mirror regen suppressed/i);
+    const parsed = JSON.parse((proc.stdout ?? '').trim());
+    expect(parsed.ok).toBe(true);
   });
 });
 

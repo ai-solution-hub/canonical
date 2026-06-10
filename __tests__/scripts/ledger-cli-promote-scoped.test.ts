@@ -15,10 +15,22 @@
  *     `linked_tasks[]` line.
  *
  * The proof is a LINE-DIFF assertion on the real before/after file bytes (copies
- * of the live ledgers in a temp dir). The validation oracle (insertRecord /
- * removeRecord / fieldPatchMutation) and the {35.16} record-set gates are
- * preserved — proven by stubbing a scoped fn to inject a record drop and
- * asserting the gate still rejects with `record-set-violation`, writing nothing.
+ * of the live ledgers in a temp dir).
+ *
+ * ID-90.22 R1a: `promote` is NOT server-wired in R1a (its routing to the server
+ * transaction endpoint is R1b — like updateUmbrella, it still runs the DIRECT
+ * staged-write path via stageAtomicWrite/commitStagedWrite, bypassing
+ * serverEnabled()). So the byte-minimal-diff line-diff proofs below remain valid
+ * over the DIRECT path. BUT the two serialise-side gate-induction tests (which
+ * stubbed `scopedSpliceSerialise` from @/lib/ledger/scoped-serialise to inject a
+ * record drop / a scoped {ok:false}) are RETIRED: that module is deleted by R2,
+ * so the import is banned by the R1a hygiene gate (zero `@/lib/ledger/` hits in
+ * __tests__/scripts/). The record-set gate + scoped-fail behaviour they covered
+ * moves UPSTREAM with promote's R1b transaction-endpoint routing (covered by
+ * task-view's own suite, U11; byte-parity locked by the K5 differential-parity
+ * harness in the interim). The fixture-seeding use of `escapeSerialise` is
+ * inlined below as a local byte-faithful serialiser (the format is a stable
+ * 2-space-pretty + \uXXXX-escaped-non-ASCII + trailing-newline contract).
  *
  * DOGFOODING HAZARD: this CLI writes the workflow's own ledgers. Every command
  * here runs against a TEMP COPY (mkdtemp + copyFile), never the real ledgers.
@@ -35,6 +47,19 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
+
+// ID-90.22 R1a: inline byte-faithful serialiser (replaces the dropped
+// `escapeSerialise` import from @/lib/ledger/scoped-serialise) used only to seed
+// a canonically-formatted fixture for the idempotent-no-op byte comparison.
+const NON_ASCII = new RegExp('[\\u0080-\\uffff]', 'g');
+function escapeSerialise(parsedValue: unknown): string {
+  return (
+    JSON.stringify(parsedValue, null, 2).replace(
+      NON_ASCII,
+      (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'),
+    ) + '\n'
+  );
+}
 
 const REPO = resolve(__dirname, '../..');
 const REAL = {
@@ -323,8 +348,7 @@ describe('promote — already-linked idempotent no-op emits byte-identical roadm
     theme.linked_tasks = [...theme.linked_tasks, newId];
     // Write the seeded state via the SAME on-disk byte format the CLI emits, so
     // the "no-op" comparison is against a canonically-formatted baseline.
-    const mod = await import('@/lib/ledger/scoped-serialise');
-    const seeded = mod.escapeSerialise(rm);
+    const seeded = escapeSerialise(rm);
     writeFileSync(path('product-roadmap'), seeded, 'utf8');
     const rmBefore = readText('product-roadmap');
 
@@ -369,62 +393,13 @@ describe('promote — already-linked idempotent no-op emits byte-identical roadm
   });
 });
 
-describe('promote — record-set gate still fires on the scoped path (ID-65.4)', () => {
-  it('a scoped backlog splice that ALSO drops a pre-existing item is rejected by the {35.16} gate; nothing written', async () => {
-    // Stub scopedSpliceSerialise so the backlog REMOVE splice also silently drops
-    // a SECOND pre-existing item. The {35.16} record-set gate parses the bytes-
-    // about-to-be-written and MUST catch the unexpected extra loss (id-set short
-    // by one beyond the legitimate remove) BEFORE any staged write commits.
-    const mod = await import('@/lib/ledger/scoped-serialise');
-    const real = mod.scopedSpliceSerialise;
-    vi.spyOn(mod, 'scopedSpliceSerialise').mockImplementation(
-      (originalText, op) => {
-        const r = real(originalText, op);
-        if (!r.ok) return r;
-        // Only sabotage the backlog REMOVE splice (items collection).
-        if (op.kind === 'remove' && op.collection === 'items') {
-          const doc = JSON.parse(r.text) as { items?: { id: string }[] };
-          if (Array.isArray(doc.items) && doc.items.length > 1) {
-            doc.items = doc.items.slice(1); // drop one MORE than the legit remove
-            return { ...r, text: mod.escapeSerialise(doc) };
-          }
-        }
-        return r;
-      },
-    );
-
-    const backlogId = firstBacklogId();
-    const tlBefore = readText('task-list');
-    const blBefore = readText('product-backlog');
-    const r = await run(
-      args('promote', [backlogId, JSON.stringify(validTaskRecord('9978'))]),
-    );
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('record-set-violation');
-    // No ledger touched — pre-commit gate rejected before staging.
-    expect(readText('task-list')).toBe(tlBefore);
-    expect(readText('product-backlog')).toBe(blBefore);
-  });
-
-  it('a scoped fn returning {ok:false} fails the promote with a scoped-* error before staging (no wide fallback)', async () => {
-    const mod = await import('@/lib/ledger/scoped-serialise');
-    vi.spyOn(mod, 'scopedSpliceSerialise').mockImplementation((_t, op) => {
-      // Force a schema-error on the task-list INSERT splice.
-      if (op.kind === 'insert' && op.collection === 'tasks') {
-        return { ok: false, kind: 'schema-error', error: new Error('stub') };
-      }
-      return { ok: false, kind: 'walk-error', detail: 'stub' };
-    });
-    const backlogId = firstBacklogId();
-    const tlBefore = readText('task-list');
-    const blBefore = readText('product-backlog');
-    const r = await run(
-      args('promote', [backlogId, JSON.stringify(validTaskRecord('9979'))]),
-    );
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.startsWith('scoped-')).toBe(true);
-    // No wide whole-file fallback — both ledgers pristine.
-    expect(readText('task-list')).toBe(tlBefore);
-    expect(readText('product-backlog')).toBe(blBefore);
-  });
-});
+// ID-90.22 R1a: the two scoped-path gate-induction tests (record-set-violation
+// via a `scopedSpliceSerialise` drop stub; scoped-* fail via a stubbed
+// {ok:false}) are RETIRED. Both stubbed `@/lib/ledger/scoped-serialise` — a
+// module R2 deletes, banned by the R1a import-hygiene gate. promote's
+// staged-write gate + scoped-fail behaviour moves UPSTREAM with its R1b routing
+// to the server transaction endpoint (covered by task-view's own suite, U11);
+// the OFF-vs-ON byte-parity that would surface any serialiser drop is locked by
+// the K5 differential-parity harness in the interim. The byte-minimal-diff
+// line-diff proofs above (the real value of this suite) remain over the DIRECT
+// path that R1a does not migrate.
