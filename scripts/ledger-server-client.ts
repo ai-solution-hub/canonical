@@ -45,6 +45,17 @@ export interface MutationOptions {
   force?: boolean;
   allowClientName?: boolean;
   regenMirrors?: boolean;
+  /**
+   * ID-90.22 R1b (Curator AC-H1): caller-computed advisory warnings the façade
+   * wants surfaced on the success envelope alongside the server's own
+   * discipline/budget warnings. PREPENDED to `warnings[]` so the ordering
+   * matches the deleted LOCAL path (`commitMutation` did `warnings.unshift(...)`
+   * — see the removed ledger-cli.ts direct-write body). The sole live producer
+   * today is the `update-task <id> status <val>` flip-task canonical-verb hint
+   * (F5); without threading it here the hint is silently dropped on every server
+   * write. NOT a wire/body field — purely client-side envelope shaping.
+   */
+  extraWarnings?: string[];
 }
 
 /** Arguments for {@link transportCommit}. */
@@ -151,8 +162,15 @@ function mapSuccess(
   retryCount: number,
   regenSuppressed: boolean,
   resultPayload: unknown,
+  extraWarnings: string[] | undefined,
 ): CliResult {
-  const warnings: string[] = [...(body.warnings ?? [])];
+  // ID-90.22 R1b (Curator AC-H1): caller advisory warnings PREPENDED, matching
+  // the deleted LOCAL path's `warnings.unshift(...extraWarnings)` ordering. The
+  // server's own warnings (and the retry note below) follow.
+  const warnings: string[] = [
+    ...(extraWarnings ?? []),
+    ...(body.warnings ?? []),
+  ];
   if (retryCount > 0) {
     warnings.push(
       `mtime-conflict: write succeeded after ${retryCount} ${retryCount === 1 ? 'retry' : 'retries'}`,
@@ -182,8 +200,15 @@ function mapMirrorRegenFailed(
   subcommand: string,
   body: ServerErrorBody,
   retryCount: number,
+  extraWarnings: string[] | undefined,
 ): CliResult {
-  const warnings: string[] = [...(body.warnings ?? [])];
+  // ID-90.22 R1b (Curator AC-H1): prepend caller advisory warnings here too, so
+  // a flip-task-hint write that ALSO hits a mirror-regen failure still surfaces
+  // the canonical-verb hint (matches the deleted LOCAL prepend ordering).
+  const warnings: string[] = [
+    ...(extraWarnings ?? []),
+    ...(body.warnings ?? []),
+  ];
   if (retryCount > 0) {
     warnings.push(
       `mtime-conflict: write succeeded after ${retryCount} ${retryCount === 1 ? 'retry' : 'retries'}`,
@@ -235,6 +260,9 @@ export async function transportCommit(
   } = args;
   const sleepFn = config.sleep ?? defaultSleep;
   const regenSuppressed = options.regenMirrors === false;
+  // ID-90.22 R1b (Curator AC-H1): caller advisory warnings threaded into the
+  // success envelope (prepended in mapSuccess).
+  const extraWarnings = options.extraWarnings;
 
   let respawnAttempted = false;
   let retryCount = 0;
@@ -334,6 +362,7 @@ export async function transportCommit(
         subcommand,
         responseBody as ServerErrorBody,
         retryCount,
+        extraWarnings,
       );
     }
 
@@ -349,6 +378,7 @@ export async function transportCommit(
       retryCount,
       regenSuppressed,
       resultPayload,
+      extraWarnings,
     );
   }
 

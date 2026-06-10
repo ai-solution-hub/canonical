@@ -78,28 +78,20 @@
 
 import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { renameSync, readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { ZodError } from 'zod';
 
+// ID-90.22 R1b: the in-process write path was removed — the server owns
+// serialisation, the gates and mirror regen. The CLI keeps only the RETAINED
+// validation oracle (esc-4): detectSchema (loadLedger), applyPatches/FieldPatch
+// (fieldPatchMutation), insertRecord/removeRecord (create/delete/promote). The
+// scoped-serialise + atomic-write imports were dropped with the write path.
 import {
   detectSchema,
   type DetectSchemaResult,
 } from '@/lib/ledger/detect-schema';
 import { applyPatches, type FieldPatch } from '@/lib/ledger/patch-apply';
-import {
-  escapeSerialise,
-  scopedSerialise,
-  scopedSpliceSerialise,
-  type SpliceOp,
-} from '@/lib/ledger/scoped-serialise';
 import { insertRecord, removeRecord } from '@/lib/ledger/record-mutate';
-import {
-  atomicWriteFile,
-  stageAtomicWrite,
-  commitStagedWrite,
-  abortStagedWrite,
-} from '@/lib/ledger/atomic-write';
 import {
   transportCommit,
   type TransportRequest,
@@ -121,25 +113,13 @@ import {
 } from '@/lib/validation/ledger-budgets';
 import type { ZodTypeAny } from 'zod';
 
-// ── ID-90.19 server flag + intent ─────────────────────────────────────────────
-
-/**
- * Server transport path toggle. ID-90.21 / TECH §F1 Phase 2: the default is
- * now ON — the server transport path is taken UNLESS `KH_LEDGER_SERVER=0` is
- * set explicitly. `KH_LEDGER_SERVER=0` is therefore the explicit ROLLBACK
- * switch (invariant 5: instant, total, no migration step — flipping to `0`
- * restores the direct-write path for the very next invocation). Any other
- * value (absent, `'1'`, etc.) routes through the server.
- *
- * Phase 1 history: the default was OFF (`=== '1'` opt-IN) while the server
- * path was soaked behind the flag; ID-90.21 P2-F1 flips that default once the
- * AC-P1 parity gate proved byte-identical OFF/ON output.
- *
- * Invariant 3: the flag is the ONE seam — no mixed-path invocation.
- */
-function serverEnabled(): boolean {
-  return process.env.KH_LEDGER_SERVER !== '0';
-}
+// ── ID-90.19 server intent ────────────────────────────────────────────────────
+//
+// ID-90.22 R1b: the `serverEnabled()` flag is gone — the server transport is
+// now UNCONDITIONAL (the in-process direct-write path was removed; there is no
+// other path to flag-toggle). Rollback is `git revert` of the R-chain, not a
+// runtime switch (PRODUCT inv 5 superseded by the single-source cutover). The
+// `KH_LEDGER_SERVER` env var is no longer read.
 
 /**
  * Slug used in the server's /api/ledger/:slug/... routes. ID-90.25 GAP 3: the
@@ -182,7 +162,25 @@ type ServerIntent =
     }
   | { kind: 'subtask-delete'; slug: LedgerSlug; taskId: string; subId: number }
   | { kind: 'record-delete'; slug: LedgerSlug; recordId: string }
-  | { kind: 'umbrella-patch'; umbrellaId: string; patches: FieldPatch[] };
+  | { kind: 'umbrella-patch'; umbrellaId: string; patches: FieldPatch[] }
+  | {
+      // ID-90.22 R1b (invariant 49 / K4-deferred): cross-ledger atomic promote
+      // routed through POST /api/ledger/transaction (NOT slug-routed — the
+      // server resolves the task-list/backlog/[roadmap] siblings in the launch
+      // dir and acquires every leg's mutation mutex). The CLI-side validation
+      // oracle (withCreateDefaults, capability-theme patch, insertRecord/
+      // removeRecord) still runs at the call site; the server re-validates and
+      // commits all legs atomically. `taskRecord` is the fully-resolved record.
+      kind: 'transaction';
+      sourceBacklogId: string;
+      taskRecord: unknown;
+      /** Path to the backlog ledger (for its baseMtime stat). */
+      backlogPath: string;
+      /** Present only when --capability-theme binds a roadmap theme. */
+      capabilityThemeId?: string;
+      /** Path to the roadmap ledger (stat'd only when capabilityThemeId set). */
+      roadmapPath?: string;
+    };
 
 // ── ledger resolution ─────────────────────────────────────────────────────────
 
@@ -1317,25 +1315,6 @@ async function loadLedger(
   return { ok: true, detected, originalText: text };
 }
 
-/**
- * Whole-file serialiser. Emits **escaped non-ASCII (`\uXXXX`) + Zod-canonical
- * key order** — the conforming sole-writer format after the OQ-LS-2 (S270)
- * one-time normalisation pass (`scripts/ledger-normalise-oqls2.ts`).
- *
- * Implementation: delegates to `escapeSerialise(detected.data)` from
- * `lib/ledger/scoped-serialise.ts`, which applies 2-space indent, escapes all
- * non-ASCII code units to `\uXXXX` (matching the on-disk ledger convention),
- * and appends a single trailing newline.
- *
- * The scoped path (`lib/ledger/scoped-serialise.ts` / `--scoped` flag) remains
- * available for minimal-diff single-field edits. Both paths now emit the same
- * escaping convention, so the whole-file path is byte-compatible with the
- * scoped path and with `scripts/ledger-sweep-s269.ts`.
- */
-function serialise(detected: KnownDetected): string {
-  return escapeSerialise(detected.data);
-}
-
 function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -1381,779 +1360,74 @@ function parseDottedSubtaskId(
   };
 }
 
-// ── ID-35.16 record-set-preservation write gate (RESEARCH §2.6) ──────────────
+// ── ID-90.22 R1b: gate machinery moved server-side ───────────────────────────
 //
-// The single most severe wrong-shape write is a SILENTLY DROPPED (or
-// duplicated) record: Zod re-validates the survivors and passes, the mirror
-// regen renders the smaller set, and the only trace is a record that ceased to
-// exist. The §2.3 budget gate cannot catch this — it inspects the changed
-// record's fields, not the collection's membership. This gate asserts the
-// post-write id-set + count equal the pre-write set under the intended delta,
-// and CRUCIALLY derives the post-write ids from the BYTES ABOUT TO BE WRITTEN
-// (parsing the serialiser output string), so a serialise-side defect
-// (key-reorder / escaping / clone bug) is caught one step before it lands.
+// The record-set-preservation gate, the write-time budget pre-check, the
+// discipline-warnings sweep and the mirror-regen shell-out were all DELETED in
+// R1b — the server now owns validation, gating, serialisation and mirror regen
+// (PRODUCT invariants 8, 58). The CLI keeps only the type alias still used by
+// the create handlers' id derivation; the actual gates run server-side.
 
-/** Intended change to a collection's id-set across a single write.
- *
- * ID-65.6: `add-many` covers the bulk `add-subtasks` write — N ids added in ONE
- * scoped multi-splice. The gate adds EVERY id in `ids` to the expected post-write
- * set, so a serialise-side drop/duplicate anywhere in the batch is caught before
- * the single write lands (same one-step-ahead guarantee as the single `add`). */
-type RecordSetDelta =
-  | { kind: 'none' }
-  | { kind: 'add'; id: string | number }
-  | { kind: 'add-many'; ids: IdValue[] }
-  | { kind: 'remove'; id: string | number };
-
+/** Subtask / record id value (string for task/theme/item, number for subtask).
+ * Retained: the create handlers cast the validated new id to this type. */
 type IdValue = string | number;
 
 /**
- * A collection descriptor: which id-set inside a parsed ledger document the
- * gate guards. Top-level collections (`tasks` / `themes` / `items`) guard the
- * record-level id-set; `subtasks` guards one task's subtask id-set (for
- * `add-subtask`, a +1 on the addressed task's subtasks).
- */
-type CollectionDescriptor =
-  | { collection: 'tasks' | 'themes' | 'items' }
-  | { collection: 'subtasks'; taskId: string };
-
-/**
- * Extract the id-set of the descriptor's collection from an arbitrary parsed
- * ledger document (plain JSON — the parse of the bytes about to be written, NOT
- * the Zod-reparsed `detected.data`). Returns null when the collection cannot be
- * located (itself a violation the gate surfaces).
- */
-function collectionIds(
-  parsed: unknown,
-  descriptor: CollectionDescriptor,
-): Set<IdValue> | null {
-  if (!parsed || typeof parsed !== 'object') return null;
-  const doc = parsed as Record<string, unknown>;
-  if (descriptor.collection === 'subtasks') {
-    const tasks = doc.tasks;
-    if (!Array.isArray(tasks)) return null;
-    const task = tasks.find(
-      (t) => (t as { id?: unknown }).id === descriptor.taskId,
-    ) as { subtasks?: unknown } | undefined;
-    if (!task || !Array.isArray(task.subtasks)) return null;
-    return new Set(task.subtasks.map((s) => (s as { id: IdValue }).id));
-  }
-  const arr = doc[descriptor.collection];
-  if (!Array.isArray(arr)) return null;
-  return new Set(arr.map((r) => (r as { id: IdValue }).id));
-}
-
-/**
- * Capture the pre-write id-set from the typed `detected` document at
- * `loadLedger` time. Must be called BEFORE the in-memory mutation for
- * collections whose membership changes (e.g. `add-subtask` replaces the
- * `subtasks` array); for field-edits the id-set is unchanged either way, but
- * capturing before is the safe discipline.
- */
-function beforeCollectionIds(
-  detected: KnownDetected,
-  descriptor: CollectionDescriptor,
-): Set<IdValue> {
-  if (descriptor.collection === 'subtasks') {
-    if (detected.kind !== 'task-list') return new Set();
-    const task = detected.data.tasks.find((t) => t.id === descriptor.taskId);
-    return new Set((task?.subtasks ?? []).map((s) => s.id));
-  }
-  if (descriptor.collection === 'tasks' && detected.kind === 'task-list') {
-    return new Set(detected.data.tasks.map((t) => t.id));
-  }
-  if (descriptor.collection === 'themes' && detected.kind === 'roadmap') {
-    return new Set(detected.data.themes.map((t) => t.id));
-  }
-  if (descriptor.collection === 'items' && detected.kind === 'backlog') {
-    return new Set(detected.data.items.map((it) => it.id));
-  }
-  return new Set();
-}
-
-type RecordSetCheck = { ok: true } | { ok: false; detail: string };
-
-/**
- * The core gate (ID-35.16). Assert `afterIds` equals `beforeIds` transformed by
- * `expectedDelta`. Reports the unexpectedly-missing and unexpectedly-present
- * ids on violation, so the operator sees exactly which record was dropped or
- * inserted.
- */
-function assertRecordSet(
-  beforeIds: Set<IdValue>,
-  afterIds: Set<IdValue>,
-  expectedDelta: RecordSetDelta,
-): RecordSetCheck {
-  // The expected post-write id-set, derived from beforeIds + the intended delta.
-  const expected = new Set<IdValue>(beforeIds);
-  if (expectedDelta.kind === 'add') expected.add(expectedDelta.id);
-  else if (expectedDelta.kind === 'add-many')
-    for (const id of expectedDelta.ids) expected.add(id);
-  else if (expectedDelta.kind === 'remove') expected.delete(expectedDelta.id);
-
-  const missing = [...expected].filter((id) => !afterIds.has(id));
-  const unexpected = [...afterIds].filter((id) => !expected.has(id));
-
-  if (missing.length === 0 && unexpected.length === 0) return { ok: true };
-
-  const parts: string[] = [];
-  if (missing.length) parts.push(`missing [${missing.join(', ')}]`);
-  if (unexpected.length) parts.push(`unexpected [${unexpected.join(', ')}]`);
-  return { ok: false, detail: parts.join(' / ') };
-}
-
-/**
- * Run the record-set gate for one ledger write at the write gate: parse the
- * `content` about to be written, extract the descriptor's id-set, and assert it
- * against `beforeIds` under `expectedDelta`. Returns a `record-set-violation`
- * CliResult on mismatch (caller writes nothing) or `{ ok: true }` to proceed.
- */
-function checkRecordSet(
-  subcommand: string,
-  ledger: LedgerName,
-  content: string,
-  beforeIds: Set<IdValue>,
-  descriptor: CollectionDescriptor,
-  expectedDelta: RecordSetDelta,
-): { ok: true } | { ok: false; result: CliResult } {
-  let afterParsed: unknown;
-  try {
-    afterParsed = JSON.parse(content);
-  } catch (err) {
-    return {
-      ok: false,
-      result: cliErr(
-        subcommand,
-        'record-set-violation',
-        `${ledger}: serialised output is not valid JSON (${msg(err)})`,
-      ),
-    };
-  }
-  const afterIds = collectionIds(afterParsed, descriptor);
-  if (afterIds === null) {
-    return {
-      ok: false,
-      result: cliErr(
-        subcommand,
-        'record-set-violation',
-        `${ledger}: could not locate the ${descriptor.collection} collection in the serialised output`,
-      ),
-    };
-  }
-  const check = assertRecordSet(beforeIds, afterIds, expectedDelta);
-  if (!check.ok) {
-    return {
-      ok: false,
-      result: cliErr(
-        subcommand,
-        'record-set-violation',
-        `${ledger}: ${check.detail}`,
-      ),
-    };
-  }
-  return { ok: true };
-}
-
-// ── ID-35.17 write-time budget pre-check (RESEARCH §2.3 — the north star) ─────
-//
-// PREVENT-AT-SOURCE: the CLI refuses to AUTHOR an over-budget record. After the
-// in-memory mutation but BEFORE any byte is written, the CHANGED record's
-// budgeted fields are checked against `LEDGER_BUDGETS`. Over-budget → reject
-// (exit 1, write nothing); `--force` downgrades to the existing soft warning
-// and proceeds (escape hatch). The message is SCOPED to the changed record —
-// one line naming field + actual length + budget — NEVER the ~135 KB
-// whole-ledger `parseTaskListWithWarnings` dump.
-//
-// Budgets are PLAIN DATA, never a Zod `.max()` (RESEARCH §2.3/§7): the schema
-// stays cap-free so the live over-budget ledger keeps parsing and a `--force`
-// write still validates. `subtask.details` is intentionally absent from the
-// registry → automatically EXEMPT (the append-only journal home).
-
-/**
- * Budget-gate inputs for the single CHANGED record of a write: which registry
- * record-kind to budget against, the record id (for the message), and the
- * post-mutation record object whose budgeted fields are measured.
+ * Options for a single-ledger {@link commitMutation}. ID-90.22 R1b: all write
+ * machinery (serialisation, the record-set / budget / discipline gates, mirror
+ * regen) moved server-side, so the descriptor / scoped-write / gate fields are
+ * gone — every mutating call site supplies a {@link ServerIntent} and the
+ * delegate routes through the transport.
  *
- * ID-35.26: `mutatedField` (when set) names the single field this write
- * touches — `checkBudget` then REJECTS only on that field and surfaces any
- * over-budget UNTOUCHED budgeted fields as soft warnings (the operator never
- * touched them, so a rejection is wrong). When `mutatedField` is undefined
- * (create / add / promote — every budgeted field is freshly authored), the
- * gate keeps the original "reject on the first over-budget field" semantics.
- */
-interface BudgetGate {
-  ledger: LedgerName;
-  recordKind: LedgerRecordKind;
-  recordId: string | number;
-  record: Record<string, unknown>;
-  /** When set, only this field can REJECT; other over-budget fields warn. */
-  mutatedField?: string;
-  /**
-   * ID-35.27: parent task id for subtask records — used to label the
-   * budget-exceeded message as `subtask <parentId>.<recordId>` (e.g.
-   * `subtask 49.6`) instead of the misleading `task <recordId>` that
-   * previously confused operators (gate.ledger is `"task"` for the
-   * task-list ledger; the subtask id alone was rendered as the task id).
-   * Ignored for non-subtask kinds.
-   */
-  parentId?: string | number;
-}
-
-/**
- * ID-35.27: format the subject suffix of the budget-exceeded detail line so
- * the operator sees the RIGHT record-kind label and identifier — never the
- * misleading `<gate.ledger> <gate.recordId>` (which rendered subtasks as
- * `task <subId>`). Discriminates on `recordKind`:
- *
- *   - `task`    → `task <recordId>`         (e.g. `task 49`)
- *   - `subtask` → `subtask <parentId>.<recordId>`  (e.g. `subtask 49.6`)
- *                 — falls back to `subtask <recordId>` if parentId is missing
- *                   (callers should always pass it; defensive only).
- *   - `theme`   → `theme <recordId>`        (e.g. `theme 3`)
- *   - `item`    → `item <recordId>`         (e.g. `item 100`)
- */
-function budgetSubject(gate: BudgetGate): string {
-  switch (gate.recordKind) {
-    case 'subtask':
-      return gate.parentId !== undefined
-        ? `subtask ${gate.parentId}.${gate.recordId}`
-        : `subtask ${gate.recordId}`;
-    case 'task':
-      return `task ${gate.recordId}`;
-    case 'theme':
-      return `theme ${gate.recordId}`;
-    case 'item':
-      return `item ${gate.recordId}`;
-    default: {
-      // ID-35.27 fix-up: exhaustiveness guard. `scripts/` is excluded from
-      // tsconfig so a future addition to `LedgerRecordKind` would NOT be
-      // flagged at build time and the switch would silently return
-      // undefined — corrupting every budget-exceeded detail line. The
-      // `never` assertion makes a missing arm a compile-time error inside
-      // the IDE / `tsc` runs that DO see this file, and the runtime
-      // fallback keeps the message intelligible if the assertion is ever
-      // bypassed.
-      const _exhaustive: never = gate.recordKind;
-      return `${String(_exhaustive)} ${gate.recordId}`;
-    }
-  }
-}
-
-/**
- * ID-35.31: count user-perceived characters (graphemes), not UTF-16 code units.
- *
- * Defect (S275): `value.length` returns the UTF-16 code-unit count, which
- * diverges from what the operator sees for any non-BMP glyph. A single emoji
- * like `🎯` is 1 grapheme but 2 code units (surrogate pair); a 130-emoji
- * description measures 260 by `.length` and trips a 250 budget the operator
- * thinks is comfortably under. Even for BMP arrows (`→`, U+2192) and section
- * marks (`§`, U+00A7) the counts agree, but the operator's intuition is
- * "graphemes", so we standardise on `Intl.Segmenter`.
- *
- * `Intl.Segmenter` is available in every Node ≥ 16 build the repo targets;
- * the wrapper exists so all budget-gate sites use a single counter. The
- * underlying `Intl.Segmenter` is module-hoisted (`GRAPHEME_SEGMENTER`) so
- * each call reuses one instance instead of allocating per-invocation.
- */
-const GRAPHEME_SEGMENTER = new Intl.Segmenter('en', {
-  granularity: 'grapheme',
-});
-function graphemeLength(value: string): number {
-  return [...GRAPHEME_SEGMENTER.segment(value)].length;
-}
-
-/**
- * Check the changed record's budgeted fields against `LEDGER_BUDGETS`.
- *
- * Behaviour by mode:
- *   - `mutatedField` undefined (create / add / promote — authoring every
- *     field): returns the FIRST over-budget violation as a rejection. Matches
- *     the original ID-35.17 semantics.
- *   - `mutatedField` set (update-* — only one field changes): returns a
- *     rejection ONLY when that mutated field is over-budget. Any other
- *     over-budget budgeted fields are returned as `warnings` so the operator
- *     sees them without the write being rejected (untouched-field discipline
- *     escape, ID-35.26).
- *
- * Fields absent from the registry for the kind (e.g. `subtask.details`) are
- * not budgeted, so they never flag. Non-string field values are skipped
- * (budgets are char-length on text fields).
- */
-function checkBudget(
-  gate: BudgetGate,
-):
-  | { ok: true; warnings: string[] }
-  | { ok: false; detail: string; warnings: string[] } {
-  if (!gate.record || typeof gate.record !== 'object')
-    return { ok: true, warnings: [] };
-  const budgets = LEDGER_BUDGETS[gate.recordKind] as Record<string, number>;
-  const warnings: string[] = [];
-  let mutatedViolation: { detail: string } | null = null;
-  for (const [field, budget] of Object.entries(budgets)) {
-    const value = gate.record[field];
-    if (typeof value !== 'string') continue;
-    // ID-35.31: grapheme count (what the operator sees), not UTF-16 code units.
-    const length = graphemeLength(value);
-    if (length <= budget) continue;
-    // ID-35.31: surface the `(over by N)` delta so the operator can trim with
-    // precision instead of running the arithmetic themselves.
-    const overBy = length - budget;
-    const line = `${field} is ${length} chars (budget ${budget}, over by ${overBy}) on ${budgetSubject(gate)}`;
-    if (gate.mutatedField === undefined) {
-      // Create / add / promote — first over-budget field is fatal.
-      return { ok: false, detail: line, warnings: [] };
-    }
-    if (field === gate.mutatedField) {
-      mutatedViolation = { detail: line };
-    } else {
-      // Untouched over-budget field — surface as a soft warning (not a
-      // rejection). The operator never edited it; rejecting blocks legitimate
-      // edits to unrelated fields (the ID-35.26 defect).
-      warnings.push(`budget (untouched): ${line}`);
-    }
-  }
-  if (mutatedViolation)
-    return { ok: false, detail: mutatedViolation.detail, warnings };
-  return { ok: true, warnings };
-}
-
-/**
- * ID-35.30: the scope a {@link disciplineWarnings} call is restricted to. The
- * caller names the SINGLE record the mutation touched — `parseTaskListWithWarnings`
- * still scans the WHOLE task-list (it has to: schema-validity is whole-ledger),
- * but we filter its emitted entries down to those that pertain to this record.
- *
- * Why: without scoping, every successful add-subtask / flip-* / update-* /
- * promote emits 34-67 KB of unrelated soft warnings (every over-budget field
- * across hundreds of historical records) on its success envelope's `warnings`
- * field, which `emit()` dumps to stderr. Buffer-parsing orchestrators that
- * stream-consume the JSON-stdout envelope from the CLI choke on the unrelated
- * volume. RESEARCH §2.3 ("scoped to the changed record") applies to the soft
- * discipline warnings too, not just the budget-exceeded rejection message.
- *
- * - `taskId` set, `subId` undefined: keep only warnings whose `taskId` field
- *   matches AND whose message body is task-level (the parent task's
- *   description / status_note lines, NOT the per-subtask
- *   description / testStrategy lines for sibling subtasks under the same task).
- * - `taskId` AND `subId` set: keep only warnings whose `taskId` field matches
- *   AND whose message body references this specific `taskId.subId` subtask.
- * - No scope passed: legacy behaviour — return every warning the parse
- *   produced (preserved as a fallback for callers that intentionally want the
- *   whole-ledger sweep; no CLI call site uses this any more).
- */
-interface WarningScope {
-  taskId: string;
-  subId?: number | string;
-}
-
-/**
- * Surface ID-34 field-discipline warnings for a task-list mutation, optionally
- * SCOPED to the single record the mutation touched (ID-35.30). Non-fatal: the
- * warnings flow to stderr; the command still succeeds. (Only task-list has a
- * warnings helper; roadmap/backlog mutations return [].)
- */
-function disciplineWarnings(
-  detected: KnownDetected,
-  scope?: WarningScope,
-): string[] {
-  if (detected.kind !== 'task-list') return [];
-  try {
-    const { warnings } = parseTaskListWithWarnings(detected.data);
-    if (!scope) return warnings.map((w) => w.message);
-    // ID-35.30 scope filter.
-    // `parseTaskListWithWarnings` emits at most three message shapes (see
-    // lib/validation/task-list-schema.ts §parseTaskListWithWarnings):
-    //   - Task "{taskId}" description ... — task-level
-    //   - Task "{taskId}" status_note ... — task-level
-    //   - Subtask {taskId}.{subId} description / testStrategy ... — subtask-level
-    // Each carries `taskId` (the parent task id) on the warning struct.
-    // Subtask-level messages embed the compound `{taskId}.{subId}` literally
-    // in the message body, so a substring match pins the right subtask
-    // without re-parsing.
-    return warnings
-      .filter((w) => {
-        if (w.taskId !== scope.taskId) return false;
-        const isSubtaskLine = w.message.startsWith(`Subtask `);
-        if (scope.subId === undefined) {
-          // Task-scope: drop sibling-subtask noise; keep only parent task lines.
-          return !isSubtaskLine;
-        }
-        // Subtask-scope: keep only entries that name THIS subtask.
-        return (
-          isSubtaskLine &&
-          w.message.startsWith(`Subtask ${scope.taskId}.${scope.subId} `)
-        );
-      })
-      .map((w) => w.message);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * ID-35.18: mirror regeneration is DEFAULT-ON after every write (RESEARCH §2.5)
- * — callers pass `!flags.noRegenMirrors`, so a mutation keeps
- * `docs/reference/{tasks,roadmap,backlog}/` in sync and `ledger-mirror-parity`
- * stays green. `--no-regen-mirrors` opts out (batch edits run it once at the
- * end). FAIL-LOUD: a non-zero `regen-mirrors.sh` exit surfaces a loud stderr
- * warning — the write has ALREADY committed, so this is a post-write alert, NOT
- * a rollback.
- */
-/**
- * The regen invocation, behind a module-level seam so tests can replace it
- * without shelling out to the real `regen-mirrors.sh` (which clones task-view).
- * Returns the child exit status (`null` on signal). Production default invokes
- * the script synchronously.
- */
-type RegenRunner = () => number | null;
-
-let regenRunner: RegenRunner = () => {
-  // ID-35.44 stdout-purity: `regen-mirrors.sh` echoes human/advisory lines to
-  // its stdout. With `stdio: 'inherit'` those bytes land on THIS process's
-  // stdout (fd1) and interleave with the JSON envelope `emit()` writes,
-  // breaking `ledger-cli … | jq`. Route the child's stdout to the parent's
-  // stderr (fd2) so every regen diagnostic stays visible but fd1 carries the
-  // pure single-line JSON envelope only. stdin is ignored; child stderr→fd2.
-  const r = spawnSync('bash', ['scripts/regen-mirrors.sh'], {
-    stdio: ['ignore', 2, 2],
-  });
-  return r.status;
-};
-
-/** Test seam (ID-35.18): override the regen runner; pass `null` to restore. */
-function __setRegenRunnerForTest(runner: RegenRunner | null): void {
-  regenRunner = runner ?? defaultRegenRunner;
-}
-const defaultRegenRunner = regenRunner;
-
-/**
- * Run the default-on mirror regen and report the post-write mirror status as a
- * discriminated tag (ID-35.32). The three outcomes:
- *   - `'fresh'`        — regen ran and succeeded; mirrors are in sync.
- *   - `'suppressed'`   — `--no-regen-mirrors` was passed; the skip was
- *                        intentional. The operator already knows; the
- *                        envelope-level reminder confirms the skip.
- *   - `'regen-failed'` — regen ran and exited non-zero; the loud
- *                        `MIRROR REGEN FAILED` stderr line is emitted here
- *                        (post-write alert, not a rollback) and the envelope
- *                        reminder prompts a manual rerun.
- *
- * Callers map a non-`'fresh'` status into the success envelope's
- * `{ mirrorStale: true, mirrorStaleReason }` pair; `emit()` then picks the
- * discriminated reminder text via {@link mirrorReminderFor}.
- */
-type MirrorStatus = 'fresh' | MirrorStaleReason;
-
-function maybeRegenMirrors(regen: boolean): MirrorStatus {
-  if (!regen) return 'suppressed'; // → mirrors left stale by design.
-  const status = regenRunner();
-  if (status !== 0) {
-    process.stderr.write(
-      `⚠ MIRROR REGEN FAILED: regen-mirrors.sh exited ${status ?? 'signal'}. ` +
-        `The write already committed — mirrors are now STALE. ` +
-        `Re-run \`bash scripts/regen-mirrors.sh\` manually before committing ` +
-        `(CI ledger-mirror-parity will otherwise fail).\n`,
-    );
-    return 'regen-failed';
-  }
-  return 'fresh';
-}
-
-/**
- * A scoped-write descriptor: the ORIGINAL on-disk text (as read by loadLedger)
- * plus the single FieldPatch applied. When passed to {@link commitMutation} with
- * `--scoped`, the written bytes come from re-emitting only the mutated record
- * into the original text (lib/ledger/scoped-serialise.ts), so untouched records
- * stay byte-identical. Available for field-edit subcommands only (those whose
- * mutation is a single FieldPatch).
- */
-interface ScopedWrite {
-  originalText: string;
-  patch: FieldPatch;
-}
-
-/**
- * A scoped record-INSERT descriptor (ID-65.3): the ORIGINAL on-disk text (as read
- * by loadLedger) plus a single record-level {@link SpliceOp}. When passed to
- * {@link commitMutation} with `scoped: true`, the written bytes come from
- * re-emitting the original text with exactly one record spliced in
- * (lib/ledger/scoped-serialise.ts `scopedSpliceSerialise`), so untouched records
- * stay byte-identical — a create produces a minimal record-sized diff instead of
- * a whole-file re-emit of the parent array.
- *
- * This is an ADDITIVE sibling to {@link ScopedWrite} (the field-edit scoped path):
- * the four single-record create commands (add-subtask, open-task, create-theme,
- * create-backlog) thread this instead of a `scopedWrite` field-patch. The
- * schema+uniqueness oracle still runs at the call site BEFORE the splice
- * (`fieldPatchMutation` / `insertRecord`) — the splice primitive intentionally
- * does not re-enforce duplicate-id. The whole-file `serialise()` stays the
- * fallback when `scoped` is false (the future {65.5} `--whole-file` opt-out).
- *
- * ID-65.6: `ops` is an ARRAY of splice ops, folded LEFT over the accumulating
- * text inside {@link commitMutation} (text0 → op1 → text1 → op2 → … → textN),
- * so N inserts produce ONE final text written ONCE — the bulk `add-subtasks`
- * path. The single-record create commands ({65.3}) wrap their one op as a
- * one-element array (`ops: [op]`), so content derivation stays centralised in
- * `commitMutation` for both single and bulk paths. No silent fallback: if ANY
- * fold step returns `{ok:false}`, the error surfaces and nothing is written.
- */
-interface ScopedSplice {
-  originalText: string;
-  ops: SpliceOp[];
-}
-
-/**
- * ID-35.16 record-set-preservation gate inputs for one ledger write: the
- * ledger name (for the error detail), the collection guarded, the pre-write
- * id-set (captured at `loadLedger` time, BEFORE the mutation), and the intended
- * delta. `commitMutation`/`promote` derive `afterIds` from the bytes about to
- * be written and assert the invariant before any byte lands.
- */
-interface RecordSetGate {
-  ledger: LedgerName;
-  descriptor: CollectionDescriptor;
-  beforeIds: Set<IdValue>;
-  expectedDelta: RecordSetDelta;
-}
-
-/**
- * Options for a single-ledger {@link commitMutation}. Only `subcommand`, `path`,
- * `detected`, and `resultPayload` are required (the write identity + success
- * payload); the rest are named so call sites are self-documenting and adding a
- * future gate can never cause a positional-argument-order mistake.
- *
- * - `dryRun` / `regenMirrors` / `force`: the flag-derived write modifiers.
- * - `scoped` + `scopedWrite`: ID-35.11 minimal-diff write (field edits only).
- * - `scoped` + `scopedSplice`: ID-65.3 minimal-diff record INSERT (create
- *   commands). At most one of `scopedWrite` / `scopedSplice` is supplied per call.
- * - `gate`: ID-35.16 record-set-preservation gate.
- * - `budgetGate`: ID-35.17 write-time budget pre-check.
+ * - `dryRun` / `regenMirrors` / `force`: the flag-derived write modifiers
+ *   (threaded to the server as per-request body fields, T-3).
+ * - `extraWarnings`: caller advisory warnings prepended to the success envelope.
+ * - `serverIntent`: the mutation the server performs.
  */
 interface CommitMutationOptions {
   subcommand: string;
   path: string;
-  detected: KnownDetected;
   resultPayload: unknown;
   dryRun: boolean;
   regenMirrors: boolean;
-  scoped?: boolean;
-  scopedWrite?: ScopedWrite;
-  scopedSplice?: ScopedSplice;
-  gate?: RecordSetGate;
-  budgetGate?: BudgetGate;
   force?: boolean;
   /**
-   * ID-35.30: scope the soft discipline-warnings sweep to the single record
-   * this mutation touched, so the success envelope's `warnings` field carries
-   * at most a handful of entries (the touched record's own untouched-budget
-   * lines) instead of the whole 34-67 KB whole-ledger dump. Task-list call
-   * sites should ALWAYS set this; roadmap/backlog mutations may omit it
-   * (disciplineWarnings short-circuits on non-task-list detected anyway).
-   */
-  warningScope?: WarningScope;
-  /**
-   * ID-65.6: extra warnings the CALLER computed and wants surfaced on the
-   * success envelope alongside the discipline/budget warnings. The bulk
-   * `add-subtasks` path enforces budgets PER-RECORD in the handler (the generic
-   * `budgetGate` only checks one record), then threads the resulting
-   * soft/forced budget warnings here so they reach the operator. Prepended to
-   * the warnings list; absent for every single-record caller.
+   * ID-65.6 / ID-90.22 R1b: extra warnings the CALLER computed and wants
+   * surfaced on the success envelope. PREPENDED to the server's own
+   * discipline/budget warnings (matching the pre-R1b LOCAL `warnings.unshift`).
+   * Live producers: the bulk `add-subtasks` per-record budget warnings and the
+   * `update-task <id> status` flip-task canonical-verb hint (F5). Threaded into
+   * the transport via {@link serverCommitMutation}'s `transportOpts`.
    */
   extraWarnings?: string[];
   /**
-   * ID-90.19 K4: server transport intent. When `serverEnabled()` is true AND
-   * this is set, `commitMutation` delegates to the transport client instead of
-   * the in-process write path. The flag-OFF path ignores this entirely.
+   * ID-90.19 K4 / ID-90.22 R1b: server transport intent. Every mutating call
+   * site now sets this; `commitMutation` delegates UNCONDITIONALLY to the
+   * server transport (the in-process direct-write path was removed in R1b —
+   * gates, budget, record-set and serialisation all run server-side).
    */
-  serverIntent?: ServerIntent;
+  serverIntent: ServerIntent;
 }
 
 /**
- * Commit a mutated single-ledger snapshot: serialise + atomicWriteFile, unless
- * `dryRun` (then print the post-mutation document + write nothing). Returns the
- * success envelope.
+ * Commit a single-ledger mutation via the SERVER transport (ID-90.22 R1b). The
+ * in-process direct-write path (serialise + atomicWriteFile + the record-set /
+ * budget / discipline gates + mirror regen) was removed in R1b — the server now
+ * owns validation, gating and serialisation (PRODUCT invariants 8, 58). Every
+ * mutating call site supplies a {@link ServerIntent}; `commitMutation`
+ * delegates unconditionally to {@link serverCommitMutation}. The CLI-side
+ * validation oracle (`loadLedger`→`detectSchema`, `fieldPatchMutation`→
+ * `applyPatches`, `insertRecord`/`removeRecord`) still runs AT THE CALL SITE
+ * before this delegate, producing the schema-error / walk-error / duplicate-id
+ * envelopes locally (esc-4 retained modules); the server re-validates and runs
+ * the record-set + budget gates authoritatively before any byte lands.
  *
- * When `scoped` is true AND a {@link ScopedWrite} descriptor is supplied, the
- * written bytes come from {@link scopedSerialise} (minimal diff, on-disk escaping
- * preserved) instead of the non-conforming whole-file {@link serialise}. The
- * scoped path re-derives its bytes from the original text threaded in by the
- * caller — it never re-reads the file after mutation. If the scoped serialiser
- * unexpectedly rejects (it re-validates), the error surfaces as `{ok:false}` and
- * nothing is written.
- *
- * ID-65.3: when `scoped` is true AND a {@link ScopedSplice} descriptor is supplied
- * (record INSERT — the four create commands), the bytes come from
- * {@link scopedSpliceSerialise} instead, so the create appends ONE record to the
- * original text rather than whole-file re-emitting the collection. Same fail-fast
- * contract: a splice rejection surfaces as `{ok:false}` and nothing is written —
- * never a silent wide whole-file fallback. The call site's `insertRecord` /
- * `fieldPatchMutation` already ran the schema + duplicate-id oracle.
- *
- * ID-35.16: when a {@link RecordSetGate} is supplied, the record-set-
- * preservation gate runs on the SERIALISED OUTPUT (scoped or whole-file) before
- * `atomicWriteFile` — a serialise-side drop/duplicate is rejected with
- * `record-set-violation` and nothing is written.
+ * `dryRun` is honoured server-side (writes nothing); `serverCommitMutation`
+ * shapes the dry-run `result` envelope to match the pre-R1b `{dryRun:true,...}`
+ * form. `extraWarnings` are prepended to the success envelope's warnings.
  */
 async function commitMutation(opts: CommitMutationOptions): Promise<CliResult> {
-  // ── ID-90.19 K4: server transport branch (inv 3 — one seam) ───────────
-  // Flag ON + serverIntent present → delegate to the server transport.
-  // Flag OFF → fall through to the BYTE-UNTOUCHED direct write path below.
-  //
-  // ID-90.25 GAP 2a: `--whole-file` is the legacy serialise() escape hatch; the
-  // server has no whole-file mode; it stays on the direct path under flag-ON
-  // (deprecation deferred to ID-90.22/90.23). The whole-file signal is
-  // `opts.scoped === false` (every mutating call site passes
-  // `scoped: !flags.wholeFile`; delete sites omit `scoped` → undefined, so they
-  // stay on the server path). Routing `--whole-file` through the SCOPED server
-  // write produced a ~805KB key-order divergence that also poisoned later
-  // sequential-harness entries — so divert ONLY the explicit whole-file case.
-  if (serverEnabled() && opts.serverIntent && opts.scoped !== false) {
-    return serverCommitMutation(opts);
-  }
-
-  const {
-    subcommand,
-    path,
-    detected,
-    resultPayload,
-    dryRun,
-    regenMirrors,
-    scoped = false,
-    scopedWrite,
-    scopedSplice,
-    gate,
-    budgetGate,
-    force = false,
-    warningScope,
-    extraWarnings,
-  } = opts;
-  const warnings = disciplineWarnings(detected, warningScope);
-  // ID-65.6: caller-computed warnings (e.g. bulk add-subtasks per-record budget
-  // soft/forced warnings) prepended so they reach the success envelope.
-  if (extraWarnings?.length) warnings.unshift(...extraWarnings);
-
-  // ID-35.17 budget pre-check — on the CHANGED record's budgeted fields, after
-  // the in-memory mutation, BEFORE any byte is written. Over-budget → reject
-  // (scoped one-line message); `--force` downgrades to a soft warning and
-  // proceeds. Runs ahead of serialisation so an over-budget write does no I/O.
-  //
-  // ID-35.26: update-* call sites set `budgetGate.mutatedField` so only that
-  // field can REJECT. Over-budget UNTOUCHED fields surface as `b.warnings` —
-  // the operator never touched them, so a rejection would block legitimate
-  // edits to unrelated fields. Create / add / promote leave `mutatedField`
-  // undefined and keep the original "every budgeted field can reject" gate.
-  if (budgetGate) {
-    const b = checkBudget(budgetGate);
-    if (b.warnings.length) warnings.push(...b.warnings);
-    if (!b.ok) {
-      if (force) {
-        warnings.push(`(forced) budget-exceeded: ${b.detail}`);
-      } else {
-        return cliErr(subcommand, 'budget-exceeded', b.detail);
-      }
-    }
-  }
-
-  if (dryRun) {
-    // ID-35.44 stdout-purity: previously dumped the WHOLE 34-67 KB ledger
-    // document (`detected.data`). {35.30} bounded the WARNINGS to the touched
-    // record but left this dump. Mirror the already-bounded success envelope —
-    // return the caller's bounded `resultPayload` (the same shape the live
-    // write emits) tagged `dryRun: true`, never the full document. `promote`'s
-    // dry-run was already bounded; this brings the generic path into line.
-    return {
-      ok: true,
-      subcommand,
-      result: { dryRun: true, ...(resultPayload as object) },
-      warnings: warnings.length ? warnings : undefined,
-    };
-  }
-
-  let content: string;
-  if (scoped && scopedSplice) {
-    // ID-65.3 / ID-65.6 record-INSERT scoped path: splice each op into the
-    // accumulating text (minimal record-sized diff per op) instead of whole-file
-    // re-emitting the parent collection. {65.3}'s single-record creates pass a
-    // one-element `ops` array; {65.6}'s bulk `add-subtasks` passes N ops folded
-    // LEFT over the text (text0 → op1 → text1 → … → textN) so N inserts yield ONE
-    // final text written ONCE. The call site's insertRecord / fieldPatchMutation
-    // already ran the schema + duplicate-id oracle on the merged collection, so a
-    // splice failure here is unexpected — surface it rather than silently falling
-    // back to a wide whole-file write (mirrors the scopedWrite handling below).
-    // No silent fallback: ANY fold step failing aborts before any byte is
-    // written (the gate + atomicWriteFile below never run).
-    let text = scopedSplice.originalText;
-    for (const op of scopedSplice.ops) {
-      const r = scopedSpliceSerialise(text, op);
-      if (!r.ok) {
-        if (r.kind === 'schema-error') {
-          return {
-            ok: false,
-            subcommand,
-            error: 'scoped-schema-error',
-            detail:
-              r.error instanceof Error ? r.error.message : String(r.error),
-          };
-        }
-        return cliErr(
-          subcommand,
-          `scoped-${r.kind}`,
-          'detail' in r ? r.detail : undefined,
-        );
-      }
-      text = r.text;
-    }
-    content = text;
-  } else if (scoped && scopedWrite) {
-    const r = scopedSerialise(scopedWrite.originalText, scopedWrite.patch);
-    if (!r.ok) {
-      // The whole-file path already validated via applyPatches, so a scoped
-      // failure here is unexpected — surface it rather than silently falling
-      // back to a wide whole-file write.
-      if (r.kind === 'schema-error') {
-        return {
-          ok: false,
-          subcommand,
-          error: 'scoped-schema-error',
-          detail: r.error instanceof Error ? r.error.message : String(r.error),
-        };
-      }
-      return cliErr(
-        subcommand,
-        `scoped-${r.kind}`,
-        'detail' in r ? r.detail : undefined,
-      );
-    }
-    content = r.text;
-  } else {
-    content = serialise(detected);
-  }
-
-  // ID-35.16 record-set-preservation gate — runs on the bytes ABOUT TO BE
-  // WRITTEN (scoped or whole-file), so a serialise-side drop/duplicate is
-  // caught one step before it lands. Composes with the §2.3 budget gate.
-  if (gate) {
-    const g = checkRecordSet(
-      subcommand,
-      gate.ledger,
-      content,
-      gate.beforeIds,
-      gate.descriptor,
-      gate.expectedDelta,
-    );
-    if (!g.ok) return g.result;
-  }
-
-  await atomicWriteFile(path, content);
-  const mirrorStatus = maybeRegenMirrors(regenMirrors);
-  return {
-    ok: true,
-    subcommand,
-    result: resultPayload,
-    warnings: warnings.length ? warnings : undefined,
-    mirrorStale: mirrorStatus !== 'fresh',
-    mirrorStaleReason: mirrorStatus === 'fresh' ? undefined : mirrorStatus,
-  };
+  return serverCommitMutation(opts);
 }
 
 // ── ID-90.19 server transport helpers ─────────────────────────────────────────
@@ -2214,6 +1488,34 @@ async function buildTransportRequest(
         method: 'PATCH',
         body: { baseMtime: mtime, patches: intent.patches },
       };
+    case 'transaction': {
+      // ID-90.22 R1b: cross-ledger promote. NOT slug-routed (the bare
+      // /api/ledger/transaction form resolves siblings server-side). Each leg
+      // carries its own baseMtime (inv 43 re-derive); `filePath` is the
+      // task-list path, `intent.backlogPath` the backlog, and the optional
+      // roadmap leg is stat'd only when a capability-theme binds.
+      const backlogMtime = (await stat(intent.backlogPath)).mtime.toISOString();
+      return {
+        url: `${base}/transaction`,
+        method: 'POST',
+        body: {
+          op: 'promote',
+          sourceBacklogId: intent.sourceBacklogId,
+          taskRecord: intent.taskRecord,
+          taskListBaseMtime: mtime,
+          backlogBaseMtime: backlogMtime,
+          ...(intent.capabilityThemeId !== undefined &&
+          intent.roadmapPath !== undefined
+            ? {
+                capabilityThemeId: intent.capabilityThemeId,
+                roadmapBaseMtime: (
+                  await stat(intent.roadmapPath)
+                ).mtime.toISOString(),
+              }
+            : {}),
+        },
+      };
+    }
   }
 }
 
@@ -2239,6 +1541,13 @@ async function serverCommitMutation(
       ? { allowClientName: true }
       : {}),
     ...(!opts.regenMirrors ? { regenMirrors: false } : {}),
+    // ID-90.22 R1b (Curator AC-H1): caller advisory warnings (e.g. the
+    // flip-task canonical-verb hint, or bulk add-subtasks per-record budget
+    // warnings) prepended to the success envelope by transportCommit. NOT a
+    // wire field — purely client-side envelope shaping.
+    ...(opts.extraWarnings?.length
+      ? { extraWarnings: opts.extraWarnings }
+      : {}),
   };
 
   // ID-90.25 GAP 1/GAP 4: thread the flag-OFF-matching success payload so the
@@ -2646,40 +1955,28 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
-      const descriptor: CollectionDescriptor = { collection: 'tasks' };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'status'],
         newValue: status,
       };
+      // CLI-side validation oracle (esc-4 retained): applyPatches re-validates
+      // the mutated document and surfaces the schema-error/walk-error envelope
+      // locally before the server write. The record-set + budget gates now run
+      // server-side (R1b).
       const m = fieldPatchMutation('flip-task', loaded.detected, patch);
       if (!m.ok) return m.result;
       return commitMutation({
         subcommand: 'flip-task',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: { taskId, status },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` path. `--scoped` is now a
-        // redundant no-op alias (kept for back-compat).
-        scoped: !flags.wholeFile,
-        scopedWrite: { originalText: loaded.originalText, patch },
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'none' },
-        },
         serverIntent: {
           kind: 'field-patch',
           slug: ledgerSlug('task'),
           recordId: taskId,
           patches: [patch],
         },
-        // ID-35.30: scope discipline warnings to the touched task.
-        warningScope: { taskId },
       });
     }
 
@@ -2705,25 +2002,24 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const value = valueRes.raw;
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
-      const descriptor: CollectionDescriptor = { collection: 'tasks' };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const newValue = coerceFieldValue('task', field, value);
       const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, field],
         newValue,
       };
+      // CLI-side validation oracle (esc-4 retained): applyPatches surfaces the
+      // local schema-error/walk-error envelope; the server runs the record-set
+      // + budget gates authoritatively (R1b).
       const m = fieldPatchMutation('update-task', loaded.detected, patch);
       if (!m.ok) return m.result;
-      const changedTask =
-        loaded.detected.kind === 'task-list'
-          ? loaded.detected.data.tasks.find((t) => t.id === taskId)
-          : undefined;
       // S299 F5 — `flip-task` is the dedicated, canonical verb for setting a
       // Task status; `update-task <id> status <value>` is the equivalent
       // generic-editor path (the write is byte-identical). Both are kept
       // (back-compat), but a non-fatal hint nudges the operator to the canonical
       // verb so the redundancy stops inviting the wrong guess. The hint is a
       // soft warning (stderr), never a rejection — the edit still succeeds.
+      // ID-90.22 R1b (AC-H1): threaded via `extraWarnings` so it survives on the
+      // server path (the deleted LOCAL path was the sole threader pre-R1b).
       const statusHint =
         field === 'status'
           ? [
@@ -2735,31 +2031,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       return commitMutation({
         subcommand: 'update-task',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: { taskId, field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` path. `--scoped` is now a
-        // redundant no-op alias (kept for back-compat).
-        scoped: !flags.wholeFile,
-        scopedWrite: { originalText: loaded.originalText, patch },
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'none' },
-        },
-        budgetGate: changedTask
-          ? {
-              ledger: 'task',
-              recordKind: 'task',
-              recordId: taskId,
-              record: changedTask as unknown as Record<string, unknown>,
-              // ID-35.26: scope rejection to the mutated field.
-              mutatedField: field,
-            }
-          : undefined,
         force: flags.force,
         // S299 F5 — surface the flip-task canonical-verb hint (status field only).
         extraWarnings: statusHint,
@@ -2769,8 +2043,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           recordId: taskId,
           patches: [patch],
         },
-        // ID-35.30: scope discipline warnings to the touched task.
-        warningScope: { taskId },
       });
     }
 
@@ -2799,45 +2071,25 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
-      // The flip is a subtask-field edit; the addressed task's subtask id-set
-      // is unchanged (∅), so guard that task's subtasks collection.
-      const descriptor: CollectionDescriptor = {
-        collection: 'subtasks',
-        taskId,
-      };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'subtasks', subId, 'status'],
         newValue: status,
       };
+      // CLI-side validation oracle (esc-4 retained); record-set gate server-side.
       const m = fieldPatchMutation('flip-subtask', loaded.detected, patch);
       if (!m.ok) return m.result;
       return commitMutation({
         subcommand: 'flip-subtask',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: { taskId, subId, status },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` path. `--scoped` is now a
-        // redundant no-op alias (kept for back-compat).
-        scoped: !flags.wholeFile,
-        scopedWrite: { originalText: loaded.originalText, patch },
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'none' },
-        },
         serverIntent: {
           kind: 'field-patch',
           slug: ledgerSlug('task'),
           recordId: taskId,
           patches: [patch],
         },
-        // ID-35.30: scope discipline warnings to the touched subtask.
-        warningScope: { taskId, subId },
       });
     }
 
@@ -2867,13 +2119,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const value = valueRes.raw;
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
-      // Field-edit on a subtask: the addressed task's subtask id-set is
-      // unchanged (∅), so guard that task's subtasks collection.
-      const descriptor: CollectionDescriptor = {
-        collection: 'subtasks',
-        taskId,
-      };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       // ID-35.21 field-type-aware coercion (drives parse by SubtaskSchema field
       // type — dependencies → number[], description stays a string).
       const newValue = coerceFieldValue('subtask', field, value);
@@ -2881,48 +2126,17 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         fieldPath: ['tasks', taskId, 'subtasks', String(subId), field],
         newValue,
       };
+      // CLI-side validation oracle (esc-4 retained); the budget pre-check +
+      // record-set gate now run server-side (R1b). `--force` still threads
+      // through so the server downgrades budget-exceeded to a soft warning.
       const m = fieldPatchMutation('update-subtask', loaded.detected, patch);
       if (!m.ok) return m.result;
-      // Budget pre-check on the changed subtask (description / testStrategy).
-      const changedSub =
-        loaded.detected.kind === 'task-list'
-          ? loaded.detected.data.tasks
-              .find((t) => t.id === taskId)
-              ?.subtasks.find((s) => s.id === Number(subId))
-          : undefined;
       return commitMutation({
         subcommand: 'update-subtask',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: { taskId, subId: Number(subId), field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` path. `--scoped` is now a
-        // redundant no-op alias (kept for back-compat).
-        scoped: !flags.wholeFile,
-        scopedWrite: { originalText: loaded.originalText, patch },
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'none' },
-        },
-        budgetGate: changedSub
-          ? {
-              ledger: 'task',
-              recordKind: 'subtask',
-              recordId: Number(subId),
-              // ID-35.27: pass the parent task id so the budget-exceeded
-              // detail labels the record as `subtask <taskId>.<subId>`
-              // (e.g. `subtask 49.6`), not `task <subId>`.
-              parentId: taskId,
-              record: changedSub as unknown as Record<string, unknown>,
-              // ID-35.26: only the mutated field can REJECT — untouched
-              // over-budget fields surface as soft warnings.
-              mutatedField: field,
-            }
-          : undefined,
         force: flags.force,
         serverIntent: {
           kind: 'field-patch',
@@ -2930,8 +2144,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           recordId: taskId,
           patches: [patch],
         },
-        // ID-35.30: scope discipline warnings to the touched subtask.
-        warningScope: { taskId, subId },
       });
     }
 
@@ -2970,11 +2182,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'record-not-found',
           `subtask ${taskId}.${subId}`,
         );
-      const descriptor: CollectionDescriptor = {
-        collection: 'subtasks',
-        taskId,
-      };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const existing = sub.details ?? '';
       const next = existing
         ? `${existing}\n\n${journalBlock(text)}`
@@ -2983,34 +2190,21 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         fieldPath: ['tasks', taskId, 'subtasks', subId, 'details'],
         newValue: next,
       };
+      // CLI-side validation oracle (esc-4 retained); record-set gate server-side.
       const m = fieldPatchMutation('append-journal', loaded.detected, patch);
       if (!m.ok) return m.result;
       return commitMutation({
         subcommand: 'append-journal',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: { taskId, subId, appended: true },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` path. `--scoped` is now a
-        // redundant no-op alias (kept for back-compat).
-        scoped: !flags.wholeFile,
-        scopedWrite: { originalText: loaded.originalText, patch },
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'none' },
-        },
         serverIntent: {
           kind: 'field-patch',
           slug: ledgerSlug('task'),
           recordId: taskId,
           patches: [patch],
         },
-        // ID-35.30: scope discipline warnings to the touched subtask.
-        warningScope: { taskId, subId },
       });
     }
 
@@ -3053,12 +2247,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       if (record.id === undefined) {
         record = { ...record, id: nextId(loaded.detected, 'subtasks', taskId) };
       }
-      const descriptor: CollectionDescriptor = {
-        collection: 'subtasks',
-        taskId,
-      };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       const nextSubtasks = [...task.subtasks, record];
+      // CLI-side validation oracle (esc-4 retained): Zod-validates the merged
+      // subtasks[] and surfaces the local schema-error envelope. The record-set
+      // (drop/duplicate) + budget gates run server-side (R1b).
       const m = fieldPatchMutation('add-subtask', loaded.detected, {
         fieldPath: ['tasks', taskId, 'subtasks'],
         newValue: nextSubtasks,
@@ -3067,8 +2259,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // Derive the new subtask id from the VALIDATED post-mutation record (the
       // last subtask of the addressed task in the re-parsed document), not the
       // pre-validation `record.id`. `SubtaskSchema.id` is required, so a
-      // missing/ill-typed id fails the mutation above and never reaches here —
-      // so the record-set gate is ALWAYS passed with a concrete `add` delta.
+      // missing/ill-typed id fails the mutation above and never reaches here.
       const validatedTask =
         loaded.detected.kind === 'task-list'
           ? loaded.detected.data.tasks.find((t) => t.id === taskId)
@@ -3079,7 +2270,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       return commitMutation({
         subcommand: 'add-subtask',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: {
           taskId,
           subId: newSubId,
@@ -3087,55 +2277,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.3: route through the {65.2} splice so the WRITTEN bytes are ONE
-        // subtask appended to the parent task's subtasks[] in the original text,
-        // not a whole-file serialise of the entire (possibly 40-deep) array. The
-        // record spliced is the SAME coerced object pushed into nextSubtasks
-        // above (its numeric id already injected). The {fieldPatchMutation} above
-        // is kept as the schema oracle (Zod-validates the merged subtasks[]);
-        // dup-subtask-id is NOT enforced — z.array(SubtaskSchema) has no
-        // within-array uniqueness constraint (see OQ-65-1). The {35.16}
-        // record-set gate below is what guards membership (drop/duplicate).
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` fallback (the `else` branch in
-        // commitMutation re-emits ins.detected, which already carries the new
-        // record). `scopedSplice` is ignored when `scoped` is false.
-        scoped: !flags.wholeFile,
-        scopedSplice: {
-          originalText: loaded.originalText,
-          // ID-65.6: single op wrapped as a one-element array (commitMutation
-          // folds `ops` — single create == bulk-of-one).
-          ops: [{ kind: 'insert', collection: 'subtasks', taskId, record }],
-        },
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'add', id: newSubId },
-        },
-        budgetGate: {
-          ledger: 'task',
-          recordKind: 'subtask',
-          recordId: newSubId,
-          // ID-35.27: surface the parent task id so the budget-exceeded
-          // detail reads `subtask <taskId>.<subId>` (e.g. `subtask 49.6`)
-          // not the misleading `task <subId>` (gate.ledger is the
-          // task-list ledger; subtask ids alone collide with task ids).
-          parentId: taskId,
-          record,
-        },
         force: flags.force,
-        // ID-35.30: scope discipline warnings to the just-added subtask. Without
-        // this scope the success envelope dumps 34-67 KB of unrelated soft
-        // warnings (every over-budget field across the WHOLE ledger), which
-        // breaks JSON-stdout-parsing orchestrators.
         serverIntent: {
           kind: 'subtask-create',
           slug: ledgerSlug('task'),
           taskId,
           subtasks: [record],
         },
-        warningScope: { taskId, subId: newSubId },
       });
     }
 
@@ -3203,36 +2351,15 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         }
         coercedRecords.push(record);
       }
-      // Per-record BUDGET enforcement (atomic): reject the WHOLE batch on any
-      // over-budget record unless --force (then soft warnings). Mirror the single
-      // add-subtask budget semantics (subtask.description ≤250, testStrategy
-      // ≤300). Runs BEFORE the scoped write so an over-budget batch does no I/O.
-      const budgetWarnings: string[] = [];
-      for (const record of coercedRecords) {
-        const b = checkBudget({
-          ledger: 'task',
-          recordKind: 'subtask',
-          recordId: record.id as string | number,
-          parentId: taskId,
-          record,
-        });
-        if (b.warnings.length) budgetWarnings.push(...b.warnings);
-        if (!b.ok) {
-          if (flags.force) {
-            budgetWarnings.push(`(forced) budget-exceeded: ${b.detail}`);
-          } else {
-            return cliErr('add-subtasks', 'budget-exceeded', b.detail);
-          }
-        }
-      }
-      const descriptor: CollectionDescriptor = {
-        collection: 'subtasks',
-        taskId,
-      };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
-      // Validate the FULL batch via the schema oracle on the merged subtasks[]
-      // BEFORE the scoped write (mirrors add-subtask's fieldPatchMutation). The
-      // re-parsed document yields the VALIDATED new ids for the gate's add-many.
+      // ID-90.22 R1b: per-record budget enforcement moved server-side — the
+      // server's subtask-create handler runs `checkBudgetForCreate` per record
+      // atomically (rejects the whole batch on any over-budget record, honours
+      // `--force`, surfaces forced/soft warnings; same `subtask <parent>.<id>`
+      // label — patch-server.ts §handlePostSubtasks). The client-side
+      // `checkBudget` loop is removed with the rest of the gate machinery.
+      // Validate the FULL batch via the CLI-side schema oracle (esc-4 retained)
+      // on the merged subtasks[] BEFORE the server write (mirrors add-subtask's
+      // fieldPatchMutation), surfacing the local schema-error envelope.
       const nextSubtasks = [...task.subtasks, ...coercedRecords];
       const m = fieldPatchMutation('add-subtasks', loaded.detected, {
         fieldPath: ['tasks', taskId, 'subtasks'],
@@ -3248,15 +2375,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const newSubIds = validatedSubtasks
         .slice(validatedSubtasks.length - coercedRecords.length)
         .map((s) => s.id as IdValue);
-      // ONE scoped multi-splice: N insert ops folded over the accumulating text
-      // → ONE final text written ONCE. ONE {35.16} add-many gate covering all
-      // +N ids; ONE mirror regen (commitMutation does it once). Budget already
-      // enforced per-record above, so no budgetGate here (it only checks one
-      // record — the per-record loop above is the bulk-correct enforcement).
       return commitMutation({
         subcommand: 'add-subtasks',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: {
           taskId,
           subIds: newSubIds,
@@ -3265,37 +2386,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` fallback (the `else` branch in
-        // commitMutation re-emits ins.detected, which already carries the new
-        // record). `scopedSplice` is ignored when `scoped` is false.
-        scoped: !flags.wholeFile,
-        scopedSplice: {
-          originalText: loaded.originalText,
-          ops: coercedRecords.map((record) => ({
-            kind: 'insert' as const,
-            collection: 'subtasks' as const,
-            taskId,
-            record,
-          })),
-        },
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'add-many', ids: newSubIds },
-        },
         force: flags.force,
-        // ID-35.30: bound discipline warnings to this task. Per-record budget
-        // warnings (incl. forced ones) are surfaced via the success envelope.
-        warningScope: { taskId },
         serverIntent: {
           kind: 'subtask-create',
           slug: ledgerSlug('task'),
           taskId,
           subtasks: coercedRecords,
         },
-        extraWarnings: budgetWarnings,
       });
     }
 
@@ -3329,8 +2426,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       }
       const loaded = await loadLedger(ledgerPath(dir, 'backlog'));
       if (!loaded.ok) return loaded.result;
-      const descriptor: CollectionDescriptor = { collection: 'items' };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       // ID-35.21: field-type-aware coercion REPLACES the old silent
       // `JSON.parse(value)`-then-bare-string heuristic (RESEARCH §5.3). Driven
       // by BacklogItemSchema field type, so `update-backlog 100 description
@@ -3363,44 +2458,23 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         fieldPath: ['items', itemId, field],
         newValue,
       };
+      // CLI-side validation oracle (esc-4 retained); budget + record-set gates
+      // run server-side (R1b). `--force` still threads through for budget.
       const m = fieldPatchMutation('update-backlog', loaded.detected, patch);
       if (!m.ok) return m.result;
-      const changedItem =
-        loaded.detected.kind === 'backlog'
-          ? loaded.detected.data.items.find((it) => it.id === itemId)
-          : undefined;
       return commitMutation({
         subcommand: 'update-backlog',
         path: ledgerPath(dir, 'backlog'),
-        detected: loaded.detected,
         resultPayload: { itemId, field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: !flags.wholeFile,
-        scopedWrite: { originalText: loaded.originalText, patch },
-        gate: {
-          ledger: 'backlog',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'none' },
-        },
-        budgetGate: changedItem
-          ? {
-              ledger: 'backlog',
-              recordKind: 'item',
-              recordId: itemId,
-              record: changedItem as unknown as Record<string, unknown>,
-              // ID-35.26: scope rejection to the mutated field.
-              mutatedField: field,
-            }
-          : undefined,
+        force: flags.force,
         serverIntent: {
           kind: 'field-patch',
           slug: ledgerSlug('backlog'),
           recordId: itemId,
           patches: [patch],
         },
-        force: flags.force,
       });
     }
 
@@ -3431,8 +2505,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       }
       const loaded = await loadLedger(ledgerPath(dir, 'roadmap'));
       if (!loaded.ok) return loaded.result;
-      const descriptor: CollectionDescriptor = { collection: 'themes' };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       // ID-35.39 Item C: same notes-append semantics as update-backlog —
       // null/empty existing → just the new value; non-empty existing →
       // existing + '\n' + new (newline-joined).
@@ -3458,44 +2530,23 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         fieldPath: ['themes', themeId, field],
         newValue,
       };
+      // CLI-side validation oracle (esc-4 retained); budget + record-set gates
+      // run server-side (R1b). `--force` still threads through for budget.
       const m = fieldPatchMutation('update-roadmap', loaded.detected, patch);
       if (!m.ok) return m.result;
-      const changedTheme =
-        loaded.detected.kind === 'roadmap'
-          ? loaded.detected.data.themes.find((t) => t.id === themeId)
-          : undefined;
       return commitMutation({
         subcommand: 'update-roadmap',
         path: ledgerPath(dir, 'roadmap'),
-        detected: loaded.detected,
         resultPayload: { themeId, field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        scoped: !flags.wholeFile,
-        scopedWrite: { originalText: loaded.originalText, patch },
-        gate: {
-          ledger: 'roadmap',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'none' },
-        },
-        budgetGate: changedTheme
-          ? {
-              ledger: 'roadmap',
-              recordKind: 'theme',
-              recordId: themeId,
-              record: changedTheme as unknown as Record<string, unknown>,
-              // ID-35.26: scope rejection to the mutated field.
-              mutatedField: field,
-            }
-          : undefined,
+        force: flags.force,
         serverIntent: {
           kind: 'field-patch',
           slug: ledgerSlug('roadmap'),
           recordId: themeId,
           patches: [patch],
         },
-        force: flags.force,
       });
     }
 
@@ -3517,8 +2568,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         ledger === 'task' ? 'task' : ledger === 'roadmap' ? 'theme' : 'item';
       const loaded = await loadLedger(ledgerPath(dir, ledger));
       if (!loaded.ok) return loaded.result;
-      const descriptor: CollectionDescriptor = { collection };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       // {35.15} record-input resolution (positional JSON | --file | named
       // flags) + {35.21} structural defaults + auto-id.
       const input = readRecordInput(args);
@@ -3549,52 +2598,20 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'detail' in ins ? ins.detail : undefined,
         );
       }
+      // insertRecord above is the CLI-side schema + duplicate-id oracle (esc-4
+      // retained); the record-set + budget gates run server-side (R1b).
       return commitMutation({
         subcommand,
         path: ledgerPath(dir, ledger),
-        detected: ins.detected,
         resultPayload: { recordId: ins.recordId },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        // ID-65.3: route through the {65.2} splice so the WRITTEN bytes are ONE
-        // record appended to the top-level collection in the original text, not a
-        // whole-file re-emit. The record spliced is the post-defaults/post-auto-id
-        // object built above (the SAME one insertRecord validated). insertRecord
-        // remains the schema + duplicate-id oracle (rejects before this commits).
-        // ID-65.5 — scoped is the global default; `--whole-file` opts out into
-        // the legacy whole-file `serialise()` fallback (the `else` branch in
-        // commitMutation re-emits ins.detected, which already carries the new
-        // record). `scopedSplice` is ignored when `scoped` is false.
-        scoped: !flags.wholeFile,
-        scopedSplice: {
-          originalText: loaded.originalText,
-          // ID-65.6: single op wrapped as a one-element array (commitMutation
-          // folds `ops` — single create == bulk-of-one).
-          ops: [{ kind: 'insert', collection, record }],
-        },
-        gate: {
-          ledger,
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'add', id: ins.recordId },
-        },
-        budgetGate: {
-          ledger,
-          recordKind,
-          recordId: ins.recordId,
-          record,
-        },
         force: flags.force,
-        // ID-35.30: scope discipline warnings to the just-created task. For
-        // create-backlog / create-theme this is a no-op (disciplineWarnings
-        // returns [] on non-task-list detected anyway).
         serverIntent: {
           kind: 'record-create',
           slug: ledgerSlug(ledger),
           record,
         },
-        warningScope:
-          ledger === 'task' ? { taskId: String(ins.recordId) } : undefined,
       });
     }
 
@@ -3608,8 +2625,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         );
       const loaded = await loadLedger(ledgerPath(dir, 'backlog'));
       if (!loaded.ok) return loaded.result;
-      const descriptor: CollectionDescriptor = { collection: 'items' };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
+      // removeRecord is the CLI-side schema + record-not-found oracle (esc-4
+      // retained); the record-set drop-guard runs server-side (R1b).
       const rem = removeRecord(loaded.detected, itemId);
       if (!rem.ok) {
         if (rem.kind === 'schema-error')
@@ -3626,16 +2643,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       return commitMutation({
         subcommand: 'delete-backlog',
         path: ledgerPath(dir, 'backlog'),
-        detected: rem.detected,
         resultPayload: { recordId: rem.recordId },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        gate: {
-          ledger: 'backlog',
-          descriptor,
-          beforeIds,
-          expectedDelta: { kind: 'remove', id: rem.recordId },
-        },
         serverIntent: {
           kind: 'record-delete',
           slug: ledgerSlug('backlog'),
@@ -3704,15 +2714,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'record-not-found',
           `subtask ${taskId}.${n}`,
         );
-      const descriptor: CollectionDescriptor = {
-        collection: 'subtasks',
-        taskId,
-      };
-      const beforeIds = beforeCollectionIds(loaded.detected, descriptor);
       // Removing the last subtask leaves `subtasks: []` — TaskSchema.subtasks
       // is `z.array(SubtaskSchema)` with no `.min(1)`, so an empty array is a
       // legal atomic-Task state (see task-list-schema.ts inv 5).
       const nextSubtasks = task.subtasks.filter((s) => s.id !== n);
+      // CLI-side validation oracle (esc-4 retained); the record-set drop-guard
+      // runs server-side (R1b).
       const m = fieldPatchMutation('delete-subtask', loaded.detected, {
         fieldPath: ['tasks', taskId, 'subtasks'],
         newValue: nextSubtasks,
@@ -3721,7 +2728,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       return commitMutation({
         subcommand: 'delete-subtask',
         path: ledgerPath(dir, 'task'),
-        detected: loaded.detected,
         resultPayload: {
           taskId,
           subId: n,
@@ -3729,24 +2735,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
-        gate: {
-          ledger: 'task',
-          descriptor,
-          beforeIds,
-          // The removed id is the NUMERIC subtask id `n` (collectionIds maps
-          // subtask ids as numbers), matching add-subtask's numeric `add`
-          // delta — so beforeIds/afterIds compare by value.
-          expectedDelta: { kind: 'remove', id: n },
-        },
-        // ID-35.30: scope discipline-warnings to the addressed task so the
-        // success envelope never dumps the whole-ledger soft-warning set.
         serverIntent: {
           kind: 'subtask-delete',
           slug: ledgerSlug('task'),
           taskId,
           subId: n,
         },
-        warningScope: { taskId },
       });
     }
 
@@ -3784,10 +2778,6 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         // pre-{35.39} two-ledger behaviour; defined → three-ledger atomic
         // write that also patches the named theme's `linked_tasks[]`).
         flags.capabilityTheme,
-        // ID-65.4 — default to the scoped minimal-diff derivation. ID-65.5
-        // threads `scoped: !flags.wholeFile` so `--whole-file` reaches the
-        // {65.4} verbatim whole-file derivation (the `scoped:false` branch).
-        !flags.wholeFile,
       );
     }
 
@@ -3846,13 +2836,11 @@ async function promote(
   regenMirrors: boolean,
   force: boolean = false,
   capabilityTheme?: string,
-  // ID-65.4: when true (the default), promote derives every staged-write content
-  // string from the {65.2} scoped primitives (record-sized minimal diffs) instead
-  // of the legacy whole-file `serialise()` re-emit. {65.5} wires the call site to
-  // `scoped: !flags.wholeFile`; the `serialise()` branch remains the explicit
-  // `scoped: false` opt-out so a wide whole-file write is still reachable.
-  scoped: boolean = true,
 ): Promise<CliResult> {
+  // ID-90.22 R1b: the `--whole-file` / `scoped` opt-out is gone — promote now
+  // always routes through the server transaction (no client-side serialise
+  // path remains to opt out of). The flag still parses (argv unchanged, inv 8)
+  // but no longer changes the write path.
   const taskListP = ledgerPath(dir, 'task');
   const backlogP = ledgerPath(dir, 'backlog');
   const roadmapP = ledgerPath(dir, 'roadmap');
@@ -3939,21 +2927,10 @@ async function promote(
     }
   }
 
-  // ID-35.16 record-set gate: capture pre-write id-sets BEFORE both mutations.
-  const taskDescriptor: CollectionDescriptor = { collection: 'tasks' };
-  const backlogDescriptor: CollectionDescriptor = { collection: 'items' };
-  const taskBeforeIds = beforeCollectionIds(tlLoad.detected, taskDescriptor);
-  const backlogBeforeIds = beforeCollectionIds(
-    blLoad.detected,
-    backlogDescriptor,
-  );
-  // ID-35.39 Item A: capture roadmap pre-state when bound.
-  const roadmapDescriptor: CollectionDescriptor = { collection: 'themes' };
-  const roadmapBeforeIds =
-    rmLoad && rmLoad.ok
-      ? beforeCollectionIds(rmLoad.detected, roadmapDescriptor)
-      : null;
-
+  // ID-90.22 R1b: the record-set gates run server-side now (the
+  // beforeCollectionIds capture + checkRecordSet calls were deleted). The
+  // insertRecord/removeRecord oracle below stays as the CLI-side schema +
+  // duplicate-id + record-not-found gate (esc-4 retained).
   const ins = insertRecord(tlLoad.detected, taskRecord);
   if (!ins.ok) {
     if (ins.kind === 'schema-error')
@@ -3985,289 +2962,62 @@ async function promote(
     return cliErr('promote', rem.kind);
   }
 
-  // ID-35.39 Item A: apply the roadmap-side patch only when bound — push the
-  // new task id onto the named theme's linked_tasks[] (idempotent). Uses the
-  // vendored applyPatches primitive (fieldPatchMutation) so the resulting bytes
-  // still pass Zod — this remains the schema-validation ORACLE regardless of
-  // which content-derivation path (scoped vs whole-file) emits the final bytes.
+  // ID-90.22 R1b (invariant 49 / K4-deferred): the cross-ledger write now
+  // routes through POST /api/ledger/transaction. The CLI-side validation
+  // oracle ABOVE (withCreateDefaults, capability-theme patch, theme-exists
+  // check, insertRecord/removeRecord — esc-4 retained modules) surfaces the
+  // local schema-error / duplicate-id / backlog-item-not-found / unknown-theme
+  // envelopes BEFORE any server call; the server's `promoteTransaction`
+  // re-validates, runs the record-set + budget gates, applies the roadmap
+  // linked_tasks[] back-link (idempotent), stages + commits every leg
+  // atomically under the per-path mutation mutex, and regenerates mirrors. The
+  // staged-write + scoped-serialise + gate machinery is gone (deleted in R1b).
   //
-  // ID-65.4: we additionally record `roadmapAlreadyLinked` + the computed
-  // `nextLinked` so the content-derivation block below can replicate the
-  // pre-{65.4} idempotent behaviour byte-for-byte: already-linked → emit the
-  // UNCHANGED original text (a no-op rewrite); else → emit the patched content.
-  let roadmapAlreadyLinked = false;
-  let roadmapNextLinked: string[] | null = null;
-  if (
-    capabilityTheme !== undefined &&
-    rmLoad &&
-    rmLoad.ok &&
-    rmLoad.detected.kind === 'roadmap'
-  ) {
-    const theme = rmLoad.detected.data.themes.find(
-      (t) => t.id === capabilityTheme,
-    );
-    // Theme presence was checked in Phase 1; this lookup re-finds the now-
-    // post-validation reference. Idempotent push: skip if already present so
-    // a re-run can't duplicate entries.
-    const existingLinked = theme ? theme.linked_tasks : [];
-    if (existingLinked.includes(String(ins.recordId))) {
-      roadmapAlreadyLinked = true;
-    } else {
-      const nextLinked = [...existingLinked, String(ins.recordId)];
-      roadmapNextLinked = nextLinked;
-      const rmPatch = fieldPatchMutation('promote', rmLoad.detected, {
-        fieldPath: ['themes', capabilityTheme, 'linked_tasks'],
-        newValue: nextLinked,
-      });
-      if (!rmPatch.ok) return rmPatch.result;
-    }
-  }
+  // `resultPayload` mirrors the pre-R1b flip-OFF success shape
+  // (`{newTaskId, removedBacklogId, [boundCapabilityTheme]}`) so the envelope
+  // is byte-identical; `serverCommitMutation` tags it `{dryRun:true,...}` on a
+  // dry-run (the server honours dryRun and writes nothing). Forced budget
+  // warnings + discipline warnings are now emitted by the server's warnings[]
+  // envelope (invariant 41). `--force` threads through as a per-request option.
+  const resultPayload = {
+    newTaskId: ins.recordId,
+    removedBacklogId: rem.recordId,
+    ...(capabilityTheme !== undefined
+      ? { boundCapabilityTheme: capabilityTheme }
+      : {}),
+  };
 
-  // ID-65.4: derive each staged-write content string. The DEFAULT (`scoped`)
-  // path routes through the {65.2} scoped primitives so untouched records keep
-  // their exact on-disk bytes — a promote then yields a task-list diff of only
-  // the new Task's lines, a backlog diff of only the removed item's lines, and
-  // (when bound) a roadmap diff of only the one theme's linked_tasks[] line. The
-  // `scoped: false` branch preserves the legacy whole-file `serialise()` re-emit
-  // (the explicit wide-write opt-out wired by {65.5}'s `--whole-file` flag).
-  //
-  // NO SILENT FALLBACK: a scoped function returning `{ ok: false }` returns a
-  // `scoped-*` promote error envelope BEFORE anything is staged — we never fall
-  // through to a wide whole-file write on a scoped failure.
-  let newTaskContent: string;
-  let newBacklogContent: string;
-  let newRoadmapContent: string | null;
-  if (scoped) {
-    const tlSplice = scopedSpliceSerialise(tlLoad.originalText, {
-      kind: 'insert',
-      collection: 'tasks',
-      record: taskRecord,
-    });
-    if (!tlSplice.ok)
-      return cliErr(
-        'promote',
-        `scoped-${tlSplice.kind}`,
-        'detail' in tlSplice ? tlSplice.detail : undefined,
-      );
-    newTaskContent = tlSplice.text;
-
-    const blSplice = scopedSpliceSerialise(blLoad.originalText, {
-      kind: 'remove',
-      collection: 'items',
-      recordId: rem.recordId,
-    });
-    if (!blSplice.ok)
-      return cliErr(
-        'promote',
-        `scoped-${blSplice.kind}`,
-        'detail' in blSplice ? blSplice.detail : undefined,
-      );
-    newBacklogContent = blSplice.text;
-
-    // Roadmap: only when bound + loaded. The change is a FieldPatch on ONE
-    // theme's linked_tasks[] (NOT a record splice) — use the scoped field-patch
-    // path. Preserve the idempotent no-op EXACTLY: already-linked → emit the
-    // unchanged original text (byte-identical); else → the field-patched text.
-    if (capabilityTheme !== undefined && rmLoad && rmLoad.ok) {
-      if (roadmapAlreadyLinked || roadmapNextLinked === null) {
-        newRoadmapContent = rmLoad.originalText;
-      } else {
-        const rmScoped = scopedSerialise(rmLoad.originalText, {
-          fieldPath: ['themes', capabilityTheme, 'linked_tasks'],
-          newValue: roadmapNextLinked,
-        });
-        if (!rmScoped.ok)
-          return cliErr(
-            'promote',
-            `scoped-${rmScoped.kind}`,
-            'detail' in rmScoped ? rmScoped.detail : undefined,
-          );
-        newRoadmapContent = rmScoped.text;
-      }
-    } else {
-      newRoadmapContent = null;
-    }
-  } else {
-    newTaskContent = serialise(ins.detected);
-    newBacklogContent = serialise(rem.detected);
-    newRoadmapContent =
-      capabilityTheme !== undefined && rmLoad && rmLoad.ok
-        ? serialise(rmLoad.detected)
-        : null;
-  }
-
-  // ID-35.16 record-set gate, run twice (once per ledger) on the bytes ABOUT
-  // TO BE WRITTEN: task-list +1 (the new Task id) AND backlog −1 (the source
-  // item id). A serialise-side drop/duplicate on either ledger is rejected with
-  // `record-set-violation` before either staged write commits.
-  const taskGate = checkRecordSet(
-    'promote',
-    'task',
-    newTaskContent,
-    taskBeforeIds,
-    taskDescriptor,
-    { kind: 'add', id: ins.recordId },
-  );
-  if (!taskGate.ok) return taskGate.result;
-  const backlogGate = checkRecordSet(
-    'promote',
-    'backlog',
-    newBacklogContent,
-    backlogBeforeIds,
-    backlogDescriptor,
-    { kind: 'remove', id: rem.recordId },
-  );
-  if (!backlogGate.ok) return backlogGate.result;
-  // ID-35.39 Item A: roadmap gate — record-set delta is `none` (the theme
-  // collection is unchanged; only one theme's linked_tasks[] grew by one).
-  if (newRoadmapContent !== null && roadmapBeforeIds) {
-    const roadmapGate = checkRecordSet(
-      'promote',
-      'roadmap',
-      newRoadmapContent,
-      roadmapBeforeIds,
-      roadmapDescriptor,
-      { kind: 'none' },
-    );
-    if (!roadmapGate.ok) return roadmapGate.result;
-  }
-
-  // ID-35.17 budget pre-check on the new Task record (the changed record). The
-  // backlog item is removed, not authored, so only the Task is budgeted.
-  // Over-budget → reject unless `--force` (then a soft warning). `promote`
-  // authors every budgeted field (no `mutatedField` filter — same semantics
-  // as create / add).
-  const budgetCheck = checkBudget({
-    ledger: 'task',
-    recordKind: 'task',
-    recordId: ins.recordId,
-    record: taskRecord as Record<string, unknown>,
-  });
-  const forcedBudgetWarnings: string[] = [];
-  if (!budgetCheck.ok) {
-    if (force) {
-      forcedBudgetWarnings.push(
-        `(forced) budget-exceeded: ${budgetCheck.detail}`,
-      );
-    } else {
-      return cliErr('promote', 'budget-exceeded', budgetCheck.detail);
-    }
-  }
-
-  // Hoist the discipline scan once (it re-parses the task-list) — reused by
-  // both the dry-run and the success return. ID-35.30: scope to the
-  // just-promoted Task so the success envelope's `warnings` field stays a
-  // handful of lines about the touched record, not the 34-67 KB whole-ledger
-  // dump that broke buffer-parsing orchestrators.
-  const warnings = [
-    ...disciplineWarnings(ins.detected, { taskId: String(ins.recordId) }),
-    ...forcedBudgetWarnings,
-  ];
-
-  if (dryRun) {
-    return {
-      ok: true,
-      subcommand: 'promote',
-      result: {
-        dryRun: true,
-        newTaskId: ins.recordId,
-        removedBacklogId: rem.recordId,
-        // ID-35.39 Item A: surface the bound theme id when set so the dry-run
-        // envelope tells the operator what would change on the roadmap side.
-        ...(capabilityTheme !== undefined
-          ? { boundCapabilityTheme: capabilityTheme }
-          : {}),
-      },
-      warnings: warnings.length ? warnings : undefined,
-    };
-  }
-
-  // Phase 2: stage all bound ledgers (durable temps; originals untouched).
-  let stagedTask = null;
-  let stagedBacklog = null;
-  let stagedRoadmap = null;
-  try {
-    stagedTask = await stageAtomicWrite(taskListP, newTaskContent);
-    stagedBacklog = await stageAtomicWrite(backlogP, newBacklogContent);
-    if (newRoadmapContent !== null) {
-      stagedRoadmap = await stageAtomicWrite(roadmapP, newRoadmapContent);
-    }
-  } catch (err) {
-    if (stagedTask) await abortStagedWrite(stagedTask);
-    if (stagedBacklog) await abortStagedWrite(stagedBacklog);
-    if (stagedRoadmap) await abortStagedWrite(stagedRoadmap);
-    return cliErr('promote', 'stage-failed', msg(err));
-  }
-
-  // Phase 3: commit all bound ledgers. ADD side first (async); REMOVE side
-  // via a SYNC rename so no microtask/scheduler yield can stretch the
-  // two-rename residual window after the first commit resolves — matches
-  // ledger-transaction.ts's commitStagedWriteSync. A kill between the renames
-  // then yields a benign transient duplicate (Task present + backlog item
-  // present), never a lost update. ID-35.39 Item A: when a roadmap commit is
-  // also pending, it runs as the third SYNC rename — the theme update is a
-  // back-link enrichment, so a kill after the first two renames leaves the
-  // theme un-updated (recoverable by a re-run with --capability-theme on the
-  // already-promoted task) rather than blocking the primary promote.
-  try {
-    await commitStagedWrite(stagedTask);
-    renameSync(stagedBacklog.tmpPath, stagedBacklog.targetPath);
-    if (stagedRoadmap) {
-      renameSync(stagedRoadmap.tmpPath, stagedRoadmap.targetPath);
-    }
-  } catch (err) {
-    return cliErr('promote', 'commit-failed', msg(err));
-  }
-
-  const mirrorStatus = maybeRegenMirrors(regenMirrors);
-  return {
-    ok: true,
+  return commitMutation({
     subcommand: 'promote',
-    result: {
-      newTaskId: ins.recordId,
-      removedBacklogId: rem.recordId,
-      // ID-35.39 Item A: name the bound theme on success so callers can
-      // confirm the roadmap-side mutation landed (or skipped — idempotent).
+    path: taskListP,
+    resultPayload,
+    dryRun,
+    regenMirrors,
+    force,
+    serverIntent: {
+      kind: 'transaction',
+      sourceBacklogId: backlogId,
+      taskRecord,
+      backlogPath: backlogP,
       ...(capabilityTheme !== undefined
-        ? { boundCapabilityTheme: capabilityTheme }
+        ? { capabilityThemeId: capabilityTheme, roadmapPath: roadmapP }
         : {}),
     },
-    warnings: warnings.length ? warnings : undefined,
-    mirrorStale: mirrorStatus !== 'fresh',
-    mirrorStaleReason: mirrorStatus === 'fresh' ? undefined : mirrorStatus,
-  };
+  });
 }
 
 // ── ID-35.41 update-umbrella ──────────────────────────────────────────────────
 //
-// `docs/reference/umbrellas.json` had NO CLI write support (task_ids[]
-// maintenance previously needed a hand-written escapeSerialise node script).
-// This is a SELF-CONTAINED load→mutate→write path, deliberately NOT routed
-// through detectSchema/commitMutation (which recognise task-list/roadmap/
-// backlog only — widening that union ripples into KnownDetected, serialise,
-// disciplineWarnings and the record-set machinery).
-//
-// Byte-format (ID-90.16, inv 51-52): umbrellas.json is now normalised to the
-// same `\uXXXX`-escaped, 2-space-indent, trailing-newline convention as the
-// three core ledgers (OQ-LS-2 alignment). `serialiseUmbrellas` delegates to
-// `escapeSerialise` (lib/ledger/scoped-serialise.ts) — the SAME serialiser
-// the core ledger paths use. The live file was normalised in the same commit
-// that introduced this flip (pre/post deep-equal verified).
-//
-// Budget gate: N/A. There is no budget config for umbrella fields (LEDGER_BUDGETS
-// covers task/subtask/theme/item only); none is fabricated here.
-//
-// Mirror regen: N/A. `scripts/regen-mirrors.sh` regenerates only the three core
-// ledgers; umbrellas.json has no per-record mirror, so no regen runs.
+// `docs/reference/umbrellas.json` membership edits (task_ids[]). ID-90.22 R1b:
+// the CLI now validates the op-flags locally (the rejection envelopes below)
+// and routes the membership change through the server as a field PATCH on
+// ['umbrellas', umbrellaId, 'task_ids'] (PRODUCT inv 49-50 / K4-deferred). The
+// self-contained read-mutate-write (`serialiseUmbrellas` + `atomicWriteFile`)
+// and the in-process `checkUmbrellaRecordSet` gate were deleted in R1b — the
+// server owns serialisation + the record-set gate. umbrellas.json carries no
+// per-record mirror (PRODUCT inv 53), so no regen runs.
 
 const UMBRELLAS_FILE = 'umbrellas.json';
-
-/** Serialise an umbrellas document to the on-disk byte format (\uXXXX-escaped
- * non-ASCII, 2-space indent, single trailing newline). Delegates to
- * `escapeSerialise` — same convention as the three core ledgers (inv 51-52). */
-function serialiseUmbrellas(doc: unknown): string {
-  return escapeSerialise(doc);
-}
 
 /** Split a comma-separated id list, trim, drop empties. */
 function splitIds(csv: string): string[] {
@@ -4392,8 +3142,9 @@ async function updateUmbrella(
     );
   }
 
-  // Capture pre-write state (record-set gate inputs).
-  const beforeUmbrellaIds = new Set(doc.umbrellas.map((u) => u.id));
+  // Capture pre-write state. ID-90.22 R1b: the umbrella-id-set + task_ids
+  // set-equality record-set gate runs server-side now; the CLI keeps only the
+  // before-state needed for the reorder permutation check + the delta payload.
   const beforeTaskIds = [...target.task_ids];
   const beforeTaskSet = new Set(beforeTaskIds);
 
@@ -4438,16 +3189,6 @@ async function updateUmbrella(
     });
   }
 
-  // The expected post-write task_ids SET (for the record-set gate b-clause).
-  const expectedTaskSet = hasReorder
-    ? new Set(beforeTaskSet)
-    : (() => {
-        const s = new Set(beforeTaskSet);
-        for (const id of added) s.add(id);
-        for (const id of removed) s.delete(id);
-        return s;
-      })();
-
   const deltaPayload = {
     umbrellaId,
     added,
@@ -4457,32 +3198,24 @@ async function updateUmbrella(
     after: nextTaskIds,
   };
 
-  // Dry-run: report the BOUNDED delta, write nothing (never a full-doc dump).
-  if (dryRun) {
-    return {
-      ok: true,
-      subcommand: SUB,
-      result: { dryRun: true, ...deltaPayload },
-    };
-  }
-
-  // Mutate in place (preserves object key order → byte fidelity for untouched
-  // fields/umbrellas) and re-serialise to the on-disk byte format.
-  target.task_ids = nextTaskIds;
-  const content = serialiseUmbrellas(doc);
-
-  // Record-set gate, derived from the BYTES ABOUT TO BE WRITTEN.
-  const gate = checkUmbrellaRecordSet(
-    content,
-    umbrellaId,
-    beforeUmbrellaIds,
-    expectedTaskSet,
-  );
-  if (!gate.ok) return gate.result;
-
-  // Idempotency: a no-op edit yields byte-identical content → skip the write
-  // (exit 0, file unchanged), matching the {35.16}/{35.44} no-op discipline.
-  if (content === text) {
+  // ID-90.22 R1b (invariant 49 / K4-deferred): the umbrella membership edit is
+  // a field PATCH on ['umbrellas', umbrellaId, 'task_ids'] routed through the
+  // server (PRODUCT inv 49-50). The CLI-side op-flag validation ABOVE
+  // (conflicting-ops / malformed-task-id / unknown-umbrella / missing-args /
+  // reorder-not-permutation) produces the local rejection envelopes unchanged;
+  // the server re-validates, runs the record-set gate (umbrella id-set
+  // unchanged + edited task_ids set-equality), and writes atomically under the
+  // mutation mutex. `serialiseUmbrellas` + the in-process read-mutate-write +
+  // `checkUmbrellaRecordSet` are deleted in R1b.
+  //
+  // No-op discipline ({35.16}/{35.44}): a same-membership-and-order edit yields
+  // an unchanged task_ids[] — detected CLI-side here (order-sensitive equality)
+  // so the operator gets the `noop: true` envelope and NO redundant server
+  // write, matching the pre-R1b byte-identical-content short-circuit.
+  const isNoop =
+    nextTaskIds.length === beforeTaskIds.length &&
+    nextTaskIds.every((id, i) => id === beforeTaskIds[i]);
+  if (isNoop && !dryRun) {
     return {
       ok: true,
       subcommand: SUB,
@@ -4490,101 +3223,29 @@ async function updateUmbrella(
     };
   }
 
-  await atomicWriteFile(path, content);
-  return {
-    ok: true,
+  // `resultPayload` mirrors the pre-R1b flip-OFF success shape (`deltaPayload`)
+  // so the envelope is byte-identical; `serverCommitMutation` tags it
+  // `{dryRun:true,...}` on a dry-run (the server honours dryRun, writes nothing).
+  return commitMutation({
     subcommand: SUB,
-    result: deltaPayload,
-  };
-}
-
-/**
- * ID-35.41 record-set-preservation gate for umbrellas (mirrors {35.16}
- * `checkRecordSet`, but self-contained for the umbrella shape). Parses the
- * bytes about to be written and asserts:
- *   (a) the umbrella id-set is unchanged (no umbrella dropped/added), and
- *   (b) the edited umbrella's resulting `task_ids` SET equals `expectedTaskSet`.
- * On mismatch returns `record-set-violation` (caller writes nothing).
- */
-function checkUmbrellaRecordSet(
-  content: string,
-  umbrellaId: string,
-  beforeUmbrellaIds: Set<string>,
-  expectedTaskSet: Set<string>,
-): { ok: true } | { ok: false; result: CliResult } {
-  const SUB = 'update-umbrella';
-  let after: unknown;
-  try {
-    after = JSON.parse(content);
-  } catch (err) {
-    return {
-      ok: false,
-      result: cliErr(
-        SUB,
-        'record-set-violation',
-        `serialised output is not valid JSON (${msg(err)})`,
-      ),
-    };
-  }
-  const umbrellas = (after as { umbrellas?: unknown }).umbrellas;
-  if (!Array.isArray(umbrellas)) {
-    return {
-      ok: false,
-      result: cliErr(
-        SUB,
-        'record-set-violation',
-        'could not locate the umbrellas collection in the serialised output',
-      ),
-    };
-  }
-  // (a) umbrella id-set unchanged.
-  const afterUmbrellaIds = new Set(
-    umbrellas.map((u) => (u as { id?: unknown }).id as string),
-  );
-  const missingU = [...beforeUmbrellaIds].filter(
-    (id) => !afterUmbrellaIds.has(id),
-  );
-  const extraU = [...afterUmbrellaIds].filter(
-    (id) => !beforeUmbrellaIds.has(id),
-  );
-  if (missingU.length || extraU.length) {
-    const parts: string[] = [];
-    if (missingU.length)
-      parts.push(`umbrella missing [${missingU.join(', ')}]`);
-    if (extraU.length) parts.push(`umbrella unexpected [${extraU.join(', ')}]`);
-    return {
-      ok: false,
-      result: cliErr(SUB, 'record-set-violation', parts.join(' / ')),
-    };
-  }
-  // (b) edited umbrella's task_ids set equals the expected set.
-  const edited = umbrellas.find(
-    (u) => (u as { id?: unknown }).id === umbrellaId,
-  ) as { task_ids?: unknown } | undefined;
-  if (!edited || !Array.isArray(edited.task_ids)) {
-    return {
-      ok: false,
-      result: cliErr(
-        SUB,
-        'record-set-violation',
-        `could not locate task_ids for umbrella "${umbrellaId}" in the serialised output`,
-      ),
-    };
-  }
-  const afterTaskSet = new Set(edited.task_ids as string[]);
-  const missingT = [...expectedTaskSet].filter((id) => !afterTaskSet.has(id));
-  const extraT = [...afterTaskSet].filter((id) => !expectedTaskSet.has(id));
-  if (missingT.length || extraT.length) {
-    const parts: string[] = [];
-    if (missingT.length)
-      parts.push(`task_ids missing [${missingT.join(', ')}]`);
-    if (extraT.length) parts.push(`task_ids unexpected [${extraT.join(', ')}]`);
-    return {
-      ok: false,
-      result: cliErr(SUB, 'record-set-violation', parts.join(' / ')),
-    };
-  }
-  return { ok: true };
+    path,
+    resultPayload: deltaPayload,
+    dryRun,
+    // umbrellas carry no mirror obligation (PRODUCT inv 53) — pass true so no
+    // `regenMirrors:false` body field is emitted (the server skips regen for
+    // umbrellas regardless).
+    regenMirrors: true,
+    serverIntent: {
+      kind: 'umbrella-patch',
+      umbrellaId,
+      patches: [
+        {
+          fieldPath: ['umbrellas', umbrellaId, 'task_ids'],
+          newValue: nextTaskIds,
+        },
+      ],
+    },
+  });
 }
 
 // ── entry ───────────────────────────────────────────────────────────────────
@@ -4640,9 +3301,6 @@ export {
   parseArgs,
   readRecordInput,
   nextId,
-  assertRecordSet,
-  __setRegenRunnerForTest,
-  mirrorReminderFor,
   run,
   journalBlock,
   ledgerPath,

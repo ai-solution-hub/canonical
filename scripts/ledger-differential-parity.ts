@@ -115,8 +115,10 @@ const MATRIX: MatrixEntry[] = [
 
   // ── field-patch (backlog) ──
   {
+    // ID-90.22 R1b: re-pointed from the since-resolved item 270 to a live
+    // backlog id (the fixture is the working-tree backlog; 270 was removed).
     label: 'update-backlog',
-    args: ['update-backlog', '270', 'status', 'ready'],
+    args: ['update-backlog', '28', 'status', 'ready'],
     compareFiles: ['product-backlog.json'],
   },
 
@@ -188,94 +190,56 @@ function runCli(
   };
 }
 
-function compareFiles(
-  dirA: string,
-  dirB: string,
-  files: string[],
-): { match: boolean; mismatches: string[] } {
-  const mismatches: string[] = [];
-  for (const file of files) {
-    const pathA = join(dirA, LEDGER_DIR, file);
-    const pathB = join(dirB, LEDGER_DIR, file);
-    try {
-      const a = readFileSync(pathA);
-      const b = readFileSync(pathB);
-      if (!a.equals(b)) {
-        mismatches.push(
-          `${file}: byte mismatch (${a.length} vs ${b.length} bytes)`,
-        );
-      }
-    } catch (err) {
-      mismatches.push(
-        `${file}: read error — ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-  return { match: mismatches.length === 0, mismatches };
-}
-
 /**
- * Deep-equal envelopes modulo known divergences:
- *   - Absolute path segments (fixture dir differs between A and B)
- *   - Retry warnings ('mtime-conflict: ...')
- *   - mirrorStale / mirrorStaleReason (transport may differ from in-process)
+ * ID-90.22 R1b transport-only assertion: each touched ledger file is
+ * OQ-LS-2-conforming — its bytes parse as JSON AND end with exactly one
+ * trailing newline (the sole-writer format the server emits). Returns a
+ * failure-detail string, or null when every file conforms.
  */
-function normaliseEnvelope(raw: string, fixtureRoot: string): unknown {
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw);
-    // Strip absolute paths
-    const text = JSON.stringify(obj).replaceAll(fixtureRoot, '<FIXTURE>');
-    const cleaned = JSON.parse(text);
-    // Strip retry warnings and mirror fields
-    if (cleaned.warnings) {
-      cleaned.warnings = (cleaned.warnings as string[]).filter(
-        (w: string) => !w.startsWith('mtime-conflict:'),
-      );
-      if (cleaned.warnings.length === 0) delete cleaned.warnings;
+function assertOqls2Conforming(dir: string, files: string[]): string | null {
+  for (const file of files) {
+    const path = join(dir, LEDGER_DIR, file);
+    let raw: string;
+    try {
+      raw = readFileSync(path, 'utf8');
+    } catch (err) {
+      return `${file}: read error — ${err instanceof Error ? err.message : String(err)}`;
     }
-    delete cleaned.mirrorStale;
-    delete cleaned.mirrorStaleReason;
-    return cleaned;
-  } catch {
-    return raw;
+    try {
+      JSON.parse(raw);
+    } catch (err) {
+      return `${file}: not valid JSON — ${err instanceof Error ? err.message : String(err)}`;
+    }
+    if (!raw.endsWith('\n') || raw.endsWith('\n\n')) {
+      return `${file}: not OQ-LS-2-conforming (expected exactly one trailing newline)`;
+    }
   }
+  return null;
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  log('Setting up fixture directories...');
-  const dirA = setupFixtureDir();
-  const dirB = setupFixtureDir();
-  log(`  dir A (flag-OFF): ${dirA}`);
-  log(`  dir B (flag-ON):  ${dirB}`);
+  // ID-90.22 R1b: TRANSPORT-ONLY mode. The OFF-vs-ON differential is gone — the
+  // direct-write path was removed (`serverEnabled()` deleted), so there is no
+  // OFF arm to compare against. The harness is retained as a REGRESSION check
+  // (TECH §Testing, until {68.30} re-homes the gate upstream): it runs each
+  // matrix entry through the server transport and asserts (a) success exit 0
+  // and (b) every touched ledger file is OQ-LS-2-conforming (valid JSON + a
+  // single trailing newline).
+  log('Setting up fixture directory (transport-only)...');
+  const dir = setupFixtureDir();
+  log(`  dir (transport): ${dir}`);
 
-  // ID-90.25 GAP 2b: pin the ledger clock to a FIXED instant in BOTH arms. The
-  // harness runs flag-OFF and flag-ON as two separate processes at different
-  // wall-clock instants; any timestamp written into a ledger (append-journal's
-  // <info added on …> block, a create's updatedAt) would otherwise differ by a
-  // few same-width millisecond bytes → spurious byte-mismatch. This skew is a
-  // two-process test artifact, NOT a real flag-ON/flag-OFF divergence.
+  // Pin the ledger clock so timestamp-bearing writes are deterministic.
   const FIXED_NOW = '2026-01-01T00:00:00.000Z';
-  // ID-90.21 P2-F1: serverEnabled() now defaults ON (KH_LEDGER_SERVER !== '0').
-  // The flag-OFF arm must pin '0' EXPLICITLY — relying on the variable being
-  // absent would silently route this arm through the server post-flip, making
-  // the harness compare ON-vs-ON. Pinning '0' also overrides any ambient
-  // KH_LEDGER_SERVER inherited via runCli's `...process.env` spread.
-  const envOff: Record<string, string> = {
-    KH_LEDGER_SERVER: '0',
-    KH_LEDGER_NOW: FIXED_NOW,
-  };
-  const envOn: Record<string, string> = {
-    KH_LEDGER_SERVER: '1',
+  const env: Record<string, string> = {
     KH_LEDGER_NOW: FIXED_NOW,
   };
 
   // In CI, export the synthetic denylist for the guard arm (AC-I).
   if (CI_MODE) {
-    envOn.KH_CLIENT_NAME_DENYLIST = SYNTHETIC_DENYLIST;
-    envOff.KH_CLIENT_NAME_DENYLIST = SYNTHETIC_DENYLIST;
+    env.KH_CLIENT_NAME_DENYLIST = SYNTHETIC_DENYLIST;
     log('CI mode: synthetic denylist exported.');
   }
 
@@ -285,53 +249,29 @@ async function main(): Promise<void> {
   for (const entry of MATRIX) {
     log(`\n── ${entry.label} ──`);
 
-    // Run flag-OFF against dir A.
-    const resultA = runCli(dirA, entry, envOff);
-    log(`  OFF: exit=${resultA.exitCode}`);
+    const result = runCli(dir, entry, env);
+    log(`  exit=${result.exitCode}`);
     if (VERBOSE) {
-      log(`  OFF stdout: ${resultA.stdout.slice(0, 200)}`);
+      log(`  stdout: ${result.stdout.slice(0, 200)}`);
     }
 
-    // Run flag-ON against dir B.
-    const resultB = runCli(dirB, entry, envOn);
-    log(`  ON:  exit=${resultB.exitCode}`);
-    if (VERBOSE) {
-      log(`  ON  stdout: ${resultB.stdout.slice(0, 200)}`);
-    }
-
-    // Compare exit codes.
-    if (resultA.exitCode !== resultB.exitCode) {
+    // (a) success exit.
+    if (result.exitCode !== 0) {
       results.push({
         label: entry.label,
         pass: false,
-        detail: `exit code: OFF=${resultA.exitCode} ON=${resultB.exitCode}`,
+        detail: `non-zero exit ${result.exitCode}: ${result.stderr.slice(0, 200)}`,
       });
       failures++;
       continue;
     }
 
-    // Compare ledger files (byte-identical).
+    // (b) OQ-LS-2-conforming bytes: each touched file parses as JSON and ends
+    // with exactly one trailing newline.
     const filesToCompare = entry.compareFiles ?? LEDGER_FILES;
-    const fileComp = compareFiles(dirA, dirB, filesToCompare);
-    if (!fileComp.match) {
-      results.push({
-        label: entry.label,
-        pass: false,
-        detail: `file mismatch: ${fileComp.mismatches.join('; ')}`,
-      });
-      failures++;
-      continue;
-    }
-
-    // Compare envelopes (deep-equal modulo known divergences).
-    const envA = normaliseEnvelope(resultA.stdout, dirA);
-    const envB = normaliseEnvelope(resultB.stdout, dirB);
-    if (JSON.stringify(envA) !== JSON.stringify(envB)) {
-      results.push({
-        label: entry.label,
-        pass: false,
-        detail: `envelope mismatch:\n  OFF: ${JSON.stringify(envA)}\n  ON:  ${JSON.stringify(envB)}`,
-      });
+    const byteIssue = assertOqls2Conforming(dir, filesToCompare);
+    if (byteIssue !== null) {
+      results.push({ label: entry.label, pass: false, detail: byteIssue });
       failures++;
       continue;
     }
@@ -353,28 +293,24 @@ async function main(): Promise<void> {
       process.stderr.write(`  ✗ ${r.label}: ${r.detail}\n`);
     }
     process.stderr.write(
-      '\nAC-P1 GATE: FAILED — flag-ON transport path diverges from flag-OFF.\n',
+      '\nTRANSPORT-ONLY GATE: FAILED — a server-transport write regressed.\n',
     );
     process.exit(1);
   }
 
   process.stderr.write(
-    '\nAC-P1 GATE: PASSED — flag-OFF and flag-ON paths produce byte-identical ' +
-      'ledger files, equal exit codes, and deep-equal envelopes across the ' +
-      `${total}-entry matrix.\n`,
+    '\nTRANSPORT-ONLY GATE: PASSED — every server-transport write succeeded ' +
+      `and produced OQ-LS-2-conforming bytes across the ${total}-entry matrix.\n`,
   );
 
   // Structured exit envelope for CI.
   process.stdout.write(
     JSON.stringify({
       ok: true,
+      mode: 'transport-only',
       matrix: total,
       passed,
       failures: 0,
-      exceptions: [
-        'promote commit order: server ADD→roadmap→REMOVE vs CLI ADD→REMOVE→roadmap ' +
-          '(crash-visible only, byte-parity-invisible; check-90-10 verified)',
-      ],
     }) + '\n',
   );
 }
