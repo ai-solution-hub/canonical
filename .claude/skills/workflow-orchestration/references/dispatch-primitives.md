@@ -38,6 +38,14 @@ prompt. The brief carries:
   may touch. Everything else is off-limits.
 - **Skills to invoke** — list specific KH skills (e.g.
   `test-driven-development`, `incremental-implementation`).
+- **Megafile navigation aid** — if the dispatch touches a file larger than the
+  2,000-line Read window (e.g. `scripts/ledger-cli.ts`,
+  `scripts/cocoindex_pipeline/flow.py`), include a symbol→line index in the
+  brief (`grep -n "def \|class \|function " <file>`) and instruct Grep-first
+  navigation. Workers cannot hold such files and otherwise pay a heavy
+  `Read@offset` paging tax (S337 dup-read root-cause: ~70% of the corpus
+  "duplicated reads" were navigation paging on >2,000-line files). Do NOT pin
+  whole-file excerpts for these.
 - **Worktree directive** — verification gate as first action (`pwd && git branch --show-current && git fetch origin <track> && git reset --hard origin/<track> && git branch --show-current` — verbatim, no `cd` prefix). Use relative paths throughout. Commit before finishing. **Never `cd` to absolute knowledge-hub paths.**
 - **Escalation rule** — if the sub-agent finds unexpected production
   behaviour, STOP and escalate. Do not silently work around (CLAUDE.md
