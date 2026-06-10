@@ -17,7 +17,7 @@ description: "Use when the user wants to review a pull request, understand what 
 ## Workflow
 
 ```
-1. gh pr diff <number>                                    → Get the raw diff
+1. gh-axi pr diff <number>                                → Get the raw diff
 2. gitnexus_detect_changes({scope: "compare", base_ref: "main"})  → Map diff to affected flows
 3. For each changed symbol:
    gitnexus_impact({target: "<symbol>", direction: "upstream"})    → Blast radius per change
@@ -31,7 +31,7 @@ description: "Use when the user wants to review a pull request, understand what 
 ## Checklist
 
 ```
-- [ ] Fetch PR diff (gh pr diff or git diff base...head)
+- [ ] Fetch PR diff (gh-axi pr diff or git diff base...head)
 - [ ] gitnexus_detect_changes to map changes to affected execution flows
 - [ ] gitnexus_impact on each non-trivial changed symbol
 - [ ] Review d=1 items (WILL BREAK) — are callers updated?
@@ -109,7 +109,7 @@ gitnexus_context({name: "validatePayment"})
 ## Example: "Review PR #42"
 
 ```
-1. gh pr diff 42 > /tmp/pr42.diff
+1. gh-axi pr diff 42 > /tmp/pr42.diff
    → 4 files changed: payments.ts, checkout.ts, types.ts, utils.ts
 
 2. gitnexus_detect_changes({scope: "compare", base_ref: "main"})

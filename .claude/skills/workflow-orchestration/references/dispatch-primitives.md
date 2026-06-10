@@ -67,6 +67,12 @@ every worker / sub-orchestrator dispatch brief:
   error` is usually transient; retry once. If it persists for a given MCP tool,
   fall back to the non-MCP equivalent (e.g. raw CLI) and note the tool name for
   the friction register."
+- **GitHub ops (ID-92.12):** "Use `gh-axi` for every GitHub operation — it
+  replaces raw `gh` (NOT git): pre-aggregated CI rollups, structured error
+  translation; `gh-axi api` is the raw-API escape hatch. Fall back to raw `gh`
+  only for subcommands `gh-axi` does not wrap. Never run `gh-axi setup hooks`."
+  (Corpus measurement 2026-06-10: raw `gh` still outnumbered `gh-axi` 126:22 —
+  carry this line until the adoption gap closes.)
 
 ### Curator-brief composition
 
