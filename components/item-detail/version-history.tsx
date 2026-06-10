@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useState, useCallback, useMemo } from 'react';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import {
   History,
   ChevronDown,
@@ -24,20 +24,15 @@ import { useUserRole } from '@/hooks/use-user-role';
 import { toast } from 'sonner';
 import { captureClientException } from '@/lib/client-telemetry';
 import { queryKeys } from '@/lib/query/query-keys';
-import { fetchItemHistoryVersion } from '@/lib/query/fetchers';
+import {
+  fetchItemHistoryList,
+  fetchItemHistoryVersion,
+  type ItemHistoryEntry,
+} from '@/lib/query/fetchers';
 import { cn } from '@/lib/utils';
 
-interface VersionEntry {
-  id: string;
-  content_item_id: string;
-  version: number;
-  title: string;
-  change_summary: string | null;
-  change_reason: string | null;
-  change_type: string;
-  created_by: string | null;
-  created_at: string;
-}
+/** Stable empty default so the memoised list keeps a stable reference. */
+const EMPTY_VERSIONS: ItemHistoryEntry[] = [];
 
 interface VersionDetail {
   id: string;
@@ -110,8 +105,8 @@ function CompareVersionsPanel({
   displayNames,
 }: {
   itemId: string;
-  olderEntry: VersionEntry;
-  newerEntry: VersionEntry;
+  olderEntry: ItemHistoryEntry;
+  newerEntry: ItemHistoryEntry;
   displayNames: Map<string, string>;
 }) {
   const results = useQueries({
@@ -196,58 +191,60 @@ export function VersionHistory({
 }: VersionHistoryProps) {
   const { canEdit } = useUserRole();
   const [isOpen, setIsOpen] = useState(false);
-  const [versions, setVersions] = useState<VersionEntry[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [expandedVersion, setExpandedVersion] = useState<string | null>(null);
   const [versionDetail, setVersionDetail] = useState<VersionDetail | null>(
     null,
   );
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
-  const [listError, setListError] = useState<Error | null>(null);
   // Compare-two-versions affordance (ID-59 {59.12}). Defaults to the latest
   // two revisions; explicit version pickers are deferred to v1.1.
   const [compareMode, setCompareMode] = useState(false);
   const [olderVersionId, setOlderVersionId] = useState<string | null>(null);
   const [newerVersionId, setNewerVersionId] = useState<string | null>(null);
 
+  // List leg — TanStack Query (bl-279). Fetcher + key are authored in
+  // lib/query/fetchers.ts / lib/query/query-keys.ts; the section only fetches
+  // once expanded. Telemetry + toast fire from the queryFn catch so the
+  // remediated silent-failure contract (scope `…loadList`) is preserved.
+  const {
+    data: listData,
+    isLoading: loading,
+    isError: hasListError,
+    refetch: refetchVersions,
+  } = useQuery({
+    queryKey: queryKeys.itemHistory.list(itemId, 50),
+    queryFn: async () => {
+      try {
+        return await fetchItemHistoryList(itemId);
+      } catch (err) {
+        captureClientException(err, {
+          scope: 'item-detail.version-history.loadList',
+          extras: { itemId },
+        });
+        toast.error('Failed to load version history');
+        throw err;
+      }
+    },
+    enabled: isOpen,
+  });
+
+  const versions = useMemo(
+    () => listData?.versions ?? EMPTY_VERSIONS,
+    [listData?.versions],
+  );
+  const total = listData?.total ?? 0;
+
   // Collect all created_by UUIDs for display name resolution
-  const creatorIds = versions.map((v) => v.created_by);
+  const creatorIds = useMemo(
+    () => versions.map((v) => v.created_by),
+    [versions],
+  );
   const displayNames = useDisplayNames(creatorIds);
 
-  const loadingRef = useRef(false);
-
-  const fetchVersions = useCallback(async () => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    setLoading(true);
-    setListError(null);
-    try {
-      const res = await fetch(`/api/items/${itemId}/history?limit=50`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      setVersions(data.versions ?? []);
-      setTotal(data.total ?? 0);
-    } catch (err) {
-      captureClientException(err, {
-        scope: 'item-detail.version-history.loadList',
-        extras: { itemId },
-      });
-      setListError(err instanceof Error ? err : new Error(String(err)));
-      toast.error('Failed to load version history');
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
-  }, [itemId]);
-
-  // Fetch versions when section is opened
-  useEffect(() => {
-    if (isOpen && versions.length === 0 && !loading) {
-      fetchVersions();
-    }
-  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fetchVersions = useCallback(() => {
+    refetchVersions();
+  }, [refetchVersions]);
 
   // Whether a meaningful comparison is even possible (need ≥2 revisions).
   const canCompare = versions.length >= 2;
@@ -357,7 +354,7 @@ export function VersionHistory({
             <div className="flex items-center justify-center py-8">
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
             </div>
-          ) : listError && versions.length === 0 ? (
+          ) : hasListError && versions.length === 0 ? (
             <div className="px-4 py-6 text-sm text-muted-foreground">
               <p className="mb-3">
                 Couldn&apos;t load version history. Please try again.

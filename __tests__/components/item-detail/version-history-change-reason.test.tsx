@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Mocks (hoisted)
@@ -69,12 +70,14 @@ describe('VersionHistory — change_reason round-trip (S157 WP6 / M7)', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
+    const { Wrapper } = createQueryWrapper();
     render(
       <VersionHistory
         itemId={ITEM_ID}
         currentContent="current body"
         currentTitle="Sample item"
       />,
+      { wrapper: Wrapper },
     );
 
     // Expand the history panel to trigger the fetch
@@ -84,6 +87,7 @@ describe('VersionHistory — change_reason round-trip (S157 WP6 / M7)', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         `/api/items/${ITEM_ID}/history?limit=50`,
+        undefined,
       );
     });
 
@@ -104,12 +108,14 @@ describe('VersionHistory — change_reason round-trip (S157 WP6 / M7)', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
+    const { Wrapper } = createQueryWrapper();
     render(
       <VersionHistory
         itemId={ITEM_ID}
         currentContent="current body"
         currentTitle="Sample item"
       />,
+      { wrapper: Wrapper },
     );
 
     const toggle = screen.getByRole('button', { name: /version history/i });

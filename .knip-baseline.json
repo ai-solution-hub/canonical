@@ -1,12 +1,12 @@
 {
-  "$schema-note": "S331 ID-59 edit-intent wave (rebaselined S334) \u2014 exports 105\u2192108 (+3): SWEEP_REASON_PREFIX/sweepReason (sweep-tag contract, {59.13}) + fetchItemHistoryList ({59.12} typed list fetcher awaiting the version-history TanStack list-path migration \u2014 backlog'd). types 71\u219275 (+4): SweepMatchResult ({59.13} runSweep result shape), ApplyDbLeg ({59.9} DB-leg injection contract), ItemHistoryEntry/ItemHistoryListResponse ({59.12} wire shapes, travel with the fetcher). All classification keep-and-rebaseline: none dead (in-file-consumed contract surfaces or awaiting-consumer by design); verified vs baseline-capture tree 50b3b2096 \u2014 exactly +3/+4, zero offsetting removals. NB knip.config.ts registers __tests__/** as vitest entries so test imports DO count as consumers (the historic 'tests are non-consumers' framing below is imprecise \u2014 the lib/ledger cohort is flagged because nothing imports those symbols at all). Previously: Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md \u00a76.",
+  "$schema-note": "bl-279 reduction (was S334 ID-59-wave rebaseline 108/75) \u2014 exports 108\u2192107 (-1): fetchItemHistoryList now consumed by components/item-detail/version-history.tsx (TanStack list-path migration; the {59.12} fetcher was baselined awaiting-consumer and is now wired). types 75\u219273 (-2): ItemHistoryEntry imported by the same component, ItemHistoryListResponse referenced via the fetcher return type \u2014 both wire shapes now have a consumer. Legitimate count DROP per ci.md \u00a76.3 (reduction, not raise); verified by bun run ci:knip-check showing exactly -1/-2, zero offsetting additions. NB knip.config.ts registers __tests__/** as vitest entries so test imports DO count as consumers. Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md \u00a76.",
   "capturedAt": "2026-06-10",
-  "capturedFromCommit": "S334 ID-59-wave rebaseline (3227792e8)",
+  "capturedFromCommit": "bl-279 version-history TanStack list-path migration",
   "counts": {
     "dependencies": 0,
     "devDependencies": 0,
-    "exports": 108,
-    "types": 75,
+    "exports": 107,
+    "types": 73,
     "unlisted": 3,
     "binaries": 0,
     "duplicates": 0,

@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 const { mockCaptureClientException, mockToastError, mockToastSuccess } =
   vi.hoisted(() => ({
@@ -62,12 +63,14 @@ describe('VersionHistory — error handling', () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new Error('network down'));
     vi.stubGlobal('fetch', fetchMock);
 
+    const { Wrapper } = createQueryWrapper();
     render(
       <VersionHistory
         itemId={ITEM_ID}
         currentContent="current body"
         currentTitle="Sample item"
       />,
+      { wrapper: Wrapper },
     );
 
     await userEvent.click(
@@ -102,12 +105,14 @@ describe('VersionHistory — error handling', () => {
       });
     vi.stubGlobal('fetch', fetchMock);
 
+    const { Wrapper } = createQueryWrapper();
     render(
       <VersionHistory
         itemId={ITEM_ID}
         currentContent="current body"
         currentTitle="Sample item"
       />,
+      { wrapper: Wrapper },
     );
 
     await userEvent.click(
@@ -140,12 +145,14 @@ describe('VersionHistory — error handling', () => {
       .mockRejectedValueOnce(new Error('detail down'));
     vi.stubGlobal('fetch', fetchMock);
 
+    const { Wrapper } = createQueryWrapper();
     render(
       <VersionHistory
         itemId={ITEM_ID}
         currentContent="current body"
         currentTitle="Sample item"
       />,
+      { wrapper: Wrapper },
     );
 
     await userEvent.click(
