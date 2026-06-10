@@ -3,18 +3,26 @@
  * (ID-35.16, RESEARCH §2.6 — highest-severity prevent-at-source guard).
  *
  * ID-90.22 R1a: the WRITE suites now exercise the SERVER TRANSPORT path
- * (KH_LEDGER_SERVER unset → ON). The record-set gate moved UPSTREAM to the
- * task-view patch-server (the `assertRecordSet` primitive is server-side now and
- * its direct unit test, plus the SCOPED in-process serialiser-stub induction,
- * are retired here — the primitive is covered by task-view's own suite, U11).
+ * (KH_LEDGER_SERVER unset → ON). The `assertRecordSet` PRIMITIVE moved UPSTREAM
+ * to the task-view patch-server (its direct unit test is retired here — the
+ * primitive is covered by task-view's own suite, U11). The serialise-side
+ * INDUCTION tests that stubbed `@/lib/ledger/scoped-serialise` (a module R2
+ * deletes) are also retired — that import is banned by the R1a hygiene gate.
  *
- * What stays, exercised over the OBSERVABLE envelope:
- *   - integration: a normal field-edit (∅), add-subtask (+1), delete (−1) and
- *     promote (+1/−1) all commit through the gate (server-routed) with ok:true.
- *   - the `--whole-file` path stays LOCAL under flag-ON (GAP-2a), so the
- *     serialise()→escapeSerialise drop induction still reaches the gate and the
- *     `record-set-violation` envelope (exit-worthy, NO bytes written) is asserted
- *     there — the canonical in-repo record-set-violation envelope assertion.
+ * What stays, two layers, all without an `@/lib/ledger` import:
+ *   1. integration over the OBSERVABLE envelope: a normal field-edit (∅),
+ *      add-subtask (+1), delete (−1) and promote (+1/−1) all commit through the
+ *      gate (server-routed) with ok:true.
+ *   2. the canonical in-repo `record-set-violation` envelope assertion: editing
+ *      a record's OWN `id` field is a ∅-delta field-patch whose serialised bytes
+ *      carry a DIFFERENT id-set (old id gone, new id appears) — a real
+ *      record-set violation induced purely through CLI inputs (no serialiser
+ *      stub, no malformed fixture — the backlog schema rejects duplicate/missing
+ *      ids on load, so the gate must be tripped by a legitimate-on-load mutation
+ *      whose WRITE diverges). Asserted on the `--whole-file` path, which stays
+ *      LOCAL under flag-ON (GAP-2a) and reaches the in-process gate. Three sibling
+ *      suites (delete-subtask, bulk-add, scoped-create) cross-reference THIS file
+ *      as the canonical record-set-violation observable.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -110,19 +118,40 @@ describe('record-set gate — integration through the write gate (ID-35.16)', ()
     ).toBe(true);
   });
 
-  // ID-90.22 R1a: BOTH serialise-side induction tests (whole-file via
-  // `escapeSerialise`; scoped via `scopedSerialise`) are RETIRED. Each induced a
-  // serialise-side drop by stubbing `@/lib/ledger/scoped-serialise` — a module
-  // R2 deletes, so the import is banned by the R1a hygiene gate (zero
-  // `@/lib/ledger/` hits in __tests__/scripts/). The record-set gate moved
-  // UPSTREAM to the task-view patch-server (the scoped write routes through the
-  // SERVER TRANSPORT; the legacy whole-file `serialise()` path is the staged/
-  // direct path R1b removes). The server-side gate is covered by task-view's own
-  // suite (U11), and the OFF-vs-ON byte-parity (which would surface any
-  // serialiser drop as a byte mismatch) is locked by the K5 differential-parity
-  // harness until {68.30}. The HONEST positive coverage — normal ∅/+1/−1/promote
-  // mutations commit through the gate (ok:true) — remains above, exercised over
-  // the transport.
+  // ID-90.22 R1a: the two serialise-side induction tests that stubbed
+  // `@/lib/ledger/scoped-serialise` (whole-file `escapeSerialise`; scoped
+  // `scopedSerialise`) are RETIRED — that module is deleted by R2 so the import
+  // is banned by the R1a hygiene gate. The induction below replaces them WITHOUT
+  // any `@/lib/ledger` import: it trips the gate through pure CLI inputs.
+  it('rejects a record-set-violation on the whole-file write — exit-worthy, NO bytes written', async () => {
+    // Editing a backlog item's OWN `id` field is, to the write gate, a ∅-delta
+    // field-patch (no record added/removed) — yet the bytes about to be written
+    // carry a DIFFERENT id-set: the old id leaves, the new id appears. The
+    // {35.16} gate parses those bytes and MUST reject before anything lands.
+    //
+    // This is the canonical in-repo `record-set-violation` observable. It needs
+    // NO serialiser stub and NO malformed fixture: the backlog schema enforces
+    // unique, present ids on LOAD, so a violation can only be induced by a
+    // mutation that is legitimate-on-load but whose WRITE diverges — exactly an
+    // id-field edit. `--whole-file` keeps the write on the LOCAL path (GAP-2a),
+    // which reaches the in-process gate under flag-ON.
+    const itemId = read('product-backlog').items[0].id;
+    const before = readFileSync(join(dir, 'product-backlog.json'), 'utf8');
+    const r = await run(
+      args('update-backlog', [itemId, 'id', '999999'], { wholeFile: true }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('record-set-violation');
+      // The detail names exactly which id left and which appeared.
+      expect(r.detail).toContain(String(itemId));
+      expect(r.detail).toContain('999999');
+    }
+    // Pre-write gate rejected — the file is byte-identical to before.
+    expect(readFileSync(join(dir, 'product-backlog.json'), 'utf8')).toBe(
+      before,
+    );
+  });
 });
 
 /** A minimal schema-valid Task record (all required fields present). */
