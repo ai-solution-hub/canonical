@@ -64,6 +64,22 @@ process.env.NEXT_PUBLIC_CLIENT_ID = 'default';
 // a process-wide pin here. The direct write path is now DEAD CODE for tests
 // (no suite exercises it) — its removal lands in R1b.
 
+// ID-90.22 / AC-I: in CI the ephemeral ledger server is spawned with
+// --require-denylist (ledger-server-lifecycle.ts), and the ledger-cli-*.test.ts
+// WRITE suites spawn it via run()/ensureServer (which inherits process.env), so
+// without a denylist present every gated write returns ok:false. Provide a
+// SYNTHETIC denylist (AC-I: synthetic only, never real client names — mirrors
+// SYNTHETIC_DENYLIST in scripts/ledger-differential-parity.ts; the real
+// KH_CLIENT_NAME_DENYLIST is for production enforcement + the identity-guard
+// job, not unit-test envs). Guarded by CI + unset so a real secret or a
+// suite-specific denylist still wins, and local (non-CI) runs are unaffected.
+if (process.env.CI && !process.env.KH_CLIENT_NAME_DENYLIST) {
+  process.env.KH_CLIENT_NAME_DENYLIST = JSON.stringify({
+    tokens: [{ value: 'SYNTH_SETUP_TOKEN_DO_NOT_USE', case_insensitive: true }],
+    exclusion_patterns: [],
+  });
+}
+
 // React act() regression guard (S32 audit close-out, S37 W4 IMPL).
 // Any console.error matching the act() warning patterns throws, surfacing
 // the offending test via Vitest's stack trace. Per-test
