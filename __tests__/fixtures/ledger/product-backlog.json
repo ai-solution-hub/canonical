@@ -36,7 +36,7 @@
     {
       "id": "100",
       "title": "Fixture Backlog Item Hundred",
-      "description": "Backlog item with id 100, status spec_needed — required by discoverability tests.",
+      "description": "Backlog item with id 100, status spec_needed \u2014 required by discoverability tests.",
       "type": "research",
       "status": "spec_needed",
       "effort_estimate": null,

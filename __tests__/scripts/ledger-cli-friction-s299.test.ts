@@ -33,6 +33,7 @@ import { spawnSync } from 'node:child_process';
 import { run, subcommandHelp, type ParsedArgs } from '@/scripts/ledger-cli';
 
 // ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const REPO = resolve(__dirname, '../..');
 const FIXTURES = {
   task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
   roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),

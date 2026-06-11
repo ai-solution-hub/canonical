@@ -12,11 +12,23 @@
       "session_refs": ["kh-main-S1"],
       "commit_refs": ["abc1234"],
       "cross_doc_links": [],
-      "bugs_discovered": [{ "text": "Fixture bug finding for test assertions." }],
+      "bugs_discovered": [
+        {
+          "text": "Fixture bug finding for test assertions."
+        }
+      ],
       "failed_assumptions": [],
-      "architecture_decisions": [{ "text": "Fixture architecture decision for test assertions." }],
+      "architecture_decisions": [
+        {
+          "text": "Fixture architecture decision for test assertions."
+        }
+      ],
       "rejected_approaches": [],
-      "workflow_improvements": [{ "text": "Fixture workflow improvement for test assertions." }],
+      "workflow_improvements": [
+        {
+          "text": "Fixture workflow improvement for test assertions."
+        }
+      ],
       "unresolved_questions": []
     }
   ]

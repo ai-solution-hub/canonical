@@ -23,7 +23,7 @@
         {
           "id": "2",
           "title": "Fixture Subtask Alpha-Two",
-          "description": "Second subtask of task 1 — needed for sibling-dep test cases.",
+          "description": "Second subtask of task 1 \u2014 needed for sibling-dep test cases.",
           "details": "Sibling subtask brief.",
           "status": "pending",
           "dependencies": [],
@@ -34,7 +34,7 @@
       "effort_estimate": null,
       "owner": null,
       "priority_note": null,
-      "status_note": null,
+      "status_note": "Awaiting fixture review.",
       "cross_doc_links": [],
       "session_refs": ["kh-main-S1"],
       "commit_refs": ["abc1234"]
@@ -86,7 +86,7 @@
         {
           "id": "2",
           "title": "Fixture Subtask 35-Two",
-          "description": "Second subtask of task 35 — sibling for dependency coercion test.",
+          "description": "Second subtask of task 35 \u2014 sibling for dependency coercion test.",
           "details": "Subtask 35.2 fixture brief.",
           "status": "pending",
           "dependencies": [],
