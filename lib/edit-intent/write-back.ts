@@ -87,10 +87,13 @@ export interface WriteBackResult {
 }
 
 /**
- * The shape of the storage_path resolution read off content_items. The FK to
- * source_documents is embedded so a single round-trip resolves both whether
- * the item is file-backed (`source_document_id`) and the canonical
- * `storage_path` (source-relative POSIX — the uuid5 seed).
+ * The flat storage_path resolution shape the resolver consumes. Populated by
+ * TWO plain per-table reads (content_items.source_document_id, then
+ * source_documents.storage_path by PK) — NOT a PostgREST FK embed: the
+ * content_items -> source_documents FK was deliberately DROPPED in migration
+ * 20260602073942 (ID-64.3 BUG-E — the cocoindex autocommit write model cannot
+ * satisfy cross-target FKs), so an embedded `source_documents(...)` select
+ * fails with PGRST200 against the live schema (bl-286 C1 regression).
  */
 interface StoragePathRow {
   source_document_id: string | null;
@@ -132,27 +135,32 @@ export async function writeBackFileFirst(
   const { supabase, contentItemId, newContent, applyDbLeg, context } = params;
 
   // ── Resolve the file leg target ────────────────────────────────────────────
-  // Read source_document_id + the embedded source_documents.storage_path via
-  // tryQuery (lib/supabase/safe.ts) — never a raw client. A failed read aborts
-  // the whole save BEFORE either leg touches anything.
-  const resolution = await tryQuery<StoragePathRow>(
+  // Step 1: read source_document_id off content_items via tryQuery
+  // (lib/supabase/safe.ts) — never a raw client. A failed read aborts the
+  // whole save BEFORE either leg touches anything.
+  //
+  // bl-286 C1: this MUST be a plain column read, NOT an embedded
+  // `source_documents(storage_path)` select — the content_items ->
+  // source_documents FK was dropped in migration 20260602073942 (BUG-E), so
+  // PostgREST has no relationship to embed through and the embed fails with
+  // PGRST200, which 500'd every content-bytes PATCH.
+  const itemResolution = await tryQuery<{
+    source_document_id: string | null;
+  }>(
     supabase
       .from('content_items')
-      .select('source_document_id, source_documents(storage_path)')
-      // The embedded select returns a nested object; we flatten it below. The
-      // coercion through PostgrestLike (the shared alias from
-      // @/lib/supabase/safe) narrows to the resolved-response shape tryQuery
-      // consumes, rather than `as never` which would swallow any unrelated type
-      // error on the chain.
+      .select('source_document_id')
       .eq('id', contentItemId)
-      .maybeSingle() as unknown as PostgrestLike<StoragePathRow>,
+      .maybeSingle() as unknown as PostgrestLike<{
+      source_document_id: string | null;
+    }>,
     context ?? 'edit-intent.write-back.resolve-storage-path',
   );
-  if (!isOk(resolution)) {
-    throw resolution.error;
+  if (!isOk(itemResolution)) {
+    throw itemResolution.error;
   }
 
-  const row = flattenStoragePathRow(resolution.data);
+  const sourceDocumentId = itemResolution.data?.source_document_id ?? null;
 
   // ── {59.10} / PC-3 (INV-3) — source-less content_item GUARD (bl-266) ─────────
   // S330 RATIFICATION 2 + Liam steer: a content_item with NO linked
@@ -167,7 +175,7 @@ export async function writeBackFileFirst(
   // docs/reference/backlog/266.md; bl-266 enforces later, this slice only
   // surfaces the anomaly NOW). OQ-59-3 prod sweep sizes the population so the
   // anomaly-log volume is understood (TECH Open-item-2).
-  if (!row.source_document_id) {
+  if (!sourceDocumentId) {
     logger.warn(
       {
         event: 'source_less_content_item_edit_back',
@@ -182,7 +190,46 @@ export async function writeBackFileFirst(
     return { applied: true, fileBacked: false, warnings: [] };
   }
 
-  const absPath = resolveAbsolutePath(row);
+  // Step 2: resolve storage_path directly off source_documents by PK — the
+  // FK-less counterpart of the former embed (see Step 1 note).
+  const docResolution = await tryQuery<{ storage_path: string | null }>(
+    supabase
+      .from('source_documents')
+      .select('storage_path')
+      .eq('id', sourceDocumentId)
+      .maybeSingle() as unknown as PostgrestLike<{
+      storage_path: string | null;
+    }>,
+    context ?? 'edit-intent.write-back.resolve-storage-path',
+  );
+  if (!isOk(docResolution)) {
+    throw docResolution.error;
+  }
+
+  // With the FK dropped, ON DELETE SET NULL no longer auto-fires — a deleted
+  // source_documents row can leave content_items.source_document_id dangling.
+  // Surface the dangling reference (observable, distinct from the source-less
+  // anomaly) and fall through to the DB-only path so the save still lands.
+  if (docResolution.data === null) {
+    logger.warn(
+      {
+        event: 'dangling_source_document_reference',
+        contentItemId,
+        sourceDocumentId,
+        caller: context ?? 'edit-intent.write-back.resolve-storage-path',
+      },
+      'Edit-back found content_items.source_document_id pointing at a ' +
+        'missing source_documents row (dangling post-FK-drop, migration ' +
+        '20260602073942); wrote KH-DB-only — no file leg.',
+    );
+    await applyDbLeg();
+    return { applied: true, fileBacked: false, warnings: [] };
+  }
+
+  const absPath = resolveAbsolutePath({
+    source_document_id: sourceDocumentId,
+    storage_path: docResolution.data.storage_path ?? null,
+  });
 
   // ── Source-backed but no file leg to write: idle-mode flow ──────────────────
   // The item HAS a linked source_document but the source-binding folder is unset
@@ -233,31 +280,4 @@ export async function writeBackFileFirst(
   }
 
   return { applied: true, fileBacked: true, warnings };
-}
-
-/**
- * Flatten the embedded `source_documents(storage_path)` select into a flat
- * {@link StoragePathRow}. PostgREST returns the embedded FK as either a nested
- * object or `null` depending on the relationship cardinality; this normalises
- * both (and a totally-absent row) to the flat shape the resolver consumes.
- */
-function flattenStoragePathRow(
-  data:
-    | (StoragePathRow & {
-        source_documents?: { storage_path: string | null } | null;
-      })
-    | null,
-): StoragePathRow {
-  if (!data) return { source_document_id: null, storage_path: null };
-  // The flat `storage_path` (from the test stub / a flattened view) wins; the
-  // embedded FK object is the production PostgREST shape.
-  const embedded = (
-    data as { source_documents?: { storage_path: string | null } | null }
-  ).source_documents;
-  const storage_path =
-    data.storage_path ?? (embedded ? embedded.storage_path : null) ?? null;
-  return {
-    source_document_id: data.source_document_id ?? null,
-    storage_path,
-  };
 }

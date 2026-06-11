@@ -58,17 +58,61 @@ const CONTENT_ITEM_ID = '11111111-1111-4111-8111-111111111111';
 const SOURCE_DOCUMENT_ID = '22222222-2222-4222-8222-222222222222';
 
 /**
- * Minimal supabase stub: only `from('content_items').select(...).eq(...)
- * .maybeSingle()` is exercised by the adapter's storage_path read. The
- * resolution is injected per test so the "not file-backed" and "lookup
- * fails" branches are reachable.
+ * PostgREST-faithful supabase stub (bl-286 C1 regression shape).
+ *
+ * Mirrors the REAL staging/prod schema: the content_items -> source_documents
+ * FK was deliberately DROPPED in migration 20260602073942 (ID-64.3 BUG-E — the
+ * cocoindex autocommit write model cannot satisfy cross-target FKs), so ANY
+ * embedded select `source_documents(...)` from content_items fails with
+ * PGRST200 ("Could not find a relationship ... in the schema cache") exactly
+ * like live PostgREST. The adapter must therefore resolve the file leg with
+ * plain per-table reads — that schema reality is encoded here so the unit
+ * suite can never again green-light an FK-embed the database cannot serve.
  */
-function makeSupabaseStub(resolution: { data: unknown; error: unknown }) {
-  const maybeSingle = vi.fn().mockResolvedValue(resolution);
-  const eq = vi.fn().mockReturnValue({ maybeSingle });
-  const select = vi.fn().mockReturnValue({ eq });
-  const from = vi.fn().mockReturnValue({ select });
-  return { client: { from } as never, from, select, eq, maybeSingle };
+function makeSupabaseStub(db: {
+  items?: Record<string, { source_document_id: string | null }>;
+  docs?: Record<string, { storage_path: string | null }>;
+  itemsError?: unknown;
+  docsError?: unknown;
+}) {
+  const from = vi.fn((table: string) => ({
+    select: vi.fn((cols: string) => ({
+      eq: vi.fn((_col: string, id: string) => ({
+        maybeSingle: vi.fn(async () => {
+          if (table === 'content_items') {
+            if (/source_documents\s*\(/.test(cols)) {
+              // The dropped-FK reality: PostgREST cannot resolve the embed.
+              return {
+                data: null,
+                error: {
+                  code: 'PGRST200',
+                  message:
+                    "Could not find a relationship between 'content_items' " +
+                    "and 'source_documents' in the schema cache",
+                  details:
+                    'Searched for a foreign key relationship between ' +
+                    "'content_items' and 'source_documents' in the schema " +
+                    "'public', but no matches were found.",
+                  hint: null,
+                },
+              };
+            }
+            if (db.itemsError) return { data: null, error: db.itemsError };
+            return { data: db.items?.[id] ?? null, error: null };
+          }
+          if (table === 'source_documents') {
+            if (db.docsError) return { data: null, error: db.docsError };
+            return { data: db.docs?.[id] ?? null, error: null };
+          }
+          return {
+            data: null,
+            error: { message: `unexpected table ${table}` },
+          };
+        }),
+      })),
+    })),
+  }));
+  return { client: { from } as never, from };
 }
 
 describe('writeBackFileFirst — file-first write-back with compensating restore', () => {
@@ -94,10 +138,10 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     vi.restoreAllMocks();
   });
 
-  it('PROOF 1 — file-backed edit rewrites the SAME path AND applies the DB leg', async () => {
+  it('PROOF 1 — file-backed edit rewrites the SAME path AND applies the DB leg (bl-286 C1: against the dropped-FK schema, no PGRST200)', async () => {
     const sb = makeSupabaseStub({
-      data: { source_document_id: SOURCE_DOCUMENT_ID, storage_path: REL_PATH },
-      error: null,
+      items: { [CONTENT_ITEM_ID]: { source_document_id: SOURCE_DOCUMENT_ID } },
+      docs: { [SOURCE_DOCUMENT_ID]: { storage_path: REL_PATH } },
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
 
@@ -132,8 +176,7 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     // the adapter writes NO file, auto-creates NO source_document, and mints
     // NO connector='mcp' storage path — and emits the structured anomaly log.
     const sb = makeSupabaseStub({
-      data: { source_document_id: null, storage_path: null },
-      error: null,
+      items: { [CONTENT_ITEM_ID]: { source_document_id: null } },
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
 
@@ -181,8 +224,8 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     // source-less anomaly: the DB leg applies and NO anomaly log fires.
     delete process.env.COCOINDEX_SOURCE_PATH;
     const sb = makeSupabaseStub({
-      data: { source_document_id: SOURCE_DOCUMENT_ID, storage_path: REL_PATH },
-      error: null,
+      items: { [CONTENT_ITEM_ID]: { source_document_id: SOURCE_DOCUMENT_ID } },
+      docs: { [SOURCE_DOCUMENT_ID]: { storage_path: REL_PATH } },
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
 
@@ -209,11 +252,12 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     // -> writeFile rejects. The DB leg must never be reached so there is a
     // single failure state (file ahead of DB is impossible on this leg).
     const sb = makeSupabaseStub({
-      data: {
-        source_document_id: SOURCE_DOCUMENT_ID,
-        storage_path: 'no-such-dir/deeper/missing.md',
+      items: { [CONTENT_ITEM_ID]: { source_document_id: SOURCE_DOCUMENT_ID } },
+      docs: {
+        [SOURCE_DOCUMENT_ID]: {
+          storage_path: 'no-such-dir/deeper/missing.md',
+        },
       },
-      error: null,
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
 
@@ -235,8 +279,8 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
   it('PROOF 3 — DB-write failure AFTER a successful file write RESTORES the prior bytes', async () => {
     const sb = makeSupabaseStub({
-      data: { source_document_id: SOURCE_DOCUMENT_ID, storage_path: REL_PATH },
-      error: null,
+      items: { [CONTENT_ITEM_ID]: { source_document_id: SOURCE_DOCUMENT_ID } },
+      docs: { [SOURCE_DOCUMENT_ID]: { storage_path: REL_PATH } },
     });
     // The DB leg fails AFTER the file has already been rewritten. The
     // compensating restore must read-then-restore the snapshot so neither
@@ -262,8 +306,8 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
   it('a degraded restore still raises the failure (user sees ONE outcome)', async () => {
     const sb = makeSupabaseStub({
-      data: { source_document_id: SOURCE_DOCUMENT_ID, storage_path: REL_PATH },
-      error: null,
+      items: { [CONTENT_ITEM_ID]: { source_document_id: SOURCE_DOCUMENT_ID } },
+      docs: { [SOURCE_DOCUMENT_ID]: { storage_path: REL_PATH } },
     });
 
     // Force the restore write itself to degrade: the DB leg deletes the
@@ -284,10 +328,9 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     ).rejects.toThrow();
   });
 
-  it('raises when the storage_path read itself fails (no file or DB write attempted)', async () => {
+  it('raises when the source_document_id read itself fails (no file or DB write attempted)', async () => {
     const sb = makeSupabaseStub({
-      data: null,
-      error: { message: 'lookup boom', code: 'NETWORK_ERROR' },
+      itemsError: { message: 'lookup boom', code: 'NETWORK_ERROR' },
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
 
@@ -303,5 +346,63 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     expect(applyDbLeg).not.toHaveBeenCalled();
     const onDisk = await readFile(join(sourceRoot, REL_PATH), 'utf8');
     expect(onDisk).toBe(PRIOR_BYTES);
+  });
+
+  it('raises when the storage_path read fails (no file or DB write attempted)', async () => {
+    const sb = makeSupabaseStub({
+      items: { [CONTENT_ITEM_ID]: { source_document_id: SOURCE_DOCUMENT_ID } },
+      docsError: { message: 'doc lookup boom', code: 'NETWORK_ERROR' },
+    });
+    const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      writeBackFileFirst({
+        supabase: sb.client,
+        contentItemId: CONTENT_ITEM_ID,
+        newContent: NEW_BYTES,
+        applyDbLeg,
+      }),
+    ).rejects.toThrow();
+
+    expect(applyDbLeg).not.toHaveBeenCalled();
+    const onDisk = await readFile(join(sourceRoot, REL_PATH), 'utf8');
+    expect(onDisk).toBe(PRIOR_BYTES);
+  });
+
+  it('dangling source_document_id (doc row deleted post-FK-drop) writes KH-DB-only and logs the dangling-reference anomaly', async () => {
+    // With the content_items -> source_documents FK dropped (migration
+    // 20260602073942), ON DELETE SET NULL no longer auto-fires — a
+    // source_documents delete can leave content_items.source_document_id
+    // dangling. The save must still land (DB-only, no file leg) and the
+    // dangling reference must be observable.
+    const sb = makeSupabaseStub({
+      items: { [CONTENT_ITEM_ID]: { source_document_id: SOURCE_DOCUMENT_ID } },
+      docs: {}, // the referenced source_documents row does not exist
+    });
+    const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+    const result = await writeBackFileFirst({
+      supabase: sb.client,
+      contentItemId: CONTENT_ITEM_ID,
+      newContent: NEW_BYTES,
+      applyDbLeg,
+    });
+
+    expect(result.applied).toBe(true);
+    expect(result.fileBacked).toBe(false);
+    expect(applyDbLeg).toHaveBeenCalledTimes(1);
+    // No file was written.
+    const onDisk = await readFile(join(sourceRoot, REL_PATH), 'utf8');
+    expect(onDisk).toBe(PRIOR_BYTES);
+    // The dangling reference is observable (distinct from the source-less
+    // anomaly — the item DOES carry a source_document_id).
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'dangling_source_document_reference',
+        contentItemId: CONTENT_ITEM_ID,
+        sourceDocumentId: SOURCE_DOCUMENT_ID,
+      }),
+      expect.any(String),
+    );
   });
 });
