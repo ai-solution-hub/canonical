@@ -59,15 +59,22 @@ SESSION
 - **Spec-authoring ({N.1}–{N.4})** — `spec-driven-implementation` chain:
   RESEARCH.md, PRODUCT.md, TECH.md, PLAN.md — **all four conditional**. One
   fresh Planner per subtask, Checker gates each output, Liam ratifies before
-  implementation. Right-size the spec chain to the task shape — not every Task
-  needs all four artefacts. Heuristic: author {N.2} PRODUCT when the change is
-  user-facing or behaviourally ambiguous; author {N.3} TECH when the technical
-  approach is non-obvious, risky, or spans multiple subsystems; {N.1} RESEARCH
-  and {N.4} PLAN as warranted by uncertainty/decomposition size. The Orchestrator
-  selects the artefact subset at Task open (the Planner may recommend an upgrade
-  mid-{N.1} if research surfaces hidden complexity). ID-92 PRODUCT may later
-  formalise named tiers + the recording location — keep this a heuristic, not a
-  rigid gate.
+  implementation. Right-size the spec chain to the task shape via the four named
+  tiers below — the Orchestrator decides the tier at Task open; the Planner may
+  recommend an upgrade mid-`{N.1}` if RESEARCH surfaces compound invariants:
+  - **Full chain** (RESEARCH + PRODUCT + TECH + PLAN) — compound invariants /
+    multiple migrations / chain-dependent slices / >2h effort.
+  - **PRODUCT + PLAN** (skip TECH) — behaviourally rich, implementation-shallow.
+  - **TECH + PLAN** (skip PRODUCT) — unambiguous behaviour, non-trivial
+    implementation.
+  - **Spec-free** — trivial / operational.
+
+  The chosen tier is recorded in the Task `status_note` as a one-line marker
+  (e.g. `spec tier: PRODUCT+PLAN`). **The `status_note` is budget-gated at ≤300
+  characters (invariant 57)** — keep the marker terse. The light tier is a
+  *recorded* decision: an under-specified Task that later reveals compound
+  invariants ESCALATES to a heavier tier (a `status_note` update), never silently
+  proceeds.
 - **Implementation ({N.2-5+})** — one Executor per subtask. Parallel when groups touch disjoint file sets;
   sequential when they share files / schema / produced inputs.
 - **Closing** — Executor `code-simplification` pass, then Checker

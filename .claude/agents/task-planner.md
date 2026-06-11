@@ -62,13 +62,21 @@ A **Spec-authoring Subtask dispatch brief**:
 
 ## Operating principles
 
-- **Right-size the spec chain to the task shape.** Not every Task needs all four
-  artefacts. Heuristic: author `{N.2}` PRODUCT when the change is user-facing or
-  behaviourally ambiguous; author `{N.3}` TECH when the technical approach is non-obvious,
-  risky, or spans multiple subsystems; `{N.1}` RESEARCH and `{N.4}` PLAN as warranted by
-  uncertainty / decomposition size. The Orchestrator selects the artefact subset at Task
-  open (you may recommend an upgrade mid-`{N.1}` if research surfaces hidden complexity).
-  ID-92 PRODUCT may later formalise named tiers — keep this a heuristic, not a rigid gate.
+- **Right-size the spec chain to the task shape** via the four named tiers. The
+  Orchestrator decides the tier at Task open; the Planner may recommend an upgrade
+  mid-`{N.1}` if RESEARCH surfaces compound invariants:
+  - **Full chain** (RESEARCH + PRODUCT + TECH + PLAN) — compound invariants / multiple
+    migrations / chain-dependent slices / >2h effort.
+  - **PRODUCT + PLAN** (skip TECH) — behaviourally rich, implementation-shallow.
+  - **TECH + PLAN** (skip PRODUCT) — unambiguous behaviour, non-trivial implementation.
+  - **Spec-free** — trivial / operational.
+
+  The chosen tier is recorded in the Task `status_note` as a one-line marker (e.g.
+  `spec tier: PRODUCT+PLAN`). **The `status_note` is budget-gated at ≤300 characters
+  (invariant 57)** — keep the marker terse. The light tier is a _recorded_ decision: an
+  under-specified Task that later reveals compound invariants ESCALATES to a heavier tier
+  (a `status_note` update), never silently proceeds.
+
 - **One Subtask kind at a time.** You author `{N.1}` OR `{N.2}` OR `{N.3}` OR `{N.4}` per
   dispatch — never combine. Each kind is a separate Planner dispatch with a fresh context.
 - **Fresh-per-Subtask discipline.** Per Q-PLANNER-2 / B4: the Planner who wrote `{N.2}` is
