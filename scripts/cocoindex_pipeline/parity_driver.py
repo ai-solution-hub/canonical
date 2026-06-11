@@ -50,10 +50,17 @@ can match it against the persisted `entity_mentions.canonical_name` column — t
 SAME natural key the flow em-declare loop writes (flow.py:2301).
 
 R4 fail-fast: a missing/empty `PIPELINE_CLIENT_ORG` makes `derive_holder_metadata`
-raise; the driver surfaces it per-document as an `error` field (parity with the
-flow's Inv-15 best-effort: the doc still emits its triples) and exits non-zero
-ONLY when the knob is wholly unset (mirrors the eval's NEXT_PUBLIC_CLIENT_ID
-guard).
+raise; the driver catches THAT fault per-document and surfaces it as an `error`
+field while still emitting the doc's triples (mirroring flow.py's Inv-15
+best-effort HOLDER wrapper). It exits non-zero ONLY when the knob is wholly
+unset (mirrors the eval's NEXT_PUBLIC_CLIENT_ID guard).
+
+Isolation scope (LOAD-BEARING): holder-derivation faults are the ONLY
+per-document isolation point. LLM-extraction faults
+(`extract_relationships` / `extract_entity_mentions`) are deliberately NOT
+caught — they propagate and abort the whole parity run with a non-zero exit,
+because a partial parity comparison over a half-extracted corpus would be
+misleading.
 """
 
 from __future__ import annotations
@@ -199,9 +206,18 @@ async def _process_document(
 ) -> dict[str, Any]:
     """Run ONE document through the cocoindex extraction path in-memory.
 
-    Mirrors flow.py's Inv-15 best-effort holder handling: a holder-derivation
-    fault (e.g. R4 missing client org) is recorded as an `error` but the triples
-    are still emitted (the relationship write-site does not depend on holder).
+    Per-document isolation is SCOPED to holder derivation ONLY: a
+    holder-derivation fault (e.g. R4 missing client org) is caught, recorded as
+    an `error`, and the triples are still emitted (the relationship write-site
+    does not depend on holder) — this single wrapper mirrors flow.py's Inv-15
+    best-effort holder handling.
+
+    It is NOT a general best-effort wrapper. The LLM-extraction calls
+    (`extract_relationships` / `extract_entity_mentions`) are intentionally
+    unguarded: an extraction failure propagates through `_run` and aborts the
+    whole parity run with a non-zero exit. That is acceptable for an eval
+    script — a partial parity comparison built on a half-extracted corpus would
+    be misleading, so fail-fast is the correct behaviour here.
     """
     relationships = await extract_relationships(content_text)
     mentions = await extract_entity_mentions(content_text)
