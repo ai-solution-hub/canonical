@@ -63,7 +63,7 @@ describe('budget pre-check on add-subtask (ID-35.17)', () => {
     const taskId = read('task-list').tasks[0].id;
     const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
     const newSub = {
-      id: 9990,
+      id: '9990',
       title: 'Over-budget subtask',
       description: DESC_789,
       details: '',
@@ -88,7 +88,7 @@ describe('budget pre-check on add-subtask (ID-35.17)', () => {
     const taskId = read('task-list').tasks[0].id;
     const count = read('task-list').tasks[0].subtasks.length;
     const newSub = {
-      id: 9991,
+      id: '9991',
       title: 'Forced over-budget subtask',
       description: DESC_789,
       details: '',
@@ -102,7 +102,7 @@ describe('budget pre-check on add-subtask (ID-35.17)', () => {
     expect(r.ok).toBe(true);
     expect(read('task-list').tasks[0].subtasks.length).toBe(count + 1);
     const written = read('task-list').tasks[0].subtasks.find(
-      (s: { id: number }) => s.id === 9991,
+      (s: { id: string }) => s.id === '9991',
     );
     expect(written.description.length).toBe(789);
   });
@@ -163,7 +163,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
   // it via add-subtask + --force (the legitimate "I authored an over-budget
   // record" escape hatch). The subsequent update-subtask edit on an UNRELATED
   // field must NOT be rejected by the untouched over-budget description.
-  async function seedOverBudgetSubtask(taskId: string, subId: number) {
+  async function seedOverBudgetSubtask(taskId: string, subId: string) {
     const newSub = {
       id: subId,
       title: 'Untouched over-budget seed',
@@ -181,7 +181,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
 
   it('update-subtask status SUCCEEDS when an untouched description is over-budget', async () => {
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9992;
+    const subId = '9992';
     await seedOverBudgetSubtask(taskId, subId);
 
     // Now edit an unrelated field (status). The untouched description is
@@ -193,7 +193,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
 
     // The status flip landed.
     const updated = read('task-list').tasks[0].subtasks.find(
-      (s: { id: number }) => s.id === subId,
+      (s: { id: string }) => s.id === subId,
     );
     expect(updated.status).toBe('in_progress');
     // And the over-budget description is still on disk (untouched).
@@ -213,7 +213,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
 
   it('update-subtask testStrategy SUCCEEDS when an untouched description is over-budget', async () => {
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9993;
+    const subId = '9993';
     await seedOverBudgetSubtask(taskId, subId);
 
     const r = await run(
@@ -225,7 +225,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     );
     expect(r.ok).toBe(true);
     const updated = read('task-list').tasks[0].subtasks.find(
-      (s: { id: number }) => s.id === subId,
+      (s: { id: string }) => s.id === subId,
     );
     expect(updated.testStrategy).toBe('PASS when the new behaviour holds.');
     expect(updated.description.length).toBe(789);
@@ -233,7 +233,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
 
   it('update-subtask STILL rejects when the MUTATED field (description) is over-budget', async () => {
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9994;
+    const subId = '9994';
     await seedOverBudgetSubtask(taskId, subId);
 
     // Mutating the description to a new >250 value MUST still reject.
@@ -253,7 +253,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     }
     // The on-disk description is unchanged (the original 789).
     const after = read('task-list').tasks[0].subtasks.find(
-      (s: { id: number }) => s.id === subId,
+      (s: { id: string }) => s.id === subId,
     );
     expect(after.description.length).toBe(789);
   });
@@ -286,7 +286,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
 
   it('update-subtask description rejection message includes "(over by N)" delta', async () => {
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9996;
+    const subId = '9996';
     await seedOverBudgetSubtask(taskId, subId);
 
     // 400 graphemes (pure ASCII) on a 250 budget → over by 150.
@@ -318,7 +318,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     expect(graphemeCount(desc260)).toBe(260);
 
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9997;
+    const subId = '9997';
     await seedOverBudgetSubtask(taskId, subId);
 
     const r = await run(
@@ -344,7 +344,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     expect(graphemeCount(desc130Darts)).toBe(130); // 130 graphemes — UNDER 250
 
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9998;
+    const subId = '9998';
     await seedOverBudgetSubtask(taskId, subId);
 
     // 130 graphemes is UNDER the 250 budget — the edit must succeed.
@@ -357,7 +357,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     );
     expect(r.ok).toBe(true);
     const updated = read('task-list').tasks[0].subtasks.find(
-      (s: { id: number }) => s.id === subId,
+      (s: { id: string }) => s.id === subId,
     );
     expect(graphemeCount(updated.description)).toBe(130);
   });
@@ -379,7 +379,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     expect(graphemeCount(desc130Families)).toBe(130); // 130 graphemes — UNDER 250
 
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9988;
+    const subId = '9988';
     await seedOverBudgetSubtask(taskId, subId);
 
     // 130 ZWJ-clusters is UNDER the 250 budget — the edit must succeed.
@@ -392,7 +392,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     );
     expect(r.ok).toBe(true);
     const updated = read('task-list').tasks[0].subtasks.find(
-      (s: { id: number }) => s.id === subId,
+      (s: { id: string }) => s.id === subId,
     );
     expect(graphemeCount(updated.description)).toBe(130);
   });
@@ -403,7 +403,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     // a refactor that accidentally exempts ASCII over-budget records.
     const taskId = read('task-list').tasks[0].id;
     const newSub = {
-      id: 9999,
+      id: '9999',
       title: 'Regression — ASCII over-budget still rejects',
       description: 'r'.repeat(789),
       details: '',
@@ -424,7 +424,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
 
   it('update-subtask --force on the mutated field commits AND notes untouched warnings', async () => {
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9995;
+    const subId = '9995';
     await seedOverBudgetSubtask(taskId, subId);
 
     // --force on a deliberately over-budget testStrategy edit; the existing
@@ -439,7 +439,7 @@ describe('update-* budget gate is scoped to the mutated field (ID-35.26)', () =>
     );
     expect(r.ok).toBe(true);
     const updated = read('task-list').tasks[0].subtasks.find(
-      (s: { id: number }) => s.id === subId,
+      (s: { id: string }) => s.id === subId,
     );
     expect(updated.testStrategy.length).toBe(400);
     expect(updated.description.length).toBe(789);
@@ -462,7 +462,7 @@ describe('discipline warnings are scoped to the touched record (ID-35.30)', () =
   // Seed an over-budget subtask description under a separate task to act as
   // unrelated noise. Then mutate a DIFFERENT subtask under a DIFFERENT task,
   // and assert the noise does NOT bleed into the new success envelope.
-  async function seedOverBudgetSubtask(taskId: string, subId: number) {
+  async function seedOverBudgetSubtask(taskId: string, subId: string) {
     const newSub = {
       id: subId,
       title: 'Untouched over-budget seed',
@@ -485,7 +485,7 @@ describe('discipline warnings are scoped to the touched record (ID-35.30)', () =
     // any other task.
     const taskId = read('task-list').tasks[0].id;
     const newSub = {
-      id: 7991,
+      id: '7991',
       title: 'Clean small subtask',
       description: 'within budget',
       details: '',
@@ -517,9 +517,9 @@ describe('discipline warnings are scoped to the touched record (ID-35.30)', () =
     // they touched. This preserves the safety value of the discipline
     // sweep while killing the unrelated-record noise.
     const taskId = read('task-list').tasks[0].id;
-    await seedOverBudgetSubtask(taskId, 7992);
+    await seedOverBudgetSubtask(taskId, '7992');
     const newSub = {
-      id: 7993,
+      id: '7993',
       title: 'Second clean subtask',
       description: 'within budget',
       details: '',
@@ -557,10 +557,10 @@ describe('discipline warnings are scoped to the touched record (ID-35.30)', () =
     // ARE in scope if the parent task itself is over-budget; the sibling
     // peer is not.)
     const taskId = read('task-list').tasks[0].id;
-    await seedOverBudgetSubtask(taskId, 7994);
+    await seedOverBudgetSubtask(taskId, '7994');
     // Add a second, clean subtask, then flip its status.
     const cleanSub = {
-      id: 7995,
+      id: '7995',
       title: 'Clean sibling',
       description: 'within budget',
       details: '',
@@ -662,7 +662,7 @@ describe('budget-exceeded subject is recordKind-discriminated (ID-35.27)', () =>
   it('add-subtask over-budget detail reads `subtask <taskId>.<subId>` (not `task <subId>`)', async () => {
     const taskId = read('task-list').tasks[0].id;
     const newSub = {
-      id: 9970,
+      id: '9970',
       title: 'Mislabel regression — subtask',
       description: DESC_789,
       details: '',
@@ -684,7 +684,7 @@ describe('budget-exceeded subject is recordKind-discriminated (ID-35.27)', () =>
   it('update-subtask over-budget detail reads `subtask <taskId>.<subId>`', async () => {
     const taskId = read('task-list').tasks[0].id;
     // Seed an under-budget subtask we can then push over via update-subtask.
-    const subId = 9971;
+    const subId = '9971';
     const seed = {
       id: subId,
       title: 'Seed',
@@ -776,7 +776,7 @@ describe('budget-exceeded subject is recordKind-discriminated (ID-35.27)', () =>
     // untouched-field SOFT WARNING must carry the new `subtask <taskId>.<subId>`
     // subject too — otherwise the ID-35.26 warning channel still mislabels.
     const taskId = read('task-list').tasks[0].id;
-    const subId = 9972;
+    const subId = '9972';
     const seed = {
       id: subId,
       title: 'Untouched-warning subject test',

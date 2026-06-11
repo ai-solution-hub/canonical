@@ -62,9 +62,10 @@
  * `--regen-mirrors` is a DEPRECATED no-op alias.
  *
  * Discoverability ({35.22}): `schema [ledger|recordKind]` prints each field's
- * name + type + budget so the deps-type asymmetry (subtask.dependencies:number[]
- * vs task.dependencies:string[]) is explicit; `<command> --help` prints that
- * command's flags + its target record's schema slice.
+ * name + type + budget; post ID-102 every id + deps type is a digit-string /
+ * string[] (the RC-1 subtask.dependencies:number[] asymmetry is gone), derived
+ * from Schema.shape; `<command> --help` prints that command's flags + its
+ * target record's schema slice.
  *
  * `--scoped` (ID-35.11): historically selected the minimal-diff write for the
  * field-edit subcommands (flip-task | flip-subtask | append-journal). As of
@@ -160,7 +161,7 @@ type ServerIntent =
       taskId: string;
       subtasks: unknown[];
     }
-  | { kind: 'subtask-delete'; slug: LedgerSlug; taskId: string; subId: number }
+  | { kind: 'subtask-delete'; slug: LedgerSlug; taskId: string; subId: string }
   | { kind: 'record-delete'; slug: LedgerSlug; recordId: string }
   | { kind: 'umbrella-patch'; umbrellaId: string; patches: FieldPatch[] }
   | {
@@ -685,11 +686,13 @@ function readRecordInput(args: ParsedArgs): RecordInputResult {
   if (flags.effortEstimate !== undefined)
     record.effort_estimate = flags.effortEstimate;
   if (flags.depends !== undefined) {
-    // ID-35.29 — emit string[] always; coerce to number[] at the add-subtask
-    // call site (the only record kind whose schema demands number[]). The old
-    // here-coercion (`Number(s)` if digit-only, else keep string) was correct
-    // for `subtask.dependencies: number[]` but wrong for the other three:
+    // ID-35.29 — emit string[] always. Post ID-102 EVERY record kind's deps are
+    // string[] (subtask.dependencies unified to string[] — `coerceSubtaskRecord`
+    // validates positive-integer digit-strings, no number coercion). The old
+    // here-coercion (`Number(s)` if digit-only) was the RC-1 workaround for the
+    // number[] subtask asymmetry, now eliminated:
     //   - task.dependencies     : string[]   (open-task)
+    //   - subtask.dependencies  : string[]   (add-subtask — ID-102)
     //   - item.dependencies     : string[]   (create-backlog)
     //   - theme.dependencies    : (no field) (create-theme — schema-error on
     //                                          insert, as expected for an
@@ -834,19 +837,25 @@ function checkFieldEditArity(
 
 /**
  * ID-35.15 CLI-layer auto-id (RESEARCH §2.2). Computes `max(existingIds) + 1`
- * for a collection, returning the correct primitive TYPE:
+ * for a collection, returning a bare-digit STRING for EVERY collection:
  *   - `tasks` / `themes` / `items` → bare-digit STRING (`"186"`)
- *   - `subtasks`                    → NUMBER (`13`), scoped to `taskId`
+ *   - `subtasks`                    → bare-digit STRING (`"13"`), scoped to
+ *     `taskId` (ID-102: subtask ids are digit-strings, unifying with the other
+ *     three collections; the value is unchanged, only the type flips).
  *
  * `max+1` is the monotonic semantics (never reuses a freed id; does NOT fill
- * gaps). Lives in the CLI, NOT the vendored `insertRecord`, which must stay
+ * gaps). For the subtask branch the now-`string[]` ids are `map(Number)`-ed
+ * BEFORE `Math.max` so the comparison is numeric (`Math.max("9","10")` over raw
+ * strings is brittle and a lexical `String` sort would mis-order mixed-width
+ * ids), then `String`-wrapped to preserve the digit-string contract (inv 8).
+ * Lives in the CLI, NOT the vendored `insertRecord`, which must stay
  * byte-faithful to task-view (RESEARCH §2.2).
  */
 function nextId(
   detected: KnownDetected,
   collectionKey: 'tasks' | 'themes' | 'items' | 'subtasks',
   taskId?: string,
-): string | number {
+): string {
   if (collectionKey === 'subtasks') {
     if (detected.kind !== 'task-list') {
       throw new Error('nextId(subtasks) requires a task-list ledger');
@@ -856,7 +865,7 @@ function nextId(
     }
     const task = detected.data.tasks.find((t) => t.id === taskId);
     const ids = (task?.subtasks ?? []).map((s) => s.id);
-    return ids.length === 0 ? 1 : Math.max(...ids) + 1;
+    return ids.length === 0 ? '1' : String(Math.max(...ids.map(Number)) + 1);
   }
   let ids: string[] = [];
   if (collectionKey === 'tasks' && detected.kind === 'task-list') {
@@ -877,13 +886,15 @@ function nextId(
 // ── ID-35.22 discoverability: schema / per-subcommand --help / get ────────────
 //
 // The "prevent guessing" fix (RESEARCH §5.2 + §3). Agents kept guessing the
-// id/deps TYPES every session — `subtask.id` is a NUMBER but `task.id` is a
-// STRING (a Taskmaster mandate, NOT a KH oversight — RESEARCH §3), so
-// `subtask.dependencies` is `number[]` and `task.dependencies` is `string[]`.
-// Nothing documented this at the point of use. `schema` / `--help` now print,
-// per record kind, every field's name + type + budget + required/optional +
-// enum values, DERIVED FROM `Schema.shape` so the surface can never drift from
-// the schema. No type change; no migration (RESEARCH §3 — functional-keep).
+// id/deps TYPES every session. The historical RC-1 asymmetry — `subtask.id` a
+// NUMBER while `task.id` was a STRING (a Taskmaster mandate, NOT a KH oversight
+// — RESEARCH §3), so `subtask.dependencies` was `number[]` vs `string[]` — is
+// ELIMINATED by ID-102: every id (subtask included) is now a digit-STRING and
+// `subtask.dependencies` is `string[]`, type-identical to a Task's. `schema` /
+// `--help` print, per record kind, every field's name + type + budget +
+// required/optional + enum values, DERIVED FROM `Schema.shape` so the surface
+// can never drift from the schema — the labels flip to `string` automatically
+// at the flag-day schema flip.
 
 /** The four documented record kinds, each backed by a Zod object schema. */
 type SchemaRecordKind = 'task' | 'subtask' | 'theme' | 'item';
@@ -995,7 +1006,7 @@ function fieldModifiers(schema: ZodTypeAny): {
 }
 
 /** Render one field's documentation line, e.g.
- * `  subtask.dependencies: number[] (sibling-only)` or
+ * `  subtask.dependencies: string[] (sibling-only)` or
  * `  backlog.title: string ≤80 (optional)`. */
 function labelField(
   kind: SchemaRecordKind,
@@ -1306,9 +1317,9 @@ flags: --dry-run --pretty --whole-file --scoped --force --append --no-regen-mirr
              \`bash scripts/regen-mirrors.sh\` once at the end).
   --regen-mirrors : DEPRECATED no-op alias — regen is now the default.
 discoverability: \`schema [ledger|recordKind]\` prints each field's name + type +
-  budget (so subtask.dependencies:number[] vs task.dependencies:string[] is
-  explicit — never guess). \`<command> --help\` prints that command's flags + its
-  target record's schema slice.
+  budget (every id + deps type is a digit-string / string[] post ID-102 — the
+  labels derive from Schema.shape, never guess). \`<command> --help\` prints that
+  command's flags + its target record's schema slice.
 input (record-creating commands): positional JSON | --file <path> (- = stdin) |
   named flags (--title --description --status --depends 1,2 --priority --id …).
 errors (exit 1, nothing written): schema-error, walk-error, duplicate-id,
@@ -1464,8 +1475,9 @@ function cliErr(subcommand: string, error: string, detail?: string): CliResult {
  * (richer, already-validated, matches the {N.M} notation used throughout the
  * workflow docs). Reuses update-subtask's original dot-split + bad-id guard.
  *
- * `subId` is returned as a STRING (mirroring update-subtask's `slice`) — callers
- * `Number(subId)` where they need a number and use the string in fieldPaths.
+ * `subId` is returned as a STRING (mirroring update-subtask's `slice`). ID-102:
+ * subtask ids are digit-strings end-to-end, so callers use the string directly
+ * in fieldPaths, lookups (`s.id === subId`) and payloads — no `Number()` cast.
  *
  * @param subcommand the calling subcommand (for the bad-id error envelope).
  * @param arg the dotted `taskId.subId` positional.
@@ -1502,8 +1514,10 @@ function parseDottedSubtaskId(
 // (PRODUCT invariants 8, 58). The CLI keeps only the type alias still used by
 // the create handlers' id derivation; the actual gates run server-side.
 
-/** Subtask / record id value (string for task/theme/item, number for subtask).
- * Retained: the create handlers cast the validated new id to this type. */
+/** Subtask / record id value. Post ID-102 every id is a digit-STRING; the union
+ * is retained for flag-day resilience (the create handlers cast the validated
+ * new id to this type — it accepts the string, and tolerates a stray number id
+ * read from a not-yet-migrated ledger before the flag-day flip). */
 type IdValue = string | number;
 
 /**
@@ -1908,13 +1922,18 @@ function withCreateDefaults(
  * ID-65.6: the per-record subtask coercion shared by single `add-subtask` and
  * bulk `add-subtasks`, factored out so both paths use byte-identical logic
  * (eliminates drift). Given a raw input object, applies:
- *   - {35.28} `--id`/body id coercion: a numeric string id ("27") → integer 27;
- *     a non-positive-integer / non-coercible string → `invalid-id` rejection.
- *     Body-supplied numeric ids retain their type; a missing id is left absent
- *     (the CALLER injects the auto-id — single uses `nextId`, bulk allocates a
- *     running counter so batch ids never collide).
- *   - {35.29} `dependencies` → number[] coercion: each token to a positive
- *     integer; non-positive-integer / non-coercible → `invalid-depends`.
+ *   - {35.28} `--id`/body id validation (ID-102): a numeric string id ("27")
+ *     is validated positive-integer and KEPT AS THE STRING "27" (no number
+ *     restamp — subtask ids are digit-strings). A NUMBER-typed body id (JSON
+ *     `{"id": 15}`) is stamped `String(15)` ("15"), mirroring the deps-branch
+ *     convention below. A non-positive-integer / non-coercible value →
+ *     `invalid-id` rejection. A missing id is left absent (the CALLER injects
+ *     the auto-id — single uses `nextId`, bulk allocates a running counter so
+ *     batch ids never collide).
+ *   - {35.29} `dependencies` → string[] coercion (ID-102): each token validated
+ *     to a positive integer; a number token is `String()`-wrapped, a valid
+ *     digit-string token is pushed verbatim; non-positive-integer /
+ *     non-coercible → `invalid-depends`. Type-identical to a Task's `string[]`.
  *
  * `withCreateDefaults('subtask', …)` is applied first (same as the single path).
  * `subcommand` labels the structured error envelope so the operator sees the
@@ -1930,6 +1949,8 @@ function coerceSubtaskRecord(
   | { ok: false; result: CliResult } {
   let record = withCreateDefaults('subtask', rawInput);
   if (typeof record.id === 'string') {
+    // ID-102: validate positive-integer but KEEP the digit-string id verbatim —
+    // subtask ids are strings; no number restamp.
     const n = Number(record.id);
     if (!Number.isInteger(n) || n <= 0 || record.id.trim() === '') {
       return {
@@ -1937,14 +1958,29 @@ function coerceSubtaskRecord(
         result: cliErr(
           subcommand,
           'invalid-id',
-          `--id ${JSON.stringify(record.id)} is not a positive integer; subtask.id must be a number (got non-coercible string)`,
+          `--id ${JSON.stringify(record.id)} is not a positive integer; subtask.id must be a string of digits (got non-coercible string)`,
         ),
       };
     }
-    record = { ...record, id: n };
+    // No restamp — the validated digit-string id stays in place.
+  } else if (typeof record.id === 'number') {
+    // ID-102: a NUMBER-typed body id (JSON `{"id": 15}`) is stamped String(15)
+    // ("15"), mirroring the deps-branch convention — the stored id is always a
+    // digit-string. TECH §P2 is silent on this case; documented in the journal.
+    if (!Number.isInteger(record.id) || record.id <= 0) {
+      return {
+        ok: false,
+        result: cliErr(
+          subcommand,
+          'invalid-id',
+          `--id ${JSON.stringify(record.id)} is not a positive integer; subtask.id must be a string of digits`,
+        ),
+      };
+    }
+    record = { ...record, id: String(record.id) };
   }
   if (Array.isArray(record.dependencies)) {
-    const coerced: number[] = [];
+    const coerced: string[] = [];
     for (const dep of record.dependencies) {
       if (typeof dep === 'number') {
         if (!Number.isInteger(dep) || dep <= 0) {
@@ -1953,11 +1989,11 @@ function coerceSubtaskRecord(
             result: cliErr(
               subcommand,
               'invalid-depends',
-              `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
+              `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be string[] of digits`,
             ),
           };
         }
-        coerced.push(dep);
+        coerced.push(String(dep));
         continue;
       }
       if (typeof dep === 'string') {
@@ -1968,11 +2004,11 @@ function coerceSubtaskRecord(
             result: cliErr(
               subcommand,
               'invalid-depends',
-              `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[] (got non-coercible string)`,
+              `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be string[] of digits (got non-coercible string)`,
             ),
           };
         }
-        coerced.push(n);
+        coerced.push(dep);
         continue;
       }
       return {
@@ -1980,7 +2016,7 @@ function coerceSubtaskRecord(
         result: cliErr(
           subcommand,
           'invalid-depends',
-          `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be number[]`,
+          `--depends entry ${JSON.stringify(dep)} is not a positive integer; subtask.dependencies must be string[] of digits`,
         ),
       };
     }
@@ -2256,7 +2292,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
       // ID-35.21 field-type-aware coercion (drives parse by SubtaskSchema field
-      // type — dependencies → number[], description stays a string).
+      // type — dependencies → string[] post ID-102, description stays a string).
+      // `coerceFieldValue` is schema-driven and self-corrects at the flag-day
+      // when SubtaskSchema.dependencies flips to string[].
       const newValue = coerceFieldValue('subtask', field, value);
       const patch: FieldPatch = {
         fieldPath: ['tasks', taskId, 'subtasks', String(subId), field],
@@ -2270,7 +2308,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       return commitMutation({
         subcommand: 'update-subtask',
         path: ledgerPath(dir, 'task'),
-        resultPayload: { taskId, subId: Number(subId), field },
+        resultPayload: { taskId, subId, field },
         dryRun: flags.dryRun,
         regenMirrors: !flags.noRegenMirrors,
         force: flags.force,
@@ -2311,7 +2349,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       if (loaded.detected.kind !== 'task-list')
         return cliErr('append-journal', 'wrong-ledger', 'expected task-list');
       const task = loaded.detected.data.tasks.find((t) => t.id === taskId);
-      const sub = task?.subtasks.find((s) => s.id === Number(subId));
+      // ID-102: subtask ids are digit-strings; compare string-vs-string (the
+      // parsed/legacy subId is already a string, no Number() cast).
+      const sub = task?.subtasks.find((s) => s.id === subId);
       if (!sub)
         return cliErr(
           'append-journal',
@@ -2377,9 +2417,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       );
       if (!coerce.ok) return coerce.result;
       let record = coerce.record;
-      // ID-35.21 auto-id: subtask ids are NUMBERS, scoped to the parent task.
-      // Inject max+1 unless the body carried an id (explicit) — the coercion
-      // helper preserves any supplied id and leaves a missing one absent.
+      // ID-35.21 auto-id: subtask ids are digit-STRINGS (ID-102), scoped to the
+      // parent task. Inject max+1 unless the body carried an id (explicit) — the
+      // coercion helper preserves any supplied id and leaves a missing one absent.
       if (record.id === undefined) {
         record = { ...record, id: nextId(loaded.detected, 'subtasks', taskId) };
       }
@@ -2464,8 +2504,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // {35.21} auto-id allocated SEQUENTIALLY across the batch: start a running
       // counter at nextId(...) and assign-then-increment to each record lacking
       // an id, so batch ids never collide. Records carrying an explicit id keep
-      // it (after numeric coercion) and do NOT consume a counter slot.
-      let counter = nextId(loaded.detected, 'subtasks', taskId) as number;
+      // it (after string coercion) and do NOT consume a counter slot.
+      // ID-102: nextId now returns a digit-STRING, so coerce it back to a NUMBER
+      // for the arithmetic counter (a string `counter += 1` would concatenate —
+      // `'5' + 1 === '51'` — corrupting every bulk-allocated id, inv 8); the
+      // stamp below re-`String()`s the counter so the STORED id is a digit-string.
+      let counter = Number(nextId(loaded.detected, 'subtasks', taskId));
       const coercedRecords: Record<string, unknown>[] = [];
       for (const raw of input.value) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -2482,7 +2526,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         if (!coerce.ok) return coerce.result;
         let record = coerce.record;
         if (record.id === undefined) {
-          record = { ...record, id: counter };
+          // ID-102: stamp the digit-string id; keep the numeric increment.
+          record = { ...record, id: String(counter) };
           counter += 1;
         }
         coercedRecords.push(record);
@@ -2807,8 +2852,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // ID-65.8 — canonical dotted `delete-subtask <taskId.subId>`; legacy
       // space-separated `<taskId> <subId>` still accepted. A bare-digit taskId
       // never contains '.', so `p[0].includes('.')` is an unambiguous
-      // discriminator. The dotted subId is a string, like the legacy positional,
-      // so the {35.43} `Number()`/trim coercion below is unchanged.
+      // discriminator. The dotted subId is a string, like the legacy positional;
+      // ID-102 validates it positive-integer but addresses the record with the
+      // STRING (subtask ids are digit-strings — no number cast carried forward).
       let taskId: string;
       let subIdRaw: string;
       if (p[0]?.includes('.')) {
@@ -2832,30 +2878,33 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const task = loaded.detected.data.tasks.find((t) => t.id === taskId);
       if (!task)
         return cliErr('delete-subtask', 'record-not-found', `task ${taskId}`);
-      // ID-35.43 subId coercion: positionals arrive as strings, but
-      // `SubtaskSchema.id` is NUMBER. Mirror add-subtask's --id coercion — a
-      // numeric string ("2") coerces to the integer 2; anything else (or a
-      // non-positive integer) is rejected with a structured `invalid-id`
-      // envelope rather than a confusing record-not-found.
+      // ID-35.43 subId validation: positionals arrive as strings, and
+      // `SubtaskSchema.id` is a digit-STRING (ID-102). Validate the positive
+      // integer (`Number(subIdRaw) > 0`) but bind the validated STRING for all
+      // downstream use — the stored id is a digit-string, so address it with the
+      // string verbatim (no number cast). Anything else (or a non-positive
+      // integer) is rejected with a structured `invalid-id` envelope rather than
+      // a confusing record-not-found.
       const n = Number(subIdRaw);
       if (!Number.isInteger(n) || n <= 0 || subIdRaw.trim() === '') {
         return cliErr(
           'delete-subtask',
           'invalid-id',
-          `subId ${JSON.stringify(subIdRaw)} is not a positive integer; subtask.id must be a number`,
+          `subId ${JSON.stringify(subIdRaw)} is not a positive integer; subtask.id must be a string of digits`,
         );
       }
-      const subtask = task.subtasks.find((s) => s.id === n);
+      const subId = subIdRaw;
+      const subtask = task.subtasks.find((s) => s.id === subId);
       if (!subtask)
         return cliErr(
           'delete-subtask',
           'record-not-found',
-          `subtask ${taskId}.${n}`,
+          `subtask ${taskId}.${subId}`,
         );
       // Removing the last subtask leaves `subtasks: []` — TaskSchema.subtasks
       // is `z.array(SubtaskSchema)` with no `.min(1)`, so an empty array is a
       // legal atomic-Task state (see task-list-schema.ts inv 5).
-      const nextSubtasks = task.subtasks.filter((s) => s.id !== n);
+      const nextSubtasks = task.subtasks.filter((s) => s.id !== subId);
       // CLI-side validation oracle (esc-4 retained); the record-set drop-guard
       // runs server-side (R1b).
       const m = fieldPatchMutation('delete-subtask', loaded.detected, {
@@ -2868,7 +2917,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         path: ledgerPath(dir, 'task'),
         resultPayload: {
           taskId,
-          subId: n,
+          subId,
           subtaskCount: nextSubtasks.length,
         },
         dryRun: flags.dryRun,
@@ -2877,7 +2926,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           kind: 'subtask-delete',
           slug: ledgerSlug('task'),
           taskId,
-          subId: n,
+          // ID-102: STRING subId — this is the server-intent contract {102.7}
+          // consumes (task-view scoped-serialise record-splice filters
+          // `rec.id !== op.recordId` string-vs-string post-flip).
+          subId,
         },
       });
     }

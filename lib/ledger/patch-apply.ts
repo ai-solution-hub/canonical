@@ -1,8 +1,10 @@
 /**
- * VENDORED from task-view @ v0.2.0-task-view (packages/server/patch-apply.ts).
- * Body byte-faithful; only schema import specifiers rewired
- * `@task-view/schemas/*` → `@/lib/validation/*`. Re-vendor per
- * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
+ * VENDORED from task-view @ v0.5.0-task-view (packages/server/patch-apply.ts).
+ * Body byte-faithful (for the retained validation-oracle subset); only schema
+ * import specifiers rewired `@task-view/schemas/*` → `@/lib/validation/*`.
+ * Re-vendor per lib/ledger/README.md. Guarded by task-view-vendor-drift.yml
+ * (ID-35.10). ID-102.8: the subtask-id lookup is now a digit-string compare
+ * (no Number()-parse) — re-vendored from the v0.5.0 string-id server seam.
  *
  * ROLE (ID-90.22 R1b/R2): CLI-side validation oracle. `scripts/ledger-cli.ts`'s
  * `fieldPatchMutation` calls `applyPatches` to re-validate a field edit (the
@@ -21,7 +23,9 @@
  *   - Task-list: ['tasks', taskId, field] | ['tasks', taskId, 'subtasks', subId, field]
  *   - Roadmap:   ['themes', themeId, field]
  *   - Backlog:   ['items', itemId, field]
- * taskId/themeId/itemId are STRING ids; subId is an INTEGER id (Number()-parsed).
+ * taskId/themeId/itemId are STRING ids; subId is a DIGIT-STRING id. The stored
+ * subtask id is itself a digit-string (ID-102), so we compare string-to-string
+ * on subtask lookup (no Number()-parse).
  */
 
 import {
@@ -141,18 +145,17 @@ function applyTaskListPatch(
       detail: `Missing subtask id at fieldPath[3].`,
     };
   }
-  const subtaskIdNum = Number(subtaskIdRaw);
-  if (!Number.isFinite(subtaskIdNum) || !Number.isInteger(subtaskIdNum)) {
+  if (!/^\d+$/.test(subtaskIdRaw)) {
     return {
       fieldPath: patch.fieldPath,
-      detail: `Subtask id "${subtaskIdRaw}" is not an integer.`,
+      detail: `Subtask id "${subtaskIdRaw}" is not a digit-string id.`,
     };
   }
-  const subtaskIdx = task.subtasks.findIndex((s) => s.id === subtaskIdNum);
+  const subtaskIdx = task.subtasks.findIndex((s) => s.id === subtaskIdRaw);
   if (subtaskIdx === -1) {
     return {
       fieldPath: patch.fieldPath,
-      detail: `Subtask id ${subtaskIdNum} not found within Task ${taskId}.`,
+      detail: `Subtask id ${subtaskIdRaw} not found within Task ${taskId}.`,
     };
   }
   const subtask = task.subtasks[subtaskIdx];

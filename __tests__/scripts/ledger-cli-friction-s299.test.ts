@@ -78,7 +78,7 @@ function readBacklog() {
 function firstTaskId(): string {
   return readTask().tasks[0].id;
 }
-function firstTaskWithSubtask(): { taskId: string; subId: number } {
+function firstTaskWithSubtask(): { taskId: string; subId: string } {
   for (const t of readTask().tasks) {
     if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
       return { taskId: t.id, subId: t.subtasks[0].id };
@@ -262,11 +262,11 @@ describe('S299 F7 — field-edit value via --file / stdin', () => {
     expect(r.ok).toBe(true);
     const sub = readTask()
       .tasks.find((x: { id: string }) => x.id === taskId)
-      .subtasks.find((s: { id: number }) => s.id === subId);
+      .subtasks.find((s: { id: string }) => s.id === subId);
     expect(sub.description).toBe('Subtask body from file.');
   });
 
-  it('a JSON-typed field (dependencies) via --file still JSON-coerces', async () => {
+  it('a JSON-typed field (dependencies) via --file still JSON-coerces (ID-102: string[])', async () => {
     const tl = readTask();
     // A task whose subtask has a sibling so the superRefine passes.
     const task = tl.tasks.find(
@@ -277,7 +277,8 @@ describe('S299 F7 — field-edit value via --file / stdin', () => {
     const target = task.subtasks[1];
     const sibling = task.subtasks[0];
     const f = join(dir, 'deps.json');
-    writeFileSync(f, `[${sibling.id}]\n`, 'utf8');
+    // Post ID-102: subtask.dependencies is string[] of digit-strings.
+    writeFileSync(f, `["${sibling.id}"]\n`, 'utf8');
     const r = await run(
       args('update-subtask', [`${task.id}.${target.id}`, 'dependencies'], {
         file: f,
@@ -285,9 +286,9 @@ describe('S299 F7 — field-edit value via --file / stdin', () => {
     );
     expect(r.ok).toBe(true);
     const t2 = readTask().tasks.find((t: { id: string }) => t.id === task.id);
-    const s2 = t2.subtasks.find((s: { id: number }) => s.id === target.id);
+    const s2 = t2.subtasks.find((s: { id: string }) => s.id === target.id);
     expect(s2.dependencies).toEqual([sibling.id]);
-    expect(typeof s2.dependencies[0]).toBe('number');
+    expect(typeof s2.dependencies[0]).toBe('string');
   });
 
   it('a missing --file exits NON-ZERO (input-read-failed), never a silent no-op', async () => {

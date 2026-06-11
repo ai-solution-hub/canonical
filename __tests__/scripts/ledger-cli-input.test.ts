@@ -167,10 +167,11 @@ describe('readRecordInput — precedence + equivalence (ID-35.15)', () => {
   });
 
   it('parses --depends into a string[] in the named-flags object ({35.29})', () => {
-    // {35.29} changed the parser contract: --depends emits string[] always;
-    // the add-subtask call site coerces to number[] (subtask.dependencies is
-    // number[]); open-task / create-backlog keep the string[] verbatim
-    // (task.dependencies / item.dependencies are both string[]). This keeps
+    // {35.29} changed the parser contract: --depends emits string[] always.
+    // Post ID-102 (string-id flip) subtask.dependencies is itself string[], so
+    // NO call site coerces to number[] any more — add-subtask, open-task and
+    // create-backlog all keep the string[] verbatim (subtask.dependencies /
+    // task.dependencies / item.dependencies are all string[]). This keeps
     // readRecordInput schema-agnostic — same pattern as {35.28} for --id.
     const p = parseArgs([
       'add-subtask',
@@ -259,16 +260,50 @@ describe('nextId — max+1 with correct primitive type (ID-35.15)', () => {
     expect(typeof id).toBe('string');
   });
 
-  it('returns a number for subtasks (max+1) scoped to a given task', () => {
-    const d = detected('task-list');
-    // task "35" has 25 subtasks ids 1..25 after this wave; assert numeric type
-    // and that it is one greater than the current max of the addressed task.
-    if (d.kind !== 'task-list') throw new Error('expected task-list');
-    const task = d.data.tasks.find((t) => t.id === '35');
-    if (!task) throw new Error('task 35 missing');
-    const maxSub = Math.max(...task.subtasks.map((s) => s.id));
+  it('returns a digit-STRING for subtasks (max+1) scoped to a given task (ID-102)', () => {
+    // ID-102: subtask ids are digit-strings, so nextId returns String(max+1).
+    // Build a SYNTHETIC string-id fixture (not the live ledger) so this is a
+    // clean post-flip contract canary: under the scratch-P1 string schema the
+    // live (un-migrated, number-id) ledger would fail-loud at parse — the
+    // contract under test is nextId's string return, not ledger conformance.
+    const doc = {
+      document_name: 'Knowledge Hub Task List',
+      document_purpose:
+        'Synthetic fixture for the ID-102 nextId string contract.',
+      related_documents: [],
+      tasks: [
+        {
+          id: '35',
+          title: 'Task 35',
+          description: 'Compact what+why.',
+          status: 'pending',
+          priority: 'should',
+          dependencies: [],
+          subtasks: [
+            {
+              id: '5',
+              title: 'Subtask 5',
+              description: 'Short.',
+              details: '',
+              status: 'pending',
+              dependencies: [],
+              testStrategy: null,
+            },
+          ],
+          updatedAt: '2026-06-11T00:00:00.000Z',
+          effort_estimate: null,
+          owner: null,
+          priority_note: null,
+          status_note: null,
+          cross_doc_links: [],
+          session_refs: [],
+          commit_refs: [],
+        },
+      ],
+    };
+    const d = SCHEMA_BY_NAME['task-list'](doc);
     const id = nextId(d, 'subtasks', '35');
-    expect(typeof id).toBe('number');
-    expect(id).toBe(maxSub + 1);
+    expect(typeof id).toBe('string');
+    expect(id).toBe('6');
   });
 });

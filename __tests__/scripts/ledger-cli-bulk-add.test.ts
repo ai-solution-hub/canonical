@@ -113,7 +113,7 @@ function lineDiff(before: string, after: string) {
  */
 async function seedTask(taskId: string, existingSubtasks: number) {
   const subtasks = Array.from({ length: existingSubtasks }, (_, i) => ({
-    id: i + 1,
+    id: String(i + 1),
     title: `Existing subtask ${i + 1}`,
     description: 'Short.',
     details: '',
@@ -152,8 +152,9 @@ describe('add-subtasks — bulk JSON-array create in ONE scoped multi-splice (ID
     const task = findTask(taskId);
     expect(task.subtasks).toHaveLength(8);
     // Sequential auto-ids assigned across the batch (6,7,8) — no collision.
-    const newIds = task.subtasks.slice(5).map((s: { id: number }) => s.id);
-    expect(newIds).toEqual([6, 7, 8]);
+    // ID-102: digit-string ids, NOT concatenated ("6","7","8" not "6","61","611").
+    const newIds = task.subtasks.slice(5).map((s: { id: string }) => s.id);
+    expect(newIds).toEqual(['6', '7', '8']);
     expect(task.subtasks[5].title).toBe('Bulk one');
     expect(task.subtasks[6].title).toBe('Bulk two');
     expect(task.subtasks[7].title).toBe('Bulk three');
@@ -201,8 +202,9 @@ describe('add-subtasks — bulk JSON-array create in ONE scoped multi-splice (ID
     expect(r.status).toBe(0);
     const task = findTask(taskId);
     expect(task.subtasks).toHaveLength(4);
-    expect(task.subtasks.slice(2).map((s: { id: number }) => s.id)).toEqual([
-      3, 4,
+    expect(task.subtasks.slice(2).map((s: { id: string }) => s.id)).toEqual([
+      '3',
+      '4',
     ]);
     expect(task.subtasks[2].title).toBe('Stdin A');
     expect(task.subtasks[3].title).toBe('Stdin B');
@@ -263,12 +265,13 @@ describe('add-subtasks — bulk JSON-array create in ONE scoped multi-splice (ID
     expect(r.ok).toBe(true);
     const task = findTask(taskId);
     expect(task.subtasks).toHaveLength(3);
-    expect(task.subtasks.slice(1).map((s: { id: number }) => s.id)).toEqual([
-      2, 3,
+    expect(task.subtasks.slice(1).map((s: { id: string }) => s.id)).toEqual([
+      '2',
+      '3',
     ]);
   });
 
-  it('coerces dependencies to number[] per record and rejects non-positive-integer tokens', async () => {
+  it('coerces dependencies to string[] per record and rejects non-positive-integer tokens', async () => {
     const taskId = '9956';
     await seedTask(taskId, 3); // ids 1..3 → next is 4
     const batch = [
@@ -291,8 +294,10 @@ describe('add-subtasks — bulk JSON-array create in ONE scoped multi-splice (ID
     expect(r.ok).toBe(true);
     const task = findTask(taskId);
     const added = task.subtasks.slice(3);
-    expect(added[0].dependencies).toEqual([1, 2]);
-    expect(added[1].dependencies).toEqual([3]);
+    // ID-102: deps stored as digit-string[] (string token verbatim, number
+    // token String()-wrapped), type-identical to a Task's string[].
+    expect(added[0].dependencies).toEqual(['1', '2']);
+    expect(added[1].dependencies).toEqual(['3']);
 
     // A bad token rejects the WHOLE batch.
     const bad = [
@@ -321,14 +326,15 @@ describe('add-subtasks — bulk JSON-array create in ONE scoped multi-splice (ID
     expect(r.ok).toBe(true);
     const task = findTask(taskId);
     const added = task.subtasks.slice(2);
-    // Auto-id counter starts at nextId (3) and increments per auto-assignment;
-    // the explicit-id record keeps 50 and does NOT consume a counter slot.
-    expect(added[0].id).toBe(3);
-    expect(added[1].id).toBe(50);
-    expect(added[2].id).toBe(4);
+    // Auto-id counter starts at nextId ("3") and increments per auto-assignment;
+    // the explicit-id record keeps 50 (stored as the digit-string "50", ID-102)
+    // and does NOT consume a counter slot.
+    expect(added[0].id).toBe('3');
+    expect(added[1].id).toBe('50');
+    expect(added[2].id).toBe('4');
   });
 
-  it('coerces string --id-style body id to a number; rejects non-positive-integer', async () => {
+  it('coerces a number/string body id to a digit-string; rejects non-positive-integer', async () => {
     const taskId = '9958';
     await seedTask(taskId, 0);
     // Body id arrives as a string (e.g. authored JSON with "id":"12").
@@ -340,7 +346,8 @@ describe('add-subtasks — bulk JSON-array create in ONE scoped multi-splice (ID
     const r = await run(args('add-subtasks', [taskId], { file }));
     expect(r.ok).toBe(true);
     const task = findTask(taskId);
-    expect(task.subtasks[0].id).toBe(12);
+    // ID-102: a digit-string body id is kept verbatim as the string "12".
+    expect(task.subtasks[0].id).toBe('12');
 
     const bad = [{ id: 'abc', title: 'Bad id', description: 'x', details: '' }];
     const badFile = join(dir, 'badid.json');

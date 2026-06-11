@@ -135,7 +135,7 @@ describe('add-subtask — scoped splice produces a record-sized diff (ID-65.3)',
     // then snapshot, then add-subtask and prove the diff is record-sized.
     const taskId = '9931';
     const subtasks = Array.from({ length: 40 }, (_, i) => ({
-      id: i + 1,
+      id: String(i + 1),
       title: `Existing subtask ${i + 1}`,
       description: 'Short.',
       details: '',
@@ -213,7 +213,7 @@ describe('add-subtask — scoped splice produces a record-sized diff (ID-65.3)',
       true,
     );
     const sub = {
-      id: 7,
+      id: '7',
       title: 'Seventh',
       description: 'Short.',
       details: '',
@@ -222,13 +222,13 @@ describe('add-subtask — scoped splice produces a record-sized diff (ID-65.3)',
     const ok = await run(args('add-subtask', [taskId, JSON.stringify(sub)]));
     expect(ok.ok).toBe(true);
     if (ok.ok) {
-      expect(ok.result).toMatchObject({ taskId, subId: 7, subtaskCount: 1 });
+      expect(ok.result).toMatchObject({ taskId, subId: '7', subtaskCount: 1 });
     }
 
     // --dryRun: the scoped path must short-circuit before any byte is written.
     const before = readText('task-list');
     const dry = await run(
-      args('add-subtask', [taskId, JSON.stringify({ ...sub, id: 8 })], {
+      args('add-subtask', [taskId, JSON.stringify({ ...sub, id: '8' })], {
         dryRun: true,
       }),
     );

@@ -15,7 +15,7 @@
  *   - not-found: unknown taskId AND unknown subId both → `record-not-found`.
  *   - last-subtask: removing the only subtask SUCCEEDS, leaving `subtasks: []`
  *     (TaskSchema.subtasks allows an empty array — see task-list-schema.ts).
- *   - invalid-id: a non-numeric subId → `invalid-id` (subtask ids are numbers).
+ *   - invalid-id: a non-digit subId → `invalid-id` (subtask ids are digit-strings).
  *   - missing-args: missing either positional → `missing-args`.
  *   - --dry-run: reports the delta, writes nothing, BOUNDED output (no full doc).
  *   - record-set gate: a serialise-side sibling drop is rejected with
@@ -30,10 +30,11 @@ import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
 let dir: string;
 
-/** A minimal schema-valid Subtask record. */
+/** A minimal schema-valid Subtask record. ID-102: subtask ids are digit-strings,
+ * so a numeric arg is stored as `String(id)` ("2"). */
 function subtask(id: number, overrides: Record<string, unknown> = {}) {
   return {
-    id,
+    id: String(id),
     title: `Subtask ${id}`,
     description: 'A short one-sentence summary.',
     details: '',
@@ -80,7 +81,7 @@ function writeFixture(doc: unknown) {
 }
 
 function readTaskList(): {
-  tasks: { id: string; subtasks: { id: number }[] }[];
+  tasks: { id: string; subtasks: { id: string }[] }[];
 } {
   return JSON.parse(readFileSync(join(dir, 'task-list.json'), 'utf8'));
 }
@@ -121,12 +122,12 @@ describe('delete-subtask — happy path (ID-35.43)', () => {
     const r = await run(args('delete-subtask', ['42', '2']));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.result).toMatchObject({ taskId: '42', subId: 2 });
+    expect(r.result).toMatchObject({ taskId: '42', subId: '2' });
 
     const surviving = readTaskList().tasks[0].subtasks.map((s) => s.id);
     // surviving id-set == original {1,2,3} minus removed {2} == {1,3}
-    expect(new Set(surviving)).toEqual(new Set([1, 3]));
-    expect(surviving).not.toContain(2);
+    expect(new Set(surviving)).toEqual(new Set(['1', '3']));
+    expect(surviving).not.toContain('2');
   });
 
   it('does not touch sibling subtasks of OTHER tasks', async () => {
@@ -139,9 +140,9 @@ describe('delete-subtask — happy path (ID-35.43)', () => {
     const r = await run(args('delete-subtask', ['42', '1']));
     expect(r.ok).toBe(true);
     const doc = readTaskList();
-    expect(doc.tasks[0].subtasks.map((s) => s.id)).toEqual([2]);
+    expect(doc.tasks[0].subtasks.map((s) => s.id)).toEqual(['2']);
     // The other task's subtasks are byte-for-byte preserved.
-    expect(doc.tasks[1].subtasks.map((s) => s.id)).toEqual([1, 2, 3]);
+    expect(doc.tasks[1].subtasks.map((s) => s.id)).toEqual(['1', '2', '3']);
   });
 });
 
@@ -185,7 +186,7 @@ describe('delete-subtask — last-subtask (ID-35.43)', () => {
 });
 
 describe('delete-subtask — invalid-id (ID-35.43)', () => {
-  it('non-numeric subId → invalid-id, nothing written', async () => {
+  it('non-digit subId → invalid-id, nothing written', async () => {
     writeFixture(taskListDoc([task('42', [subtask(1), subtask(2)])]));
     const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
     const r = await run(args('delete-subtask', ['42', 'abc']));
@@ -235,7 +236,7 @@ describe('delete-subtask — --dry-run (ID-35.43, honours {35.44})', () => {
     expect(r.result).toMatchObject({
       dryRun: true,
       taskId: '42',
-      subId: 2,
+      subId: '2',
     });
     // No `tasks` array (the whole document) leaked into the result.
     expect(r.result).not.toHaveProperty('tasks');

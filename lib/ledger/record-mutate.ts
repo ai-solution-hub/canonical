@@ -1,8 +1,12 @@
 /**
- * VENDORED from task-view @ v0.2.0-task-view (packages/server/record-mutate.ts).
+ * VENDORED from task-view @ v0.5.0-task-view (packages/server/record-mutate.ts).
  * Body byte-faithful; only schema import specifiers rewired
  * `@task-view/schemas/*` → `@/lib/validation/*`. Re-vendor per
  * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
+ * ID-102.8: the v0.5.0 string-id delta touches the subtask-level allocators
+ * (nextId / insertSubtasks / removeSubtask) which are NOT part of the retained
+ * KH oracle subset — insertRecord / removeRecord operate on top-level record
+ * ids (already strings), so this module needs no body change (pin bump only).
  *
  * ROLE (ID-90.22 R1b/R2): CLI-side validation oracle. `scripts/ledger-cli.ts`'s
  * create / delete / promote handlers call `insertRecord` / `removeRecord` as

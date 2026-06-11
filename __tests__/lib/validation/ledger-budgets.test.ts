@@ -31,12 +31,12 @@ import { parseBacklogWithWarnings } from '@/lib/validation/backlog-schema';
 // ──────────────────────────────────────────────────────────────────────────
 
 const VALID_SUBTASK = {
-  id: 1,
+  id: '1',
   title: 'Smoke subtask',
   description: 'Short one-sentence subtask summary.',
   details: 'Brief.',
   status: 'pending' as const,
-  dependencies: [] as number[],
+  dependencies: [] as string[],
   testStrategy: 'One-line acceptance.',
 };
 

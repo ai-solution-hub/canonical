@@ -62,7 +62,7 @@ const NEW_TASK = {
   dependencies: [],
   subtasks: [
     {
-      id: 1,
+      id: '1',
       title: 'First subtask',
       description: 'A short summary.',
       details: 'Initial brief.',

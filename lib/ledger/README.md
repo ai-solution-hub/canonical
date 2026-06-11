@@ -28,8 +28,13 @@ intentional difference from upstream is the schema import specifier
 (`@task-view/schemas/*` → `@/lib/validation/{task-list,roadmap,backlog}-schema.ts`, which
 export the identical symbols). The bodies are byte-faithful.
 
-**Pinned release:** `v0.4.0-task-view` (the same `TASK_VIEW_TAG` used by
-`scripts/regen-mirrors.sh` and the `ledger-mirror-parity` CI job).
+**Pinned release:** `v0.5.0-task-view` (the same `TASK_VIEW_TAG` used by
+`scripts/regen-mirrors.sh` and the `ledger-mirror-parity` CI job). Re-vendored at ID-102.8
+(string-id flip): only `patch-apply.ts` carried a subtask-id seam change
+(`Number(subtaskIdRaw)` → digit-string `/^\d+$/` compare); `detect-schema.ts` is
+byte-identical upstream v0.4.0↔v0.5.0, and `record-mutate.ts`'s string-id delta is in the
+subtask-level allocators (`nextId` / `insertSubtasks` / `removeSubtask`) that are NOT part
+of the retained oracle subset — both are pin bumps only.
 
 **Disposition.** These three modules ride **{68.30}**: when the schemas migrate upstream
 (PRODUCT inv 62), the oracle is re-homed and the KH copies retire with them. Until then

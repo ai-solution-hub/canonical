@@ -7,8 +7,8 @@
  *      name + Zod type + budget + required/optional + enum values, DERIVED
  *      from `Schema.shape` (so it cannot drift). The decisive asymmetry the
  *      dogfooding kept guessing is made self-documenting:
- *        subtask.dependencies: number[]  vs  task.dependencies: string[]
- *        subtask.id: number              vs  task.id: string
+ *        subtask.dependencies: string[]  ==  task.dependencies: string[]
+ *        subtask.id: string              ==  task.id: string  (ID-102 unified)
  *   2. per-subcommand `--help` — `<command> --help` prints that command's
  *      argv shape + flags + its target record's schema slice (replaces the
  *      old bare-global-USAGE fall-through).
@@ -73,19 +73,19 @@ function args(
 // ── renderSchema (the type-derivation engine) ────────────────────────────────
 
 describe('renderSchema — derives field labels from Schema.shape', () => {
-  it('documents the deps-type asymmetry explicitly (the §3 root cause)', () => {
+  it('documents the unified digit-string id/deps types (ID-102, ex-§3 root cause)', () => {
     const out = renderSchema('task');
-    // The asymmetry, surfaced so an agent never guesses again.
+    // ID-102: the RC-1 asymmetry is gone — both deps are string[], both ids
+    // string. Surfaced from Schema.shape so an agent never guesses again.
     expect(out).toContain('task.dependencies: string[]');
-    expect(out).toContain('subtask.dependencies: number[]');
-    // The id-type asymmetry that drives the deps asymmetry.
+    expect(out).toContain('subtask.dependencies: string[]');
     expect(out).toContain('task.id: string');
-    expect(out).toContain('subtask.id: number');
+    expect(out).toContain('subtask.id: string');
   });
 
   it('annotates subtask.dependencies as sibling-only', () => {
     const out = renderSchema('subtask');
-    expect(out).toMatch(/subtask\.dependencies: number\[\].*sibling-only/);
+    expect(out).toMatch(/subtask\.dependencies: string\[\].*sibling-only/);
   });
 
   it('shows budgets inline on budgeted fields', () => {
@@ -120,13 +120,13 @@ describe('renderSchema — derives field labels from Schema.shape', () => {
 // ── `schema` subcommand ───────────────────────────────────────────────────────
 
 describe('ledger-cli — schema subcommand', () => {
-  it('schema task prints both task AND subtask slices (the asymmetry)', async () => {
+  it('schema task prints both task AND subtask slices (unified string[] deps)', async () => {
     const r = await run(args('schema', ['task']));
     expect(r.ok).toBe(true);
     if (r.ok) {
       const text = r.result as string;
       expect(text).toContain('task.dependencies: string[]');
-      expect(text).toContain('subtask.dependencies: number[]');
+      expect(text).toContain('subtask.dependencies: string[]');
     }
   });
 
@@ -136,7 +136,7 @@ describe('ledger-cli — schema subcommand', () => {
     if (r.ok) {
       const text = r.result as string;
       expect(text).toContain('task.id: string');
-      expect(text).toContain('subtask.id: number');
+      expect(text).toContain('subtask.id: string');
       expect(text).toContain('theme.');
       expect(text).toContain('backlog.title: string ≤80');
     }
@@ -146,7 +146,7 @@ describe('ledger-cli — schema subcommand', () => {
     const r = await run(args('schema', ['subtask']));
     expect(r.ok).toBe(true);
     if (r.ok)
-      expect(r.result as string).toContain('subtask.dependencies: number[]');
+      expect(r.result as string).toContain('subtask.dependencies: string[]');
   });
 
   it('rejects an unknown schema target', async () => {
@@ -170,7 +170,7 @@ describe('ledger-cli — per-subcommand help', () => {
     expect(help).not.toBeNull();
     // The dogfooding gap: today add-subtask --help returns only the global
     // usage line. The fix must include the subtask schema slice.
-    expect(help).toContain('subtask.dependencies: number[]');
+    expect(help).toContain('subtask.dependencies: string[]');
     expect(help).toContain('add-subtask');
   });
 

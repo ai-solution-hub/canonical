@@ -70,7 +70,7 @@ function readTask() {
   return JSON.parse(readFileSync(join(dir, 'task-list.json'), 'utf8'));
 }
 
-function firstTaskWithSubtask(): { taskId: string; subId: number } {
+function firstTaskWithSubtask(): { taskId: string; subId: string | number } {
   const tl = readTask();
   for (const t of tl.tasks) {
     if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
