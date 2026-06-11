@@ -11,8 +11,10 @@ pipeline-produced canonicals match the established canonicalisation contract.
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
+from pathlib import Path
 
 _ISO_SLASH_RE = re.compile(r"\biso\s*/\s*iec\s+", re.IGNORECASE)
 _ISO_TIGHT_RE = re.compile(r"\biso\s*(\d{4,5})\b", re.IGNORECASE)
@@ -114,13 +116,25 @@ _ABBREVIATIONS: dict[str, str] = {
 # Generic baseline alias map (client-independent, always available).
 # Source of truth: BASELINE_ALIASES in lib/entities/entity-aliases.ts:16.
 #
-# FOLLOW-UP (documented divergence, NOT implemented in v1): the TS
-# resolveAlias() also consults the entity_aliases DB table (merged over this
-# baseline, DB wins on conflict — loadAliases() in entity-aliases.ts:50).
-# This port intentionally ships ONLY the static BASELINE_ALIASES; DB-backed
-# alias loading is a deliberate follow-up. Until then, relationship endpoints
-# resolved against client-specific DB aliases will diverge between the TS
-# writer (DB-aware) and this Python port (baseline-only).
+# DB-alias resolution ({101.9}, follow-up CLOSED): the TS resolveAlias() also
+# consults the entity_aliases DB table, merged OVER this baseline (DB wins on
+# conflict — loadAliases() in entity-aliases.ts:50-83). This port mirrors that
+# via a POINT-OF-USE snapshot (entity_aliases_snapshot.json) loaded once and
+# cached at module scope by `_get_alias_map()` — the SAME relative-path idiom
+# the taxonomy snapshot uses (extraction.py:79-94). Without resolution, a
+# client's SHORT name in source text (e.g. "Acme") is NOT resolved to its full
+# registered canonical ("Acme Holdings Limited"), so the holder self-match in
+# holder_rule.py:187 FAILS and the client's OWN certification is mis-stamped
+# holder='supplier' against a phantom supplier bearing the client's short name.
+#
+# PI-15 (ID-95): the snapshot carries client-provenance rows, so it is NEVER
+# committed — it is gitignored and GENERATED AT POINT OF USE (pipeline
+# deploy/startup) against the target client DB by
+# `scripts/generate-entity-aliases-snapshot.ts` (fail-closed generation wiring
+# is a follow-up; mechanics home {95.3}/ID-71). On a fresh checkout / CI the
+# file is ABSENT and the loader degrades gracefully to baseline-only (the
+# pipeline must still run); real client aliases exist only at runtime after
+# generation.
 _BASELINE_ALIASES: dict[str, str] = {
     "ISO Certification": "ISO 27001",
     "Iso Certifications": "ISO 27001",
@@ -256,14 +270,94 @@ def _rel_canonicalise(name: str) -> str:
     return result
 
 
-def _rel_resolve_alias(canonical_name: str) -> str:
-    """Port of resolveAlias() (entity-aliases.ts:92), baseline-only.
+# ──────────────────────────────────────────────────────────────────────────
+# DB-alias snapshot loading ({101.9}). Mirrors the taxonomy-snapshot LOAD idiom
+# (extraction.py:79-94). The fixture is generated from the live entity_aliases
+# table (is_active = true rows) by scripts/generate-entity-aliases-snapshot.ts
+# — gitignored + generated at point of use (PI-15), NOT committed; absent on a
+# fresh checkout (loader then degrades to baseline-only).
+# Keyed by the RAW `alias` column — matching the TS oracle exactly
+# (entity-aliases.ts:72 `cachedAliases[row.alias] = row.canonical`), so a
+# relationship endpoint resolves only when _rel_canonicalise(name) equals the
+# raw alias string.
+# ──────────────────────────────────────────────────────────────────────────
 
-    The TS oracle's sync path returns ``map[name] ?? name`` against the
-    baseline map (the writer at classify.ts:1788 does NOT await loadAliases,
-    so the cache is unpopulated and resolveAlias falls back to BASELINE_ALIASES).
+_ENTITY_ALIASES_SNAPSHOT_PATH = (
+    Path(__file__).parent.parent / "tests" / "fixtures" / "entity_aliases_snapshot.json"
+)
+
+# Merged alias map cache (baseline overlaid by DB snapshot). Built lazily once
+# per process by `_get_alias_map()`; reset in tests via `reset_alias_cache()`.
+_MERGED_ALIASES_CACHE: dict[str, str] | None = None
+
+
+def _load_db_entity_aliases() -> dict[str, str]:
+    """Read the DB alias rows from the point-of-use snapshot fixture.
+
+    The snapshot is gitignored + generated at deploy (PI-15) — NOT committed, so
+    it is ABSENT on a fresh checkout / CI and this returns ``{}`` (baseline-only).
+    Returns a ``{alias: canonical}`` map keyed by the RAW ``alias`` column
+    (TS parity, entity-aliases.ts:72). A missing/empty/malformed snapshot
+    degrades gracefully to an empty map (baseline-only) — the pipeline must
+    still run, mirroring the TS loadAliases() fallback (entity-aliases.ts:63-79).
+    Pure + DB-free at runtime (snapshot-backed). Patched in tests.
     """
-    return _BASELINE_ALIASES.get(canonical_name, canonical_name)
+    try:
+        with _ENTITY_ALIASES_SNAPSHOT_PATH.open(encoding="utf-8") as fh:
+            snapshot = json.load(fh)
+    except (OSError, ValueError):
+        # Missing file or malformed JSON → baseline-only.
+        return {}
+    rows = snapshot.get("aliases") if isinstance(snapshot, dict) else None
+    if not isinstance(rows, list):
+        return {}
+    out: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        alias = row.get("alias")
+        canonical = row.get("canonical")
+        if isinstance(alias, str) and isinstance(canonical, str) and alias and canonical:
+            out[alias] = canonical
+    return out
+
+
+def _get_alias_map() -> dict[str, str]:
+    """Return the merged alias map: ``_BASELINE_ALIASES`` overlaid by the DB
+    snapshot (DB wins on conflict — loadAliases() merge order, entity-aliases.ts:71-73).
+
+    Loaded once and cached at module scope (load-once, like the TS in-memory
+    cache). Deterministic + DB-free at runtime.
+    """
+    global _MERGED_ALIASES_CACHE
+    if _MERGED_ALIASES_CACHE is None:
+        merged: dict[str, str] = dict(_BASELINE_ALIASES)
+        merged.update(_load_db_entity_aliases())  # DB wins on conflict.
+        _MERGED_ALIASES_CACHE = merged
+    return _MERGED_ALIASES_CACHE
+
+
+def reset_alias_cache() -> None:
+    """Clear the merged-alias cache so the next resolve reloads the snapshot.
+
+    Mirrors clearAliasCache() (entity-aliases.ts:100). Used by tests; the
+    pipeline itself loads once per process.
+    """
+    global _MERGED_ALIASES_CACHE
+    _MERGED_ALIASES_CACHE = None
+
+
+def _rel_resolve_alias(canonical_name: str) -> str:
+    """Port of resolveAlias() (entity-aliases.ts:92), DB-snapshot-aware.
+
+    Returns ``map[name] ?? name`` against the merged map (baseline overlaid by
+    the committed DB-alias snapshot, DB wins on conflict). This closes the
+    {101.9} follow-up: the TS oracle resolves client-specific DB aliases (e.g. a
+    short client name → its full registered canonical) and this port now matches
+    by reading the snapshot fixture. Falls back to baseline-only when the
+    snapshot is absent/empty/malformed.
+    """
+    return _get_alias_map().get(canonical_name, canonical_name)
 
 
 def canonicalise_for_relationship(name: str) -> str:
