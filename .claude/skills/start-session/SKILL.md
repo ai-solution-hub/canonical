@@ -87,6 +87,31 @@ Use `gh-axi` (not raw `gh`) for any GitHub operation this session — pre-aggreg
 CI rollups + structured error translation; `gh-axi api` is the raw-API escape hatch
 (ID-92, see CLAUDE.md).
 
+### 2e: Owning-theme strategic context
+
+For each active Task surfaced in 2b, load the **owning roadmap theme** so the session
+opens with the strategic "why this Task matters" — not just the tactical task state.
+
+1. **Resolve the owning theme.** Read the active Task's `capability_theme` field (the
+   optional back-link to a roadmap theme `id`). Then read **only that one owning-theme
+   record** from `docs/reference/product-roadmap.json` — the same canonical ledger-read
+   path Step 2b uses for `task-list.json`. Do not read the full ~23KB / 12-theme roadmap,
+   and do not introduce a hard-coded path that bypasses the canonical reader. The owning
+   theme is ~1–2KB; the all-titles list and the full-roadmap dump are rejected
+   alternatives (read only the single owning-theme record).
+2. **Surface only theme title + current intent.** From that one theme record, surface the
+   theme **title** and its **current intent** (`description` — "why this Task matters").
+   Do **not** surface theme history, prior-session notes, or any unrelated theme.
+3. **Unset / operational Task → explicit no-op note.** If the active Task has **no**
+   `capability_theme` (unset or operational), emit an **explicit** note —
+   *"no owning theme — operational Task"* — rather than a silent skip. Never fall back to
+   reading the full roadmap.
+4. **Multiple active Tasks → dedupe by theme.** With several active Tasks, read each
+   owning theme **deduplicated by theme** — read each distinct owning theme once, never
+   all 12.
+
+This sub-step is **read-only** — no roadmap write surface, no ledger-write (§LP) exposure.
+
 ---
 
 ## Step 3: Review Continuation Prompt and Confirm Session Plan
