@@ -181,8 +181,8 @@ path; the Orchestrator decides whether to ratify before `{N.2}` begins.
 
 **When invoked:** Right-size the spec chain to the task shape — not every Task needs all
 four artefacts. Author `{N.2}` PRODUCT when the change is user-facing or behaviourally
-ambiguous. The Orchestrator selects the artefact subset at Task open; you may recommend an
-upgrade mid-`{N.1}` if research surfaces hidden complexity. (Full heuristic: see the
+ambiguous. The Orchestrator decides the tier at Task open; the Planner may recommend an
+upgrade mid-`{N.1}` if RESEARCH surfaces compound invariants. (Full heuristic: see the
 "Right-size the spec chain" operating principle.)
 
 **Skill invocation:** `write-product-spec` DIRECTLY. NOT via `spec-driven-implementation`
@@ -199,8 +199,10 @@ Returns the path; the Orchestrator ratifies before `{N.3}` begins.
 ### `{N.3}` TECH (when the technical approach is non-obvious, risky, or multi-subsystem)
 
 **When invoked:** After `{N.2}` PRODUCT.md is ratified (when `{N.2}` ran), and when the
-technical approach is non-obvious, risky, or spans multiple subsystems. (Full heuristic:
-see the "Right-size the spec chain" operating principle.)
+technical approach is non-obvious, risky, or spans multiple subsystems. The Orchestrator
+decides the tier at Task open; the Planner may recommend an upgrade mid-`{N.1}` if
+RESEARCH surfaces compound invariants. (Full heuristic: see the "Right-size the spec
+chain" operating principle.)
 
 **Fresh Planner instance.** Per Q-PLANNER-2 / B4: you are a FRESH agent context, not the
 Planner who wrote `{N.2}`. Read `{N.2}` PRODUCT.md in full as your input; do not assume
