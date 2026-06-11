@@ -28,6 +28,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 
 /**
  * Default STDOUT budget in bytes. A single named constant so the value is
@@ -52,6 +53,28 @@ export interface ParsedArgs {
   mode: BudgetMode | null;
   command: string;
   args: string[];
+}
+
+/**
+ * Resolve the wrapper's exit code from a spawned child's status/signal pair
+ * (A1.W.4 — surface the REAL exit code, never coerce a failure to success).
+ *
+ * A child killed by a signal reports `status: null, signal: 'SIGTERM'` — naively
+ * falling back to `status ?? 0` would silently report success for a killed
+ * process (KH no-silent-failure violation). We follow the POSIX shell
+ * convention `128 + signum` for signal deaths; for a genuinely-null status with
+ * no signal we fall back to `1` (never `0`) so an unexplained absence of a code
+ * can never masquerade as success.
+ */
+export function resolveExitCode(
+  status: number | null,
+  signal: NodeJS.Signals | null,
+): number {
+  if (signal != null) {
+    const signum = os.constants.signals[signal] ?? 0;
+    return 128 + signum;
+  }
+  return status ?? 1;
 }
 
 /** A wrapped-command argv is `git diff …` or `git show …` → diff mode. */
@@ -336,7 +359,7 @@ export function main(argv: string[]): number {
   const captured = {
     stdout: child.stdout ?? '',
     stderr: child.stderr ?? '',
-    exitCode: child.status ?? 0,
+    exitCode: resolveExitCode(child.status, child.signal),
   };
 
   const outcome = applyBudget(parsed, captured);

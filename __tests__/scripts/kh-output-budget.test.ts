@@ -75,9 +75,10 @@ describe('kh-output-budget wrapper CLI', () => {
       expect(stdout).toContain('truncated: true');
       expect(stdout).toMatch(/original_length: \d+/);
       expect(stdout).toMatch(/shown: \d+/);
-      // The escape is the exact --full re-invocation.
+      // The escape is the exact --full re-invocation — including the wrapped
+      // argv after `--`, proving the command survives into the recovery command.
       expect(stdout).toContain(
-        'escape: bun scripts/kh-output-budget.ts --full --mode diff --',
+        'escape: bun scripts/kh-output-budget.ts --full --mode diff -- node -e',
       );
 
       // Split the wrapper output into the SHOWN diff body and the receipt block;
@@ -281,10 +282,43 @@ describe('kh-output-budget wrapper CLI', () => {
   });
 
   describe('mode inference (A1.W.3 — small allowlist, not a parser)', () => {
-    it('infers generic mode for a non-git command so the escape command echoes --mode generic', () => {
+    it('infers generic mode for a non-git command so the escape command echoes --mode generic with the wrapped argv', () => {
       const program = emitLinesProgram('x', 5000);
       const { stdout } = runWrapper(['--budget', '256'], program); // no --mode → infer generic
-      expect(stdout).toContain('--mode generic');
+      // Prove both the inferred mode AND the wrapped argv survive after `--`.
+      expect(stdout).toContain('--mode generic -- node -e');
+    });
+  });
+
+  describe('signal-killed wrapped command (A1.W.4 — no silent success for a kill)', () => {
+    it('exits non-zero (128 + SIGTERM) when the wrapped command is killed by a signal, never reporting success', () => {
+      // A wrapped command that kills itself with SIGTERM. spawnSync reports
+      // status:null, signal:'SIGTERM' — the wrapper must NOT coerce this to 0.
+      const program = ['node', '-e', 'process.kill(process.pid, "SIGTERM");'];
+
+      const { status } = runWrapper(['--mode', 'generic'], program);
+
+      // SIGTERM is signal 15 → POSIX shell convention 128 + 15 = 143.
+      expect(status).not.toBe(0);
+      expect(status).toBe(143);
+    });
+  });
+
+  describe('spawn failure (A1.W.4 — ENOENT degrade-safe, surfaced not swallowed)', () => {
+    it('exits 127 and surfaces a spawn-failure message on stderr when the wrapped binary does not exist', () => {
+      const r = spawnSync(
+        'bun',
+        [CLI, '--mode', 'generic', '--', 'nonexistent-binary-xyz', '--flag'],
+        {
+          cwd: REPO,
+          encoding: 'utf8',
+        },
+      );
+      expect(r.status).not.toBe(0);
+      expect(r.status).toBe(127);
+      expect(r.stderr ?? '').toContain(
+        'failed to spawn nonexistent-binary-xyz',
+      );
     });
   });
 });
