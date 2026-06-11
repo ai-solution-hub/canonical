@@ -3385,3 +3385,233 @@ class TestWorkspacePathFixes:
         assert em.rows[0]["entity_type"] == "company"
         # The higher-confidence mention is the one kept.
         assert em.rows[0]["confidence"] == 0.9
+
+
+# ── ID-101 §{101.8} — holder-rule stamp wiring in the em-declare loop ─────────
+# Proves derive_holder_metadata is wired into the em loop so a cert mention's
+# metadata carries BOTH the span keys AND the merged holder keys, that no-signal
+# certs stay span-only (Inv-10), and that an unset PIPELINE_CLIENT_ORG degrades
+# via the Inv-15 logged-fallback path (span-only metadata, doc still ingests).
+class TestHolderStampWiring:
+    """The em-declare loop merges holder metadata over the span metadata."""
+
+    @staticmethod
+    def _stub_with_mentions_and_rels(
+        flow: object,
+        monkeypatch: pytest.MonkeyPatch,
+        markdown: str,
+        mentions: list,
+        relationships: list,
+    ) -> None:
+        async def _conv(file: object) -> str:
+            return markdown
+
+        async def _cls(content_text: str):
+            return {
+                "content_type": "case_study",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+                "suggested_title": "T",
+            }
+
+        async def _qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _ent(content_text: str):
+            return mentions
+
+        async def _rel(content_text: str):
+            return relationships
+
+        async def _emb(content_text: str):
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _conv)
+        monkeypatch.setattr(flow, "extract_classification", _cls)
+        monkeypatch.setattr(flow, "extract_qa_form", _qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _ent)
+        monkeypatch.setattr(flow, "extract_relationships", _rel)
+        monkeypatch.setattr(flow, "embed_content_text", _emb)
+
+    @staticmethod
+    def _mention(name: str, entity_type: str, *, start: int, end: int):
+        import types
+
+        return types.SimpleNamespace(
+            entity_name=name,
+            entity_type=entity_type,
+            mention_confidence=0.9,
+            source_span_start=start,
+            source_span_end=end,
+        )
+
+    @staticmethod
+    def _rel(source: str, relationship: str, target: str):
+        import types
+
+        return types.SimpleNamespace(
+            source=source, relationship=relationship, target=target
+        )
+
+    def _row_for(self, em: object, entity_type: str) -> dict:
+        rows = [r for r in em.rows if r["entity_type"] == entity_type]
+        assert len(rows) == 1, f"expected one {entity_type} row, got {len(rows)}"
+        return rows[0]
+
+    def test_cert_metadata_merges_span_and_holder_keys(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A holds rel from the client org stamps holder:self ALONGSIDE span keys."""
+        flow = _flow_module()
+        # PIPELINE_CLIENT_ORG resolves the self-vs-supplier split.
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "Knowledge Hub Ltd")
+        markdown = "# Doc\n\nKnowledge Hub Ltd holds ISO 27001."
+
+        mentions = [
+            self._mention("ISO 27001", "certification", start=2, end=11),
+            self._mention("Knowledge Hub Ltd", "organisation", start=20, end=37),
+        ]
+        rels = [self._rel("Knowledge Hub Ltd", "holds", "ISO 27001")]
+        self._stub_with_mentions_and_rels(flow, monkeypatch, markdown, mentions, rels)
+
+        src = tmp_path / "doc.md"
+        src.write_text(markdown)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            await flow.ingest_file(
+                _FakeFile(src), ci, qa, sd, em, None, None, flow_op_id=uuid.uuid4()
+            )
+
+        asyncio.run(_exercise())
+
+        cert = self._row_for(em, "certification")
+        # Span keys PRESERVED + holder keys MERGED (not overwritten).
+        assert cert["metadata"] == {
+            "source_span_start": 2,
+            "source_span_end": 11,
+            "holder": "self",
+        }
+
+        # Inv-14: the organisation mention is NEVER stamped — span keys only.
+        org = self._row_for(em, "organisation")
+        assert org["metadata"] == {"source_span_start": 20, "source_span_end": 37}
+        assert "holder" not in org["metadata"]
+
+    def test_supplier_cert_carries_supplier_name(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A holds rel from a non-client org stamps holder:supplier + supplier_name."""
+        flow = _flow_module()
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "Knowledge Hub Ltd")
+        markdown = "# Doc\n\nAcme Security holds ISO 27001."
+
+        mentions = [
+            self._mention("ISO 27001", "certification", start=2, end=11),
+            self._mention("Acme Security", "organisation", start=20, end=33),
+        ]
+        rels = [self._rel("Acme Security", "holds", "ISO 27001")]
+        self._stub_with_mentions_and_rels(flow, monkeypatch, markdown, mentions, rels)
+
+        src = tmp_path / "doc.md"
+        src.write_text(markdown)
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            await flow.ingest_file(
+                _FakeFile(src), ci, qa, sd, em, None, None, flow_op_id=uuid.uuid4()
+            )
+
+        asyncio.run(_exercise())
+
+        from scripts.cocoindex_pipeline.canonicalisation import (
+            canonicalise_for_relationship,
+        )
+
+        cert = self._row_for(em, "certification")
+        assert cert["metadata"] == {
+            "source_span_start": 2,
+            "source_span_end": 11,
+            "holder": "supplier",
+            "supplier_name": canonicalise_for_relationship("Acme Security"),
+        }
+
+    def test_no_signal_cert_keeps_span_only_metadata(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A cert with NO holds/synonym rel keeps span-only metadata (Inv-10)."""
+        flow = _flow_module()
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "Knowledge Hub Ltd")
+        markdown = "# Doc\n\nISO 27001 mentioned with no holder rel."
+
+        mentions = [self._mention("ISO 27001", "certification", start=2, end=11)]
+        rels: list = []  # no relationships → no holder signal
+        self._stub_with_mentions_and_rels(flow, monkeypatch, markdown, mentions, rels)
+
+        src = tmp_path / "doc.md"
+        src.write_text(markdown)
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        async def _exercise() -> None:
+            await flow.ingest_file(
+                _FakeFile(src), ci, qa, sd, em, None, None, flow_op_id=uuid.uuid4()
+            )
+
+        asyncio.run(_exercise())
+
+        cert = self._row_for(em, "certification")
+        assert cert["metadata"] == {"source_span_start": 2, "source_span_end": 11}
+        assert "holder" not in cert["metadata"]
+
+    def test_unset_client_org_degrades_to_span_only(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Unset PIPELINE_CLIENT_ORG → R4 raise is caught (Inv-15); span-only rows.
+
+        The doc STILL ingests — the holder-derivation fault is logged-and-swallowed
+        rather than aborting the em declares.
+        """
+        flow = _flow_module()
+        monkeypatch.delenv("PIPELINE_CLIENT_ORG", raising=False)
+        markdown = "# Doc\n\nKnowledge Hub Ltd holds ISO 27001."
+
+        mentions = [self._mention("ISO 27001", "certification", start=2, end=11)]
+        rels = [self._rel("Knowledge Hub Ltd", "holds", "ISO 27001")]
+        self._stub_with_mentions_and_rels(flow, monkeypatch, markdown, mentions, rels)
+
+        src = tmp_path / "doc.md"
+        src.write_text(markdown)
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        warnings: list[str] = []
+        monkeypatch.setattr(flow._logger, "warning", lambda msg: warnings.append(msg))
+
+        async def _exercise() -> None:
+            await flow.ingest_file(
+                _FakeFile(src), ci, qa, sd, em, None, None, flow_op_id=uuid.uuid4()
+            )
+
+        # Must NOT raise — the R4 fault is swallowed by the Inv-15 wrapper.
+        asyncio.run(_exercise())
+
+        # The cert row STILL landed, with span-only metadata (no holder key).
+        cert = self._row_for(em, "certification")
+        assert cert["metadata"] == {"source_span_start": 2, "source_span_end": 11}
+        assert "holder" not in cert["metadata"]
+        # The degradation was LOGGED, not silent.
+        assert any("holder_derivation_failed" in w for w in warnings), (
+            "the R4 fail-fast must be logged via the Inv-15 wrapper"
+        )

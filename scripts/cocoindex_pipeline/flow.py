@@ -108,6 +108,10 @@ from scripts.cocoindex_pipeline.extraction import (
     extract_relationships,
     stamp_extraction_base,
 )
+from scripts.cocoindex_pipeline.holder_rule import (
+    CLIENT_ORG_ENV_VAR,
+    derive_holder_metadata,
+)
 
 # Production LLM model tier per cocoindex-extraction-contract TECH §3.1.
 # Single source of truth lives in extraction.py (ID-44.3 dedup); re-exported
@@ -2230,6 +2234,37 @@ async def _ingest_content_branch(
     # cocoindex upsert's ON CONFLICT (id) did not absorb them and the natural-key
     # unique constraint raised UniqueViolationError; the natural-key PK both
     # collapses the duplicates and keeps re-ingest idempotent.
+    #
+    # ── Holder-rule attribution (ID-101 §{101.8}, PC-5) ──────────────────────
+    # Derive per-cert holder metadata ONCE per doc from the SAME raw mentions +
+    # the {101.7} `relationships` list (reused, NOT re-extracted). The result is
+    # a {(per_doc_canonical, entity_type): holder_md} map the em-declare loop
+    # below merges into each cert mention's metadata jsonb (span keys PRESERVED).
+    # `derive_holder_metadata` is a PURE function (no LLM); it raises (R4) when
+    # the required PIPELINE_CLIENT_ORG knob is unset. Inv-15 best-effort: any
+    # stamp fault (incl. that raise) is LOGGED and the em declares still happen
+    # with span-only metadata — a holder-derivation fault never aborts the doc.
+    # The client org is relationship-canonicalised so the self-vs-supplier
+    # comparison lands in the same space as the relationship-canonical holds
+    # sources (see holder_rule.py docstring).
+    _holder_by_mention_id: dict[tuple[str, str], dict[str, Any]] = {}
+    try:
+        _client_org_raw = os.environ.get(CLIENT_ORG_ENV_VAR, "")
+        _client_org_lower = canonicalise_for_relationship(_client_org_raw)
+        _holder_by_mention_id = derive_holder_metadata(
+            entity_mentions, relationships, _client_org_lower
+        )
+    except Exception as exc:  # noqa: BLE001 — Inv-15 best-effort holder stamp
+        _logger.warning(
+            json.dumps(
+                {
+                    "event": "cocoindex.ingest.holder_derivation_failed",
+                    "rel_path": rel_path,
+                    "error": _redact_error_message(str(exc)),
+                }
+            )
+        )
+
     _em_dedup: dict[tuple[str, str], Any] = {}
     for mention in entity_mentions:
         per_doc_canonical = canonicalise_entity_name(
@@ -2250,6 +2285,10 @@ async def _ingest_content_branch(
             mention, op_id=op_id, content_items_id=content_item_id
         )
         context_snippet = extract_entity_context(content_text, mention.entity_name)
+        # ID-101 §{101.8}: MERGE holder keys into the span metadata — span keys
+        # are PRESERVED, holder keys are added (never overwriting a span key).
+        # Non-cert / no-signal mentions resolve to {} so only span keys remain.
+        holder_md = _holder_by_mention_id.get((per_doc_canonical, entity_type), {})
         em_target.declare_row(
             row={
                 "id": uuid.uuid5(
@@ -2265,6 +2304,7 @@ async def _ingest_content_branch(
                 "metadata": {
                     "source_span_start": mention.source_span_start,
                     "source_span_end": mention.source_span_end,
+                    **holder_md,
                 },
                 "op_id": op_id,
             }
