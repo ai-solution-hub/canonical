@@ -124,6 +124,18 @@ export async function fetchItemHistoryVersion(
   );
 }
 
+/** Roll a content item back to a specific history version. */
+export async function rollbackItemVersion(
+  itemId: string,
+  versionId: string,
+): Promise<unknown> {
+  return fetchJson(`/api/items/${itemId}/rollback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version_id: versionId }),
+  });
+}
+
 /** Response shape for GET /api/admin/taxonomy-sync/status */
 /** @public */
 export interface TaxonomySyncStatus {
