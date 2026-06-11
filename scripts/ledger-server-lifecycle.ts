@@ -105,15 +105,21 @@ export interface EnsureServerResult {
  * daemon default byte-identical so the `isDefault` persistent-vs-ephemeral gate
  * still holds.
  */
-export function resolveDefaultLedgerDir(): string {
+export function tryResolveDefaultLedgerDir(): string | null {
   const base = process.env.KH_PRIVATE_DOCS_DIR;
-  if (!base) {
+  if (!base) return null;
+  return resolve(base, 'src/content/docs/ledgers');
+}
+
+export function resolveDefaultLedgerDir(): string {
+  const dir = tryResolveDefaultLedgerDir();
+  if (dir === null) {
     throw new Error(
       'KH_PRIVATE_DOCS_DIR is not set — required to locate the relocated ledgers ' +
         '(docs-site src/content/docs/ledgers). Ledgers moved out of the public repo under ID-68.35.',
     );
   }
-  return resolve(base, 'src/content/docs/ledgers');
+  return dir;
 }
 
 const HANDLE_DIR = '.cache/ledger-server';
@@ -461,8 +467,18 @@ export async function ensureServer(
   opts: EnsureServerOptions = {},
 ): Promise<EnsureServerResult> {
   const repoRoot = opts.repoRoot ?? process.cwd();
-  const defaultLedgerDir = resolveDefaultLedgerDir();
-  const ledgerDir = opts.ledgerDir ?? defaultLedgerDir;
+  // ID-68.35: an EXPLICIT opts.ledgerDir (tests, K5 parity harness) must work
+  // even when KH_PRIVATE_DOCS_DIR is unset — KH CI under Inv 30 has no docs-site
+  // sibling. Such a dir is definitionally NON-default → ephemeral, so we resolve
+  // the default with the NON-throwing variant for the comparison. Only the
+  // no-explicit-dir path genuinely REQUIRES the default and fail-closes (throws)
+  // when the env is unset.
+  const explicitDir = opts.ledgerDir;
+  const defaultLedgerDir =
+    explicitDir === undefined
+      ? resolveDefaultLedgerDir()
+      : tryResolveDefaultLedgerDir();
+  const ledgerDir = explicitDir ?? (defaultLedgerDir as string);
   const seam = opts.spawnSeam ?? defaultSpawnSeam();
   const deadlineMs = opts.deadlineMs ?? DEFAULT_DEADLINE_MS;
 
@@ -475,7 +491,9 @@ export async function ensureServer(
   // default ledger reliably reuses (inv 48). Post ID-68.35 the default is the
   // already-absolute env-resolved docs-site path (resolveDefaultLedgerDir());
   // resolve(repoRoot, <absolute>) returns it unchanged, so the gate still holds.
+  // A null default (env unset + explicit dir) is never the default → ephemeral.
   const isDefault =
+    defaultLedgerDir !== null &&
     resolve(repoRoot, ledgerDir) === resolve(repoRoot, defaultLedgerDir);
 
   if (isDefault) {

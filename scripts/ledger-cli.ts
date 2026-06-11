@@ -565,11 +565,12 @@ function parseArgs(argv: string[]): ParseArgsResult {
     force: false,
     append: false,
     // ID-68.35 — ledgers relocated out of the public repo to the docs-site
-    // checkout. Call the SAME resolver the daemon default uses so the CLI
-    // default and the daemon default are byte-identical (the `isDefault`
-    // persistent-vs-ephemeral gate in ensureServer compares against it).
-    // Fail-closed: throws LOUD if KH_PRIVATE_DOCS_DIR is unset.
-    ledgerDir: resolveDefaultLedgerDir(),
+    // checkout. parseArgs stays PURE: an explicit `--ledger-dir` sets this; with
+    // none, the `''` sentinel is left for run() to resolve at the consumption
+    // chokepoint via resolveDefaultLedgerDir() (fail-closed). Resolving here
+    // would couple pure arg-parsing to the docs-site env (KH CI under Inv 30 has
+    // no sibling) and break the parseArgs unit tests.
+    ledgerDir: '',
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -2043,7 +2044,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     rawSubcommand !== undefined
       ? (SUBCOMMAND_ALIASES[rawSubcommand] ?? rawSubcommand)
       : undefined;
-  const dir = flags.ledgerDir;
+  // ID-68.35 — resolve the default ledger dir at the consumption chokepoint
+  // (fail-closed). An explicit `--ledger-dir` / hand-built `flags.ledgerDir`
+  // short-circuits; absent one, resolveDefaultLedgerDir() throws LOUD when
+  // KH_PRIVATE_DOCS_DIR is unset. Uses the SAME resolver as the daemon default
+  // so the `isDefault` persistent-vs-ephemeral gate in ensureServer holds.
+  const dir = flags.ledgerDir || resolveDefaultLedgerDir();
 
   switch (subcommand) {
     // ── read ──────────────────────────────────────────────────────────────
