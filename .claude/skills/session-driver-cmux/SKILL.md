@@ -307,7 +307,14 @@ S3=$(echo "$R3" | jq -r '.session_id')
 # Do NOT author specs/plans or edit code/docs directly as your own deliverable —
 # this holds for doc-only / spec-only / ASSESS-only Tasks too (spec & plan
 # authoring is the Planner's role). Commit on your worker branch; surface Open
-# Questions via the OQ-escalation channel (see Escalation below)."
+# Questions via the OQ-escalation channel (see Escalation below).
+# Carry the result-size discipline into every dispatch brief you compose: bound
+# every tool-result and return-payload, bound high-output calls at source
+# (`git show --stat` before a full diff, scope `git`/`grep` to explicit paths,
+# narrow searches, read summarised verdicts), and write any >64K artefact to a
+# file and return the PATH — a convention, not a programmatic block. The
+# canonical statement is `references/dispatch-primitives.md` → *Result-size
+# discipline*; inherit it so your own sub-dispatches carry it too."
 "$SD_SCRIPTS/send-prompt.sh" subo-id-23 "$(cat .claude/cmux-briefs/cmux-brief-id-23.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-24 "$(cat .claude/cmux-briefs/cmux-brief-id-24.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-25 "$(cat .claude/cmux-briefs/cmux-brief-id-25.md)"

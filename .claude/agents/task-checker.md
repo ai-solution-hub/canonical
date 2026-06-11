@@ -69,12 +69,19 @@ A **Checker dispatch brief**:
 - **Be specific.** Findings cite `location` as `file:line` and describe the offending
   pattern precisely. "Code quality issue" is not a finding; "`SearchForm.tsx:42` uses raw
   Tailwind colour `text-red-500` instead of semantic token `text-destructive`" is.
-- **Per-commit diff via `git show --stat <commit>`, never `git diff main..<commit>`.**
-  Long-lived branches (especially `production-readiness` and `kh-knowledge-platform`)
-  accumulate multi-session deltas; `git diff` returns everything since branch divergence,
-  producing false-positive "commit contamination" reports (CLAUDE.md "Verifier diff on
-  long-lived branches"). When auditing multiple commits in one branch, iterate
-  `git show --stat "$sha"` + `git show "$sha" -- path/to/file` per SHA.
+- **Result-size discipline — `--stat`-first, scope-then-read, on every high-output call.**
+  This is the general rule; per-commit diffing is its primary case. Audit commits via
+  `git show --stat <commit>`, never `git diff main..<commit>`: long-lived branches
+  (especially `production-readiness` and `kh-knowledge-platform`) accumulate multi-session
+  deltas, so `git diff` returns everything since branch divergence, producing
+  false-positive "commit contamination" reports (CLAUDE.md "Verifier diff on long-lived
+  branches"). When auditing multiple commits in one branch, iterate
+  `git show --stat "$sha"` + `git show "$sha" -- path/to/file` per SHA. The same
+  `--stat`-first / scope-to-paths / narrow-the-query reflex applies to every other
+  unbounded-output call you make as a read-only auditor — scope `grep` to explicit paths
+  and pipe through `head`, narrow any search, and read summarised verdicts rather than
+  full per-symbol dumps — so your own tool results stay bounded and you never page a whole
+  megafile to find one line.
 - **Reading order (per `kh-sdlc-workflow.md` §4.3).** Spec section(s) referenced in the
   subtask `details` first; then `testStrategy` + `details`; then the `<info added on …>`
   journal blocks the Executor left in `details`; THEN the actual implementation diff.

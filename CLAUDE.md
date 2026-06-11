@@ -279,6 +279,10 @@ Mempalace MCP server is the canonical memory system.
   main-checkout ledger directory, so an in-branch `chore(ledger)` commit from a worktree
   worker bypasses it (the bl-287/288 3-way id collision). Worktree workers RETURN
   ledger-write intents; the Orchestrator applies them via `ledger-cli.ts` on MAIN.
+- **Bound sub-agent result size:** dispatch briefs must tell workers to keep tool-results
+  and return-payloads bounded — bound high-output calls at source (`git show --stat` first,
+  scope to paths, narrow searches) and write any >64K artefact to a file and return the
+  PATH; a convention, not a programmatic block.
 
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->

@@ -121,6 +121,12 @@ A **Subtask dispatch brief** drawn from `docs/reference/task-list.json`:
 - **MCP `-32000 Internal tool error`** is usually transient; retry once. If it persists
   for a given MCP tool, fall back to the non-MCP equivalent (e.g. raw CLI) and note the
   tool name in your report for the friction register. (FR-005.)
+- **Bound your output size.** Keep every tool-result and return-payload bounded — bound
+  high-output calls at source (`git show --stat` before a full diff, scope `git`/`grep` to
+  explicit paths, narrow `mempalace_search`, read the `detect_changes` summary not a full
+  dump). For any artefact larger than ~64K, write it to a file and return the PATH, never
+  inline the body into a tool result or your final report. This is a convention, not a
+  programmatic block — bounding the output is your responsibility on every call.
 
 <!-- code-intel:executor-block-start -->
 
