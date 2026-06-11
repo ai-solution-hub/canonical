@@ -1,7 +1,9 @@
 {
   "document_name": "Knowledge Hub Task List",
   "document_purpose": "Synthetic de-identified fixture for tests. Contains representative task shapes; no real task data.",
-  "related_documents": ["docs/reference/product-roadmap.json"],
+  "related_documents": [
+    "docs/reference/product-roadmap.json"
+  ],
   "tasks": [
     {
       "id": "1",
@@ -36,8 +38,12 @@
       "priority_note": null,
       "status_note": "Awaiting fixture review.",
       "cross_doc_links": [],
-      "session_refs": ["kh-main-S1"],
-      "commit_refs": ["abc1234"]
+      "session_refs": [
+        "kh-main-S1"
+      ],
+      "commit_refs": [
+        "abc1234"
+      ]
     },
     {
       "id": "2",

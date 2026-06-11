@@ -58,6 +58,12 @@ docs/reference/classification-prompt.md
 scripts/tests/fixtures/taxonomy_snapshot.json
 lib/mcp/plugin-bundle.ts
 
+# Synthetic ledger fixtures (ID-68.35) — written in the ledger-cli canonical
+# serialiser format (escapeNonAscii(JSON.stringify(v,null,2))); Prettier's
+# single-element-array compaction diverges from it and breaks the --scoped
+# minimal-diff write tests.
+__tests__/fixtures/ledger/
+
 # Deploy infrastructure YAML — Prettier's printWidth:80 wraps long image strings
 # and YAML scalar values in ways that break docker-compose parsing.
 deploy/

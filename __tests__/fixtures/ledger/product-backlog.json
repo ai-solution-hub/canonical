@@ -1,7 +1,9 @@
 {
   "document_name": "Product Backlog",
   "document_purpose": "Synthetic de-identified fixture for tests. Contains representative backlog shapes; no real backlog data.",
-  "related_documents": ["docs/reference/product-roadmap.json"],
+  "related_documents": [
+    "docs/reference/product-roadmap.json"
+  ],
   "items": [
     {
       "id": "1",
@@ -13,8 +15,12 @@
       "priority": "should",
       "track": "fixture-track",
       "dependencies": [],
-      "session_refs": ["kh-main-S1"],
-      "commit_refs": ["abc1234"],
+      "session_refs": [
+        "kh-main-S1"
+      ],
+      "commit_refs": [
+        "abc1234"
+      ],
       "cross_doc_links": [],
       "notes": null
     },
