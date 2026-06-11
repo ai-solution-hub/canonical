@@ -450,7 +450,7 @@ exact clash the single mutex exists to prevent.
 | `testStrategy` (Subtask) | One-line acceptance criterion the Checker verifies against | Checker contract. |
 | `cross_doc_links` | Repo-relative path + anchor + raw text per `DocLinkSchema` | Doc-graph traversal. |
 | Commit messages | Body + bullets per `commit-commands` convention | Per-commit immutable audit. |
-| Continuation prompts (`docs/continuation-prompts/` — Class 3 interim home, stays in-repo until the scripted handoff model lands; ID-68 PC-12) | Multi-section session handoff | Session-to-session context transfer. |
+| Continuation prompts (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/` — relocated to the private docs-site repo per ID-68.34) | Multi-section session handoff | Session-to-session context transfer. |
 | Mempalace diary (`mempalace_diary_write`) | AAAK pipe-delimited per-WP segments | Cross-session recall. |
 
 **Budget gate is HARD for Subtask `description` (≤250) and `testStrategy` (≤300):** Records MUST be authored within budget on the first pass; relocate any overflow into the unbudgeted `details` field.

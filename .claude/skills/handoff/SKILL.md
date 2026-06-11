@@ -8,9 +8,12 @@ description:
 
 # Session Handoff
 
-Generates `docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
-at session close. The prompt is consumed by the **next session's
-orchestrator-of-orchestrators**. It is a **routing + deltas** document: it points to canonical sources and carries only what is NOT already in them.
+Generates
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
+at session close (relocated to the private docs-site repo per ID-68.34 — the
+file is written to, and committed in, the docs-site checkout resolved via
+`KH_PRIVATE_DOCS_DIR`, NOT the public KH repo). The prompt is consumed by the
+**next session's orchestrator-of-orchestrators**. It is a **routing + deltas** document: it points to canonical sources and carries only what is NOT already in them.
 
 **Canonical sources — point to these, never reproduce them:**
 
@@ -95,7 +98,8 @@ bypass notes (e.g. needs `dangerouslyDisableSandbox`). Omit if none.}
 
 ## Step 4 — Write the file
 
-`docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
+Write to the docs-site checkout (resolve `KH_PRIVATE_DOCS_DIR` first):
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{slug}.md`
 
 ## Step 5 — Prettier sweep
 
@@ -103,12 +107,21 @@ bypass notes (e.g. needs `dangerouslyDisableSandbox`). Omit if none.}
 bun run format
 ```
 
-## Step 6 — Commit and push
+## Step 6 — Commit and push (in the docs-site repo)
+
+The continuation prompt now lives in the private docs-site repo (ID-68.34), so
+the commit + push target THAT checkout, not the public KH repo. Use the
+explicit `--git-dir`/`--work-tree` form so the op runs against docs-site
+regardless of CWD (a leakage-guard blocks `git -C` on the knowledge-hub
+prefix):
 
 ```bash
-git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-*.md
-git commit -m "docs: S{NNN} continuation prompt — {slug}"
-git push
+DOCS="${KH_PRIVATE_DOCS_DIR}"
+git --git-dir="$DOCS/.git" --work-tree="$DOCS" \
+  add src/content/docs/continuation-prompts/continuation-prompt-kh-s{NNN}-*.md
+git --git-dir="$DOCS/.git" --work-tree="$DOCS" \
+  commit -m "docs: S{NNN} continuation prompt — {slug}"
+git --git-dir="$DOCS/.git" --work-tree="$DOCS" push
 ```
 
 If Liam edits, he creates a new commit (not amend).

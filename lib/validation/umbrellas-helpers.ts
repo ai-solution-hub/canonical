@@ -76,7 +76,7 @@ export interface RetrospectiveOpeningInput {
  *
  *   <info added on YYYY-MM-DDTHH:MM:SS.sssZ>
  *   RETROSPECTIVE OPENING — Task opened in `done` status post-implementation.
- *   Original work happened S{NN} per `docs/continuation-prompts/<file>.md`.
+ *   Original work happened S{NN} per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/<file>.md`.
  *
  *   Commits (S{NN}, <branch>):
  *   - <sha8> — <message-line>

@@ -131,7 +131,7 @@ adding or modifying UI elements.
 | State of the Product | `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/state-of-the-product.md`                                    |
 | Skill routing map    | `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/skill-routing-map.md`                                       |
 | CI runbook           | `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md` — workflow topology, per-job env scope, knip baseline |
-| Session handoffs     | `docs/continuation-prompts/`                                                |
+| Session handoffs     | `${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/`              |
 | Runbooks             | `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/` — local-development, staging-refresh, github-environments |
 
 Full inventory of all reference docs: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/documentation-inventory.md`

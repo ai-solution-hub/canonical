@@ -117,7 +117,7 @@ This sub-step is **read-only** — no roadmap write surface, no ledger-write (§
 ## Step 3: Review Continuation Prompt and Confirm Session Plan
 
 ```bash
-ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -2
+ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -2
 ```
 
 1. Read the continuation prompt thoroughly
