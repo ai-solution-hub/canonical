@@ -27,7 +27,7 @@
  *                             actually catches a corrupted ledger.
  */
 
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { ZodError } from 'zod';
@@ -38,34 +38,38 @@ import {
 import { RoadmapSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogSchema } from '@/lib/validation/backlog-schema';
 
-const PROJECT_ROOT = join(__dirname, '../..');
+// Reads from the synthetic de-identified fixture dir (ID-68.35 ledger relocation).
+// The live ledgers at docs/reference/ are being removed from the public repo;
+// tests now use schema-valid synthetic fixtures so the parser/schema logic is
+// exercised without embedding private data.
+const FIXTURE_DIR = resolve(__dirname, '../fixtures/ledger');
 
-/** Read + JSON.parse a repo-relative ledger file. */
-function readLedger(relativePath: string): unknown {
-  const raw = readFileSync(join(PROJECT_ROOT, relativePath), 'utf8');
+/** Read + JSON.parse a fixture ledger file. */
+function readLedger(filename: string): unknown {
+  const raw = readFileSync(join(FIXTURE_DIR, filename), 'utf8');
   return JSON.parse(raw) as unknown;
 }
 
-describe('Ledger schema integrity (bl-208) — live ledgers strict-parse', () => {
+describe('Ledger schema integrity (bl-208) — fixture ledgers strict-parse', () => {
   it('task-list.json parses against TaskListSchema (strict)', () => {
-    const ledger = readLedger('docs/reference/task-list.json');
+    const ledger = readLedger('task-list.json');
     expect(() => TaskListSchema.parse(ledger)).not.toThrow();
   });
 
   it('task-list.json parses through parseTaskListWithWarnings (CLI loader)', () => {
-    const ledger = readLedger('docs/reference/task-list.json');
+    const ledger = readLedger('task-list.json');
     // Mirrors the ledger-CLI's hard-fail path: throws ZodError on any schema
     // violation. Soft field-length warnings are advisory and do not fail.
     expect(() => parseTaskListWithWarnings(ledger)).not.toThrow();
   });
 
   it('product-roadmap.json parses against RoadmapSchema (strict)', () => {
-    const ledger = readLedger('docs/reference/product-roadmap.json');
+    const ledger = readLedger('product-roadmap.json');
     expect(() => RoadmapSchema.parse(ledger)).not.toThrow();
   });
 
   it('product-backlog.json parses against BacklogSchema (strict)', () => {
-    const ledger = readLedger('docs/reference/product-backlog.json');
+    const ledger = readLedger('product-backlog.json');
     expect(() => BacklogSchema.parse(ledger)).not.toThrow();
   });
 });

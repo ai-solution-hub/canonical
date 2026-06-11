@@ -41,15 +41,18 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
+import { join, resolve } from 'node:path';
 import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema';
 import { TaskListSchema } from '@/lib/validation/task-list-schema';
 
+const FIXTURE_DIR = resolve(__dirname, '../fixtures/ledger');
+
 describe('umbrellas ↔ task-list round-trip (PRODUCT inv 9)', () => {
   const umbrellas = UmbrellasSchema.parse(
-    JSON.parse(readFileSync('docs/reference/umbrellas.json', 'utf-8')),
+    JSON.parse(readFileSync(join(FIXTURE_DIR, 'umbrellas.json'), 'utf-8')),
   );
   const taskList = TaskListSchema.parse(
-    JSON.parse(readFileSync('docs/reference/task-list.json', 'utf-8')),
+    JSON.parse(readFileSync(join(FIXTURE_DIR, 'task-list.json'), 'utf-8')),
   );
   const realTaskIds = new Set(taskList.tasks.map((t) => t.id));
 

@@ -1,0 +1,106 @@
+{
+  "document_name": "Knowledge Hub Task List",
+  "document_purpose": "Synthetic de-identified fixture for tests. Contains representative task shapes; no real task data.",
+  "related_documents": ["docs/reference/product-roadmap.json"],
+  "tasks": [
+    {
+      "id": "1",
+      "title": "Fixture Task Alpha",
+      "description": "A synthetic task used as the first fixture record for ledger CLI tests.",
+      "status": "in_progress",
+      "priority": "should",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "1",
+          "title": "Fixture Subtask Alpha-One",
+          "description": "First subtask of task 1 for test fixture.",
+          "details": "Initial dispatch brief for fixture subtask.",
+          "status": "pending",
+          "dependencies": [],
+          "testStrategy": "Verify fixture subtask is accessible."
+        },
+        {
+          "id": "2",
+          "title": "Fixture Subtask Alpha-Two",
+          "description": "Second subtask of task 1 — needed for sibling-dep test cases.",
+          "details": "Sibling subtask brief.",
+          "status": "pending",
+          "dependencies": [],
+          "testStrategy": null
+        }
+      ],
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "effort_estimate": null,
+      "owner": null,
+      "priority_note": null,
+      "status_note": null,
+      "cross_doc_links": [],
+      "session_refs": ["kh-main-S1"],
+      "commit_refs": ["abc1234"]
+    },
+    {
+      "id": "2",
+      "title": "Fixture Task Beta",
+      "description": "A second synthetic task used for multi-task fixture assertions.",
+      "status": "pending",
+      "priority": "could",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "1",
+          "title": "Fixture Subtask Beta-One",
+          "description": "Only subtask of task 2 for test fixture.",
+          "details": "Beta subtask brief.",
+          "status": "done",
+          "dependencies": [],
+          "testStrategy": null
+        }
+      ],
+      "updatedAt": "2026-01-02T00:00:00.000Z",
+      "effort_estimate": "1-2h",
+      "owner": null,
+      "priority_note": null,
+      "status_note": null,
+      "cross_doc_links": [],
+      "session_refs": [],
+      "commit_refs": []
+    },
+    {
+      "id": "35",
+      "title": "Fixture Task Thirty-Five",
+      "description": "Task with id 35 required by autoid-coercion and discoverability tests that reference this id explicitly.",
+      "status": "pending",
+      "priority": "should",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "1",
+          "title": "Fixture Subtask 35-One",
+          "description": "First subtask of task 35.",
+          "details": "Subtask 35.1 fixture brief.",
+          "status": "pending",
+          "dependencies": [],
+          "testStrategy": "Verify subtask 35.1 is reachable."
+        },
+        {
+          "id": "2",
+          "title": "Fixture Subtask 35-Two",
+          "description": "Second subtask of task 35 — sibling for dependency coercion test.",
+          "details": "Subtask 35.2 fixture brief.",
+          "status": "pending",
+          "dependencies": [],
+          "testStrategy": null
+        }
+      ],
+      "updatedAt": "2026-01-03T00:00:00.000Z",
+      "effort_estimate": null,
+      "owner": null,
+      "priority_note": null,
+      "status_note": null,
+      "cross_doc_links": [],
+      "session_refs": [],
+      "commit_refs": []
+    }
+  ]
+}

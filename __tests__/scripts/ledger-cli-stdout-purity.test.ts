@@ -29,10 +29,11 @@ import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
 const REPO = resolve(__dirname, '../..');
 const CLI = join(REPO, 'scripts/ledger-cli.ts');
-const REAL = {
-  task: join(REPO, 'docs/reference/task-list.json'),
-  roadmap: join(REPO, 'docs/reference/product-roadmap.json'),
-  backlog: join(REPO, 'docs/reference/product-backlog.json'),
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const FIXTURES = {
+  task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
+  roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
+  backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
 };
 
 describe('ledger-cli stdout purity — real server-routed write (ID-35.44)', () => {
@@ -42,9 +43,9 @@ describe('ledger-cli stdout purity — real server-routed write (ID-35.44)', () 
 
   beforeEach(() => {
     ledgerDir = mkdtempSync(join(tmpdir(), 'ledger-purity-norgn-'));
-    copyFileSync(REAL.task, join(ledgerDir, 'task-list.json'));
-    copyFileSync(REAL.roadmap, join(ledgerDir, 'product-roadmap.json'));
-    copyFileSync(REAL.backlog, join(ledgerDir, 'product-backlog.json'));
+    copyFileSync(FIXTURES.task, join(ledgerDir, 'task-list.json'));
+    copyFileSync(FIXTURES.roadmap, join(ledgerDir, 'product-roadmap.json'));
+    copyFileSync(FIXTURES.backlog, join(ledgerDir, 'product-backlog.json'));
     const doc = JSON.parse(
       readFileSync(join(ledgerDir, 'task-list.json'), 'utf8'),
     );
@@ -114,9 +115,9 @@ describe('ledger-cli --dry-run is bounded (ID-35.44 defect 2)', () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'ledger-purity-dry-'));
-    copyFileSync(REAL.task, join(dir, 'task-list.json'));
-    copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
-    copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
+    copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
+    copyFileSync(FIXTURES.roadmap, join(dir, 'product-roadmap.json'));
+    copyFileSync(FIXTURES.backlog, join(dir, 'product-backlog.json'));
   });
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });

@@ -1,0 +1,23 @@
+{
+  "document_name": "Knowledge Hub Retros",
+  "document_purpose": "Synthetic de-identified fixture for tests. Contains a representative retro record; no real session data.",
+  "related_documents": [],
+  "last_updated": "kh-main-S1 fixture setup",
+  "retros": [
+    {
+      "id": "S1",
+      "session_id": "kh-main-S1",
+      "date": "2026-01-01",
+      "track": "main",
+      "session_refs": ["kh-main-S1"],
+      "commit_refs": ["abc1234"],
+      "cross_doc_links": [],
+      "bugs_discovered": [{ "text": "Fixture bug finding for test assertions." }],
+      "failed_assumptions": [],
+      "architecture_decisions": [{ "text": "Fixture architecture decision for test assertions." }],
+      "rejected_approaches": [],
+      "workflow_improvements": [{ "text": "Fixture workflow improvement for test assertions." }],
+      "unresolved_questions": []
+    }
+  ]
+}

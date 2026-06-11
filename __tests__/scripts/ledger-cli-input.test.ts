@@ -37,7 +37,8 @@ const SCHEMA_BY_NAME = {
     ({ kind: 'backlog', data: BacklogSchema.parse(raw) }) as const,
 } satisfies Record<string, (raw: unknown) => { kind: string; data: unknown }>;
 
-const REPO = resolve(__dirname, '../..');
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const FIXTURE_DIR = resolve(__dirname, '../fixtures/ledger');
 
 let dir: string;
 beforeEach(() => {
@@ -231,10 +232,8 @@ describe('readRecordInput — precedence + equivalence (ID-35.15)', () => {
 
 describe('nextId — max+1 with correct primitive type (ID-35.15)', () => {
   function detected(name: 'task-list' | 'product-roadmap' | 'product-backlog') {
-    const text = readFileSync(
-      join(REPO, `docs/reference/${name}.json`),
-      'utf8',
-    );
+    // ID-68.35: reads from synthetic fixture dir instead of live docs/reference/.
+    const text = readFileSync(join(FIXTURE_DIR, `${name}.json`), 'utf8');
     return SCHEMA_BY_NAME[name](JSON.parse(text));
   }
 
@@ -242,11 +241,9 @@ describe('nextId — max+1 with correct primitive type (ID-35.15)', () => {
     const d = detected('product-backlog');
     const id = nextId(d, 'items');
     expect(typeof id).toBe('string');
-    // Derive expected from the live max rather than a hardcoded value — the backlog
-    // grows across sessions, so a fixed literal (was "186") rots. The independent
-    // reduction below verifies nextId returns the true max+1 as a string. (S279 OQ-D)
+    // Derive expected from the fixture max (fixture ids: 1, 2, 100 → max+1 = 101).
     const raw = JSON.parse(
-      readFileSync(join(REPO, 'docs/reference/product-backlog.json'), 'utf8'),
+      readFileSync(join(FIXTURE_DIR, 'product-backlog.json'), 'utf8'),
     ) as { items: Array<{ id: string | number }> };
     const maxNum = Math.max(
       ...raw.items.map((i) => Number(String(i.id).replace(/[^0-9]/g, ''))),

@@ -24,7 +24,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
   RetrosSchema,
@@ -32,8 +32,7 @@ import {
   parseRetrosWithWarnings,
 } from '@/lib/validation/retro-schema';
 
-const PROJECT_ROOT = join(__dirname, '../..');
-const RETROS_PATH = join(PROJECT_ROOT, 'docs/reference/product-retros.json');
+const RETROS_PATH = resolve(__dirname, '../fixtures/ledger/product-retros.json');
 
 describe('product-retros.json schema roundtrip (RetrosSchema)', () => {
   it('parses the live JSON file without throwing', () => {
@@ -80,12 +79,13 @@ describe('product-retros.json schema roundtrip (RetrosSchema)', () => {
     expect(result.last_updated.length).toBeGreaterThan(0);
   });
 
-  it('retros array is non-empty (S264 migrated as inaugural record)', () => {
+  it('retros array is non-empty (S1 present as synthetic fixture record)', () => {
     const raw = readFileSync(RETROS_PATH, 'utf-8');
     const result = RetrosSchema.parse(JSON.parse(raw));
 
     expect(result.retros.length).toBeGreaterThan(0);
-    expect(result.retros.some((r) => r.id === 'S264')).toBe(true);
+    // Fixture uses synthetic id S1 (replaced real S264 per ID-68.35 ledger relocation).
+    expect(result.retros.some((r) => r.id === 'S1')).toBe(true);
   });
 
   it('all parsed record ids are unique (id-uniqueness refine)', () => {

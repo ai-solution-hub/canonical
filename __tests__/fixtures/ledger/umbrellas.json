@@ -1,0 +1,16 @@
+{
+  "document_name": "umbrellas",
+  "document_purpose": "Synthetic de-identified fixture for tests. Contains a representative umbrella entry referencing synthetic task ids.",
+  "last_updated": "kh-main-S1 fixture setup",
+  "related_documents": ["docs/reference/task-list.json"],
+  "umbrellas": [
+    {
+      "id": "fixture-umbrella",
+      "title": "Fixture Umbrella",
+      "substrate_doc": "docs/tracks/fixture.md",
+      "task_ids": ["1", "2"],
+      "status": "in_progress",
+      "phase": "Phase 1"
+    }
+  ]
+}

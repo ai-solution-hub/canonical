@@ -781,34 +781,25 @@ const CLONE_PRESENT =
   );
 const FIXED_NOW = '2026-01-01T00:00:00.000Z';
 
-// ID-90.21 (live-ledger drift): the parity cases below MUST address records by
-// ids derived from the LIVE ledger content rather than hardcoded literals. The
-// fixtures are a `cpSync` of `docs/reference` at run time (see `fixtureDir()`),
-// so a concurrent session deleting a record (e.g. backlog 270/271/… in
-// d6eb192ac) would otherwise make a hardcoded `'270'` 404 on the flag-OFF arm
-// with `walk-error: Item id "270" not found`. Reading the first record id from
-// each live document once — same content `fixtureDir()` copies — keeps the
-// cases content-independent and drift-proof.
-function firstId(relPath: string, listKey: string): string {
+// ID-68.35: repointed to synthetic fixtures (live docs/reference/ ledgers removed
+// from public repo). The firstId helper now reads from __tests__/fixtures/ledger/.
+// The fixture ids are stable and de-identified (task "1", backlog "1", theme "1").
+const FIXTURE_LEDGER_DIR = resolve(__dirname, '../fixtures/ledger');
+
+function firstId(filename: string, listKey: string): string {
   const doc = JSON.parse(
-    readFileSync(resolve(REPO_ROOT, relPath), 'utf8'),
+    readFileSync(resolve(FIXTURE_LEDGER_DIR, filename), 'utf8'),
   ) as Record<string, { id: string | number }[]>;
   const list = doc[listKey];
   if (!Array.isArray(list) || list.length === 0 || list[0].id == null) {
-    throw new Error(`firstId: no ${listKey}[0].id in ${relPath}`);
+    throw new Error(`firstId: no ${listKey}[0].id in ${filename}`);
   }
   return String(list[0].id);
 }
 
-const FIRST_BACKLOG_ID = firstId(
-  'docs/reference/product-backlog.json',
-  'items',
-);
-const FIRST_ROADMAP_THEME_ID = firstId(
-  'docs/reference/product-roadmap.json',
-  'themes',
-);
-const FIRST_TASK_ID = firstId('docs/reference/task-list.json', 'tasks');
+const FIRST_BACKLOG_ID = firstId('product-backlog.json', 'items');
+const FIRST_ROADMAP_THEME_ID = firstId('product-roadmap.json', 'themes');
+const FIRST_TASK_ID = firstId('task-list.json', 'tasks');
 
 interface CliRun {
   exitCode: number;
@@ -866,9 +857,10 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
   let fixtureRoots: string[] = [];
 
   function fixtureDir(): string {
+    // ID-68.35: cpSync from synthetic fixture dir instead of live docs/reference/.
     const root = mkdtempSync(join(TMP_BASE, 'ledger-9025-'));
     const refDir = join(root, 'docs', 'reference');
-    cpSync(join(REPO_ROOT, 'docs/reference'), refDir, { recursive: true });
+    cpSync(FIXTURE_LEDGER_DIR, refDir, { recursive: true });
     fixtureRoots.push(root);
     return refDir;
   }

@@ -13,23 +13,19 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
-const REPO = resolve(__dirname, '../..');
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const FIXTURES = {
+  task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
+  roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
+  backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
+};
 let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ledger-cli-int-'));
-  copyFileSync(
-    join(REPO, 'docs/reference/task-list.json'),
-    join(dir, 'task-list.json'),
-  );
-  copyFileSync(
-    join(REPO, 'docs/reference/product-roadmap.json'),
-    join(dir, 'product-roadmap.json'),
-  );
-  copyFileSync(
-    join(REPO, 'docs/reference/product-backlog.json'),
-    join(dir, 'product-backlog.json'),
-  );
+  copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
+  copyFileSync(FIXTURES.roadmap, join(dir, 'product-roadmap.json'));
+  copyFileSync(FIXTURES.backlog, join(dir, 'product-backlog.json'));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

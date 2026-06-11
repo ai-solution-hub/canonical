@@ -61,19 +61,19 @@ function escapeSerialise(parsedValue: unknown): string {
   );
 }
 
-const REPO = resolve(__dirname, '../..');
-const REAL = {
-  task: join(REPO, 'docs/reference/task-list.json'),
-  roadmap: join(REPO, 'docs/reference/product-roadmap.json'),
-  backlog: join(REPO, 'docs/reference/product-backlog.json'),
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const FIXTURES = {
+  task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
+  roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
+  backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
 };
 
 let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ledger-cli-promote-scoped-'));
-  copyFileSync(REAL.task, join(dir, 'task-list.json'));
-  copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
-  copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
+  copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
+  copyFileSync(FIXTURES.roadmap, join(dir, 'product-roadmap.json'));
+  copyFileSync(FIXTURES.backlog, join(dir, 'product-backlog.json'));
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
