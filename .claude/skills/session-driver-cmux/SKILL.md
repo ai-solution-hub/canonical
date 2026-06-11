@@ -188,18 +188,15 @@ KH "Worktree isolation rules" from CLAUDE.md apply unchanged:
 cmux workers (sub-orchestrators included) MUST NOT mutate or commit the ledger
 JSONs — `docs/reference/{task-list,product-backlog,product-roadmap,product-retros}.json`
 or their `docs/reference/{tasks,backlog}/*.md` mirrors — in their worktree
-branch. Ledger writes are **Orchestrator-owned** and applied via
-`bun scripts/ledger-cli.ts <verb>` against the MAIN checkout: the ID-90 ledger
-daemon serialises writes behind **one mutex per ledger directory**, so it only
-de-conflicts writers that all target the same main-checkout directory — an
-in-branch `chore(ledger)` commit bypasses the mutex entirely. Workers instead
-**RETURN ledger-write intents** to the Orchestrator (e.g. "flip {N.M} done with
-journal X", "create backlog item Y"), and the Orchestrator performs every write.
-This keeps id allocation behind the single mutex and makes collisions
-structurally impossible. *Evidence (S-current):* three parallel sub-orchestrators
-each committed ledger deltas in their own branches → bl-287/bl-288 were allocated
-to THREE different items each (3-way id collision), forcing manual de-dup, re-ID
-(→bl-289/290/291), and journal replay.
+branch. Workers instead **RETURN ledger-write intents** to the Orchestrator (e.g.
+"flip {N.M} done with journal X", "create backlog item Y"; see the
+`ledger_intents` contract under *Final-report convention* below), and the
+Orchestrator applies every write via `ledger-cli.ts` against the MAIN checkout.
+
+> **Canonical protocol + rationale** (one mutex per ledger directory, why an
+> in-branch `chore(ledger)` commit bypasses it, the bl-287/288 3-way collision):
+> `.claude/skills/workflow-orchestration/SKILL.md` → *Ledger field-discipline*.
+> This note is the worker-facing summary; that section is the source of truth.
 
 ---
 
@@ -416,9 +413,9 @@ EMIT its final report to a structured file inside its events directory
 ```
 Before /exit, write your final report to `<events_dir>/final_report.yaml`
 (or `.json`). Schema: structured key/value with sections {summary, commits,
-dispositions, OQs_for_parent, next_session_handoff}. Keep stdout summary
-too (for human glance) but the YAML/JSON file is the canonical machine-read
-surface.
+dispositions, ledger_intents, OQs_for_parent, next_session_handoff}. Keep
+stdout summary too (for human glance) but the YAML/JSON file is the canonical
+machine-read surface.
 ```
 
 In the brief, `<events_dir>` resolves to the worker's per-SID directory
@@ -431,6 +428,25 @@ EVENTS_DIR=$(jq -r '.events_dir' <(echo "$R1"))
 cat "$EVENTS_DIR/final_report.yaml"            # clean machine read
 yq '.commits[]' "$EVENTS_DIR/final_report.yaml"
 ```
+
+**`ledger_intents` contract.** This is how a worker hands its ledger writes back
+to the Orchestrator without touching the ledger in-branch (see *Ledger writes —
+clash-free protocol* above). `ledger_intents` is a list; each intent carries:
+
+- `verb` — the ledger mutation (e.g. `set-status`, `add-journal`, `add-subtask`,
+  `create-backlog`, `create-roadmap`).
+- `target` — the `N.M` id the intent applies to, or `null` for a create (the
+  Orchestrator allocates the id under the mutex on MAIN — workers never pre-assign
+  one).
+- `args` — the verb-specific payload (e.g. the status value, the `<info added on …>`
+  journal text, the backlog item fields).
+
+Author any `description` (≤250) and `testStrategy` (≤300) values inside `args`
+**within budget on the first pass** (invariant 57) — overflow belongs in the
+unbudgeted `details`, not trimmed at apply-time. The Orchestrator replays each
+intent through the `ledger-cli.ts` façade on the MAIN checkout; this doc names the
+façade only and intentionally carries no invocation recipe (the verb→flag mapping
+lives with the CLI, not here).
 
 ### Handing off to a human
 

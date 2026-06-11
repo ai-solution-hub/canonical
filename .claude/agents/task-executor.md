@@ -85,6 +85,18 @@ A **Subtask dispatch brief** drawn from `docs/reference/task-list.json`:
 - **State machine: pending → in-progress only.** Per §6.3 / B12. You move the Subtask
   status to `in-progress` when you accept the dispatch brief. You NEVER set it to `done` —
   that's the Checker's call after a PASS verdict.
+- **Never write the ledger in-branch — return intents.** You run in an isolated worktree,
+  so you are exactly the class of writer the ID-90 daemon mutex CANNOT de-conflict: the
+  mutex serialises behind one lock per main-checkout ledger directory, and an in-branch
+  `chore(ledger)` commit bypasses it entirely (the bl-287/288 3-way id collision). NEVER
+  write, stage, or commit
+  `docs/reference/{task-list,product-backlog,product-roadmap,product-retros}.json` or
+  their `docs/reference/{tasks,backlog}/*.md` mirrors in your branch — not even the
+  `<info added on …>` journal block. Instead, RETURN your ledger-write intents (flip {N.M}
+  to the status you reached, append journal text X, create backlog item Y) in your report;
+  the Orchestrator applies every write via `ledger-cli.ts` on the main checkout. The
+  worktree pre-commit guard hard-blocks staged ledger paths, so a stray ledger write fails
+  your commit loudly — this is by design.
 - **Escalate, don't paper over.** If you encounter unexpected production behaviour (wrong
   renders, dead code, tests that only pass by not testing real logic, missing
   infrastructure the brief assumed) — STOP and escalate to the orchestrator with evidence.

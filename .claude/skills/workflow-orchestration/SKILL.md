@@ -416,19 +416,22 @@ substrate, while the CLI is the **operator surface**; its invocation shapes are
 unchanged (invariant 57). Per-field discipline - **Canonical
 reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`
 
-**Ledger writes are MAIN-checkout-only — never in a worker branch.** The ID-90
-daemon serialises behind **one mutex per ledger directory**, so it only
-de-conflicts writers that all target the *same* main-checkout ledger directory.
-Sub-orchestrators and executors dispatched into their own worktrees (via
-`session-driver-cmux` or `Agent` `isolation: "worktree"`) MUST NOT mutate or
-commit the ledger JSONs or their `docs/reference/{tasks,backlog}/*.md` mirrors in
-their branch — an in-branch `chore(ledger)` commit bypasses the mutex entirely.
-Workers **return ledger-write intents** (flip {N.M} done with journal X, create
-backlog item Y); the Orchestrator applies every write via the CLI on the main
-checkout. *Evidence (S-current):* three parallel sub-orchestrators each committed
-ledger deltas in-branch → bl-287/bl-288 collided 3-ways (same ids reused), forcing
-manual de-dup, re-ID, and journal replay — the exact clash the single mutex
-exists to prevent.
+**Ledger writes are MAIN-checkout-only — never in a worker branch.** This section
+is the **canonical home** for the clash-free ledger-write protocol; the
+`session-driver-cmux` and `task-executor` worker-side notes cross-reference it
+rather than restate it. The ID-90 daemon serialises behind **one mutex per ledger
+directory**, so it only de-conflicts writers that all target the *same*
+main-checkout ledger directory. Sub-orchestrators and executors dispatched into
+their own worktrees (via `session-driver-cmux` or `Agent` `isolation: "worktree"`)
+MUST NOT mutate or commit the ledger JSONs or their `docs/reference/{tasks,backlog}/*.md`
+mirrors in their branch — an in-branch `chore(ledger)` commit bypasses the mutex
+entirely. Workers **return ledger-write intents** (flip {N.M} done with journal X,
+create backlog item Y); **the Orchestrator applies every returned intent via
+`ledger-cli.ts` on the MAIN checkout** — id allocation for creates happens here,
+under the mutex, never in a worker. *Evidence (S-current):* three parallel
+sub-orchestrators each committed ledger deltas in-branch → bl-287/bl-288 collided
+3-ways (same ids reused), forcing manual de-dup, re-ID, and journal replay — the
+exact clash the single mutex exists to prevent.
 
 | Field | Shape | Load-bearing for |
 |---|---|---|

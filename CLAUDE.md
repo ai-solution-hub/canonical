@@ -275,6 +275,10 @@ Mempalace MCP server is the canonical memory system.
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
+- **Workers never write the ledger in-branch:** The ID-90 daemon mutex is per
+  main-checkout ledger directory, so an in-branch `chore(ledger)` commit from a worktree
+  worker bypasses it (the bl-287/288 3-way id collision). Worktree workers RETURN
+  ledger-write intents; the Orchestrator applies them via `ledger-cli.ts` on MAIN.
 
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->

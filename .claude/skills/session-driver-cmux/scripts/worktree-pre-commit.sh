@@ -31,6 +31,43 @@ fi
 
 cd "$REPO_ROOT"
 
+# --- Clash-free ledger guard (ID-92.23) -----------------------------------
+# Workers run in isolated worktrees, so the ID-90 ledger daemon mutex — which
+# is per main-checkout ledger directory — CANNOT de-conflict their writes. An
+# in-branch `chore(ledger)` commit bypasses the mutex entirely (the bl-287/288
+# 3-way id collision). Block any staged ledger JSON or its md mirror so a stray
+# in-branch ledger write fails loudly here; workers RETURN ledger-write intents
+# in final_report.yaml instead, and the Orchestrator applies them on MAIN. See
+# .claude/skills/workflow-orchestration/SKILL.md → Ledger field-discipline.
+#
+# ROLLOUT CAVEAT: this hook is copied into each worktree at launch
+# (launch-worker.sh), so editing it affects FUTURE worktrees only — the
+# Orchestrator sequences the change before the next wave's launches.
+#
+# Read-only staged-index check; degrade-safe — only block on a positive match
+# (a failed/empty staged-name query never blocks). `|| true` keeps an empty
+# grep from aborting under `set -euo pipefail`.
+STAGED_LEDGER=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E '^docs/reference/(task-list|product-backlog|product-roadmap|product-retros)\.json$|^docs/reference/(tasks|backlog)/.*\.md$' \
+  || true)
+
+if [ -n "$STAGED_LEDGER" ]; then
+  echo "" >&2
+  echo "pre-commit: BLOCKED — ledger write staged in a worker branch:" >&2
+  while IFS= read -r offending; do
+    echo "  - $offending" >&2
+  done <<<"$STAGED_LEDGER"
+  echo "" >&2
+  echo "Workers (worktree sub-orchestrators + executors) MUST NOT commit ledger" >&2
+  echo "writes in-branch. The ID-90 daemon mutex is per main-checkout ledger" >&2
+  echo "directory, so an in-branch chore(ledger) commit bypasses it (bl-287/288" >&2
+  echo "3-way id collision). RETURN ledger-write intents in final_report.yaml;" >&2
+  echo "the Orchestrator applies them via ledger-cli.ts on the MAIN checkout." >&2
+  echo "" >&2
+  exit 1
+fi
+# --------------------------------------------------------------------------
+
 # Collect staged files prettier can handle. Extension allowlist keeps the
 # spawn cost predictable and avoids prettier's "no parser inferred" noise
 # on unrelated files (e.g. .sh, .py, binaries).
