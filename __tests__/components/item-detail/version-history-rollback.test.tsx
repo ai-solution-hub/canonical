@@ -45,7 +45,7 @@ import { VersionHistory } from '@/components/item-detail/version-history';
 // ---------------------------------------------------------------------------
 
 const ITEM_ID = '33333333-3333-4333-8333-333333333333';
-const VERSION_ID = 'version-abc';
+const VERSION_ID = 'aaaabbbb-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 const SAMPLE_VERSION = {
   id: VERSION_ID,
@@ -71,7 +71,7 @@ describe('VersionHistory — rollback mutation (ID-106.1)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('invalidates item-history keys and fires toast.success on rollback success', async () => {
+  it('restores a previous version and confirms success to the user', async () => {
     const fetchMock = vi
       .fn()
       // List fetch succeeds
