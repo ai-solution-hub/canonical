@@ -102,7 +102,10 @@ import {
   type TransportRequest,
   type MutationOptions as TransportMutationOptions,
 } from '@/scripts/ledger-server-client';
-import { ensureServer } from '@/scripts/ledger-server-lifecycle';
+import {
+  ensureServer,
+  resolveDefaultLedgerDir,
+} from '@/scripts/ledger-server-lifecycle';
 import { SubtaskSchema, TaskSchema } from '@/lib/validation/task-list-schema';
 import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
@@ -561,7 +564,12 @@ function parseArgs(argv: string[]): ParseArgsResult {
     noRegenMirrors: false,
     force: false,
     append: false,
-    ledgerDir: 'docs/reference',
+    // ID-68.35 — ledgers relocated out of the public repo to the docs-site
+    // checkout. Call the SAME resolver the daemon default uses so the CLI
+    // default and the daemon default are byte-identical (the `isDefault`
+    // persistent-vs-ephemeral gate in ensureServer compares against it).
+    // Fail-closed: throws LOUD if KH_PRIVATE_DOCS_DIR is unset.
+    ledgerDir: resolveDefaultLedgerDir(),
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];

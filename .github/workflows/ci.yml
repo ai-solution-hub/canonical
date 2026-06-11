@@ -267,9 +267,10 @@ jobs:
         # transport (KH_LEDGER_SERVER unset → ON). ensureServer spawns
         # `.cache/task-view-<TASK_VIEW_TAG>/apps/server/index.ts`
         # (ledger-server-lifecycle.ts:340); /.cache/ is gitignored, so this job
-        # must provision it too — parity with the ledger-mirror-parity job, which
-        # is the only job that previously cloned task-view. TASK_VIEW_TAG is a
-        # static literal (not external context) — safe in run:.
+        # must provision task-view itself. (The ledger-mirror-parity job — the
+        # other former cloner — was retired under ID-68.35 when the ledgers moved
+        # to the docs-site repo.) TASK_VIEW_TAG is a static literal (not external
+        # context) — safe in run:.
         env:
           TASK_VIEW_TAG: v0.5.0-task-view
         run: |
@@ -1107,109 +1108,6 @@ jobs:
       - name: Type-drift parity check
         run: bun run ast-dataflow type-drift-detect --ci
 
-  ledger-mirror-parity:
-    # ID-20.12 (per-task-mirror) — committed-mirror drift gate. The external
-    # `task-view` editor (https://github.com/liam-jons/task-view) generates
-    # per-record `.md` mirrors from the three canonical ledgers into
-    # docs/reference/{tasks,roadmap,backlog}. Those mirrors are committed; this
-    # job re-runs the generator and FAILS if regeneration drifts from what is
-    # committed — i.e. someone edited a ledger JSON without regenerating, or
-    # hand-edited a mirror.
-    #
-    # `task-view --check <ledger>` writes the mirror set to disk (relative to
-    # the ledger path) and exits non-zero only on read/parse/generate failure;
-    # content drift is caught by the follow-up `git diff --exit-code` over the
-    # three mirror dirs.
-    #
-    # task-view is installed globally from its tagged release (OQ-T1):
-    # `bun install -g github:liam-jons/task-view@v0.1.0-task-view`. That tag is
-    # published in Subtask 20.13; until then the install step is the only thing gating
-    # this job (a missing tag makes `bun install -g` fail, surfacing the same
-    # "re-pin the tag" signal rather than silently passing). Bump the tag here
-    # when task-view cuts a new release.
-    #
-    # No secrets required — reads repo files only (no Supabase / Anthropic /
-    # OpenAI). `environment:` omitted intentionally so Dependabot PRs run it.
-    # Depends on `quality-precheck` so a lint/build failure doesn't also spin up
-    # this job. Mirrors the `type-drift-parity` topology.
-    #
-    # Spec: docs/specs/id-20-per-task-mirror/TECH.md §3.5 + §6.4; PRODUCT inv 5/40.
-    name: Ledger mirror parity
-    runs-on: ubuntu-latest
-    needs: quality-precheck
-    timeout-minutes: 10
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          fetch-depth: 1
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: "1.3.4"
-
-      - name: Install task-view (clone @ tag)
-        # OQ-T1: pin task-view by tag. Bump TASK_VIEW_TAG on a new release.
-        # NB: `bun install -g github:liam-jons/task-view@<tag>` mis-resolves the
-        # specifier (emits api.github.com/repos//<tag>/tarball → 404), so we
-        # clone the public repo at the tag and invoke its bin shim instead.
-        # TASK_VIEW_TAG is a static literal (not external context) — safe in run:.
-        env:
-          TASK_VIEW_TAG: v0.5.0-task-view
-        run: |
-          git clone --depth 1 --branch "$TASK_VIEW_TAG" \
-            https://github.com/liam-jons/task-view.git "$RUNNER_TEMP/task-view"
-          (cd "$RUNNER_TEMP/task-view" && bun install)
-
-      - name: Regenerate ledger mirrors (--check)
-        run: |
-          node "$RUNNER_TEMP/task-view/bin/task-view.js" --check docs/reference/task-list.json
-          node "$RUNNER_TEMP/task-view/bin/task-view.js" --check docs/reference/product-roadmap.json
-          node "$RUNNER_TEMP/task-view/bin/task-view.js" --check docs/reference/product-backlog.json
-
-      - name: Fail on mirror drift
-        # The committed mirrors must be byte-identical to a fresh regen
-        # (PRODUCT inv 5 — idempotent). Any diff means a ledger JSON changed
-        # without re-running task-view, or a mirror was hand-edited.
-        run:
-          git diff --exit-code -- docs/reference/tasks docs/reference/roadmap
-          docs/reference/backlog
-
-      - name: Install KH dependencies
-        # The parity harness spawns ledger-cli.ts which imports KH modules.
-        run: bun install --frozen-lockfile
-
-      - name: Provision .cache/task-view-<tag> (explicit, for ensureServer)
-        # ID-90.22 PRE-CONDITION (P3 retirement): the flag-ON parity arm spawns
-        # the ledger server via `ensureServer`, which resolves the server entry
-        # at `.cache/task-view-<TASK_VIEW_TAG>/apps/server/index.ts`
-        # (ledger-server-lifecycle.ts:340). Nothing in this job previously
-        # provisioned that path — the flag-ON arm survived on implicit ordering
-        # (a flag-OFF post-write regen-mirrors.sh clone-if-missing). Symlinking
-        # the tag-keyed cache to the already-cloned-and-installed
-        # `$RUNNER_TEMP/task-view` (Install step above) makes provisioning
-        # EXPLICIT and arm-order-independent: re-ordering the parity arms or
-        # passing `--no-regen-mirrors` can no longer break `ensureServer`.
-        # TASK_VIEW_TAG mirrors the Install step's literal (static, not external
-        # context — safe in run:).
-        env:
-          TASK_VIEW_TAG: v0.5.0-task-view
-        run: |
-          mkdir -p .cache
-          ln -sfn "$RUNNER_TEMP/task-view" ".cache/task-view-$TASK_VIEW_TAG"
-
-      - name: Differential parity (flag-OFF vs flag-ON, AC-P1 inv 21)
-        # ID-90.20 K5: prove flag-OFF and flag-ON paths produce byte-identical
-        # ledger files across the mutating-subcommand matrix. Reuses the
-        # task-view clone from the Install step above. Exports a SYNTHETIC
-        # denylist so the client-name guard arm is exercised (AC-I: synthetic
-        # only, never real tokens).
-        run: bun scripts/ledger-differential-parity.ts --ci
-
   supabase-types-parity:
     # ID-47.6 (S265 / type-safety-pipeline OQ6) — DB-axis generated-types parity
     # gate. Regenerates `supabase/types/database.types.ts` from the live schema
@@ -1403,7 +1301,6 @@ jobs:
       - mcp-eval
       - integration
       - type-drift-parity
-      - ledger-mirror-parity
       - supabase-types-parity
       - build-gate
     runs-on: ubuntu-latest
@@ -1428,7 +1325,6 @@ jobs:
           MCP_EVAL: ${{ needs.mcp-eval.result }}
           INTEGRATION: ${{ needs.integration.result }}
           TYPE_DRIFT_PARITY: ${{ needs.type-drift-parity.result }}
-          LEDGER_MIRROR_PARITY: ${{ needs.ledger-mirror-parity.result }}
           SUPABASE_TYPES_PARITY: ${{ needs.supabase-types-parity.result }}
           BUILD_GATE: ${{ needs.build-gate.result }}
         run: |
@@ -1444,7 +1340,6 @@ jobs:
             "mcp-eval=$MCP_EVAL" \
             "integration=$INTEGRATION" \
             "type-drift-parity=$TYPE_DRIFT_PARITY" \
-            "ledger-mirror-parity=$LEDGER_MIRROR_PARITY" \
             "supabase-types-parity=$SUPABASE_TYPES_PARITY" \
             "build-gate=$BUILD_GATE"; do
             name="${entry%%=*}"
