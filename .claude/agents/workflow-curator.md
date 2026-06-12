@@ -73,9 +73,10 @@ CURRENT TASK CONTEXT:
   Parent Task acceptance criteria: [list — parent Task ID-N's `## Acceptance criteria` excerpt from PRODUCT.md]
   Sibling Subtask file ownership: { ID-N.X: [globs], ID-N.Y: [globs], ... }  # pending/in-progress siblings under same parent Task
 
-CURRENT ROADMAP/BACKLOG STATE (read by you):
-  - docs/reference/product-roadmap.json
-  - docs/reference/product-backlog.json
+CURRENT ROADMAP/BACKLOG STATE (you slice-read via the CLI — never wholesale Read):
+  - bun scripts/ledger-cli.ts show roadmap <themeId>   # ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json
+  - bun scripts/ledger-cli.ts show backlog <itemId>    # ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-backlog.json
+  - bun scripts/ledger-cli.ts get roadmap <themeId> linked_tasks   # theme-coverage check
 ```
 
 The Orchestrator dispatcher **MUST** populate `Parent Task acceptance criteria` and
@@ -165,15 +166,11 @@ stall pattern this shape was designed to eliminate.
 You do NOT invoke executor- or checker-side skills (`test-driven-development`,
 `code-review-and-quality`, etc.) — those are for code work, not for triage.
 
-## CLI defect history (S273 — all RESOLVED)
+## CLI call shapes
 
-The v3 ledger-CLI's S273-era defects under ID-35 subtasks 35.26–35.34 (string-coerced
-`--id`, number-coerced `--depends`, missing `get` alias, confusing budget labels, noisy
-first-write stdout, regen-advice-with-`--no-regen-mirrors`, etc.) are **all done**.
-Compose call shapes against the current behaviour documented in `update-roadmap-backlog`:
-the `--depends 1,2` named flag now preserves string Task ids, and `add-subtask` auto-id is
-reliable. `--force` remains a `budget-exceeded` escape hatch only — never a defect
-work-around.
+Compose call shapes against the current behaviour documented in the
+`update-roadmap-backlog` skill body. `--force` remains a `budget-exceeded` escape hatch
+only — never a work-around.
 
 ## Optional: Advisor tool for hard triage cases
 
@@ -216,7 +213,13 @@ Parse the orchestrator's finding packet. Make sure you have:
 
 ### Step 2 — Read current state
 
-Read both `docs/reference/product-roadmap.json` and `docs/reference/product-backlog.json`
+Slice-read both ledgers via the CLI — **never wholesale `Read`** the JSONs
+(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json` /
+`product-backlog.json`):
+
+- `bun scripts/ledger-cli.ts show roadmap <themeId>` / `show backlog <itemId>` to inspect
+  candidate entries; `get roadmap <themeId> linked_tasks` for theme-coverage checks.
+
 so you can check:
 
 - Is this already tracked somewhere? (If yes → `no-action` with citation.)
@@ -301,7 +304,7 @@ IF SUBTASK:
     Estimated effort: ...
 
 IF ROADMAP:
-  Written to: docs/reference/product-roadmap.json
+  Written to: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json
   CLI subcommand: create-theme
   CLI exit: ok | schema-error | budget-exceeded | record-set-violation
   Section: §N.M
@@ -310,7 +313,7 @@ IF ROADMAP:
   Warnings (if any): [stderr warnings surfaced by the CLI — e.g. 13-theme soft cap]
 
 IF BACKLOG:
-  Written to: docs/reference/product-backlog.json
+  Written to: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-backlog.json
   CLI subcommand: create-backlog
   CLI exit: ok | schema-error | budget-exceeded | record-set-violation
   Item ID: {new-id}
