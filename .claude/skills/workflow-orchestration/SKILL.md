@@ -59,22 +59,13 @@ SESSION
 - **Spec-authoring ({N.1}–{N.4})** — `spec-driven-implementation` chain:
   RESEARCH.md, PRODUCT.md, TECH.md, PLAN.md — **all four conditional**. One
   fresh Planner per subtask, Checker gates each output, Liam ratifies before
-  implementation. Right-size the spec chain to the task shape via the four named
-  tiers below — the Orchestrator decides the tier at Task open; the Planner may
-  recommend an upgrade mid-`{N.1}` if RESEARCH surfaces compound invariants:
-  - **Full chain** (RESEARCH + PRODUCT + TECH + PLAN) — compound invariants /
-    multiple migrations / chain-dependent slices / >2h effort.
-  - **PRODUCT + PLAN** (skip TECH) — behaviourally rich, implementation-shallow.
-  - **TECH + PLAN** (skip PRODUCT) — unambiguous behaviour, non-trivial
-    implementation.
-  - **Spec-free** — trivial / operational.
-
-  The chosen tier is recorded in the Task `status_note` as a one-line marker
-  (e.g. `spec tier: PRODUCT+PLAN`). **The `status_note` is budget-gated at ≤300
-  characters (invariant 57)** — keep the marker terse. The light tier is a
-  *recorded* decision: an under-specified Task that later reveals compound
-  invariants ESCALATES to a heavier tier (a `status_note` update), never silently
-  proceeds.
+  implementation. Right-size the spec chain via the four named tiers (Full chain /
+  PRODUCT+PLAN / TECH+PLAN / Spec-free) — the Orchestrator decides the tier at
+  Task open, records it as a terse `status_note` marker (≤300-char budget,
+  invariant 57), and an under-specified Task that later reveals compound
+  invariants ESCALATES to a heavier tier, never silently proceeds. Full tier
+  definitions: `.claude/agents/references/shared-discipline.md` §Spec-chain
+  right-sizing and §Spec-tier budget.
 - **Implementation ({N.2-5+})** — one Executor per subtask. Parallel when groups touch disjoint file sets;
   sequential when they share files / schema / produced inputs.
 - **Closing** — Executor `code-simplification` pass, then Checker
@@ -193,62 +184,26 @@ file matching the allowlist in the fourth sub-section. Non-code-touching dispatc
 
 <!-- code-intel:baseline-start -->
 
-The Knowledge Hub codebase is indexed by three complementary code-intelligence tools.
-Each role in the SDLC workflow has a defined set of obligations:
+Per-role obligations are canonical in `.claude/agents/references/shared-discipline.md`
+§Code-intelligence discipline. Binding summary per role:
 
-**Orchestrator (this skill)**
+- **Orchestrator (this skill)** — consult `gitnexus_query` when composing a Planner
+  brief (findings land in the spec's Context / Problem section); `gitnexus_context` on
+  key symbols when dispatch scope is ambiguous; cite `ast-dataflow` queries where
+  call-chain precision is needed; consult `ccc` for semantic search when gitnexus /
+  ast-dataflow have not surfaced the relevant symbols.
+- **Planner** — `gitnexus_query` on domain vocabulary + `gitnexus_context` on mandated
+  symbols before authoring; cite outputs in the spec.
+- **Executor** — pre-edit `gitnexus_impact` (journal the verdict; HIGH/CRITICAL →
+  escalate); pre-commit `gitnexus_detect_changes` (boundary containment).
+- **Checker** — `gitnexus_detect_changes` on the Executor's commit; a missing
+  `gitnexus_impact` journal verdict → `scope-containment: FAIL`.
+- **Curator** — caller-count pre-grep (`gitnexus_context` + `ast-dataflow callers`;
+  ≥10 callers / ≥3 modules → roadmap, fewer → backlog).
 
-- Consult `gitnexus_query` when composing a Planner brief to identify relevant existing
-  execution flows and symbols the spec will touch. This finding lands in the spec's
-  Context / Problem section so the Planner has grounded orientation before writing.
-- Consult `gitnexus_context` on key symbols when the dispatch scope is ambiguous —
-  the call-graph context resolves whether a change is isolated or cross-cutting.
-- Where `ast-dataflow` provides finer-grained call-chain precision (e.g. wrong-argument
-  suspects, barrel-chain tracing), cite the query and its output in the dispatch brief.
-- Consult `ccc` for semantic search across the codebase when gitnexus or ast-dataflow
-  has not already surfaced the relevant symbols.
-
-**Planner (task-planner agent)**
-
-- Run `gitnexus_query` on the spec's domain vocabulary before authoring PRODUCT.md or
-  TECH.md — this surfaces existing execution flows so the spec does not re-invent
-  covered behaviour.
-- Run `gitnexus_context` on any symbol the spec mandates be modified — record the verdict
-  level (LOW / MEDIUM / HIGH / CRITICAL) and the names of the top-3 affected execution
-  flows in the spec's Context section.
-- Where ast-dataflow Q1 / Q2 / Q3 sweeps are appropriate (rename verification,
-  import-path correctness, string-literal site inventory), cite the sweep output.
-
-**Executor (task-executor agent)**
-
-- Before editing any symbol: run `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})`.
-  Record the verdict level, caller count, and top-3 affected execution flows in the
-  Subtask journal block. If the verdict is HIGH or CRITICAL, STOP and escalate to the
-  Orchestrator before proceeding.
-- Before committing: run `gitnexus_detect_changes()` to verify the affected symbol set
-  matches the Subtask's expected file-ownership boundary. Scope creep surfaces here.
-- Use `ast-dataflow` for call-chain precision when gitnexus does not give file:line
-  granularity — especially for wrong-argument suspects or barrel-chain regressions.
-
-**Checker (task-checker agent)**
-
-- Run `gitnexus_detect_changes` on the Executor's commit to audit scope containment.
-- If the Executor's journal block is missing a `gitnexus_impact` verdict, flag
-  `scope-containment: FAIL` in the audit output.
-
-**Curator (workflow-curator agent)**
-
-- Run `gitnexus_context({name: '<symbolName>'})` on finding symbols to count callers.
-  Ten or more callers across three or more modules → roadmap-level finding. Fewer →
-  backlog item. This is the deterministic caller-count signal for routing decisions.
-- Supplement with `ast-dataflow callers <symbolName>` for TypeScript-corpus precision
-  when the gitnexus count is ambiguous.
-
-See `.gitnexus/CLAUDE.md` "Always Do" for canonical `gitnexus_impact` + `gitnexus_query`
-+ `gitnexus_detect_changes` + `gitnexus_context` call patterns. See
-`.ast-dataflow/CLAUDE.md` for the 12 available queries and 9 cross-tool patterns. The
-`ccc` skill body at `~/.agents/skills/ccc/SKILL.md` documents `ccc search`, `ccc describe`,
-and `ccc guide`.
+See `.gitnexus/CLAUDE.md` "Always Do" for canonical call patterns,
+`.ast-dataflow/CLAUDE.md` for the 12 queries and 9 cross-tool patterns, and the `ccc`
+skill body at `~/.agents/skills/ccc/SKILL.md` for `ccc search` / `describe` / `guide`.
 
 <!-- code-intel:baseline-end -->
 
@@ -260,23 +215,13 @@ When composing a Planner dispatch brief, include the following code-intelligence
 orientation in the brief's "Context" or "Problem" section. The Planner must have this
 grounding before writing the spec:
 
-> **Code-intelligence orientation for this Planner brief:**
->
-> Before writing PRODUCT.md or TECH.md, run the following:
->
-> 1. `gitnexus_query({query: '<domain vocabulary from the spec title>'})` — identifies
->    existing execution flows and symbols in the Knowledge Hub codebase that overlap with
->    the spec's domain. Cite findings in the spec's Context / Problem section, or note
->    "gitnexus orientation: no existing symbols match — greenfield surface" if the query
->    returns no relevant results.
->
-> 2. `gitnexus_context({name: '<symbol>'})` — for each symbol the spec mandates be
->    modified, record the full call-graph context: verdict level (LOW / MEDIUM / HIGH /
->    CRITICAL), caller count, and the names of the top-3 affected execution flows. These
->    go into the spec's Context section alongside the symbol reference.
->
-> The Planner cites the gitnexus_query and gitnexus_context outputs explicitly — not
-> paraphrased — so the Checker can verify the orientation step was completed.
+> **Code-intelligence orientation for this Planner brief:** Before writing PRODUCT.md or
+> TECH.md, run `gitnexus_query({query: '<domain vocabulary from the spec title>'})` and
+> `gitnexus_context({name: '<symbol>'})` for each symbol the spec mandates be modified,
+> and cite the outputs explicitly — not paraphrased — in the spec's Context / Problem
+> section so the Checker can verify the orientation step was completed (greenfield
+> disclaimer only after the `ccc search` fallback also returns nothing). Full steps:
+> `.claude/agents/references/shared-discipline.md` §Code-intelligence discipline.
 
 <!-- code-intel:planner-block-end -->
 
@@ -288,28 +233,16 @@ When composing an Executor dispatch brief, include the following code-intelligen
 discipline in the brief's "Operating instructions" section. The Executor must follow
 this discipline on every code-touching Subtask:
 
-> **Code-intelligence discipline for this Executor brief:**
->
-> Before editing any function, class, or method named in this brief:
->
-> 1. Run `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})` and record
->    in your journal block: the verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller
->    count, and the names of the top-3 affected execution flows.
->
-> 2. **If the verdict is HIGH or CRITICAL: STOP and escalate to the Orchestrator.**
->    Do not proceed with edits until the Orchestrator has reviewed the blast radius.
->
-> 3. Before committing: run `gitnexus_detect_changes()` to verify the affected symbol
->    set is contained within this Subtask's file-ownership boundary. If detect_changes
->    reports symbols outside the boundary, STOP and escalate — this is scope creep and
->    the Checker will FAIL the scope-containment audit.
->
-> 4. **Worktree-dispatch caveats** (`isolation: "worktree"`): (a) `gitnexus_detect_changes()`
->    is unrunnable in agent worktrees — they inherit no `.gitnexus` index ("last indexed:
->    never"); use `git diff --name-only` as the authoritative scope-containment fallback.
->    `gitnexus_impact` (primary-tree symbol index) stays reliable. (b) pytest MUST run from
->    the worktree CWD — main-repo-CWD invocations resolve `scripts.*` to the MAIN tree's
->    modules (namespace-package hazard; spurious results against stale code).
+> **Code-intelligence discipline for this Executor brief:** Pre-edit, run
+> `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})` for each symbol you
+> will modify and journal the verdict level, caller count, and top-3 affected execution
+> flows — **if the verdict is HIGH or CRITICAL, STOP and escalate to the Orchestrator**
+> before editing. Pre-commit, run `gitnexus_detect_changes()` and verify the affected
+> symbol set is contained within this Subtask's file-ownership boundary (outside the
+> boundary → STOP and escalate; the Checker FAILs the scope-containment audit). Full
+> discipline incl. worktree-dispatch caveats (`gitnexus_detect_changes` is unrunnable in
+> agent worktrees — use `git diff --name-only` fallback; pytest from the worktree CWD):
+> `.claude/agents/references/shared-discipline.md` §Code-intelligence discipline.
 
 <!-- code-intel:executor-block-end -->
 

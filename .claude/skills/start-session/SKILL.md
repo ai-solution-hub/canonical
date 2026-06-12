@@ -165,9 +165,8 @@ Once the session plan is presented, invoke the `workflow-orchestration` skill vi
 
 - **ALL verification gaps must be fixed** — even minor ones
 - **NEVER prefix a Bash command with `cd /Users/.../knowledge-hub`** (or any absolute cd
-  into the repo root) — this applies to the MAIN session, not just worktree agents. You
-  are already in the repo CWD. Use paths relative to CWD, or `git -C <path>` flags. A
-  PreToolUse guard hard-blocks `cd <repo-root>` to stop wrong-branch commit leakage; each
-  block costs a full retry round-trip. Carry this rule into every brief you compose this
-  session. (Friction register FR-001 — permanent rule, not a per-handoff carryover.)
+  into the repo root) — this applies to the MAIN session, not just worktree agents; use
+  relative paths or `git -C <path>`, and carry this rule into every brief you compose this
+  session (FR-001 — permanent rule, not a per-handoff carryover; full friction-register
+  rules: `.claude/agents/references/shared-discipline.md` §Friction register).
 

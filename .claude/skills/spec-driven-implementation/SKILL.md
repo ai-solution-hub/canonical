@@ -97,23 +97,14 @@ Specs are often unnecessary for:
 For pure UI changes, the product spec is often useful while the tech spec may be
 unnecessary.
 
-**Right-size the spec chain to the task shape** via the four named tiers. The
-Orchestrator decides the tier at Task open; the Planner may recommend an upgrade
-mid-`{N.1}` if RESEARCH surfaces compound invariants:
-
-- **Full chain** (RESEARCH + PRODUCT + TECH + PLAN) — compound invariants /
-  multiple migrations / chain-dependent slices / >2h effort.
-- **PRODUCT + PLAN** (skip TECH) — behaviourally rich, implementation-shallow.
-- **TECH + PLAN** (skip PRODUCT) — unambiguous behaviour, non-trivial
-  implementation.
-- **Spec-free** — trivial / operational.
-
-The chosen tier is recorded in the Task `status_note` as a one-line marker (e.g.
-`spec tier: PRODUCT+PLAN`). **The `status_note` is budget-gated at ≤300
-characters (invariant 57)** — keep the marker terse. The light tier is a
-*recorded* decision: an under-specified Task that later reveals compound
-invariants ESCALATES to a heavier tier (a `status_note` update), never silently
-proceeds.
+**Right-size the spec chain to the task shape** via the four named tiers (Full
+chain / PRODUCT+PLAN / TECH+PLAN / Spec-free). The Orchestrator decides the tier
+at Task open and records it as a terse `status_note` marker (≤300-char budget,
+invariant 57); the Planner may recommend an upgrade mid-`{N.1}`, and an
+under-specified Task that later reveals compound invariants ESCALATES to a
+heavier tier, never silently proceeds. Full tier definitions:
+`.claude/agents/references/shared-discipline.md` §Spec-chain right-sizing and
+§Spec-tier budget.
 
 ## Workflow
 
