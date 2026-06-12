@@ -40,6 +40,11 @@ import {
   BacklogItemSchema,
   type BacklogDocument,
 } from '@/lib/validation/backlog-schema';
+import {
+  RetrosSchema,
+  RetroRecordSchema,
+  type RetrosDocument,
+} from '@/lib/validation/retro-schema';
 import { ZodError } from 'zod';
 import type { DetectSchemaResult } from './detect-schema';
 
@@ -58,6 +63,9 @@ const ROADMAP_THEME_KNOWN_FIELDS = new Set(
   Object.keys(RoadmapThemeSchema.shape),
 );
 const BACKLOG_ITEM_KNOWN_FIELDS = new Set(Object.keys(BacklogItemSchema.shape));
+// WS-C C2: retro record field keyset (RetroRecordSchema IS `.strict()`, but
+// the keyset guard keeps the walk-error-vs-schema-error boundary identical).
+const RETRO_KNOWN_FIELDS = new Set(Object.keys(RetroRecordSchema.shape));
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -271,6 +279,53 @@ function applyBacklogPatch(
   return null;
 }
 
+/**
+ * Walk a fieldPath into a Retros snapshot and apply a single patch (WS-C C2).
+ * Records are addressed by session id under `retros[]` — `['retros', id, field]`.
+ */
+function applyRetroPatch(
+  snapshot: RetrosDocument,
+  patch: FieldPatch,
+): null | { fieldPath: string[]; detail: string } {
+  const [head, retroId, ...rest] = patch.fieldPath;
+  if (head !== 'retros') {
+    return {
+      fieldPath: patch.fieldPath,
+      detail: `Retro patches must start with 'retros'; got "${head ?? '<empty>'}".`,
+    };
+  }
+  if (retroId == null || retroId === '') {
+    return {
+      fieldPath: patch.fieldPath,
+      detail: `Missing retro id at fieldPath[1].`,
+    };
+  }
+  const retroIdx = snapshot.retros.findIndex((r) => r.id === retroId);
+  if (retroIdx === -1) {
+    return {
+      fieldPath: patch.fieldPath,
+      detail: `Retro id "${retroId}" not found in canonical retros[].`,
+    };
+  }
+  const retro = snapshot.retros[retroIdx];
+
+  if (rest.length !== 1) {
+    return {
+      fieldPath: patch.fieldPath,
+      detail: `Retro fieldPath must address a single field after the retroId; got ${rest.length} additional segment(s).`,
+    };
+  }
+  const field = rest[0];
+  if (!RETRO_KNOWN_FIELDS.has(field)) {
+    return {
+      fieldPath: patch.fieldPath,
+      detail: `Field "${field}" is not a known field on Retro records. Known fields: ${[...RETRO_KNOWN_FIELDS].join(', ')}.`,
+    };
+  }
+  (retro as Record<string, unknown>)[field] = patch.newValue;
+  return null;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -362,13 +417,45 @@ export function applyBacklogPatches(
 }
 
 /**
+ * Apply a batch of FieldPatch entries to a Retros canonical snapshot and
+ * re-parse via RetrosSchema (WS-C C2). Same single-validation-pass +
+ * clone-on-entry contract as the other appliers.
+ */
+export function applyRetroPatches(
+  snapshot: RetrosDocument,
+  patches: readonly FieldPatch[],
+): ApplyPatchesResult<RetrosDocument> {
+  if (patches.length === 0) return { ok: false, kind: 'empty-patches' };
+  for (const patch of patches) {
+    const err = applyRetroPatch(snapshot, patch);
+    if (err) {
+      return {
+        ok: false,
+        kind: 'walk-error',
+        fieldPath: err.fieldPath,
+        detail: err.detail,
+      };
+    }
+  }
+  try {
+    const parsed = RetrosSchema.parse(snapshot);
+    return { ok: true, parsed };
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return { ok: false, kind: 'schema-error', zodError: err };
+    }
+    throw err;
+  }
+}
+
+/**
  * Dispatch a patch batch to the per-kind applier. Throws if the detected
  * kind is 'unknown' (callers reject unknown ledgers at load time).
  */
 export function applyPatches(
   detected: DetectSchemaResult,
   patches: readonly FieldPatch[],
-): ApplyPatchesResult<TaskList | Roadmap | BacklogDocument> {
+): ApplyPatchesResult<TaskList | Roadmap | BacklogDocument | RetrosDocument> {
   if (detected.kind === 'unknown') {
     throw new Error(
       `Cannot apply patches to unknown ledger kind (document_name: ${detected.documentName ?? 'null'}).`,
@@ -379,6 +466,10 @@ export function applyPatches(
   }
   if (detected.kind === 'roadmap') {
     return applyRoadmapPatches(detected.data, patches);
+  }
+  // WS-C C2: retros — session retro ledger.
+  if (detected.kind === 'retro') {
+    return applyRetroPatches(detected.data, patches);
   }
   return applyBacklogPatches(detected.data, patches);
 }

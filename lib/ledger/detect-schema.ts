@@ -39,11 +39,16 @@ import {
   BacklogSchema,
   type BacklogDocument,
 } from '@/lib/validation/backlog-schema';
+import {
+  RetrosSchema,
+  type RetrosDocument,
+} from '@/lib/validation/retro-schema';
 
 export type DetectSchemaResult =
   | { kind: 'task-list'; data: TaskList }
   | { kind: 'roadmap'; data: Roadmap }
   | { kind: 'backlog'; data: BacklogDocument }
+  | { kind: 'retro'; data: RetrosDocument }
   | { kind: 'unknown'; documentName: string | null };
 
 /** Canonical literal values. Source of truth for both routing and CLI error messages. */
@@ -51,6 +56,7 @@ export const KNOWN_DOCUMENT_NAMES = [
   'Knowledge Hub Task List',
   'Knowledge Hub Roadmap',
   'Product Backlog',
+  'Knowledge Hub Retros',
 ] as const;
 
 export type KnownDocumentName = (typeof KNOWN_DOCUMENT_NAMES)[number];
@@ -74,6 +80,10 @@ export function detectSchema(parsed: unknown): DetectSchemaResult {
   }
   if (documentName === 'Product Backlog') {
     return { kind: 'backlog', data: BacklogSchema.parse(parsed) };
+  }
+  // WS-C C2: the retro session ledger — fourth known kind in the KH oracle.
+  if (documentName === 'Knowledge Hub Retros') {
+    return { kind: 'retro', data: RetrosSchema.parse(parsed) };
   }
 
   return {

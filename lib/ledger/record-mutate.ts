@@ -44,6 +44,10 @@ import {
   BacklogSchema,
   type BacklogDocument,
 } from '@/lib/validation/backlog-schema';
+import {
+  RetrosSchema,
+  type RetrosDocument,
+} from '@/lib/validation/retro-schema';
 import { ZodError } from 'zod';
 
 import type { DetectSchemaResult } from './detect-schema';
@@ -75,12 +79,25 @@ function extractId(body: unknown): string | null {
   return null;
 }
 
+/** Top-level record-collection key for a detected ledger kind. WS-C C2 adds
+ * the `retro` arm (`retros`). */
+function collectionKeyFor(kind: KnownDetected['kind']): string {
+  if (kind === 'task-list') return 'tasks';
+  if (kind === 'roadmap') return 'themes';
+  if (kind === 'retro') return 'retros';
+  return 'items';
+}
+
 function existingIds(detected: KnownDetected): Set<string> {
   if (detected.kind === 'task-list') {
     return new Set(detected.data.tasks.map((t) => t.id));
   }
   if (detected.kind === 'roadmap') {
     return new Set(detected.data.themes.map((t) => t.id));
+  }
+  // WS-C C2: retros — session-id (`S<n>`) record ids.
+  if (detected.kind === 'retro') {
+    return new Set(detected.data.retros.map((r) => r.id));
   }
   return new Set(detected.data.items.map((it) => it.id));
 }
@@ -91,12 +108,14 @@ function reparse(
   kind: KnownDetected['kind'],
   raw: unknown,
 ):
-  | { ok: true; data: TaskList | Roadmap | BacklogDocument }
+  | { ok: true; data: TaskList | Roadmap | BacklogDocument | RetrosDocument }
   | { ok: false; zodError: ZodError } {
   try {
     if (kind === 'task-list')
       return { ok: true, data: TaskListSchema.parse(raw) };
     if (kind === 'roadmap') return { ok: true, data: RoadmapSchema.parse(raw) };
+    // WS-C C2: retros — session retro ledger.
+    if (kind === 'retro') return { ok: true, data: RetrosSchema.parse(raw) };
     return { ok: true, data: BacklogSchema.parse(raw) };
   } catch (err) {
     if (err instanceof ZodError) return { ok: false, zodError: err };
@@ -106,11 +125,13 @@ function reparse(
 
 function rebuildDetected(
   kind: KnownDetected['kind'],
-  data: TaskList | Roadmap | BacklogDocument,
+  data: TaskList | Roadmap | BacklogDocument | RetrosDocument,
 ): KnownDetected {
   if (kind === 'task-list')
     return { kind: 'task-list', data: data as TaskList };
   if (kind === 'roadmap') return { kind: 'roadmap', data: data as Roadmap };
+  // WS-C C2: retros — session retro ledger.
+  if (kind === 'retro') return { kind: 'retro', data: data as RetrosDocument };
   return { kind: 'backlog', data: data as BacklogDocument };
 }
 
@@ -140,12 +161,7 @@ export function insertRecord(
   }
 
   const rawClone = structuredClone(detected.data) as Record<string, unknown>;
-  const collectionKey =
-    detected.kind === 'task-list'
-      ? 'tasks'
-      : detected.kind === 'roadmap'
-        ? 'themes'
-        : 'items';
+  const collectionKey = collectionKeyFor(detected.kind);
   const collection = rawClone[collectionKey];
   if (!Array.isArray(collection)) {
     return {
@@ -178,12 +194,7 @@ export function removeRecord(
     return { ok: false, kind: 'record-not-found', recordId };
   }
   const rawClone = structuredClone(detected.data) as Record<string, unknown>;
-  const collectionKey =
-    detected.kind === 'task-list'
-      ? 'tasks'
-      : detected.kind === 'roadmap'
-        ? 'themes'
-        : 'items';
+  const collectionKey = collectionKeyFor(detected.kind);
   const collection = rawClone[collectionKey];
   if (!Array.isArray(collection)) {
     return { ok: false, kind: 'record-not-found', recordId };

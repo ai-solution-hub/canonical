@@ -36,6 +36,7 @@
  *     open-task      <taskJson | --title …>
  *     create-theme   <themeJson | --title …>
  *     create-backlog <itemJson | --title …>
+ *     create-retro   <retroJson | --file ->       (caller-supplied S<digits> id; no auto-id)
  *     delete-backlog <itemId>
  *     delete-subtask <taskId.subId>               (legacy <taskId> <subId>)
  *   cross-ledger:
@@ -109,6 +110,7 @@ import {
 import { SubtaskSchema, TaskSchema } from '@/lib/validation/task-list-schema';
 import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
+import { RetroRecordSchema } from '@/lib/validation/retro-schema';
 import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 import {
@@ -133,12 +135,14 @@ import type { ZodTypeAny } from 'zod';
  * flag-OFF write path uses LEDGER_FILES/ledgerPath() and the mirror filenames
  * stay `product-backlog.json` / `product-roadmap.json` (unchanged).
  */
-type LedgerSlug = 'task-list' | 'roadmap' | 'backlog' | 'umbrellas';
+type LedgerSlug = 'task-list' | 'roadmap' | 'backlog' | 'umbrellas' | 'retro';
 
 const LEDGER_NAME_TO_SLUG: Record<LedgerName, LedgerSlug> = {
   task: 'task-list',
   roadmap: 'roadmap',
   backlog: 'backlog',
+  // WS-C C2: the retro ledger routes through the server's `retro` slug.
+  retro: 'retro',
 };
 
 function ledgerSlug(name: LedgerName): LedgerSlug {
@@ -188,12 +192,14 @@ type ServerIntent =
 
 // ── ledger resolution ─────────────────────────────────────────────────────────
 
-type LedgerName = 'task' | 'roadmap' | 'backlog';
+type LedgerName = 'task' | 'roadmap' | 'backlog' | 'retro';
 
 const LEDGER_FILES: Record<LedgerName, string> = {
   task: 'task-list.json',
   roadmap: 'product-roadmap.json',
   backlog: 'product-backlog.json',
+  // WS-C C2: the session retro ledger — the 4th ledger surface.
+  retro: 'product-retros.json',
 };
 
 function ledgerPath(dir: string, name: LedgerName): string {
@@ -937,11 +943,12 @@ function nextId(
 // can never drift from the schema — the labels flip to `string` automatically
 // at the flag-day schema flip.
 
-/** The four documented record kinds, each backed by a Zod object schema. */
-type SchemaRecordKind = 'task' | 'subtask' | 'theme' | 'item';
+/** The documented record kinds, each backed by a Zod object schema. WS-C C2
+ * adds `retro`. */
+type SchemaRecordKind = 'task' | 'subtask' | 'theme' | 'item' | 'retro';
 
 /** Schemas keyed by record kind. Zod v4 exposes `.shape` directly even with a
- * trailing `.superRefine` (TaskSchema) — so all four shapes are introspectable. */
+ * trailing `.superRefine` (TaskSchema) — so all shapes are introspectable. */
 const SCHEMA_SHAPES: Record<
   SchemaRecordKind,
   { shape: Record<string, ZodTypeAny> }
@@ -950,6 +957,7 @@ const SCHEMA_SHAPES: Record<
   subtask: SubtaskSchema,
   theme: RoadmapThemeSchema,
   item: BacklogItemSchema,
+  retro: RetroRecordSchema,
 };
 
 /** The label each record kind reads as at the point of use (RESEARCH §5.2):
@@ -959,6 +967,7 @@ const KIND_LABEL: Record<SchemaRecordKind, string> = {
   subtask: 'subtask',
   theme: 'theme',
   item: 'backlog',
+  retro: 'retro',
 };
 
 /** Budget registry key per record kind (the registry is keyed by record kind,
@@ -968,6 +977,7 @@ const KIND_BUDGET_KEY: Record<SchemaRecordKind, LedgerRecordKind> = {
   subtask: 'subtask',
   theme: 'theme',
   item: 'item',
+  retro: 'retro',
 };
 
 /** Per-field human annotations layered on top of the derived type label. */
@@ -1092,6 +1102,8 @@ const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
   task: ['task', 'subtask'],
   roadmap: ['theme'],
   backlog: ['item'],
+  // WS-C C2: the retro ledger surfaces the single retro record kind.
+  retro: ['retro'],
   // record-kind aliases
   subtask: ['subtask'],
   theme: ['theme'],
@@ -1107,7 +1119,7 @@ const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
 function renderSchema(target?: string): string | null {
   let kinds: SchemaRecordKind[];
   if (target === undefined) {
-    kinds = ['task', 'subtask', 'theme', 'item'];
+    kinds = ['task', 'subtask', 'theme', 'item', 'retro'];
   } else {
     const resolved = SCHEMA_TARGETS[target];
     if (!resolved) return null;
@@ -1270,6 +1282,16 @@ const SUBCOMMAND_HELP: Record<
       '--whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['item'],
   },
+  'create-retro': {
+    synopsis:
+      'create-retro <retroJson | --file -> — insert a session retro record',
+    flags:
+      'input: positional JSON | --file <path> (- = stdin) | named flags; ' +
+      'the record MUST carry a caller-supplied session id (`S<digits>`, e.g. ' +
+      '"S264") — retros are NOT auto-allocated. ' +
+      '--force --dry-run --pretty (no mirror — retros have none)',
+    kinds: ['retro'],
+  },
   'delete-backlog': {
     synopsis: 'delete-backlog <itemId> — remove a backlog item',
     flags: '--dry-run --pretty --no-regen-mirrors',
@@ -1329,6 +1351,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   open-task      <taskJson | --title … [--effort-estimate <str>]>
   create-backlog <itemJson>
   create-theme   <themeJson>
+  create-retro   <retroJson | --file ->         (id is a caller-supplied S<digits>; no auto-id)
   delete-backlog <itemId>
   delete-subtask <taskId.subId>                 (legacy <taskId> <subId>)
   promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
@@ -1889,7 +1912,7 @@ function coerceFieldValue(
 
 /** Per-record-kind structural defaults — empty arrays, nulls, empty strings. */
 const CREATE_DEFAULTS: Record<
-  'subtask' | 'task' | 'theme' | 'item',
+  'subtask' | 'task' | 'theme' | 'item' | 'retro',
   Record<string, unknown>
 > = {
   subtask: {
@@ -1936,6 +1959,25 @@ const CREATE_DEFAULTS: Record<
     cross_doc_links: [],
     notes: null,
   },
+  // WS-C C2: retro record structural defaults — the six empty category arrays,
+  // empty provenance arrays, and the four soft-delete fields. `id` (the
+  // caller-supplied session id `S<n>`), `session_id`, `date`, and `track` are
+  // required scalars with no inherent empty value and must come from the body.
+  retro: {
+    session_refs: [],
+    commit_refs: [],
+    cross_doc_links: [],
+    bugs_discovered: [],
+    failed_assumptions: [],
+    architecture_decisions: [],
+    rejected_approaches: [],
+    workflow_improvements: [],
+    unresolved_questions: [],
+    deprecated: false,
+    deprecation_reason: null,
+    superseding_record_id: null,
+    last_conflict_check: null,
+  },
 };
 
 /**
@@ -1945,7 +1987,7 @@ const CREATE_DEFAULTS: Record<
  * write timestamp when absent.
  */
 function withCreateDefaults(
-  recordKind: 'subtask' | 'task' | 'theme' | 'item',
+  recordKind: 'subtask' | 'task' | 'theme' | 'item' | 'retro',
   record: Record<string, unknown>,
 ): Record<string, unknown> {
   const defaults = { ...CREATE_DEFAULTS[recordKind] };
@@ -2093,7 +2135,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(
           'show',
           'bad-ledger',
-          `ledger must be task|roadmap|backlog`,
+          `ledger must be task|roadmap|backlog|retro`,
         );
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
@@ -2103,7 +2145,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           ? d.data.tasks.find((t) => t.id === id)
           : d.kind === 'roadmap'
             ? d.data.themes.find((t) => t.id === id)
-            : d.data.items.find((it) => it.id === id);
+            : d.kind === 'retro'
+              ? d.data.retros.find((r) => r.id === id)
+              : d.data.items.find((it) => it.id === id);
       if (!record)
         return cliErr('show', 'record-not-found', `${ledger} id ${id}`);
       return { ok: true, subcommand: 'show', result: record };
@@ -2121,7 +2165,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(
           'get',
           'bad-ledger',
-          `ledger must be task|roadmap|backlog`,
+          `ledger must be task|roadmap|backlog|retro`,
         );
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
@@ -2131,7 +2175,9 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           ? d.data.tasks.find((t) => t.id === id)
           : d.kind === 'roadmap'
             ? d.data.themes.find((t) => t.id === id)
-            : d.data.items.find((it) => it.id === id);
+            : d.kind === 'retro'
+              ? d.data.retros.find((r) => r.id === id)
+              : d.data.items.find((it) => it.id === id);
       if (!record)
         return cliErr('get', 'record-not-found', `${ledger} id ${id}`);
       // No field → whole record (parity with `show`).
@@ -2838,6 +2884,66 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         serverIntent: {
           kind: 'record-create',
           slug: ledgerSlug(ledger),
+          record,
+        },
+      });
+    }
+
+    // ── WS-C C2: retro record CREATE ─────────────────────────────────────────
+    // Mirrors `create-backlog`/`open-task`/`create-theme` but for the session
+    // retro ledger. KEY DIFFERENCE: retro ids are caller-supplied session ids
+    // (`S<n>`, e.g. "S264") — there is NO auto-allocation / nextId / high-water
+    // mark for retros. A create that omits `id` is a client error. Retros carry
+    // NO .md mirror yet, so mirror regen is skipped.
+    case 'create-retro': {
+      const loaded = await loadLedger(ledgerPath(dir, 'retro'));
+      if (!loaded.ok) return loaded.result;
+      // {35.15} record-input resolution (positional JSON | --file | named flags)
+      // + structural defaults. NO auto-id — the body MUST carry the session id.
+      const input = readRecordInput(args);
+      if (!input.ok) return input.result;
+      const record = withCreateDefaults(
+        'retro',
+        input.value as Record<string, unknown>,
+      );
+      if (record.id === undefined) {
+        return cliErr(
+          'create-retro',
+          'missing-id',
+          'retro records require a caller-supplied session id of the form S<digits> (e.g. "S264") — retros are not auto-allocated. Supply it in the record body (`{"id":"S264",…}`) or via --id.',
+        );
+      }
+      const ins = insertRecord(loaded.detected, record);
+      if (!ins.ok) {
+        if (ins.kind === 'schema-error')
+          return {
+            ok: false,
+            subcommand,
+            error: 'schema-error',
+            issues: ins.zodError.issues,
+            expected: describeExpectedShape(ins.zodError),
+          };
+        if (ins.kind === 'duplicate-id')
+          return cliErr(subcommand, 'duplicate-id', ins.recordId);
+        return cliErr(
+          subcommand,
+          ins.kind,
+          'detail' in ins ? ins.detail : undefined,
+        );
+      }
+      // insertRecord above is the CLI-side schema + duplicate-id oracle (esc-4
+      // retained); the record-set + budget gates run server-side (R1b). Retros
+      // have no mirror obligation → regenMirrors:false.
+      return commitMutation({
+        subcommand,
+        path: ledgerPath(dir, 'retro'),
+        resultPayload: { recordId: ins.recordId },
+        dryRun: flags.dryRun,
+        regenMirrors: false,
+        force: flags.force,
+        serverIntent: {
+          kind: 'record-create',
+          slug: ledgerSlug('retro'),
           record,
         },
       });
