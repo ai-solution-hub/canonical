@@ -7,11 +7,14 @@
 #   - last event == AskUserQuestion, stable 2 polls   -> headless stall
 #   - last event == stop, stable 2 polls              -> paused (done / needs nudge / awaiting-decision)
 #   - OQ-pending.md (found ANYWHERE in worktree) grew beyond seen lines  (SEEN_OQ="<sid>:<lines> ...")
+#   - oq/oq-state.json lifecycle_state=awaiting-decision (skip if sid in SEEN_BLOCKED)
+#     -- the SECOND OQ surface; watching only OQ-pending.md left the watcher
+#        blind to oq_emit blocking questions (F7 friction, WS-A6).
 #   - final_report.* in events dir                    (skip if sid in SEEN_FINAL)
 #   - session_end event                               (skip if sid in SEEN_SEND)
 # Fleet-wide: no event growth for QUIET_POLLS -> stall/all-idle.
 #
-# Env: IGNORE, SEEN_OQ, SEEN_FINAL, SEEN_SEND, INTERVAL, MAX_POLLS, QUIET_POLLS.
+# Env: IGNORE, SEEN_OQ, SEEN_BLOCKED, SEEN_FINAL, SEEN_SEND, INTERVAL, MAX_POLLS, QUIET_POLLS.
 # Exit: 0 = tripped (report on stdout); 2 = max-poll timeout.
 
 set -uo pipefail
@@ -37,6 +40,7 @@ MAX_POLLS="${MAX_POLLS:-40}"       # ~16 min at 25s
 QUIET_POLLS="${QUIET_POLLS:-28}"   # ~11.6 min zero growth
 IGNORE="${IGNORE:-}"
 SEEN_OQ="${SEEN_OQ:-}"
+SEEN_BLOCKED="${SEEN_BLOCKED:-}"
 SEEN_FINAL="${SEEN_FINAL:-}"
 SEEN_SEND="${SEEN_SEND:-}"
 
@@ -109,6 +113,15 @@ while [ "$poll" -lt "$MAX_POLLS" ]; do
       seen=$(seen_oq_lines "$sid"); seen="${seen:-0}"
       [ "$oq_heads" -gt "$seen" ] && report="${report}
   $name ($sid): OQ count grew to $oq_heads (seen=$seen)"
+    fi
+    # Second OQ surface: oq/oq-state.json lifecycle marker (oq_emit blocking
+    # channel). awaiting-decision = worker is BLOCKED on a parent decision —
+    # trip unless the caller already handled it (sid in SEEN_BLOCKED). (WS-A6)
+    sfile="$d/oq/oq-state.json"
+    if [ -f "$sfile" ] && ! in_list "$sid" "$SEEN_BLOCKED"; then
+      lstate=$(jq -r '.lifecycle_state // empty' "$sfile" 2>/dev/null)
+      [ "$lstate" = "awaiting-decision" ] && report="${report}
+  $name ($sid): OQ-STATE awaiting-decision (oq/oq-state.json — blocking)"
     fi
     if [ "$last" = "AskUserQuestion" ]; then
       cur_ask="$cur_ask $name"
