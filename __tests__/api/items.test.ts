@@ -409,13 +409,13 @@ describe('POST /api/items', () => {
 
     const req = createTestRequest('/api/items', {
       method: 'POST',
-      body: validCreateBody({ ingestion_source: 'url_import' }),
+      body: validCreateBody({ ingestion_source: 'upload' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(201);
 
     const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertCall.ingestion_source).toBe('url_import');
+    expect(insertCall.ingestion_source).toBe('upload');
   });
 
   // ─────────────────────────────────────────────────────────────────────
