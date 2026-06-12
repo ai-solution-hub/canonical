@@ -332,10 +332,15 @@ export const ItemCreateBodySchema = z.object({
     .enum(['draft', 'in_review', 'published', 'archived'])
     .optional(),
 
-  // Ingestion source tracking
-  ingestion_source: z
-    .enum(['manual', 'upload', 'url_import', 'upload_autosplit'])
-    .optional(),
+  // Ingestion source tracking. ID-107.3 — narrowed to the web-form-REACHABLE
+  // allow-list: a /api/items create body may only declare a source that a
+  // web form legitimately submits. `url_import` is stamped internally by
+  // /api/ingest/url (IngestUrlBodySchema, set in code) and is NOT
+  // web-form-reachable; route-internal/reserved sources (mcp_create,
+  // bid_outcome_integration, adopted_from_reference, system-stamped
+  // upload_autosplit) are stamped by their own code paths and MUST NOT be
+  // acceptable from an arbitrary body.
+  ingestion_source: z.enum(['manual', 'upload', 'upload_autosplit']).optional(),
 
   // Source document linkage (for batch creation and lineage tracking)
   source_document_id: z
