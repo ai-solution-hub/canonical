@@ -89,7 +89,10 @@ node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/product-backlog.json"
 # are surfaced too — `git diff` ignores untracked files, so a freshly-added
 # Task's mirror (e.g. a new ID-NN.md) would otherwise be silently missed.
 MIRROR_DIRS=("$LEDGER_DIR/tasks" "$LEDGER_DIR/roadmap" "$LEDGER_DIR/backlog")
-DRIFT="$(git status --porcelain -- "${MIRROR_DIRS[@]}")"
+# git must run in the DOCS-SITE repo (the ledger relocation moved the mirror
+# dirs out of this repo — a bare `git status` here fatals with "outside
+# repository"; WS-B3 fix).
+DRIFT="$(git -C "$KH_PRIVATE_DOCS_DIR" status --porcelain -- "${MIRROR_DIRS[@]}")"
 if [ -z "$DRIFT" ]; then
   echo "✓ mirrors in sync — no drift"
 else
