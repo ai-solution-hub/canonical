@@ -10,7 +10,6 @@ import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
-import { estimateClassifyCost, estimateEmbedCost } from './pricing';
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -51,13 +50,6 @@ export interface ItemProvenanceResponse {
     classificationModelSource: 'recorded' | 'env_default';
     embeddingModel: string | null;
     embeddingModelSource: 'recorded' | 'env_default';
-    classificationTokensIn: number | null;
-    classificationTokensOut: number | null;
-    classificationCacheCreation: number | null;
-    classificationCacheRead: number | null;
-    embeddingTokens: number | null;
-    estimatedClassifyCost: number | null;
-    estimatedEmbedCost: number | null;
   };
 
   // Review schedule provenance (P0 Document Control §5.5 Phase 3 T4)
@@ -112,7 +104,7 @@ export async function getItemProvenance(
   supabase: SupabaseClient<Database>,
   itemId: string,
 ): Promise<ItemProvenanceResponse | null> {
-  // 1. Fetch classification + cost columns from content_items
+  // 1. Fetch classification + model columns from content_items
   const item = await sb(
     supabase
       .from('content_items')
@@ -126,12 +118,7 @@ export async function getItemProvenance(
         classification_reasoning,
         classified_at,
         classification_model,
-        classification_tokens_in,
-        classification_tokens_out,
-        classification_cache_creation_tokens,
-        classification_cache_read_tokens,
         embedding_model,
-        embedding_tokens,
         next_review_date,
         review_cadence_days,
         verified_at`,
@@ -160,25 +147,7 @@ export async function getItemProvenance(
     ? 'recorded'
     : 'env_default';
 
-  // 4. Estimate costs
-  const estimatedClassifyCostValue =
-    item.classification_tokens_in != null &&
-    item.classification_tokens_out != null
-      ? estimateClassifyCost(
-          item.classification_tokens_in,
-          item.classification_tokens_out,
-          item.classification_cache_creation_tokens ?? 0,
-          item.classification_cache_read_tokens ?? 0,
-          classificationModel,
-        )
-      : null;
-
-  const estimatedEmbedCostValue =
-    item.embedding_tokens != null
-      ? estimateEmbedCost(item.embedding_tokens, embeddingModel)
-      : null;
-
-  // 5. Fetch bid responses that reference this content item (newest 3 + total count)
+  // 4. Fetch bid responses that reference this content item (newest 3 + total count)
   // source_content_ids is a text[] column — use @> (contains) operator
   const [recentDraftsResult, countResponse] = await Promise.all([
     sb(
@@ -205,7 +174,7 @@ export async function getItemProvenance(
 
   const totalDraftCount = countResponse.count ?? 0;
 
-  // 6. Resolve display names for drafted_by users
+  // 5. Resolve display names for drafted_by users
   const draftUserIds = recentDraftsResult
     .map((r) => r.drafted_by)
     .filter((id): id is string => id != null);
@@ -215,7 +184,7 @@ export async function getItemProvenance(
       ? await resolveUserDisplayNames(supabase, draftUserIds)
       : new Map<string, { display_name: string }>();
 
-  // 7. Resolve bid workspace names (post-T2: form_questions.workspace_id renamed
+  // 6. Resolve bid workspace names (post-T2: form_questions.workspace_id renamed
   // to workspace_id).
   const workspaceIds = recentDraftsResult
     .map((r) => {
@@ -240,7 +209,7 @@ export async function getItemProvenance(
     procurementNameMap = new Map(workspaces.map((w) => [w.id, w.name]));
   }
 
-  // 8. Assemble recent drafts
+  // 7. Assemble recent drafts
   const recentDrafts: ProcurementDraftInfo[] = recentDraftsResult.map((r) => {
     const bq = Array.isArray(r.form_questions)
       ? r.form_questions[0]
@@ -277,13 +246,6 @@ export async function getItemProvenance(
       classificationModelSource,
       embeddingModel,
       embeddingModelSource,
-      classificationTokensIn: item.classification_tokens_in,
-      classificationTokensOut: item.classification_tokens_out,
-      classificationCacheCreation: item.classification_cache_creation_tokens,
-      classificationCacheRead: item.classification_cache_read_tokens,
-      embeddingTokens: item.embedding_tokens,
-      estimatedClassifyCost: estimatedClassifyCostValue,
-      estimatedEmbedCost: estimatedEmbedCostValue,
     },
     reviewSchedule: {
       nextReviewDate: item.next_review_date,

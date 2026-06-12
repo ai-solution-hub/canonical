@@ -16,20 +16,8 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---------------------------------------------------------------------------
-// Cost formatting
+// Confidence formatting
 // ---------------------------------------------------------------------------
-
-function formatCost(cost: number | null): string | null {
-  if (cost === null) return null;
-  if (cost === 0) return '$0.00';
-  if (cost < 0.01) return `$${cost.toFixed(6)}`;
-  return `$${cost.toFixed(4)}`;
-}
-
-function formatTokens(count: number | null): string | null {
-  if (count === null) return null;
-  return count.toLocaleString('en-GB');
-}
 
 function formatConfidence(value: number | null): string | null {
   if (value === null) return null;
@@ -263,38 +251,6 @@ export default function PerItemTab() {
                         ? `${data.processing.embeddingModel}${data.processing.embeddingModelSource === 'env_default' ? ' (current default)' : ''}`
                         : null
                     }
-                  />
-                  <PerItemField
-                    label="Tokens in / out"
-                    value={
-                      data.processing.classificationTokensIn != null
-                        ? `${formatTokens(data.processing.classificationTokensIn)} / ${formatTokens(data.processing.classificationTokensOut)}`
-                        : null
-                    }
-                  />
-                  <PerItemField
-                    label="Cache read / create"
-                    value={
-                      data.processing.classificationCacheRead != null
-                        ? `${formatTokens(data.processing.classificationCacheRead)} / ${formatTokens(data.processing.classificationCacheCreation)}`
-                        : null
-                    }
-                  />
-                  <PerItemField
-                    label="Embedding tokens"
-                    value={formatTokens(data.processing.embeddingTokens)}
-                  />
-                  <PerItemField
-                    label="Estimated cost"
-                    value={(() => {
-                      const classifyCost =
-                        data.processing.estimatedClassifyCost;
-                      const embedCost = data.processing.estimatedEmbedCost;
-                      if (classifyCost === null && embedCost === null)
-                        return null;
-                      const total = (classifyCost ?? 0) + (embedCost ?? 0);
-                      return formatCost(total);
-                    })()}
                   />
                 </dl>
               </CardContent>
