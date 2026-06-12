@@ -1589,6 +1589,12 @@ class TestLifespanProvidesDbCtx:
             async def close(self) -> None:
                 closed["value"] = True
 
+            async def fetch(self, query: str, *args: object) -> list:
+                # No PIPELINE_CLIENT_ORG set in this test → graceful dev path.
+                # Return empty list: _generate_client_alias_snapshot degrades
+                # to baseline-only without raising ({101.10} dev/CI branch).
+                return []
+
         class _FakeBuilder:
             def provide(self, key: object, value: object) -> None:
                 provided[key] = value

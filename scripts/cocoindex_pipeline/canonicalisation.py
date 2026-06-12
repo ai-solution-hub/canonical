@@ -347,6 +347,43 @@ def reset_alias_cache() -> None:
     _MERGED_ALIASES_CACHE = None
 
 
+def prime_alias_cache_from_db_rows(rows: list) -> None:
+    """Build and install the merged alias map from live DB rows.
+
+    Called by the pipeline lifespan ({101.10}) with the rows fetched directly
+    from ``public.entity_aliases WHERE is_active = true`` (including the
+    ``provenance`` column). Mirrors the ``_get_alias_map()`` merge order:
+    ``_BASELINE_ALIASES`` first, then DB rows ``.update()`` on top so DB wins
+    on conflict — identical to the ``_load_db_entity_aliases()`` snapshot-file
+    path but without the intermediate JSON file at runtime.
+
+    Keyed by the RAW ``alias`` column (TS parity: entity-aliases.ts:72
+    ``cachedAliases[row.alias] = row.canonical``).
+
+    Replaces any previously cached map (including one built by
+    ``_get_alias_map()`` from the snapshot file). Safe to call once at
+    lifespan boot; subsequent resolves read the cached map DB-free.
+
+    Args:
+        rows: List of record-like objects (asyncpg Records or dicts) each
+            exposing ``row["alias"]``, ``row["canonical"]``, and
+            ``row["provenance"]``.  Rows with non-string or empty alias /
+            canonical are silently skipped (mirrors ``_load_db_entity_aliases``
+            robustness contract).
+    """
+    global _MERGED_ALIASES_CACHE
+    merged: dict[str, str] = dict(_BASELINE_ALIASES)
+    for row in rows:
+        try:
+            alias = row["alias"]
+            canonical = row["canonical"]
+        except (KeyError, TypeError):
+            continue
+        if isinstance(alias, str) and isinstance(canonical, str) and alias and canonical:
+            merged[alias] = canonical
+    _MERGED_ALIASES_CACHE = merged
+
+
 def _rel_resolve_alias(canonical_name: str) -> str:
     """Port of resolveAlias() (entity-aliases.ts:92), DB-snapshot-aware.
 

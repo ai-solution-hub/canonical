@@ -97,6 +97,7 @@ from scripts.cocoindex_pipeline.adapters import (
 from scripts.cocoindex_pipeline.canonicalisation import (
     canonicalise_entity_name,
     canonicalise_for_relationship,
+    prime_alias_cache_from_db_rows,
 )
 from scripts.cocoindex_pipeline.entity_context import extract_entity_context
 from scripts.cocoindex_pipeline.extraction import (
@@ -3652,20 +3653,97 @@ async def _register_pg_codecs(conn: "asyncpg.Connection") -> None:  # type: igno
     )
 
 
+async def _generate_client_alias_snapshot(pool: "asyncpg.Pool") -> None:  # type: ignore[name-defined]
+    """Generate the client entity_aliases cache from the live DB at lifespan boot.
+
+    ID-101 {101.10} — fail-closed deploy gate: fetches ALL active entity_aliases
+    rows (including ``provenance``) from the DB, checks the fail-closed predicate,
+    and primes the canonicaliser cache via ``prime_alias_cache_from_db_rows()``.
+
+    Fail-closed predicate:
+      - "configured client" = env ``PIPELINE_CLIENT_ORG`` is set and non-empty.
+      - "no alias data" = ZERO rows with ``provenance == 'client'``.
+      - configured-client AND zero client rows → ``RuntimeError`` (deploy fails).
+      - ``PIPELINE_CLIENT_ORG`` unset/empty → graceful (dev/CI path, no raise).
+
+    DB-free after this single boot fetch: ``prime_alias_cache_from_db_rows()``
+    installs the merged map into the module-level cache so subsequent calls to
+    ``canonicalise_for_relationship`` read the cache without hitting the DB.
+    This is faithful to the {101.9} "DB-free at runtime, snapshot-backed" design
+    — the snapshot is the in-memory cache, not a file.
+
+    The existing file-based ``_load_db_entity_aliases()`` /
+    ``_ENTITY_ALIASES_SNAPSHOT_PATH`` loader remains as the dev/test fallback when
+    this lifespan path does not run (e.g. a fresh checkout with no live pool).
+
+    Separated from the lifespan body to keep testability: pytest can call this
+    directly with a fake pool without standing up the full cocoindex lifespan.
+
+    Args:
+        pool: An active asyncpg pool connected to the target client DB.
+
+    Raises:
+        RuntimeError: When ``PIPELINE_CLIENT_ORG`` is configured (non-empty) and
+            the ``entity_aliases`` table contains zero ``provenance='client'`` rows.
+            Propagates out of ``kh_pipeline_lifespan`` so Coolify deploy fails
+            (fail-closed: we refuse to run with degraded baseline-only
+            canonicalisation for a configured client — {101.10}).
+    """
+    rows = await pool.fetch(
+        "SELECT alias, canonical, provenance "
+        "FROM public.entity_aliases WHERE is_active = true"
+    )
+
+    client_org = os.environ.get(CLIENT_ORG_ENV_VAR, "").strip()
+    if client_org:
+        client_rows = [r for r in rows if r["provenance"] == "client"]
+        if not client_rows:
+            raise RuntimeError(
+                f"[{CLIENT_ORG_ENV_VAR}={client_org!r}] fail-closed ({'{101.10}'}): "
+                "entity_aliases table has zero provenance='client' rows. "
+                "Refusing to deploy with baseline-only canonicalisation for a "
+                "configured client — alias data is required for correct holder "
+                "self-attribution. Populate entity_aliases with client-provenance "
+                "rows for this client before deploying."
+            )
+
+    prime_alias_cache_from_db_rows(rows)
+
+    counts = {
+        "client": sum(1 for r in rows if r["provenance"] == "client"),
+        "core": sum(1 for r in rows if r["provenance"] == "core"),
+        "recommended": sum(1 for r in rows if r["provenance"] == "recommended"),
+        "total": len(rows),
+    }
+    _logger.info(
+        "entity_aliases cache primed at lifespan boot ({101.10}): "
+        "total=%d client=%d core=%d recommended=%d configured_client=%r",
+        counts["total"],
+        counts["client"],
+        counts["core"],
+        counts["recommended"],
+        client_org or None,
+    )
+
+
 @coco.lifespan
 async def kh_pipeline_lifespan(builder: coco.EnvironmentBuilder):
     """Provision the asyncpg pool env-scope for the App's lifetime.
 
     Creates the pool once on environment start, provides it under `DB_CTX` (so
-    `mount_table_target` can resolve it), yields for the App lifetime, then closes
-    the pool on teardown. The `init` hook registers a jsonb codec on every pooled
-    connection ({66.16}/BUG-D) so dict-valued jsonb columns encode correctly.
+    `mount_table_target` can resolve it), then generates the entity_aliases cache
+    ({101.10} fail-closed gate — see ``_generate_client_alias_snapshot``), yields
+    for the App lifetime, then closes the pool on teardown.
+
+    The `init` hook registers a jsonb codec on every pooled connection
+    ({66.16}/BUG-D) so dict-valued jsonb columns encode correctly.
     """
     pool = await asyncpg.create_pool(
         _build_dsn(), min_size=2, max_size=10, init=_register_pg_codecs
     )
     try:
         builder.provide(DB_CTX, pool)
+        await _generate_client_alias_snapshot(pool)
         yield
     finally:
         await pool.close()
