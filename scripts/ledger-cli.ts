@@ -852,13 +852,34 @@ function checkFieldEditArity(
  *     `taskId` (ID-102: subtask ids are digit-strings, unifying with the other
  *     three collections; the value is unchanged, only the type flips).
  *
- * `max+1` is the monotonic semantics (never reuses a freed id; does NOT fill
- * gaps). For the subtask branch the now-`string[]` ids are `map(Number)`-ed
- * BEFORE `Math.max` so the comparison is numeric (`Math.max("9","10")` over raw
- * strings is brittle and a lexical `String` sort would mis-order mixed-width
- * ids), then `String`-wrapped to preserve the digit-string contract (inv 8).
- * Lives in the CLI, NOT the vendored `insertRecord`, which must stay
- * byte-faithful to task-view (RESEARCH §2.2).
+ * WS-C C4 Bug3 — the allocator is a MONOTONIC HIGH-WATER allocator, NOT a bare
+ * `max(survivors)+1`. The latter reuses an id freed by delete/promote (which
+ * lowers the live max), so the next allocation re-hands-out the freed id (the
+ * bl-287/288 / bl-300 collision class — a reused backlog id collides with the
+ * promoted Task's provenance back-reference). The fix reads the document-root
+ * `_idHighWater` field (the highest id ever ALLOCATED; only ever increases,
+ * stamped server-side by the symlinked task-view `insertRecord`/`removeRecord`)
+ * and allocates `max(liveMax, highWater) + 1`. Backward-compatible: a ledger
+ * without `_idHighWater` falls back to the exact legacy `max(survivors)+1`.
+ *
+ * This is a READ-side fix only: the KH CLI pre-allocates the id CLIENT-SIDE and
+ * POSTs it in the ServerIntent record; the symlinked server owns the
+ * authoritative WRITE + the `_idHighWater` stamp (the local
+ * `insertRecord`/`removeRecord` calls in this file are esc-4 validation oracles
+ * whose results are discarded for the write). So reading the mark here is
+ * sufficient to make the pre-allocated id honour the high-water — no local
+ * stamping is required (and the vendored `lib/ledger/record-mutate` stays
+ * byte-faithful to task-view, RESEARCH §2.2).
+ *
+ * `subtasks` keep the legacy `max(siblings)+1`: `_idHighWater` is a PER-DOCUMENT
+ * root field, not per-Task, and subtasks are never promoted OUT of their parent
+ * (no doc-level id is freed), so the reuse class does not apply to them — this
+ * matches the task-view server `nextId` subtask branch.
+ *
+ * For the subtask branch the `string[]` ids are `map(Number)`-ed BEFORE
+ * `Math.max` so the comparison is numeric (`Math.max("9","10")` over raw strings
+ * is brittle and a lexical `String` sort would mis-order mixed-width ids), then
+ * `String`-wrapped to preserve the digit-string contract (inv 8).
  */
 function nextId(
   detected: KnownDetected,
@@ -889,7 +910,18 @@ function nextId(
     );
   }
   const nums = ids.map((id) => Number(id)).filter((n) => !Number.isNaN(n));
-  return String(nums.length === 0 ? 1 : Math.max(...nums) + 1);
+  const liveMax = nums.length === 0 ? 0 : Math.max(...nums);
+  // WS-C C4 Bug3: never re-hand-out an id freed by delete/promote — allocate
+  // above BOTH the live max AND the persisted monotonic high-water mark.
+  const storedHighWater = (detected.data as { _idHighWater?: unknown })
+    ._idHighWater;
+  const highWater =
+    typeof storedHighWater === 'number' &&
+    Number.isFinite(storedHighWater) &&
+    storedHighWater >= 0
+      ? storedHighWater
+      : 0;
+  return String(Math.max(liveMax, highWater) + 1);
 }
 
 // ── ID-35.22 discoverability: schema / per-subcommand --help / get ────────────
