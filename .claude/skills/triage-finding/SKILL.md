@@ -45,23 +45,16 @@ The curator agent invokes this skill with a finding packet:
 | `task_context.parent_task_acceptance_criteria` | Parent Task ID-N's `## Acceptance criteria` excerpt (PRODUCT.md). Required input for Branch A predicate 3; the Orchestrator dispatcher MUST populate this — especially at wave close when the source Subtask has promoted to `done` and the Subtask-level fields above are stale. |
 | `task_context.sibling_subtask_file_ownership` | Map of `{ subtask_id: file_ownership_allowed_globs }` for pending/in-progress sibling Subtasks under the same parent Task ID-N. Required input for Branch A predicate 3 (file-path arm). |
 
-You also read:
+You also read the roadmap + backlog ledgers (at `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`) to check for existing coverage — **slice reads only**, never wholesale `Read`:
 
-- `docs/reference/product-roadmap.json` — to check for existing coverage and identify candidate sections.
-- `docs/reference/product-backlog.json` — to check for existing coverage and identify candidate tracks.
+- Candidate themes / existing coverage: `bun scripts/ledger-cli.ts show roadmap <themeId>`.
+- Candidate tracks / existing coverage: `bun scripts/ledger-cli.ts show backlog <itemId>`.
 
 ---
 
 ## Step 1: Check for existing coverage
 
-Before deciding anything new, grep the roadmap and backlog for the finding's subject area:
-
-```bash
-# Use Grep on the JSON files for any term that names the finding's domain
-# (e.g. "auth", "design tokens", "barrel exports", whichever applies)
-```
-
-For targeted reads of a specific item (e.g. inspecting a candidate-duplicate's `linked_backlog[]` or `track`), prefer `bun scripts/ledger-cli.ts get <ledger> <id> [field]` over `Read` + `Grep` — see `lib/ledger/README.md` `read` group. Grep against the JSON still works and is cheaper for cross-cutting term searches; both are valid. Use the CLI for record-anchored lookups, grep for thematic sweeps.
+Before deciding anything new, check whether the roadmap or backlog already covers the finding's subject area. For record-anchored lookups (e.g. inspecting a candidate-duplicate's `linked_backlog[]` or `track`), use `bun scripts/ledger-cli.ts get <ledger> <id> [field]` / `show <ledger> <id>` (slice reads — see `lib/ledger/README.md` `read` group). For a thematic sweep across a ledger, `grep` the ledger JSON under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/` for the term that names the finding's domain (`auth`, `design tokens`, `barrel exports`, etc.) — cheaper than a wholesale `Read`.
 
 If an existing roadmap or backlog item already covers this finding:
 
@@ -107,9 +100,9 @@ This ensures the routing rationale is visible in the ledger and the curator can 
 
 Walk the decision tree in order. Stop at the first match.
 
-**Green-baseline rule — NEVER backlog a CI-red regression (top-of-tree gate):** A CI-red / failing-CI-job / baseline-guard breach (knip, agents-md-shape, reference-doc-paths) / build-break (`tsc`) regression is **never** routed to the backlog. It is an in-scope Subtask of the active Task (or of a dedicated baseline-health Task) and MUST be held open until the baseline is green again. The backlog is only for tactical future improvements that do NOT block the current green baseline. *Rationale: bl-197/198/193/195/200 (S283) were CI-red/guard breaches wrongly parked in backlog, and a `tsc` build-break then hid on `main` for ~4 sessions inside known-red CI.*
+**Green-baseline rule — NEVER backlog a CI-red regression (top-of-tree gate):** A CI-red / failing-CI-job / baseline-guard breach (knip, agents-md-shape, reference-doc-paths) / build-break (`tsc`) regression is **never** routed to the backlog. It is an in-scope Subtask of the active Task (or of a dedicated baseline-health Task) and MUST be held open until the baseline is green again. The backlog is only for tactical future improvements that do NOT block the current green baseline. *Precedent: CI-red/guard breaches parked in backlog let a `tsc` build-break hide on `main` for ~4 sessions inside known-red CI.*
 
-**Committed-work rule — concrete defects go to the Task List, not the backlog (per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §0):** A finding that is *committed* work — a discovered defect/regression we will fix, or a scoped fix on a committed path (e.g. the critical path) — routes to the **Task List** (a new Task, or a Subtask if in-scope per Branch A), NOT the backlog. Branch C (backlog) is for *uncommitted candidates* only: items that still need a product/prioritisation decision before they would be worked. The commitment test: *have we committed to doing this?* Yes → Task List; not yet → Backlog. *Rationale: bl-216–221 (S300) were concrete critical-path defects mis-filed to the backlog when they were committed work.*
+**Committed-work rule — concrete defects go to the Task List, not the backlog (per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §0):** A finding that is *committed* work — a discovered defect/regression we will fix, or a scoped fix on a committed path (e.g. the critical path) — routes to the **Task List** (a new Task, or a Subtask if in-scope per Branch A), NOT the backlog. Branch C (backlog) is for *uncommitted candidates* only: items that still need a product/prioritisation decision before they would be worked. The commitment test: *have we committed to doing this?* Yes → Task List; not yet → Backlog.
 
 **Recurrence rule — is this a recurrence of a prior flagged finding? → Task List, not backlog (per `task-list-discipline.md` §0; A3 resolve-at-source loop):** Before walking Branch A, ask: *is this finding a recurrence of one the `evaluate-workflow` recurring-finding surface has already flagged* — the same canonical key seen across ≥3 distinct sessions (e.g. the `recurring-issue-thrash` flag)? A recurrence-class finding is **committed work** per §0: the recurrence itself is the signal that the root cause must be fixed at source (a skill, a dispatch-brief template, or a CLAUDE.md gotcha), and that source fix is work we commit to, not an uncommitted candidate. So it routes to the **Task List** — a fix-at-source Subtask under the owning Task, or a new Task — NOT the backlog. This is the triage entry point for the A3 resolve-at-source loop: the loop's *fix at source* step lands as a Task-List item, never a backlog park. *Do not* re-route a recurrence the O-of-O has already marked `ignored` / `won't-fix` unless it is **materially different** (a different root cause or a wider blast radius) — an identical recurrence of a won't-fix finding is `no-action` (Branch D), not a fresh Task.
 
@@ -163,7 +156,7 @@ in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac"  # which of 
 
 The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it into the current wave or schedule it for a fix wave.
 
-> **Write substrate (downstream — informational):** The Orchestrator or `update-roadmap-backlog` materialises this spec via `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --testStrategy <…> [--depends N,M] [--priority …]` (see `lib/ledger/README.md`). The CLI's auto-id semantics allocate the next available integer per Task — omit `--id` to let auto-id allocate. Keep `scope` + `acceptance_criteria` summaries within the field budgets (Subtask.description ≤250 chars; Subtask.testStrategy ≤300 chars per `task-list-discipline.md` §2/§3) so the write does not hard-reject at the {35.17} budget gate.
+> **Write substrate (downstream — informational):** The Orchestrator or `update-roadmap-backlog` materialises this spec via `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --testStrategy <…> [--depends N,M] [--priority …]` (see `lib/ledger/README.md`). Omit `--id` — auto-id allocates the next available integer per Task. Keep `scope` + `acceptance_criteria` within the field budgets (see preamble) so the write does not hard-reject.
 
 ### Branch B — Is it a new capability theme? (Shape A — "capability theme promotion")
 
@@ -173,7 +166,7 @@ Under Shape A (per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-30-roadmap-
 
 A finding routes to Branch B when **both** of these hold:
 
-1. **Not covered by an existing theme.** Inspect `docs/reference/product-roadmap.json` `themes[]`. The finding's subject is NOT covered by any existing theme's `linked_tasks[]` or `linked_backlog[]` chain (i.e. no existing theme already enumerates this capability area in its linked work). If the finding extends a theme's existing chain, it is Branch C (active work item) not Branch B.
+1. **Not covered by an existing theme.** Inspect roadmap themes via `bun scripts/ledger-cli.ts show roadmap <themeId>` (slice read). The finding's subject is NOT covered by any existing theme's `linked_tasks[]` or `linked_backlog[]` chain (i.e. no existing theme already enumerates this capability area in its linked work). If the finding extends a theme's existing chain, it is Branch C (active work item) not Branch B.
 2. **Multi-month or cross-cutting capability.** The capability is genuinely multi-month in scope OR cross-cuts multiple feature areas at the headline level (e.g. "support multi-tenant deployments", "ship sales-proposal as a sibling application"). Single-feature/weeks-scope items are Branch C, even if they touch territory adjacent to an existing theme.
 
 **If both hold → Decision: `roadmap`.**
@@ -211,7 +204,7 @@ This is the most common destination for non-blocking out-of-scope findings. Unde
 
 Identify the slot:
 
-- Read `docs/reference/product-backlog.json` `items[].track` for the list of existing tracks.
+- Inspect existing backlog items via `bun scripts/ledger-cli.ts show backlog <itemId>` (slice read) to learn the `track` values in use.
 - Identify the right track (`onboarding`, `authentication`, `search`, etc.) or propose a new one.
 - Identify the right `type` (`feature` / `research` / etc. — see existing items for examples).
 
@@ -311,10 +304,10 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 ## Failure modes to avoid
 
 1. **Defaulting everything to backlog.** Backlog should not be a dumping ground. Use `no-action` when warranted.
-2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE. **Budget corollary:** Subtask decisions materialise via `bun scripts/ledger-cli.ts add-subtask` which enforces the `description ≤250 chars` / `testStrategy ≤300 chars` budgets ({35.17}) — keep the decision's `scope` and `acceptance_criteria` summaries within budget so the write does not hard-reject.
+2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE.
 3. **Promoting style nits to the roadmap.** Roadmap is strategic capability; "rename this variable for clarity" is not roadmap material.
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
-5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer (`bun scripts/ledger-cli.ts` invoked via `update-roadmap-backlog`) reconciles to the current files (`docs/reference/{task-list,product-roadmap,product-backlog}.json`).
+5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer (`bun scripts/ledger-cli.ts` invoked via `update-roadmap-backlog`) reconciles to the current ledgers (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/{task-list,product-roadmap,product-backlog}.json`).
 6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional (per s48-feedback B10). If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership`, the finding is not a spec-compliance issue against the Subtask slice, and the parent-Task-AC predicate also does not hold, it is OUT-OF-SCOPE. Route to B / C / D.
 7. **Routing a tactical item to Branch B — it belongs on Backlog.** Under Shape A (per PRODUCT inv 13 a + TECH §4.1), Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
 8. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses (per S62F-WP3 audit — items 152/153/154 routed to backlog despite blocking ID-9 Third-1 acceptance).
@@ -324,72 +317,7 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 
 ## Examples
 
-### Example 1 — Cross-cutting auth pattern (Shape A routing)
-
-**Finding:** "Found that all routes under `app/api/coverage/` use the old `getAuthorisedClient()` return-shape `{ authorised }` instead of the new `{ success }` pattern. Out of scope for current Subtask ID-7.3 (which is one specific coverage route)."
-
-**Decision walk:**
-- Branch A (file-path predicate): `app/api/coverage/*` files outside `subtask_file_ownership` (Subtask ID-7.3 owns only one route). NOT IN-SCOPE.
-- Branch A (axis predicate): The finding is not a spec-compliance issue against Subtask ID-7.3's slice — Subtask ID-7.3's spec only requires its one route conform. NOT IN-SCOPE.
-- Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (Shape A — new capability theme): condition 1 — check `themes[]` for existing coverage of "auth pattern modernisation". No existing theme. condition 2 — multi-route refactor that cross-cuts auth surface; multi-week scope. BOTH HOLD.
-- **Decision: `roadmap`** with `roadmap_proposed_theme` `{ title: "auth pattern modernisation", time_horizon: "next", initial_linked_tasks: [], initial_linked_backlog: [] }`.
-
-### Example 2 — Direct consequence of current change
-
-**Finding:** "Renamed `lib/foo/bar.ts` to `lib/foo/baz.ts` as part of Subtask ID-9.2. Found 4 callers in `lib/other/...` that still import from the old path."
-
-**Decision walk:**
-- Branch A (file-path predicate): The 4 caller files are in `lib/other/...`, OUTSIDE Subtask ID-9.2's `file_ownership_allowed` globs. Does not match.
-- Branch A (axis predicate): The rename is a Subtask ID-9.2 deliverable; leaving callers broken violates the implicit acceptance criterion that the codebase compiles after the rename. MATCHES spec-compliance against Subtask slice.
-- Branch A → IN-SCOPE.
-- **Decision: `subtask`** with new Subtask ID-9.M under Task ID-9 to update the 4 callers. `in_scope_predicate_matched: "axis"`.
-
-### Example 3 — Style nit
-
-**Finding:** "Variable name `tmpResult` in `lib/foo/bar.ts:42` could be clearer." Current Subtask ID-12.1 owns `lib/foo/bar.ts`.
-
-**Decision walk:**
-- Branch A (file-path predicate): `lib/foo/bar.ts` IS within Subtask ID-12.1's `subtask_file_ownership`. File-path predicate MATCHES.
-- Branch A → IN-SCOPE by file-path predicate.
-- However, the finding's content is a pure-style nit with no functional impact. Even though it is technically in-scope, applying it has no acceptance-criteria consequence and creates churn.
-- **Decision: `subtask`** with `in_scope_predicate_matched: "file-path"`, but the Subtask spec must capture that the change is style-only and may be deprioritised by the Orchestrator. Alternatively, **`no-action`** is acceptable if the curator judges the nit not worth the Subtask overhead — record that judgement explicitly in `noaction_reason`.
-
-> Binary in-scope-ness governs routing, not effort. The Orchestrator may still defer or skip a low-value Subtask after seeing the spec.
-
-### Example 4 — Feature-scoped tech debt (Shape A — rank default null)
-
-**Finding:** "The search filter component (`components/search/Filter.tsx`) re-renders on every keystroke because of an unstable empty-array default. Out of scope for current Subtask ID-14.2 (which is in `components/change-reports/`)."
-
-**Decision walk:**
-- Branch A (file-path predicate): `components/search/Filter.tsx` is OUTSIDE Subtask ID-14.2's `file_ownership_allowed` (`components/change-reports/**`). NOT IN-SCOPE.
-- Branch A (axis predicate): Not a spec-compliance issue against Subtask ID-14.2's slice. NOT IN-SCOPE.
-- Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (Shape A)? condition 1 — search is already covered by an existing theme (e.g. "search experience"). FAILS condition 1. Skip Branch B.
-- Branch C? Yes — tactical, single-feature, weeks-scope, no current Task touches search.
-- **Decision: `backlog`** in `track: search`, `type: tech_debt`, `priority: medium`, `rank: null` (no obvious within-tier ordering signal — curator may rank later).
-
-### Example 5 — New capability theme proposal (Shape A — Branch B routing)
-
-**Finding (Checker surfacing):** "While verifying Subtask ID-22.3's auth-coupling cleanup, noticed the codebase has no abstraction for tenant-scoped DB connections. Multi-tenant deployments would require a new layer in `lib/supabase/` plus per-route propagation of a tenant id. Out of scope for current Subtask ID-22.3 (which only touches one route)."
-
-**Decision walk:**
-- Branch A (file-path predicate): the proposed change spans `lib/supabase/**` and many routes — OUTSIDE Subtask ID-22.3's `file_ownership_allowed` (`app/api/coverage/route.ts`). NOT IN-SCOPE.
-- Branch A (axis predicate): Subtask ID-22.3's spec doesn't mention multi-tenancy — not a spec-compliance issue against that slice. NOT IN-SCOPE.
-- Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (Shape A — new capability theme):
-  - condition 1 — inspect `themes[]`. No existing theme covers "multi-tenant deployments" (none of the theme `linked_tasks[]` or `linked_backlog[]` enumerate tenant-scoping work). HOLDS.
-  - condition 2 — multi-month scope, cuts across every authenticated route, requires schema changes (tenant id columns), middleware changes (request-context propagation), and possibly RLS rewrites. Genuinely cross-cutting at the headline level. HOLDS.
-- BOTH conditions hold → **Decision: `roadmap`** with:
-  ```yaml
-  roadmap_proposed_theme:
-    title: "multi-tenant deployments"
-    description: "Add tenant-scoped data isolation across the entire authenticated surface — schema changes for tenant id propagation, middleware for request-context tenancy, RLS policy review per tenant, and admin UX for tenant provisioning. Outcome: a single Knowledge Hub deployment serves multiple isolated customer organisations."
-    time_horizon: "later"
-    initial_linked_tasks: []
-    initial_linked_backlog: []
-  ```
-- The curator (via `update-roadmap-backlog` Create) appends the theme; subsequent active work items (per Branch C findings) get added to `linked_backlog[]` over time. Subtask ID-22.3 itself remains unchanged — the finding is OUT-OF-SCOPE for that Subtask.
+Five worked decision walks — one per branch outcome (cross-cutting → roadmap; rename consequence → subtask; style nit → subtask/no-action; feature tech-debt → backlog; new capability → roadmap) — live in [references/examples.md](references/examples.md).
 
 ---
 
@@ -402,5 +330,3 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 ## What hands off to `update-roadmap-backlog`
 
 For `roadmap` and `backlog` decisions, the curator agent immediately invokes `update-roadmap-backlog` with the decision payload as input. That skill performs the actual JSON edit and any pipeline regeneration.
-
-> **CLI defect history (S273 — Subtasks 35.26–35.34): all RESOLVED.** The S273-era call-shape defects (string-coerced `--id`, number-coerced `--depends`, budget-precheck on untouched fields, etc.) are done — Branch A consumers omit `--id` for normal auto-id allocation, `--depends 1,2` preserves string ids, and `--force` is only ever a `budget-exceeded` escape hatch (right-size the field instead).
