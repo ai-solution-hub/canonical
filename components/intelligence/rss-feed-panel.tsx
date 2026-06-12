@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { Copy, Check, Rss, ExternalLink, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { clientEnv } from '@/lib/env-client';
 
 interface RssFeedPanelProps {
   workspaceId: string;
@@ -115,7 +116,7 @@ export function RssFeedPanel({
   const baseUrl =
     typeof window !== 'undefined'
       ? window.location.origin
-      : 'https://knowledge-hub-seven-kappa.vercel.app';
+      : clientEnv.NEXT_PUBLIC_APP_URL;
 
   const passedUrl = `${baseUrl}/api/feeds/${workspaceId}/rss`;
   const filteredUrl = `${baseUrl}/api/feeds/${workspaceId}/rss/filtered`;

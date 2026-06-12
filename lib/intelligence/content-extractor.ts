@@ -4,9 +4,9 @@ import { MIN_CONTENT_WORDS, EXTRACTION_TIMEOUT_MS } from './types';
 import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
 import { turndown } from '@/lib/extraction/turndown';
 import { logger } from '@/lib/logger';
+import { clientEnv } from '@/lib/env-client';
 
-const USER_AGENT =
-  'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
+const USER_AGENT = `KnowledgeHub/1.0 (+${clientEnv.NEXT_PUBLIC_APP_URL})`;
 
 /** Whether the Firecrawl API key warning has already been logged this process */
 let firecrawlWarningLogged = false;

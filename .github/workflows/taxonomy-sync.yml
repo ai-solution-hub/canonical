@@ -86,7 +86,12 @@ jobs:
         env:
           TAXONOMY_SYNC_CALLBACK_SECRET:
             ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
+          # Deploy-target URL comes from the repo Actions variable APP_URL
+          # ({95.9} no-deploy-target-literal sweep) — the auto-generated
+          # *.vercel.app domain stops resolving on Vercel project rename.
+          APP_URL: ${{ vars.APP_URL }}
         run: |
+          : "${APP_URL:?repo Actions variable APP_URL is not set}"
           TIMESTAMP=$(date +%s%3N)
           # new_hash intentionally omitted — the callback route computes the
           # authoritative hash from DB state (single source of truth).
@@ -95,7 +100,7 @@ jobs:
           SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$TAXONOMY_SYNC_CALLBACK_SECRET" -hex | sed 's/^.* //')
 
           curl -sf -X POST \
-            "https://knowledge-hub-seven-kappa.vercel.app/api/admin/taxonomy-sync/callback" \
+            "${APP_URL}/api/admin/taxonomy-sync/callback" \
             -H "Content-Type: application/json" \
             -H "x-taxonomy-sync-signature: ${SIGNATURE}" \
             -d "$BODY"
@@ -105,10 +110,13 @@ jobs:
         env:
           TAXONOMY_SYNC_CALLBACK_SECRET:
             ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
+          # See success-callback note: APP_URL repo variable, not a literal.
+          APP_URL: ${{ vars.APP_URL }}
           GH_RUN_URL:
             https://github.com/${{ github.repository }}/actions/runs/${{
             github.run_id }}
         run: |
+          : "${APP_URL:?repo Actions variable APP_URL is not set}"
           TIMESTAMP=$(date +%s%3N)
           ERROR_MSG="Workflow failed — check ${GH_RUN_URL}"
           BODY="{\"run_id\":\"${DISPATCH_RUN_ID}\",\"status\":\"failed\",\"timestamp\":${TIMESTAMP},\"error_message\":\"${ERROR_MSG}\"}"
@@ -116,7 +124,7 @@ jobs:
           SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$TAXONOMY_SYNC_CALLBACK_SECRET" -hex | sed 's/^.* //')
 
           curl -sf -X POST \
-            "https://knowledge-hub-seven-kappa.vercel.app/api/admin/taxonomy-sync/callback" \
+            "${APP_URL}/api/admin/taxonomy-sync/callback" \
             -H "Content-Type: application/json" \
             -H "x-taxonomy-sync-signature: ${SIGNATURE}" \
             -d "$BODY"
