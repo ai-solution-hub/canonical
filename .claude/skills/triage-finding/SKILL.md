@@ -1,7 +1,7 @@
 ---
 name: triage-finding
 description:
-  Decide whether a finding surfaced by a task-executor or workflow-checker
+  Decide whether a finding surfaced by a task-executor or task-checker
   is (a) a Subtask of the current Task (ID-N.M), (b) a roadmap promotion
   (strategic / cross-cutting), (c) a backlog promotion (tactical /
   single-feature), or (d) no-action with justification. Decision uses the
@@ -33,7 +33,7 @@ The curator agent invokes this skill with a finding packet:
 
 | Field | Description |
 |-------|-------------|
-| `finding.source` | `task-executor` or `workflow-checker` |
+| `finding.source` | `task-executor` or `task-checker` |
 | `finding.source_context` | Task ID-N (or Subtask ID-N.M if surfaced mid-subtask), branch, commit SHA |
 | `finding.description` | The finding itself, verbatim |
 | `finding.evidence` | `file:line` references + observed behaviour |
@@ -108,7 +108,7 @@ Walk the decision tree in order. Stop at the first match.
 
 **Liam-driven promote (no finding source) — short-circuit at the top of the tree (per S62E sub-o 2 §2 carry-forward):**
 
-This skill's canonical input is a finding packet from a `task-executor` or `workflow-checker`. However, the workflow-orchestration skill (or Orchestrator directly per S60 ratification) may invoke this skill on a backlog item being picked up for implementation — there is no finding source, only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
+This skill's canonical input is a finding packet from a `task-executor` or `task-checker`. However, the workflow-orchestration skill (or Orchestrator directly per S60 ratification) may invoke this skill on a backlog item being picked up for implementation — there is no finding source, only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
 
 - `finding.source` is set to `orchestrator-direct` (or `liam-direct`); `finding.source_context` carries the backlog item id; `finding.description` carries the Orchestrator's promotion rationale; `finding.evidence` is empty or carries the backlog item's existing `notes`.
 - **Decision is short-circuit:** `decision: subtask` (Promote target = task-list) when Liam direction names a parent Task; `decision: roadmap`/`backlog` are NOT reachable from a Liam-driven promote (the item is already on the backlog). The actual Promote write is performed by `update-roadmap-backlog` Promote mode, which fires `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>` — the atomic backlog-delete + task-create write. The skill never invokes that CLI directly.
@@ -156,7 +156,7 @@ in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac"  # which of 
 
 The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it into the current wave or schedule it for a fix wave.
 
-> **Write substrate (downstream — informational):** The Orchestrator or `update-roadmap-backlog` materialises this spec via `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --testStrategy <…> [--depends N,M] [--priority …]` (see `lib/ledger/README.md`). Omit `--id` — auto-id allocates the next available integer per Task. Keep `scope` + `acceptance_criteria` within the field budgets (see preamble) so the write does not hard-reject.
+> **Write substrate (downstream — informational):** The Orchestrator or `update-roadmap-backlog` materialises this spec via `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --test-strategy <…> [--depends N,M]` (see `lib/ledger/README.md`). Omit `--id` — auto-id allocates the next available integer per Task. Keep `scope` + `acceptance_criteria` within the field budgets (see preamble) so the write does not hard-reject.
 
 ### Branch B — Is it a new capability theme? (Shape A — "capability theme promotion")
 

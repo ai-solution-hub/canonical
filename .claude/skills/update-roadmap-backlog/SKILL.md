@@ -437,7 +437,7 @@ the destination `details` automatically.
 - **Per-command help + schema slice:** `bun scripts/ledger-cli.ts <command> --help`.
 - **Schema + budgets:** `bun scripts/ledger-cli.ts schema [ledger|recordKind]` —
   prints each field's name + type + budget; never guess (e.g.
-  `subtask.dependencies:number[]` vs `task.dependencies:string[]`).
+  `subtask.dependencies:string[]` (sibling-only) vs `task.dependencies:string[]`).
 - **Field budgets:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3.
 - **CLI architecture:** `lib/ledger/README.md`.
 - **Two-phase Promote semantics:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-35-ledger-cli/RESEARCH.md` §3.

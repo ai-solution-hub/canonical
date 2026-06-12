@@ -75,7 +75,7 @@ labels or repo are unclear).
 ## Before writing
 
 Gather only the context you need: directory id (GitHub issue, Linear ticket,
-kebab feature name, or Taskmaster task ID), feature summary, target users, key
+or kebab feature name), feature summary, target users, key
 behaviors, edge cases, and how the feature will be validated. Use
 `AskUserQuestion` for missing context rather than guessing.
 
