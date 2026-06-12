@@ -31,10 +31,20 @@ git branch | grep worktree | wc -l
 
 # Verify clean working tree
 git status
+
+# List NAMED worktrees (git worktree prune only clears deleted dirs — named
+# worktrees from prior sessions survive and accumulate)
+git worktree list
 ```
 
 If unmerged branches exist, deploy an agent to investigate whether they should be merged or
 deleted.
+
+For each named worktree under `.claude/worktrees/` not referenced by the
+continuation prompt or an active parallel session: check `git -C <wt> status
+--porcelain`, salvage any untracked/modified files worth keeping, then
+`git worktree remove <wt>`. Ask the user only when a worktree is dirty and its
+purpose is unclear. (WS-A4 — stale worktrees were a top-5 friction cluster.)
 
 ---
 
@@ -66,13 +76,22 @@ Read these documents in parallel to load context:
 
 Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 2`) for the most recent diary entries. For recall during the session, use `mempalace_search` and `mempalace_kg_query`; any errors are transient and should resolve on retry.
 
-### 2b: Task-list state inspection
+### 2b: Task-list state inspection (slice reads ONLY)
 
-Read `docs/reference/task-list.json` at session start where a task whose `session_refs[]` includes the previous
-  session — these are recently-closed records; their `<info added on …>`
-  journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
-  in-flight discoveries the previous Executor / Checker left behind that may
-  have been omitted from the continuation prompt.
+Inspect recently-active task records via the ledger CLI — **never Read the
+ledger JSON files wholesale** (task-list.json is multi-MB; full reads burn
+context for nothing — WS-B4):
+
+```bash
+bun scripts/ledger-cli.ts show task <id>          # one task record
+bun scripts/ledger-cli.ts get task <id> <field>   # one field (e.g. status_note)
+```
+
+For tasks referenced by the continuation prompt, the records' `<info added on …>`
+journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
+in-flight discoveries the previous Executor / Checker left behind that may
+have been omitted from the continuation prompt. Prefer `get … details` /
+`get … status_note` over `show` for large done tasks.
 
 ### 2c: Sandbox / allowlist carryover
 
@@ -94,8 +113,8 @@ opens with the strategic "why this Task matters" — not just the tactical task 
 
 1. **Resolve the owning theme.** Read the active Task's `capability_theme` field (the
    optional back-link to a roadmap theme `id`). Then read **only that one owning-theme
-   record** from `docs/reference/product-roadmap.json` — the same canonical ledger-read
-   path Step 2b uses for `task-list.json`. Do not read the full ~23KB / 12-theme roadmap,
+   record** via `bun scripts/ledger-cli.ts show roadmap <themeId>` — the same canonical
+   slice-read path Step 2b uses. Do not read the full ~23KB / 12-theme roadmap,
    and do not introduce a hard-coded path that bypasses the canonical reader. The owning
    theme is ~1–2KB; the all-titles list and the full-roadmap dump are rejected
    alternatives (read only the single owning-theme record).

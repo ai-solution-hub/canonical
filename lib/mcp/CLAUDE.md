@@ -127,3 +127,7 @@ interfaces — tested by `mcp-app-contracts.test.ts`.
   order in `tools/index.ts`.
 - **App bundle size:** `app-bundles.ts` is ~500KB. Changes to MCP App source require
   rebuilding (`bun run build:mcp-apps`) and committing the updated file.
+- **Plugin not auto-discovered:** must be published to the local marketplace and enabled
+  in settings — existing in `.claude/plugins/` is not enough. Run `bun run build:plugin`
+  after changing plugin files (regenerates committed `plugin-bundle.ts`). After pushing
+  plugins to remote, `git pull` in `~/.claude/plugins/marketplaces/{name}/` to refresh.

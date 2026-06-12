@@ -84,13 +84,17 @@ After every implementation subtask is `done`:
 
 ## Loading task-list.json (soft-ceiling surfacing)
 
-When reading `docs/reference/task-list.json` invoke `parseTaskListWithWarnings` from
+Default access is SLICE READS via the ledger CLI (`bun scripts/ledger-cli.ts
+show task <id>` / `get task <id> <field>`) — never a wholesale Read of the
+multi-MB ledger. When a programmatic FULL-list pass is genuinely required
+(e.g. ceiling audit), invoke `parseTaskListWithWarnings` from
 `lib/validation/task-list-schema.ts`:
 
 ```ts
 import { parseTaskListWithWarnings } from '@/lib/validation/task-list-schema';
 
-const raw = JSON.parse(await fs.readFile('docs/reference/task-list.json', 'utf8'));
+const ledgerDir = `${process.env.KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers`;
+const raw = JSON.parse(await fs.readFile(`${ledgerDir}/task-list.json`, 'utf8'));
 const { value, warnings } = parseTaskListWithWarnings(raw);
 ```
 

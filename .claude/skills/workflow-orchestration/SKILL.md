@@ -81,9 +81,11 @@ SESSION
   `quality-review` pass, then Orchestrator gates Task → `done` only after
   Curator triage complete and roadmap/backlog implications recorded.
 
-**Task-list ingress:** read `docs/reference/task-list.json` via
-`parseTaskListWithWarnings` from `lib/validation/task-list-schema.ts`, never
-`JSON.parse` directly.
+**Task-list ingress:** SLICE READS ONLY — `bun scripts/ledger-cli.ts show task <id>`
+/ `get task <id> <field>` (ledgers live in the docs-site; the CLI resolves the
+dir). Never Read/`JSON.parse` the ledger JSONs wholesale — task-list.json is
+multi-MB. Programmatic full-list validation (rare) goes through
+`parseTaskListWithWarnings` from `lib/validation/task-list-schema.ts`.
 
 For full per-phase detail (Planner-model rules, subtask `details`/`testStrategy`
 structure, end-of-task gates, the helper's call-shape with ts example), see [references/lifecycle-detail.md](references/lifecycle-detail.md).
@@ -117,6 +119,19 @@ For details on how the three primitives compose and what every dispatch brief mu
 After every subtask PASS (or PASS_WITH_NOTES with all notes resolved),
 the Orchestrator owns the merge. Executors invoke `commit-commands` per
 subtask. **On conflict**: invoke the `resolve-merge-conflicts` skill.
+
+**Pre-integration preflight (WS-A4 — F2 friction killer).** Before any
+cherry-pick / merge batch:
+
+1. **Stop competing watchers** — kill or pause background git-watchers
+   (`watch-fleet.sh`, inline `git status` loops) for the duration of the
+   integration; concurrent watchers recreate `.git/index.lock` mid-cherry-pick.
+2. **Confirm CWD is the canonical checkout** (`git rev-parse --show-toplevel`),
+   not a worktree — completing worktree agents can drag the session CWD.
+3. **Check for concurrent sessions on the branch** (`git log origin/<branch>..HEAD`
+   + recent reflog) before assuming local state is authoritative.
+
+Resume watchers only after the final cherry-pick of the batch lands.
 
 ---
 
@@ -327,7 +342,7 @@ tool discipline above) when it modifies files matching any of the following:
 **Out-of-scope** (code-intelligence tool discipline does NOT apply):
 
 - `.md` / `.mdx` — documentation and spec files
-- `.json` (ledger files in `docs/reference/`) — workflow ledger files
+- `.json` (ledger files in the docs-site `src/content/docs/ledgers/`) — workflow ledger files
 - `.py` — Python pipeline scripts (ast-dataflow covers TypeScript only; use grep for Python)
 - `.sql` — Supabase migration files (use grep for SQL)
 
@@ -430,8 +445,8 @@ rather than restate it. The ID-90 daemon serialises behind **one mutex per ledge
 directory**, so it only de-conflicts writers that all target the *same*
 main-checkout ledger directory. Sub-orchestrators and executors dispatched into
 their own worktrees (via `session-driver-cmux` or `Agent` `isolation: "worktree"`)
-MUST NOT mutate or commit the ledger JSONs or their `docs/reference/{tasks,backlog}/*.md`
-mirrors in their branch — an in-branch `chore(ledger)` commit bypasses the mutex
+MUST NOT mutate or commit the ledger JSONs or their `ledgers/{tasks,backlog}/*.md`
+mirrors (docs-site) in their branch — an in-branch `chore(ledger)` commit bypasses the mutex
 entirely. Workers **return ledger-write intents** (flip {N.M} done with journal X,
 create backlog item Y); **the Orchestrator applies every returned intent via
 `ledger-cli.ts` on the MAIN checkout** — id allocation for creates happens here,
@@ -460,7 +475,7 @@ exact clash the single mutex exists to prevent.
 ## Backlog pickup → Promote
 
 When the Orchestrator or Liam selects a backlog item from
-`docs/reference/product-backlog.json` to implement, the **first action is to
+the backlog ledger (`bun scripts/ledger-cli.ts show backlog <id>`) to implement, the **first action is to
 invoke `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>`**.
 
 **Canonical invocation:**

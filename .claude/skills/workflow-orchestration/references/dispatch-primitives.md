@@ -29,9 +29,9 @@ Every dispatch produces a brief the sub-agent receives as its initial
 prompt. The brief carries:
 
 - **Subtask reference** — `ID-N.M` plus the Subtask object from
-  `task-list.json` (read the relevant Task with `parseTaskListWithWarnings`
-  and pass the Subtask through verbatim — its `details` field is the
-  load-bearing dispatch brief).
+  `task-list.json` (slice-read the relevant Task with
+  `bun scripts/ledger-cli.ts show task <N>` and pass the Subtask through
+  verbatim — its `details` field is the load-bearing dispatch brief).
 - **Spec-slice reference** — path + anchor to the section of PRODUCT.md /
   TECH.md the subtask references. The Executor reads only this slice.
 - **File-ownership boundaries** — explicit allow-list of files this dispatch
