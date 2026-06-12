@@ -83,9 +83,20 @@ export const PAYLOAD_CONTRACT: readonly PayloadTableContract[] = [
   },
   {
     table: 'taxonomy_subtopics',
-    // domain_name resolved from FK domain_id -> taxonomy_domains.name; the uuid
-    // domain_id differs per DB, so the (domain, subtopic) name pair is the stable key.
-    stableKey: ['domain_name', 'name'],
+    // stableKey is the non-FK identifying component only: the subtopic `name`.
+    // `domain_name` is NOT a stored column (it exists only as a SELECT alias in
+    // coverage-RPC RETURNS TABLE signatures) -- so it cannot be an ON CONFLICT
+    // target. The cross-DB identity is (resolved domain, subtopic name); the domain
+    // component is supplied by the fkRemap below, not by a stableKey column.
+    //
+    // Worker upsert target (so {95.13} builds the right ON CONFLICT without
+    // guessing): the ON CONFLICT column set = fkRemap-resolved FK column(s) UNION
+    // stableKey = (domain_id, name), which is the existing DB UNIQUE constraint
+    // `taxonomy_subtopics_domain_id_name_key`. The worker resolves the target-side
+    // `domain_id` via the fkRemap (look up the source row's domain `name`, find the
+    // target taxonomy_domains row with that `name`, use ITS uuid id) BEFORE the
+    // upsert, then conflicts on (domain_id, name).
+    stableKey: ['name'],
     fkRemap: {
       column: 'domain_id',
       referencesTable: 'taxonomy_domains',

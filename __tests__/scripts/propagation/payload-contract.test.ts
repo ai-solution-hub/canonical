@@ -70,7 +70,11 @@ describe('PAYLOAD_CONTRACT (PI-18 canonical-content propagation)', () => {
       referencesTable: 'taxonomy_domains',
       referencesStableKey: ['name'],
     });
-    expect(subtopics?.stableKey).toContain('domain_name');
+    // stableKey is the non-FK identifying component only (`name`); the domain
+    // component comes from the fkRemap, not a stored `domain_name` column. The
+    // worker's ON CONFLICT target is the resolved FK UNION stableKey = (domain_id,
+    // name) = the DB UNIQUE constraint taxonomy_subtopics_domain_id_name_key.
+    expect(subtopics?.stableKey).toEqual(['name']);
   });
 
   it('excludes client-provenance tables from the payload set', () => {
