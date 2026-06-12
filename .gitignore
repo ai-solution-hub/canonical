@@ -124,3 +124,7 @@ lib/branding/client-branding-map.generated.ts
 
 # ID-95 PI-15: client-provenance entity_aliases snapshot is point-of-use generated (deploy), never committed
 scripts/tests/fixtures/entity_aliases_snapshot.json
+
+# ID-95 PI-18 {95.13}: canonical-content propagation catalog holds service-role
+# DSNs (config-as-data, out-of-band operator input) — MUST NEVER be committed
+scripts/.propagation-catalog.json
