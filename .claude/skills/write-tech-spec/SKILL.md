@@ -19,7 +19,7 @@ easier for agents to execute and reviewers to evaluate.
 
 Write specs to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/TECH.md`, where:
 
-- `N` is the Task ID from `docs/reference/task-list.json` (e.g.
+- `N` is the Task ID from `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json` (e.g.
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-9-astro-starlight-docs-foundation/TECH.md`).
 - `<slug>` is a short kebab-case feature name matching the sibling
   `RESEARCH.md` / `PRODUCT.md` / `PLAN.md`.

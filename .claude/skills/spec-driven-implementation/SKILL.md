@@ -45,7 +45,7 @@ from prose).
 **Forward naming convention (ID-48.4):** For any **new** Task spec dir
 authored from this point forward, use the prefix `ID-N-<slug>/` where:
 
-- `N` is the Task ID from `docs/reference/task-list.json` (no leading zeros).
+- `N` is the Task ID from `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json` (no leading zeros).
 - `<slug>` is a short kebab-case feature name (e.g.
   `ID-9-astro-starlight-docs-foundation/`).
 

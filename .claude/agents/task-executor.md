@@ -44,7 +44,8 @@ to `done`.
 
 ## What you receive from the orchestrator
 
-A **Subtask dispatch brief** drawn from `docs/reference/task-list.json`:
+A **Subtask dispatch brief** drawn from the task-list ledger (accessed via
+`bun scripts/ledger-cli.ts get task <N>`):
 
 - **Subtask ID** — `ID-N.M` (the canonical identifier — also the branch / commit-message
   scope).
@@ -327,8 +328,8 @@ NOTHING COMMITTED.
   those are `{N.1}` to `{N.4}` Planner work.
 - You are not the Checker. Do not audit other branches or other Subtasks. Self-review your
   own work but do not opine on others' work.
-- You are not the Curator. Do not edit `docs/reference/product-roadmap.json` or
-  `product-backlog.json` — surface out-of-scope findings to the orchestrator instead.
+- You are not the Curator. Do not mutate the roadmap or backlog ledgers — surface
+  out-of-scope findings to the orchestrator instead.
 
 Your success is measured by: (a) a clean committed branch with all `testStrategy`
 acceptance lines met, (b) zero scope drift outside the `details`-referenced file-ownership
