@@ -185,10 +185,10 @@ export const POST = withRequestContext(async (request: NextRequest) => {
       created_by: user.id,
       content_owner_id: ownerId,
       dedup_status: dedupStamp.dedup_status,
-      // S207 WP-A4 (Plan Task 3.2): typed provenance column. Read by
+      // Typed provenance column. Read by
       // ensure_v1_history_at_commit() to set
       // content_history.change_reason='initial_ingest'.
-      ingest_source: 'url_import' as const,
+      ingestion_source: 'url_import' as const,
       ...(user_tags?.length && { user_tags }),
       ...(embeddingValue && { embedding: embeddingValue }),
       metadata: {

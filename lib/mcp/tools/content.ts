@@ -476,9 +476,6 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           userId,
         });
 
-        // S207 WP-A4 (Plan Task 3.2): trail-cast as Insert because
-        // ingest_source is a NEW typed column not yet in database.types
-        // (mid-session regen forbidden per `feedback_no_midsession_type_regen`).
         const insertData = {
           title: args.title,
           suggested_title: args.title,
@@ -488,12 +485,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           captured_date: new Date().toISOString(),
           created_by: userId,
           content_owner_id: ownerId,
-          // S207 WP-A4: typed provenance column. Read by
+          // Typed provenance column. Read by
           // ensure_v1_history_at_commit() to set
-          // content_history.change_reason='initial_ingest'. Distinct
-          // edit-range from S205 WP-A1 typed provenance below (lines 494-499)
-          // and S205 WP-A2 pipeline_run instrumentation at line 519+.
-          ingest_source: 'mcp_create',
+          // content_history.change_reason='initial_ingest'.
+          ingestion_source: 'mcp_create',
           dedup_status: dedupStamp.dedup_status,
           ...(args.primary_domain && {
             primary_domain: slugifyDomain(args.primary_domain),

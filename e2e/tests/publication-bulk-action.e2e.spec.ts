@@ -122,7 +122,7 @@ async function seedInReviewItems(
       content_type: 'article',
       primary_domain: 'Service Delivery',
       platform: 'manual',
-      ingest_source: 'manual',
+      ingestion_source: 'manual',
       publication_status: 'in_review',
       created_by: adminUserId,
       content_owner_id: adminUserId,

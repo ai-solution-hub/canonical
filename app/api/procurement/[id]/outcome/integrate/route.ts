@@ -224,10 +224,10 @@ export async function POST(
             // EP10 has NO admin-override semantics (per OQ-EP10-OWNER-OVERRIDE
             // default): the caller is always the owner of integrated KB items.
             content_owner_id: user.id,
-            // S207 WP-A4 (Plan Task 3.2): typed provenance column. Read by
+            // Typed provenance column. Read by
             // ensure_v1_history_at_commit() to set
             // content_history.change_reason='initial_ingest'.
-            ingest_source: 'bid_outcome_integration',
+            ingestion_source: 'bid_outcome_integration',
             // P0-BM Phase 3 spec ss4.6 Path 3: populate answer_standard for
             // q_a_pair so first PATCH edit does not destroy creation content
             // (bug B2 fix).

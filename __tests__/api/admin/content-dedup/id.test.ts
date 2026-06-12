@@ -112,7 +112,7 @@ const SUBJECT_ROW = {
   created_at: '2026-04-28T10:00:00Z',
   primary_domain: 'tech-it',
   content_owner_id: null,
-  ingest_source: 'url_import',
+  ingestion_source: 'url_import',
   superseded_by: null,
   metadata: { suspected_duplicate_of: CANONICAL_ID },
   publication_status: 'in_review',

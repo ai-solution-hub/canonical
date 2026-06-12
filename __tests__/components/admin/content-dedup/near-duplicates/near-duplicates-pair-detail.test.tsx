@@ -50,7 +50,7 @@ function makeMember(
     primary_domain: 'access-control',
     content_type: 'q_a_pair',
     content_owner_id: null,
-    ingest_source: 'example-reingest-2026-v2',
+    ingestion_source: 'example-reingest-2026-v2',
     superseded_by: null,
     archived_at: null,
     publication_status: 'published',
@@ -71,7 +71,7 @@ describe('NearDuplicatesPairDetailClient', () => {
         id: RIGHT_ID,
         title: 'Right row title',
         created_at: '2026-03-14T12:00:00Z',
-        ingest_source: 'client-new-markdown-2026',
+        ingestion_source: 'client-new-markdown-2026',
       }),
       similarity: 0.943,
     });

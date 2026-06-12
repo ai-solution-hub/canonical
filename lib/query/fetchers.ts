@@ -544,7 +544,7 @@ export interface SuspectedDuplicateRow {
   created_at: string;
   primary_domain: string | null;
   content_owner_id: string | null;
-  ingest_source: string | null;
+  ingestion_source: string | null;
   superseded_by: string | null;
   publication_status: string;
   metadata: Record<string, unknown> | null;
@@ -665,7 +665,7 @@ export interface NearDupPairMember {
   primary_domain: string | null;
   content_type: string | null;
   content_owner_id: string | null;
-  ingest_source: string | null;
+  ingestion_source: string | null;
   superseded_by: string | null;
   archived_at: string | null;
   publication_status: string;

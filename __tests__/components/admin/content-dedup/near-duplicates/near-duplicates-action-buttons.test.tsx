@@ -75,7 +75,7 @@ function makeMember(
     primary_domain: 'access-control',
     content_type: 'q_a_pair',
     content_owner_id: null,
-    ingest_source: 'example-reingest-2026-v2',
+    ingestion_source: 'example-reingest-2026-v2',
     superseded_by: null,
     archived_at: null,
     publication_status: 'published',

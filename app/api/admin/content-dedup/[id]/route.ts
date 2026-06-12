@@ -9,7 +9,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CONTENT_ITEM_PROJECTION =
-  'id, title, content, dedup_status, created_at, primary_domain, content_owner_id, ingest_source, superseded_by, metadata, publication_status, archived_at, content_text_hash';
+  'id, title, content, dedup_status, created_at, primary_domain, content_owner_id, ingestion_source, superseded_by, metadata, publication_status, archived_at, content_text_hash';
 
 /**
  * GET /api/admin/content-dedup/[id]

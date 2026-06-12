@@ -125,7 +125,7 @@ const SAMPLE_ROW = {
   created_at: '2026-04-28T10:00:00Z',
   primary_domain: 'tech-it',
   content_owner_id: null,
-  ingest_source: 'url_import',
+  ingestion_source: 'url_import',
   superseded_by: null,
   metadata: { suspected_duplicate_of: 'a4d8e1f2-3b6c-4d7e-9f8a-1b2c3d4e5f60' },
   publication_status: 'in_review',

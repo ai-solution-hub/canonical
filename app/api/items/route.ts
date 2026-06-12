@@ -157,16 +157,6 @@ export const POST = withRequestContext(async (request: NextRequest) => {
       : undefined;
 
     // Build the insert payload.
-    //
-    // S207 WP-A4 (Plan Task 3.2): the `ingest_source` field is a NEW typed
-    // column on content_items but database.types.ts is intentionally NOT
-    // regenerated mid-session (`feedback_no_midsession_type_regen`) so the
-    // generated `Insert` row type does not yet include it. We trail-cast
-    // the literal as `Insert` rather than annotating the `const` to
-    // bypass excess-property checking on this single field; the trailing
-    // cast at the `.insert()` call site is the same pattern used at
-    // `app/api/items/[id]/route.ts:342` for content_history rows. Wave 5
-    // sweep regen will widen the type and the cast becomes a no-op.
     const insertData = {
       title,
       content,
@@ -176,11 +166,11 @@ export const POST = withRequestContext(async (request: NextRequest) => {
       captured_date: new Date().toISOString(),
       created_by: user.id,
       content_owner_id: ownerId,
-      // S207 WP-A4: typed provenance column. Preserves overrideability via
+      // Typed provenance column. Preserves overrideability via the
       // `ingestion_source` body field per spec §5.5 Phase 2 (mirrors
       // metadata.ingestion_source semantic). Read by
       // ensure_v1_history_at_commit() trigger.
-      ingest_source: ingestion_source ?? 'manual',
+      ingestion_source: ingestion_source ?? 'manual',
       metadata: {
         ingestion_source: ingestion_source ?? 'manual',
         ...(dedupStamp.suspected_duplicate_of && {

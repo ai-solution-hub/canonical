@@ -242,9 +242,6 @@ export async function POST(request: NextRequest) {
           metadata.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
         }
 
-        // S207 WP-A4 (Plan Task 3.2): trail-cast as Insert because
-        // ingest_source is a NEW typed column not yet in database.types
-        // (mid-session regen forbidden per `feedback_no_midsession_type_regen`).
         const insertData = {
           title: item.title,
           content: item.content,
@@ -254,10 +251,10 @@ export async function POST(request: NextRequest) {
           captured_date: new Date().toISOString(),
           created_by: user.id,
           content_owner_id: ownerId,
-          // S207 WP-A4: typed provenance column. Read by
+          // Typed provenance column. Read by
           // ensure_v1_history_at_commit() to set
           // content_history.change_reason='initial_ingest'.
-          ingest_source: 'upload_autosplit',
+          ingestion_source: 'upload_autosplit',
           metadata,
           dedup_status: dedupStamp.dedup_status,
           // P0-BM Phase 3 spec ss4.6 Path 2: populate answer_standard for
