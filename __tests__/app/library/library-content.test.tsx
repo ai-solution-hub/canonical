@@ -226,7 +226,7 @@ function createQAItem(
     governance_review_status: null,
     metadata: {},
     verified_at: null,
-    source_document: null,
+    source_file: null,
     brief: null,
     content: 'Some content',
     answer_standard: overrides.answer_standard ?? 'Standard answer',

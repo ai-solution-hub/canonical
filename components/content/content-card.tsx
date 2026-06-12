@@ -450,7 +450,7 @@ export const ContentCard = memo(function ContentCard({
   const answerPreviewStripped = answerPreview
     ? stripMarkdown(answerPreview)
     : null;
-  const sourceDocument = isQAPair ? item.source_document : null;
+  const sourceDocument = isQAPair ? item.source_file : null;
   const verifiedByName = item.verified_by
     ? (verifierNames?.get(item.verified_by) ?? null)
     : null;

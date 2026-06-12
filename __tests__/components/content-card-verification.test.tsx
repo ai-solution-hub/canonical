@@ -63,7 +63,7 @@ function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
     platform: 'web',
     author_name: null,
     source_domain: null,
-    source_document: null,
+    source_file: null,
     thumbnail_url: null,
     captured_date: '2026-01-15T10:00:00Z',
     ai_keywords: null,

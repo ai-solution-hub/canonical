@@ -147,8 +147,7 @@ export function ContentLibraryDrawer({
         result.source_file ??
         ((result.metadata as Record<string, unknown> | null)?.source_file as
           | string
-          | undefined) ??
-        result.source_document;
+          | undefined);
       if (sourceDoc) {
         const existing = groups.get(sourceDoc) ?? [];
         existing.push(result);

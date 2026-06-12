@@ -58,8 +58,6 @@ export interface ItemData {
   // Phase 5 fields
   verified_at?: string | null;
   verified_by?: string | null;
-  source_document?: string | null;
-  source_bid?: string | null;
   brief?: string | null;
   detail?: string | null;
   reference?: string | null;

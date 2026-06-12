@@ -201,11 +201,11 @@ export function ReaderView({
                   {new Date(item.updated_at).toLocaleDateString('en-GB')}
                 </span>
               )}
-              {item.source_document && (
+              {(item.source_file ?? item.source_url) && (
                 <span className="text-xs text-muted-foreground">
                   Source:{' '}
                   <span className="font-medium text-foreground/80">
-                    {item.source_document}
+                    {item.source_file ?? item.source_url}
                   </span>
                 </span>
               )}
