@@ -542,13 +542,9 @@ export type Database = {
           brief: string | null
           captured_date: string | null
           citation_count: number
-          classification_cache_creation_tokens: number | null
-          classification_cache_read_tokens: number | null
           classification_confidence: number | null
           classification_model: string | null
           classification_reasoning: string | null
-          classification_tokens_in: number | null
-          classification_tokens_out: number | null
           classified_at: string | null
           content: string
           content_owner_id: string | null
@@ -560,7 +556,6 @@ export type Database = {
           detail: string | null
           embedding: string | null
           embedding_model: string | null
-          embedding_tokens: number | null
           expiry_date: string | null
           file_path: string | null
           freshness: string | null
@@ -574,9 +569,7 @@ export type Database = {
           lifecycle_type: string | null
           metadata: Json | null
           next_review_date: string | null
-          notes: string | null
           op_id: string | null
-          parent_id: string | null
           platform: string | null
           previous_freshness: string | null
           previous_quality_score: number | null
@@ -590,8 +583,6 @@ export type Database = {
           review_cadence_days: number | null
           secondary_domain: string | null
           secondary_subtopic: string | null
-          source_bid: string | null
-          source_document: string | null
           source_document_id: string | null
           source_domain: string | null
           source_file: string | null
@@ -620,13 +611,9 @@ export type Database = {
           brief?: string | null
           captured_date?: string | null
           citation_count?: number
-          classification_cache_creation_tokens?: number | null
-          classification_cache_read_tokens?: number | null
           classification_confidence?: number | null
           classification_model?: string | null
           classification_reasoning?: string | null
-          classification_tokens_in?: number | null
-          classification_tokens_out?: number | null
           classified_at?: string | null
           content: string
           content_owner_id?: string | null
@@ -638,7 +625,6 @@ export type Database = {
           detail?: string | null
           embedding?: string | null
           embedding_model?: string | null
-          embedding_tokens?: number | null
           expiry_date?: string | null
           file_path?: string | null
           freshness?: string | null
@@ -652,9 +638,7 @@ export type Database = {
           lifecycle_type?: string | null
           metadata?: Json | null
           next_review_date?: string | null
-          notes?: string | null
           op_id?: string | null
-          parent_id?: string | null
           platform?: string | null
           previous_freshness?: string | null
           previous_quality_score?: number | null
@@ -668,8 +652,6 @@ export type Database = {
           review_cadence_days?: number | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
-          source_bid?: string | null
-          source_document?: string | null
           source_document_id?: string | null
           source_domain?: string | null
           source_file?: string | null
@@ -698,13 +680,9 @@ export type Database = {
           brief?: string | null
           captured_date?: string | null
           citation_count?: number
-          classification_cache_creation_tokens?: number | null
-          classification_cache_read_tokens?: number | null
           classification_confidence?: number | null
           classification_model?: string | null
           classification_reasoning?: string | null
-          classification_tokens_in?: number | null
-          classification_tokens_out?: number | null
           classified_at?: string | null
           content?: string
           content_owner_id?: string | null
@@ -716,7 +694,6 @@ export type Database = {
           detail?: string | null
           embedding?: string | null
           embedding_model?: string | null
-          embedding_tokens?: number | null
           expiry_date?: string | null
           file_path?: string | null
           freshness?: string | null
@@ -730,9 +707,7 @@ export type Database = {
           lifecycle_type?: string | null
           metadata?: Json | null
           next_review_date?: string | null
-          notes?: string | null
           op_id?: string | null
-          parent_id?: string | null
           platform?: string | null
           previous_freshness?: string | null
           previous_quality_score?: number | null
@@ -746,8 +721,6 @@ export type Database = {
           review_cadence_days?: number | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
-          source_bid?: string | null
-          source_document?: string | null
           source_document_id?: string | null
           source_domain?: string | null
           source_file?: string | null
@@ -792,20 +765,6 @@ export type Database = {
             columns: ["governance_reviewer_id"]
             isOneToOne: false
             referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_source_bid_fkey"
-            columns: ["source_bid"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
           {
@@ -3787,13 +3746,9 @@ export type Database = {
               brief: string | null
               captured_date: string | null
               citation_count: number
-              classification_cache_creation_tokens: number | null
-              classification_cache_read_tokens: number | null
               classification_confidence: number | null
               classification_model: string | null
               classification_reasoning: string | null
-              classification_tokens_in: number | null
-              classification_tokens_out: number | null
               classified_at: string | null
               content: string
               content_owner_id: string | null
@@ -3805,7 +3760,6 @@ export type Database = {
               detail: string | null
               embedding: string | null
               embedding_model: string | null
-              embedding_tokens: number | null
               expiry_date: string | null
               file_path: string | null
               freshness: string | null
@@ -3819,9 +3773,7 @@ export type Database = {
               lifecycle_type: string | null
               metadata: Json | null
               next_review_date: string | null
-              notes: string | null
               op_id: string | null
-              parent_id: string | null
               platform: string | null
               previous_freshness: string | null
               previous_quality_score: number | null
@@ -3835,8 +3787,6 @@ export type Database = {
               review_cadence_days: number | null
               secondary_domain: string | null
               secondary_subtopic: string | null
-              source_bid: string | null
-              source_document: string | null
               source_document_id: string | null
               source_domain: string | null
               source_file: string | null
