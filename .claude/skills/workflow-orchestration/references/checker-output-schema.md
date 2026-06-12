@@ -83,3 +83,14 @@ The Checker may pre-populate `scope` in its output. The Orchestrator
 re-evaluates against the binary rule (the Checker's view of "in-scope" can
 differ from the Orchestrator's view of file-ownership, and the
 Orchestrator's view wins).
+
+### Verification artifact (standard variant)
+
+The standard-variant Checker emits an executable `verify.sh` that re-runs its
+**deterministic** checks (Step 4b of `task-checker`) and names it on the final
+line of the free-text `recommendation` field as `verify-script: <path>`. The
+path points into the gitignored `.claude/cmux-events/<sid>/checker-artifacts/`
+tree (fallback `.user-scratch/checker-artifacts/`). On a FAIL or a re-verify,
+the Orchestrator may grep that marker and `sh <path>` to re-run the
+deterministic slice — cheaper than re-dispatching a full Checker. The marker
+rides inside the existing field, so the verdict JSON schema is unchanged.

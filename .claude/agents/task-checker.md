@@ -59,8 +59,11 @@ A **Checker dispatch brief**:
 
 ## Operating principles
 
-- **Read-only.** Use `Read`, `Bash` (for tests/lint/build), `Grep`. Never `Edit`, `Write`,
-  or `git commit`.
+- **Read-only, with one exception.** Use `Read`, `Bash` (for tests/lint/build), `Grep`.
+  Never `Edit` or `git commit`. The ONLY permitted `Write` is the single executable
+  `verify.sh` verification artifact emitted in **Step 4b** (standard variant), written to
+  the gitignored `.claude/cmux-events/<session-id>/checker-artifacts/` scratch dir — never
+  to a tracked path.
 - **NEVER prefix a Bash command with `cd /Users/.../knowledge-hub`** (or any absolute cd
   into the repo root) — you are already in your worktree CWD; use relative paths or
   `git -C <path>` (FR-001; full friction-register rules:
@@ -344,7 +347,52 @@ bun run lint
 `local/no-unchecked-supabase-error` + `local/no-silent-promise-catch` violations on
 changed files are automatic FAILs (blocker severity).
 
+**Step 4b — Emit the executable verification artifact (standard variant)**
+
+After running Steps 2–4, write a `verify.sh` that re-runs _exactly_ the deterministic
+checks you just executed — nothing prose-judged. It is a faithful transcript of the
+commands this audit ran, parameterised from the brief you already hold (the ALLOWED file
+set, the short-sha(s), the changed test paths, and — if the `scope-containment` /
+`rename-sweep` axes fired — the diff range / renamed symbol):
+
+```bash
+#!/usr/bin/env bash
+# Auto-emitted by task-checker (standard) for {ID-N.M} @ {short-sha}.
+# Re-runs the DETERMINISTIC slice only — prose-judgement axes are NOT reproduced.
+set -uo pipefail
+fail=0
+# 1. Commit scope vs ALLOWED (the brief's file-ownership list, baked in literally)
+git show --stat {short-sha} --name-only --format= | sort -u > "$TMPDIR/checker-changed.$$"
+# (grep changed paths against the literal ALLOWED set; echo + fail=1 on any out-of-set path)
+# 2. Scoped tests — the exact paths the executor touched
+bun run test {changed-test-paths} || fail=1
+# 3. Lint — the two local rules are the load-bearing blockers
+bun run lint || fail=1
+# 4. Deterministic spec-greps on changed files (grep-able axes only):
+#    design-tokens raw colours / bare-catch / barrel re-exports — fail=1 on hit
+# 5. Conditional, ONLY if the axis fired this run:
+#    scope-containment -> git diff --name-only {short-sha}~1 {short-sha}
+#    rename-sweep      -> bun scripts/ast-dataflow-cli.ts string-literal-uses {renamed-symbol}
+exit $fail
+```
+
+Write it to
+`.claude/cmux-events/<session-id>/checker-artifacts/verify-{ID-N.M}-{short-sha}.sh` (this
+tree is gitignored). When no cmux session-id is present, fall back to
+`.user-scratch/checker-artifacts/`. Use a **CWD-relative** path — never an absolute `cd`
+into the repo root (FR-001). The script is self-contained and exits non-zero on any
+deterministic failure. This artifact is the anti-verification-theatre forcing function:
+the deterministic checks must be expressible as runnable code, and the Orchestrator (or
+Liam) can re-run `sh <path>` to confirm the verdict without re-dispatching you.
+
 **Step 5 — Compose JSON output (schema below)**
+
+End the free-text `recommendation` field with a final line naming the Step 4b artifact:
+`verify-script: <path>` (e.g.
+`verify-script: .claude/cmux-events/<sid>/checker-artifacts/verify-ID-7.3-f4a2b91.sh`).
+This rides **inside** the existing free-text field — it does not add, remove, or retype
+any JSON key, so the verdict schema below is unchanged. The Orchestrator greps this marker
+to locate the re-runnable deterministic slice.
 
 ---
 
