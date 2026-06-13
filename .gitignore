@@ -99,6 +99,7 @@ logs/
 # Session output dumps (Claude Code session exports)
 output.jsonl
 *-session-output.md
+*_session_output.md
 *-session-output.jsonl
 *_session_output.json
 *-session-output.json
