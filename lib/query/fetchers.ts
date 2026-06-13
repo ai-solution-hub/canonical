@@ -136,6 +136,51 @@ export async function rollbackItemVersion(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Q&A pair revision history (ID-59 {59.16} user-edit Diff-UI, Q&A leg)
+// ---------------------------------------------------------------------------
+//
+// Wire shape for GET /api/q-a-pairs/[id]/history. Source = q_a_pair_history
+// (INV-14). Each row carries the full revision body (question + answers) plus
+// the `edit_intent` snapshot, so the compare-two-versions affordance computes
+// the diff client-side from two list rows — no per-version detail route, no
+// diff table (INV-15/INV-17). TanStack Query exclusively (no raw fetch).
+
+/** A single q_a_pair_history revision row from GET /api/q-a-pairs/[id]/history. */
+export interface QAPairHistoryEntry {
+  id: string;
+  q_a_pair_id: string;
+  version: number;
+  question_text: string;
+  answer_standard: string;
+  answer_advanced: string | null;
+  /** Provenance of the snapshotted revision (no change_type column on Q&A history). */
+  origin_kind: string;
+  publication_status: string;
+  changed_at: string;
+  changed_by: string | null;
+  /** Structured edit-intent classification ({59.5}); null for pre-feature rows. */
+  edit_intent: string | null;
+}
+
+/** Paginated list response from GET /api/q-a-pairs/[id]/history. */
+export interface QAPairHistoryListResponse {
+  versions: QAPairHistoryEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** Fetch the revision-history list (incl edit_intent) for one Q&A pair. */
+export async function fetchQAPairHistory(
+  pairId: string,
+  limit = 50,
+): Promise<QAPairHistoryListResponse> {
+  return fetchJson<QAPairHistoryListResponse>(
+    `/api/q-a-pairs/${pairId}/history?limit=${limit}`,
+  );
+}
+
 /** Response shape for GET /api/admin/taxonomy-sync/status */
 /** @public */
 export interface TaxonomySyncStatus {

@@ -134,6 +134,17 @@ export const queryKeys = {
       ['item-history', itemId, 'version', versionId] as const,
   },
 
+  // Q&A pair revision history (ID-59 {59.16} user-edit Diff-UI, Q&A leg).
+  // Source = q_a_pair_history (INV-14); each row carries the full revision body
+  // + edit_intent, so the compare-two-versions affordance derives both diff
+  // blobs from the list (no per-version detail leg, mirroring the content
+  // surface's separate detail route is unnecessary here).
+  qaPairHistory: {
+    all: (pairId: string) => ['qa-pair-history', pairId] as const,
+    list: (pairId: string, limit: number) =>
+      ['qa-pair-history', pairId, 'list', limit] as const,
+  },
+
   // Source documents
   sourceDocuments: {
     all: ['source-documents'] as const,
