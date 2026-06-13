@@ -30,6 +30,7 @@ venv/
 # Both are blanket-ignored by .claude/* above; listing explicitly to document
 # intent and so newcomers don't try to track them.
 .claude/cmux-events/
+.claude/cmux-briefs/
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 
@@ -128,3 +129,7 @@ scripts/tests/fixtures/entity_aliases_snapshot.json
 # ID-95 PI-18 {95.13}: canonical-content propagation catalog holds service-role
 # DSNs (config-as-data, out-of-band operator input) — MUST NEVER be committed
 scripts/.propagation-catalog.json
+
+# Local session ephemera (Lavish review artifacts, user scratch dir)
+.lavish/
+.user-scratch/
