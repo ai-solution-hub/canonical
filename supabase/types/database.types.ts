@@ -790,6 +790,27 @@ export type Database = {
           },
         ]
       }
+      content_propagation_version: {
+        Row: {
+          applied_at: string
+          payload_checksum: string
+          payload_key: string
+          version: number
+        }
+        Insert: {
+          applied_at?: string
+          payload_checksum: string
+          payload_key: string
+          version: number
+        }
+        Update: {
+          applied_at?: string
+          payload_checksum?: string
+          payload_key?: string
+          version?: number
+        }
+        Relationships: []
+      }
       content_templates: {
         Row: {
           brief_template: string | null
