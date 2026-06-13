@@ -418,9 +418,13 @@ EMIT its final report to a structured file inside its events directory
 *in addition to* (not instead of) the stdout summary:
 
 ```
-Before /exit, write your final report to `<events_dir>/final_report.yaml`
-(or `.json`). Schema: structured key/value with sections {summary, commits,
-dispositions, ledger_intents, OQs_for_parent, next_session_handoff}. Keep
+Before /exit, write your final report to YOUR PER-SID events dir:
+`$KH_CMUX_EVENTS_DIR/<your-SID>/final_report.yaml` (or `.json`) — NOT the bare
+`$KH_CMUX_EVENTS_DIR` base dir. A base-dir report is INVISIBLE to
+watch-fleet.sh (it only scans `<base>/<sid>/final_report.*`), so it surfaces as
+a `stop` pause — never FINAL_REPORT — and risks clobbering a sibling worker's
+report. Schema: structured key/value with sections {summary, commits,
+dispositions, ledger_intents, OQs_for_parent, next_session_handoff}. Keep the
 stdout summary too (for human glance) but the YAML/JSON file is the canonical
 machine-read surface.
 ```
