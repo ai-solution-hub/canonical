@@ -100,7 +100,7 @@ function configurePromotionSuccess(client: MockSupabaseClient) {
       question_text: sourceResponseRow().form_questions.question_text,
       answer_standard: sourceResponseRow().response_text,
       answer_advanced: sourceResponseRow().response_text_advanced,
-      origin_kind: 'derived_from_bid_response',
+      origin_kind: 'derived_from_form_response',
       publication_status: 'draft',
       edit_intent: 'cosmetic',
       source_form_response_id: RESPONSE_ID,
@@ -145,7 +145,7 @@ describe('POST /api/q-a-pairs/promote', () => {
     expect(insertArg.source_form_response_id).toBe(RESPONSE_ID);
     expect(insertArg.source_question_id).toBe(QUESTION_ID);
     expect(insertArg.publication_status).toBe('draft');
-    expect(insertArg.origin_kind).toBe('derived_from_bid_response');
+    expect(insertArg.origin_kind).toBe('derived_from_form_response');
     expect(insertArg.question_text).toBe(
       sourceResponseRow().form_questions.question_text,
     );

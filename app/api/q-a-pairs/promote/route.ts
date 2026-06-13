@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
           question_text: questionText,
           answer_standard: answerStandard,
           answer_advanced: source.response_text_advanced,
-          origin_kind: 'derived_from_bid_response',
+          origin_kind: 'derived_from_form_response',
           publication_status: 'draft',
           edit_intent: editIntent,
           source_form_response_id: parsed.source_form_response_id,
