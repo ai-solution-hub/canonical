@@ -3509,6 +3509,27 @@ export type Database = {
           },
         ]
       }
+      tenant_config: {
+        Row: {
+          config: Json
+          created_at: string
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       training_onboarding_workspaces: {
         Row: {
           created_at: string
