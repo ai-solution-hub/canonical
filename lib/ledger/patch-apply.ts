@@ -421,7 +421,7 @@ export function applyBacklogPatches(
  * re-parse via RetrosSchema (WS-C C2). Same single-validation-pass +
  * clone-on-entry contract as the other appliers.
  */
-export function applyRetroPatches(
+function applyRetroPatches(
   snapshot: RetrosDocument,
   patches: readonly FieldPatch[],
 ): ApplyPatchesResult<RetrosDocument> {

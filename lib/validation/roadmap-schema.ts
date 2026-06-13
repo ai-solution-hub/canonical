@@ -102,7 +102,6 @@ export const DocLinkSchema = z
       .describe('Original text matched by the regex sweep, for round-trip'),
   })
   .strict();
-export type DocLink = z.infer<typeof DocLinkSchema>;
 
 // ──────────────────────────────────────────
 // Theme (Subtask 30.6 / TECH §3.1)

@@ -14,6 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   BacklogItemSchema,
   BacklogSchema,
@@ -132,7 +133,7 @@ describe('fixture product-backlog.json — still parses with the title field add
   // the ≤80 soft budget (ID-68.35: live ledger removed from public repo; fixture
   // is synthetic de-identified data with titles pre-supplied).
   it('parses the fixture ledger; every item has a non-empty title ≤80', () => {
-    const fixturePath = require('node:path').resolve(
+    const fixturePath = resolve(
       __dirname,
       '../../fixtures/ledger/product-backlog.json',
     );
