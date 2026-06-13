@@ -2654,6 +2654,8 @@ export type Database = {
           question_embedding: string | null
           question_text: string
           scope_tag: string[]
+          source_form_response_id: string | null
+          source_question_id: string | null
           source_workspace_id: string | null
           superseded_by: string | null
           updated_at: string
@@ -2673,6 +2675,8 @@ export type Database = {
           question_embedding?: string | null
           question_text: string
           scope_tag?: string[]
+          source_form_response_id?: string | null
+          source_question_id?: string | null
           source_workspace_id?: string | null
           superseded_by?: string | null
           updated_at?: string
@@ -2692,6 +2696,8 @@ export type Database = {
           question_embedding?: string | null
           question_text?: string
           scope_tag?: string[]
+          source_form_response_id?: string | null
+          source_question_id?: string | null
           source_workspace_id?: string | null
           superseded_by?: string | null
           updated_at?: string
@@ -2699,6 +2705,20 @@ export type Database = {
           valid_to?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "q_a_pairs_source_form_response_id_fkey"
+            columns: ["source_form_response_id"]
+            isOneToOne: false
+            referencedRelation: "form_responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_pairs_source_question_id_fkey"
+            columns: ["source_question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "q_a_pairs_source_workspace_id_fkey"
             columns: ["source_workspace_id"]
