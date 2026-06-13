@@ -31,7 +31,6 @@
     "lib/mcp/tools/content.ts",
     "lib/quality/quality-score.ts",
     "lib/validation/schemas.ts",
-    "scripts/batch-reclassify.ts",
     "scripts/bundle-plugin.ts",
     "scripts/generate-classification-prompt-taxonomy.ts",
     "scripts/generate-taxonomy-snapshot.ts",
