@@ -2715,6 +2715,64 @@ export type Database = {
           },
         ]
       }
+      question_matches: {
+        Row: {
+          created_at: string
+          embedding_score: number | null
+          form_question_id: string
+          fulltext_score: number | null
+          id: string
+          matched_at: string
+          q_a_pair_id: string
+          question_kind: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          embedding_score?: number | null
+          form_question_id: string
+          fulltext_score?: number | null
+          id?: string
+          matched_at?: string
+          q_a_pair_id: string
+          question_kind: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          embedding_score?: number | null
+          form_question_id?: string
+          fulltext_score?: number | null
+          id?: string
+          matched_at?: string
+          q_a_pair_id?: string
+          question_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_matches_form_question_id_fkey"
+            columns: ["form_question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "question_matches_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "question_matches_question_kind_fkey"
+            columns: ["question_kind"]
+            isOneToOne: false
+            referencedRelation: "form_types"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       read_marks: {
         Row: {
           content_item_id: string
